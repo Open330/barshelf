@@ -135,7 +135,9 @@ final class GalleryModel: ObservableObject {
     /// Kicks off the existing GUI install flow (per-widget confirmation
     /// dialog with the permission summary, then the completion alert).
     func install(_ entry: RegistryWidgetEntry) {
-        WidgetInstaller.shared.install(input: entry.install.url)
+        WidgetInstaller.shared.install(registryEntry: entry) { [weak self] in
+            self?.refreshInstalledStates()
+        }
     }
 
     /// Installed = the widget's install directory exists (same rule as the

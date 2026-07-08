@@ -81,9 +81,16 @@ public struct RegistryWidgetEntry: Codable, Equatable, Sendable {
         /// Same format as the R05 install URL contract (GitHub repo / tree /
         /// zip / .mbw / deep link string).
         public var url: String
+        /// R08 (C1): name of a directory under the app bundle's
+        /// `Resources/widgets/`. When present and the directory exists, the
+        /// gallery installs by local copy (no network) — same result as
+        /// `HeadlessInstaller.install` (`~/…/widgets/<manifest.id>/`).
+        /// Missing/absent directory falls back to `url`.
+        public var bundled: String?
 
-        public init(url: String) {
+        public init(url: String, bundled: String? = nil) {
             self.url = url
+            self.bundled = bundled
         }
     }
 

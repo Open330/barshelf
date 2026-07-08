@@ -1,4 +1,6 @@
 import AppKit
+import Combine
+import MenubucketCore
 import SwiftUI
 
 /// Owns the NSStatusItem, the popup surface, and popup-scoped keyboard handling.
@@ -9,10 +11,12 @@ import SwiftUI
 final class StatusItemController: NSObject {
     private var statusItem: NSStatusItem!
     private let runtime = WidgetRuntime()
+    private let appPrefs = AppPrefs.shared
     private let pager = PagerState()
     private var popup: PopupSurface!
     private var keyboardMonitor: Any?
     private var scrollMonitor: Any?
+    private var cancellables: Set<AnyCancellable> = []
 
     /// Two-finger swipe tracking (scroll-wheel phases).
     private enum SwipeAxis {
@@ -48,6 +52,16 @@ final class StatusItemController: NSObject {
         )
         galleryItem.target = self
         menu.addItem(galleryItem)
+
+        menu.addItem(.separator())
+
+        let settingsItem = NSMenuItem(
+            title: "Settings…",
+            action: #selector(openSettings(_:)),
+            keyEquivalent: ","
+        )
+        settingsItem.target = self
+        menu.addItem(settingsItem)
 
         menu.addItem(.separator())
 
@@ -87,11 +101,17 @@ final class StatusItemController: NSObject {
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "tray.full", accessibilityDescription: "MenuBucket")
             button.action = #selector(statusItemClicked(_:))
             button.target = self
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
+        appPrefs.$preferences
+            .receive(on: RunLoop.main)
+            .sink { [weak self] preferences in
+                self?.applyStatusSymbol(preferences.menuBarSymbol)
+            }
+            .store(in: &cancellables)
+        applyStatusSymbol(appPrefs.preferences.menuBarSymbol)
     }
 
     deinit {
@@ -148,8 +168,30 @@ final class StatusItemController: NSObject {
         }
     }
 
+    @objc private func openSettings(_ sender: Any?) {
+        popup.hide()
+        Task { @MainActor in
+            AppSettingsWindowController.shared.show(
+                runtime: runtime, appPrefs: appPrefs
+            )
+        }
+    }
+
     @objc private func terminateApp(_ sender: Any?) {
         NSApp.terminate(sender)
+    }
+
+    private func applyStatusSymbol(_ symbol: String) {
+        let fallback = AppPreferences.defaultMenuBarSymbol
+        let trimmed = symbol.trimmingCharacters(in: .whitespacesAndNewlines)
+        let image = NSImage(
+            systemSymbolName: trimmed.isEmpty ? fallback : trimmed,
+            accessibilityDescription: "MenuBucket"
+        ) ?? NSImage(
+            systemSymbolName: fallback,
+            accessibilityDescription: "MenuBucket"
+        )
+        statusItem.button?.image = image
     }
 
     // MARK: - Keyboard (popup-scoped): ←/→ page switch, ⌘1..9 jump, Esc close

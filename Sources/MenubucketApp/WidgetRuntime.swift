@@ -60,10 +60,15 @@ final class WidgetRuntime: ObservableObject {
     private var cardModels: [String: WidgetCardModel] = [:]
     /// Pinned widgets + per-widget settings overrides (user preferences).
     let prefs = WidgetPrefs()
+    let appPrefs: AppPrefs
+    @Published private(set) var refreshStatsSnapshot: [String: WidgetRefreshStats] = [:]
 
     private let execService = ExecService()
     let scheduler = Scheduler()
+    private let refreshStatsStore: RefreshStatsStore
+    private var cancellables: Set<AnyCancellable> = []
     private var inFlight: Set<String> = []
+    private var refreshStartedAt: [String: Date] = [:]
     private var hotReloadWatchers: [DirectoryWatcher] = []
     /// `fs.directory` sources with `watch: true`, keyed by widget id.
     private var workflowWatchers: [String: DirectoryWatcher] = [:]
@@ -89,16 +94,39 @@ final class WidgetRuntime: ObservableObject {
     private static let defaultTimeoutMs = 25_000
     private static let hotReloadDebounceSec: TimeInterval = 0.4
 
-    init() {
+    init(
+        appPrefs: AppPrefs = .shared,
+        refreshStatsStore: RefreshStatsStore? = nil
+    ) {
+        self.appPrefs = appPrefs
+        self.refreshStatsStore = refreshStatsStore ?? RefreshStatsStore(
+            fileURL: Self.applicationSupportDirectory
+                .appendingPathComponent(RefreshStatsStore.defaultFileName)
+        )
+        self.refreshStatsSnapshot = self.refreshStatsStore.all
         scheduler.requestRefresh = { [weak self] widgetID, manual in
             self?.refresh(widgetID: widgetID, manual: manual)
         }
         scheduler.requestStaleRefresh = { [weak self] backgroundOnly in
             self?.refreshStaleWidgets(backgroundOnly: backgroundOnly)
         }
+        applyAppPreferences(appPrefs.preferences)
+        appPrefs.$preferences
+            .receive(on: RunLoop.main)
+            .sink { [weak self] preferences in
+                self?.applyAppPreferences(preferences)
+            }
+            .store(in: &cancellables)
         seedStarterWidgets()
         loadWidgets()
         startHotReload()
+    }
+
+    private func applyAppPreferences(_ preferences: AppPreferences) {
+        scheduler.configurePolicy(
+            refreshMultiplier: preferences.refreshMultiplier,
+            pauseWhenClosed: preferences.pauseWhenClosed
+        )
     }
 
     // MARK: - First-run seeding (R07 onboarding)
@@ -206,6 +234,8 @@ final class WidgetRuntime: ObservableObject {
             NSLog("menubucket[%@] status: %@ (rev %d)", widgetId, label, revision)
         }
         scheduler.noteRefreshSucceeded(widgetID: widgetId, nextRefreshAtMs: params.nextRefreshAt)
+        inFlight.remove(widgetId)
+        recordRefreshSuccess(widgetID: widgetId)
     }
 
     private func handleScriptStateChange(widgetId: String, state: ScriptWidgetState) {
@@ -219,7 +249,11 @@ final class WidgetRuntime: ObservableObject {
                     $0.isLoading = false
                     $0.error = "script exited unexpectedly"
                 }
+                inFlight.remove(widgetId)
                 scheduler.noteRefreshFailed(widgetID: widgetId)
+                recordRefreshFailure(
+                    widgetID: widgetId, error: "script exited unexpectedly"
+                )
             }
         case let .disabled(reason):
             scriptDisabledReasonCache[widgetId] = reason
@@ -228,6 +262,9 @@ final class WidgetRuntime: ObservableObject {
                 $0.isLoading = false
                 $0.error = "Widget disabled: \(reason)"
             }
+            inFlight.remove(widgetId)
+            scheduler.noteRefreshFailed(widgetID: widgetId)
+            recordRefreshFailure(widgetID: widgetId, error: "Widget disabled: \(reason)")
         }
     }
 
@@ -443,6 +480,8 @@ final class WidgetRuntime: ObservableObject {
         widgets = loaded
         // Remove per-widget state of widgets that disappeared (hot reload).
         removeWidgetState(notIn: seenIDs)
+        refreshStatsStore.retain(widgetIDs: seenIDs)
+        publishRefreshStats()
 
         for widget in loaded {
             if snapshots[widget.id] == nil {
@@ -538,7 +577,8 @@ final class WidgetRuntime: ObservableObject {
         for widget in widgets {
             let refresh = widget.manifest.refresh
             let snapshot = snapshots[widget.id] ?? WidgetSnapshot(widgetID: widget.id)
-            if refresh?.onOpen == true, snapshot.isStale(after: refresh?.staleAfterSec) {
+            if refresh?.onOpen == true,
+               snapshot.isStale(after: effectiveStaleAfter(refresh?.staleAfterSec)) {
                 self.refresh(widget, manual: false)
             }
         }
@@ -567,10 +607,17 @@ final class WidgetRuntime: ObservableObject {
         for widget in widgets {
             if backgroundOnly, widget.manifest.refresh?.runInBackground != true { continue }
             let snapshot = snapshots[widget.id] ?? WidgetSnapshot(widgetID: widget.id)
-            if snapshot.isStale(after: widget.manifest.refresh?.staleAfterSec) {
+            if snapshot.isStale(after: effectiveStaleAfter(widget.manifest.refresh?.staleAfterSec)) {
                 refresh(widget, manual: false)
             }
         }
+    }
+
+    private func effectiveStaleAfter(_ configured: Double?) -> Double? {
+        SchedulePolicy.effectiveStaleAfter(
+            configured: configured,
+            multiplier: appPrefs.preferences.refreshMultiplier
+        )
     }
 
     func refresh(_ widget: LoadedWidget, manual: Bool = true) {
@@ -583,9 +630,11 @@ final class WidgetRuntime: ObservableObject {
         // widget's current permission set (approval card shown instead).
         guard gatePermissions(for: widget) else { return }
         guard Self.supportedEntryKinds.contains(widget.manifest.entry.kind) else {
+            let message = "entry.kind \"\(widget.manifest.entry.kind)\" is not supported in M2 (only \"exec\", \"script\", \"workflow\")"
             updateSnapshot(id) {
-                $0.error = "entry.kind \"\(widget.manifest.entry.kind)\" is not supported in M2 (only \"exec\", \"script\", \"workflow\")"
+                $0.error = message
             }
+            recordRefreshFailure(widgetID: id, error: message, startedAt: Date())
             return
         }
         if widget.manifest.entry.kind == "script" {
@@ -599,7 +648,9 @@ final class WidgetRuntime: ObservableObject {
         guard let source = widget.manifest.source,
               let command = source.command, !command.isEmpty
         else {
-            updateSnapshot(id) { $0.error = "manifest has no source.command" }
+            let message = "manifest has no source.command"
+            updateSnapshot(id) { $0.error = message }
+            recordRefreshFailure(widgetID: id, error: message, startedAt: Date())
             return
         }
         // Runtime allowlist enforcement: a declared exec allowlist must also
@@ -610,19 +661,22 @@ final class WidgetRuntime: ObservableObject {
                 "command": .string(command.joined(separator: " ")),
                 "reason": .string("source.command not in permissions.exec allowlist"),
             ])
+            let message = "source.command is not covered by permissions.exec allowlist"
             updateSnapshot(id) {
-                $0.error = "source.command is not covered by permissions.exec allowlist"
+                $0.error = message
             }
+            recordRefreshFailure(widgetID: id, error: message, startedAt: Date())
             return
         }
 
+        let startedAt = markRefreshStarted(widgetID: id)
         inFlight.insert(id)
         updateSnapshot(id) { $0.isLoading = true }
 
         Task { @MainActor [weak self] in
             guard let self else { return }
             let outcome = await self.performRefresh(widget: widget, source: source, command: command)
-            self.finishRefresh(widget: widget, outcome: outcome)
+            self.finishRefresh(widget: widget, outcome: outcome, startedAt: startedAt)
         }
     }
 
@@ -630,6 +684,7 @@ final class WidgetRuntime: ObservableObject {
     /// `widget.load`. Renders arrive asynchronously via `handleScriptRender`.
     private func refreshScript(_ widget: LoadedWidget, manual: Bool) {
         let id = widget.id
+        markRefreshStarted(widgetID: id)
         updateSnapshot(id) { $0.isLoading = true }
         let descriptor = ScriptWidgetDescriptor(manifest: widget.manifest, directory: widget.directory)
         let isFirstLoad = snapshots[id]?.viewTree == nil
@@ -649,7 +704,9 @@ final class WidgetRuntime: ObservableObject {
                     $0.isLoading = false
                     $0.error = message // e.g. "Deno runtime not found. Install Deno: brew install deno"
                 }
+                self.inFlight.remove(id)
                 self.scheduler.noteRefreshFailed(widgetID: id)
+                self.recordRefreshFailure(widgetID: id, error: message)
             }
         }
     }
@@ -726,6 +783,7 @@ final class WidgetRuntime: ObservableObject {
             .appendingPathComponent(widget.manifest.entry.main ?? "workflow.json")
         let settings = prefs.effectiveSettings(for: widget.manifest)
 
+        let startedAt = markRefreshStarted(widgetID: id)
         inFlight.insert(id)
         updateSnapshot(id) { $0.isLoading = true }
 
@@ -734,7 +792,7 @@ final class WidgetRuntime: ObservableObject {
             let outcome = await self.performWorkflowRefresh(
                 widget: widget, workflowURL: workflowURL, settings: settings
             )
-            self.finishRefresh(widget: widget, outcome: outcome)
+            self.finishRefresh(widget: widget, outcome: outcome, startedAt: startedAt)
         }
     }
 
@@ -852,28 +910,84 @@ final class WidgetRuntime: ObservableObject {
         }
     }
 
-    private func finishRefresh(widget: LoadedWidget, outcome: Result<RefreshSuccess, Error>) {
+    private func finishRefresh(
+        widget: LoadedWidget,
+        outcome: Result<RefreshSuccess, Error>,
+        startedAt: Date
+    ) {
         let id = widget.id
         inFlight.remove(id)
 
         var snapshot = snapshots[id] ?? WidgetSnapshot(widgetID: id)
         snapshot.isLoading = false
+        let completedAt = Date()
 
         switch outcome {
         case let .success(success):
             snapshot.viewTree = success.viewTree
-            snapshot.updatedAt = Date()
+            snapshot.updatedAt = completedAt
             snapshot.error = nil
             if !widget.isSensitive {
                 persistSnapshot(snapshot) // sensitive renders stay memory-only
             }
             scheduler.noteRefreshSucceeded(widgetID: id, nextRefreshAtMs: success.nextRefreshAtMs)
+            recordRefreshSuccess(
+                widgetID: id, startedAt: startedAt, completedAt: completedAt
+            )
         case let .failure(error):
             // Last-good render stays; only the error banner changes.
-            snapshot.error = Self.describe(error: error, widget: widget)
+            let message = Self.describe(error: error, widget: widget)
+            snapshot.error = message
             scheduler.noteRefreshFailed(widgetID: id)
+            recordRefreshFailure(
+                widgetID: id, error: message,
+                startedAt: startedAt, completedAt: completedAt
+            )
         }
         setSnapshot(snapshot, for: id)
+    }
+
+    @discardableResult
+    private func markRefreshStarted(widgetID: String) -> Date {
+        let date = Date()
+        refreshStartedAt[widgetID] = date
+        return date
+    }
+
+    private func recordRefreshSuccess(
+        widgetID: String,
+        startedAt: Date? = nil,
+        completedAt: Date = Date()
+    ) {
+        let start = startedAt ?? refreshStartedAt[widgetID]
+        refreshStartedAt.removeValue(forKey: widgetID)
+        refreshStatsStore.recordSuccess(
+            widgetID: widgetID,
+            durationMs: start.map { completedAt.timeIntervalSince($0) * 1000 },
+            at: completedAt
+        )
+        publishRefreshStats()
+    }
+
+    private func recordRefreshFailure(
+        widgetID: String,
+        error: String,
+        startedAt: Date? = nil,
+        completedAt: Date = Date()
+    ) {
+        let start = startedAt ?? refreshStartedAt[widgetID]
+        refreshStartedAt.removeValue(forKey: widgetID)
+        refreshStatsStore.recordFailure(
+            widgetID: widgetID,
+            error: error,
+            durationMs: start.map { completedAt.timeIntervalSince($0) * 1000 },
+            at: completedAt
+        )
+        publishRefreshStats()
+    }
+
+    private func publishRefreshStats() {
+        refreshStatsSnapshot = refreshStatsStore.all
     }
 
     /// Human-readable error; appends Keychain setup guidance when a
@@ -1033,6 +1147,8 @@ final class WidgetRuntime: ObservableObject {
         snapshots = snapshots.filter { liveIDs.contains($0.key) }
         overlayCards = overlayCards.filter { liveIDs.contains($0.key) }
         cardModels = cardModels.filter { liveIDs.contains($0.key) }
+        inFlight.formIntersection(liveIDs)
+        refreshStartedAt = refreshStartedAt.filter { liveIDs.contains($0.key) }
     }
 
     // MARK: - Render snapshot cache

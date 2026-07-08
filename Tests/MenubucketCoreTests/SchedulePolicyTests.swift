@@ -36,6 +36,58 @@ final class SchedulePolicyTests: XCTestCase {
         XCTAssertNil(SchedulePolicy.effectiveInterval(configured: -3, popupOpen: true, runInBackground: true))
     }
 
+    func testRefreshMultiplierScalesIntervalsBeforeClamps() {
+        XCTAssertEqual(
+            SchedulePolicy.effectiveInterval(
+                configured: 30, popupOpen: true, runInBackground: false,
+                multiplier: 2
+            ),
+            60
+        )
+        XCTAssertEqual(
+            SchedulePolicy.effectiveInterval(
+                configured: 2, popupOpen: true, runInBackground: false,
+                multiplier: 0.5
+            ),
+            5
+        )
+        XCTAssertEqual(
+            SchedulePolicy.effectiveInterval(
+                configured: 30, popupOpen: false, runInBackground: true,
+                multiplier: 2
+            ),
+            240
+        )
+    }
+
+    func testPauseWhenClosedStopsBackgroundPolling() {
+        XCTAssertNil(
+            SchedulePolicy.effectiveInterval(
+                configured: 60, popupOpen: false, runInBackground: true,
+                multiplier: 1, pauseWhenClosed: true
+            )
+        )
+        XCTAssertEqual(
+            SchedulePolicy.effectiveInterval(
+                configured: 60, popupOpen: true, runInBackground: true,
+                multiplier: 1, pauseWhenClosed: true
+            ),
+            60
+        )
+    }
+
+    func testEffectiveStaleAfterUsesNormalizedMultiplier() {
+        XCTAssertEqual(
+            SchedulePolicy.effectiveStaleAfter(configured: 60, multiplier: 2),
+            120
+        )
+        XCTAssertEqual(
+            SchedulePolicy.effectiveStaleAfter(configured: 60, multiplier: 0.49),
+            30
+        )
+        XCTAssertNil(SchedulePolicy.effectiveStaleAfter(configured: nil, multiplier: 4))
+    }
+
     // MARK: - Backoff
 
     func testBackoffProgression15_60_300Capped() {

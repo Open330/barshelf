@@ -38,6 +38,8 @@ final class Scheduler {
     private var watchers: [String: DirectoryWatcher] = [:]
     private var pendingWatchEvents: Set<String> = []
     private var wakeObserver: NSObjectProtocol?
+    private var refreshMultiplier: Double = 1
+    private var pauseWhenClosed = false
 
     static let watchDebounceSec: TimeInterval = 0.25
 
@@ -48,6 +50,7 @@ final class Scheduler {
             queue: .main
         ) { [weak self] _ in
             guard let self else { return }
+            if self.pauseWhenClosed, !self.popupIsOpen { return }
             // While closed, only runInBackground widgets refresh (invariant 3);
             // everything else is picked up by onOpen staleness.
             self.requestStaleRefresh?(!self.popupIsOpen)
@@ -74,6 +77,16 @@ final class Scheduler {
         rebuildIntervalTimers()
         rebuildDeadlineTimers()
         rebuildWatchers()
+    }
+
+    func configurePolicy(refreshMultiplier: Double, pauseWhenClosed: Bool) {
+        let normalized = SchedulePolicy.normalizedRefreshMultiplier(refreshMultiplier)
+        guard normalized != self.refreshMultiplier
+            || pauseWhenClosed != self.pauseWhenClosed
+        else { return }
+        self.refreshMultiplier = normalized
+        self.pauseWhenClosed = pauseWhenClosed
+        rebuildIntervalTimers()
     }
 
     // MARK: - Popup lifecycle
@@ -126,7 +139,9 @@ final class Scheduler {
             guard let interval = SchedulePolicy.effectiveInterval(
                 configured: widget.manifest.refresh?.interval,
                 popupOpen: popupIsOpen,
-                runInBackground: widget.manifest.refresh?.runInBackground ?? false
+                runInBackground: widget.manifest.refresh?.runInBackground ?? false,
+                multiplier: refreshMultiplier,
+                pauseWhenClosed: pauseWhenClosed
             ) else { continue }
 
             let id = widget.id

@@ -33,7 +33,7 @@ final class RegistryTests: XCTestCase {
           "icon": "gauge",
           "kind": "exec",
           "tags": ["dev", "ai"],
-          "install": { "url": "https://github.com/owner/repo/tree/main/widgets/one" },
+          "install": { "url": "https://github.com/owner/repo/tree/main/widgets/one", "bundled": "one" },
           "permissions": { "exec": ["one-cli"], "keychain": true, "notifications": false },
           "homepage": "https://example.com"
         },
@@ -92,6 +92,7 @@ final class RegistryTests: XCTestCase {
         XCTAssertEqual(first.kind, "exec")
         XCTAssertEqual(first.tags, ["dev", "ai"])
         XCTAssertEqual(first.install.url, "https://github.com/owner/repo/tree/main/widgets/one")
+        XCTAssertEqual(first.install.bundled, "one")
         XCTAssertEqual(first.permissions?.exec, ["one-cli"])
         XCTAssertEqual(first.permissions?.keychain, true)
         XCTAssertEqual(first.permissions?.notifications, false)
@@ -176,6 +177,19 @@ final class RegistryTests: XCTestCase {
         )
         XCTAssertEqual(
             byID["dev.menubucket.aas-usage"]?.homepage,
+            "https://github.com/Open330/aas"
+        )
+        XCTAssertEqual(byID["dev.menubucket.hello"]?.install.bundled, "hello")
+        XCTAssertEqual(byID["dev.menubucket.recent-files"]?.install.bundled, "recent-files")
+        XCTAssertEqual(byID["dev.menubucket.aas-usage"]?.install.bundled, "aas-usage")
+        XCTAssertEqual(byID["dev.menubucket.otpeek"]?.install.bundled, "otpeek")
+        XCTAssertEqual(byID["dev.menubucket.clock-script"]?.install.bundled, "clock-script")
+        XCTAssertEqual(
+            byID["dev.menubucket.recent-files"]?.install.url,
+            "https://github.com/jiunbae/file-stack"
+        )
+        XCTAssertEqual(
+            byID["dev.menubucket.aas-usage"]?.install.url,
             "https://github.com/Open330/aas"
         )
     }

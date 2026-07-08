@@ -10,18 +10,52 @@ public enum SchedulePolicy {
     /// Closed-popup intervals are relaxed by this factor.
     public static let backgroundRelaxFactor: Double = 4
 
+    /// Refresh multipliers offered by the app settings (R08). The configured
+    /// interval and `staleAfter` judgments are both scaled by the multiplier;
+    /// anything else is normalized to the nearest allowed step.
+    public static let allowedRefreshMultipliers: [Double] = [0.5, 1, 2, 4]
+
+    /// Snaps an arbitrary stored value to the nearest allowed multiplier
+    /// (corrupt/hand-edited prefs must never produce a 0× or negative rate).
+    public static func normalizedRefreshMultiplier(_ value: Double) -> Double {
+        guard value.isFinite, value > 0 else { return 1 }
+        return allowedRefreshMultipliers.min {
+            abs($0 - value) < abs($1 - value)
+        } ?? 1
+    }
+
     /// Effective polling interval, or nil when no interval timer should run.
+    ///
+    /// - `multiplier`: user refresh multiplier (R08 app settings). Scales the
+    ///   configured interval *before* the minimum clamps, so 0.5× can never
+    ///   undercut the 5 s / 60 s floors.
+    /// - `pauseWhenClosed`: battery saver — while the popup is closed nothing
+    ///   polls, `runInBackground` widgets included.
     public static func effectiveInterval(
         configured: Double?,
         popupOpen: Bool,
-        runInBackground: Bool
+        runInBackground: Bool,
+        multiplier: Double = 1,
+        pauseWhenClosed: Bool = false
     ) -> Double? {
         guard let configured, configured > 0 else { return nil }
+        let scaled = configured * normalizedRefreshMultiplier(multiplier)
         if popupOpen {
-            return max(configured, minForegroundIntervalSec)
+            return max(scaled, minForegroundIntervalSec)
         }
+        if pauseWhenClosed { return nil }
         guard runInBackground else { return nil }
-        return max(configured * backgroundRelaxFactor, minBackgroundIntervalSec)
+        return max(scaled * backgroundRelaxFactor, minBackgroundIntervalSec)
+    }
+
+    /// `staleAfter` scaled by the refresh multiplier: at 2× data stays
+    /// "fresh" twice as long. `nil` stays nil ("always stale").
+    public static func effectiveStaleAfter(
+        configured: Double?,
+        multiplier: Double
+    ) -> Double? {
+        guard let configured else { return nil }
+        return configured * normalizedRefreshMultiplier(multiplier)
     }
 }
 

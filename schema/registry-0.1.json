@@ -113,6 +113,10 @@
         "url": {
           "$ref": "#/definitions/nonEmptyString",
           "description": "Install source URL in the R05 URL-install contract format: GitHub repo URL (optionally /tree/{branch}/{subdir}), direct .zip/.mbw archive URL, or menubucket://install deep link string."
+        },
+        "bundled": {
+          "$ref": "#/definitions/nonEmptyString",
+          "description": "Optional directory name under the app bundle's Resources/widgets/. When present and available, the gallery installs by local copy before falling back to url."
         }
       },
       "additionalProperties": true

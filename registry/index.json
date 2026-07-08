@@ -1,5 +1,5 @@
 {
-  "_comment": "Sample index served from this repository. install.url points at https://github.com/jiunbae/menubucket — while that repository is private these URLs only resolve for collaborators; external users cannot install from them until the repo (or a dedicated public registry repo) is published. The `requires` field is a display-only gallery badge for widgets that need an external CLI/runtime.",
+  "_comment": "Sample index served from this repository. install.bundled lets the packaged gallery install the starter widgets without network access. The `requires` field is a display-only gallery badge for widgets that need an external CLI/runtime.",
   "schemaVersion": 1,
   "name": "menubucket official registry",
   "updatedAt": "2026-07-08T00:00:00Z",
@@ -13,7 +13,8 @@
       "icon": "hand.wave",
       "kind": "exec",
       "tags": ["demo", "starter", "shell"],
-      "install": { "url": "https://github.com/jiunbae/menubucket/tree/master/widgets/hello" },
+      "_comment": "Fallback URL is private until menubucket is published; bundled install is authoritative in packaged builds.",
+      "install": { "url": "https://github.com/jiunbae/menubucket/tree/master/widgets/hello", "bundled": "hello" },
       "permissions": { "exec": [], "keychain": false, "notifications": false },
       "homepage": "https://github.com/jiunbae/menubucket"
     },
@@ -26,7 +27,7 @@
       "icon": "folder.fill",
       "kind": "workflow",
       "tags": ["files", "workflow", "starter", "stashbar"],
-      "install": { "url": "https://github.com/jiunbae/menubucket/tree/master/widgets/recent-files" },
+      "install": { "url": "https://github.com/jiunbae/file-stack", "bundled": "recent-files" },
       "permissions": { "exec": [], "keychain": false, "notifications": false },
       "homepage": "https://github.com/jiunbae/file-stack"
     },
@@ -40,7 +41,7 @@
       "kind": "exec",
       "tags": ["dev", "ai", "aas", "cli"],
       "requires": "aas CLI",
-      "install": { "url": "https://github.com/jiunbae/menubucket/tree/master/widgets/aas-usage" },
+      "install": { "url": "https://github.com/Open330/aas", "bundled": "aas-usage" },
       "permissions": { "exec": ["aas"], "keychain": false, "notifications": false },
       "homepage": "https://github.com/Open330/aas"
     },
@@ -54,7 +55,8 @@
       "kind": "exec",
       "tags": ["security", "otp", "2fa", "cli"],
       "requires": "otpeek CLI",
-      "install": { "url": "https://github.com/jiunbae/menubucket/tree/master/widgets/otpeek" },
+      "_comment": "Fallback URL is private until menubucket is published; bundled install is authoritative in packaged builds.",
+      "install": { "url": "https://github.com/jiunbae/menubucket/tree/master/widgets/otpeek", "bundled": "otpeek" },
       "permissions": { "exec": ["otpeek"], "keychain": true, "notifications": false },
       "homepage": "https://github.com/jiunbae/otpeek"
     },
@@ -68,7 +70,8 @@
       "kind": "script",
       "tags": ["demo", "script", "clock", "deno"],
       "requires": "Deno runtime",
-      "install": { "url": "https://github.com/jiunbae/menubucket/tree/master/widgets/clock-script" },
+      "_comment": "Fallback URL is private until menubucket is published; bundled install is authoritative in packaged builds.",
+      "install": { "url": "https://github.com/jiunbae/menubucket/tree/master/widgets/clock-script", "bundled": "clock-script" },
       "permissions": { "exec": [], "keychain": false, "notifications": false },
       "homepage": "https://github.com/jiunbae/menubucket"
     }

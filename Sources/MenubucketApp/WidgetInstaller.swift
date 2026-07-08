@@ -16,6 +16,19 @@ enum WidgetInstallFlow {
             .appendingPathComponent("widgets", isDirectory: true)
     }
 
+    static var bundledWidgetRoots: [URL] {
+        var roots: [URL] = []
+        if let resources = Bundle.main.resourceURL {
+            roots.append(resources.appendingPathComponent("widgets", isDirectory: true))
+        }
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()  // MenubucketApp
+            .deletingLastPathComponent()  // Sources
+            .deletingLastPathComponent()  // repo root
+        roots.append(repoRoot.appendingPathComponent("widgets", isDirectory: true))
+        return roots
+    }
+
     struct Prepared {
         let source: WidgetInstallSource
         /// Temporary extraction root — caller removes it when done.
@@ -32,6 +45,24 @@ enum WidgetInstallFlow {
             stagingRoot: session.stagingRoot,
             discovery: session.discovery
         )
+    }
+
+    static func bundledWidgetDirectory(named name: String) -> URL? {
+        guard isSafeBundledName(name) else { return nil }
+        let fm = FileManager.default
+        for root in bundledWidgetRoots {
+            let candidate = root.appendingPathComponent(name, isDirectory: true)
+            var isDirectory: ObjCBool = false
+            if fm.fileExists(atPath: candidate.path, isDirectory: &isDirectory),
+               isDirectory.boolValue {
+                return candidate
+            }
+        }
+        return nil
+    }
+
+    static func discoverBundledWidget(at directory: URL) throws -> WidgetDiscovery.Result {
+        try WidgetDiscovery.discover(under: directory)
     }
 
     /// Tries each download candidate in order; HTTP 404 falls through to the
@@ -65,6 +96,17 @@ enum WidgetInstallFlow {
             line += " v\(version)"
         }
         return line
+    }
+
+    private static func isSafeBundledName(_ name: String) -> Bool {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              trimmed == (trimmed as NSString).lastPathComponent,
+              trimmed != ".",
+              trimmed != "..",
+              !trimmed.contains("..")
+        else { return false }
+        return true
     }
 }
 
@@ -134,27 +176,54 @@ final class WidgetInstaller {
         install(input: url.absoluteString)
     }
 
-    func install(input: String) {
+    func install(input: String, completion: (() -> Void)? = nil) {
         Task { @MainActor in
             do {
                 let prepared = try await WidgetInstallFlow.prepare(input: input)
                 defer { try? FileManager.default.removeItem(at: prepared.stagingRoot) }
-                self.processCandidates(prepared)
+                if self.processCandidates(prepared) {
+                    completion?()
+                }
             } catch {
                 self.showError(error)
             }
         }
     }
 
+    func install(registryEntry entry: RegistryWidgetEntry, completion: (() -> Void)? = nil) {
+        if let bundled = entry.install.bundled,
+           let directory = WidgetInstallFlow.bundledWidgetDirectory(named: bundled) {
+            installBundledWidget(at: directory, completion: completion)
+            return
+        }
+        install(input: entry.install.url, completion: completion)
+    }
+
     // MARK: internals (main thread)
 
-    private func processCandidates(_ prepared: WidgetInstallFlow.Prepared) {
-        let discovery = prepared.discovery
+    private func installBundledWidget(at directory: URL, completion: (() -> Void)?) {
+        do {
+            let discovery = try WidgetInstallFlow.discoverBundledWidget(at: directory)
+            if processDiscovery(discovery) {
+                completion?()
+            }
+        } catch {
+            showError(error)
+        }
+    }
+
+    @discardableResult
+    private func processCandidates(_ prepared: WidgetInstallFlow.Prepared) -> Bool {
+        processDiscovery(prepared.discovery)
+    }
+
+    @discardableResult
+    private func processDiscovery(_ discovery: WidgetDiscovery.Result) -> Bool {
         guard !discovery.candidates.isEmpty else {
             showError(WidgetInstallFlowError.noWidgetsFound(
                 details: discovery.failures.map { "\($0.relativePath): \($0.reason)" }
             ))
-            return
+            return false
         }
 
         var installed: [String] = []
@@ -182,6 +251,7 @@ final class WidgetInstaller {
             onInstalled?()
         }
         showSummary(installed: installed, failed: failed)
+        return !installed.isEmpty
     }
 
     /// Per-widget confirmation: name, version, permission summary (exec /
