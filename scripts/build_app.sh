@@ -21,6 +21,10 @@ INFO_PLIST_TEMPLATE=${INFO_PLIST_TEMPLATE:-"${SCRIPT_DIR}/Info.plist.template"}
 WIDGETS_DIR=${WIDGETS_DIR:-"${PROJECT_ROOT}/widgets"}
 # "-" means ad-hoc signing. Use SIGN_IDENTITY="Developer ID Application: ..." for distribution builds.
 SIGN_IDENTITY=${SIGN_IDENTITY:--}
+APP_STORE_BUILD=${APP_STORE_BUILD:-0}
+APP_STORE_ENTITLEMENTS=${APP_STORE_ENTITLEMENTS:-"${SCRIPT_DIR}/AppStore.entitlements"}
+PROVISIONING_PROFILE=${PROVISIONING_PROFILE:-}
+SIGN_KEYCHAIN=${SIGN_KEYCHAIN:-}
 
 APP_BUNDLE_PATH="${OUTPUT_DIR}/${APP_BUNDLE_NAME}"
 CONTENTS_DIR="${APP_BUNDLE_PATH}/Contents"
@@ -99,6 +103,22 @@ else
   echo "warning: registry directory not found; skipping registry resources: ${REGISTRY_DIR}" >&2
 fi
 
+if [[ "${APP_STORE_BUILD}" == "1" ]]; then
+  if [[ -z "${PROVISIONING_PROFILE}" ]]; then
+    echo "error: APP_STORE_BUILD=1 requires PROVISIONING_PROFILE" >&2
+    exit 1
+  fi
+  if [[ ! -f "${PROVISIONING_PROFILE}" ]]; then
+    echo "error: provisioning profile not found: ${PROVISIONING_PROFILE}" >&2
+    exit 1
+  fi
+  if [[ ! -f "${APP_STORE_ENTITLEMENTS}" ]]; then
+    echo "error: App Store entitlements not found: ${APP_STORE_ENTITLEMENTS}" >&2
+    exit 1
+  fi
+  cp "${PROVISIONING_PROFILE}" "${CONTENTS_DIR}/embedded.provisionprofile"
+fi
+
 if command -v xattr >/dev/null 2>&1; then
   xattr -r -d com.apple.quarantine "${APP_BUNDLE_PATH}" 2>/dev/null || true
 fi
@@ -136,6 +156,8 @@ fi
 if command -v codesign >/dev/null 2>&1; then
   if [[ "${SIGN_IDENTITY}" == "-" ]]; then
     codesign --force --options runtime --sign - --timestamp=none "${OUTPUT_DIR}/${MBK_PRODUCT_NAME}" >/dev/null
+  elif [[ -n "${SIGN_KEYCHAIN}" ]]; then
+    codesign --force --options runtime --sign "${SIGN_IDENTITY}" --keychain "${SIGN_KEYCHAIN}" "${OUTPUT_DIR}/${MBK_PRODUCT_NAME}" >/dev/null
   else
     codesign --force --options runtime --sign "${SIGN_IDENTITY}" "${OUTPUT_DIR}/${MBK_PRODUCT_NAME}" >/dev/null
   fi
@@ -148,9 +170,25 @@ if command -v codesign >/dev/null 2>&1; then
   if [[ "${SIGN_IDENTITY}" == "-" ]]; then
     echo "Ad-hoc signing ${APP_BUNDLE_PATH}"
     codesign --force --options runtime --sign - --timestamp=none --deep "${APP_BUNDLE_PATH}" >/dev/null
+  elif [[ "${APP_STORE_BUILD}" == "1" ]]; then
+    echo "Signing ${APP_BUNDLE_PATH} for Mac App Store with ${SIGN_IDENTITY}"
+    if [[ -n "${SIGN_KEYCHAIN}" ]]; then
+      codesign --force --options runtime --sign "${SIGN_IDENTITY}" \
+        --keychain "${SIGN_KEYCHAIN}" \
+        --entitlements "${APP_STORE_ENTITLEMENTS}" \
+        --deep "${APP_BUNDLE_PATH}" >/dev/null
+    else
+      codesign --force --options runtime --sign "${SIGN_IDENTITY}" \
+        --entitlements "${APP_STORE_ENTITLEMENTS}" \
+        --deep "${APP_BUNDLE_PATH}" >/dev/null
+    fi
   else
     echo "Signing ${APP_BUNDLE_PATH} with ${SIGN_IDENTITY}"
-    codesign --force --options runtime --sign "${SIGN_IDENTITY}" --deep "${APP_BUNDLE_PATH}" >/dev/null
+    if [[ -n "${SIGN_KEYCHAIN}" ]]; then
+      codesign --force --options runtime --sign "${SIGN_IDENTITY}" --keychain "${SIGN_KEYCHAIN}" --deep "${APP_BUNDLE_PATH}" >/dev/null
+    else
+      codesign --force --options runtime --sign "${SIGN_IDENTITY}" --deep "${APP_BUNDLE_PATH}" >/dev/null
+    fi
   fi
 else
   echo "warning: codesign not found; app bundle is unsigned" >&2
