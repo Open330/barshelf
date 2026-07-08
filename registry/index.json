@@ -14,9 +14,9 @@
       "kind": "exec",
       "tags": ["demo", "starter", "shell"],
       "_comment": "Fallback URL is private until BarShelf is published; bundled install is authoritative in packaged builds.",
-      "install": { "url": "https://github.com/jiunbae/menubucket/tree/master/widgets/hello", "bundled": "hello" },
+      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/hello", "bundled": "hello" },
       "permissions": { "exec": [], "keychain": false, "notifications": false },
-      "homepage": "https://github.com/jiunbae/menubucket"
+      "homepage": "https://github.com/Open330/barshelf"
     },
     {
       "id": "dev.barshelf.recent-files",
@@ -56,7 +56,7 @@
       "tags": ["security", "otp", "2fa", "cli"],
       "requires": "otpeek CLI",
       "_comment": "Fallback URL is private until BarShelf is published; bundled install is authoritative in packaged builds.",
-      "install": { "url": "https://github.com/jiunbae/menubucket/tree/master/widgets/otpeek", "bundled": "otpeek" },
+      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/otpeek", "bundled": "otpeek" },
       "permissions": { "exec": ["otpeek"], "keychain": true, "notifications": false },
       "homepage": "https://github.com/jiunbae/otpeek"
     },
@@ -71,9 +71,9 @@
       "tags": ["demo", "script", "clock", "deno"],
       "requires": "Deno runtime",
       "_comment": "Fallback URL is private until BarShelf is published; bundled install is authoritative in packaged builds.",
-      "install": { "url": "https://github.com/jiunbae/menubucket/tree/master/widgets/clock-script", "bundled": "clock-script" },
+      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/clock-script", "bundled": "clock-script" },
       "permissions": { "exec": [], "keychain": false, "notifications": false },
-      "homepage": "https://github.com/jiunbae/menubucket"
+      "homepage": "https://github.com/Open330/barshelf"
     }
   ]
 }

@@ -18,7 +18,7 @@
 
 ### GitHub Releases (권장)
 
-[Releases](https://github.com/jiunbae/menubucket/releases)에서 `BarShelf-<버전>-arm64.zip`을 받아 `/Applications`에 옮기고, 첫 실행은 **우클릭 → 열기**로 허용한다 (현재 릴리스는 공증 전 ad-hoc 서명 빌드 — Homebrew cask는 공증 이후 제공 예정).
+[Releases](https://github.com/Open330/barshelf/releases)에서 `BarShelf-<버전>-arm64.zip`을 받아 `/Applications`에 옮기고, 첫 실행은 **우클릭 → 열기**로 허용한다 (현재 릴리스는 공증 전 ad-hoc 서명 빌드 — Homebrew cask는 공증 이후 제공 예정).
 
 ### 소스에서 수동 빌드
 

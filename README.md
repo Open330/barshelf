@@ -1,203 +1,170 @@
+<div align="center">
+
+<img src="assets/media/icon-512.png" width="128" alt="BarShelf" />
+
 # BarShelf
 
-BarShelf은 작은 네이티브 위젯을 macOS 메뉴바 팝오버에 모아 보여주는 앱이다. 위젯은 `widget.json` manifest로 실행 방식, 갱신 정책, 권한, Bucket 배치를 선언하고, 호스트는 JSON UINode view tree를 SwiftUI로 렌더링한다.
+**Your menu bar, finally organized.**
+
+One menu bar icon. Every glanceable tool you care about — OTP codes, LLM usage,
+recent files, CI status — as native widgets in a single popover.
+
+[![Platform](https://img.shields.io/badge/macOS-13%2B-000000?logo=apple&logoColor=white)](https://www.apple.com/macos/)
+[![Swift](https://img.shields.io/badge/Swift-5.9-F05138?logo=swift&logoColor=white)](https://swift.org)
+[![Notarized](https://img.shields.io/badge/Developer%20ID-notarized-2E7D32?logo=apple&logoColor=white)](https://github.com/Open330/barshelf/releases/latest)
+[![Dependencies](https://img.shields.io/badge/dependencies-zero-4c1)](Package.swift)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
+[**Download**](https://github.com/Open330/barshelf/releases/latest) ·
+[**Getting Started**](docs/GETTING-STARTED.md) ·
+[**Build a Widget**](docs/WIDGET-SPEC.md) ·
+[**Publish**](docs/PUBLISHING.md)
+
+<!-- 스크린샷 자리: 메뉴바 아이콘 + 열린 팝오버(위젯 여러 개) -->
+
+</div>
+
+---
+
+## Why BarShelf
+
+Your most-checked tools are scattered — a dozen menu bar icons, terminal windows,
+browser tabs. BarShelf collects them into **one icon, one popover** of native
+widgets. Any command-line tool you already have becomes a widget in minutes; no
+new SDK to learn.
+
+- **🪟 One icon, many widgets** — bucket pages, trackpad swipe, pinned row, ⌘F search.
+- **⚡ CLI is the API** — `aas usage --json`, `otpeek`, `gh`, `kubectl`… pipe them straight in.
+- **🎨 Native, not web** — SwiftUI rendering, dark mode, SF Symbols, vibrancy. No Electron.
+- **🧩 Three ways to build** — declarative workflows, a Shortcuts-style visual builder, or full scripts.
+- **🔒 Signed & notarized** — opens by double-click; every widget is permission-gated with an audit log.
+
+## Three execution layers, one widget model
+
+Every widget shares the same scheduler, permission frame, and native renderer —
+it only differs in where its data comes from:
 
 ```
-BarShelf.app
-├─ Layer 1: exec
-│  └─ manifest가 선언한 명령을 no-shell argv로 실행하고 stdout JSON을 렌더링
-├─ Layer 2: host services
-│  └─ exec allowlist, storage, Keychain, 파일, 알림, audit log를 권한 게이트 뒤에서 제공
-└─ Layer 3: script / workflow
-   ├─ Deno TypeScript 위젯은 newline-delimited JSON-RPC로 호스트와 통신
-   └─ workflow 위젯은 source -> transform -> render 선언형 파이프라인으로 실행
+┌────────────────────────────────────────────────────────────────┐
+│  exec       manifest declares a CLI → UINode view tree          │
+│             (viewtree direct, or data + a builtin adapter)      │
+│                                                                  │
+│  workflow   declarative JSON DSL — sources → transforms → view  │
+│             (${…} interpolation, forEach, fs.directory + QL      │
+│              thumbnails, drag-out) — no code                    │
+│                                                                  │
+│  script     resident Deno subprocess over JSON-RPC + TS SDK     │
+│             host-mediated exec / storage / secret / timer       │
+└────────────────────────────────────────────────────────────────┘
 ```
 
-Swift 패키지는 UI와 무관한 모델/엔진을 `MenubucketCore`에 두고, AppKit/SwiftUI 렌더링, 메뉴바, 스케줄러, 런타임 실행은 `MenubucketApp`에 둔다.
+## Install
 
-## 빠른 시작
+Grab `BarShelf-<version>-arm64.zip` from
+**[Releases](https://github.com/Open330/barshelf/releases/latest)**, move it to
+`/Applications`, and **double-click** — the build is Developer ID signed and
+Apple-notarized, so there's no Gatekeeper dance.
 
-**설치**: [Releases](https://github.com/jiunbae/menubucket/releases)에서 `BarShelf-<버전>-arm64.zip`을 받아 `/Applications`로 옮기고 첫 실행은 우클릭 → 열기 (공증 전 빌드). 상세·문제 해결: [`docs/INSTALL.md`](docs/INSTALL.md)
+Full guide, `mbk` CLI, and troubleshooting: **[docs/INSTALL.md](docs/INSTALL.md)**.
 
-소스 빌드:
+> Requires macOS 13+ on Apple Silicon. Script widgets need [Deno](https://deno.land)
+> (`brew install deno`); exec and workflow widgets work without it.
 
-```bash
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer bash scripts/build_app.sh
-open dist/BarShelf.app
-```
+## Bundled widgets
 
-개발 검증:
+| Widget | Layer | What it shows |
+|---|---|---|
+| **hello** | exec (viewtree) | The smallest widget — a shell script emitting a UINode tree. |
+| **aas Usage** | exec (data + adapter) | LLM account usage meters from [`aas usage --json`](https://github.com/Open330/aas). |
+| **OTPeek** | exec (data + adapter) | TOTP codes with a countdown ring; Keychain-injected vault password. |
+| **Recent Files** | workflow (`fs.directory`) | Stashbar-style recent files with QuickLook thumbnails and drag-out. |
+| **Script Clock** | script (Deno) | Live clock + storage-backed click counter via the TypeScript SDK. |
 
-```bash
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test
-```
+## Build a widget in 3 minutes
 
-첫 사용자 위젯을 3분 안에 만드는 절차는 [`docs/GETTING-STARTED.md`](docs/GETTING-STARTED.md)를 따른다. 위젯은 개발 중 `./widgets/`, 사용자 설치 시 `~/Library/Application Support/barshelf/widgets/`에서 로드된다.
+**Visual builder** — status menu → *Create Widget…* → pick a source (run a
+command / watch a folder / static text), a display (list · table · value · text)
+with a **live preview**, then name it. No JSON.
 
-## 문서
+**By hand** — a widget is a folder with a `widget.json`:
 
-| 문서 | 내용 |
-| --- | --- |
-| [`docs/INSTALL.md`](docs/INSTALL.md) | 설치 (릴리스 zip / 소스 빌드 / mbk), Gatekeeper, 문제 해결 |
-| [`docs/GETTING-STARTED.md`](docs/GETTING-STARTED.md) | 설치, 첫 셸 위젯, 번들 위젯 둘러보기 |
-| [`docs/INSTALLING-WIDGETS.md`](docs/INSTALLING-WIDGETS.md) | GitHub URL, `.zip`, `.mbw`, 딥링크, CLI 설치 |
-| [`docs/PUBLISHING.md`](docs/PUBLISHING.md) | 제작자용 저장소 구조, README 설치 뱃지, mbk 워크플로, 레지스트리 등재 |
-| [`docs/MBK.md`](docs/MBK.md) | `mbk` CLI 레퍼런스 — install/new/validate/pack/list |
-| [`docs/REGISTRY.md`](docs/REGISTRY.md) | 레지스트리 `index.json` 규약, 등재 PR 절차, 셀프호스팅 |
-| [`docs/WIDGET-SPEC.md`](docs/WIDGET-SPEC.md) | `widget.json` manifest와 UINode 스펙 |
-| [`docs/WORKFLOW.md`](docs/WORKFLOW.md) | `workflow.json` DSL, `fs.directory`, 보간, `forEach` |
-| [`docs/SCRIPT-RUNTIME.md`](docs/SCRIPT-RUNTIME.md) | Deno TypeScript JSON-RPC 런타임과 `sdk/mod.ts` |
-
-스키마:
-
-| 스키마 | 파일 |
-| --- | --- |
-| Manifest | [`schema/widget-0.1.json`](schema/widget-0.1.json) |
-| UINode | [`schema/uinode-0.1.json`](schema/uinode-0.1.json) |
-| Workflow | [`schema/workflow-0.1.json`](schema/workflow-0.1.json) |
-| Registry | [`schema/registry-0.1.json`](schema/registry-0.1.json) |
-
-## 번들 위젯 갤러리
-
-| 위젯 | 위치 | 실행 계층 | 설명 |
-| --- | --- | --- | --- |
-| aas Usage | [`widgets/aas-usage`](widgets/aas-usage) | exec + adapter | `aas usage --json`을 `aas-usage` adapter로 변환해 사용량을 렌더링한다. |
-| OTP Codes | [`widgets/otpeek`](widgets/otpeek) | exec + adapter | `otpeek list --json`, `otpeek code <id> --json`, Keychain 주입, countdown ring을 사용한다. |
-| Script Clock | [`widgets/clock-script`](widgets/clock-script) | script | Deno TypeScript 프로세스가 `barshelf` SDK로 render/storage/timer를 호출한다. |
-| Recent Files | [`widgets/recent-files`](widgets/recent-files) | workflow | `workflow.json`으로 `~/Downloads` 목록, file thumbnail/icon, reveal, drag-out을 렌더링한다. |
-
-`widgets/hello`는 가장 작은 `output=viewtree` 셸 위젯 예제로, 시작 가이드의 Quick Hello 변형이 이 구조를 따른다.
-
-## 빌드와 앱 번들
-
-SwiftPM product 이름은 `menubucket`이다.
-
-```bash
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift build
-```
-
-앱 번들은 다음 스크립트가 만든다.
-
-```bash
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer bash scripts/build_app.sh
-```
-
-결과는 `dist/BarShelf.app`이다. 스크립트는 release product를 빌드하고, `Contents/MacOS/menubucket`을 복사하며, `scripts/Info.plist.template`에서 `Contents/Info.plist`를 렌더링하고, `widgets/`를 `Contents/Resources/widgets`로 복사한 뒤 ad-hoc codesign을 수행한다.
-
-## 위젯 설치
-
-URL 설치 v1은 다음 입력을 지원한다.
-
-- GitHub 저장소: `https://github.com/{user}/{repo}` 또는 `https://github.com/{user}/{repo}/tree/{branch}[/{subdir}]`
-- 직접 아카이브: `https://.../*.zip` 또는 `*.mbw`
-- 딥링크: `barshelf://install?url=<percent-encoded-url>`
-
-CLI 설치:
-
-```bash
-mbk install https://github.com/example/barshelf-widgets
-# 또는 앱 바이너리의 인자 모드
-BarShelf.app/Contents/MacOS/menubucket install https://github.com/example/barshelf-widgets
-```
-
-자세한 설치 동작, 보안 제한, FAQ는 [`docs/INSTALLING-WIDGETS.md`](docs/INSTALLING-WIDGETS.md)에 있다.
-
-## mbk CLI
-
-`mbk`는 위젯 개발·배포·설치를 위한 독립 CLI다. 앱과 같은 Core 디코더와 설치 파이프라인을 GUI 없이 사용한다.
-
-```bash
-mbk new my-clock              # 템플릿 생성 (--kind exec|workflow|script) + 자동 validate
-mbk validate ./my-clock       # widget.json(+workflow.json) 검증, 오류를 파일:필드 단위로 출력
-mbk pack ./my-clock -o my-clock.mbw   # .mbw 패키징 (manifest.sha256 포함)
-mbk install <url>             # GitHub/zip/.mbw/딥링크 설치 (권한 요약 후 확인, --yes로 생략)
-mbk list                      # 설치된 위젯 나열 (id, name, version, kind)
-```
-
-exit 0 성공 / 1 실패, 오류는 stderr. 전체 레퍼런스는 [`docs/MBK.md`](docs/MBK.md)에 있다.
-
-## 위젯 갤러리와 레지스트리
-
-메뉴바 아이콘 우클릭 메뉴의 "Widget Gallery…"에서 레지스트리에 등재된 위젯을 검색(이름/태그)하고 카드에서 바로 설치할 수 있다. 카드에는 아이콘·설명·kind 배지·권한 칩이 표시되며, 권한 칩은 표시용 요약이고 실제 게이트는 설치 후 첫 실행 승인 카드다.
-
-갤러리 데이터는 `registry/index.json` 인덱스에서 온다. 해석 순서는 env `BARSHELF_REGISTRY`(URL 또는 로컬 경로, legacy `MENUBUCKET_REGISTRY` 호환) → 기본 원격 레지스트리 → 번들 폴백이다. 인덱스 규약·등재 PR 절차·셀프호스팅은 [`docs/REGISTRY.md`](docs/REGISTRY.md), 스키마는 [`schema/registry-0.1.json`](schema/registry-0.1.json)에 있다.
-
-## 위젯 제작 요약
-
-각 위젯은 위젯 디렉터리의 `widget.json`에서 시작한다.
-
-```json
+```jsonc
 {
   "$schema": "https://barshelf.dev/schema/widget-0.1.json",
   "schemaVersion": 1,
-  "id": "dev.example.clock",
-  "name": "Clock",
-  "version": "0.1.0",
-  "icon": "clock",
-  "bucket": { "group": "Demo", "order": 10, "size": "S" },
+  "id": "dev.example.docker-ps",
+  "name": "Docker",
+  "icon": "shippingbox",
+  "bucket": { "group": "Dev", "size": "M" },
   "entry": { "kind": "exec" },
-  "source": {
-    "kind": "exec",
-    "command": ["./clock.sh"],
-    "timeoutMs": 5000,
-    "output": "viewtree"
-  },
-  "refresh": { "onOpen": true, "interval": 60, "staleAfterSec": 60 },
-  "permissions": {
-    "exec": [
-      {
-        "command": "./clock.sh",
-        "allowedArgs": [[]],
-        "maxOutputBytes": 65536,
-        "sensitiveOutput": false
-      }
-    ],
-    "network": [],
-    "readPaths": [],
-    "env": [],
-    "keychain": false
-  },
-  "settings": []
+  "source": { "kind": "exec", "command": ["docker", "ps", "--format", "json"], "output": "viewtree" },
+  "refresh": { "onOpen": true, "interval": 30 },
+  "permissions": { "exec": [{ "command": "docker", "allowedArgs": [["ps", "--format", "json"]] }] }
 }
 ```
 
-`source.command`는 shell 문자열이 아니라 argv 배열이다. 명령 실행과 `run` 액션은 `permissions.exec` allowlist와 매칭될 때만 실행된다.
-
-## 스크립트 위젯
-
-스크립트 위젯은 Deno TypeScript subprocess로 실행되고, 호스트와 newline-delimited JSON-RPC 2.0으로 통신한다. Deno가 없으면 script 위젯만 오류 카드가 표시되고 다른 위젯은 계속 동작한다.
+Drop it in `~/Library/Application Support/barshelf/widgets/` (hot-reloaded), or
+install straight from a repo:
 
 ```bash
-brew install deno
+mbk install https://github.com/Open330/aas       # GitHub repo
+mbk install ./MyWidget.mbw                        # packed archive
+open "barshelf://install?url=…"                   # deep link (README badge)
 ```
 
-예제는 [`widgets/clock-script`](widgets/clock-script), SDK는 [`sdk/mod.ts`](sdk/mod.ts), 런타임 계약은 [`docs/SCRIPT-RUNTIME.md`](docs/SCRIPT-RUNTIME.md)에 있다.
-
-## 워크플로 위젯
-
-워크플로 위젯은 manifest에서 `entry: { "kind": "workflow", "main": "workflow.json" }`를 선언한다. 호스트가 `sources`를 실행하고, `transforms`를 적용한 뒤, `${...}` 보간과 `forEach` 템플릿을 평가해 UINode를 만든다.
-
-v1 source는 `exec`와 `fs.directory`를 지원한다. 파일 위젯은 `fileThumbnail`, `fileIcon`, `drag.filePath`, `openFile`, `revealFile` 액션을 함께 사용할 수 있다. 자세한 계약은 [`docs/WORKFLOW.md`](docs/WORKFLOW.md)에 있다.
-
-## OTPeek 위젯
-
-[`widgets/otpeek`](widgets/otpeek)은 `otpeek list --json`을 기본 source로 사용하고, 내장 `otpeek` adapter가 각 계정의 `otpeek code <id> --json`을 실행해 TOTP row를 렌더링한다. vault password를 Keychain에서 주입하려면 다음 명령을 사용한다.
+## `mbk` — the widget CLI
 
 ```bash
-security add-generic-password -s dev.barshelf -a otpeek-vault-password -w
+mbk new my-widget --kind workflow   # scaffold from a template
+mbk validate ./my-widget            # check manifest + workflow
+mbk pack ./my-widget -o my.mbw      # zip a distributable bundle
+mbk install <url|path>              # install from repo / archive / deep link
+mbk list                            # installed widgets
 ```
 
-manifest는 `permissions.keychain: true`, `OTPEEK_VAULT_PASSWORD` env 허용, `sensitiveOutput: true`를 선언해야 한다. OTP 복사 액션은 `copyText.clearAfterSec`로 클립보드 자동 삭제 시간을 지정할 수 있다.
+Reference: **[docs/MBK.md](docs/MBK.md)**.
 
-## 조작
+## Documentation
 
-- 두 손가락 가로 스와이프, 좌우 버튼, 하단 점으로 Bucket 페이지를 전환한다.
-- Left/Right Arrow로 페이지를 이동하고, `Command-1`부터 `Command-9`까지는 페이지로 바로 이동한다.
-- `Command-F` 또는 타이핑으로 검색을 시작한다.
-- 위젯 헤더 우클릭 메뉴에서 settings, pin/unpin, refresh를 실행한다.
-- `bucket.pinned: true`인 위젯은 최초 상태에서 pinned 영역에 표시된다.
-- `drag.filePath`가 있는 UINode는 Finder나 다른 앱으로 드래그할 수 있다.
+| Doc | Contents |
+|---|---|
+| [Getting Started](docs/GETTING-STARTED.md) | Install, first widget, the bundled examples |
+| [Install](docs/INSTALL.md) | Release install, `mbk`, source build, troubleshooting |
+| [Widget Spec](docs/WIDGET-SPEC.md) | `widget.json`, UINode nodes, actions, refresh, permissions |
+| [Workflow DSL](docs/WORKFLOW.md) | Sources, transforms, interpolation, built-ins, `forEach` |
+| [Script Runtime](docs/SCRIPT-RUNTIME.md) | Deno JSON-RPC protocol, `mb.*` SDK, sandboxing |
+| [Publishing](docs/PUBLISHING.md) | Repo layout, install badges, registry submission |
+| [Registry](docs/REGISTRY.md) | The curated gallery index and how to list a widget |
+| [MBK](docs/MBK.md) | CLI reference |
 
-## 로드맵
+JSON Schemas: [`widget-0.1.json`](schema/widget-0.1.json) ·
+[`uinode-0.1.json`](schema/uinode-0.1.json) ·
+[`workflow-0.1.json`](schema/workflow-0.1.json) ·
+[`registry-0.1.json`](schema/registry-0.1.json).
 
-캐노니컬 구현 계획은 [`.context/plans/R01-merged.md`](.context/plans/R01-merged.md)에 있다. R05의 URL 설치 v1은 앱 내 URL 설치, 딥링크, CLI 설치를 같은 계약으로 맞추는 단계였고, R06은 그 위에 `mbk` 독립 CLI와 위젯 갤러리/레지스트리를 얹는 단계다.
+## Design principles
+
+- **Zero runtime dependencies** — pure Swift / AppKit / SwiftUI. Deno is optional, script-only.
+- **Process isolation is the trust boundary** — third-party widget code never runs in the app process.
+- **Declare → approve → enforce** — permissions are shown and approved on first run, then enforced with an audit log.
+- **The UI never blanks** — last-good render is always kept; failures show a banner, not an empty popover.
+
+## Build from source
+
+```bash
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift build   # dev
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test    # 161 tests
+bash scripts/build_app.sh                                              # dist/BarShelf.app + dist/mbk
+```
+
+The package splits into `MenubucketCore` (models, manifest/workflow parsing,
+schedule policy — UI-free, tested) and `MenubucketApp` (AppKit shell, SwiftUI
+renderer, runtime), with a standalone `mbk` executable target.
+
+## License
+
+MIT © Jiun Bae — see [LICENSE](LICENSE).
+
+<div align="center">
+<sub>Built with <a href="https://claude.com/claude-code">Claude Code</a></sub>
+</div>

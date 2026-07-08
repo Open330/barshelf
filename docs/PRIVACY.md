@@ -20,4 +20,4 @@ BarShelf may connect to widget registry or widget install URLs that you choose. 
 
 For privacy or support questions, open an issue at:
 
-https://github.com/jiunbae/menubucket/issues
+https://github.com/Open330/barshelf/issues
