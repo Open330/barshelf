@@ -1,0 +1,16 @@
+# Build artifacts
+.build/
+dist/
+*.xcodeproj
+
+# Agent transcripts / large logs (planning notes .md are kept)
+.context/impl/*.log
+.context/plans/*.log
+
+# macOS
+.DS_Store
+
+# Secrets — never commit
+.env
+*.pem
+*.p12

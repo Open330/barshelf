@@ -1,0 +1,450 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://menubucket.dev/schema/workflow-0.1.json",
+  "title": "MenuBucket Workflow v0.1",
+  "description": "Declarative workflow DSL v1. Host I/O lives in sources, pure transforms live in transforms, and view/empty are UINode templates. Expressions are not JavaScript; interpolation is allowed only inside ${...}. Supported built-ins: now(), count(list), date.relative(ms), file.basename(path), file.extension(path), text.truncate(s,n), coalesce(a,b,...).",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "sources",
+    "transforms",
+    "view"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "sources": {
+      "description": "Named I/O sources executed by the host.",
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/source"
+      }
+    },
+    "transforms": {
+      "description": "Named pure transforms. v1 supports assign, filter, sort, and limit.",
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/transform"
+      }
+    },
+    "view": {
+      "$ref": "#/definitions/uiNodeTemplate"
+    },
+    "empty": {
+      "$ref": "#/definitions/uiNodeTemplate"
+    },
+    "status": {
+      "$ref": "#/definitions/status"
+    }
+  },
+  "additionalProperties": true,
+  "definitions": {
+    "source": {
+      "type": "object",
+      "required": [
+        "use",
+        "with"
+      ],
+      "properties": {
+        "use": {
+          "type": "string",
+          "enum": [
+            "exec",
+            "fs.directory"
+          ]
+        },
+        "with": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "use": {
+                "const": "fs.directory"
+              }
+            },
+            "required": [
+              "use"
+            ]
+          },
+          "then": {
+            "properties": {
+              "with": {
+                "$ref": "#/definitions/fsDirectoryOptions"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "use": {
+                "const": "exec"
+              }
+            },
+            "required": [
+              "use"
+            ]
+          },
+          "then": {
+            "properties": {
+              "with": {
+                "$ref": "#/definitions/execOptions"
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": true
+    },
+    "fsDirectoryOptions": {
+      "description": "Lists one directory. Output items expose id, path, name, modifiedAt (Unix ms), size (bytes), isDirectory, and ext.",
+      "type": "object",
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/definitions/templateString"
+        },
+        "watch": {
+          "type": "boolean"
+        },
+        "skipHidden": {
+          "type": "boolean"
+        },
+        "sortBy": {
+          "type": "string",
+          "enum": [
+            "modifiedAt",
+            "name",
+            "size",
+            "path",
+            "ext",
+            "isDirectory"
+          ]
+        },
+        "sortDirection": {
+          "type": "string",
+          "enum": [
+            "ascending",
+            "descending"
+          ]
+        },
+        "limit": {
+          "$ref": "#/definitions/templateInteger"
+        }
+      },
+      "additionalProperties": true
+    },
+    "execOptions": {
+      "description": "Runs a manifest-allowlisted command through the host ExecService. command is argv, not a shell string.",
+      "type": "object",
+      "required": [
+        "command"
+      ],
+      "properties": {
+        "command": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/templateString"
+          }
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "output": {
+          "type": "string",
+          "enum": [
+            "json",
+            "data"
+          ]
+        },
+        "maxOutputBytes": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": true
+    },
+    "transform": {
+      "type": "object",
+      "required": [
+        "use"
+      ],
+      "properties": {
+        "use": {
+          "type": "string",
+          "enum": [
+            "assign",
+            "filter",
+            "sort",
+            "limit"
+          ]
+        },
+        "from": {
+          "$ref": "#/definitions/jsonPath"
+        },
+        "with": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "where": {
+          "description": "Boolean expression for filter transforms. Expressions use the same limited DSL as interpolation.",
+          "type": "string"
+        },
+        "by": {
+          "description": "Sort key path or expression.",
+          "type": "string"
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "ascending",
+            "descending"
+          ]
+        },
+        "count": {
+          "$ref": "#/definitions/templateInteger"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "use": {
+                "enum": [
+                  "assign",
+                  "filter",
+                  "sort",
+                  "limit"
+                ]
+              }
+            },
+            "required": [
+              "use"
+            ]
+          },
+          "then": {
+            "required": [
+              "from"
+            ]
+          }
+        }
+      ],
+      "additionalProperties": true
+    },
+    "uiNodeTemplate": {
+      "description": "A UINode template. String fields may contain ${...} interpolation. children/items can be arrays or a forEach template object.",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "children": {
+          "$ref": "#/definitions/nodeCollectionTemplate"
+        },
+        "items": {
+          "$ref": "#/definitions/nodeCollectionTemplate"
+        },
+        "child": {
+          "$ref": "#/definitions/uiNodeTemplate"
+        },
+        "empty": {
+          "$ref": "#/definitions/uiNodeTemplate"
+        },
+        "cases": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/uiNodeTemplate"
+          }
+        },
+        "default": {
+          "$ref": "#/definitions/uiNodeTemplate"
+        },
+        "source": {
+          "$ref": "#/definitions/imageSourceTemplate"
+        },
+        "fallback": {
+          "$ref": "#/definitions/imageSourceTemplate"
+        },
+        "drag": {
+          "$ref": "#/definitions/dragTemplate"
+        }
+      },
+      "additionalProperties": true
+    },
+    "nodeCollectionTemplate": {
+      "oneOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/uiNodeTemplate"
+          }
+        },
+        {
+          "$ref": "#/definitions/forEachTemplate"
+        }
+      ]
+    },
+    "forEachTemplate": {
+      "description": "Repeats a UINode template for each item in a JSONPath result.",
+      "type": "object",
+      "required": [
+        "forEach",
+        "as",
+        "template"
+      ],
+      "properties": {
+        "forEach": {
+          "$ref": "#/definitions/jsonPath"
+        },
+        "as": {
+          "type": "string",
+          "minLength": 1
+        },
+        "template": {
+          "$ref": "#/definitions/uiNodeTemplate"
+        }
+      },
+      "additionalProperties": false
+    },
+    "imageSourceTemplate": {
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "sfSymbol",
+            "asset",
+            "fileIcon",
+            "fileThumbnail",
+            "url",
+            "data"
+          ]
+        },
+        "name": {
+          "$ref": "#/definitions/templateString"
+        },
+        "path": {
+          "$ref": "#/definitions/templateString"
+        },
+        "modifiedAt": {
+          "$ref": "#/definitions/templateNumber"
+        },
+        "url": {
+          "$ref": "#/definitions/templateString"
+        },
+        "value": {
+          "$ref": "#/definitions/templateString"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "fileIcon"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "path"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "fileThumbnail"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "path",
+              "modifiedAt"
+            ]
+          }
+        }
+      ],
+      "additionalProperties": true
+    },
+    "dragTemplate": {
+      "type": "object",
+      "required": [
+        "filePath"
+      ],
+      "properties": {
+        "filePath": {
+          "$ref": "#/definitions/templateString"
+        }
+      },
+      "additionalProperties": true
+    },
+    "status": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "$ref": "#/definitions/templateString"
+        },
+        "tooltip": {
+          "$ref": "#/definitions/templateString"
+        }
+      },
+      "additionalProperties": true
+    },
+    "jsonPath": {
+      "description": "JSONPath-like path such as $.sources.files.items or $.transforms.visible.",
+      "type": "string",
+      "minLength": 1
+    },
+    "templateString": {
+      "description": "String literal, optionally containing ${...} interpolation.",
+      "type": "string"
+    },
+    "templateInteger": {
+      "oneOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "$ref": "#/definitions/templateString"
+        }
+      ]
+    },
+    "templateNumber": {
+      "oneOf": [
+        {
+          "type": "number"
+        },
+        {
+          "$ref": "#/definitions/templateString"
+        }
+      ]
+    }
+  }
+}

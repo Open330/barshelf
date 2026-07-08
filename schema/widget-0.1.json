@@ -1,0 +1,531 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://menubucket.dev/schema/widget-0.1.json",
+  "title": "MenuBucket Widget Manifest v0.1",
+  "description": "Manifest schema for MenuBucket widget.json files.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "id",
+    "name",
+    "icon",
+    "bucket",
+    "entry",
+    "refresh"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "id": {
+      "$ref": "#/definitions/nonEmptyString"
+    },
+    "name": {
+      "$ref": "#/definitions/nonEmptyString"
+    },
+    "version": {
+      "$ref": "#/definitions/nonEmptyString"
+    },
+    "icon": {
+      "$ref": "#/definitions/nonEmptyString"
+    },
+    "bucket": {
+      "$ref": "#/definitions/bucket"
+    },
+    "entry": {
+      "$ref": "#/definitions/entry"
+    },
+    "source": {
+      "$ref": "#/definitions/source"
+    },
+    "refresh": {
+      "$ref": "#/definitions/refresh"
+    },
+    "statusItem": {
+      "$ref": "#/definitions/statusItem"
+    },
+    "permissions": {
+      "$ref": "#/definitions/permissions"
+    },
+    "settings": {
+      "$ref": "#/definitions/settings"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "entry": {
+            "properties": {
+              "kind": {
+                "const": "exec"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          }
+        },
+        "required": [
+          "entry"
+        ]
+      },
+      "then": {
+        "required": [
+          "source"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "entry": {
+            "properties": {
+              "kind": {
+                "const": "workflow"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          }
+        },
+        "required": [
+          "entry"
+        ]
+      },
+      "then": {
+        "properties": {
+          "entry": {
+            "required": [
+              "main"
+            ],
+            "properties": {
+              "main": {
+                "description": "Workflow entry files are JSON workflow documents, typically workflow.json.",
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\.json$"
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": true,
+  "definitions": {
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "bucket": {
+      "type": "object",
+      "required": [
+        "group",
+        "order",
+        "size"
+      ],
+      "properties": {
+        "group": {
+          "$ref": "#/definitions/nonEmptyString"
+        },
+        "order": {
+          "type": "integer"
+        },
+        "size": {
+          "type": "string",
+          "enum": [
+            "XS",
+            "S",
+            "M",
+            "L"
+          ]
+        },
+        "pinned": {
+          "description": "If true, the widget is initially pinned to the top pinned rows of the popover.",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "entry": {
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "exec",
+            "script",
+            "workflow",
+            "builtin"
+          ]
+        },
+        "main": {
+          "description": "Entry file relative to the widget bundle. Required for workflow entries.",
+          "$ref": "#/definitions/nonEmptyString"
+        },
+        "runtime": {
+          "description": "Optional runtime identifier such as workflow@1 or deno-ts@1.",
+          "$ref": "#/definitions/nonEmptyString"
+        }
+      },
+      "additionalProperties": true
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "kind",
+        "output"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "exec",
+            "script",
+            "workflow",
+            "builtin"
+          ]
+        },
+        "command": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "discover": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "output": {
+          "type": "string",
+          "enum": [
+            "viewtree",
+            "data"
+          ]
+        },
+        "adapter": {
+          "$ref": "#/definitions/nonEmptyString"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "exec"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "command"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "output": {
+                "const": "data"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "adapter"
+            ]
+          }
+        }
+      ],
+      "additionalProperties": true
+    },
+    "refresh": {
+      "type": "object",
+      "properties": {
+        "onOpen": {
+          "type": "boolean"
+        },
+        "interval": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "staleAfterSec": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "deadlineField": {
+          "description": "Reserved in v0.1. M1 adapters return nextRefreshAtMs instead of using this field.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "watchPaths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "runInBackground": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "statusItem": {
+      "type": "object",
+      "required": [
+        "mode"
+      ],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "none",
+            "icon",
+            "text",
+            "dynamic"
+          ]
+        },
+        "icon": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "$ref": "#/definitions/statusIcon"
+            }
+          ]
+        },
+        "labelFrom": {
+          "type": "string"
+        },
+        "tooltipFrom": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "statusIcon": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "sfSymbol",
+            "asset"
+          ]
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "permissions": {
+      "type": "object",
+      "properties": {
+        "exec": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/execPermission"
+          }
+        },
+        "network": {
+          "type": "array",
+          "items": {}
+        },
+        "readPaths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "files": {
+          "description": "File-system permissions used by workflow fs.directory sources and script host APIs.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/filePermission"
+          }
+        },
+        "storage": {
+          "$ref": "#/definitions/storagePermission"
+        },
+        "notifications": {
+          "type": "boolean"
+        },
+        "env": {
+          "description": "Environment variable names that may be read by the host or passed to the primary source command.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "keychain": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "filePermission": {
+      "type": "object",
+      "required": [
+        "id",
+        "access"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/nonEmptyString"
+        },
+        "access": {
+          "type": "string",
+          "enum": [
+            "read",
+            "write",
+            "readWrite"
+          ]
+        },
+        "prompt": {
+          "type": "string",
+          "enum": [
+            "file",
+            "directory"
+          ]
+        },
+        "bookmarkSetting": {
+          "type": "string"
+        },
+        "defaultPath": {
+          "type": "string"
+        },
+        "watch": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "storagePermission": {
+      "type": "object",
+      "properties": {
+        "maxBytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "secrets": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "execPermission": {
+      "type": "object",
+      "required": [
+        "command",
+        "allowedArgs"
+      ],
+      "properties": {
+        "command": {
+          "$ref": "#/definitions/nonEmptyString"
+        },
+        "allowedArgs": {
+          "description": "Allowed argv tails. A literal '*' item matches exactly one argument.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/argPattern"
+          }
+        },
+        "env": {
+          "description": "Environment variable names allowed for this command.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "maxOutputBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sensitiveOutput": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "argPattern": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "settings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/setting"
+      }
+    },
+    "setting": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "$ref": "#/definitions/nonEmptyString"
+        },
+        "title": {
+          "$ref": "#/definitions/nonEmptyString"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "string",
+            "integer",
+            "number",
+            "boolean",
+            "enum",
+            "directory",
+            "select",
+            "path"
+          ]
+        },
+        "default": {},
+        "min": {
+          "type": "number"
+        },
+        "max": {
+          "type": "number"
+        },
+        "options": {
+          "type": "array",
+          "items": {}
+        },
+        "description": {
+          "type": "string"
+        },
+        "permission": {
+          "description": "Permission id associated with this setting, for example a directory picker backing an fs.directory source.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "$schema": "https://menubucket.dev/schema/widget-0.1.json",
+  "schemaVersion": 1,
+  "id": "dev.menubucket.clock-script",
+  "name": "Script Clock",
+  "version": "0.1.0",
+  "icon": "clock",
+  "bucket": { "group": "Demo", "order": 30, "size": "S" },
+
+  "entry": { "kind": "script", "runtime": "deno-ts@1" },
+  "source": {
+    "kind": "script",
+    "output": "viewtree"
+  },
+
+  "refresh": {
+    "onOpen": true,
+    "interval": null,
+    "staleAfterSec": 60,
+    "deadlineField": null,
+    "watchPaths": [],
+    "runInBackground": false
+  },
+
+  "statusItem": { "mode": "none" },
+
+  "permissions": {
+    "storage": true,
+    "exec": [],
+    "network": [],
+    "readPaths": [],
+    "env": [],
+    "keychain": false,
+    "notifications": false
+  },
+
+  "settings": []
+}

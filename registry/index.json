@@ -1,0 +1,73 @@
+{
+  "_comment": "OWNER/REPO are placeholders — replace with the published repository (e.g. menubucket/menubucket) before serving this index from a raw URL.",
+  "schemaVersion": 1,
+  "name": "menubucket official registry",
+  "updatedAt": "2026-07-08T00:00:00Z",
+  "widgets": [
+    {
+      "id": "dev.menubucket.aas-usage",
+      "name": "aas Usage",
+      "description": "Usage meter for LLM agent accounts, powered by the aas CLI.",
+      "version": "0.1.0",
+      "author": "menubucket",
+      "icon": "gauge",
+      "kind": "exec",
+      "tags": ["dev", "ai"],
+      "install": { "url": "https://github.com/OWNER/REPO/tree/main/widgets/aas-usage" },
+      "permissions": { "exec": ["aas"], "keychain": false, "notifications": false },
+      "homepage": "https://github.com/OWNER/REPO"
+    },
+    {
+      "id": "dev.menubucket.otpeek",
+      "name": "OTP Codes",
+      "description": "One-time password codes from your otpeek vault.",
+      "version": "0.1.0",
+      "author": "menubucket",
+      "icon": "key.fill",
+      "kind": "exec",
+      "tags": ["security", "otp"],
+      "install": { "url": "https://github.com/OWNER/REPO/tree/main/widgets/otpeek" },
+      "permissions": { "exec": ["otpeek"], "keychain": true, "notifications": false },
+      "homepage": "https://github.com/OWNER/REPO"
+    },
+    {
+      "id": "dev.menubucket.hello",
+      "name": "Hello",
+      "description": "Minimal exec demo widget — a shell script rendering a view tree.",
+      "version": "0.1.0",
+      "author": "menubucket",
+      "icon": "hand.wave",
+      "kind": "exec",
+      "tags": ["demo"],
+      "install": { "url": "https://github.com/OWNER/REPO/tree/main/widgets/hello" },
+      "permissions": { "exec": [], "keychain": false, "notifications": false },
+      "homepage": "https://github.com/OWNER/REPO"
+    },
+    {
+      "id": "dev.menubucket.clock-script",
+      "name": "Script Clock",
+      "description": "Live clock demo for the deno-ts script runtime.",
+      "version": "0.1.0",
+      "author": "menubucket",
+      "icon": "clock",
+      "kind": "script",
+      "tags": ["demo", "script"],
+      "install": { "url": "https://github.com/OWNER/REPO/tree/main/widgets/clock-script" },
+      "permissions": { "exec": [], "keychain": false, "notifications": false },
+      "homepage": "https://github.com/OWNER/REPO"
+    },
+    {
+      "id": "dev.menubucket.recent-files",
+      "name": "Recent Files",
+      "description": "Most recent files in a folder of your choice (workflow demo).",
+      "version": "0.1.0",
+      "author": "menubucket",
+      "icon": "folder.fill",
+      "kind": "workflow",
+      "tags": ["files", "workflow"],
+      "install": { "url": "https://github.com/OWNER/REPO/tree/main/widgets/recent-files" },
+      "permissions": { "exec": [], "keychain": false, "notifications": false },
+      "homepage": "https://github.com/OWNER/REPO"
+    }
+  ]
+}

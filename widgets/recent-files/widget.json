@@ -1,0 +1,22 @@
+{
+  "$schema": "https://menubucket.dev/schema/widget-0.1.json",
+  "schemaVersion": 1,
+  "id": "dev.menubucket.recent-files",
+  "name": "Recent Files",
+  "version": "0.1.0",
+  "icon": "folder.fill",
+  "bucket": { "group": "Files", "order": 30, "size": "M" },
+
+  "entry": { "kind": "workflow", "main": "workflow.json" },
+
+  "refresh": { "onOpen": true, "interval": null, "staleAfterSec": 600 },
+
+  "permissions": {
+    "readPaths": ["~/Downloads"]
+  },
+
+  "settings": [
+    { "key": "folder", "title": "Folder", "type": "directory", "default": "~/Downloads" },
+    { "key": "limit", "title": "Maximum files", "type": "integer", "default": 12, "min": 4, "max": 48 }
+  ]
+}

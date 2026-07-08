@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>__APP_DISPLAY_NAME__</string>
+    <key>CFBundleDisplayName</key>
+    <string>__APP_DISPLAY_NAME__</string>
+    <key>CFBundleIdentifier</key>
+    <string>__BUNDLE_IDENTIFIER__</string>
+    <key>CFBundleVersion</key>
+    <string>__APP_BUILD__</string>
+    <key>CFBundleShortVersionString</key>
+    <string>__APP_VERSION__</string>
+    <key>CFBundleExecutable</key>
+    <string>__EXECUTABLE_NAME__</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>__MINIMUM_SYSTEM_VERSION__</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>LSApplicationCategoryType</key>
+    <string>__APP_CATEGORY__</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSHumanReadableCopyright</key>
+    <string>__APP_COPYRIGHT__</string>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>__BUNDLE_IDENTIFIER__.deeplink</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>menubucket</string>
+            </array>
+        </dict>
+    </array>
+</dict>
+</plist>

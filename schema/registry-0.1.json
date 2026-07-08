@@ -1,0 +1,139 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://menubucket.dev/schema/registry-0.1.json",
+  "title": "MenuBucket Registry Index v0.1",
+  "description": "Schema for MenuBucket registry index.json files. The registry is a curation layer on top of the widget publishing repo contract; each entry points to an installable widget source URL.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "widgets"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": 1,
+      "description": "Registry index schema version. Consumers must reject any value other than 1."
+    },
+    "name": {
+      "$ref": "#/definitions/nonEmptyString",
+      "description": "Human-readable registry name, e.g. \"menubucket official registry\"."
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of the last index update."
+    },
+    "widgets": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/widgetEntry"
+      }
+    }
+  },
+  "additionalProperties": true,
+  "definitions": {
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "widgetEntry": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "install"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/nonEmptyString",
+          "description": "Widget identifier. Must equal manifest.id of the installed widget.json; verified after install."
+        },
+        "name": {
+          "$ref": "#/definitions/nonEmptyString",
+          "description": "Display name shown in the gallery."
+        },
+        "description": {
+          "type": "string",
+          "description": "Short description shown in the gallery card."
+        },
+        "version": {
+          "$ref": "#/definitions/nonEmptyString",
+          "description": "Latest published version, display-only."
+        },
+        "author": {
+          "$ref": "#/definitions/nonEmptyString",
+          "description": "Author or publisher name."
+        },
+        "icon": {
+          "$ref": "#/definitions/nonEmptyString",
+          "description": "SF Symbol name for the gallery card."
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "exec",
+            "workflow",
+            "script"
+          ],
+          "description": "Execution layer of the widget."
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/nonEmptyString"
+          },
+          "description": "Search/filter tags."
+        },
+        "install": {
+          "$ref": "#/definitions/install"
+        },
+        "permissions": {
+          "$ref": "#/definitions/permissionsSummary"
+        },
+        "homepage": {
+          "type": "string",
+          "format": "uri",
+          "description": "Project homepage or repository URL."
+        }
+      },
+      "additionalProperties": true
+    },
+    "install": {
+      "type": "object",
+      "required": [
+        "url"
+      ],
+      "properties": {
+        "url": {
+          "$ref": "#/definitions/nonEmptyString",
+          "description": "Install source URL in the R05 URL-install contract format: GitHub repo URL (optionally /tree/{branch}/{subdir}), direct .zip/.mbw archive URL, or menubucket://install deep link string."
+        }
+      },
+      "additionalProperties": true
+    },
+    "permissionsSummary": {
+      "type": "object",
+      "description": "Display-only permission summary for gallery trust UX. The actual gate is the post-install first-run approval card; this field never grants anything.",
+      "properties": {
+        "exec": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/nonEmptyString"
+          },
+          "description": "Names of external commands the widget executes."
+        },
+        "keychain": {
+          "type": "boolean",
+          "description": "Whether the widget declares Keychain access."
+        },
+        "notifications": {
+          "type": "boolean",
+          "description": "Whether the widget declares notification permission."
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

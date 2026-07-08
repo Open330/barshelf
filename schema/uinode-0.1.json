@@ -1,0 +1,1020 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://menubucket.dev/schema/uinode-0.1.json",
+  "title": "MenuBucket UINode v0.1",
+  "description": "Declarative JSON view tree schema for MenuBucket widgets.",
+  "$ref": "#/definitions/uiNode",
+  "definitions": {
+    "uiNode": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/commonNode"
+        },
+        {
+          "oneOf": [
+            {
+              "$ref": "#/definitions/stackNode"
+            },
+            {
+              "$ref": "#/definitions/scrollNode"
+            },
+            {
+              "$ref": "#/definitions/textNode"
+            },
+            {
+              "$ref": "#/definitions/imageNode"
+            },
+            {
+              "$ref": "#/definitions/listNode"
+            },
+            {
+              "$ref": "#/definitions/gridNode"
+            },
+            {
+              "$ref": "#/definitions/tableNode"
+            },
+            {
+              "$ref": "#/definitions/progressNode"
+            },
+            {
+              "$ref": "#/definitions/buttonNode"
+            },
+            {
+              "$ref": "#/definitions/sectionNode"
+            },
+            {
+              "$ref": "#/definitions/badgeNode"
+            },
+            {
+              "$ref": "#/definitions/bannerNode"
+            },
+            {
+              "$ref": "#/definitions/emptyNode"
+            },
+            {
+              "$ref": "#/definitions/dividerNode"
+            },
+            {
+              "$ref": "#/definitions/spacerNode"
+            },
+            {
+              "$ref": "#/definitions/switchNode"
+            },
+            {
+              "$ref": "#/definitions/noneNode"
+            }
+          ]
+        }
+      ]
+    },
+    "commonNode": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "hidden": {
+          "type": "boolean"
+        },
+        "accessibility": {
+          "$ref": "#/definitions/accessibility"
+        },
+        "style": {
+          "description": "Layout/style object for most nodes. Progress nodes use this key for the progress style string.",
+          "oneOf": [
+            {
+              "$ref": "#/definitions/style"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "linear",
+                "ring"
+              ]
+            }
+          ]
+        },
+        "drag": {
+          "$ref": "#/definitions/drag"
+        }
+      },
+      "additionalProperties": true
+    },
+    "accessibility": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "hint": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "drag": {
+      "type": "object",
+      "required": [
+        "filePath"
+      ],
+      "properties": {
+        "filePath": {
+          "description": "Local file path to expose as a drag-out item to Finder and other apps.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "style": {
+      "type": "object",
+      "properties": {
+        "padding": {
+          "$ref": "#/definitions/edgeInsets"
+        },
+        "spacing": {
+          "type": "number"
+        },
+        "width": {
+          "$ref": "#/definitions/fillOrNumber"
+        },
+        "height": {
+          "$ref": "#/definitions/fillOrNumber"
+        },
+        "minHeight": {
+          "type": "number"
+        },
+        "maxHeight": {
+          "type": "number"
+        },
+        "alignment": {
+          "type": "string",
+          "enum": [
+            "leading",
+            "center",
+            "trailing"
+          ]
+        },
+        "background": {
+          "$ref": "#/definitions/semanticColor"
+        },
+        "foreground": {
+          "$ref": "#/definitions/semanticColor"
+        }
+      },
+      "additionalProperties": true
+    },
+    "edgeInsets": {
+      "oneOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "top": {
+              "type": "number"
+            },
+            "bottom": {
+              "type": "number"
+            },
+            "leading": {
+              "type": "number"
+            },
+            "trailing": {
+              "type": "number"
+            },
+            "horizontal": {
+              "type": "number"
+            },
+            "vertical": {
+              "type": "number"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "fillOrNumber": {
+      "oneOf": [
+        {
+          "type": "number"
+        },
+        {
+          "const": "fill"
+        }
+      ]
+    },
+    "semanticColor": {
+      "type": "string"
+    },
+    "stackNode": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "vstack",
+            "hstack",
+            "zstack"
+          ]
+        },
+        "spacing": {
+          "type": "number"
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/uiNode"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "scrollNode": {
+      "type": "object",
+      "required": [
+        "type",
+        "child"
+      ],
+      "properties": {
+        "type": {
+          "const": "scroll"
+        },
+        "axis": {
+          "type": "string",
+          "enum": [
+            "vertical",
+            "horizontal",
+            "both"
+          ]
+        },
+        "child": {
+          "$ref": "#/definitions/uiNode"
+        }
+      },
+      "additionalProperties": true
+    },
+    "textNode": {
+      "type": "object",
+      "required": [
+        "type",
+        "text"
+      ],
+      "properties": {
+        "type": {
+          "const": "text"
+        },
+        "text": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "title",
+            "body",
+            "caption",
+            "code",
+            "label"
+          ]
+        },
+        "lineLimit": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "truncation": {
+          "type": "string",
+          "enum": [
+            "head",
+            "middle",
+            "tail"
+          ]
+        },
+        "monospacedDigit": {
+          "type": "boolean"
+        },
+        "foreground": {
+          "$ref": "#/definitions/semanticColor"
+        }
+      },
+      "additionalProperties": true
+    },
+    "imageNode": {
+      "type": "object",
+      "required": [
+        "type",
+        "source"
+      ],
+      "properties": {
+        "type": {
+          "const": "image"
+        },
+        "source": {
+          "$ref": "#/definitions/imageSource"
+        },
+        "size": {
+          "$ref": "#/definitions/imageSize"
+        },
+        "tint": {
+          "$ref": "#/definitions/semanticColor"
+        },
+        "fallback": {
+          "$ref": "#/definitions/imageSource"
+        }
+      },
+      "additionalProperties": true
+    },
+    "imageSize": {
+      "oneOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "width": {
+              "type": "number"
+            },
+            "height": {
+              "type": "number"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "imageSource": {
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "sfSymbol",
+            "asset",
+            "fileIcon",
+            "fileThumbnail",
+            "url",
+            "data"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "modifiedAt": {
+          "description": "Unix epoch milliseconds for fileThumbnail cache invalidation.",
+          "oneOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "url": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "fileIcon"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "path"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "fileThumbnail"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "path",
+              "modifiedAt"
+            ]
+          }
+        }
+      ],
+      "additionalProperties": true
+    },
+    "listNode": {
+      "type": "object",
+      "required": [
+        "type",
+        "items"
+      ],
+      "properties": {
+        "type": {
+          "const": "list"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/uiNode"
+          }
+        },
+        "empty": {
+          "$ref": "#/definitions/uiNode"
+        },
+        "rowSpacing": {
+          "type": "number"
+        },
+        "virtualized": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "gridNode": {
+      "type": "object",
+      "required": [
+        "type",
+        "items"
+      ],
+      "properties": {
+        "type": {
+          "const": "grid"
+        },
+        "columns": {
+          "$ref": "#/definitions/gridColumns"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/uiNode"
+          }
+        },
+        "itemAspectRatio": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": true
+    },
+    "gridColumns": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "fixed",
+            "adaptive"
+          ]
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "minWidth": {
+          "type": "number"
+        },
+        "maxWidth": {
+          "type": "number"
+        },
+        "maxColumns": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": true
+    },
+    "tableNode": {
+      "type": "object",
+      "required": [
+        "type",
+        "columns",
+        "rows"
+      ],
+      "properties": {
+        "type": {
+          "const": "table"
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/tableColumn"
+          }
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/tableRow"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "tableColumn": {
+      "type": "object",
+      "required": [
+        "id",
+        "title"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "width": {
+          "oneOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "auto",
+                "flex"
+              ]
+            }
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "tableRow": {
+      "type": "object",
+      "required": [
+        "id",
+        "cells"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "cells": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/uiNode"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "progressNode": {
+      "type": "object",
+      "required": [
+        "type",
+        "style"
+      ],
+      "properties": {
+        "type": {
+          "const": "progress"
+        },
+        "style": {
+          "type": "string",
+          "enum": [
+            "linear",
+            "ring"
+          ]
+        },
+        "value": {
+          "description": "Static progress value from 0.0 to 1.0. Use countdown instead for time-based progress.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "countdown": {
+          "$ref": "#/definitions/countdown"
+        },
+        "label": {
+          "type": "string"
+        },
+        "labelFrom": {
+          "type": "string",
+          "enum": [
+            "remainingSeconds"
+          ]
+        },
+        "tint": {
+          "$ref": "#/definitions/semanticColor"
+        },
+        "tintRules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/tintRule"
+          }
+        },
+        "size": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": true
+    },
+    "countdown": {
+      "type": "object",
+      "required": [
+        "from",
+        "until"
+      ],
+      "properties": {
+        "from": {
+          "description": "Countdown start time as Unix epoch milliseconds.",
+          "type": "integer"
+        },
+        "until": {
+          "description": "Countdown end time as Unix epoch milliseconds.",
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false
+    },
+    "tintRule": {
+      "type": "object",
+      "required": [
+        "whenRemainingLtSeconds",
+        "tint"
+      ],
+      "properties": {
+        "whenRemainingLtSeconds": {
+          "type": "number",
+          "minimum": 0
+        },
+        "tint": {
+          "$ref": "#/definitions/semanticColor"
+        }
+      },
+      "additionalProperties": true
+    },
+    "buttonNode": {
+      "type": "object",
+      "required": [
+        "type",
+        "action"
+      ],
+      "properties": {
+        "type": {
+          "const": "button"
+        },
+        "title": {
+          "type": "string"
+        },
+        "icon": {
+          "$ref": "#/definitions/imageSource"
+        },
+        "tooltip": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "normal",
+            "destructive",
+            "cancel"
+          ]
+        },
+        "disabled": {
+          "type": "boolean"
+        },
+        "action": {
+          "$ref": "#/definitions/nodeAction"
+        }
+      },
+      "additionalProperties": true
+    },
+    "sectionNode": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "const": "section"
+        },
+        "title": {
+          "type": "string"
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/uiNode"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "badgeNode": {
+      "type": "object",
+      "required": [
+        "type",
+        "text"
+      ],
+      "properties": {
+        "type": {
+          "const": "badge"
+        },
+        "text": {
+          "type": "string"
+        },
+        "tone": {
+          "$ref": "#/definitions/semanticColor"
+        }
+      },
+      "additionalProperties": true
+    },
+    "bannerNode": {
+      "type": "object",
+      "required": [
+        "type",
+        "text"
+      ],
+      "properties": {
+        "type": {
+          "const": "banner"
+        },
+        "tone": {
+          "$ref": "#/definitions/semanticColor"
+        },
+        "text": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "emptyNode": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "const": "empty"
+        },
+        "icon": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "$ref": "#/definitions/imageSource"
+            }
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "subtitle": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "dividerNode": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "const": "divider"
+        }
+      },
+      "additionalProperties": true
+    },
+    "spacerNode": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "const": "spacer"
+        },
+        "minLength": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": true
+    },
+    "switchNode": {
+      "type": "object",
+      "required": [
+        "type",
+        "value",
+        "cases"
+      ],
+      "properties": {
+        "type": {
+          "const": "switch"
+        },
+        "value": {},
+        "cases": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/uiNode"
+          }
+        },
+        "default": {
+          "$ref": "#/definitions/uiNode"
+        }
+      },
+      "additionalProperties": true
+    },
+    "noneNode": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "const": "none"
+        }
+      },
+      "additionalProperties": true
+    },
+    "nodeAction": {
+      "oneOf": [
+        {
+          "$ref": "#/definitions/eventAction"
+        },
+        {
+          "$ref": "#/definitions/copyTextAction"
+        },
+        {
+          "$ref": "#/definitions/openURLAction"
+        },
+        {
+          "$ref": "#/definitions/openFileAction"
+        },
+        {
+          "$ref": "#/definitions/revealFileAction"
+        },
+        {
+          "$ref": "#/definitions/runAction"
+        },
+        {
+          "$ref": "#/definitions/refreshAction"
+        }
+      ]
+    },
+    "eventAction": {
+      "type": "object",
+      "required": [
+        "type",
+        "id"
+      ],
+      "properties": {
+        "type": {
+          "const": "event"
+        },
+        "id": {
+          "type": "string"
+        },
+        "payload": {}
+      },
+      "additionalProperties": true
+    },
+    "copyTextAction": {
+      "type": "object",
+      "required": [
+        "type",
+        "value"
+      ],
+      "properties": {
+        "type": {
+          "const": "copyText"
+        },
+        "value": {
+          "type": "string"
+        },
+        "toast": {
+          "type": "string"
+        },
+        "clearAfterSec": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": true
+    },
+    "openURLAction": {
+      "type": "object",
+      "required": [
+        "type",
+        "url"
+      ],
+      "properties": {
+        "type": {
+          "const": "openURL"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "openFileAction": {
+      "type": "object",
+      "required": [
+        "type",
+        "path"
+      ],
+      "properties": {
+        "type": {
+          "const": "openFile"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "revealFileAction": {
+      "type": "object",
+      "required": [
+        "type",
+        "path"
+      ],
+      "properties": {
+        "type": {
+          "const": "revealFile"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "runAction": {
+      "type": "object",
+      "required": [
+        "type",
+        "command"
+      ],
+      "properties": {
+        "type": {
+          "const": "run"
+        },
+        "command": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "thenRefresh": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "refreshAction": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "const": "refresh"
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

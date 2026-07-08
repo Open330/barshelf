@@ -1,0 +1,41 @@
+{
+  "$schema": "https://menubucket.dev/schema/widget-0.1.json",
+  "schemaVersion": 1,
+  "id": "dev.menubucket.otpeek",
+  "name": "OTP Codes",
+  "version": "0.1.0",
+  "icon": "key.fill",
+  "bucket": { "group": "Security", "order": 10, "size": "M" },
+
+  "entry": { "kind": "exec" },
+  "source": {
+    "kind": "exec",
+    "command": ["otpeek", "list", "--json"],
+    "discover": ["$OTPEEK_BIN", "~/.cargo/bin/otpeek", "/opt/homebrew/bin/otpeek", "/usr/local/bin/otpeek", "PATH"],
+    "timeoutMs": 10000,
+    "output": "data",
+    "adapter": "otpeek"
+  },
+
+  "refresh": { "onOpen": true, "interval": null, "staleAfterSec": 5, "watchPaths": [], "runInBackground": false },
+
+  "statusItem": { "mode": "none" },
+
+  "permissions": {
+    "exec": [
+      {
+        "command": "otpeek",
+        "allowedArgs": [["list", "--json"], ["code", "*", "--json"]],
+        "env": ["OTPEEK_BIN", "OTPEEK_VAULT_PASSWORD"],
+        "maxOutputBytes": 262144,
+        "sensitiveOutput": true
+      }
+    ],
+    "network": [],
+    "readPaths": [],
+    "env": ["OTPEEK_BIN", "OTPEEK_VAULT_PASSWORD"],
+    "keychain": true
+  },
+
+  "settings": []
+}
