@@ -289,6 +289,14 @@ struct RootView: View {
                 }
                 .keyboardShortcut(.defaultAction)
                 Button {
+                    Task { @MainActor in
+                        WidgetBuilderController.shared.show(runtime: runtime)
+                    }
+                } label: {
+                    Label("Create Your Own Widget", systemImage: "wand.and.stars")
+                        .frame(maxWidth: .infinity)
+                }
+                Button {
                     WidgetInstaller.shared.promptForURL()
                 } label: {
                     Label("Install Widget from URL…", systemImage: "link")

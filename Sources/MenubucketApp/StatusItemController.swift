@@ -53,6 +53,14 @@ final class StatusItemController: NSObject {
         galleryItem.target = self
         menu.addItem(galleryItem)
 
+        let builderItem = NSMenuItem(
+            title: "Create Widget…",
+            action: #selector(openWidgetBuilder(_:)),
+            keyEquivalent: "n"
+        )
+        builderItem.target = self
+        menu.addItem(builderItem)
+
         menu.addItem(.separator())
 
         let settingsItem = NSMenuItem(
@@ -165,6 +173,13 @@ final class StatusItemController: NSObject {
         popup.hide()
         Task { @MainActor in
             GalleryWindowController.shared.show()
+        }
+    }
+
+    @objc func openWidgetBuilder(_ sender: Any?) {
+        popup.hide()
+        Task { @MainActor in
+            WidgetBuilderController.shared.show(runtime: runtime)
         }
     }
 

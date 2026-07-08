@@ -266,6 +266,12 @@ public enum WorkflowEngine {
 
         private mutating func call(_ name: String, args: [JSONValue]) throws -> JSONValue {
             switch name {
+            case "string":
+                // Coerce any value to a string. A lone `${…}` interpolation
+                // preserves its JSON type, so numeric/bool fields dropped into
+                // a text node would fail UINode decoding — wrap them in
+                // string() to make text nodes type-safe.
+                return .string(args.first?.stringified ?? "")
             case "now":
                 return .number(nowMs)
             case "count":

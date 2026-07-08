@@ -556,6 +556,12 @@ final class WidgetRuntime: ObservableObject {
 
     // MARK: - Pages
 
+    /// Distinct bucket groups in display order (for the builder's group picker).
+    var bucketGroups: [String] {
+        var seen: Set<String> = []
+        return pages.map(\.group).filter { seen.insert($0).inserted }
+    }
+
     var pages: [WidgetPage] {
         let grouped = Dictionary(grouping: widgets, by: { $0.group })
         return grouped
