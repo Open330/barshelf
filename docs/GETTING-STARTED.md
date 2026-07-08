@@ -14,14 +14,11 @@
 
 ## 설치
 
-### Homebrew
+전체 설치 방법(릴리스 zip, Gatekeeper 안내, mbk CLI, 문제 해결)은 [`docs/INSTALL.md`](INSTALL.md)를 따른다. 요약:
 
-배포 cask가 제공되는 릴리스에서는 다음 명령으로 설치한다.
+### GitHub Releases (권장)
 
-```bash
-brew install --cask menubucket
-open -a MenuBucket
-```
+[Releases](https://github.com/jiunbae/menubucket/releases)에서 `MenuBucket-<버전>-arm64.zip`을 받아 `/Applications`에 옮기고, 첫 실행은 **우클릭 → 열기**로 허용한다 (현재 릴리스는 공증 전 ad-hoc 서명 빌드 — Homebrew cask는 공증 이후 제공 예정).
 
 ### 소스에서 수동 빌드
 

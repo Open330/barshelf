@@ -17,6 +17,10 @@ Swift 패키지는 UI와 무관한 모델/엔진을 `MenubucketCore`에 두고, 
 
 ## 빠른 시작
 
+**설치**: [Releases](https://github.com/jiunbae/menubucket/releases)에서 `MenuBucket-<버전>-arm64.zip`을 받아 `/Applications`로 옮기고 첫 실행은 우클릭 → 열기 (공증 전 빌드). 상세·문제 해결: [`docs/INSTALL.md`](docs/INSTALL.md)
+
+소스 빌드:
+
 ```bash
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer bash scripts/build_app.sh
 open dist/MenuBucket.app
@@ -34,6 +38,7 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test
 
 | 문서 | 내용 |
 | --- | --- |
+| [`docs/INSTALL.md`](docs/INSTALL.md) | 설치 (릴리스 zip / 소스 빌드 / mbk), Gatekeeper, 문제 해결 |
 | [`docs/GETTING-STARTED.md`](docs/GETTING-STARTED.md) | 설치, 첫 셸 위젯, 번들 위젯 둘러보기 |
 | [`docs/INSTALLING-WIDGETS.md`](docs/INSTALLING-WIDGETS.md) | GitHub URL, `.zip`, `.mbw`, 딥링크, CLI 설치 |
 | [`docs/PUBLISHING.md`](docs/PUBLISHING.md) | 제작자용 저장소 구조, README 설치 뱃지, mbk 워크플로, 레지스트리 등재 |
