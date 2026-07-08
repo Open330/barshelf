@@ -14,7 +14,7 @@ final class DirectoryWatcher {
     private let eventHandler: () -> Void
     private let debounceInterval: TimeInterval
     private var pendingWork: DispatchWorkItem?
-    private let fsQueue = DispatchQueue(label: "dev.menubucket.directorywatcher")
+    private let fsQueue = DispatchQueue(label: "dev.barshelf.directorywatcher")
 
     private class WeakBox {
         weak var watcher: DirectoryWatcher?

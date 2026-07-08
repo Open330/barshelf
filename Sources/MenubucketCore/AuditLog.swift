@@ -2,13 +2,13 @@ import Foundation
 
 /// Security audit trail (JSON lines, append-only).
 ///
-/// Default location: `~/Library/Logs/MenuBucket/audit.log`. Records exec
+/// Default location: `~/Library/Logs/BarShelf/audit.log`. Records exec
 /// runs/blocks, secret access, and permission approve/deny events. Secret
 /// *values* are never logged — callers pass keys/commands only.
 public final class AuditLog: @unchecked Sendable {
     public static func defaultFileURL() -> URL {
         FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Logs/MenuBucket/audit.log")
+            .appendingPathComponent("Library/Logs/BarShelf/audit.log")
     }
 
     private let fileURL: URL
@@ -45,7 +45,7 @@ public final class AuditLog: @unchecked Sendable {
             try handle.seekToEnd()
             try handle.write(contentsOf: data)
         } catch {
-            NSLog("menubucket: audit log write failed: \(error)")
+            NSLog("barshelf: audit log write failed: \(error)")
         }
     }
 
@@ -66,7 +66,7 @@ public final class WidgetLogStore: @unchecked Sendable {
 
     public static func defaultDirectory() -> URL {
         FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Logs/MenuBucket/widgets", isDirectory: true)
+            .appendingPathComponent("Library/Logs/BarShelf/widgets", isDirectory: true)
     }
 
     private let directory: URL
@@ -104,7 +104,7 @@ public final class WidgetLogStore: @unchecked Sendable {
             try handle.seekToEnd()
             try handle.write(contentsOf: Data(line.utf8))
         } catch {
-            NSLog("menubucket: widget log write failed for \(widgetId): \(error)")
+            NSLog("barshelf: widget log write failed for \(widgetId): \(error)")
         }
     }
 

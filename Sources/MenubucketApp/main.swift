@@ -1,9 +1,9 @@
 import AppKit
 
-/// menubucket — menu bar host (LSUIElement / accessory).
+/// BarShelf — menu bar host (LSUIElement / accessory).
 ///
 /// `.accessory` is set programmatically so `swift build`-produced binaries run
-/// as a menu-bar-only app during development; the packaged MenuBucket.app also
+/// as a menu-bar-only app during development; the packaged BarShelf.app also
 /// sets LSUIElement=true in its Info.plist.
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItemController: StatusItemController?
@@ -12,10 +12,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItemController = StatusItemController()
     }
 
-    /// `menubucket://install?url=<percent-encoded-url>` deep link
+    /// `barshelf://install?url=<percent-encoded-url>` deep link
     /// (URL scheme registered via CFBundleURLTypes in Info.plist).
     func application(_ application: NSApplication, open urls: [URL]) {
-        for url in urls where url.scheme?.lowercased() == "menubucket" {
+        for url in urls where ["barshelf", "menubucket"].contains(url.scheme?.lowercased() ?? "") {
             WidgetInstaller.shared.handleDeepLink(url)
         }
     }

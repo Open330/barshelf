@@ -15,7 +15,7 @@ final class ManifestV01Tests: XCTestCase {
         let url = packageRoot.appendingPathComponent("widgets/otpeek/widget.json")
         let manifest = try Manifest.decode(from: try Data(contentsOf: url))
 
-        XCTAssertEqual(manifest.id, "dev.menubucket.otpeek")
+        XCTAssertEqual(manifest.id, "dev.barshelf.otpeek")
         XCTAssertEqual(manifest.source?.command, ["otpeek", "list", "--json"])
         XCTAssertEqual(manifest.source?.discover?.first, "$OTPEEK_BIN")
         XCTAssertEqual(manifest.source?.adapter, "otpeek")

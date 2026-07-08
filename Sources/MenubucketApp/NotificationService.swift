@@ -14,7 +14,7 @@ final class NotificationService: @unchecked Sendable {
         var errorDescription: String? {
             switch self {
             case .unavailable:
-                return "notifications unavailable (no app bundle — run the packaged MenuBucket.app)"
+                return "notifications unavailable (no app bundle - run the packaged BarShelf.app)"
             case .denied:
                 return "notification permission denied by the user"
             }

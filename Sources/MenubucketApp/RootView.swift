@@ -259,7 +259,7 @@ struct RootView: View {
     /// if that page is gone (starter deleted) it falls back to the first page.
     private static func welcomePageID(pages: [WidgetPage]) -> String? {
         let helloPage = pages.first { page in
-            page.widgets.contains { $0.id == "dev.menubucket.hello" }
+            page.widgets.contains { $0.id == "dev.barshelf.hello" }
         }
         return (helloPage ?? pages.first)?.id
     }
@@ -274,7 +274,7 @@ struct RootView: View {
                 .foregroundColor(.accentColor)
             Text("Time to tidy up your menu bar")
                 .font(.system(size: 14, weight: .semibold))
-            Text("menubucket collects your menu bar extras\ninto one popup of widgets.")
+            Text("BarShelf collects your menu bar extras\ninto one popup of widgets.")
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -305,7 +305,7 @@ struct RootView: View {
             .padding(.horizontal, 48)
             .padding(.top, 4)
             Spacer()
-            Text("Widgets live in ~/Library/Application Support/menubucket/widgets/")
+            Text("Widgets live in ~/Library/Application Support/barshelf/widgets/")
                 .font(.caption2)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -327,7 +327,7 @@ struct WelcomeCardView: View {
             HStack(spacing: 6) {
                 Image(systemName: "sparkles")
                     .foregroundColor(.accentColor)
-                Text("Welcome to menubucket")
+            Text("Welcome to BarShelf")
                     .font(.system(size: 12, weight: .semibold))
                 Spacer()
                 Button(action: dismiss) {

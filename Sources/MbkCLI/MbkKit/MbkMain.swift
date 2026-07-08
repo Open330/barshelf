@@ -1,19 +1,19 @@
 import Foundation
 import MenubucketCore
 
-/// mbk — menubucket developer CLI (R06 공통 계약 3).
+/// mbk — BarShelf developer CLI (R06 common contract 3).
 ///
 /// Plain-text output, errors on stderr, exit 0 on success / 1 on failure.
 public enum MbkMain {
     public static let version = "0.1.0"
 
     public static let usage = """
-        mbk — menubucket widget developer CLI
+        mbk — BarShelf widget developer CLI
 
         usage:
           mbk install <url> [--yes]      Install widget(s) from a GitHub repo URL,
                                          a .zip/.mbw archive URL or local path, or
-                                         a menubucket://install deep link.
+                                         a barshelf://install deep link.
           mbk new <name> [--kind exec|workflow|script] [--dir <path>]
                                          Scaffold a widget (default: --kind exec,
                                          --dir ./<name>) and validate it.
@@ -80,7 +80,7 @@ public enum MbkMain {
         guard let input, !input.isEmpty else {
             printError("usage: mbk install <url> [--yes]")
             printError("  <url>: GitHub repo URL, .zip/.mbw archive URL or local"
-                + " path, or menubucket://install?url=…")
+                + " path, or barshelf://install?url=…")
             return 1
         }
 

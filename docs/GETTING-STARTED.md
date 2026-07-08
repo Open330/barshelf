@@ -1,6 +1,6 @@
-# MenuBucket 시작하기
+# BarShelf 시작하기
 
-이 문서는 MenuBucket을 설치하고, 3분 안에 첫 셸 위젯을 추가한 뒤, 번들 위젯을 둘러보기 위한 빠른 안내다.
+이 문서는 BarShelf을 설치하고, 3분 안에 첫 셸 위젯을 추가한 뒤, 번들 위젯을 둘러보기 위한 빠른 안내다.
 
 관련 문서:
 
@@ -10,7 +10,7 @@
 - workflow DSL: [`docs/WORKFLOW.md`](WORKFLOW.md)
 - Deno 스크립트 런타임: [`docs/SCRIPT-RUNTIME.md`](SCRIPT-RUNTIME.md)
 
-<!-- 스크린샷 자리: 메뉴바에 표시된 MenuBucket 아이콘과 열린 팝오버 -->
+<!-- 스크린샷 자리: 메뉴바에 표시된 BarShelf 아이콘과 열린 팝오버 -->
 
 ## 설치
 
@@ -18,7 +18,7 @@
 
 ### GitHub Releases (권장)
 
-[Releases](https://github.com/jiunbae/menubucket/releases)에서 `MenuBucket-<버전>-arm64.zip`을 받아 `/Applications`에 옮기고, 첫 실행은 **우클릭 → 열기**로 허용한다 (현재 릴리스는 공증 전 ad-hoc 서명 빌드 — Homebrew cask는 공증 이후 제공 예정).
+[Releases](https://github.com/jiunbae/menubucket/releases)에서 `BarShelf-<버전>-arm64.zip`을 받아 `/Applications`에 옮기고, 첫 실행은 **우클릭 → 열기**로 허용한다 (현재 릴리스는 공증 전 ad-hoc 서명 빌드 — Homebrew cask는 공증 이후 제공 예정).
 
 ### 소스에서 수동 빌드
 
@@ -26,10 +26,10 @@
 
 ```bash
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer bash scripts/build_app.sh
-open dist/MenuBucket.app
+open dist/BarShelf.app
 ```
 
-`scripts/build_app.sh`는 SwiftPM product `menubucket`을 release로 빌드하고, `dist/MenuBucket.app/Contents/MacOS/menubucket` 실행 파일과 `Contents/Info.plist`를 만든 뒤 `widgets/`를 앱 리소스로 복사한다. 개발 중 검증은 다음 명령을 사용한다.
+`scripts/build_app.sh`는 SwiftPM product `menubucket`을 release로 빌드하고, `dist/BarShelf.app/Contents/MacOS/menubucket` 실행 파일과 `Contents/Info.plist`를 만든 뒤 `widgets/`를 앱 리소스로 복사한다. 개발 중 검증은 다음 명령을 사용한다.
 
 ```bash
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test
@@ -37,10 +37,10 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test
 
 ## 3분 위젯: Quick Hello
 
-MenuBucket은 개발 중 `./widgets/`를 먼저 보고, 사용자 설치 위젯은 `~/Library/Application Support/menubucket/widgets/`에서 읽는다. 아래 예제는 사용자 설치 경로에 새 위젯을 만든다.
+BarShelf은 개발 중 `./widgets/`를 먼저 보고, 사용자 설치 위젯은 `~/Library/Application Support/barshelf/widgets/`에서 읽는다. 아래 예제는 사용자 설치 경로에 새 위젯을 만든다.
 
 ```bash
-install_root="$HOME/Library/Application Support/menubucket/widgets/dev.example.quick-hello"
+install_root="$HOME/Library/Application Support/barshelf/widgets/dev.example.quick-hello"
 mkdir -p "$install_root"
 ```
 
@@ -49,7 +49,7 @@ mkdir -p "$install_root"
 ```bash
 cat > "$install_root/widget.json" <<'JSON'
 {
-  "$schema": "https://menubucket.dev/schema/widget-0.1.json",
+  "$schema": "https://barshelf.dev/schema/widget-0.1.json",
   "schemaVersion": 1,
   "id": "dev.example.quick-hello",
   "name": "Quick Hello",
@@ -106,7 +106,7 @@ cat <<JSON
       "type": "button",
       "title": "Copy greeting",
       "icon": "doc.on.doc",
-      "action": { "type": "copyText", "value": "Hello from MenuBucket at ${now}", "toast": "Copied" }
+      "action": { "type": "copyText", "value": "Hello from BarShelf at ${now}", "toast": "Copied" }
     }
   ]
 }

@@ -2,11 +2,11 @@ import Foundation
 
 /// First-run starter widget seeding (R07 onboarding).
 ///
-/// A packaged MenuBucket.app launches with cwd `/`, so a fresh install found
+/// A packaged BarShelf.app launches with cwd `/`, so a fresh install found
 /// no `./widgets/` directory and the popup opened empty with no guidance. On
 /// first run the CLI-free starter widgets bundled in
-/// `MenuBucket.app/Contents/Resources/widgets/` are copied into the user
-/// widget directory (`~/Library/Application Support/menubucket/widgets/`).
+/// `BarShelf.app/Contents/Resources/widgets/` are copied into the user
+/// widget directory (`~/Library/Application Support/barshelf/widgets/`).
 ///
 /// A marker file (`.seeded-v1`, next to the widgets directory) makes seeding a
 /// one-time event: users who delete the starters on purpose are not re-seeded
@@ -19,7 +19,7 @@ public enum StarterWidgetSeeder {
     public static let starterWidgetNames = ["hello", "recent-files"]
 
     /// Written next to the user widget directory, e.g.
-    /// `~/Library/Application Support/menubucket/.seeded-v1`.
+    /// `~/Library/Application Support/barshelf/.seeded-v1`.
     public static let markerFileName = ".seeded-v1"
 
     public struct Outcome: Equatable {

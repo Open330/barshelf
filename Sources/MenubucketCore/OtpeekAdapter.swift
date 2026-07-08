@@ -19,8 +19,8 @@ public enum OtpeekAdapter {
 
     /// Keychain guidance shown when otpeek rejects the vault password.
     public static let keychainSetupHint = """
-    Store the vault password in the Keychain so menubucket can unlock otpeek:
-    security add-generic-password -s dev.menubucket -a otpeek-vault-password -w
+    Store the vault password in the Keychain so BarShelf can unlock otpeek:
+    security add-generic-password -s dev.barshelf -a otpeek-vault-password -w
     """
 
     // MARK: - Payload schemas (otpeek CLI, camelCase JSON)

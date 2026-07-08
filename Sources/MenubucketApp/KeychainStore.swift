@@ -3,12 +3,12 @@ import Security
 
 /// Read-only Keychain access for widget secret injection.
 ///
-/// Convention: secrets live under service `dev.menubucket` with the account
+/// Convention: secrets live under service `dev.barshelf` with the account
 /// name derived from the env var (`OTPEEK_VAULT_PASSWORD` →
 /// `otpeek-vault-password`). Users create them with:
-/// `security add-generic-password -s dev.menubucket -a <account> -w`
+/// `security add-generic-password -s dev.barshelf -a <account> -w`
 enum KeychainStore {
-    static let service = "dev.menubucket"
+    static let service = "dev.barshelf"
 
     /// Generic password lookup; nil when missing or unreadable.
     static func readPassword(service: String = KeychainStore.service, account: String) -> String? {

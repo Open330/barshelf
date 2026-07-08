@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Packages a GitHub Release payload: MenuBucket-<ver>-<arch>.zip (.app) and
+# Packages a GitHub Release payload: BarShelf-<ver>-<arch>.zip (.app) and
 # mbk-<ver>-<arch>.tar.gz, plus SHA256SUMS. Run scripts/build_app.sh first
 # (this script runs it if dist/ is missing).
 #
@@ -15,22 +15,25 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="${PROJECT_ROOT}/dist"
 RELEASE_DIR="${DIST_DIR}/release"
 ARCH="$(uname -m)"
+APP_DISPLAY_NAME=${APP_DISPLAY_NAME:-BarShelf}
+APP_BUNDLE_NAME=${APP_BUNDLE_NAME:-"${APP_DISPLAY_NAME}.app"}
+APP_BUNDLE_PATH="${DIST_DIR}/${APP_BUNDLE_NAME}"
 
 VERSION=${VERSION:-$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' \
-  "${DIST_DIR}/MenuBucket.app/Contents/Info.plist" 2>/dev/null || echo "0.1.0")}
+  "${APP_BUNDLE_PATH}/Contents/Info.plist" 2>/dev/null || echo "0.1.0")}
 
-if [[ ! -d "${DIST_DIR}/MenuBucket.app" || ! -x "${DIST_DIR}/mbk" ]]; then
+if [[ ! -d "${APP_BUNDLE_PATH}" || ! -x "${DIST_DIR}/mbk" ]]; then
   bash "${PROJECT_ROOT}/scripts/build_app.sh"
 fi
 
 rm -rf "${RELEASE_DIR}"
 mkdir -p "${RELEASE_DIR}"
 
-APP_ZIP="${RELEASE_DIR}/MenuBucket-${VERSION}-${ARCH}.zip"
+APP_ZIP="${RELEASE_DIR}/${APP_DISPLAY_NAME}-${VERSION}-${ARCH}.zip"
 MBK_TAR="${RELEASE_DIR}/mbk-${VERSION}-${ARCH}.tar.gz"
 
 # ditto preserves resource forks, permissions, and code signatures.
-ditto -c -k --keepParent "${DIST_DIR}/MenuBucket.app" "${APP_ZIP}"
+ditto -c -k --keepParent "${APP_BUNDLE_PATH}" "${APP_ZIP}"
 tar -czf "${MBK_TAR}" -C "${DIST_DIR}" mbk
 
 if [[ "${NOTARIZE:-0}" == "1" ]]; then
@@ -47,12 +50,12 @@ if [[ "${NOTARIZE:-0}" == "1" ]]; then
     --key "${ASC_KEY_PATH}" --key-id "${ASC_KEY_ID}" --issuer "${ASC_ISSUER_ID}" \
     --wait
 
-  echo "Stapling ticket to ${DIST_DIR}/MenuBucket.app"
-  xcrun stapler staple "${DIST_DIR}/MenuBucket.app"
+  echo "Stapling ticket to ${APP_BUNDLE_PATH}"
+  xcrun stapler staple "${APP_BUNDLE_PATH}"
 
   # Re-zip so the shipped archive contains the stapled bundle.
   rm -f "${APP_ZIP}"
-  ditto -c -k --keepParent "${DIST_DIR}/MenuBucket.app" "${APP_ZIP}"
+  ditto -c -k --keepParent "${APP_BUNDLE_PATH}" "${APP_ZIP}"
 fi
 
 (cd "${RELEASE_DIR}" && shasum -a 256 ./*.zip ./*.tar.gz > SHA256SUMS)

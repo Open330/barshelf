@@ -1,4 +1,4 @@
-# MenuBucket 워크플로 DSL v1
+# BarShelf 워크플로 DSL v1
 
 이 문서는 `entry.kind: "workflow"` 위젯이 사용하는 `workflow.json` 계약이다. Workflow는 스크립트 없이 호스트가 직접 실행하는 제한된 선언형 파이프라인이며, 구조는 `source -> transform -> render`로 고정된다.
 
@@ -21,7 +21,7 @@ Workflow 위젯은 manifest에서 workflow 파일을 직접 가리킨다.
 
 ```json
 {
-  "$schema": "https://menubucket.dev/schema/widget-0.1.json",
+  "$schema": "https://barshelf.dev/schema/widget-0.1.json",
   "schemaVersion": 1,
   "id": "dev.example.recent-files",
   "name": "Recent Files",
@@ -59,7 +59,7 @@ Workflow 위젯은 manifest에서 workflow 파일을 직접 가리킨다.
 
 ```json
 {
-  "$schema": "https://menubucket.dev/schema/workflow-0.1.json",
+  "$schema": "https://barshelf.dev/schema/workflow-0.1.json",
   "schemaVersion": 1,
   "sources": {},
   "transforms": {},

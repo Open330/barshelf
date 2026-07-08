@@ -1,19 +1,19 @@
-# MenuBucket 설치 가이드
+# BarShelf 설치 가이드
 
-MenuBucket은 macOS **메뉴바 앱**(`MenuBucket.app`)과 선택 설치하는 개발자용 CLI(`mbk`)로 배포된다.
+BarShelf은 macOS **메뉴바 앱**(`BarShelf.app`)과 선택 설치하는 개발자용 CLI(`mbk`)로 배포된다.
 
 - 요구 사항: **macOS 13 (Ventura) 이상**, Apple Silicon(arm64) — 현재 릴리스는 arm64 빌드만 제공
 - 스크립트 위젯을 쓰려면 [Deno](https://deno.land) 필요 (`brew install deno`) — 없어도 exec/workflow 위젯은 전부 동작
 
 ## 방법 A — GitHub Releases (권장)
 
-1. [Releases](https://github.com/jiunbae/menubucket/releases)에서 `MenuBucket-<버전>-arm64.zip` 다운로드
-2. 압축 해제 후 `MenuBucket.app`을 `/Applications`로 이동
+1. [Releases](https://github.com/jiunbae/menubucket/releases)에서 `BarShelf-<버전>-arm64.zip` 다운로드
+2. 압축 해제 후 `BarShelf.app`을 `/Applications`로 이동
 3. **첫 실행**: 현재 릴리스는 공증(notarization)되지 않은 ad-hoc 서명 빌드라 더블클릭 시 Gatekeeper가 차단한다. 다음 중 하나로 1회만 허용:
-   - `MenuBucket.app` **우클릭 → 열기 → 열기** 버튼, 또는
+   - `BarShelf.app` **우클릭 → 열기 → 열기** 버튼, 또는
    - 터미널에서 격리 속성 제거:
      ```bash
-     xattr -dr com.apple.quarantine /Applications/MenuBucket.app
+     xattr -dr com.apple.quarantine /Applications/BarShelf.app
      ```
 4. 메뉴바에 아이콘이 나타나면 클릭 → 온보딩 시작. 로그인 시 자동 실행은 시스템 설정 → 일반 → 로그인 항목에서 추가
 
@@ -40,8 +40,8 @@ Xcode(Command Line Tools만으로는 테스트 불가)와 Swift 5.9+ 필요:
 ```bash
 git clone git@github.com:jiunbae/menubucket.git
 cd menubucket
-bash scripts/build_app.sh          # dist/MenuBucket.app + dist/mbk 생성
-open dist/MenuBucket.app
+bash scripts/build_app.sh          # dist/BarShelf.app + dist/mbk 생성
+open dist/BarShelf.app
 ```
 
 개발 모드로 바로 실행하려면 (`./widgets/` 예제가 즉시 로드됨):
@@ -67,7 +67,7 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift run menubucket
 | 아이콘이 안 보임 | 메뉴바 공간 부족 — 다른 아이콘 정리 후 재실행 |
 | script 위젯에 "Install Deno" 카드 | `brew install deno` 후 위젯 카드에서 Refresh |
 | otpeek 위젯 패스워드 오류 | [`docs/WIDGET-SPEC.md`](WIDGET-SPEC.md)의 Keychain 설정(`security add-generic-password …`) 참조 |
-| 위젯이 안 나타남 | `~/Library/Application Support/menubucket/widgets/<id>/widget.json` 존재 확인 후 `mbk validate <경로>` |
+| 위젯이 안 나타남 | `~/Library/Application Support/barshelf/widgets/<id>/widget.json` 존재 확인 후 `mbk validate <경로>` |
 
 ## 배포 로드맵
 

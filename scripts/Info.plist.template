@@ -35,6 +35,7 @@
             <string>__BUNDLE_IDENTIFIER__.deeplink</string>
             <key>CFBundleURLSchemes</key>
             <array>
+                <string>barshelf</string>
                 <string>menubucket</string>
             </array>
         </dict>

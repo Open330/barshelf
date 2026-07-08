@@ -148,7 +148,7 @@ final class WidgetRuntime: ObservableObject {
         )
         if outcome.didSeed {
             NSLog(
-                "menubucket: seeded starter widgets: %@",
+                "barshelf: seeded starter widgets: %@",
                 outcome.seededNames.joined(separator: ", ")
             )
             prefs.markWelcomePending()
@@ -162,7 +162,7 @@ final class WidgetRuntime: ObservableObject {
             for: .applicationSupportDirectory, in: .userDomainMask
         ).first ?? FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support")
-        return base.appendingPathComponent("menubucket", isDirectory: true)
+        return base.appendingPathComponent("barshelf", isDirectory: true)
     }
 
     /// Created on first script-widget use (deno-based launch plans injected;
@@ -206,7 +206,7 @@ final class WidgetRuntime: ObservableObject {
             },
             onWidgetLog: { widgetId, level, message in
                 if level == "error" {
-                    NSLog("menubucket[%@] %@: %@", widgetId, level, message)
+                    NSLog("barshelf[%@] %@: %@", widgetId, level, message)
                 }
             }
         )
@@ -231,7 +231,7 @@ final class WidgetRuntime: ObservableObject {
             persistSnapshot(snapshot)
         }
         if let label = params.status?.label {
-            NSLog("menubucket[%@] status: %@ (rev %d)", widgetId, label, revision)
+            NSLog("barshelf[%@] status: %@ (rev %d)", widgetId, label, revision)
         }
         scheduler.noteRefreshSucceeded(widgetID: widgetId, nextRefreshAtMs: params.nextRefreshAt)
         inFlight.remove(widgetId)
@@ -340,13 +340,13 @@ final class WidgetRuntime: ObservableObject {
     /// UI `event` action → `widget.action` notification to the script.
     func sendScriptEvent(actionId: String?, widgetID: String) {
         guard let actionId else {
-            NSLog("menubucket: event action from %@ has no id", widgetID)
+            NSLog("barshelf: event action from %@ has no id", widgetID)
             return
         }
         guard let widget = widgets.first(where: { $0.id == widgetID }),
               widget.manifest.entry.kind == "script"
         else {
-            NSLog("menubucket: 'event' action (id: %@) from %@ ignored (not a script widget)",
+            NSLog("barshelf: 'event' action (id: %@) from %@ ignored (not a script widget)",
                   actionId, widgetID)
             return
         }
@@ -356,7 +356,7 @@ final class WidgetRuntime: ObservableObject {
             do {
                 try await self.scriptSupervisor.sendAction(widgetId: widgetID, actionId: actionId)
             } catch {
-                NSLog("menubucket: event %@ for %@ failed: %@",
+                NSLog("barshelf: event %@ for %@ failed: %@",
                       actionId, widgetID, String(describing: error))
             }
         }
@@ -430,7 +430,7 @@ final class WidgetRuntime: ObservableObject {
 
     /// Widget directory search order:
     /// 1. `./widgets/` relative to cwd (development mode)
-    /// 2. `~/Library/Application Support/menubucket/widgets/`
+    /// 2. `~/Library/Application Support/barshelf/widgets/`
     /// Each widget lives at `<dir>/<widget-name>/widget.json`. On duplicate
     /// widget ids the earlier directory wins (dev overrides installed).
     static var widgetSearchDirectories: [URL] {
@@ -443,7 +443,7 @@ final class WidgetRuntime: ObservableObject {
         ).first {
             directories.append(
                 appSupport
-                    .appendingPathComponent("menubucket", isDirectory: true)
+                    .appendingPathComponent("barshelf", isDirectory: true)
                     .appendingPathComponent("widgets", isDirectory: true)
             )
         }
@@ -472,7 +472,7 @@ final class WidgetRuntime: ObservableObject {
                     seenIDs.insert(manifest.id)
                     loaded.append(LoadedWidget(manifest: manifest, directory: entry))
                 } catch {
-                    NSLog("menubucket: skipping \(manifestURL.path): \(error)")
+                    NSLog("barshelf: skipping \(manifestURL.path): \(error)")
                 }
             }
         }
@@ -538,13 +538,13 @@ final class WidgetRuntime: ObservableObject {
                 }
                 hotReloadWatchers.append(watcher)
             } catch {
-                NSLog("menubucket: hot reload unavailable for \(directory.path): \(error)")
+                NSLog("barshelf: hot reload unavailable for \(directory.path): \(error)")
             }
         }
     }
 
     private func hotReload() {
-        NSLog("menubucket: widget directory changed — rescanning manifests")
+        NSLog("barshelf: widget directory changed — rescanning manifests")
         loadWidgets()
         // While the popup is open, immediately populate widgets that have
         // never rendered (new or previously broken manifests).
@@ -906,7 +906,7 @@ final class WidgetRuntime: ObservableObject {
                 self.refresh(widgetID: widgetID, manual: false)
             }
         } catch {
-            NSLog("menubucket: workflow watch unavailable for \(path): \(error)")
+            NSLog("barshelf: workflow watch unavailable for \(path): \(error)")
         }
     }
 
@@ -1022,7 +1022,7 @@ final class WidgetRuntime: ObservableObject {
 
     /// Keychain-backed env injection: for `permissions.keychain == true`, each
     /// declared env var missing from the host environment is looked up in the
-    /// Keychain (service `dev.menubucket`, account = lowercased var with `_`→`-`).
+    /// Keychain (service `dev.barshelf`, account = lowercased var with `_`→`-`).
     static func secretEnvironment(for manifest: Manifest) -> [String: String]? {
         guard manifest.permissions?.keychain == true else { return nil }
         var extra: [String: String] = [:]
@@ -1045,14 +1045,14 @@ final class WidgetRuntime: ObservableObject {
         guard let widget = widgets.first(where: { $0.id == widgetID }) else { return }
         guard gatePermissions(for: widget) else { return }
         guard let command = action.command, !command.isEmpty else {
-            NSLog("menubucket: run action from %@ has no command", widgetID)
+            NSLog("barshelf: run action from %@ has no command", widgetID)
             return
         }
         guard let permission = ExecAllowlist.match(
             command: command, permissions: widget.manifest.permissions?.exec
         ) else {
             NSLog(
-                "menubucket: BLOCKED run action from %@ — not in permissions.exec allowlist: %@",
+                "barshelf: BLOCKED run action from %@ — not in permissions.exec allowlist: %@",
                 widgetID, command.joined(separator: " ")
             )
             auditLog.record("exec.blocked", widgetId: widgetID, detail: [
@@ -1158,7 +1158,7 @@ final class WidgetRuntime: ObservableObject {
             for: .applicationSupportDirectory, in: .userDomainMask
         ).first else { return nil }
         return appSupport
-            .appendingPathComponent("menubucket", isDirectory: true)
+            .appendingPathComponent("barshelf", isDirectory: true)
             .appendingPathComponent("cache", isDirectory: true)
     }
 
@@ -1175,7 +1175,7 @@ final class WidgetRuntime: ObservableObject {
     /// synchronous JSON encode + disk write on the main queue every tick.
     /// Losing the trailing write on quit only costs one cached render.
     private static let persistQueue = DispatchQueue(
-        label: "dev.menubucket.snapshot-cache", qos: .utility
+        label: "dev.barshelf.snapshot-cache", qos: .utility
     )
     static let persistDebounceSec: TimeInterval = 0.5
     private var pendingPersists: [String: DispatchWorkItem] = [:]
@@ -1192,7 +1192,7 @@ final class WidgetRuntime: ObservableObject {
                 )
                 try snapshot.serialized().write(to: url, options: .atomic)
             } catch {
-                NSLog("menubucket: failed to cache snapshot for \(snapshot.widgetID): \(error)")
+                NSLog("barshelf: failed to cache snapshot for \(snapshot.widgetID): \(error)")
             }
         }
         pendingPersists[snapshot.widgetID] = item
@@ -1230,7 +1230,7 @@ struct HostAdapterContext: AdapterContext, @unchecked Sendable {
             command: command, permissions: widget.manifest.permissions?.exec
         ) else {
             NSLog(
-                "menubucket: BLOCKED adapter exec from %@ — not in allowlist: %@",
+                "barshelf: BLOCKED adapter exec from %@ — not in allowlist: %@",
                 widget.id, command.joined(separator: " ")
             )
             throw AdapterError.execNotAllowed(command.joined(separator: " "))

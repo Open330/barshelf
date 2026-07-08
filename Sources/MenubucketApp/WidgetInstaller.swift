@@ -137,7 +137,7 @@ enum WidgetInstallFlowError: Error, LocalizedError {
     }
 }
 
-// MARK: - GUI installer (menu item + menubucket:// deep link)
+// MARK: - GUI installer (menu item + barshelf:// deep link)
 
 /// Interactive install: URL prompt → per-widget confirmation dialog (name /
 /// version / permission summary) → completion summary. Installed files are
@@ -171,7 +171,7 @@ final class WidgetInstaller {
         install(input: input)
     }
 
-    /// Deep link entry point: `menubucket://install?url=…`.
+    /// Deep link entry point: `barshelf://install?url=…`.
     func handleDeepLink(_ url: URL) {
         install(input: url.absoluteString)
     }
@@ -318,14 +318,14 @@ final class WidgetInstaller {
 
 // MARK: - CLI mode (`menubucket install <url>`)
 
-/// Headless install used by `MenuBucket.app/Contents/MacOS/menubucket install
+/// Headless install used by `BarShelf.app/Contents/MacOS/menubucket install
 /// <url>` — no dialogs; the permission summary is printed to stdout instead.
 /// Exit code 0 on success, 1 on any failure.
 enum WidgetInstallCLI {
     static func run(arguments: [String]) -> Int32 {
         guard arguments.count == 1, let input = arguments.first, !input.isEmpty else {
             printError("usage: menubucket install <url>")
-            printError("  <url>: GitHub repo URL, .zip/.mbw archive URL, or menubucket://install?url=…")
+            printError("  <url>: GitHub repo URL, .zip/.mbw archive URL, or barshelf://install?url=…")
             return 1
         }
 

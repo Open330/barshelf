@@ -820,7 +820,7 @@ public enum RuntimeLaunchError: Error, LocalizedError, Equatable {
         case .denoNotFound:
             return "Deno runtime not found. \(DenoRuntime.installHint)"
         case .sdkNotFound:
-            return "menubucket SDK (sdk/mod.ts) not found"
+            return "BarShelf SDK (sdk/mod.ts) not found"
         case let .unsupportedRuntime(runtime):
             return "unsupported entry.runtime \"\(runtime)\" (supported: \(DenoRuntime.runtimeIdentifier))"
         }
@@ -897,7 +897,7 @@ public enum DenoRuntime {
         )
     }
 
-    /// `{"imports": {"menubucket": "file://<sdk>/mod.ts"}}`
+    /// `{"imports": {"barshelf": "file://<sdk>/mod.ts"}}`
     public static func writeImportMap(
         widgetId: String,
         sdkModule: URL,
@@ -909,7 +909,10 @@ public enum DenoRuntime {
         try FileManager.default.createDirectory(at: widgetState, withIntermediateDirectories: true)
         let importMapURL = widgetState.appendingPathComponent("import-map.json")
         let map = JSONValue.object([
-            "imports": .object(["menubucket": .string("file://" + sdkModule.path)])
+            "imports": .object([
+                "barshelf": .string("file://" + sdkModule.path),
+                "menubucket": .string("file://" + sdkModule.path),
+            ])
         ])
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]

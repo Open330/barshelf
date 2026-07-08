@@ -22,7 +22,7 @@ final class AppSettingsWindowController {
             backing: .buffered,
             defer: false
         )
-        window.title = "MenuBucket Settings"
+        window.title = "BarShelf Settings"
         window.isReleasedWhenClosed = false
         window.minSize = NSSize(width: 560, height: 420)
         window.contentView = NSHostingView(
@@ -218,7 +218,7 @@ struct AppSettingsView: View {
 
     private func openLogsFolder() {
         let logs = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Logs/MenuBucket", isDirectory: true)
+            .appendingPathComponent("Library/Logs/BarShelf", isDirectory: true)
         try? FileManager.default.createDirectory(
             at: logs, withIntermediateDirectories: true
         )

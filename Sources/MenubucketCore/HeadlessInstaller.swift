@@ -64,7 +64,7 @@ public enum HeadlessInstaller {
     // guards memory/bandwidth abuse rather than typical repo size.
     public static let maxDownloadBytes = 128 * 1024 * 1024
 
-    /// `~/Library/Application Support/menubucket/widgets` — where the app
+    /// `~/Library/Application Support/barshelf/widgets` — where the app
     /// loads user-installed widgets from.
     public static var defaultWidgetsDirectory: URL {
         let base = FileManager.default.urls(
@@ -72,7 +72,7 @@ public enum HeadlessInstaller {
         ).first ?? FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support")
         return base
-            .appendingPathComponent("menubucket", isDirectory: true)
+            .appendingPathComponent("barshelf", isDirectory: true)
             .appendingPathComponent("widgets", isDirectory: true)
     }
 
@@ -129,7 +129,7 @@ public enum HeadlessInstaller {
 
             let staging = FileManager.default.temporaryDirectory
                 .appendingPathComponent(
-                    "menubucket-install-\(UUID().uuidString)", isDirectory: true
+                    "barshelf-install-\(UUID().uuidString)", isDirectory: true
                 )
             do {
                 try SafeZipExtractor.extract(zipData: archive, to: staging)

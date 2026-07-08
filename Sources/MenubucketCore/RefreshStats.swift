@@ -69,7 +69,7 @@ public final class RefreshStatsStore: @unchecked Sendable {
     private var statsByWidget: [String: WidgetRefreshStats]
     private let fileURL: URL?
     private let persistQueue = DispatchQueue(
-        label: "dev.menubucket.refresh-stats", qos: .utility
+        label: "dev.barshelf.refresh-stats", qos: .utility
     )
     private var pendingPersist: DispatchWorkItem?
     /// Debounce for disk writes; 0 (tests) persists synchronously.

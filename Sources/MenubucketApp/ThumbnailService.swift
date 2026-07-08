@@ -17,7 +17,7 @@ final class ThumbnailService: @unchecked Sendable {
 
     private let cache = NSCache<NSString, NSImage>()
     private let diskDirectory: URL
-    private let queue = DispatchQueue(label: "dev.menubucket.thumbnails", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "dev.barshelf.thumbnails", qos: .userInitiated)
     private let lock = NSLock()
     private var inFlight: [String: [(NSImage?) -> Void]] = [:]
 
@@ -26,7 +26,7 @@ final class ThumbnailService: @unchecked Sendable {
         cache.totalCostLimit = Self.memoryCostLimitBytes
         self.diskDirectory = diskDirectory ?? FileManager.default
             .urls(for: .cachesDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("MenuBucket/thumbnails")
+            .appendingPathComponent("BarShelf/thumbnails")
         try? FileManager.default.createDirectory(at: self.diskDirectory, withIntermediateDirectories: true)
         queue.async { [weak self] in self?.pruneDiskCache() }
     }

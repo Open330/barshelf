@@ -64,7 +64,7 @@ public final class ExecService {
         }
     }
 
-    private let queue = DispatchQueue(label: "dev.menubucket.exec", qos: .utility, attributes: .concurrent)
+    private let queue = DispatchQueue(label: "dev.barshelf.exec", qos: .utility, attributes: .concurrent)
 
     /// Runs `command` and delivers stdout data (or an error) on an arbitrary queue.
     /// `workingDirectory` doubles as the base for `./relative` command paths
@@ -206,7 +206,7 @@ public final class ExecService {
         var stderrData = Data()
         var stdoutOverflowed = false
         let readGroup = DispatchGroup()
-        let readQueue = DispatchQueue(label: "dev.menubucket.exec.read", attributes: .concurrent)
+        let readQueue = DispatchQueue(label: "dev.barshelf.exec.read", attributes: .concurrent)
 
         let startedAt = Date()
         do {

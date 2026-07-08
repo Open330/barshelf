@@ -1,4 +1,4 @@
-# MenuBucket 위젯 스펙 v0.1
+# BarShelf 위젯 스펙 v0.1
 
 이 문서는 `widgets/<name>/widget.json` 제작자를 위한 v0.1 스펙이다. Manifest는 위젯의 실행 방식, 권한, 갱신 정책, 버킷 배치를 선언하고, 출력은 UINode JSON view tree로 렌더링된다.
 
@@ -20,7 +20,7 @@
 
 ```json
 {
-  "$schema": "https://menubucket.dev/schema/widget-0.1.json",
+  "$schema": "https://barshelf.dev/schema/widget-0.1.json",
   "schemaVersion": 1,
   "id": "dev.example.widget",
   "name": "Example",
@@ -67,9 +67,9 @@
 
 | 필드 | 필수 | 설명 |
 | --- | --- | --- |
-| `$schema` | 아니오 | JSON Schema URL. 권장값은 `https://menubucket.dev/schema/widget-0.1.json`. |
+| `$schema` | 아니오 | JSON Schema URL. 권장값은 `https://barshelf.dev/schema/widget-0.1.json`. |
 | `schemaVersion` | 예 | v0.1은 `1`. |
-| `id` | 예 | 전역에서 안정적인 위젯 ID. 예: `dev.menubucket.aas-usage`. |
+| `id` | 예 | 전역에서 안정적인 위젯 ID. 예: `dev.barshelf.aas-usage`. |
 | `name` | 예 | UI에 표시할 위젯 이름. |
 | `version` | 아니오 | 위젯 패키지 버전. |
 | `icon` | 예 | 위젯 기본 아이콘 이름. M1은 SF Symbol 스타일 이름을 우선 사용한다. |
@@ -489,7 +489,7 @@ Countdown progress:
 
 ## 갱신 모델
 
-MenuBucket은 cache-first로 동작한다. 팝오버가 열리면 마지막 성공 snapshot을 먼저 표시하고, stale이면 백그라운드 갱신을 시작한다. 갱신 실패 시 마지막 성공 snapshot을 유지하고 오류 banner/card를 표시한다.
+BarShelf은 cache-first로 동작한다. 팝오버가 열리면 마지막 성공 snapshot을 먼저 표시하고, stale이면 백그라운드 갱신을 시작한다. 갱신 실패 시 마지막 성공 snapshot을 유지하고 오류 banner/card를 표시한다.
 
 | 트리거 | 설명 |
 | --- | --- |
@@ -526,9 +526,9 @@ OTP, access token, 계정별 사용량처럼 민감할 수 있는 값은 다음 
 
 ```json
 {
-  "$schema": "https://menubucket.dev/schema/widget-0.1.json",
+  "$schema": "https://barshelf.dev/schema/widget-0.1.json",
   "schemaVersion": 1,
-  "id": "dev.menubucket.hello",
+  "id": "dev.barshelf.hello",
   "name": "Hello",
   "version": "0.1.0",
   "icon": "hand.wave",
@@ -574,12 +574,12 @@ stdout 예:
   "type": "vstack",
   "spacing": 8,
   "children": [
-    { "type": "text", "role": "title", "text": "Hello MenuBucket" },
+    { "type": "text", "role": "title", "text": "Hello BarShelf" },
     { "type": "text", "role": "caption", "text": "Rendered from a JSON view tree." },
     {
       "type": "button",
       "title": "Copy greeting",
-      "action": { "type": "copyText", "value": "Hello MenuBucket", "toast": "Copied" }
+      "action": { "type": "copyText", "value": "Hello BarShelf", "toast": "Copied" }
     }
   ]
 }
@@ -591,9 +591,9 @@ stdout 예:
 
 ```json
 {
-  "$schema": "https://menubucket.dev/schema/widget-0.1.json",
+  "$schema": "https://barshelf.dev/schema/widget-0.1.json",
   "schemaVersion": 1,
-  "id": "dev.menubucket.aas-usage",
+  "id": "dev.barshelf.aas-usage",
   "name": "aas Usage",
   "version": "0.1.0",
   "icon": "gauge",
@@ -649,9 +649,9 @@ otpeek 위젯은 TOTP 계정을 조회한 뒤 각 계정의 코드를 병렬로 
 
 ```json
 {
-  "$schema": "https://menubucket.dev/schema/widget-0.1.json",
+  "$schema": "https://barshelf.dev/schema/widget-0.1.json",
   "schemaVersion": 1,
-  "id": "dev.menubucket.otpeek",
+  "id": "dev.barshelf.otpeek",
   "name": "OTPeek",
   "version": "0.1.0",
   "icon": "lock.shield",
@@ -699,7 +699,7 @@ otpeek 위젯은 TOTP 계정을 조회한 뒤 각 계정의 코드를 병렬로 
 Keychain에 vault password를 저장하려면 다음 명령을 사용한다.
 
 ```bash
-security add-generic-password -s dev.menubucket -a otpeek-vault-password -w
+security add-generic-password -s dev.barshelf -a otpeek-vault-password -w
 ```
 
 adapter가 생성하는 row 예:
@@ -742,7 +742,7 @@ adapter가 생성하는 row 예:
 
 1. 호스트가 `$OTPEEK_BIN`, `~/.cargo/bin/otpeek`, Homebrew 경로, `PATH` 순서로 `otpeek`을 찾는다.
 2. `otpeek list --json` stdout은 secret을 포함할 수 있으므로 `sensitiveOutput: true`로 취급한다.
-3. `permissions.keychain=true`이면 `dev.menubucket` service의 `otpeek-vault-password` account를 조회하고, 값이 있으면 `OTPEEK_VAULT_PASSWORD` env로 주입한다.
+3. `permissions.keychain=true`이면 `dev.barshelf` service의 `otpeek-vault-password` account를 조회하고, 값이 있으면 `OTPEEK_VAULT_PASSWORD` env로 주입한다.
 4. adapter는 TOTP 계정만 필터링하고 각 계정에 대해 `otpeek code <id> --json`을 병렬 실행한다.
 5. row는 issuer/accountName, countdown ring, 그룹핑된 코드, `copyText.clearAfterSec=30` 액션을 포함한다.
 6. adapter는 `nextRefreshAtMs = min(validUntil) + 250`을 반환해 다음 TOTP boundary에서 정확히 다시 실행되게 한다.

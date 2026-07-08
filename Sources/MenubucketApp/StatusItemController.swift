@@ -66,7 +66,7 @@ final class StatusItemController: NSObject {
         menu.addItem(.separator())
 
         let quitItem = NSMenuItem(
-            title: "Quit MenuBucket",
+            title: "Quit BarShelf",
             action: #selector(terminateApp(_:)),
             keyEquivalent: "q"
         )
@@ -186,10 +186,10 @@ final class StatusItemController: NSObject {
         let trimmed = symbol.trimmingCharacters(in: .whitespacesAndNewlines)
         let image = NSImage(
             systemSymbolName: trimmed.isEmpty ? fallback : trimmed,
-            accessibilityDescription: "MenuBucket"
+            accessibilityDescription: "BarShelf"
         ) ?? NSImage(
             systemSymbolName: fallback,
-            accessibilityDescription: "MenuBucket"
+            accessibilityDescription: "BarShelf"
         )
         statusItem.button?.image = image
     }

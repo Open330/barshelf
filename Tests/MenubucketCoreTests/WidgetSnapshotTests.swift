@@ -10,7 +10,7 @@ final class WidgetSnapshotTests: XCTestCase {
         )
         let updatedAt = Date(timeIntervalSince1970: 1_752_000_000) // whole second (ISO8601-safe)
         let snapshot = WidgetSnapshot(
-            widgetID: "dev.menubucket.hello",
+            widgetID: "dev.barshelf.hello",
             viewTree: tree,
             updatedAt: updatedAt,
             error: "aas not found",

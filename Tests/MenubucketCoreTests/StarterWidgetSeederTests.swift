@@ -36,7 +36,7 @@ final class StarterWidgetSeederTests: XCTestCase {
         for name in names {
             let dir = bundledDir.appendingPathComponent(name, isDirectory: true)
             try fm.createDirectory(at: dir, withIntermediateDirectories: true)
-            try Data("{\"id\": \"dev.menubucket.\(name)\"}".utf8)
+            try Data("{\"id\": \"dev.barshelf.\(name)\"}".utf8)
                 .write(to: dir.appendingPathComponent("widget.json"))
             try Data("#!/bin/sh\n".utf8)
                 .write(to: dir.appendingPathComponent("main.sh"))

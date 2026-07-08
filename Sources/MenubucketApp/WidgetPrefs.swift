@@ -22,7 +22,7 @@ final class WidgetPrefs: ObservableObject {
     init(fileURL: URL? = nil) {
         self.fileURL = fileURL ?? FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("menubucket/prefs.json")
+            .appendingPathComponent("barshelf/prefs.json")
         load()
     }
 

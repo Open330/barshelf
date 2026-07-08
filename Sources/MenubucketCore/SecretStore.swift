@@ -3,18 +3,18 @@ import Security
 
 /// Widget secret storage backing `host.secret.get/set`.
 ///
-/// Production implementation is the Keychain (service `dev.menubucket`,
+/// Production implementation is the Keychain (service `dev.barshelf`,
 /// account `<widgetId>/<key>`); tests inject `InMemorySecretStore`.
 public protocol SecretStoring: Sendable {
     func get(widgetId: String, key: String) throws -> String?
     func set(widgetId: String, key: String, value: String) throws
 }
 
-/// Keychain-backed secrets: generic passwords under service `dev.menubucket`
+/// Keychain-backed secrets: generic passwords under service `dev.barshelf`
 /// with account `<widgetId>/<key>`. Requires manifest
 /// `permissions.keychain: true` (enforced by the supervisor, not here).
 public struct KeychainSecretStore: SecretStoring {
-    public static let service = "dev.menubucket"
+    public static let service = "dev.barshelf"
 
     private let service: String
 

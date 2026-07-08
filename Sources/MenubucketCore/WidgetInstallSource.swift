@@ -6,7 +6,7 @@ import Foundation
 /// 1. GitHub repo URL: `https://github.com/{user}/{repo}` or
 ///    `https://github.com/{user}/{repo}/tree/{branch}[/{subdir}]`
 /// 2. Direct archive URL: `https://…/*.zip` or `*.mbw`
-/// 3. Deep link: `menubucket://install?url=<percent-encoded-url>`
+/// 3. Deep link: `barshelf://install?url=<percent-encoded-url>`
 ///
 /// GitHub repo URLs resolve to codeload archive URLs
 /// (`https://codeload.github.com/{user}/{repo}/zip/refs/heads/{branch}`);
@@ -71,6 +71,7 @@ public struct WidgetInstallSource: Equatable, Sendable {
     private static let maxDeepLinkDepth = 1
     private static let archiveExtensions: Set<String> = ["zip", "mbw"]
     private static let gitHubHosts: Set<String> = ["github.com", "www.github.com"]
+    private static let deepLinkSchemes: Set<String> = ["barshelf", "menubucket"]
 
     public static func parse(_ input: String) throws -> WidgetInstallSource {
         try parse(input, deepLinkDepth: 0)
@@ -87,7 +88,7 @@ public struct WidgetInstallSource: Equatable, Sendable {
             throw WidgetInstallSourceError.notAURL(trimmed)
         }
 
-        if scheme == "menubucket" {
+        if deepLinkSchemes.contains(scheme) {
             guard deepLinkDepth < Self.maxDeepLinkDepth else {
                 throw WidgetInstallSourceError.nestedDeepLink(trimmed)
             }
@@ -119,7 +120,7 @@ public struct WidgetInstallSource: Equatable, Sendable {
         throw WidgetInstallSourceError.unsupportedURL(trimmed)
     }
 
-    /// `menubucket://install?url=<percent-encoded-url>`
+    /// `barshelf://install?url=<percent-encoded-url>`
     private static func parseDeepLink(
         _ components: URLComponents, deepLinkDepth: Int
     ) throws -> WidgetInstallSource {
@@ -227,17 +228,17 @@ public enum WidgetInstallSourceError: Error, Equatable, LocalizedError {
         case let .notAURL(input):
             return "not a valid URL: \(input)"
         case let .unsupportedScheme(scheme):
-            return "unsupported URL scheme \"\(scheme)\" (expected https, or menubucket://install)"
+            return "unsupported URL scheme \"\(scheme)\" (expected https, or barshelf://install)"
         case let .unsupportedURL(input):
             return "unsupported URL: \(input) (expected a GitHub repo URL or a .zip/.mbw archive URL)"
         case let .malformedGitHubURL(input):
             return "malformed GitHub URL: \(input) (expected https://github.com/{user}/{repo}[/tree/{branch}[/{subdir}]])"
         case let .unsupportedDeepLinkAction(action):
-            return "unsupported menubucket:// action \"\(action)\" (expected menubucket://install?url=…)"
+            return "unsupported barshelf:// action \"\(action)\" (expected barshelf://install?url=...)"
         case .deepLinkMissingURL:
-            return "menubucket://install requires a url query parameter"
+            return "barshelf://install requires a url query parameter"
         case let .nestedDeepLink(input):
-            return "menubucket:// deep links cannot nest: \(input)"
+            return "barshelf:// deep links cannot nest: \(input)"
         }
     }
 }

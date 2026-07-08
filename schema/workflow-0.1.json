@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://menubucket.dev/schema/workflow-0.1.json",
-  "title": "MenuBucket Workflow v0.1",
+  "$id": "https://barshelf.dev/schema/workflow-0.1.json",
+  "title": "BarShelf Workflow v0.1",
   "description": "Declarative workflow DSL v1. Host I/O lives in sources, pure transforms live in transforms, and view/empty are UINode templates. Expressions are not JavaScript; interpolation is allowed only inside ${...}. Supported built-ins: now(), count(list), date.relative(ms), file.basename(path), file.extension(path), text.truncate(s,n), coalesce(a,b,...).",
   "type": "object",
   "required": [

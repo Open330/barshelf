@@ -17,7 +17,7 @@ final class ManifestTests: XCTestCase {
         let manifest = try Manifest.decode(from: data)
 
         XCTAssertEqual(manifest.schemaVersion, 1)
-        XCTAssertEqual(manifest.id, "dev.menubucket.aas-usage")
+        XCTAssertEqual(manifest.id, "dev.barshelf.aas-usage")
         XCTAssertEqual(manifest.name, "aas Usage")
         XCTAssertEqual(manifest.icon, "gauge")
         XCTAssertEqual(manifest.bucket?.group, "Agents")
@@ -41,7 +41,7 @@ final class ManifestTests: XCTestCase {
         let data = try Data(contentsOf: url)
         let manifest = try Manifest.decode(from: data)
 
-        XCTAssertEqual(manifest.id, "dev.menubucket.hello")
+        XCTAssertEqual(manifest.id, "dev.barshelf.hello")
         XCTAssertEqual(manifest.bucket?.group, "Demo")
         XCTAssertEqual(manifest.bucket?.order, 10)
         XCTAssertEqual(manifest.bucket?.size, "S")

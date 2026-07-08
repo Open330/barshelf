@@ -249,8 +249,9 @@ extension RegistryIndex {
 
 /// Loads the registry index with the v0.1 resolution order:
 ///
-/// 1. `MENUBUCKET_REGISTRY` environment variable — an http(s) URL or a local
-///    file path (`~` expansion supported).
+/// 1. `BARSHELF_REGISTRY` environment variable, then legacy
+///    `MENUBUCKET_REGISTRY` — an http(s) URL or a local file path
+///    (`~` expansion supported).
 /// 2. The default remote index URL (placeholder constant).
 /// 3. Bundled/local fallback files (offline / development).
 ///
@@ -258,11 +259,12 @@ extension RegistryIndex {
 /// (manual refresh). A failed fetch falls back to a stale cache before moving
 /// on to the next source.
 public final class RegistryClient: @unchecked Sendable {
-    public static let environmentVariable = "MENUBUCKET_REGISTRY"
+    public static let environmentVariable = "BARSHELF_REGISTRY"
+    public static let legacyEnvironmentVariable = "MENUBUCKET_REGISTRY"
 
     /// Placeholder — real registry repo TBD.
     public static let defaultRemoteIndexURL = URL(
-        string: "https://raw.githubusercontent.com/menubucket/registry/main/index.json"
+        string: "https://raw.githubusercontent.com/barshelf/registry/main/index.json"
     )!
 
     public static let maxResponseBytes = 5 * 1024 * 1024
@@ -296,7 +298,7 @@ public final class RegistryClient: @unchecked Sendable {
     }
 
     public enum Source: Equatable, Sendable {
-        /// `MENUBUCKET_REGISTRY` pointing at a local file.
+        /// `BARSHELF_REGISTRY` pointing at a local file.
         case environmentFile(String)
         /// Fresh fetch from a remote URL (env override or the default).
         case remote(URL)
@@ -332,7 +334,7 @@ public final class RegistryClient: @unchecked Sendable {
         let base = FileManager.default.urls(
             for: .cachesDirectory, in: .userDomainMask
         ).first ?? FileManager.default.temporaryDirectory
-        return base.appendingPathComponent("menubucket", isDirectory: true)
+        return base.appendingPathComponent("barshelf", isDirectory: true)
     }
 
     public static let urlSessionFetcher: Fetcher = { url in
@@ -360,8 +362,9 @@ public final class RegistryClient: @unchecked Sendable {
         var failures: [String] = []
 
         // 1. Environment override.
-        if let value = configuration.environment[Self.environmentVariable]?
-            .trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty {
+        if let environmentOverride = Self.registryOverride(in: configuration.environment) {
+            let variableName = environmentOverride.name
+            let value = environmentOverride.value
             if let url = URL(string: value),
                url.scheme == "http" || url.scheme == "https" {
                 do {
@@ -387,7 +390,7 @@ public final class RegistryClient: @unchecked Sendable {
                 }
             }
             warnings.append(
-                "MENUBUCKET_REGISTRY failed (\(failures.last ?? value)); "
+                "\(variableName) failed (\(failures.last ?? value)); "
                     + "falling back to the default registry"
             )
         }
@@ -426,6 +429,18 @@ public final class RegistryClient: @unchecked Sendable {
         throw RegistryError.allSourcesFailed(
             failures.isEmpty ? ["no registry sources configured"] : failures
         )
+    }
+
+    private static func registryOverride(
+        in environment: [String: String]
+    ) -> (name: String, value: String)? {
+        for name in [environmentVariable, legacyEnvironmentVariable] {
+            if let value = environment[name]?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !value.isEmpty {
+                return (name, value)
+            }
+        }
+        return nil
     }
 
     // MARK: Remote + cache

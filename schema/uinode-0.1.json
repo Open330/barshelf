@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://menubucket.dev/schema/uinode-0.1.json",
-  "title": "MenuBucket UINode v0.1",
-  "description": "Declarative JSON view tree schema for MenuBucket widgets.",
+  "$id": "https://barshelf.dev/schema/uinode-0.1.json",
+  "title": "BarShelf UINode v0.1",
+  "description": "Declarative JSON view tree schema for BarShelf widgets.",
   "$ref": "#/definitions/uiNode",
   "definitions": {
     "uiNode": {

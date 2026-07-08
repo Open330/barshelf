@@ -88,7 +88,7 @@ public enum WidgetScaffold {
     private static func execManifest(name: String) -> String {
         """
         {
-          "$schema": "https://menubucket.dev/schema/widget-0.1.json",
+          "$schema": "https://barshelf.dev/schema/widget-0.1.json",
           "schemaVersion": 1,
           "id": "\(name)",
           "name": "\(displayName(name))",
@@ -135,7 +135,7 @@ public enum WidgetScaffold {
     private static func workflowManifest(name: String) -> String {
         """
         {
-          "$schema": "https://menubucket.dev/schema/widget-0.1.json",
+          "$schema": "https://barshelf.dev/schema/widget-0.1.json",
           "schemaVersion": 1,
           "id": "\(name)",
           "name": "\(displayName(name))",
@@ -234,7 +234,7 @@ public enum WidgetScaffold {
     private static func scriptManifest(name: String) -> String {
         """
         {
-          "$schema": "https://menubucket.dev/schema/widget-0.1.json",
+          "$schema": "https://barshelf.dev/schema/widget-0.1.json",
           "schemaVersion": 1,
           "id": "\(name)",
           "name": "\(displayName(name))",
@@ -256,7 +256,7 @@ public enum WidgetScaffold {
 
     private static func scriptEntry(name: String) -> String {
         """
-        import { mb, ui, type WidgetLoadContext, type WidgetTimerContext } from "menubucket";
+        import { mb, ui, type WidgetLoadContext, type WidgetTimerContext } from "barshelf";
 
         const TIMER_ID = "tick";
 

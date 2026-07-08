@@ -1,6 +1,6 @@
 # 위젯 레지스트리 운영 규약
 
-MenuBucket 레지스트리는 URL 설치 계약 위에 얹힌 **큐레이션 레이어**다. repo 루트의 `registry/index.json` 하나가 raw URL로 서빙되고, 앱의 위젯 갤러리와 도구가 이 인덱스를 읽어 설치 가능한 위젯 목록을 보여준다. 레지스트리에 없는 위젯도 [`docs/INSTALLING-WIDGETS.md`](INSTALLING-WIDGETS.md)의 URL 설치 경로로 언제든 설치할 수 있다.
+BarShelf 레지스트리는 URL 설치 계약 위에 얹힌 **큐레이션 레이어**다. repo 루트의 `registry/index.json` 하나가 raw URL로 서빙되고, 앱의 위젯 갤러리와 도구가 이 인덱스를 읽어 설치 가능한 위젯 목록을 보여준다. 레지스트리에 없는 위젯도 [`docs/INSTALLING-WIDGETS.md`](INSTALLING-WIDGETS.md)의 URL 설치 경로로 언제든 설치할 수 있다.
 
 관련 문서:
 
@@ -13,15 +13,15 @@ MenuBucket 레지스트리는 URL 설치 계약 위에 얹힌 **큐레이션 레
 ```jsonc
 {
   "schemaVersion": 1,
-  "name": "menubucket official registry",
+  "name": "barshelf official registry",
   "updatedAt": "2026-07-08T00:00:00Z",
   "widgets": [
     {
-      "id": "dev.menubucket.aas-usage",          // manifest.id와 일치(설치 후 검증)
+      "id": "dev.barshelf.aas-usage",          // manifest.id와 일치(설치 후 검증)
       "name": "aas Usage",
       "description": "LLM 에이전트 계정 사용량 미터",
       "version": "0.1.0",
-      "author": "menubucket",
+      "author": "barshelf",
       "icon": "gauge",                            // SF Symbol
       "kind": "exec",                             // exec | workflow | script
       "tags": ["dev", "ai"],
@@ -74,8 +74,8 @@ MenuBucket 레지스트리는 URL 설치 계약 위에 얹힌 **큐레이션 레
 
 앱과 도구는 레지스트리 위치를 다음 순서로 해석한다.
 
-1. 환경 변수 `MENUBUCKET_REGISTRY` — URL 또는 로컬 파일 경로.
-2. 기본 원격 URL 상수 — 플레이스홀더: `https://raw.githubusercontent.com/menubucket/registry/main/index.json`.
+1. 환경 변수 `BARSHELF_REGISTRY` — URL 또는 로컬 파일 경로. `MENUBUCKET_REGISTRY`도 호환용으로 읽는다.
+2. 기본 원격 URL 상수 — 플레이스홀더: `https://raw.githubusercontent.com/barshelf/registry/main/index.json`.
 3. 번들 `registry/index.json` 폴백 — 오프라인/개발용.
 
 ## 등재 방법 (PR 절차)
@@ -106,10 +106,10 @@ MenuBucket 레지스트리는 URL 설치 계약 위에 얹힌 **큐레이션 레
 
 ```bash
 # 원격 URL
-export MENUBUCKET_REGISTRY="https://intranet.example.com/menubucket/index.json"
+export BARSHELF_REGISTRY="https://intranet.example.com/barshelf/index.json"
 
 # 또는 로컬 경로 (개발/오프라인)
-export MENUBUCKET_REGISTRY="$HOME/menubucket-registry/index.json"
+export BARSHELF_REGISTRY="$HOME/barshelf-registry/index.json"
 ```
 
-`MENUBUCKET_REGISTRY`가 설정되면 기본 원격 레지스트리보다 우선한다.
+`BARSHELF_REGISTRY`가 설정되면 기본 원격 레지스트리보다 우선한다. `MENUBUCKET_REGISTRY`도 기존 자동화 호환용으로 동일하게 동작한다.

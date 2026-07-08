@@ -125,7 +125,7 @@ final class WidgetInstallSourceTests: XCTestCase {
             withAllowedCharacters: .alphanumerics
         )!
         let source = try WidgetInstallSource.parse(
-            "menubucket://install?url=\(encoded)"
+            "barshelf://install?url=\(encoded)"
         )
         XCTAssertEqual(
             source.kind,
@@ -135,6 +135,13 @@ final class WidgetInstallSourceTests: XCTestCase {
     }
 
     func testDeepLinkWithArchiveURL() throws {
+        let source = try WidgetInstallSource.parse(
+            "barshelf://install?url=https%3A%2F%2Fexample.com%2Fwidget.zip"
+        )
+        XCTAssertEqual(source.kind, .archive)
+    }
+
+    func testLegacyDeepLinkStillWorks() throws {
         let source = try WidgetInstallSource.parse(
             "menubucket://install?url=https%3A%2F%2Fexample.com%2Fwidget.zip"
         )
@@ -147,11 +154,11 @@ final class WidgetInstallSourceTests: XCTestCase {
             try WidgetInstallSource.parse("menubucket://remove?url=https://a.com/w.zip")
         )
         // missing url parameter
-        XCTAssertThrowsError(try WidgetInstallSource.parse("menubucket://install"))
+        XCTAssertThrowsError(try WidgetInstallSource.parse("barshelf://install"))
         // nested deep links are refused
         XCTAssertThrowsError(
             try WidgetInstallSource.parse(
-                "menubucket://install?url=menubucket%3A%2F%2Finstall%3Furl%3Dhttps%3A%2F%2Fa.com%2Fw.zip"
+                "barshelf://install?url=menubucket%3A%2F%2Finstall%3Furl%3Dhttps%3A%2F%2Fa.com%2Fw.zip"
             )
         )
     }

@@ -12,7 +12,7 @@ cat <<EOF
   "type": "vstack",
   "spacing": 8,
   "children": [
-    { "id": "hello-title", "type": "text", "text": "Hello from menubucket", "role": "title" },
+    { "id": "hello-title", "type": "text", "text": "Hello from BarShelf", "role": "title" },
     { "id": "hello-time", "type": "text", "text": "Rendered at ${NOW}", "role": "body", "monospacedDigit": true },
     {
       "id": "hello-progress",
@@ -26,7 +26,7 @@ cat <<EOF
       "type": "button",
       "title": "Copy greeting",
       "icon": "doc.on.doc",
-      "action": { "type": "copyText", "value": "Hello from menubucket at ${NOW}", "toast": "Copied!" }
+      "action": { "type": "copyText", "value": "Hello from BarShelf at ${NOW}", "toast": "Copied!" }
     },
     { "id": "hello-caption", "type": "text", "text": "This tree came from hello.sh (output=viewtree)", "role": "caption" }
   ]

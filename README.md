@@ -1,9 +1,9 @@
-# MenuBucket
+# BarShelf
 
-MenuBucket은 작은 네이티브 위젯을 macOS 메뉴바 팝오버에 모아 보여주는 앱이다. 위젯은 `widget.json` manifest로 실행 방식, 갱신 정책, 권한, Bucket 배치를 선언하고, 호스트는 JSON UINode view tree를 SwiftUI로 렌더링한다.
+BarShelf은 작은 네이티브 위젯을 macOS 메뉴바 팝오버에 모아 보여주는 앱이다. 위젯은 `widget.json` manifest로 실행 방식, 갱신 정책, 권한, Bucket 배치를 선언하고, 호스트는 JSON UINode view tree를 SwiftUI로 렌더링한다.
 
 ```
-MenuBucket.app
+BarShelf.app
 ├─ Layer 1: exec
 │  └─ manifest가 선언한 명령을 no-shell argv로 실행하고 stdout JSON을 렌더링
 ├─ Layer 2: host services
@@ -17,13 +17,13 @@ Swift 패키지는 UI와 무관한 모델/엔진을 `MenubucketCore`에 두고, 
 
 ## 빠른 시작
 
-**설치**: [Releases](https://github.com/jiunbae/menubucket/releases)에서 `MenuBucket-<버전>-arm64.zip`을 받아 `/Applications`로 옮기고 첫 실행은 우클릭 → 열기 (공증 전 빌드). 상세·문제 해결: [`docs/INSTALL.md`](docs/INSTALL.md)
+**설치**: [Releases](https://github.com/jiunbae/menubucket/releases)에서 `BarShelf-<버전>-arm64.zip`을 받아 `/Applications`로 옮기고 첫 실행은 우클릭 → 열기 (공증 전 빌드). 상세·문제 해결: [`docs/INSTALL.md`](docs/INSTALL.md)
 
 소스 빌드:
 
 ```bash
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer bash scripts/build_app.sh
-open dist/MenuBucket.app
+open dist/BarShelf.app
 ```
 
 개발 검증:
@@ -32,7 +32,7 @@ open dist/MenuBucket.app
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test
 ```
 
-첫 사용자 위젯을 3분 안에 만드는 절차는 [`docs/GETTING-STARTED.md`](docs/GETTING-STARTED.md)를 따른다. 위젯은 개발 중 `./widgets/`, 사용자 설치 시 `~/Library/Application Support/menubucket/widgets/`에서 로드된다.
+첫 사용자 위젯을 3분 안에 만드는 절차는 [`docs/GETTING-STARTED.md`](docs/GETTING-STARTED.md)를 따른다. 위젯은 개발 중 `./widgets/`, 사용자 설치 시 `~/Library/Application Support/barshelf/widgets/`에서 로드된다.
 
 ## 문서
 
@@ -63,7 +63,7 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test
 | --- | --- | --- | --- |
 | aas Usage | [`widgets/aas-usage`](widgets/aas-usage) | exec + adapter | `aas usage --json`을 `aas-usage` adapter로 변환해 사용량을 렌더링한다. |
 | OTP Codes | [`widgets/otpeek`](widgets/otpeek) | exec + adapter | `otpeek list --json`, `otpeek code <id> --json`, Keychain 주입, countdown ring을 사용한다. |
-| Script Clock | [`widgets/clock-script`](widgets/clock-script) | script | Deno TypeScript 프로세스가 `menubucket` SDK로 render/storage/timer를 호출한다. |
+| Script Clock | [`widgets/clock-script`](widgets/clock-script) | script | Deno TypeScript 프로세스가 `barshelf` SDK로 render/storage/timer를 호출한다. |
 | Recent Files | [`widgets/recent-files`](widgets/recent-files) | workflow | `workflow.json`으로 `~/Downloads` 목록, file thumbnail/icon, reveal, drag-out을 렌더링한다. |
 
 `widgets/hello`는 가장 작은 `output=viewtree` 셸 위젯 예제로, 시작 가이드의 Quick Hello 변형이 이 구조를 따른다.
@@ -82,7 +82,7 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift build
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer bash scripts/build_app.sh
 ```
 
-결과는 `dist/MenuBucket.app`이다. 스크립트는 release product를 빌드하고, `Contents/MacOS/menubucket`을 복사하며, `scripts/Info.plist.template`에서 `Contents/Info.plist`를 렌더링하고, `widgets/`를 `Contents/Resources/widgets`로 복사한 뒤 ad-hoc codesign을 수행한다.
+결과는 `dist/BarShelf.app`이다. 스크립트는 release product를 빌드하고, `Contents/MacOS/menubucket`을 복사하며, `scripts/Info.plist.template`에서 `Contents/Info.plist`를 렌더링하고, `widgets/`를 `Contents/Resources/widgets`로 복사한 뒤 ad-hoc codesign을 수행한다.
 
 ## 위젯 설치
 
@@ -90,14 +90,14 @@ URL 설치 v1은 다음 입력을 지원한다.
 
 - GitHub 저장소: `https://github.com/{user}/{repo}` 또는 `https://github.com/{user}/{repo}/tree/{branch}[/{subdir}]`
 - 직접 아카이브: `https://.../*.zip` 또는 `*.mbw`
-- 딥링크: `menubucket://install?url=<percent-encoded-url>`
+- 딥링크: `barshelf://install?url=<percent-encoded-url>`
 
 CLI 설치:
 
 ```bash
-mbk install https://github.com/example/menubucket-widgets
+mbk install https://github.com/example/barshelf-widgets
 # 또는 앱 바이너리의 인자 모드
-MenuBucket.app/Contents/MacOS/menubucket install https://github.com/example/menubucket-widgets
+BarShelf.app/Contents/MacOS/menubucket install https://github.com/example/barshelf-widgets
 ```
 
 자세한 설치 동작, 보안 제한, FAQ는 [`docs/INSTALLING-WIDGETS.md`](docs/INSTALLING-WIDGETS.md)에 있다.
@@ -120,7 +120,7 @@ exit 0 성공 / 1 실패, 오류는 stderr. 전체 레퍼런스는 [`docs/MBK.md
 
 메뉴바 아이콘 우클릭 메뉴의 "Widget Gallery…"에서 레지스트리에 등재된 위젯을 검색(이름/태그)하고 카드에서 바로 설치할 수 있다. 카드에는 아이콘·설명·kind 배지·권한 칩이 표시되며, 권한 칩은 표시용 요약이고 실제 게이트는 설치 후 첫 실행 승인 카드다.
 
-갤러리 데이터는 `registry/index.json` 인덱스에서 온다. 해석 순서는 env `MENUBUCKET_REGISTRY`(URL 또는 로컬 경로) → 기본 원격 레지스트리 → 번들 폴백이다. 인덱스 규약·등재 PR 절차·셀프호스팅은 [`docs/REGISTRY.md`](docs/REGISTRY.md), 스키마는 [`schema/registry-0.1.json`](schema/registry-0.1.json)에 있다.
+갤러리 데이터는 `registry/index.json` 인덱스에서 온다. 해석 순서는 env `BARSHELF_REGISTRY`(URL 또는 로컬 경로, legacy `MENUBUCKET_REGISTRY` 호환) → 기본 원격 레지스트리 → 번들 폴백이다. 인덱스 규약·등재 PR 절차·셀프호스팅은 [`docs/REGISTRY.md`](docs/REGISTRY.md), 스키마는 [`schema/registry-0.1.json`](schema/registry-0.1.json)에 있다.
 
 ## 위젯 제작 요약
 
@@ -128,7 +128,7 @@ exit 0 성공 / 1 실패, 오류는 stderr. 전체 레퍼런스는 [`docs/MBK.md
 
 ```json
 {
-  "$schema": "https://menubucket.dev/schema/widget-0.1.json",
+  "$schema": "https://barshelf.dev/schema/widget-0.1.json",
   "schemaVersion": 1,
   "id": "dev.example.clock",
   "name": "Clock",
@@ -184,7 +184,7 @@ v1 source는 `exec`와 `fs.directory`를 지원한다. 파일 위젯은 `fileThu
 [`widgets/otpeek`](widgets/otpeek)은 `otpeek list --json`을 기본 source로 사용하고, 내장 `otpeek` adapter가 각 계정의 `otpeek code <id> --json`을 실행해 TOTP row를 렌더링한다. vault password를 Keychain에서 주입하려면 다음 명령을 사용한다.
 
 ```bash
-security add-generic-password -s dev.menubucket -a otpeek-vault-password -w
+security add-generic-password -s dev.barshelf -a otpeek-vault-password -w
 ```
 
 manifest는 `permissions.keychain: true`, `OTPEEK_VAULT_PASSWORD` env 허용, `sensitiveOutput: true`를 선언해야 한다. OTP 복사 액션은 `copyText.clearAfterSec`로 클립보드 자동 삭제 시간을 지정할 수 있다.

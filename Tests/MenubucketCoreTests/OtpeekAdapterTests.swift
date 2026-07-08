@@ -132,7 +132,7 @@ final class OtpeekAdapterTests: XCTestCase {
             XCTFail("expected AdapterError")
         } catch {
             let message = (error as? LocalizedError)?.errorDescription ?? ""
-            XCTAssertTrue(message.contains("security add-generic-password -s dev.menubucket -a otpeek-vault-password -w"))
+            XCTAssertTrue(message.contains("security add-generic-password -s dev.barshelf -a otpeek-vault-password -w"))
         }
     }
 

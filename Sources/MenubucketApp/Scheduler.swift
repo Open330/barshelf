@@ -201,7 +201,7 @@ final class Scheduler {
                     self?.watchFired(widgetID: id)
                 }
             } catch {
-                NSLog("menubucket: failed to watch paths for \(id): \(error)")
+                NSLog("barshelf: failed to watch paths for \(id): \(error)")
             }
         }
     }

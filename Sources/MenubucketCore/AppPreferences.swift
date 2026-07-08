@@ -1,7 +1,7 @@
 import Foundation
 
 /// App-level preferences persisted at
-/// `~/Library/Application Support/menubucket/app-prefs.json` (R08 contract C3).
+/// `~/Library/Application Support/barshelf/app-prefs.json` (R08 contract C3).
 ///
 /// Pure Codable model (UI-free, unit-testable). The app-side `AppPrefs`
 /// ObservableObject wraps this for live updates; missing keys decode to their

@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://menubucket.dev/schema/registry-0.1.json",
-  "title": "MenuBucket Registry Index v0.1",
-  "description": "Schema for MenuBucket registry index.json files. The registry is a curation layer on top of the widget publishing repo contract; each entry points to an installable widget source URL.",
+  "$id": "https://barshelf.dev/schema/registry-0.1.json",
+  "title": "BarShelf Registry Index v0.1",
+  "description": "Schema for BarShelf registry index.json files. The registry is a curation layer on top of the widget publishing repo contract; each entry points to an installable widget source URL.",
   "type": "object",
   "required": [
     "schemaVersion",
@@ -18,7 +18,7 @@
     },
     "name": {
       "$ref": "#/definitions/nonEmptyString",
-      "description": "Human-readable registry name, e.g. \"menubucket official registry\"."
+      "description": "Human-readable registry name, e.g. \"barshelf official registry\"."
     },
     "updatedAt": {
       "type": "string",
@@ -112,7 +112,7 @@
       "properties": {
         "url": {
           "$ref": "#/definitions/nonEmptyString",
-          "description": "Install source URL in the R05 URL-install contract format: GitHub repo URL (optionally /tree/{branch}/{subdir}), direct .zip/.mbw archive URL, or menubucket://install deep link string."
+          "description": "Install source URL in the R05 URL-install contract format: GitHub repo URL (optionally /tree/{branch}/{subdir}), direct .zip/.mbw archive URL, or barshelf://install deep link string."
         },
         "bundled": {
           "$ref": "#/definitions/nonEmptyString",

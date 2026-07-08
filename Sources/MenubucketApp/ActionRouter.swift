@@ -18,14 +18,14 @@ enum ActionRouter {
                 DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(clearAfter)) {
                     if NSPasteboard.general.changeCount == changeCount {
                         NSPasteboard.general.clearContents()
-                        NSLog("menubucket: cleared clipboard for %@ after %ds", widgetID, clearAfter)
+                        NSLog("barshelf: cleared clipboard for %@ after %ds", widgetID, clearAfter)
                     }
                 }
             }
             // Simple feedback in lieu of a toast overlay (M2 candidate).
             // Never log the copied value — it may be sensitive.
             NSSound.beep()
-            NSLog("menubucket: copied text for \(widgetID)%@",
+            NSLog("barshelf: copied text for \(widgetID)%@",
                   action.toast.map { " (\($0))" } ?? "")
 
         case "run":
@@ -71,7 +71,7 @@ enum ActionRouter {
             runtime?.restartScriptWidget(widgetID: widgetID)
 
         default:
-            NSLog("menubucket: unknown action type '%@' from %@", action.type, widgetID)
+            NSLog("barshelf: unknown action type '%@' from %@", action.type, widgetID)
         }
     }
 }

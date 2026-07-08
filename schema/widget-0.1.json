@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://menubucket.dev/schema/widget-0.1.json",
-  "title": "MenuBucket Widget Manifest v0.1",
-  "description": "Manifest schema for MenuBucket widget.json files.",
+  "$id": "https://barshelf.dev/schema/widget-0.1.json",
+  "title": "BarShelf Widget Manifest v0.1",
+  "description": "Manifest schema for BarShelf widget.json files.",
   "type": "object",
   "required": [
     "schemaVersion",

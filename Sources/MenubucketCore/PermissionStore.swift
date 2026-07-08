@@ -103,7 +103,7 @@ public final class PermissionStore: @unchecked Sendable {
             encoder.dateEncodingStrategy = .iso8601
             try encoder.encode(records).write(to: fileURL, options: .atomic)
         } catch {
-            NSLog("menubucket: failed to persist permission store: \(error)")
+            NSLog("barshelf: failed to persist permission store: \(error)")
         }
     }
 

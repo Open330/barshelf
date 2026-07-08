@@ -1,7 +1,7 @@
 {
-  "$schema": "https://menubucket.dev/schema/widget-0.1.json",
+  "$schema": "https://barshelf.dev/schema/widget-0.1.json",
   "schemaVersion": 1,
-  "id": "dev.menubucket.otpeek",
+  "id": "dev.barshelf.otpeek",
   "name": "OTP Codes",
   "version": "0.1.0",
   "icon": "key.fill",

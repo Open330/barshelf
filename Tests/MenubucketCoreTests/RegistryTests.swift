@@ -165,31 +165,31 @@ final class RegistryTests: XCTestCase {
         // R07: CLI/runtime-dependent entries carry the display-only
         // `requires` badge; the CLI-free starters do not.
         let byID = Dictionary(uniqueKeysWithValues: index.widgets.map { ($0.id, $0) })
-        XCTAssertEqual(byID["dev.menubucket.aas-usage"]?.requires, "aas CLI")
-        XCTAssertEqual(byID["dev.menubucket.otpeek"]?.requires, "otpeek CLI")
-        XCTAssertEqual(byID["dev.menubucket.clock-script"]?.requires, "Deno runtime")
-        XCTAssertNil(byID["dev.menubucket.hello"]?.requires)
-        XCTAssertNil(byID["dev.menubucket.recent-files"]?.requires)
+        XCTAssertEqual(byID["dev.barshelf.aas-usage"]?.requires, "aas CLI")
+        XCTAssertEqual(byID["dev.barshelf.otpeek"]?.requires, "otpeek CLI")
+        XCTAssertEqual(byID["dev.barshelf.clock-script"]?.requires, "Deno runtime")
+        XCTAssertNil(byID["dev.barshelf.hello"]?.requires)
+        XCTAssertNil(byID["dev.barshelf.recent-files"]?.requires)
         // Origin-project links surfaced per user feedback (Stashbar / aas).
         XCTAssertEqual(
-            byID["dev.menubucket.recent-files"]?.homepage,
+            byID["dev.barshelf.recent-files"]?.homepage,
             "https://github.com/jiunbae/file-stack"
         )
         XCTAssertEqual(
-            byID["dev.menubucket.aas-usage"]?.homepage,
+            byID["dev.barshelf.aas-usage"]?.homepage,
             "https://github.com/Open330/aas"
         )
-        XCTAssertEqual(byID["dev.menubucket.hello"]?.install.bundled, "hello")
-        XCTAssertEqual(byID["dev.menubucket.recent-files"]?.install.bundled, "recent-files")
-        XCTAssertEqual(byID["dev.menubucket.aas-usage"]?.install.bundled, "aas-usage")
-        XCTAssertEqual(byID["dev.menubucket.otpeek"]?.install.bundled, "otpeek")
-        XCTAssertEqual(byID["dev.menubucket.clock-script"]?.install.bundled, "clock-script")
+        XCTAssertEqual(byID["dev.barshelf.hello"]?.install.bundled, "hello")
+        XCTAssertEqual(byID["dev.barshelf.recent-files"]?.install.bundled, "recent-files")
+        XCTAssertEqual(byID["dev.barshelf.aas-usage"]?.install.bundled, "aas-usage")
+        XCTAssertEqual(byID["dev.barshelf.otpeek"]?.install.bundled, "otpeek")
+        XCTAssertEqual(byID["dev.barshelf.clock-script"]?.install.bundled, "clock-script")
         XCTAssertEqual(
-            byID["dev.menubucket.recent-files"]?.install.url,
+            byID["dev.barshelf.recent-files"]?.install.url,
             "https://github.com/jiunbae/file-stack"
         )
         XCTAssertEqual(
-            byID["dev.menubucket.aas-usage"]?.install.url,
+            byID["dev.barshelf.aas-usage"]?.install.url,
             "https://github.com/Open330/aas"
         )
     }
@@ -199,7 +199,7 @@ final class RegistryTests: XCTestCase {
     func testEnvironmentLocalPathWins() async throws {
         let file = try write(Self.validIndexJSON, name: "env-index.json")
         let client = makeClient(
-            env: ["MENUBUCKET_REGISTRY": file.path],
+            env: ["BARSHELF_REGISTRY": file.path],
             remote: URL(string: "https://unreachable.example/index.json"),
             fetch: { _ in
                 XCTFail("remote must not be fetched when env path works")
@@ -214,7 +214,7 @@ final class RegistryTests: XCTestCase {
     func testEnvironmentRemoteURLIsFetched() async throws {
         let envURL = URL(string: "https://env.example/index.json")!
         let client = makeClient(
-            env: ["MENUBUCKET_REGISTRY": envURL.absoluteString],
+            env: ["BARSHELF_REGISTRY": envURL.absoluteString],
             remote: URL(string: "https://default.example/index.json"),
             fetch: { url in
                 XCTAssertEqual(url, envURL)
@@ -228,13 +228,20 @@ final class RegistryTests: XCTestCase {
     func testBrokenEnvironmentFallsBackToRemote() async throws {
         let remote = URL(string: "https://default.example/index.json")!
         let client = makeClient(
-            env: ["MENUBUCKET_REGISTRY": tempDir.appendingPathComponent("missing.json").path],
+            env: ["BARSHELF_REGISTRY": tempDir.appendingPathComponent("missing.json").path],
             remote: remote,
             fetch: { _ in Data(Self.validIndexJSON.utf8) }
         )
         let result = try await client.load()
         XCTAssertEqual(result.source, .remote(remote))
-        XCTAssertTrue(result.warnings.contains { $0.contains("MENUBUCKET_REGISTRY") })
+        XCTAssertTrue(result.warnings.contains { $0.contains("BARSHELF_REGISTRY") })
+    }
+
+    func testLegacyEnvironmentVariableStillWorks() async throws {
+        let file = try write(Self.validIndexJSON, name: "legacy-env-index.json")
+        let client = makeClient(env: ["MENUBUCKET_REGISTRY": file.path])
+        let result = try await client.load()
+        XCTAssertEqual(result.source, .environmentFile(file.path))
     }
 
     func testRemoteFailureFallsBackToBundled() async throws {

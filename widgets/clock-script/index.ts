@@ -1,4 +1,4 @@
-import { mb, ui, type WidgetLoadContext, type WidgetTimerContext } from "menubucket";
+import { mb, ui, type WidgetLoadContext, type WidgetTimerContext } from "barshelf";
 
 const TIMER_ID = "clock-minute";
 const COUNT_KEY = "click-count";

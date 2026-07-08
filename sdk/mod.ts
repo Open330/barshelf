@@ -532,13 +532,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function handleResponse(response: JsonRpcResponse): void {
   if (response.id === null) {
-    writeStderr("menubucket sdk: response with null id ignored");
+    writeStderr("barshelf sdk: response with null id ignored");
     return;
   }
 
   const request = pending.get(pendingKey(response.id));
   if (!request) {
-    writeStderr(`menubucket sdk: response for unknown id ${String(response.id)} ignored`);
+    writeStderr(`barshelf sdk: response for unknown id ${String(response.id)} ignored`);
     return;
   }
 
@@ -574,14 +574,14 @@ function makeContext<T extends object>(params: T): T & WidgetRuntimeContext {
 function reportHandlerError(method: string, error: unknown): void {
   const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
   void log("error", `${method} handler failed: ${message}`).catch(() => {
-    writeStderr(`menubucket sdk: ${method} handler failed: ${message}`);
+    writeStderr(`barshelf sdk: ${method} handler failed: ${message}`);
   });
 }
 
 function dispatchNotification(method: string, params: unknown): void {
   void (async () => {
     if (!handlers) {
-      writeStderr(`menubucket sdk: received ${method} before mb.widget registration`);
+      writeStderr(`barshelf sdk: received ${method} before mb.widget registration`);
       return;
     }
 
@@ -604,7 +604,7 @@ function dispatchNotification(method: string, params: unknown): void {
         return;
       }
 
-      writeStderr(`menubucket sdk: unknown notification ${method}`);
+      writeStderr(`barshelf sdk: unknown notification ${method}`);
     } catch (error) {
       reportHandlerError(method, error);
     }
@@ -617,12 +617,12 @@ function handleLine(line: string): void {
     message = JSON.parse(line);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    writeStderr(`menubucket sdk: invalid JSON-RPC line: ${detail}`);
+    writeStderr(`barshelf sdk: invalid JSON-RPC line: ${detail}`);
     return;
   }
 
   if (!isRecord(message)) {
-    writeStderr("menubucket sdk: non-object JSON-RPC message ignored");
+    writeStderr("barshelf sdk: non-object JSON-RPC message ignored");
     return;
   }
 
@@ -636,7 +636,7 @@ function handleLine(line: string): void {
     return;
   }
 
-  writeStderr("menubucket sdk: JSON-RPC message without method/result/error ignored");
+  writeStderr("barshelf sdk: JSON-RPC message without method/result/error ignored");
 }
 
 async function readLoop(): Promise<void> {
@@ -674,7 +674,7 @@ async function readLoop(): Promise<void> {
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    writeStderr(`menubucket sdk: stdin read failed: ${message}`);
+    writeStderr(`barshelf sdk: stdin read failed: ${message}`);
   } finally {
     reader.releaseLock();
     const error = new JsonRpcError({
