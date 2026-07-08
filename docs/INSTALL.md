@@ -74,7 +74,7 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift run menubucket
 | 단계 | 상태 |
 |---|---|
 | GitHub Releases (ad-hoc 서명 zip) | ✅ 현재 |
-| Developer ID 서명 + 공증 | ⏳ Apple Developer 계정 필요 — `CODESIGN_IDENTITY` 환경변수로 `build_app.sh`/`release.sh`가 이미 대응 |
+| Developer ID 서명 + 공증 | ⏳ Apple Developer 계정 필요 — `SIGN_IDENTITY` 환경변수 + `NOTARIZE=1`로 `build_app.sh`/`release.sh`가 이미 대응 |
 | Sparkle 자동 업데이트 | ⏳ 공증 이후 |
 | Homebrew cask (`brew install --cask menubucket`) | ⏳ 공증 이후 (cask는 공증 빌드 권장) |
 | Mac App Store | ❌ 계획 없음 — 임의 CLI 실행이 샌드박스와 충돌 (라이트 에디션만 장기 검토) |

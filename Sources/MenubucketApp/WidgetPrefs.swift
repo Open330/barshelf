@@ -6,12 +6,17 @@ import MenubucketCore
 final class WidgetPrefs: ObservableObject {
     @Published private(set) var pinned: [String] = []
     @Published private(set) var settings: [String: [String: JSONValue]] = [:]
+    /// True between first-run starter seeding and the user dismissing the
+    /// one-time welcome card (R07 onboarding).
+    @Published private(set) var welcomePending: Bool = false
 
     private let fileURL: URL
 
     private struct Persisted: Codable {
         var pinned: [String]
         var settings: [String: [String: JSONValue]]
+        /// Optional for backward compatibility with pre-R07 prefs files.
+        var welcomePending: Bool?
     }
 
     init(fileURL: URL? = nil) {
@@ -33,6 +38,22 @@ final class WidgetPrefs: ObservableObject {
         } else {
             pinned.append(widgetID)
         }
+        save()
+    }
+
+    // MARK: - Welcome card (first-run onboarding)
+
+    /// Armed by the runtime right after starter widgets were seeded.
+    func markWelcomePending() {
+        guard !welcomePending else { return }
+        welcomePending = true
+        save()
+    }
+
+    /// The card's close button — the card never comes back.
+    func dismissWelcome() {
+        guard welcomePending else { return }
+        welcomePending = false
         save()
     }
 
@@ -66,10 +87,13 @@ final class WidgetPrefs: ObservableObject {
               let persisted = try? JSONDecoder().decode(Persisted.self, from: data) else { return }
         pinned = persisted.pinned
         settings = persisted.settings
+        welcomePending = persisted.welcomePending ?? false
     }
 
     private func save() {
-        let persisted = Persisted(pinned: pinned, settings: settings)
+        let persisted = Persisted(
+            pinned: pinned, settings: settings, welcomePending: welcomePending
+        )
         guard let data = try? JSONEncoder().encode(persisted) else { return }
         try? FileManager.default.createDirectory(
             at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true

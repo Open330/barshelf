@@ -161,6 +161,23 @@ final class RegistryTests: XCTestCase {
             Set(index.widgets.compactMap(\.kind)),
             ["exec", "script", "workflow"]
         )
+        // R07: CLI/runtime-dependent entries carry the display-only
+        // `requires` badge; the CLI-free starters do not.
+        let byID = Dictionary(uniqueKeysWithValues: index.widgets.map { ($0.id, $0) })
+        XCTAssertEqual(byID["dev.menubucket.aas-usage"]?.requires, "aas CLI")
+        XCTAssertEqual(byID["dev.menubucket.otpeek"]?.requires, "otpeek CLI")
+        XCTAssertEqual(byID["dev.menubucket.clock-script"]?.requires, "Deno runtime")
+        XCTAssertNil(byID["dev.menubucket.hello"]?.requires)
+        XCTAssertNil(byID["dev.menubucket.recent-files"]?.requires)
+        // Origin-project links surfaced per user feedback (Stashbar / aas).
+        XCTAssertEqual(
+            byID["dev.menubucket.recent-files"]?.homepage,
+            "https://github.com/jiunbae/file-stack"
+        )
+        XCTAssertEqual(
+            byID["dev.menubucket.aas-usage"]?.homepage,
+            "https://github.com/Open330/aas"
+        )
     }
 
     // MARK: Resolution order

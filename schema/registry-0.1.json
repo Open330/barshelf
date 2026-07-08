@@ -86,6 +86,10 @@
           },
           "description": "Search/filter tags."
         },
+        "requires": {
+          "type": "string",
+          "description": "Free-text external requirement shown as a gallery badge, e.g. \"aas CLI\" or \"Deno runtime\". Display-only; never an enforcement input."
+        },
         "install": {
           "$ref": "#/definitions/install"
         },

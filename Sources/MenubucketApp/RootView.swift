@@ -1,3 +1,4 @@
+import AppKit
 import MenubucketCore
 import SwiftUI
 
@@ -160,6 +161,13 @@ struct RootView: View {
                 ForEach(pages) { page in
                     ScrollView {
                         VStack(spacing: 10) {
+                            if runtime.prefs.welcomePending,
+                               page.id == Self.welcomePageID(pages: pages) {
+                                WelcomeCardView {
+                                    runtime.prefs.dismissWelcome()
+                                    runtime.objectWillChange.send()
+                                }
+                            }
                             ForEach(page.widgets) { widget in
                                 WidgetCardView(widget: widget, runtime: runtime)
                             }
@@ -242,21 +250,121 @@ struct RootView: View {
         .padding(.vertical, 8)
     }
 
+    /// GETTING-STARTED guide on GitHub (opened from onboarding CTAs).
+    static let gettingStartedURL = URL(
+        string: "https://github.com/jiunbae/menubucket/blob/master/docs/GETTING-STARTED.md"
+    )!
+
+    /// The welcome card sits above the seeded `hello` widget ("Demo" bucket);
+    /// if that page is gone (starter deleted) it falls back to the first page.
+    private static func welcomePageID(pages: [WidgetPage]) -> String? {
+        let helloPage = pages.first { page in
+            page.widgets.contains { $0.id == "dev.menubucket.hello" }
+        }
+        return (helloPage ?? pages.first)?.id
+    }
+
+    /// First-run onboarding shown instead of a blank popup: a short pitch and
+    /// three CTAs (gallery, URL install, docs).
     private var emptyState: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 10) {
             Spacer()
-            Image(systemName: "tray")
-                .font(.system(size: 28))
-                .foregroundColor(.secondary)
-            Text("No widgets installed")
-                .font(.system(size: 13, weight: .semibold))
-            Text("Put widgets in ./widgets/ or\n~/Library/Application Support/menubucket/widgets/")
+            Image(systemName: "tray.full")
+                .font(.system(size: 32))
+                .foregroundColor(.accentColor)
+            Text("Time to tidy up your menu bar")
+                .font(.system(size: 14, weight: .semibold))
+            Text("menubucket collects your menu bar extras\ninto one popup of widgets.")
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
+            VStack(spacing: 6) {
+                Button {
+                    Task { @MainActor in
+                        GalleryWindowController.shared.show()
+                    }
+                } label: {
+                    Label("Open Widget Gallery", systemImage: "square.grid.2x2")
+                        .frame(maxWidth: .infinity)
+                }
+                .keyboardShortcut(.defaultAction)
+                Button {
+                    WidgetInstaller.shared.promptForURL()
+                } label: {
+                    Label("Install Widget from URL…", systemImage: "link")
+                        .frame(maxWidth: .infinity)
+                }
+                Button {
+                    NSWorkspace.shared.open(Self.gettingStartedURL)
+                } label: {
+                    Label("View the Getting Started guide", systemImage: "book")
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .controlSize(.large)
+            .padding(.horizontal, 48)
+            .padding(.top, 4)
             Spacer()
+            Text("Widgets live in ~/Library/Application Support/menubucket/widgets/")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 12)
+                .padding(.bottom, 10)
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+/// One-time welcome card shown above the seeded starter widgets after the
+/// first-run seeding pass. The close button records the dismissal in prefs,
+/// so the card never returns.
+struct WelcomeCardView: View {
+    let dismiss: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "sparkles")
+                    .foregroundColor(.accentColor)
+                Text("Welcome to menubucket")
+                    .font(.system(size: 12, weight: .semibold))
+                Spacer()
+                Button(action: dismiss) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.borderless)
+                .help("Dismiss")
+            }
+            Text("We installed a couple of starter widgets so this popup isn't empty. Browse the gallery for more — like usage meters and OTP codes — or remove the starters anytime.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 8) {
+                Button("Open Widget Gallery") {
+                    Task { @MainActor in
+                        GalleryWindowController.shared.show()
+                    }
+                }
+                .controlSize(.small)
+                Button("Getting Started") {
+                    NSWorkspace.shared.open(RootView.gettingStartedURL)
+                }
+                .controlSize(.small)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.accentColor.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(Color.accentColor.opacity(0.35), lineWidth: 1)
+        )
     }
 }
 

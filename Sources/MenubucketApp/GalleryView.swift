@@ -289,6 +289,7 @@ private struct GalleryCard: View {
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                requiresBadge
                 permissionChips
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -334,6 +335,24 @@ private struct GalleryCard: View {
         case "script": return .purple
         case "workflow": return .orange
         default: return .gray
+        }
+    }
+
+    /// External requirement badge (`requires` registry field): flags widgets
+    /// that need a CLI or runtime installed first (e.g. "aas CLI", "Deno").
+    @ViewBuilder
+    private var requiresBadge: some View {
+        if let requires = entry.requires,
+           !requires.trimmingCharacters(in: .whitespaces).isEmpty {
+            Label("Requires \(requires)", systemImage: "wrench.and.screwdriver")
+                .font(.caption2.weight(.medium))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Color.orange.opacity(0.15))
+                .foregroundColor(.orange)
+                .clipShape(Capsule())
+                .padding(.top, 2)
+                .help("This widget needs \(requires) installed on your Mac")
         }
     }
 

@@ -42,6 +42,9 @@ public struct RegistryWidgetEntry: Codable, Equatable, Sendable {
     /// "exec" | "workflow" | "script"
     public var kind: String?
     public var tags: [String]?
+    /// Free-text external requirement shown as a gallery badge, e.g.
+    /// "aas CLI" or "Deno runtime". Display-only — not an enforcement input.
+    public var requires: String?
     public var install: Install
     public var permissions: PermissionsSummary?
     public var homepage: String?
@@ -55,6 +58,7 @@ public struct RegistryWidgetEntry: Codable, Equatable, Sendable {
         icon: String? = nil,
         kind: String? = nil,
         tags: [String]? = nil,
+        requires: String? = nil,
         install: Install,
         permissions: PermissionsSummary? = nil,
         homepage: String? = nil
@@ -67,6 +71,7 @@ public struct RegistryWidgetEntry: Codable, Equatable, Sendable {
         self.icon = icon
         self.kind = kind
         self.tags = tags
+        self.requires = requires
         self.install = install
         self.permissions = permissions
         self.homepage = homepage

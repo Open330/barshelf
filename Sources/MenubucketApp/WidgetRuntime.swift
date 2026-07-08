@@ -96,8 +96,35 @@ final class WidgetRuntime: ObservableObject {
         scheduler.requestStaleRefresh = { [weak self] backgroundOnly in
             self?.refreshStaleWidgets(backgroundOnly: backgroundOnly)
         }
+        seedStarterWidgets()
         loadWidgets()
         startHotReload()
+    }
+
+    // MARK: - First-run seeding (R07 onboarding)
+
+    /// Packaged apps launch with cwd `/`, so a fresh install used to show an
+    /// empty popup. The CLI-free starter widgets bundled under
+    /// `Resources/widgets/` are copied once into Application Support; dev
+    /// checkouts (`./widgets/` present) are left untouched. When seeding
+    /// happens the one-time welcome card is armed via prefs.
+    private func seedStarterWidgets() {
+        let outcome = StarterWidgetSeeder.seedIfNeeded(
+            bundledWidgetsDirectory: Bundle.main.resourceURL?
+                .appendingPathComponent("widgets", isDirectory: true),
+            userWidgetsDirectory: Self.applicationSupportDirectory
+                .appendingPathComponent("widgets", isDirectory: true),
+            developmentWidgetsDirectory: URL(
+                fileURLWithPath: FileManager.default.currentDirectoryPath
+            ).appendingPathComponent("widgets", isDirectory: true)
+        )
+        if outcome.didSeed {
+            NSLog(
+                "menubucket: seeded starter widgets: %@",
+                outcome.seededNames.joined(separator: ", ")
+            )
+            prefs.markWelcomePending()
+        }
     }
 
     // MARK: - Script runtime supervisor
