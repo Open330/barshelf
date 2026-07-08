@@ -38,6 +38,12 @@ struct WidgetSettingsView: View {
                 Button("Save") {
                     for entry in entries {
                         guard let key = entry.key else { continue }
+                        // Enforce integer min/max on commit so free-typed
+                        // out-of-range values never reach the widget.
+                        if entry.type == "integer",
+                           let number = values[key]?.numberValue {
+                            values[key] = .number(clampedInteger(number, entry: entry))
+                        }
                         runtime.prefs.setSetting(
                             widgetID: widget.id, key: key, value: values[key]
                         )
@@ -67,18 +73,38 @@ struct WidgetSettingsView: View {
             ))
             .font(.system(size: 12))
         case "integer":
-            HStack {
-                Text(title).font(.system(size: 12))
-                Spacer()
-                TextField("", text: Binding(
-                    get: { values[key]?.numberValue.map { String(Int($0)) } ?? "" },
-                    set: { text in
-                        if let number = Double(text) { values[key] = .number(number) }
+            VStack(alignment: .leading, spacing: 2) {
+                HStack {
+                    Text(title).font(.system(size: 12))
+                    Spacer()
+                    TextField("", text: Binding(
+                        get: { values[key]?.numberValue.map { String(Int($0)) } ?? "" },
+                        set: { text in
+                            let filtered = text.filter { $0.isNumber || $0 == "-" }
+                            if filtered.isEmpty {
+                                values[key] = nil
+                            } else if let number = Double(filtered) {
+                                values[key] = .number(number)
+                            }
+                        }
+                    ))
+                    .frame(width: 60)
+                    .multilineTextAlignment(.trailing)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit {
+                        if let number = values[key]?.numberValue {
+                            values[key] = .number(clampedInteger(number, entry: entry))
+                        }
                     }
-                ))
-                .frame(width: 70)
-                .multilineTextAlignment(.trailing)
-                .textFieldStyle(.roundedBorder)
+                    Stepper("", value: integerBinding(key, entry: entry))
+                        .labelsHidden()
+                        .accessibilityLabel("\(title) stepper")
+                }
+                if let hint = rangeHint(for: entry) {
+                    Text(hint)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
             }
         case "enum":
             HStack {
@@ -121,6 +147,35 @@ struct WidgetSettingsView: View {
         )
     }
 
+    /// Rounds to an integer and clamps to the manifest's declared min/max.
+    private func clampedInteger(_ value: Double, entry: Manifest.Setting) -> Double {
+        var result = value.rounded()
+        if let min = entry.min { result = Swift.max(result, min) }
+        if let max = entry.max { result = Swift.min(result, max) }
+        return result
+    }
+
+    /// Stepper binding that always keeps the stored value inside the declared
+    /// range — nudging can never step past min/max.
+    private func integerBinding(_ key: String, entry: Manifest.Setting) -> Binding<Int> {
+        Binding(
+            get: {
+                let current = values[key]?.numberValue ?? entry.min ?? 0
+                return Int(clampedInteger(current, entry: entry))
+            },
+            set: { values[key] = .number(clampedInteger(Double($0), entry: entry)) }
+        )
+    }
+
+    private func rangeHint(for entry: Manifest.Setting) -> String? {
+        switch (entry.min, entry.max) {
+        case let (min?, max?): return "Range \(Int(min))–\(Int(max))"
+        case let (min?, nil): return "Min \(Int(min))"
+        case let (nil, max?): return "Max \(Int(max))"
+        default: return nil
+        }
+    }
+
     private func chooseDirectory(for key: String) {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
@@ -155,14 +210,17 @@ struct SearchOverlay: View {
     @State private var selection = 0
 
     var body: some View {
-        VStack(spacing: 0) {
+        let hits = self.hits
+        return VStack(spacing: 0) {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(.secondary)
+                    .accessibilityHidden(true)
                 TextField("Search widgets and items…", text: $query)
                     .textFieldStyle(.plain)
                     .font(.system(size: 13))
                     .onSubmit { execute(hits: hits) }
+                    .accessibilityLabel("Search widgets and items")
                 Button {
                     isPresented = false
                 } label: {
@@ -171,6 +229,7 @@ struct SearchOverlay: View {
                 }
                 .buttonStyle(.borderless)
                 .keyboardShortcut(.cancelAction)
+                .accessibilityLabel("Close search")
             }
             .padding(10)
             Divider()
@@ -181,39 +240,74 @@ struct SearchOverlay: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 18)
             } else {
-                ScrollView {
-                    VStack(spacing: 1) {
-                        ForEach(Array(hits.enumerated()), id: \.element.id) { index, hit in
-                            Button {
-                                selection = index
-                                execute(hits: hits)
-                            } label: {
-                                HStack {
-                                    Text(hit.text)
-                                        .font(.system(size: 12))
-                                        .lineLimit(1)
-                                    Spacer()
-                                    Text(hit.widgetName)
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 5)
-                                .background(
-                                    index == selection
-                                        ? Color.accentColor.opacity(0.15) : .clear
-                                )
-                                .contentShape(Rectangle())
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(spacing: 1) {
+                            ForEach(Array(hits.enumerated()), id: \.element.id) { index, hit in
+                                resultRow(index: index, hit: hit, hits: hits)
+                                    .id(hit.id)
                             }
-                            .buttonStyle(.plain)
+                        }
+                    }
+                    .frame(maxHeight: 220)
+                    .onChange(of: selection) { newValue in
+                        guard hits.indices.contains(newValue) else { return }
+                        withAnimation(.easeOut(duration: 0.12)) {
+                            proxy.scrollTo(hits[newValue].id, anchor: .center)
                         }
                     }
                 }
-                .frame(maxHeight: 220)
             }
         }
         .background(.regularMaterial)
         .onChange(of: query) { _ in selection = 0 }
+        // ↑/↓ move the highlighted result while the search field keeps focus;
+        // hidden zero-size buttons capture the arrow keys on macOS 13 (no
+        // `.onKeyPress`). ⏎ (onSubmit) activates the current selection.
+        .background(
+            VStack(spacing: 0) {
+                Button("") { moveSelection(-1, hits: hits) }
+                    .keyboardShortcut(.upArrow, modifiers: [])
+                Button("") { moveSelection(1, hits: hits) }
+                    .keyboardShortcut(.downArrow, modifiers: [])
+            }
+            .opacity(0)
+            .accessibilityHidden(true)
+        )
+    }
+
+    private func resultRow(index: Int, hit: SearchHit, hits: [SearchHit]) -> some View {
+        Button {
+            selection = index
+            execute(hits: hits)
+        } label: {
+            HStack {
+                Text(hit.text)
+                    .font(.system(size: 12))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Spacer()
+                Text(hit.widgetName)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(
+                index == selection
+                    ? Color.accentColor.opacity(0.15) : .clear
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(hit.text), \(hit.widgetName)")
+        .accessibilityAddTraits(index == selection ? [.isSelected] : [])
+    }
+
+    private func moveSelection(_ delta: Int, hits: [SearchHit]) {
+        guard !hits.isEmpty else { return }
+        selection = min(max(selection + delta, 0), hits.count - 1)
     }
 
     private var hits: [SearchHit] {

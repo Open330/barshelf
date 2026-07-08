@@ -182,11 +182,14 @@ struct GalleryView: View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
                 .foregroundColor(.secondary)
+                .accessibilityHidden(true)
             TextField("Search by name or tag", text: $model.searchText)
                 .textFieldStyle(.plain)
+                .accessibilityLabel("Search widgets by name or tag")
             if model.isLoading {
                 ProgressView()
                     .controlSize(.small)
+                    .accessibilityLabel("Loading registry")
             }
             Button {
                 model.refresh(force: true)
@@ -194,6 +197,7 @@ struct GalleryView: View {
                 Image(systemName: "arrow.clockwise")
             }
             .help("Refresh the registry (bypasses the 24h cache)")
+            .accessibilityLabel("Refresh registry")
             .disabled(model.isLoading)
         }
         .padding(10)
@@ -206,6 +210,7 @@ struct GalleryView: View {
                 Image(systemName: "wifi.exclamationmark")
                     .font(.largeTitle)
                     .foregroundColor(.secondary)
+                    .accessibilityHidden(true)
                 Text("Could not load the widget registry")
                     .font(.headline)
                 Text(error)
@@ -216,11 +221,20 @@ struct GalleryView: View {
             }
             .padding(24)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if model.filteredEntries.isEmpty && model.isLoading {
+            VStack(spacing: 10) {
+                ProgressView()
+                Text("Loading widgets…")
+                    .font(.callout)
+                    .foregroundColor(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if model.filteredEntries.isEmpty && !model.isLoading {
             VStack(spacing: 6) {
                 Image(systemName: "square.grid.2x2")
                     .font(.largeTitle)
                     .foregroundColor(.secondary)
+                    .accessibilityHidden(true)
                 Text(model.searchText.isEmpty
                     ? "No widgets in the registry"
                     : "No widgets match \"\(model.searchText)\"")
@@ -271,11 +285,13 @@ private struct GalleryCard: View {
                 .frame(width: 36, height: 36)
                 .background(Color.accentColor.opacity(0.12))
                 .clipShape(RoundedRectangle(cornerRadius: 8))
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text(entry.name)
                         .font(.headline)
+                        .lineLimit(1)
                     if let kind = entry.kind {
                         badge(kind)
                     }
@@ -289,6 +305,7 @@ private struct GalleryCard: View {
                     Text(description)
                         .font(.subheadline)
                         .foregroundColor(.secondary)
+                        .lineLimit(4)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 requiresBadge

@@ -80,6 +80,10 @@ struct AppSettingsView: View {
                     }
                     .buttonStyle(.plain)
                     .help(symbol)
+                    .accessibilityLabel("Menu bar icon \(symbol)")
+                    .accessibilityAddTraits(
+                        symbol == appPrefs.preferences.menuBarSymbol ? [.isSelected] : []
+                    )
                 }
             }
 
@@ -99,12 +103,12 @@ struct AppSettingsView: View {
             ))
 
             if let launchError {
-                Text(launchError)
+                Label(launchError, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption)
                     .foregroundColor(.red)
             }
             if let error = appPrefs.lastError {
-                Text(error)
+                Label(error, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption)
                     .foregroundColor(.red)
             }

@@ -93,10 +93,21 @@ struct WidgetBuilderView: View {
                     } else if model.isCommandJSON {
                         Label("JSON object", systemImage: "curlybraces")
                             .font(.caption).foregroundStyle(.green)
+                    } else if !model.testOutput.isEmpty && model.testError == nil {
+                        // Ran fine but not JSON — say so instead of leaving the
+                        // user guessing why the field pickers are empty.
+                        Label("Plain text — renders as text", systemImage: "text.alignleft")
+                            .font(.caption).foregroundStyle(.secondary)
                     }
                 }
                 if let err = model.testError {
-                    Text(err).font(.caption).foregroundStyle(.red).lineLimit(3)
+                    Label {
+                        Text(err).lineLimit(3)
+                    } icon: {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                    }
+                    .font(.caption).foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
                 } else if !model.testOutput.isEmpty {
                     ScrollView {
                         Text(model.testOutput)
@@ -201,6 +212,14 @@ struct WidgetBuilderView: View {
     private var tableColumnEditor: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Columns").font(.system(size: 12))
+            if model.detectedFields.isEmpty {
+                Label(
+                    "Run a command that returns a JSON array in step 1 to pick columns.",
+                    systemImage: "info.circle"
+                )
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
             ForEach(Array(model.tableColumns.enumerated()), id: \.offset) { index, _ in
                 HStack {
                     TextField("Header", text: Binding(
@@ -217,6 +236,7 @@ struct WidgetBuilderView: View {
                         model.tableColumns.remove(at: index)
                     } label: { Image(systemName: "minus.circle") }
                         .buttonStyle(.borderless)
+                        .accessibilityLabel("Remove column \(index + 1)")
                 }
             }
             if model.tableColumns.count < 4, let first = model.detectedFields.first {
@@ -243,6 +263,11 @@ struct WidgetBuilderView: View {
                         .background(model.icon == symbol ? Color.accentColor.opacity(0.2) : .clear)
                         .clipShape(RoundedRectangle(cornerRadius: 6))
                         .onTapGesture { model.icon = symbol }
+                        .accessibilityElement()
+                        .accessibilityLabel("Icon \(symbol)")
+                        .accessibilityAddTraits(
+                            model.icon == symbol ? [.isButton, .isSelected] : .isButton
+                        )
                 }
             }
 
@@ -286,7 +311,13 @@ struct WidgetBuilderView: View {
                 Button("Reveal in Finder") { model.revealCreated() }.font(.caption)
             }
             if let err = model.createError {
-                Text(err).font(.caption).foregroundStyle(.red)
+                Label {
+                    Text(err)
+                } icon: {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                }
+                .font(.caption).foregroundStyle(.red)
+                .fixedSize(horizontal: false, vertical: true)
             }
         }
     }

@@ -200,6 +200,7 @@ struct RootView: View {
             }
             .buttonStyle(.borderless)
             .help("Search (⌘F)")
+            .accessibilityLabel("Search")
             Button {
                 runtime.refreshAll()
             } label: {
@@ -207,6 +208,7 @@ struct RootView: View {
             }
             .buttonStyle(.borderless)
             .help("Refresh All")
+            .accessibilityLabel("Refresh all widgets")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -221,20 +223,27 @@ struct RootView: View {
             }
             .buttonStyle(.borderless)
             .disabled(index == 0)
+            .accessibilityLabel("Previous bucket")
 
             Spacer()
 
             HStack(spacing: 6) {
                 ForEach(Array(pages.enumerated()), id: \.element.id) { pageIndex, page in
+                    // Size + fill cue (not hue alone) marks the current page.
                     Circle()
                         .fill(pageIndex == index ? Color.primary : Color.secondary.opacity(0.35))
-                        .frame(width: 6, height: 6)
+                        .frame(width: pageIndex == index ? 7 : 6,
+                               height: pageIndex == index ? 7 : 6)
                         .onTapGesture {
                             pager.jump(to: pageIndex, pageCount: pages.count)
                         }
                         .help(page.group)
+                        .accessibilityLabel(page.group)
+                        .accessibilityAddTraits(pageIndex == index ? [.isSelected] : [])
                 }
             }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Bucket \(index + 1) of \(pages.count)")
 
             Spacer()
 
@@ -245,6 +254,7 @@ struct RootView: View {
             }
             .buttonStyle(.borderless)
             .disabled(index >= pages.count - 1)
+            .accessibilityLabel("Next bucket")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -272,6 +282,7 @@ struct RootView: View {
             Image(systemName: "tray.full")
                 .font(.system(size: 32))
                 .foregroundColor(.accentColor)
+                .accessibilityHidden(true)
             Text("Time to tidy up your menu bar")
                 .font(.system(size: 14, weight: .semibold))
             Text("BarShelf collects your menu bar extras\ninto one popup of widgets.")
@@ -335,6 +346,7 @@ struct WelcomeCardView: View {
             HStack(spacing: 6) {
                 Image(systemName: "sparkles")
                     .foregroundColor(.accentColor)
+                    .accessibilityHidden(true)
             Text("Welcome to BarShelf")
                     .font(.system(size: 12, weight: .semibold))
                 Spacer()
@@ -345,6 +357,7 @@ struct WelcomeCardView: View {
                 }
                 .buttonStyle(.borderless)
                 .help("Dismiss")
+                .accessibilityLabel("Dismiss welcome card")
             }
             Text("We installed a couple of starter widgets so this popup isn't empty. Browse the gallery for more — like usage meters and OTP codes — or remove the starters anytime.")
                 .font(.caption)
@@ -462,13 +475,17 @@ struct WidgetCardView: View {
                 Image(systemName: icon)
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
+                    .accessibilityHidden(true)
             }
             Text(widget.manifest.name)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(.secondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
             Spacer()
             if snapshot.isLoading {
                 ProgressView().controlSize(.mini)
+                    .accessibilityLabel("Refreshing")
             }
             Button {
                 runtime.refresh(widgetID: widget.id)
@@ -478,6 +495,7 @@ struct WidgetCardView: View {
             }
             .buttonStyle(.borderless)
             .help("Refresh \(widget.manifest.name)")
+            .accessibilityLabel("Refresh \(widget.manifest.name)")
         }
     }
 

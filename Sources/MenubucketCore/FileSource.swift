@@ -20,8 +20,10 @@ public enum FileSource {
             self.skipHidden = object["skipHidden"]?.boolValue ?? true
             self.sortBy = object["sortBy"]?.stringValue ?? "modifiedAt"
             self.sortDirection = object["sortDirection"]?.stringValue ?? "descending"
-            if let count = object["limit"]?.numberValue, count > 0 {
-                self.limit = Int(count)
+            // `Int(count)` traps on non-finite or out-of-range values; a JSON
+            // `1e19` is representable as Double but exceeds `Int.max`.
+            if let count = object["limit"]?.numberValue, count.isFinite, count > 0 {
+                self.limit = count >= Double(Int.max) ? Int.max : Int(count)
             } else {
                 self.limit = nil
             }

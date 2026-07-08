@@ -126,6 +126,67 @@ final class WorkflowEngineTests: XCTestCase {
         }
     }
 
+    // MARK: - Hardening: numeric overflow must not trap the host
+
+    func testTruncateLimitOutOfIntRangeDoesNotCrash() throws {
+        // `Double("1e400")` is +∞ and `1e19` is a representable Double that
+        // exceeds Int.max — both used to trap in `Int(_:)`.
+        for literal in ["1e400", "1e19", "-1e400"] {
+            let def = try definition("""
+            { "schemaVersion": 1, "sources": {},
+              "view": { "type": "text", "id": "t", "text": "${text.truncate(settings.s, \(literal))}" } }
+            """)
+            let output = try WorkflowEngine.evaluate(
+                def, sources: [:], settings: .object(["s": .string("hello")]), nowMs: nowMs
+            )
+            // A non-positive/huge limit leaves the string untouched.
+            XCTAssertEqual(output.viewTree.text, "hello", "literal \(literal)")
+        }
+    }
+
+    func testLimitTransformCountOutOfIntRangeDoesNotCrash() throws {
+        let def = try definition("""
+        { "schemaVersion": 1,
+          "sources": { "s": { "use": "exec" } },
+          "transforms": { "top": { "use": "limit", "from": "$.sources.s.items", "with": { "count": "${1e19}" } } },
+          "view": { "type": "list", "items": { "forEach": "$.transforms.top", "as": "f",
+                    "template": { "type": "text", "text": "${f.n}" } } } }
+        """)
+        let items: JSONValue = .array([.object(["n": .string("a")]), .object(["n": .string("b")])])
+        let output = try WorkflowEngine.evaluate(
+            def, sources: ["s": .object(["items": items])], settings: .object([:]), nowMs: nowMs
+        )
+        XCTAssertEqual(output.expandedItemCount, 2) // clamped to Int.max → keeps all
+    }
+
+    func testDateRelativeWithHugeNegativeDoesNotCrash() throws {
+        let def = try definition("""
+        { "schemaVersion": 1, "sources": {},
+          "view": { "type": "text", "id": "t", "text": "${date.relative(-1e300)}" } }
+        """)
+        let output = try WorkflowEngine.evaluate(
+            def, sources: [:], settings: .object([:]), nowMs: nowMs
+        )
+        XCTAssertNotNil(output.viewTree.text) // finite string, no trap
+    }
+
+    func testDeeplyNestedExpressionThrowsInsteadOfOverflow() throws {
+        // 400 levels of nesting exceeds maxDepth (256) → thrown error, not crash.
+        let expr = String(repeating: "count(", count: 400) + "settings.x"
+            + String(repeating: ")", count: 400)
+        let def = try definition("""
+        { "schemaVersion": 1, "sources": {},
+          "view": { "type": "text", "id": "t", "text": "${\(expr)}" } }
+        """)
+        XCTAssertThrowsError(
+            try WorkflowEngine.evaluate(def, sources: [:], settings: .object(["x": .array([])]), nowMs: nowMs)
+        ) { error in
+            guard case WorkflowError.badExpression = error else {
+                return XCTFail("expected badExpression for over-deep nesting, got \(error)")
+            }
+        }
+    }
+
     func testForEachScopeAndDragActionInterpolation() throws {
         let def = try definition("""
         { "schemaVersion": 1,
@@ -194,6 +255,17 @@ final class FileSourceTests: XCTestCase {
 
         let missing = try FileSource.Params(from: .object(["path": .string("/nonexistent-mb-test")]))
         XCTAssertThrowsError(try FileSource.list(missing))
+    }
+
+    func testLimitOutOfIntRangeDoesNotCrash() throws {
+        // `1e19` is a representable Double above Int.max; `Int(_:)` would trap.
+        let params = try FileSource.Params(from: .object([
+            "path": .string(dir.path),
+            "limit": .number(1e19),
+        ]))
+        XCTAssertEqual(params.limit, Int.max) // clamped, not trapped
+        let result = try FileSource.list(params)
+        XCTAssertNotNil(result.objectValue?["items"]?.arrayValue)
     }
 
     func testRecentFilesWorkflowEndToEnd() throws {

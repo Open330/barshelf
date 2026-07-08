@@ -154,10 +154,32 @@ public enum WorkflowEngine {
         var resolvedTransforms: [String: JSONValue] = [:]
         var resolvingTransforms: Set<String> = []
         var expandedItemCount = 0
+        var depth = 0
+
+        /// Guards against stack overflow from pathologically nested templates or
+        /// expressions (e.g. `count(count(count(…)))` or deeply nested arrays).
+        /// Legitimate widget views nest a handful of levels; 256 is generous.
+        static let maxDepth = 256
+
+        /// Non-crashing `Double`→`Int`. Swift's `Int(_:)` traps on NaN,
+        /// infinity, and finite-but-out-of-range values — all reachable from
+        /// untrusted expression literals (`Double("1e400")` → ∞) and JSON
+        /// settings (`1e19` is representable but > `Int.max`).
+        static func clampedInt(_ value: Double) -> Int {
+            if value.isNaN { return 0 }
+            if value >= Double(Int.max) { return Int.max }
+            if value <= Double(Int.min) { return Int.min }
+            return Int(value)
+        }
 
         // MARK: template expansion
 
         mutating func expand(_ value: JSONValue) throws -> JSONValue {
+            depth += 1
+            defer { depth -= 1 }
+            guard depth <= Self.maxDepth else {
+                throw WorkflowError.invalidTemplate("template nesting exceeds \(Self.maxDepth) levels")
+            }
             switch value {
             case let .string(text):
                 return try interpolate(text)
@@ -226,6 +248,11 @@ public enum WorkflowEngine {
         // MARK: expressions — number literal | function call | path
 
         mutating func evaluateExpression(_ raw: String) throws -> JSONValue {
+            depth += 1
+            defer { depth -= 1 }
+            guard depth <= Self.maxDepth else {
+                throw WorkflowError.badExpression("expression nesting exceeds \(Self.maxDepth) levels")
+            }
             let expr = raw.trimmingCharacters(in: .whitespaces)
             guard !expr.isEmpty else { throw WorkflowError.badExpression(raw) }
             if let number = Double(expr) { return .number(number) }
@@ -287,7 +314,7 @@ public enum WorkflowEngine {
                 }
                 return .null
             case "date.relative":
-                guard let ms = args.first?.numberValue else { return .string("") }
+                guard let ms = args.first?.numberValue, ms.isFinite else { return .string("") }
                 return .string(Self.relative(fromMs: ms, nowMs: nowMs))
             case "file.basename":
                 guard let path = args.first?.stringValue else { return .string("") }
@@ -297,7 +324,7 @@ public enum WorkflowEngine {
                 return .string((path as NSString).pathExtension)
             case "text.truncate":
                 guard let text = args.first?.stringValue else { return .string("") }
-                let limit = Int(args.dropFirst().first?.numberValue ?? 0)
+                let limit = Self.clampedInt(args.dropFirst().first?.numberValue ?? 0)
                 if limit <= 0 || text.count <= limit { return .string(text) }
                 return .string(String(text.prefix(limit)) + "…")
             default:
@@ -308,7 +335,9 @@ public enum WorkflowEngine {
         static func relative(fromMs: Double, nowMs: Double) -> String {
             let seconds = max(0, (nowMs - fromMs) / 1000)
             if seconds < 60 { return "just now" }
-            let minutes = Int(seconds / 60)
+            // A finite-but-huge delta (e.g. `date.relative(-1e300)`) overflows a
+            // plain `Int(seconds / 60)`; clamp so it degrades instead of trapping.
+            let minutes = clampedInt(seconds / 60)
             if minutes < 60 { return "\(minutes)m ago" }
             let hours = minutes / 60
             if hours < 24 { return "\(hours)h ago" }
@@ -371,7 +400,7 @@ public enum WorkflowEngine {
                 return input
             case "limit":
                 guard case let .array(items) = input else { return input }
-                let count = Int(params.objectValue?["count"]?.numberValue ?? 0)
+                let count = Self.clampedInt(params.objectValue?["count"]?.numberValue ?? 0)
                 guard count > 0 else { return input }
                 return .array(Array(items.prefix(count)))
             case "filter":

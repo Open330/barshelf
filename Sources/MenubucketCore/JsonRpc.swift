@@ -17,6 +17,17 @@ public enum JsonRpcID: Codable, Equatable, Hashable, Sendable {
         if let intValue = try? container.decode(Int.self) {
             self = .number(intValue)
         } else if let doubleValue = try? container.decode(Double.self) {
+            // A JSON number too large for `Int` (e.g. `1e19` or `9999999999999999999`)
+            // decodes as `Double` here; `Int(_:)` would trap on the out-of-range
+            // value. Untrusted script stdout can send such an id, so reject it
+            // cleanly instead of crashing the host.
+            guard doubleValue.isFinite,
+                  doubleValue >= Double(Int.min),
+                  doubleValue < Double(Int.max) else {
+                throw DecodingError.dataCorruptedError(
+                    in: container, debugDescription: "id number out of Int range"
+                )
+            }
             self = .number(Int(doubleValue))
         } else if let stringValue = try? container.decode(String.self) {
             self = .string(stringValue)

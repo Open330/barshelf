@@ -397,6 +397,7 @@ private struct FileImageView: View {
             .aspectRatio(contentMode: .fit)
             .frame(width: pointSize, height: pointSize)
             .cornerRadius(3)
+            .accessibilityLabel((path as NSString).lastPathComponent)
             .onAppear(perform: load)
             .onChange(of: cacheIdentity) { _ in
                 thumbnail = nil
