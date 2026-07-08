@@ -10,6 +10,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItemController = StatusItemController()
+        // Silent update check shortly after launch — only surfaces UI when a
+        // newer release exists (menu item does an explicit check).
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            UpdateChecker.check(explicit: false)
+        }
     }
 
     /// `barshelf://install?url=<percent-encoded-url>` deep link

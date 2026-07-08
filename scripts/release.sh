@@ -60,5 +60,16 @@ fi
 
 (cd "${RELEASE_DIR}" && shasum -a 256 ./*.zip ./*.tar.gz > SHA256SUMS)
 
+# Keep the Homebrew cask in sync with this release (version + app zip sha).
+CASK="${PROJECT_ROOT}/Casks/barshelf.rb"
+if [[ -f "${CASK}" ]]; then
+  APP_SHA=$(shasum -a 256 "${APP_ZIP}" | awk '{print $1}')
+  /usr/bin/sed -i '' \
+    -e "s/^  version \".*\"/  version \"${VERSION}\"/" \
+    -e "s/^  sha256 \".*\"/  sha256 \"${APP_SHA}\"/" \
+    "${CASK}"
+  echo "Updated ${CASK} → ${VERSION} / ${APP_SHA}"
+fi
+
 echo "Release payload at ${RELEASE_DIR}:"
 ls -la "${RELEASE_DIR}"

@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: Build & Test
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: swift --version && xcodebuild -version
+
+      - name: Build
+        run: swift build
+
+      - name: Test
+        run: swift test
+
+      - name: Validate JSON schemas
+        run: |
+          for f in schema/*.json registry/index.json; do
+            python3 -c "import json,sys; json.load(open('$f')); print('ok', '$f')"
+          done
+
+      - name: Validate bundled widgets
+        run: |
+          swift build --product mbk
+          MBK="$(swift build --product mbk --show-bin-path)/mbk"
+          for w in widgets/*/; do
+            [ -f "$w/widget.json" ] && "$MBK" validate "$w"
+          done

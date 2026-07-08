@@ -71,6 +71,14 @@ final class StatusItemController: NSObject {
         settingsItem.target = self
         menu.addItem(settingsItem)
 
+        let updateItem = NSMenuItem(
+            title: "Check for Updates…",
+            action: #selector(checkForUpdates(_:)),
+            keyEquivalent: ""
+        )
+        updateItem.target = self
+        menu.addItem(updateItem)
+
         menu.addItem(.separator())
 
         let quitItem = NSMenuItem(
@@ -181,6 +189,10 @@ final class StatusItemController: NSObject {
         Task { @MainActor in
             WidgetBuilderController.shared.show(runtime: runtime)
         }
+    }
+
+    @objc private func checkForUpdates(_ sender: Any?) {
+        Task { @MainActor in UpdateChecker.check(explicit: true) }
     }
 
     @objc private func openSettings(_ sender: Any?) {
