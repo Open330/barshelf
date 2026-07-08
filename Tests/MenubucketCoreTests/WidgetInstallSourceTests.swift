@@ -53,13 +53,23 @@ final class WidgetInstallSourceTests: XCTestCase {
         let source = try WidgetInstallSource.parse(
             "https://github.com/alice/mono/tree/main/widgets/clock"
         )
+        // Branch names may contain slashes, so the branch/path boundary is
+        // ambiguous: every split becomes a candidate, shortest branch first.
         XCTAssertEqual(
-            source.kind, .gitHubRepo(owner: "alice", repo: "mono", branch: "main")
+            source.kind,
+            .gitHubRepo(owner: "alice", repo: "mono", branch: "main/widgets/clock")
         )
-        XCTAssertEqual(source.subdirectory, "widgets/clock")
-        XCTAssertEqual(source.downloadCandidates.map(\.absoluteString), [
-            "https://codeload.github.com/alice/mono/zip/refs/heads/main"
+        XCTAssertEqual(source.candidates.map(\.url.absoluteString), [
+            "https://codeload.github.com/alice/mono/zip/refs/heads/main",
+            "https://codeload.github.com/alice/mono/zip/refs/heads/main/widgets",
+            "https://codeload.github.com/alice/mono/zip/refs/heads/main/widgets/clock",
         ])
+        XCTAssertEqual(
+            source.candidates.map(\.subdirectory),
+            ["widgets/clock", "clock", nil]
+        )
+        // First-candidate convenience views.
+        XCTAssertEqual(source.subdirectory, "widgets/clock")
     }
 
     func testMalformedGitHubURLsAreRejected() {
@@ -118,7 +128,8 @@ final class WidgetInstallSourceTests: XCTestCase {
             "menubucket://install?url=\(encoded)"
         )
         XCTAssertEqual(
-            source.kind, .gitHubRepo(owner: "alice", repo: "my-widget", branch: "main")
+            source.kind,
+            .gitHubRepo(owner: "alice", repo: "my-widget", branch: "main/widgets/clock")
         )
         XCTAssertEqual(source.subdirectory, "widgets/clock")
     }

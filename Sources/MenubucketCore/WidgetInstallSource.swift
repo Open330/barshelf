@@ -17,15 +17,39 @@ public struct WidgetInstallSource: Equatable, Sendable {
         case archive
     }
 
+    /// One (archive URL, discovery subdirectory) attempt. GitHub `/tree/a/b/c`
+    /// is ambiguous — the branch may be `a`, `a/b`, or `a/b/c` — so each split
+    /// becomes its own candidate, tried in order.
+    public struct Candidate: Equatable, Sendable {
+        public var url: URL
+        public var subdirectory: String?
+
+        public init(url: URL, subdirectory: String? = nil) {
+            self.url = url
+            self.subdirectory = subdirectory
+        }
+    }
+
     public var kind: Kind
-    /// Download URLs to try in order (first success wins; HTTP 404 falls
-    /// through to the next candidate).
-    public var downloadCandidates: [URL]
-    /// Restrict widget discovery to this subdirectory of the archive
-    /// (GitHub `/tree/{branch}/{subdir}` URLs).
-    public var subdirectory: String?
+    /// Attempts in order: first success wins; HTTP 404 (and, for GitHub tree
+    /// URLs, a missing subdirectory) falls through to the next candidate.
+    public var candidates: [Candidate]
     /// Human-readable description of the source (for logs/dialogs).
     public var displayName: String
+
+    /// Convenience views (first-candidate semantics).
+    public var downloadCandidates: [URL] { candidates.map(\.url) }
+    public var subdirectory: String? { candidates.first?.subdirectory }
+
+    public init(
+        kind: Kind,
+        candidates: [Candidate],
+        displayName: String
+    ) {
+        self.kind = kind
+        self.candidates = candidates
+        self.displayName = displayName
+    }
 
     public init(
         kind: Kind,
@@ -33,10 +57,13 @@ public struct WidgetInstallSource: Equatable, Sendable {
         subdirectory: String? = nil,
         displayName: String
     ) {
-        self.kind = kind
-        self.downloadCandidates = downloadCandidates
-        self.subdirectory = subdirectory
-        self.displayName = displayName
+        self.init(
+            kind: kind,
+            candidates: downloadCandidates.map {
+                Candidate(url: $0, subdirectory: subdirectory)
+            },
+            displayName: displayName
+        )
     }
 
     // MARK: - Parsing
@@ -127,35 +154,49 @@ public struct WidgetInstallSource: Equatable, Sendable {
             throw WidgetInstallSourceError.malformedGitHubURL(url.absoluteString)
         }
 
-        var branch: String?
-        var subdirectory: String?
+        var treePath: [String] = []
         if parts.count > 2 {
             guard parts[2] == "tree", parts.count >= 4 else {
                 throw WidgetInstallSourceError.malformedGitHubURL(url.absoluteString)
             }
-            branch = parts[3]
-            if parts.count > 4 {
-                subdirectory = parts[4...].joined(separator: "/")
-            }
+            treePath = Array(parts[3...])
         }
 
-        let branches = branch.map { [$0] } ?? ["main", "master"]
-        let candidates: [URL] = try branches.map { branchName in
+        func codeloadURL(branch: String) throws -> URL {
             var codeload = URLComponents()
             codeload.scheme = "https"
             codeload.host = "codeload.github.com"
-            codeload.path = "/\(owner)/\(repo)/zip/refs/heads/\(branchName)"
-            guard let url = codeload.url else {
+            codeload.path = "/\(owner)/\(repo)/zip/refs/heads/\(branch)"
+            guard let result = codeload.url else {
                 throw WidgetInstallSourceError.malformedGitHubURL(url.absoluteString)
             }
-            return url
+            return result
         }
 
+        // `/tree/a/b/c`: the branch/path boundary is unknowable from the URL
+        // alone (branch names may contain slashes). Try every split,
+        // shortest branch first.
+        let candidates: [Candidate]
+        if treePath.isEmpty {
+            candidates = try ["main", "master"].map {
+                Candidate(url: try codeloadURL(branch: $0))
+            }
+        } else {
+            candidates = try (1...treePath.count).map { splitIndex in
+                let branch = treePath[..<splitIndex].joined(separator: "/")
+                let subdir = treePath[splitIndex...].joined(separator: "/")
+                return Candidate(
+                    url: try codeloadURL(branch: branch),
+                    subdirectory: subdir.isEmpty ? nil : subdir
+                )
+            }
+        }
+
+        let branchDisplay = treePath.isEmpty ? nil : treePath.joined(separator: "/")
         return WidgetInstallSource(
-            kind: .gitHubRepo(owner: owner, repo: repo, branch: branch),
-            downloadCandidates: candidates,
-            subdirectory: subdirectory,
-            displayName: "\(owner)/\(repo)" + (branch.map { "@\($0)" } ?? "")
+            kind: .gitHubRepo(owner: owner, repo: repo, branch: branchDisplay),
+            candidates: candidates,
+            displayName: "\(owner)/\(repo)" + (branchDisplay.map { "@\($0)" } ?? "")
         )
     }
 

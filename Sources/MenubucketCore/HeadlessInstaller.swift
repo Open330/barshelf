@@ -59,7 +59,10 @@ public struct InstallCandidate: Equatable, Sendable {
 /// mode) and the standalone `mbk` CLI.
 public enum HeadlessInstaller {
     /// Archive download cap (bytes).
-    public static let maxDownloadBytes = 20 * 1024 * 1024
+    // Repo archives legitimately reach tens of MB once app assets are in the
+    // zip (e.g. file-stack ships hero images/screenshots at ~50 MB), so this
+    // guards memory/bandwidth abuse rather than typical repo size.
+    public static let maxDownloadBytes = 128 * 1024 * 1024
 
     /// `~/Library/Application Support/menubucket/widgets` — where the app
     /// loads user-installed widgets from.
@@ -106,25 +109,48 @@ public enum HeadlessInstaller {
         return try await fetchSession(source: WidgetInstallSource.parse(input))
     }
 
+    /// Tries each source candidate end-to-end (download → extract →
+    /// discover). HTTP 404 and a missing discovery subdirectory both fall
+    /// through to the next candidate — this is what resolves the GitHub
+    /// branch-name/subpath ambiguity (`/tree/feat/x` may be branch `feat`
+    /// with path `x`, or branch `feat/x`).
     public static func fetchSession(
         source: WidgetInstallSource
     ) async throws -> Session {
-        let archive = try await download(source: source)
+        var lastError: Error = HeadlessInstallError.noDownloadCandidates
+        for candidate in source.candidates {
+            let archive: Data
+            do {
+                archive = try await download(from: candidate.url)
+            } catch HeadlessInstallError.httpStatus(404, let failedURL) {
+                lastError = HeadlessInstallError.httpStatus(404, failedURL)
+                continue
+            }
 
-        let staging = FileManager.default.temporaryDirectory
-            .appendingPathComponent(
-                "menubucket-install-\(UUID().uuidString)", isDirectory: true
-            )
-        do {
-            try SafeZipExtractor.extract(zipData: archive, to: staging)
-            let discovery = try WidgetDiscovery.discover(
-                under: staging, subdirectory: source.subdirectory
-            )
-            return Session(source: source, stagingRoot: staging, discovery: discovery)
-        } catch {
-            try? FileManager.default.removeItem(at: staging)
-            throw error
+            let staging = FileManager.default.temporaryDirectory
+                .appendingPathComponent(
+                    "menubucket-install-\(UUID().uuidString)", isDirectory: true
+                )
+            do {
+                try SafeZipExtractor.extract(zipData: archive, to: staging)
+                let discovery = try WidgetDiscovery.discover(
+                    under: staging, subdirectory: candidate.subdirectory
+                )
+                return Session(source: source, stagingRoot: staging, discovery: discovery)
+            } catch let error as WidgetDiscovery.DiscoveryError {
+                guard case .subdirectoryNotFound = error else {
+                    try? FileManager.default.removeItem(at: staging)
+                    throw error
+                }
+                try? FileManager.default.removeItem(at: staging)
+                lastError = error
+                continue
+            } catch {
+                try? FileManager.default.removeItem(at: staging)
+                throw error
+            }
         }
+        throw lastError
     }
 
     // MARK: Contract API

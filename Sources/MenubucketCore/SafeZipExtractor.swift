@@ -8,10 +8,10 @@ import Foundation
 /// security policy is enforced *before* any bytes hit the filesystem:
 /// - path traversal (`../`, absolute paths) rejected,
 /// - symbolic links skipped,
-/// - total extracted size capped (default 50 MB),
+/// - total extracted size capped (default 256 MB),
 /// - encrypted / zip64 / exotic-compression archives rejected.
 public enum SafeZipExtractor {
-    public static let defaultMaxExtractedBytes = 50 * 1024 * 1024
+    public static let defaultMaxExtractedBytes = 256 * 1024 * 1024
 
     /// Extracts `zipData` into `destination` (created if needed).
     /// Returns the relative paths of the files written.
