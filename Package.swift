@@ -7,7 +7,7 @@ let package = Package(
         .macOS(.v13)
     ],
     products: [
-        .executable(name: "menubucket", targets: ["MenubucketApp"]),
+        .executable(name: "barshelf", targets: ["MenubucketApp"]),
         .executable(name: "mbk", targets: ["MbkCLI"]),
         .library(name: "MenubucketCore", targets: ["MenubucketCore"]),
     ],

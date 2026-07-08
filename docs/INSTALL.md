@@ -33,7 +33,7 @@ Xcode(Command Line Tools만으로는 테스트 불가)와 Swift 5.9+ 필요:
 
 ```bash
 git clone git@github.com:Open330/barshelf.git
-cd menubucket
+cd barshelf
 bash scripts/build_app.sh          # dist/BarShelf.app + dist/mbk 생성
 open dist/BarShelf.app
 ```
@@ -41,10 +41,22 @@ open dist/BarShelf.app
 개발 모드로 바로 실행하려면 (`./widgets/` 예제가 즉시 로드됨):
 
 ```bash
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift run menubucket
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift run barshelf
 ```
 
 릴리스 패키지(zip/tar.gz + SHA256SUMS) 생성: `bash scripts/release.sh`
+
+## 방법 C — Homebrew tap
+
+cask 정의(`Casks/barshelf.rb`)가 메인 저장소에 포함돼 있어 별도 `homebrew-barshelf` 저장소 없이
+명시적 URL tap으로 바로 설치할 수 있다:
+
+```bash
+brew tap Open330/barshelf https://github.com/Open330/barshelf
+brew install --cask barshelf
+```
+
+업데이트는 `brew upgrade --cask barshelf`, 제거는 `brew uninstall --cask barshelf`.
 
 ## 설치 확인 체크리스트
 
@@ -70,5 +82,5 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift run menubucket
 | GitHub Releases (공증 zip) | ✅ 현재 |
 | Developer ID 서명 + 공증 | ✅ 완료 — v0.1.0부터 공증 배포 (`SIGN_IDENTITY`+`SIGN_KEYCHAIN`+`NOTARIZE=1`) |
 | Sparkle 자동 업데이트 | ⏳ 공증 이후 |
-| Homebrew cask (`brew install --cask menubucket`) | ⏳ 공증 이후 (cask는 공증 빌드 권장) |
+| Homebrew cask (`brew install --cask barshelf`) | ✅ tap으로 제공 (방법 C 참조) |
 | Mac App Store | ❌ 계획 없음 — 임의 CLI 실행이 샌드박스와 충돌 (라이트 에디션만 장기 검토) |

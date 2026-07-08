@@ -68,6 +68,13 @@ public struct UINode: Codable, Equatable {
     /// (Finder / other apps), M2-b.
     public var drag: DragSpec?
 
+    /// Optional explicit VoiceOver label for this node. When set, the renderer
+    /// exposes it as the accessibility label of the rendered view (e.g. a
+    /// meaningful symbol, button, or row). When nil the renderer keeps its
+    /// default behavior (decorative images stay hidden, file thumbnails use
+    /// the file name, etc.).
+    public var accessibilityLabel: String?
+
     public struct DragSpec: Codable, Equatable, Sendable {
         public var filePath: String
 
@@ -103,7 +110,8 @@ public struct UINode: Codable, Equatable {
         action: NodeAction? = nil,
         padding: Double? = nil,
         widthFill: Bool? = nil,
-        drag: DragSpec? = nil
+        drag: DragSpec? = nil,
+        accessibilityLabel: String? = nil
     ) {
         self.id = id
         self.type = type
@@ -132,6 +140,7 @@ public struct UINode: Codable, Equatable {
         self.padding = padding
         self.widthFill = widthFill
         self.drag = drag
+        self.accessibilityLabel = accessibilityLabel
     }
 }
 

@@ -14,7 +14,7 @@ jobs:
     name: Build & Test
     runs-on: macos-14
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Pin to the Swift 6 toolchain the project is developed against — its
       # region-based isolation proves data-race safety that the runner's older

@@ -90,7 +90,7 @@ dev.example.clock  Clock  0.1.0  exec
 
 ## 앱 CLI와의 관계
 
-기존 앱 바이너리의 `BarShelf.app/Contents/MacOS/menubucket install <url>` 인자 모드는 그대로 유지된다. `mbk install`은 같은 설치 파이프라인을 GUI 없이 사용하는 독립 실행 파일이다. 어느 쪽으로 설치해도 결과는 동일하다.
+기존 앱 바이너리의 `BarShelf.app/Contents/MacOS/barshelf install <url>` 인자 모드는 그대로 유지된다. `mbk install`은 같은 설치 파이프라인을 GUI 없이 사용하는 독립 실행 파일이다. 어느 쪽으로 설치해도 결과는 동일하다.
 
 ## 빌드
 

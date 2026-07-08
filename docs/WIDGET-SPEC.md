@@ -217,6 +217,7 @@ Workflow DSL 상세 계약은 [`docs/WORKFLOW.md`](WORKFLOW.md)를 따른다.
   "id": "stable-row-id",
   "type": "text",
   "hidden": false,
+  "accessibilityLabel": "Usage 72 percent",
   "accessibility": {
     "label": "Usage",
     "hint": "Shows current account usage",
@@ -237,6 +238,35 @@ Workflow DSL 상세 계약은 [`docs/WORKFLOW.md`](WORKFLOW.md)를 따른다.
 
 반복 row/tile에는 안정적인 `id`를 권장한다. 호스트는 identity와 액션 routing에 이 값을 사용할 수 있다.
 `drag.filePath`는 파일 row/tile 같은 반복 노드에 붙이면 가장 자연스럽다.
+
+### 접근성 (`accessibilityLabel`)
+
+`accessibilityLabel`은 모든 노드에 붙일 수 있는 옵셔널 문자열로, 그 노드의 VoiceOver 라벨을
+명시적으로 지정한다. 지정하지 않으면 호스트의 기본 동작이 유지된다 — 순수 장식용 심볼은
+VoiceOver에서 숨겨지고, 파일 썸네일은 파일명으로 읽힌다.
+
+의미가 있는데 텍스트가 없는 요소(아이콘 버튼, 상태 심볼, 진행률 링 등)에 붙이면 좋다.
+
+```json
+{
+  "type": "button",
+  "icon": "trash",
+  "accessibilityLabel": "Delete download",
+  "action": { "type": "run", "command": ["rm", "/tmp/x"] }
+}
+```
+
+```json
+{
+  "type": "image",
+  "source": { "kind": "sfSymbol", "name": "wifi.slash" },
+  "tint": "danger",
+  "accessibilityLabel": "Offline"
+}
+```
+
+라벨은 사람이 화면을 보지 않고도 이해할 수 있는 짧은 명사구가 좋다("Delete download",
+"72% used"). 장식용 요소에는 굳이 붙이지 않는다.
 
 ## UINode 노드 예제
 

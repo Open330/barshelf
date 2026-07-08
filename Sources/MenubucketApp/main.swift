@@ -26,7 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-// CLI mode: `menubucket install <url>` installs headlessly and exits (0/1)
+// CLI mode: `barshelf install <url>` installs headlessly and exits (0/1)
 // before NSApplication starts — the basis for a future `mbk` CLI.
 let commandLineArguments = CommandLine.arguments
 if commandLineArguments.count >= 2, commandLineArguments[1] == "install" {

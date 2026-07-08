@@ -85,6 +85,10 @@
         "accessibility": {
           "$ref": "#/definitions/accessibility"
         },
+        "accessibilityLabel": {
+          "description": "Explicit VoiceOver label for this node. Overrides the renderer's default (e.g. decorative symbols hidden, file thumbnails labeled by file name).",
+          "type": "string"
+        },
         "style": {
           "description": "Layout/style object for most nodes. Progress nodes use this key for the progress style string.",
           "oneOf": [

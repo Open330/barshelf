@@ -67,6 +67,55 @@ final class UINodeTests: XCTestCase {
         XCTAssertTrue(node.children?[0].isKnownType ?? false)
     }
 
+    func testAccessibilityLabelDecoding() throws {
+        let json = """
+        {
+          "type": "image",
+          "source": { "kind": "sfSymbol", "name": "wifi.slash" },
+          "accessibilityLabel": "Offline"
+        }
+        """.data(using: .utf8)!
+        let node = try JSONDecoder().decode(UINode.self, from: json)
+        XCTAssertEqual(node.accessibilityLabel, "Offline")
+    }
+
+    func testAccessibilityLabelDefaultsToNil() throws {
+        let json = """
+        { "type": "text", "text": "hi" }
+        """.data(using: .utf8)!
+        let node = try JSONDecoder().decode(UINode.self, from: json)
+        XCTAssertNil(node.accessibilityLabel)
+    }
+
+    func testAccessibilityLabelRoundTrip() throws {
+        let node = UINode(
+            type: "button",
+            title: "Copy",
+            icon: "doc.on.doc",
+            action: NodeAction(type: "copyText", value: "hi"),
+            accessibilityLabel: "Copy to clipboard"
+        )
+        let data = try JSONEncoder().encode(node)
+        let decoded = try JSONDecoder().decode(UINode.self, from: data)
+        XCTAssertEqual(decoded, node)
+        XCTAssertEqual(decoded.accessibilityLabel, "Copy to clipboard")
+    }
+
+    func testAccessibilityLabelCoexistsWithUnknownFields() throws {
+        // The label must decode even alongside forward-compat unknown fields.
+        let json = """
+        {
+          "type": "sparkline",
+          "points": [1, 2, 3],
+          "accessibilityLabel": "Weekly usage trend",
+          "futureField": { "nested": true }
+        }
+        """.data(using: .utf8)!
+        let node = try JSONDecoder().decode(UINode.self, from: json)
+        XCTAssertEqual(node.accessibilityLabel, "Weekly usage trend")
+        XCTAssertFalse(node.isKnownType)
+    }
+
     func testActionDecoding() throws {
         let json = """
         { "type": "button", "title": "Open", "action": { "type": "openURL", "url": "https://example.com" } }

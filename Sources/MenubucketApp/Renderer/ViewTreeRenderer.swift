@@ -59,6 +59,18 @@ struct NodeView: View {
     @Environment(\.actionContext) private var actionContext
 
     var body: some View {
+        // Explicit widget-author label (VoiceOver). When absent, keep the
+        // default behavior of each leaf (decorative symbols, file-name
+        // thumbnails, etc.).
+        if let label = node.accessibilityLabel {
+            decorated.accessibilityLabel(label)
+        } else {
+            decorated
+        }
+    }
+
+    @ViewBuilder
+    private var decorated: some View {
         if let drag = node.drag {
             // Drag-out surface: hand a file URL to Finder / other apps.
             content

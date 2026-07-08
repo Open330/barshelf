@@ -74,13 +74,13 @@ barshelf://install?url=https%3A%2F%2Fgithub.com%2Fexample%2Fbarshelf-widgets
 GUI 없이 설치하고 종료하려면 앱 번들 안의 실행 파일을 사용한다.
 
 ```bash
-BarShelf.app/Contents/MacOS/menubucket install https://github.com/example/barshelf-widgets
+BarShelf.app/Contents/MacOS/barshelf install https://github.com/example/barshelf-widgets
 ```
 
 로컬 빌드 산출물에서 실행할 때는 다음처럼 경로를 붙인다.
 
 ```bash
-dist/BarShelf.app/Contents/MacOS/menubucket install https://github.com/example/barshelf-widgets
+dist/BarShelf.app/Contents/MacOS/barshelf install https://github.com/example/barshelf-widgets
 ```
 
 CLI 모드는 설치 확인 다이얼로그를 띄우지 않고 진행하며, 권한 요약을 stdout에 출력한다. 설치 성공은 exit code `0`, 실패는 exit code `1`로 종료한다. 이 명령은 향후 `mbk` CLI의 기반이다.

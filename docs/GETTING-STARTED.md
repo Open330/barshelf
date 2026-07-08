@@ -29,7 +29,7 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer bash scripts/build_app.
 open dist/BarShelf.app
 ```
 
-`scripts/build_app.sh`는 SwiftPM product `menubucket`을 release로 빌드하고, `dist/BarShelf.app/Contents/MacOS/menubucket` 실행 파일과 `Contents/Info.plist`를 만든 뒤 `widgets/`를 앱 리소스로 복사한다. 개발 중 검증은 다음 명령을 사용한다.
+`scripts/build_app.sh`는 SwiftPM product `menubucket`을 release로 빌드하고, `dist/BarShelf.app/Contents/MacOS/barshelf` 실행 파일과 `Contents/Info.plist`를 만든 뒤 `widgets/`를 앱 리소스로 복사한다. 개발 중 검증은 다음 명령을 사용한다.
 
 ```bash
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test
