@@ -14,6 +14,8 @@
     <string>__APP_VERSION__</string>
     <key>CFBundleExecutable</key>
     <string>__EXECUTABLE_NAME__</string>
+    <key>CFBundleIconFile</key>
+    <string>__APP_ICON_NAME__</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>LSMinimumSystemVersion</key>

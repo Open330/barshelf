@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 set -euo pipefail
+umask 022
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 PROJECT_ROOT=$(cd "${SCRIPT_DIR}/.." && pwd)
@@ -18,6 +19,8 @@ MINIMUM_SYSTEM_VERSION=${MINIMUM_SYSTEM_VERSION:-13.0}
 APP_CATEGORY=${APP_CATEGORY:-public.app-category.utilities}
 APP_COPYRIGHT=${APP_COPYRIGHT:-"Copyright (c) $(date +%Y) BarShelf contributors."}
 INFO_PLIST_TEMPLATE=${INFO_PLIST_TEMPLATE:-"${SCRIPT_DIR}/Info.plist.template"}
+APP_ICON_NAME=${APP_ICON_NAME:-AppIcon}
+APP_ICON_SOURCE=${APP_ICON_SOURCE:-"${PROJECT_ROOT}/assets/${APP_ICON_NAME}.icns"}
 WIDGETS_DIR=${WIDGETS_DIR:-"${PROJECT_ROOT}/widgets"}
 # "-" means ad-hoc signing. Use SIGN_IDENTITY="Developer ID Application: ..." for distribution builds.
 SIGN_IDENTITY=${SIGN_IDENTITY:--}
@@ -25,6 +28,7 @@ APP_STORE_BUILD=${APP_STORE_BUILD:-0}
 APP_STORE_ENTITLEMENTS=${APP_STORE_ENTITLEMENTS:-"${SCRIPT_DIR}/AppStore.entitlements"}
 PROVISIONING_PROFILE=${PROVISIONING_PROFILE:-}
 SIGN_KEYCHAIN=${SIGN_KEYCHAIN:-}
+SIGN_ENTITLEMENTS_PATH=${APP_STORE_ENTITLEMENTS}
 
 APP_BUNDLE_PATH="${OUTPUT_DIR}/${APP_BUNDLE_NAME}"
 CONTENTS_DIR="${APP_BUNDLE_PATH}/Contents"
@@ -49,6 +53,7 @@ render_info_plist() {
     -e "s|__APP_BUILD__|$(sed_escape "${APP_BUILD}")|g" \
     -e "s|__APP_VERSION__|$(sed_escape "${APP_VERSION}")|g" \
     -e "s|__EXECUTABLE_NAME__|$(sed_escape "${EXECUTABLE_NAME}")|g" \
+    -e "s|__APP_ICON_NAME__|$(sed_escape "${APP_ICON_NAME}")|g" \
     -e "s|__MINIMUM_SYSTEM_VERSION__|$(sed_escape "${MINIMUM_SYSTEM_VERSION}")|g" \
     -e "s|__APP_CATEGORY__|$(sed_escape "${APP_CATEGORY}")|g" \
     -e "s|__APP_COPYRIGHT__|$(sed_escape "${APP_COPYRIGHT}")|g" \
@@ -79,6 +84,15 @@ rm -rf "${APP_BUNDLE_PATH}"
 mkdir -p "${MACOS_DIR}" "${RESOURCES_DIR}"
 
 render_info_plist "${CONTENTS_DIR}/Info.plist"
+
+if [[ -f "${APP_ICON_SOURCE}" ]]; then
+  cp "${APP_ICON_SOURCE}" "${RESOURCES_DIR}/${APP_ICON_NAME}.icns"
+elif [[ "${APP_STORE_BUILD}" == "1" ]]; then
+  echo "error: APP_STORE_BUILD=1 requires app icon: ${APP_ICON_SOURCE}" >&2
+  exit 1
+else
+  echo "warning: app icon not found; skipping icon resource: ${APP_ICON_SOURCE}" >&2
+fi
 
 cp "${EXECUTABLE_PATH}" "${MACOS_DIR}/${EXECUTABLE_NAME}"
 chmod +x "${MACOS_DIR}/${EXECUTABLE_NAME}"
@@ -117,11 +131,25 @@ if [[ "${APP_STORE_BUILD}" == "1" ]]; then
     exit 1
   fi
   cp "${PROVISIONING_PROFILE}" "${CONTENTS_DIR}/embedded.provisionprofile"
+
+  PROFILE_PLIST=$(mktemp "${OUTPUT_DIR}/barshelf-profile.XXXXXX.plist")
+  SIGN_ENTITLEMENTS_PATH=$(mktemp "${OUTPUT_DIR}/barshelf-entitlements.XXXXXX.plist")
+  security cms -D -i "${PROVISIONING_PROFILE}" >"${PROFILE_PLIST}"
+  cp "${APP_STORE_ENTITLEMENTS}" "${SIGN_ENTITLEMENTS_PATH}"
+
+  APP_IDENTIFIER=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:com.apple.application-identifier" "${PROFILE_PLIST}")
+  TEAM_IDENTIFIER=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:com.apple.developer.team-identifier" "${PROFILE_PLIST}")
+  /usr/libexec/PlistBuddy -c "Add :com.apple.application-identifier string ${APP_IDENTIFIER}" "${SIGN_ENTITLEMENTS_PATH}" 2>/dev/null \
+    || /usr/libexec/PlistBuddy -c "Set :com.apple.application-identifier ${APP_IDENTIFIER}" "${SIGN_ENTITLEMENTS_PATH}"
+  /usr/libexec/PlistBuddy -c "Add :com.apple.developer.team-identifier string ${TEAM_IDENTIFIER}" "${SIGN_ENTITLEMENTS_PATH}" 2>/dev/null \
+    || /usr/libexec/PlistBuddy -c "Set :com.apple.developer.team-identifier ${TEAM_IDENTIFIER}" "${SIGN_ENTITLEMENTS_PATH}"
+  rm -f "${PROFILE_PLIST}"
 fi
 
 if command -v xattr >/dev/null 2>&1; then
   xattr -r -d com.apple.quarantine "${APP_BUNDLE_PATH}" 2>/dev/null || true
 fi
+chmod -R u+rwX,go+rX "${APP_BUNDLE_PATH}"
 
 # --- mbk CLI (standalone developer binary, shipped next to the .app) ---
 MBK_PRODUCT_NAME=${MBK_PRODUCT_NAME:-mbk}
@@ -175,11 +203,11 @@ if command -v codesign >/dev/null 2>&1; then
     if [[ -n "${SIGN_KEYCHAIN}" ]]; then
       codesign --force --options runtime --sign "${SIGN_IDENTITY}" \
         --keychain "${SIGN_KEYCHAIN}" \
-        --entitlements "${APP_STORE_ENTITLEMENTS}" \
+        --entitlements "${SIGN_ENTITLEMENTS_PATH}" \
         --deep "${APP_BUNDLE_PATH}" >/dev/null
     else
       codesign --force --options runtime --sign "${SIGN_IDENTITY}" \
-        --entitlements "${APP_STORE_ENTITLEMENTS}" \
+        --entitlements "${SIGN_ENTITLEMENTS_PATH}" \
         --deep "${APP_BUNDLE_PATH}" >/dev/null
     fi
   else
@@ -192,6 +220,12 @@ if command -v codesign >/dev/null 2>&1; then
   fi
 else
   echo "warning: codesign not found; app bundle is unsigned" >&2
+fi
+
+chmod -R u+rwX,go+rX "${APP_BUNDLE_PATH}"
+
+if [[ "${SIGN_ENTITLEMENTS_PATH}" != "${APP_STORE_ENTITLEMENTS}" ]]; then
+  rm -f "${SIGN_ENTITLEMENTS_PATH}"
 fi
 
 echo "App bundle created at ${APP_BUNDLE_PATH}"
