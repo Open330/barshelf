@@ -22,17 +22,22 @@ public struct WidgetAppearance: Codable, Equatable, Sendable {
     public var cardStyle: CardStyle?
     /// `nil` → `true`.
     public var showHeader: Bool?
+    /// Fixed card height in points; content taller than this scrolls. `nil` →
+    /// the card fits its content (grows to fit) rather than a fixed footprint.
+    public var fixedHeight: Double?
 
     public init(
         accent: String? = nil,
         density: Density? = nil,
         cardStyle: CardStyle? = nil,
-        showHeader: Bool? = nil
+        showHeader: Bool? = nil,
+        fixedHeight: Double? = nil
     ) {
         self.accent = accent
         self.density = density
         self.cardStyle = cardStyle
         self.showHeader = showHeader
+        self.fixedHeight = fixedHeight
     }
 
     /// Field-wise merge where `self` wins: each of `self`'s non-nil fields
@@ -42,12 +47,13 @@ public struct WidgetAppearance: Codable, Equatable, Sendable {
             accent: accent ?? base.accent,
             density: density ?? base.density,
             cardStyle: cardStyle ?? base.cardStyle,
-            showHeader: showHeader ?? base.showHeader
+            showHeader: showHeader ?? base.showHeader,
+            fixedHeight: fixedHeight ?? base.fixedHeight
         )
     }
 
     private enum CodingKeys: String, CodingKey {
-        case accent, density, cardStyle, showHeader
+        case accent, density, cardStyle, showHeader, fixedHeight
     }
 
     /// Lenient decode: a missing, null, wrong-typed, or unknown-enum field
@@ -62,7 +68,11 @@ public struct WidgetAppearance: Codable, Equatable, Sendable {
         let density = (try? container.decodeIfPresent(Density.self, forKey: .density)) ?? nil
         let cardStyle = (try? container.decodeIfPresent(CardStyle.self, forKey: .cardStyle)) ?? nil
         let showHeader = (try? container.decodeIfPresent(Bool.self, forKey: .showHeader)) ?? nil
-        self.init(accent: accent, density: density, cardStyle: cardStyle, showHeader: showHeader)
+        let fixedHeight = (try? container.decodeIfPresent(Double.self, forKey: .fixedHeight)) ?? nil
+        self.init(
+            accent: accent, density: density, cardStyle: cardStyle,
+            showHeader: showHeader, fixedHeight: fixedHeight
+        )
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -71,5 +81,6 @@ public struct WidgetAppearance: Codable, Equatable, Sendable {
         try container.encodeIfPresent(density, forKey: .density)
         try container.encodeIfPresent(cardStyle, forKey: .cardStyle)
         try container.encodeIfPresent(showHeader, forKey: .showHeader)
+        try container.encodeIfPresent(fixedHeight, forKey: .fixedHeight)
     }
 }

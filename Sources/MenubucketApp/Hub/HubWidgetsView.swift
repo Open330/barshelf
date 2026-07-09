@@ -1,6 +1,7 @@
 import AppKit
 import MenubucketCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Widget management section of the hub (moved here from the R11 Settings
 /// "Widgets" tab and upgraded): a `List` grouped by panel with `.onMove`
@@ -46,6 +47,10 @@ struct HubWidgetsView: View {
                             }
                         } header: {
                             HStack(spacing: 4) {
+                                Image(systemName: "line.3.horizontal")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.secondary)
+                                    .accessibilityHidden(true)
                                 Text(bucket)
                                 Spacer()
                                 Button { moveBucket(bucket, by: -1) } label: {
@@ -62,6 +67,11 @@ struct HubWidgetsView: View {
                                 .disabled(buckets.last == bucket)
                                 .help("Move panel down")
                                 .accessibilityLabel("Move panel \(bucket) down")
+                            }
+                            .contentShape(Rectangle())
+                            .onDrag { NSItemProvider(object: bucket as NSString) }
+                            .onDrop(of: [UTType.plainText], isTargeted: nil) { providers in
+                                dropPanel(providers, before: bucket)
                             }
                         }
                     }
@@ -337,6 +347,24 @@ struct HubWidgetsView: View {
             if lk != rk { return lk < rk }
             return lhs.localizedCaseInsensitiveCompare(rhs) == .orderedAscending
         }
+    }
+
+    /// Drop handler: reorders the dragged panel to sit before `target`.
+    private func dropPanel(_ providers: [NSItemProvider], before target: String) -> Bool {
+        guard let provider = providers.first else { return false }
+        provider.loadObject(ofClass: NSString.self) { object, _ in
+            guard let dragged = object as? String, dragged != target else { return }
+            DispatchQueue.main.async {
+                var order = buckets
+                guard let from = order.firstIndex(of: dragged) else { return }
+                order.remove(at: from)
+                let to = order.firstIndex(of: target) ?? order.count
+                order.insert(dragged, at: to)
+                runtime.prefs.setGroupsOrder(order)
+                runtime.objectWillChange.send()
+            }
+        }
+        return true
     }
 
     /// Moves a panel up (delta -1) or down (delta +1) and persists the order.

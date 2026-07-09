@@ -595,16 +595,11 @@ struct WidgetCardView: View {
     /// Accent used for the tinted wash and the reveal highlight.
     private var cardAccent: Color { appearance.accentColor ?? .accentColor }
 
-    /// Manifest/user layout size → a **fixed** card height, like a native
-    /// widget's footprint. Content taller than this scrolls inside the card, so
-    /// changing the size visibly changes the card (not just a floor on it).
-    private var cardHeight: CGFloat {
-        switch runtime.effectiveSize(for: widget.id).uppercased() {
-        case "XS": return 60
-        case "S": return 150
-        case "L": return 300
-        default: return 184   // M
-        }
+    /// Opt-in fixed card height (points). `nil` → the card fits its content
+    /// (grows to fit) instead of a fixed footprint. Managed per widget via the
+    /// manifest/appearance and the widget's Height setting — not a global size.
+    private var effectiveFixedHeight: CGFloat? {
+        appearance.fixedHeight.map { CGFloat($0) }
     }
 
     init(widget: LoadedWidget, runtime: WidgetRuntime, isHighlighted: Bool = false) {
@@ -616,30 +611,11 @@ struct WidgetCardView: View {
 
     var body: some View {
         let snapshot = model.snapshot
-        VStack(alignment: .leading, spacing: 6) {
-            if showsHeader {
-                cardHeader(snapshot: snapshot)
-            }
-
-            // Content fills the remaining fixed height and scrolls if it
-            // overflows — so the card keeps its native footprint per size.
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 8) {
-                    cardContent(snapshot: snapshot)
-                }
-                .frame(maxWidth: .infinity, alignment: .topLeading)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-
-            if let updatedAt = snapshot.updatedAt {
-                Text("Updated \(Self.relativeFormatter.localizedString(for: updatedAt, relativeTo: Date()))")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
-        }
-        .padding(contentInset)
-        .frame(maxWidth: .infinity, minHeight: cardHeight, maxHeight: cardHeight, alignment: .topLeading)
-        .environment(\.widgetAppearance, appearance)
+        cardStack(snapshot: snapshot)
+            .padding(contentInset)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .modifier(OptionalHeight(height: effectiveFixedHeight))
+            .environment(\.widgetAppearance, appearance)
         .background(cardBackground)
         .overlay(cardBorder)
         .shadow(color: .black.opacity(0.10), radius: 5, y: 2)
@@ -681,6 +657,31 @@ struct WidgetCardView: View {
             Button("OK") {}
         } message: {
             Text(removeError ?? "")
+        }
+    }
+
+    @ViewBuilder
+    private func cardStack(snapshot: WidgetSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if showsHeader {
+                cardHeader(snapshot: snapshot)
+            }
+            if effectiveFixedHeight != nil {
+                // Fixed footprint: content taller than the card scrolls inside.
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 8) { cardContent(snapshot: snapshot) }
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            } else {
+                // Fit to content: the card grows to fit.
+                VStack(alignment: .leading, spacing: 8) { cardContent(snapshot: snapshot) }
+            }
+            if let updatedAt = snapshot.updatedAt {
+                Text("Updated \(Self.relativeFormatter.localizedString(for: updatedAt, relativeTo: Date()))")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
         }
     }
 
@@ -800,12 +801,33 @@ struct WidgetCardView: View {
     /// Native-widget corner radius.
     private static let cardCornerRadius: CGFloat = 16
 
+    /// Applies a fixed height only when one is set; otherwise leaves the view to
+    /// size itself (fit-to-content).
+    private struct OptionalHeight: ViewModifier {
+        let height: CGFloat?
+        @ViewBuilder
+        func body(content: Content) -> some View {
+            if let height {
+                content.frame(height: height)
+            } else {
+                content
+            }
+        }
+    }
+
     private var cardBackground: some View {
         RoundedRectangle(cornerRadius: Self.cardCornerRadius, style: .continuous)
             .fill(Color(nsColor: .controlBackgroundColor))
             .overlay(
                 RoundedRectangle(cornerRadius: Self.cardCornerRadius, style: .continuous)
-                    .fill(appearance.cardStyle == .tinted ? cardAccent.opacity(0.12) : Color.clear)
+                    .fill(
+                        appearance.cardStyle == .tinted
+                            ? LinearGradient(
+                                colors: [cardAccent.opacity(0.20), cardAccent.opacity(0.05)],
+                                startPoint: .top, endPoint: .bottom
+                            )
+                            : LinearGradient(colors: [.clear, .clear], startPoint: .top, endPoint: .bottom)
+                    )
             )
     }
 

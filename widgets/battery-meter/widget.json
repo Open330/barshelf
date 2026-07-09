@@ -1,0 +1,30 @@
+{
+  "$schema": "https://barshelf.dev/schema/widget-0.1.json",
+  "schemaVersion": 1,
+  "id": "dev.barshelf.battery-meter",
+  "name": "Battery",
+  "version": "0.1.0",
+  "icon": "battery.100percent",
+  "bucket": { "group": "System", "order": 12, "size": "S" },
+
+  "entry": { "kind": "workflow", "main": "workflow.json" },
+
+  "refresh": { "onOpen": true, "interval": 60, "staleAfterSec": 60 },
+
+  "permissions": {
+    "exec": [
+      {
+        "command": "/bin/sh",
+        "allowedArgs": [["-c", "pct=$(pmset -g batt | grep -Eo '[0-9]+%' | head -1 | tr -d '%'); state=$(pmset -g batt | grep -Eo 'charged|charging|discharging' | head -1); echo '{\"pct\":'${pct:-0}',\"state\":\"'${state:-unknown}'\"}'"]],
+        "maxOutputBytes": 4096,
+        "sensitiveOutput": false
+      }
+    ]
+  },
+
+  "appearance": {
+    "accent": "green",
+    "cardStyle": "tinted",
+    "fixedHeight": 150
+  }
+}

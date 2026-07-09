@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "kind": "workflow",
+  "_comment": "Native-style battery widget: pmset (via a shell source) → big percentage + a level-colored meter and battery glyph. No Deno — pure workflow.",
+
+  "sources": {
+    "data": {
+      "use": "exec",
+      "with": {
+        "command": ["/bin/sh", "-c", "pct=$(pmset -g batt | grep -Eo '[0-9]+%' | head -1 | tr -d '%'); state=$(pmset -g batt | grep -Eo 'charged|charging|discharging' | head -1); echo '{\"pct\":'${pct:-0}',\"state\":\"'${state:-unknown}'\"}'"]
+      }
+    }
+  },
+
+  "view": {
+    "type": "vstack",
+    "spacing": 6,
+    "children": [
+      {
+        "type": "hstack",
+        "spacing": 6,
+        "children": [
+          {
+            "type": "image",
+            "source": { "kind": "sfSymbol", "name": "${if(gt(sources.data.pct, 60), 'battery.100percent', if(gt(sources.data.pct, 25), 'battery.50percent', 'battery.25percent'))}" },
+            "size": 15,
+            "tint": "${if(gt(sources.data.pct, 25), 'good', if(gt(sources.data.pct, 10), 'warning', 'danger'))}"
+          },
+          { "type": "text", "text": "Battery", "role": "caption", "foreground": "secondary" },
+          { "type": "spacer" },
+          { "type": "text", "text": "${sources.data.state}", "role": "caption", "foreground": "secondary", "lineLimit": 1 }
+        ]
+      },
+      { "type": "text", "text": "${string(sources.data.pct)}%", "size": 40, "role": "title", "monospacedDigit": true },
+      {
+        "type": "progress",
+        "style": "linear",
+        "value": "${div(sources.data.pct, 100)}",
+        "tint": "${if(gt(sources.data.pct, 25), 'good', if(gt(sources.data.pct, 10), 'warning', 'danger'))}"
+      }
+    ]
+  },
+
+  "status": {
+    "label": "${string(sources.data.pct)}%",
+    "tooltip": "Battery ${string(sources.data.pct)}% — ${sources.data.state}"
+  }
+}

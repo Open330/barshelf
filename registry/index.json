@@ -225,6 +225,21 @@
       "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/today", "bundled": "today" },
       "permissions": { "exec": ["/bin/date"], "keychain": false, "notifications": false },
       "homepage": "https://github.com/Open330/barshelf"
+    },
+    {
+      "id": "dev.barshelf.battery-meter",
+      "name": "Battery",
+      "description": "Native-style battery widget — a big percentage and a level-colored meter with a matching battery glyph, read from pmset. Pure workflow, no Deno.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "battery.100percent",
+      "kind": "workflow",
+      "tags": ["system", "battery", "meter", "native", "workflow"],
+      "category": "System",
+      "requires": "Battery (laptop)",
+      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/battery-meter", "bundled": "battery-meter" },
+      "permissions": { "exec": ["/bin/sh"], "keychain": false, "notifications": false },
+      "homepage": "https://github.com/Open330/barshelf"
     }
   ]
 }

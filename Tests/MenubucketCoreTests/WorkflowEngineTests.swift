@@ -602,6 +602,48 @@ final class TodayWidgetTests: XCTestCase {
     }
 }
 
+/// The Battery widget renders a level-colored meter + glyph from a shell source.
+final class BatteryWidgetTests: XCTestCase {
+    private func batteryDef() throws -> WorkflowDefinition {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let url = packageRoot.appendingPathComponent("widgets/battery-meter/workflow.json")
+        return try WorkflowDefinition.decode(from: try Data(contentsOf: url))
+    }
+
+    private func firstNode(ofType type: String, in node: UINode) -> UINode? {
+        if node.type == type { return node }
+        for child in (node.children ?? []) + (node.items ?? []) {
+            if let found = firstNode(ofType: type, in: child) { return found }
+        }
+        return nil
+    }
+
+    private func render(pct: Double, state: String) throws -> UINode {
+        try WorkflowEngine.evaluate(
+            try batteryDef(),
+            sources: ["data": .object(["pct": .number(pct), "state": .string(state)])],
+            settings: .object([:])
+        ).viewTree
+    }
+
+    func testHealthyBatteryIsGreen() throws {
+        let tree = try render(pct: 80, state: "charging")
+        XCTAssertEqual(tree.children?[1].text, "80%")
+        let meter = try XCTUnwrap(firstNode(ofType: "progress", in: tree))
+        XCTAssertEqual(meter.value ?? 0, 0.8, accuracy: 0.0001)
+        XCTAssertEqual(meter.tint, "good")
+        XCTAssertEqual(firstNode(ofType: "image", in: tree)?.source?.name, "battery.100percent")
+    }
+
+    func testLowBatteryIsRed() throws {
+        let tree = try render(pct: 5, state: "discharging")
+        let meter = try XCTUnwrap(firstNode(ofType: "progress", in: tree))
+        XCTAssertEqual(meter.tint, "danger")
+        XCTAssertEqual(firstNode(ofType: "image", in: tree)?.source?.name, "battery.25percent")
+    }
+}
+
 /// End-to-end evaluation of the shipped persistence example widgets, so the
 /// hand-authored nested expressions can't silently rot.
 final class PersistenceWidgetTests: XCTestCase {

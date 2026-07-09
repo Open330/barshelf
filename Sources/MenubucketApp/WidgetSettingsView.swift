@@ -146,6 +146,23 @@ struct WidgetSettingsView: View {
                 .pickerStyle(.segmented).labelsHidden().frame(width: 160)
             }
 
+            VStack(alignment: .leading, spacing: 3) {
+                HStack {
+                    Text("Height").font(.system(size: 12))
+                    Spacer()
+                    Picker("", selection: heightBinding) {
+                        Text("Fit").tag(HeightPreset.fit)
+                        Text("S").tag(HeightPreset.small)
+                        Text("M").tag(HeightPreset.medium)
+                        Text("L").tag(HeightPreset.large)
+                    }
+                    .pickerStyle(.segmented).labelsHidden().frame(width: 200)
+                }
+                Text("Fit grows the card to its content; S/M/L give a fixed height that scrolls.")
+                    .font(.caption2).foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             Toggle("Show header", isOn: showHeaderBinding)
                 .font(.system(size: 12))
 
@@ -222,6 +239,34 @@ struct WidgetSettingsView: View {
         Binding(
             get: { appearanceDraft.showHeader ?? true },
             set: { appearanceDraft.showHeader = $0 }
+        )
+    }
+
+    /// Fit-to-content or a fixed height preset, backing `appearance.fixedHeight`.
+    private enum HeightPreset: Hashable {
+        case fit, small, medium, large
+        var value: Double? {
+            switch self {
+            case .fit: return nil
+            case .small: return 140
+            case .medium: return 220
+            case .large: return 320
+            }
+        }
+        init(_ height: Double?) {
+            switch height {
+            case .none: self = .fit
+            case .some(let h) where h <= 160: self = .small
+            case .some(let h) where h <= 260: self = .medium
+            default: self = .large
+            }
+        }
+    }
+
+    private var heightBinding: Binding<HeightPreset> {
+        Binding(
+            get: { HeightPreset(appearanceDraft.fixedHeight) },
+            set: { appearanceDraft.fixedHeight = $0.value }
         )
     }
 
