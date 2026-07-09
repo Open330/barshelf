@@ -5,7 +5,7 @@
   "name": "Clock",
   "version": "0.1.0",
   "icon": "clock.fill",
-  "bucket": { "group": "Demo", "order": 11, "size": "S" },
+  "bucket": { "group": "Demo", "order": 11, "size": "M" },
 
   "entry": { "kind": "workflow", "main": "workflow.json" },
 
@@ -24,7 +24,6 @@
 
   "appearance": {
     "accent": "blue",
-    "cardStyle": "tinted",
-    "fixedHeight": 150
+    "cardStyle": "tinted"
   }
 }

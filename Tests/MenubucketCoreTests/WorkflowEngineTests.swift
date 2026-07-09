@@ -683,15 +683,15 @@ final class NativeWidgetsTests: XCTestCase {
     func testSystemMetersHealthColors() throws {
         let out = try WorkflowEngine.evaluate(
             try def("system"),
-            sources: ["data": .object(["disk": .number(92), "cpu": .number(30)])],
+            sources: ["data": .object(["disk": .number(92), "cpu": .number(30), "mem": .number(50)])],
             settings: .object([:])
         )
         let bars = allNodes(ofType: "progress", in: out.viewTree)
-        XCTAssertEqual(bars.count, 2)
-        XCTAssertEqual(bars[0].value ?? 0, 0.30, accuracy: 0.0001) // CPU first
+        XCTAssertEqual(bars.count, 3)                               // CPU, Memory, Disk
+        XCTAssertEqual(bars[0].value ?? 0, 0.30, accuracy: 0.0001)  // CPU
         XCTAssertEqual(bars[0].tint, "good")
-        XCTAssertEqual(bars[1].value ?? 0, 0.92, accuracy: 0.0001) // Disk
-        XCTAssertEqual(bars[1].tint, "danger")
+        XCTAssertEqual(bars[2].value ?? 0, 0.92, accuracy: 0.0001)  // Disk
+        XCTAssertEqual(bars[2].tint, "danger")
     }
 
     func testWeatherMapsCodeToConditionAndIcon() throws {
@@ -718,6 +718,55 @@ final class NativeWidgetsTests: XCTestCase {
         )
         XCTAssertEqual(allNodes(ofType: "image", in: out.viewTree).first?.source?.name, "sun.max.fill")
         XCTAssertTrue(flat(out.viewTree).contains("Clear"))
+    }
+
+    func testCalendarGridHighlightsToday() throws {
+        let cells: [JSONValue] = Array(repeating: .number(0), count: 3)
+            + (1...31).map { JSONValue.number(Double($0)) }
+        let out = try WorkflowEngine.evaluate(
+            try def("calendar"),
+            sources: ["data": .object([
+                "today": .number(9), "month": .string("July"), "cells": .array(cells),
+            ])],
+            settings: .object([:])
+        )
+        let grids = allNodes(ofType: "grid", in: out.viewTree)
+        XCTAssertEqual(grids.count, 2)                 // weekday header + day cells
+        let dayGrid = grids[1]
+        XCTAssertEqual(dayGrid.columns, 7)
+        XCTAssertEqual(dayGrid.items?.count, 34)       // 3 leading blanks + 31 days
+        XCTAssertEqual(dayGrid.items?.first?.text, "") // blank cell
+        let nine = dayGrid.items?.first { $0.text == "9" }
+        XCTAssertEqual(nine?.foreground, "accent")     // today accented + bold
+        XCTAssertEqual(nine?.role, "title")
+        XCTAssertEqual(dayGrid.items?.first { $0.text == "10" }?.foreground, "primary")
+    }
+
+    func testExchangeShowsRate() throws {
+        let out = try WorkflowEngine.evaluate(
+            try def("exchange"),
+            sources: ["data": .object(["rates": .object(["KRW": .number(1506.3)])])],
+            settings: .object([:])
+        )
+        XCTAssertTrue(flat(out.viewTree).contains("₩1506"))
+    }
+
+    func testNetworkShowsIP() throws {
+        let out = try WorkflowEngine.evaluate(
+            try def("network"),
+            sources: ["data": .object(["ip": .string("172.30.0.5")])],
+            settings: .object([:])
+        )
+        XCTAssertTrue(flat(out.viewTree).contains("172.30.0.5"))
+    }
+
+    func testSystemHasThreeMeters() throws {
+        let out = try WorkflowEngine.evaluate(
+            try def("system"),
+            sources: ["data": .object(["disk": .number(50), "cpu": .number(20), "mem": .number(70)])],
+            settings: .object([:])
+        )
+        XCTAssertEqual(allNodes(ofType: "progress", in: out.viewTree).count, 3) // CPU, Memory, Disk
     }
 }
 

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://barshelf.dev/schema/widget-0.1.json",
+  "schemaVersion": 1,
+  "id": "dev.barshelf.exchange",
+  "name": "Exchange",
+  "version": "0.1.0",
+  "icon": "dollarsign.circle.fill",
+  "bucket": { "group": "Demo", "order": 14, "size": "S" },
+
+  "entry": { "kind": "workflow", "main": "workflow.json" },
+
+  "refresh": { "onOpen": true, "interval": 3600, "staleAfterSec": 3600 },
+
+  "permissions": {
+    "network": ["open.er-api.com"]
+  },
+
+  "appearance": {
+    "accent": "green",
+    "cardStyle": "tinted",
+    "fixedHeight": 150
+  }
+}

@@ -163,6 +163,49 @@
       "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/weather", "bundled": "weather" },
       "permissions": { "exec": [], "keychain": false, "notifications": false, "network": ["api.open-meteo.com"] },
       "homepage": "https://open-meteo.com/"
+    },
+    {
+      "id": "dev.barshelf.calendar",
+      "name": "Calendar",
+      "description": "Native month calendar grid with today highlighted — a 7-column grid built from a shell source. No external dependency.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "calendar",
+      "kind": "workflow",
+      "tags": ["calendar", "date", "grid", "native", "workflow"],
+      "category": "Demo",
+      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/calendar", "bundled": "calendar" },
+      "permissions": { "exec": ["/bin/sh"], "keychain": false, "notifications": false },
+      "homepage": "https://github.com/Open330/barshelf"
+    },
+    {
+      "id": "dev.barshelf.exchange",
+      "name": "Exchange",
+      "description": "USD→KRW exchange rate over a free HTTPS API (open.er-api.com, no key) — a big rate figure. Another HTTP-source example.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "dollarsign.circle.fill",
+      "kind": "workflow",
+      "tags": ["finance", "exchange", "http", "native"],
+      "category": "Demo",
+      "requires": "Network access",
+      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/exchange", "bundled": "exchange" },
+      "permissions": { "exec": [], "keychain": false, "notifications": false, "network": ["open.er-api.com"] },
+      "homepage": "https://www.exchangerate-api.com/"
+    },
+    {
+      "id": "dev.barshelf.network",
+      "name": "Network",
+      "description": "Shows your Mac's local IP address (Wi-Fi / Ethernet), via a shell source. No external dependency.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "wifi",
+      "kind": "workflow",
+      "tags": ["system", "network", "ip", "native"],
+      "category": "System",
+      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/network", "bundled": "network" },
+      "permissions": { "exec": ["/bin/sh"], "keychain": false, "notifications": false },
+      "homepage": "https://github.com/Open330/barshelf"
     }
   ]
 }

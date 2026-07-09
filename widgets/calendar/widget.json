@@ -1,0 +1,29 @@
+{
+  "$schema": "https://barshelf.dev/schema/widget-0.1.json",
+  "schemaVersion": 1,
+  "id": "dev.barshelf.calendar",
+  "name": "Calendar",
+  "version": "0.1.0",
+  "icon": "calendar",
+  "bucket": { "group": "Demo", "order": 13, "size": "M" },
+
+  "entry": { "kind": "workflow", "main": "workflow.json" },
+
+  "refresh": { "onOpen": true, "interval": null, "staleAfterSec": 3600 },
+
+  "permissions": {
+    "exec": [
+      {
+        "command": "/bin/sh",
+        "allowedArgs": [["-c", "y=$(/bin/date +%Y); mm=$(/bin/date +%m); mnum=$(/bin/date +%-m); today=$(/bin/date +%-d); first=$(/bin/date -j -f \"%Y-%m-%d\" \"$y-$mm-01\" +%w); dim=$(/usr/bin/cal $mnum $y | /usr/bin/awk 'NF>0{d=$NF} END{print d}'); cells=\"\"; i=0; while [ $i -lt $first ]; do cells=\"${cells}0,\"; i=$((i+1)); done; d=1; while [ $d -le $dim ]; do cells=\"${cells}${d},\"; d=$((d+1)); done; cells=${cells%,}; echo '{\"today\":'$today',\"month\":\"'$(/bin/date +%B)'\",\"cells\":['$cells']}'"]],
+        "maxOutputBytes": 8192,
+        "sensitiveOutput": false
+      }
+    ]
+  },
+
+  "appearance": {
+    "accent": "red",
+    "cardStyle": "tinted"
+  }
+}

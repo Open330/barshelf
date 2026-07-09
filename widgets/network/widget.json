@@ -1,0 +1,30 @@
+{
+  "$schema": "https://barshelf.dev/schema/widget-0.1.json",
+  "schemaVersion": 1,
+  "id": "dev.barshelf.network",
+  "name": "Network",
+  "version": "0.1.0",
+  "icon": "wifi",
+  "bucket": { "group": "System", "order": 13, "size": "S" },
+
+  "entry": { "kind": "workflow", "main": "workflow.json" },
+
+  "refresh": { "onOpen": true, "interval": 30, "staleAfterSec": 30 },
+
+  "permissions": {
+    "exec": [
+      {
+        "command": "/bin/sh",
+        "allowedArgs": [["-c", "ip=$(/usr/sbin/ipconfig getifaddr en0 2>/dev/null || /usr/sbin/ipconfig getifaddr en1 2>/dev/null); echo '{\"ip\":\"'${ip:-offline}'\"}'"]],
+        "maxOutputBytes": 4096,
+        "sensitiveOutput": false
+      }
+    ]
+  },
+
+  "appearance": {
+    "accent": "blue",
+    "cardStyle": "tinted",
+    "fixedHeight": 150
+  }
+}

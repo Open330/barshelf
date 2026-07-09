@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "kind": "workflow",
+  "_comment": "Shows the Mac's local IP address (en0/en1) via a shell source.",
+
+  "sources": {
+    "data": {
+      "use": "exec",
+      "with": {
+        "command": ["/bin/sh", "-c", "ip=$(/usr/sbin/ipconfig getifaddr en0 2>/dev/null || /usr/sbin/ipconfig getifaddr en1 2>/dev/null); echo '{\"ip\":\"'${ip:-offline}'\"}'"]
+      }
+    }
+  },
+
+  "view": {
+    "type": "vstack",
+    "spacing": 2,
+    "children": [
+      {
+        "type": "hstack",
+        "spacing": 6,
+        "children": [
+          { "type": "image", "source": { "kind": "sfSymbol", "name": "wifi" }, "size": 13, "tint": "accent" },
+          { "type": "text", "text": "Network", "role": "caption", "foreground": "secondary" }
+        ]
+      },
+      { "type": "text", "text": "${sources.data.ip}", "size": 18, "role": "title", "monospacedDigit": true, "lineLimit": 1 },
+      { "type": "text", "text": "local IP", "role": "caption", "foreground": "secondary" }
+    ]
+  },
+
+  "status": {
+    "tooltip": "Local IP: ${sources.data.ip}"
+  }
+}

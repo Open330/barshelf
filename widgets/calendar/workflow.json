@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "kind": "workflow",
+  "_comment": "Native month calendar grid. A shell source emits {today, month, cells:[…]} where cells are day numbers padded with 0 for leading blanks; a 7-column grid renders them with today accented.",
+
+  "sources": {
+    "data": {
+      "use": "exec",
+      "with": {
+        "command": ["/bin/sh", "-c", "y=$(/bin/date +%Y); mm=$(/bin/date +%m); mnum=$(/bin/date +%-m); today=$(/bin/date +%-d); first=$(/bin/date -j -f \"%Y-%m-%d\" \"$y-$mm-01\" +%w); dim=$(/usr/bin/cal $mnum $y | /usr/bin/awk 'NF>0{d=$NF} END{print d}'); cells=\"\"; i=0; while [ $i -lt $first ]; do cells=\"${cells}0,\"; i=$((i+1)); done; d=1; while [ $d -le $dim ]; do cells=\"${cells}${d},\"; d=$((d+1)); done; cells=${cells%,}; echo '{\"today\":'$today',\"month\":\"'$(/bin/date +%B)'\",\"cells\":['$cells']}'"]
+      }
+    }
+  },
+
+  "view": {
+    "type": "vstack",
+    "spacing": 4,
+    "children": [
+      {
+        "type": "hstack",
+        "spacing": 6,
+        "children": [
+          { "type": "image", "source": { "kind": "sfSymbol", "name": "calendar" }, "size": 13, "tint": "accent" },
+          { "type": "text", "text": "${sources.data.month}", "role": "title", "lineLimit": 1 }
+        ]
+      },
+      {
+        "type": "grid",
+        "columns": 7,
+        "spacing": 2,
+        "children": [
+          { "type": "text", "text": "Su", "role": "caption", "foreground": "tertiary" },
+          { "type": "text", "text": "Mo", "role": "caption", "foreground": "tertiary" },
+          { "type": "text", "text": "Tu", "role": "caption", "foreground": "tertiary" },
+          { "type": "text", "text": "We", "role": "caption", "foreground": "tertiary" },
+          { "type": "text", "text": "Th", "role": "caption", "foreground": "tertiary" },
+          { "type": "text", "text": "Fr", "role": "caption", "foreground": "tertiary" },
+          { "type": "text", "text": "Sa", "role": "caption", "foreground": "tertiary" }
+        ]
+      },
+      {
+        "type": "grid",
+        "columns": 7,
+        "spacing": 2,
+        "items": {
+          "forEach": "$.sources.data.cells",
+          "as": "cell",
+          "template": {
+            "type": "text",
+            "text": "${if(eq(cell, 0), '', string(cell))}",
+            "role": "${if(eq(cell, sources.data.today), 'title', 'body')}",
+            "monospacedDigit": true,
+            "foreground": "${if(eq(cell, sources.data.today), 'accent', 'primary')}"
+          }
+        }
+      }
+    ]
+  },
+
+  "status": {
+    "tooltip": "${sources.data.month} ${string(sources.data.today)}"
+  }
+}

@@ -7,7 +7,7 @@
     "data": {
       "use": "exec",
       "with": {
-        "command": ["/bin/sh", "-c", "disk=$(/bin/df -k / | /usr/bin/tail -1 | /usr/bin/tr -s ' ' | /usr/bin/cut -d' ' -f5 | /usr/bin/tr -d '%'); cpu=$(/usr/bin/top -l 1 -n 0 | /usr/bin/grep 'CPU usage' | /usr/bin/sed -E 's/.*: ([0-9.]+)% user.*/\\1/'); echo '{\"disk\":'${disk:-0}',\"cpu\":'${cpu:-0}'}'"]
+        "command": ["/bin/sh", "-c", "disk=$(/bin/df -k / | /usr/bin/tail -1 | /usr/bin/tr -s ' ' | /usr/bin/cut -d' ' -f5 | /usr/bin/tr -d '%'); cpu=$(/usr/bin/top -l 1 -n 0 | /usr/bin/grep 'CPU usage' | /usr/bin/sed -E 's/.*: ([0-9.]+)% user.*/\\1/'); free=$(/usr/bin/memory_pressure | /usr/bin/grep -i 'free percentage' | /usr/bin/sed -E 's/.*: ([0-9]+)%.*/\\1/'); mem=$((100 - ${free:-0})); echo '{\"disk\":'${disk:-0}',\"cpu\":'${cpu:-0}',\"mem\":'${mem}'}'"]
       }
     }
   },
@@ -37,6 +37,21 @@
             ]
           },
           { "type": "progress", "style": "linear", "value": "${div(sources.data.cpu, 100)}", "tint": "${if(gt(sources.data.cpu, 85), 'danger', if(gt(sources.data.cpu, 60), 'warning', 'good'))}" }
+        ]
+      },
+      {
+        "type": "vstack",
+        "spacing": 3,
+        "children": [
+          {
+            "type": "hstack",
+            "children": [
+              { "type": "text", "text": "Memory", "role": "caption" },
+              { "type": "spacer" },
+              { "type": "text", "text": "${string(round(number(sources.data.mem), 0))}%", "role": "caption", "monospacedDigit": true, "foreground": "${if(gt(sources.data.mem, 85), 'danger', if(gt(sources.data.mem, 65), 'warning', 'good'))}" }
+            ]
+          },
+          { "type": "progress", "style": "linear", "value": "${div(sources.data.mem, 100)}", "tint": "${if(gt(sources.data.mem, 85), 'danger', if(gt(sources.data.mem, 65), 'warning', 'good'))}" }
         ]
       },
       {

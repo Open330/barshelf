@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "kind": "workflow",
+  "_comment": "USD→KRW exchange rate over a free HTTPS API (open.er-api.com, no key). Demonstrates the http source; edit the URL / rates key for another pair.",
+
+  "sources": {
+    "data": {
+      "use": "http",
+      "with": { "url": "https://open.er-api.com/v6/latest/USD" }
+    }
+  },
+
+  "view": {
+    "type": "vstack",
+    "spacing": 2,
+    "children": [
+      {
+        "type": "hstack",
+        "spacing": 6,
+        "children": [
+          { "type": "image", "source": { "kind": "sfSymbol", "name": "dollarsign.circle.fill" }, "size": 13, "tint": "accent" },
+          { "type": "text", "text": "USD → KRW", "role": "caption", "foreground": "secondary" }
+        ]
+      },
+      { "type": "text", "text": "₩${string(round(number(sources.data.rates.KRW), 0))}", "size": 32, "role": "title", "monospacedDigit": true },
+      { "type": "text", "text": "per $1", "role": "caption", "foreground": "secondary" }
+    ]
+  },
+
+  "status": {
+    "label": "₩${string(round(number(sources.data.rates.KRW), 0))}",
+    "tooltip": "USD to KRW: ${string(sources.data.rates.KRW)}"
+  }
+}
