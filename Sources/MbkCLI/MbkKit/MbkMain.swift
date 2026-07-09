@@ -11,9 +11,10 @@ public enum MbkMain {
         mbk — BarShelf widget developer CLI
 
         usage:
-          mbk install <url> [--yes]      Install widget(s) from a GitHub repo URL,
-                                         a .zip/.mbw archive URL or local path, or
-                                         a barshelf://install deep link.
+          mbk install <src> [--yes]      Install widget(s) from a GitHub repo URL,
+                                         a local widget directory, a .zip/.mbw
+                                         archive (local path or URL), or a
+                                         barshelf://install deep link.
           mbk new <name> [--kind exec|workflow|script] [--dir <path>]
                                          Scaffold a widget (default: --kind exec,
                                          --dir ./<name>) and validate it.
@@ -78,9 +79,9 @@ public enum MbkMain {
             }
         }
         guard let input, !input.isEmpty else {
-            printError("usage: mbk install <url> [--yes]")
-            printError("  <url>: GitHub repo URL, .zip/.mbw archive URL or local"
-                + " path, or barshelf://install?url=…")
+            printError("usage: mbk install <src> [--yes]")
+            printError("  <src>: GitHub repo URL, a local widget directory,"
+                + " a .zip/.mbw archive (path or URL), or barshelf://install?url=…")
             return 1
         }
 

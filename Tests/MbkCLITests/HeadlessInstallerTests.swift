@@ -27,6 +27,28 @@ final class HeadlessInstallerTests: XCTestCase {
         return archiveURL
     }
 
+    func testFetchSessionAcceptsLocalDirectory() async throws {
+        // `mbk install ./my-widget` — a widget directory, no packing required.
+        let widgetDir = workDir.appendingPathComponent("dir-widget", isDirectory: true)
+        try WidgetScaffold.create(name: "dir-widget", kind: .exec, at: widgetDir)
+
+        // Relative and absolute paths both resolve to the same directory install.
+        for input in [widgetDir.path, "file://" + widgetDir.path] {
+            let session = try await HeadlessInstaller.fetchSession(input: input)
+            defer { session.cleanup() }
+            XCTAssertEqual(session.candidates.count, 1, "input: \(input)")
+            // Staging is a temp copy — the user's source dir must survive cleanup.
+            session.cleanup()
+            XCTAssertTrue(FileManager.default.fileExists(atPath: widgetDir.path))
+        }
+
+        // Install end-to-end from the directory.
+        let installedRoot = workDir.appendingPathComponent("installed", isDirectory: true)
+        let candidates = try await HeadlessInstaller.fetchCandidates(from: URL(fileURLWithPath: widgetDir.path))
+        let dest = try HeadlessInstaller.install(candidates[0], into: installedRoot)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: dest.appendingPathComponent("widget.json").path))
+    }
+
     func testFetchCandidatesFromLocalZipAndInstall() async throws {
         let archiveURL = try makeArchive(name: "local-widget")
 

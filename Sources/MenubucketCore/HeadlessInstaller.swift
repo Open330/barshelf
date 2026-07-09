@@ -103,10 +103,58 @@ public enum HeadlessInstaller {
     /// `input` (R05 URL contract: GitHub repo / .zip / .mbw / deep link;
     /// plus local archive paths for CLI use).
     public static func fetchSession(input: String) async throws -> Session {
+        if let directory = localDirectorySource(for: input) {
+            return try fetchSession(directory: directory)
+        }
         if let local = localArchiveSource(for: input) {
             return try await fetchSession(source: local)
         }
         return try await fetchSession(source: WidgetInstallSource.parse(input))
+    }
+
+    /// Installs from a local widget directory (e.g. `mbk install ./my-widget`).
+    /// The directory is copied into a temp staging root — never discovered in
+    /// place — so `Session.cleanup()` and permission-preserving copy behave
+    /// exactly like the archive path and never touch the user's source.
+    public static func fetchSession(directory: URL) throws -> Session {
+        let staging = FileManager.default.temporaryDirectory
+            .appendingPathComponent("barshelf-install-\(UUID().uuidString)", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
+            let copy = staging.appendingPathComponent(directory.lastPathComponent, isDirectory: true)
+            try FileManager.default.copyItem(at: directory, to: copy)
+            let discovery = try WidgetDiscovery.discover(under: staging, subdirectory: nil)
+            let source = WidgetInstallSource(
+                kind: .archive,
+                downloadCandidates: [directory.standardizedFileURL],
+                subdirectory: nil,
+                displayName: directory.standardizedFileURL.path
+            )
+            return Session(source: source, stagingRoot: staging, discovery: discovery)
+        } catch {
+            try? FileManager.default.removeItem(at: staging)
+            throw error
+        }
+    }
+
+    /// Resolves `input` to an existing local *directory* (bare path or
+    /// `file://`), or nil. Archive files fall through to `localArchiveSource`.
+    static func localDirectorySource(for input: String) -> URL? {
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let url: URL
+        if trimmed.lowercased().hasPrefix("file://") {
+            guard let parsed = URL(string: trimmed), parsed.isFileURL else { return nil }
+            url = parsed
+        } else if !trimmed.contains("://") {
+            url = URL(fileURLWithPath: (trimmed as NSString).expandingTildeInPath)
+        } else {
+            return nil
+        }
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
+              isDirectory.boolValue else { return nil }
+        return url.standardizedFileURL
     }
 
     /// Tries each source candidate end-to-end (download → extract →

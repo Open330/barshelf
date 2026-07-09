@@ -68,7 +68,8 @@ Install BarShelf on my Mac and scaffold my first widget.
 1. Download the latest release from
    https://github.com/Open330/barshelf/releases/latest, unzip the
    BarShelf-<version>-arm64.zip, move BarShelf.app into /Applications, and open it.
-2. Put the bundled mbk CLI on my PATH.
+2. Download the mbk CLI — it ships as a separate release asset
+   (mbk-<version>-arm64.tar.gz). Extract it and put mbk on my PATH.
 3. Scaffold a widget:  mbk new my-widget --kind workflow
    then validate it:   mbk validate ./my-widget
    then install it:    mbk install ./my-widget
