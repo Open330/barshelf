@@ -815,19 +815,23 @@ struct WidgetCardView: View {
         }
     }
 
+    /// Content-colored background: a soft top-down accent gradient over the base
+    /// surface, like a native home-screen widget. Tinted widgets get a stronger
+    /// wash; a widget with a declared accent gets a subtle one even when plain;
+    /// an accent-less plain widget stays neutral gray.
     private var cardBackground: some View {
-        RoundedRectangle(cornerRadius: Self.cardCornerRadius, style: .continuous)
+        let tinted = appearance.cardStyle == .tinted
+        let hasAccent = appearance.accentColor != nil
+        let topOpacity = tinted ? 0.26 : (hasAccent ? 0.13 : 0.0)
+        let bottomOpacity = tinted ? 0.07 : (hasAccent ? 0.03 : 0.0)
+        return RoundedRectangle(cornerRadius: Self.cardCornerRadius, style: .continuous)
             .fill(Color(nsColor: .controlBackgroundColor))
             .overlay(
                 RoundedRectangle(cornerRadius: Self.cardCornerRadius, style: .continuous)
-                    .fill(
-                        appearance.cardStyle == .tinted
-                            ? LinearGradient(
-                                colors: [cardAccent.opacity(0.20), cardAccent.opacity(0.05)],
-                                startPoint: .top, endPoint: .bottom
-                            )
-                            : LinearGradient(colors: [.clear, .clear], startPoint: .top, endPoint: .bottom)
-                    )
+                    .fill(LinearGradient(
+                        colors: [cardAccent.opacity(topOpacity), cardAccent.opacity(bottomOpacity)],
+                        startPoint: .top, endPoint: .bottom
+                    ))
             )
     }
 

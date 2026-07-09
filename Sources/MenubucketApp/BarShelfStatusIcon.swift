@@ -1,6 +1,6 @@
 import AppKit
 
-/// Single-color brand mark for the macOS status bar.
+/// Single-color Bar + Spark brand mark for the macOS status bar.
 enum BarShelfStatusIcon {
     static let logoSymbol = "barshelf.logo"
     private static let canvasSize = NSSize(width: 24, height: 18)
@@ -38,8 +38,8 @@ enum BarShelfStatusIcon {
 
         NSColor.black.setStroke()
         NSColor.black.setFill()
-        framePath().stroke()
-        sparkle(center: NSPoint(x: 12.0, y: 9.2), radius: 5.2).fill()
+        sparkle(center: NSPoint(x: 12.0, y: 11.4), radius: 4.25).fill()
+        barPath().fill()
 
         NSGraphicsContext.restoreGraphicsState()
 
@@ -48,16 +48,12 @@ enum BarShelfStatusIcon {
         return image
     }
 
-    private static func framePath() -> NSBezierPath {
-        let path = NSBezierPath()
-        path.appendRoundedRect(
-            NSRect(x: 2.8, y: 1.8, width: 18.4, height: 14.4),
-            xRadius: 4.2,
-            yRadius: 4.2
+    private static func barPath() -> NSBezierPath {
+        NSBezierPath(
+            roundedRect: NSRect(x: 5.1, y: 3.0, width: 13.8, height: 2.35),
+            xRadius: 1.18,
+            yRadius: 1.18
         )
-        path.lineWidth = 1.8
-        path.lineJoinStyle = .round
-        return path
     }
 
     private static func sparkle(center: NSPoint, radius: CGFloat) -> NSBezierPath {

@@ -18,5 +18,10 @@
 
   "permissions": {
     "network": ["www.githubstatus.com"]
+  },
+
+  "appearance": {
+    "accent": "green",
+    "cardStyle": "tinted"
   }
 }
