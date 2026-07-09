@@ -156,44 +156,40 @@ final class RegistryTests: XCTestCase {
             .appendingPathComponent("registry/index.json")
         let (index, warnings) = try RegistryIndex.parse(Data(contentsOf: sample))
         XCTAssertEqual(index.schemaVersion, 1)
-        XCTAssertEqual(index.widgets.count, 16)
+        XCTAssertEqual(index.widgets.count, 8)
         XCTAssertTrue(warnings.isEmpty, "\(warnings)")
         XCTAssertEqual(
             Set(index.widgets.compactMap(\.kind)),
-            ["exec", "script", "workflow"]
+            ["exec", "workflow"]
         )
-        // R07: CLI/runtime-dependent entries carry the display-only
-        // `requires` badge; the CLI-free starters do not.
+        // CLI/runtime/hardware-dependent entries carry the display-only
+        // `requires` badge; the dependency-free ones do not.
         let byID = Dictionary(uniqueKeysWithValues: index.widgets.map { ($0.id, $0) })
-        XCTAssertEqual(byID["dev.barshelf.aas-usage"]?.requires, "aas CLI")
+        XCTAssertEqual(byID["dev.barshelf.aas-meters"]?.requires, "aas CLI")
         XCTAssertEqual(byID["dev.barshelf.otpeek"]?.requires, "otpeek CLI")
-        XCTAssertEqual(byID["dev.barshelf.clock-script"]?.requires, "Deno runtime")
-        XCTAssertNil(byID["dev.barshelf.hello"]?.requires)
-        XCTAssertNil(byID["dev.barshelf.recent-files"]?.requires)
-        XCTAssertNil(byID["dev.barshelf.local-time"]?.requires)
-        XCTAssertEqual(byID["dev.barshelf.battery"]?.requires, "Deno runtime")
-        XCTAssertEqual(byID["dev.barshelf.top-processes"]?.requires, "Deno runtime")
-        // Origin-project links surfaced per user feedback (Stashbar / aas).
+        XCTAssertEqual(byID["dev.barshelf.battery-meter"]?.requires, "Battery (laptop)")
+        XCTAssertNil(byID["dev.barshelf.today"]?.requires)
+        XCTAssertNil(byID["dev.barshelf.visit-counter"]?.requires)
+        XCTAssertNil(byID["dev.barshelf.recent-files-grid"]?.requires)
+        // Origin-project links surfaced per user feedback (Stashbar / aas / otpeek).
         XCTAssertEqual(
-            byID["dev.barshelf.recent-files"]?.homepage,
+            byID["dev.barshelf.recent-files-grid"]?.homepage,
             "https://github.com/jiunbae/stashbar"
         )
         XCTAssertEqual(
-            byID["dev.barshelf.aas-usage"]?.homepage,
+            byID["dev.barshelf.aas-meters"]?.homepage,
             "https://github.com/Open330/aas"
         )
-        XCTAssertEqual(byID["dev.barshelf.hello"]?.install.bundled, "hello")
-        XCTAssertEqual(byID["dev.barshelf.recent-files"]?.install.bundled, "recent-files")
-        XCTAssertEqual(byID["dev.barshelf.aas-usage"]?.install.bundled, "aas-usage")
+        XCTAssertEqual(
+            byID["dev.barshelf.otpeek"]?.homepage,
+            "https://github.com/jiunbae/otpeek"
+        )
+        XCTAssertEqual(byID["dev.barshelf.today"]?.install.bundled, "today")
+        XCTAssertEqual(byID["dev.barshelf.battery-meter"]?.install.bundled, "battery-meter")
         XCTAssertEqual(byID["dev.barshelf.otpeek"]?.install.bundled, "otpeek")
-        XCTAssertEqual(byID["dev.barshelf.clock-script"]?.install.bundled, "clock-script")
         XCTAssertEqual(
-            byID["dev.barshelf.recent-files"]?.install.url,
+            byID["dev.barshelf.recent-files-grid"]?.install.url,
             "https://github.com/jiunbae/stashbar"
-        )
-        XCTAssertEqual(
-            byID["dev.barshelf.aas-usage"]?.install.url,
-            "https://github.com/Open330/aas"
         )
     }
 

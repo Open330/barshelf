@@ -30,7 +30,7 @@ final class StarterWidgetSeederTests: XCTestCase {
     /// Bundled resources: the two starters plus a CLI-dependent widget that
     /// must never be seeded.
     private func makeBundledWidgets(
-        names: [String] = ["hello", "recent-files", "aas-usage"]
+        names: [String] = ["today", "recent-files-grid", "otpeek"]
     ) throws {
         let fm = FileManager.default
         for name in names {
@@ -58,7 +58,7 @@ final class StarterWidgetSeederTests: XCTestCase {
 
         let outcome = seed()
 
-        XCTAssertEqual(outcome.seededNames, ["hello", "recent-files"])
+        XCTAssertEqual(outcome.seededNames, ["today", "recent-files-grid"])
         XCTAssertTrue(outcome.didSeed)
         let fm = FileManager.default
         for name in StarterWidgetSeeder.starterWidgetNames {
@@ -69,7 +69,7 @@ final class StarterWidgetSeederTests: XCTestCase {
         }
         // Non-starter bundled widgets (CLI/deno dependent) are not copied.
         XCTAssertFalse(fm.fileExists(
-            atPath: userWidgetsDir.appendingPathComponent("aas-usage").path
+            atPath: userWidgetsDir.appendingPathComponent("otpeek").path
         ))
         // Marker written so the next launch skips seeding.
         XCTAssertTrue(fm.fileExists(atPath: markerURL.path))
@@ -118,7 +118,7 @@ final class StarterWidgetSeederTests: XCTestCase {
         let outcome = seed()
 
         XCTAssertFalse(outcome.didSeed)
-        XCTAssertFalse(fm.fileExists(atPath: userWidgetsDir.appendingPathComponent("hello").path))
+        XCTAssertFalse(fm.fileExists(atPath: userWidgetsDir.appendingPathComponent("today").path))
         // Marker written anyway: an existing user is "already onboarded".
         XCTAssertTrue(fm.fileExists(atPath: markerURL.path))
         // Calling again stays a no-op.
@@ -149,7 +149,7 @@ final class StarterWidgetSeederTests: XCTestCase {
         _ = seed()
 
         let script = userWidgetsDir
-            .appendingPathComponent("hello")
+            .appendingPathComponent("today")
             .appendingPathComponent("main.sh")
         XCTAssertEqual(
             try String(contentsOf: script, encoding: .utf8), "#!/bin/sh\n"

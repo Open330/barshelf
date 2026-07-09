@@ -434,7 +434,7 @@ struct RootView: View {
     /// if that page is gone (starter deleted) it falls back to the first page.
     private static func welcomePageID(pages: [WidgetPage]) -> String? {
         let helloPage = pages.first { page in
-            page.widgets.contains { $0.id == "dev.barshelf.hello" }
+            page.widgets.contains { $0.id == "dev.barshelf.today" }
         }
         return (helloPage ?? pages.first)?.id
     }
