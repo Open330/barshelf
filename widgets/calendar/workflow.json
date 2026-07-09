@@ -50,7 +50,8 @@
             "text": "${if(eq(cell, 0), '', string(cell))}",
             "role": "${if(eq(cell, sources.data.today), 'title', 'body')}",
             "monospacedDigit": true,
-            "foreground": "${if(eq(cell, sources.data.today), 'accent', 'primary')}"
+            "foreground": "primary",
+            "fill": "${if(eq(cell, sources.data.today), 'accent', '')}"
           }
         }
       }

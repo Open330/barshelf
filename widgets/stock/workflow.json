@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "kind": "workflow",
+  "_comment": "Stock quote over the Yahoo Finance chart API, which requires a User-Agent header — demonstrates the http source with custom headers and array-index paths (result.0.meta). Ticker via settings.",
+
+  "sources": {
+    "data": {
+      "use": "http",
+      "with": {
+        "url": "https://query1.finance.yahoo.com/v8/finance/chart/${settings.symbol}?interval=1d&range=1d",
+        "headers": { "User-Agent": "Mozilla/5.0" }
+      }
+    }
+  },
+
+  "transforms": {
+    "m": { "use": "assign", "from": "$.sources.data.chart.result.0.meta" }
+  },
+
+  "view": {
+    "type": "vstack",
+    "spacing": 2,
+    "children": [
+      {
+        "type": "hstack",
+        "spacing": 6,
+        "children": [
+          { "type": "image", "source": { "kind": "sfSymbol", "name": "chart.line.uptrend.xyaxis" }, "size": 13, "tint": "accent" },
+          { "type": "text", "text": "${coalesce(transforms.m.symbol, settings.symbol)}", "role": "caption", "foreground": "secondary" }
+        ]
+      },
+      { "type": "text", "text": "${string(round(number(transforms.m.regularMarketPrice), 2))}", "size": 32, "role": "title", "monospacedDigit": true },
+      {
+        "type": "text",
+        "text": "${if(gt(sub(number(transforms.m.regularMarketPrice), number(transforms.m.chartPreviousClose)), 0), '▲', '▼')} ${string(round(sub(number(transforms.m.regularMarketPrice), number(transforms.m.chartPreviousClose)), 2))}",
+        "role": "caption",
+        "monospacedDigit": true,
+        "foreground": "${if(gt(sub(number(transforms.m.regularMarketPrice), number(transforms.m.chartPreviousClose)), 0), 'good', 'danger')}"
+      }
+    ]
+  },
+
+  "status": {
+    "label": "${string(round(number(transforms.m.regularMarketPrice), 2))}",
+    "tooltip": "${coalesce(transforms.m.symbol, settings.symbol)}: ${string(transforms.m.regularMarketPrice)}"
+  }
+}

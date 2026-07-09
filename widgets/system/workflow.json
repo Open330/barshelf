@@ -14,7 +14,7 @@
 
   "view": {
     "type": "vstack",
-    "spacing": 8,
+    "spacing": 10,
     "children": [
       {
         "type": "hstack",

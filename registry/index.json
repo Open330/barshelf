@@ -206,6 +206,21 @@
       "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/network", "bundled": "network" },
       "permissions": { "exec": ["/bin/sh"], "keychain": false, "notifications": false },
       "homepage": "https://github.com/Open330/barshelf"
+    },
+    {
+      "id": "dev.barshelf.stock",
+      "name": "Stock",
+      "description": "Live stock quote (any ticker) over the Yahoo Finance API — a big price with a colored up/down change. Demonstrates the HTTP source with a required User-Agent header.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "chart.line.uptrend.xyaxis",
+      "kind": "workflow",
+      "tags": ["finance", "stock", "http", "headers", "native"],
+      "category": "Demo",
+      "requires": "Network access",
+      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/stock", "bundled": "stock" },
+      "permissions": { "exec": [], "keychain": false, "notifications": false, "network": ["query1.finance.yahoo.com"] },
+      "homepage": "https://finance.yahoo.com/"
     }
   ]
 }

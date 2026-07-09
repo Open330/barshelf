@@ -213,8 +213,11 @@ struct NodeView: View {
             let minWidth = CGFloat(node.size ?? 72) * scale
             gridItems = [GridItem(.adaptive(minimum: minWidth), spacing: spacing)]
         }
-        return LazyVGrid(columns: gridItems, alignment: .leading, spacing: spacing) {
-            NodeChildrenView(nodes: items)
+        return LazyVGrid(columns: gridItems, alignment: .center, spacing: spacing) {
+            ForEach(identified(items)) { item in
+                NodeView(node: item.node)
+                    .frame(maxWidth: .infinity) // center each cell in its column
+            }
         }
     }
 
@@ -246,7 +249,22 @@ struct NodeView: View {
         )
     }
 
+    @ViewBuilder
     private var textView: some View {
+        if let fill = node.fill, let fillColor = nodeColor(fill, accent: accentOverride) {
+            // Filled-circle treatment (e.g. today in a calendar) — white text.
+            styledText(overrideColor: .white)
+                .lineLimit(node.lineLimit)
+                .padding(5)
+                .background(Circle().fill(fillColor))
+        } else {
+            styledText(overrideColor: nil)
+                .lineLimit(node.lineLimit)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func styledText(overrideColor: Color?) -> Text {
         var text = Text(node.text ?? "")
         var font: Font
         var defaultColor: Color? = nil
@@ -272,12 +290,10 @@ struct NodeView: View {
             font = font.monospacedDigit()
         }
         text = text.font(font)
-        if let color = nodeColor(node.foreground, accent: accentOverride) ?? defaultColor {
+        if let color = overrideColor ?? nodeColor(node.foreground, accent: accentOverride) ?? defaultColor {
             text = text.foregroundColor(color)
         }
         return text
-            .lineLimit(node.lineLimit)
-            .fixedSize(horizontal: false, vertical: true)
     }
 
     @ViewBuilder

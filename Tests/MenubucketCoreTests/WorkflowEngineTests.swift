@@ -320,6 +320,21 @@ final class WorkflowEngineTests: XCTestCase {
         XCTAssertEqual(output.viewTree.text, "on")
         XCTAssertEqual(output.expandedItemCount, 0) // the off-branch forEach never ran
     }
+
+    func testNumericPathSegmentIndexesArrays() throws {
+        let def = try definition("""
+        { "schemaVersion": 1, "sources": { "s": { "use": "exec" } },
+          "view": { "type": "text", "id": "t", "text": "${string(sources.s.items.1.name)}" } }
+        """)
+        let output = try WorkflowEngine.evaluate(
+            def,
+            sources: ["s": .object(["items": .array([
+                .object(["name": .string("a")]), .object(["name": .string("b")]),
+            ])])],
+            settings: .object([:])
+        )
+        XCTAssertEqual(output.viewTree.text, "b") // items[1].name
+    }
 }
 
 final class StorageServiceSnapshotTests: XCTestCase {
@@ -737,9 +752,9 @@ final class NativeWidgetsTests: XCTestCase {
         XCTAssertEqual(dayGrid.items?.count, 34)       // 3 leading blanks + 31 days
         XCTAssertEqual(dayGrid.items?.first?.text, "") // blank cell
         let nine = dayGrid.items?.first { $0.text == "9" }
-        XCTAssertEqual(nine?.foreground, "accent")     // today accented + bold
-        XCTAssertEqual(nine?.role, "title")
-        XCTAssertEqual(dayGrid.items?.first { $0.text == "10" }?.foreground, "primary")
+        XCTAssertEqual(nine?.fill, "accent")           // today gets a filled circle
+        XCTAssertEqual(nine?.role, "title")            // and bold
+        XCTAssertEqual(dayGrid.items?.first { $0.text == "10" }?.fill, "") // others: no circle
     }
 
     func testExchangeShowsRate() throws {
@@ -767,6 +782,25 @@ final class NativeWidgetsTests: XCTestCase {
             settings: .object([:])
         )
         XCTAssertEqual(allNodes(ofType: "progress", in: out.viewTree).count, 3) // CPU, Memory, Disk
+    }
+
+    func testStockPriceChangeAndColor() throws {
+        let out = try WorkflowEngine.evaluate(
+            try def("stock"),
+            sources: ["data": .object(["chart": .object(["result": .array([
+                .object(["meta": .object([
+                    "symbol": .string("AAPL"),
+                    "regularMarketPrice": .number(313.39),
+                    "chartPreviousClose": .number(310.66),
+                ])]),
+            ])])])],
+            settings: .object(["symbol": .string("AAPL")])
+        )
+        let text = flat(out.viewTree)
+        XCTAssertTrue(text.contains("313.39"))  // price via result.0.meta (array index)
+        XCTAssertTrue(text.contains("AAPL"))
+        XCTAssertTrue(text.contains("▲"))        // up
+        XCTAssertEqual(out.viewTree.children?.last?.foreground, "good") // green
     }
 }
 

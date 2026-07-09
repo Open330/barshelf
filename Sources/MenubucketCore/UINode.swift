@@ -41,6 +41,9 @@ public struct UINode: Codable, Equatable {
     public var tint: String?
     public var tone: String?
     public var foreground: String?
+    /// When set (a semantic color), the node is drawn on a filled circle of that
+    /// color with contrasting text — e.g. today in a calendar grid.
+    public var fill: String?
 
     // Progress
     /// 0.0 ... 1.0
@@ -103,6 +106,7 @@ public struct UINode: Codable, Equatable {
         tint: String? = nil,
         tone: String? = nil,
         foreground: String? = nil,
+        fill: String? = nil,
         value: Double? = nil,
         label: String? = nil,
         style: String? = nil,
@@ -133,6 +137,7 @@ public struct UINode: Codable, Equatable {
         self.tint = tint
         self.tone = tone
         self.foreground = foreground
+        self.fill = fill
         self.value = value
         self.label = label
         self.style = style

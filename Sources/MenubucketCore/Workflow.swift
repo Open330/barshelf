@@ -614,10 +614,15 @@ public enum WorkflowEngine {
             }
 
             for segment in tail {
-                guard case let .object(object) = value, let next = object[segment] else {
+                if case let .object(object) = value, let next = object[segment] {
+                    value = next
+                } else if case let .array(items) = value,
+                          let index = Int(segment), index >= 0, index < items.count {
+                    // Numeric segment indexes into an array (e.g. `result.0.meta`).
+                    value = items[index]
+                } else {
                     return .null
                 }
-                value = next
             }
             return value
         }
