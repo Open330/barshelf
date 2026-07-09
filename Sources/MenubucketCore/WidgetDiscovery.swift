@@ -81,6 +81,9 @@ public enum WidgetDiscovery {
         if let exec = manifest.permissions?.exec, !exec.isEmpty {
             lines.append("exec: " + exec.map(\.command).joined(separator: ", "))
         }
+        if let network = manifest.permissions?.network, !network.isEmpty {
+            lines.append("network: fetches from " + network.joined(separator: ", "))
+        }
         if manifest.permissions?.keychain == true {
             lines.append("keychain: reads secrets from the macOS Keychain")
         }

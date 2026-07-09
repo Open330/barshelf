@@ -112,15 +112,19 @@ public struct RegistryWidgetEntry: Codable, Equatable, Sendable {
         public var exec: [String]?
         public var keychain: Bool?
         public var notifications: Bool?
+        /// Host patterns the widget declares in `permissions.network` (R12).
+        public var network: [String]?
 
         public init(
             exec: [String]? = nil,
             keychain: Bool? = nil,
-            notifications: Bool? = nil
+            notifications: Bool? = nil,
+            network: [String]? = nil
         ) {
             self.exec = exec
             self.keychain = keychain
             self.notifications = notifications
+            self.network = network
         }
     }
 }

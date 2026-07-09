@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "kind": "workflow",
+
+  "sources": {
+    "github": {
+      "use": "http",
+      "with": {
+        "url": "https://www.githubstatus.com/api/v2/status.json"
+      }
+    }
+  },
+
+  "transforms": {
+    "status": { "use": "assign", "from": "$.sources.github.status" },
+    "page": { "use": "assign", "from": "$.sources.github.page" }
+  },
+
+  "view": {
+    "type": "vstack",
+    "spacing": 8,
+    "padding": 10,
+    "children": [
+      {
+        "type": "hstack",
+        "spacing": 8,
+        "children": [
+          { "type": "image", "source": { "kind": "sfSymbol", "name": "checkmark.seal.fill" }, "size": 16, "tint": "accent" },
+          { "type": "text", "text": "${transforms.page.name}", "role": "title", "lineLimit": 1 },
+          { "type": "spacer" },
+          { "type": "badge", "text": "${transforms.status.indicator}", "tint": "accent" }
+        ]
+      },
+      {
+        "type": "text",
+        "text": "${transforms.status.description}",
+        "role": "body",
+        "lineLimit": 2
+      },
+      {
+        "type": "text",
+        "text": "Refreshes on open, every 15 minutes, and when your Mac wakes.",
+        "role": "caption",
+        "foreground": "secondary",
+        "lineLimit": 2
+      }
+    ]
+  },
+
+  "status": {
+    "label": "GitHub ${transforms.status.indicator}",
+    "tooltip": "GitHub status: ${transforms.status.description}"
+  }
+}

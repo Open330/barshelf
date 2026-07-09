@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "kind": "workflow",
+
+  "sources": {
+    "downloads": {
+      "use": "fs.directory",
+      "with": {
+        "path": "~/Downloads",
+        "skipHidden": true,
+        "sortBy": "modifiedAt",
+        "sortDirection": "descending",
+        "limit": 8
+      }
+    }
+  },
+
+  "transforms": {
+    "visible": { "use": "assign", "from": "$.sources.downloads.items" }
+  },
+
+  "view": {
+    "type": "vstack",
+    "spacing": 0,
+    "children": [
+      {
+        "type": "hstack",
+        "spacing": 8,
+        "padding": 10,
+        "children": [
+          { "type": "image", "source": { "kind": "sfSymbol", "name": "arrow.down.circle.fill" }, "size": 16, "tint": "accent" },
+          { "type": "text", "text": "Downloads", "role": "title", "lineLimit": 1 },
+          { "type": "spacer" },
+          { "type": "text", "text": "${count(transforms.visible)} recent", "role": "caption", "foreground": "secondary" }
+        ]
+      },
+      { "type": "divider" },
+      {
+        "type": "list",
+        "spacing": 2,
+        "items": {
+          "forEach": "$.transforms.visible",
+          "as": "file",
+          "template": {
+            "type": "hstack",
+            "id": "download-${file.path}",
+            "spacing": 8,
+            "padding": 6,
+            "drag": { "filePath": "${file.path}" },
+            "action": { "type": "openFile", "path": "${file.path}" },
+            "children": [
+              {
+                "type": "image",
+                "source": { "kind": "fileThumbnail", "path": "${file.path}", "modifiedAt": "${file.modifiedAt}" },
+                "size": 28
+              },
+              {
+                "type": "vstack",
+                "spacing": 2,
+                "widthFill": true,
+                "children": [
+                  { "type": "text", "text": "${file.name}", "role": "body", "lineLimit": 1 },
+                  { "type": "text", "text": "${date.relative(file.modifiedAt)}", "role": "caption", "foreground": "tertiary" }
+                ]
+              },
+              {
+                "type": "button",
+                "icon": "magnifyingglass",
+                "action": { "type": "revealFile", "path": "${file.path}" }
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+
+  "empty": {
+    "type": "empty",
+    "icon": "tray",
+    "title": "No downloads",
+    "subtitle": "Files added to Downloads will refresh this widget."
+  },
+
+  "status": {
+    "tooltip": "Downloads: ${count(transforms.visible)} recent files"
+  }
+}

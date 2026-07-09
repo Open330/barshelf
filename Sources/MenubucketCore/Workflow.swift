@@ -437,6 +437,133 @@ public enum WorkflowEngine {
     }
 }
 
+// MARK: - http workflow source (R12)
+
+/// `http` workflow source: fetches a JSON document that then feeds the same
+/// transform/template pipeline as `exec`/`fs.directory` sources.
+///
+/// Security contract (matches the manifest `network` permission gate enforced
+/// by the host): GET only, **https only**, no redirect downgrade to a
+/// non-https URL, a 20 s timeout, a 5 MB response cap, and a default
+/// `Accept: application/json` header (overridable per request).
+public enum HttpSource {
+    public static let timeoutSec: TimeInterval = 20
+    public static let maxResponseBytes = 5 * 1024 * 1024
+
+    public struct Params: Sendable, Equatable {
+        public var url: String
+        public var headers: [String: String]
+
+        public init(url: String, headers: [String: String] = [:]) {
+            self.url = url
+            self.headers = headers
+        }
+
+        /// Parses the interpolated source `with` object.
+        public init(from params: JSONValue) throws {
+            guard let object = params.objectValue,
+                  let url = object["url"]?.stringValue,
+                  !url.trimmingCharacters(in: .whitespaces).isEmpty
+            else { throw HttpSourceError.missingURL }
+            self.url = url
+            var headers: [String: String] = [:]
+            if case let .object(rawHeaders)? = object["headers"] {
+                for (key, value) in rawHeaders {
+                    if let string = value.stringValue { headers[key] = string }
+                }
+            }
+            self.headers = headers
+        }
+    }
+
+    public enum HttpSourceError: Error, LocalizedError, Equatable {
+        case missingURL
+        case notHTTPS(String)
+        case invalidURL(String)
+        case notHTTP
+        case httpStatus(Int)
+        case responseTooLarge(limitBytes: Int)
+        case invalidJSON(String)
+
+        public var errorDescription: String? {
+            switch self {
+            case .missingURL: return "http source needs a non-empty \"url\""
+            case let .notHTTPS(url): return "http source requires https:// (got \(url))"
+            case let .invalidURL(url): return "invalid http source url: \(url)"
+            case .notHTTP: return "http source received a non-HTTP response"
+            case let .httpStatus(code): return "http source failed (HTTP \(code))"
+            case let .responseTooLarge(limit):
+                return "http response exceeds the \(limit / (1024 * 1024)) MB limit"
+            case let .invalidJSON(detail): return "http response is not valid JSON: \(detail)"
+            }
+        }
+    }
+
+    /// Blocks redirects that would downgrade to a non-https URL; https→https
+    /// redirects are followed normally.
+    private final class RedirectGuard: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+        func urlSession(
+            _ session: URLSession,
+            task: URLSessionTask,
+            willPerformHTTPRedirection response: HTTPURLResponse,
+            newRequest request: URLRequest,
+            completionHandler: @escaping (URLRequest?) -> Void
+        ) {
+            if request.url?.scheme?.lowercased() == "https" {
+                completionHandler(request)
+            } else {
+                completionHandler(nil) // stop — no downgrade to http
+            }
+        }
+    }
+
+    public static func fetch(
+        _ params: Params,
+        session: URLSession = .shared
+    ) async throws -> JSONValue {
+        guard let url = URL(string: params.url) else {
+            throw HttpSourceError.invalidURL(params.url)
+        }
+        guard url.scheme?.lowercased() == "https" else {
+            throw HttpSourceError.notHTTPS(params.url)
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = timeoutSec
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        for (key, value) in params.headers {
+            request.setValue(value, forHTTPHeaderField: key)
+        }
+
+        let guardDelegate = RedirectGuard()
+        let (bytes, response) = try await session.bytes(for: request, delegate: guardDelegate)
+        guard let http = response as? HTTPURLResponse else {
+            throw HttpSourceError.notHTTP
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            throw HttpSourceError.httpStatus(http.statusCode)
+        }
+        if http.expectedContentLength > Int64(maxResponseBytes) {
+            throw HttpSourceError.responseTooLarge(limitBytes: maxResponseBytes)
+        }
+
+        var data = Data()
+        for try await byte in bytes {
+            data.append(byte)
+            if data.count > maxResponseBytes {
+                throw HttpSourceError.responseTooLarge(limitBytes: maxResponseBytes)
+            }
+        }
+
+        do {
+            return try JSONDecoder().decode(JSONValue.self, from: data)
+        } catch {
+            throw HttpSourceError.invalidJSON(String(describing: error))
+        }
+    }
+}
+
 extension JSONValue {
     /// Human-readable form for `${}` string concatenation and status text.
     var stringified: String {

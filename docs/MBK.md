@@ -8,6 +8,7 @@
 - 배포 워크플로: [`docs/PUBLISHING.md`](PUBLISHING.md)
 - 레지스트리 등재: [`docs/REGISTRY.md`](REGISTRY.md)
 - manifest 스펙: [`docs/WIDGET-SPEC.md`](WIDGET-SPEC.md)
+- 에이전트용 위젯 작성 스펙: [`docs/AGENTS.md`](AGENTS.md) (`mbk agent-spec`로도 출력)
 
 ## 서브커맨드 요약
 
@@ -17,6 +18,7 @@ mbk new <name> [--kind exec|workflow|script] [--dir <path>]   # 기본 kind=exec
 mbk validate <path>                # widget.json(+workflow.json 있으면) Core 디코더로 검증, 오류를 파일:필드 단위로 출력
 mbk pack <dir> [-o <name>.mbw]     # zip(.mbw) 생성 + 아카이브에 manifest.sha256 포함(widget.json의 sha256)
 mbk list                           # 설치된 위젯 나열 (id, name, version, kind)
+mbk agent-spec                     # 위젯 작성 스펙(docs/AGENTS.md)을 stdout으로 출력 (LLM 에이전트용)
 mbk --version / --help
 ```
 
@@ -27,6 +29,7 @@ mbk --version / --help
 | `mbk validate <path>` | 위젯 디렉터리 또는 pack된 `.mbw` 파일 | `widget.json`(그리고 `workflow.json`이 있으면 함께)을 Core 디코더로 검증하고, 오류를 파일:필드 단위로 출력한다. `.mbw`를 받으면 안전 추출 후 검증한다. |
 | `mbk pack <dir>` | `-o <name>.mbw` (출력 파일명) | 위젯 디렉터리를 zip(`.mbw`)으로 패키징하고, 아카이브에 `manifest.sha256`(widget.json의 sha256)을 포함한다. |
 | `mbk list` | — | 설치된 위젯을 id, name, version, kind로 나열한다. |
+| `mbk agent-spec` | — | 위젯 작성 스펙([`docs/AGENTS.md`](AGENTS.md))을 stdout으로 출력한다. LLM 에이전트에게 위젯 제작 계약 전체를 한 번에 넘길 때 쓴다. 개발 체크아웃에서는 디스크의 `docs/AGENTS.md`를, 단독 배포 바이너리에서는 빌드시 내장된 사본을 출력한다(내용 동일). |
 | `mbk --version` / `mbk --help` | — | 버전/도움말 출력. |
 
 ### new 템플릿 3종

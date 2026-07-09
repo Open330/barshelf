@@ -41,6 +41,18 @@ final class Scheduler {
     private var refreshMultiplier: Double = 1
     private var pauseWhenClosed = false
 
+    // MARK: R12 event triggers (`refresh.triggers`)
+
+    /// Widget ids declaring the `wake` / `popup-open` triggers.
+    private var wakeTriggerIDs: Set<String> = []
+    private var popupOpenTriggerIDs: Set<String> = []
+    /// `fs` trigger watchers (one per widget, 2 s coalesced), keyed by id.
+    private var triggerWatchers: [String: DirectoryWatcher] = [:]
+    /// Last automatic refresh the scheduler issued per widget — the spacing
+    /// reference that stops event triggers double-firing alongside interval
+    /// polling / debounces repeated popup-open triggers.
+    private var lastAutoRefreshAt: [String: Date] = [:]
+
     static let watchDebounceSec: TimeInterval = 0.25
 
     init() {
@@ -54,6 +66,11 @@ final class Scheduler {
             // While closed, only runInBackground widgets refresh (invariant 3);
             // everything else is picked up by onOpen staleness.
             self.requestStaleRefresh?(!self.popupIsOpen)
+            // `wake`-trigger widgets refresh explicitly (spacing-gated) even
+            // when they carry no interval / staleness config.
+            for id in self.wakeTriggerIDs {
+                self.fireTrigger(id, minSpacing: SchedulePolicy.triggerMinSpacingSec)
+            }
         }
     }
 
@@ -64,6 +81,7 @@ final class Scheduler {
         for timer in intervalTimers.values { timer.invalidate() }
         for timer in deadlineTimers.values { timer.invalidate() }
         for watcher in watchers.values { watcher.cancel() }
+        for watcher in triggerWatchers.values { watcher.cancel() }
     }
 
     // MARK: - Configuration (widget set changed)
@@ -73,10 +91,12 @@ final class Scheduler {
         let liveIDs = Set(widgets.map(\.id))
         backoff = backoff.filter { liveIDs.contains($0.key) }
         deadlines = deadlines.filter { liveIDs.contains($0.key) }
+        lastAutoRefreshAt = lastAutoRefreshAt.filter { liveIDs.contains($0.key) }
         pendingWatchEvents.formIntersection(liveIDs)
         rebuildIntervalTimers()
         rebuildDeadlineTimers()
         rebuildWatchers()
+        rebuildTriggers()
     }
 
     func configurePolicy(refreshMultiplier: Double, pauseWhenClosed: Bool) {
@@ -98,7 +118,12 @@ final class Scheduler {
         let pending = pendingWatchEvents
         pendingWatchEvents.removeAll()
         for id in pending {
-            requestRefresh?(id, false)
+            fireAutomatic(id)
+        }
+        // `popup-open` triggers: debounced ≥5 s per widget (uses the shared
+        // last-refresh reference, so a burst of opens fires at most once).
+        for id in popupOpenTriggerIDs {
+            fireTrigger(id, minSpacing: SchedulePolicy.popupOpenTriggerDebounceSec)
         }
     }
 
@@ -146,7 +171,7 @@ final class Scheduler {
 
             let id = widget.id
             let timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-                self?.requestRefresh?(id, false)
+                self?.fireAutomatic(id)
             }
             timer.tolerance = interval * 0.1
             intervalTimers[id] = timer
@@ -179,7 +204,7 @@ final class Scheduler {
             guard let self else { return }
             self.deadlineTimers.removeValue(forKey: widgetID)
             self.deadlines.removeValue(forKey: widgetID) // exactly once
-            self.requestRefresh?(widgetID, false)
+            self.fireAutomatic(widgetID)
         }
         deadlineTimers[widgetID] = timer
     }
@@ -208,7 +233,65 @@ final class Scheduler {
 
     private func watchFired(widgetID: String) {
         if popupIsOpen {
-            requestRefresh?(widgetID, false)
+            fireAutomatic(widgetID)
+        } else {
+            pendingWatchEvents.insert(widgetID) // batch on next open
+        }
+    }
+
+    // MARK: - Event triggers (`refresh.triggers`)
+
+    /// Records an automatic refresh's time (spacing reference) and forwards it.
+    private func fireAutomatic(_ id: String, now: Date = Date()) {
+        lastAutoRefreshAt[id] = now
+        requestRefresh?(id, false)
+    }
+
+    /// Fires an event-triggered refresh only when it clears `minSpacing` from
+    /// the widget's last automatic refresh (no double-fire with interval /
+    /// debounce of repeated triggers). Spacing math lives in `SchedulePolicy`.
+    private func fireTrigger(_ id: String, minSpacing: Double, now: Date = Date()) {
+        guard SchedulePolicy.triggerAllowed(
+            lastRefreshAt: lastAutoRefreshAt[id], now: now, minSpacing: minSpacing
+        ) else { return }
+        fireAutomatic(id, now: now)
+    }
+
+    private func rebuildTriggers() {
+        for watcher in triggerWatchers.values { watcher.cancel() }
+        triggerWatchers.removeAll()
+        wakeTriggerIDs.removeAll()
+        popupOpenTriggerIDs.removeAll()
+
+        for widget in widgets {
+            guard let triggers = widget.manifest.refresh?.triggers, !triggers.isEmpty else { continue }
+            let id = widget.id
+            var fsPaths: [String] = []
+            for trigger in triggers {
+                switch trigger {
+                case .wake: wakeTriggerIDs.insert(id)
+                case .popupOpen: popupOpenTriggerIDs.insert(id)
+                case .url: break // routed via the barshelf://refresh deep link
+                case let .fs(path): fsPaths.append(path)
+                }
+            }
+            guard !fsPaths.isEmpty else { continue }
+            do {
+                triggerWatchers[id] = try DirectoryWatcher(
+                    paths: fsPaths,
+                    debounce: SchedulePolicy.fsTriggerCoalesceSec
+                ) { [weak self] in
+                    self?.triggerWatchFired(widgetID: id)
+                }
+            } catch {
+                NSLog("barshelf: failed to arm fs trigger for \(id): \(error)")
+            }
+        }
+    }
+
+    private func triggerWatchFired(widgetID: String) {
+        if popupIsOpen {
+            fireTrigger(widgetID, minSpacing: SchedulePolicy.triggerMinSpacingSec)
         } else {
             pendingWatchEvents.insert(widgetID) // batch on next open
         }

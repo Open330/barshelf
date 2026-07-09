@@ -820,7 +820,8 @@ public enum RuntimeLaunchError: Error, LocalizedError, Equatable {
         case .denoNotFound:
             return "Deno runtime not found. \(DenoRuntime.installHint)"
         case .sdkNotFound:
-            return "BarShelf SDK (sdk/mod.ts) not found"
+            return "BarShelf SDK (sdk/mod.ts) not found — reinstall BarShelf.app, "
+                + "or when running from a source checkout launch from the repo root"
         case let .unsupportedRuntime(runtime):
             return "unsupported entry.runtime \"\(runtime)\" (supported: \(DenoRuntime.runtimeIdentifier))"
         }
@@ -850,8 +851,10 @@ public enum DenoRuntime {
         )
     }
 
-    /// SDK module: development mode `./sdk/mod.ts` (cwd), bundled mode the
-    /// app's resource directory.
+    /// SDK module, first match wins: development mode `./sdk/mod.ts` (cwd),
+    /// bundled mode the app's resource directory, then walking up from the
+    /// executable — so `swift run` / `.build/debug/barshelf` find the repo's
+    /// `sdk/` regardless of the caller's cwd.
     public static func locateSDKModule(fileManager: FileManager = .default) -> URL? {
         let development = URL(fileURLWithPath: fileManager.currentDirectoryPath)
             .appendingPathComponent("sdk/mod.ts")
@@ -859,6 +862,16 @@ public enum DenoRuntime {
         if let resources = Bundle.main.resourceURL {
             let bundled = resources.appendingPathComponent("sdk/mod.ts")
             if fileManager.fileExists(atPath: bundled.path) { return bundled }
+        }
+        if var directory = Bundle.main.executableURL?
+            .resolvingSymlinksInPath().deletingLastPathComponent() {
+            for _ in 0..<6 {
+                let candidate = directory.appendingPathComponent("sdk/mod.ts")
+                if fileManager.fileExists(atPath: candidate.path) { return candidate }
+                let parent = directory.deletingLastPathComponent()
+                if parent.path == directory.path { break }
+                directory = parent
+            }
         }
         return nil
     }

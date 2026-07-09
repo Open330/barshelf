@@ -1,0 +1,33 @@
+# BarShelf
+
+> BarShelf is a macOS menu-bar app that renders native "widgets" from a JSON
+> view tree. Widgets are directories with a `widget.json` manifest plus an
+> entry file (a shell command, a declarative workflow, or a Deno TypeScript
+> script). This file points agents and tools at the authoring docs. The
+> canonical, self-contained authoring spec is AGENTS.md.
+
+## Widget authoring (start here)
+
+- [AGENTS.md — full widget authoring spec for agents](https://github.com/Open330/barshelf/blob/master/docs/AGENTS.md): manifest schema, exec/workflow/script decision rule, UINode catalog, settings, appearance, permissions, triggers, build/test loop, and 3 worked examples. Also available via `mbk agent-spec`.
+- [WIDGET-SPEC.md — manifest & UINode reference](https://github.com/Open330/barshelf/blob/master/docs/WIDGET-SPEC.md)
+- [WORKFLOW.md — declarative workflow sources/transforms/templates](https://github.com/Open330/barshelf/blob/master/docs/WORKFLOW.md)
+- [SCRIPT-RUNTIME.md — Deno TypeScript SDK and host APIs](https://github.com/Open330/barshelf/blob/master/docs/SCRIPT-RUNTIME.md)
+
+## Tooling & publishing
+
+- [MBK.md — the `mbk` developer CLI (new/validate/pack/install/list/agent-spec)](https://github.com/Open330/barshelf/blob/master/docs/MBK.md)
+- [GETTING-STARTED.md](https://github.com/Open330/barshelf/blob/master/docs/GETTING-STARTED.md)
+- [INSTALLING-WIDGETS.md — install URL contract](https://github.com/Open330/barshelf/blob/master/docs/INSTALLING-WIDGETS.md)
+- [REGISTRY.md — gallery registry entries (category, screenshot)](https://github.com/Open330/barshelf/blob/master/docs/REGISTRY.md)
+- [PUBLISHING.md](https://github.com/Open330/barshelf/blob/master/docs/PUBLISHING.md)
+
+## Schemas
+
+- [widget-0.1.json — manifest JSON Schema](https://github.com/Open330/barshelf/blob/master/schema/widget-0.1.json)
+- [uinode-0.1.json — view-tree JSON Schema](https://github.com/Open330/barshelf/blob/master/schema/uinode-0.1.json)
+- [workflow-0.1.json — workflow JSON Schema](https://github.com/Open330/barshelf/blob/master/schema/workflow-0.1.json)
+- [registry-0.1.json — registry JSON Schema](https://github.com/Open330/barshelf/blob/master/schema/registry-0.1.json)
+
+## SDK
+
+- [sdk/mod.ts — the `barshelf` script SDK (ui, action, mb.* host APIs)](https://github.com/Open330/barshelf/blob/master/sdk/mod.ts)

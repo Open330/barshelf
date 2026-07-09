@@ -104,7 +104,7 @@ struct RootView: View {
             } else {
                 let index = min(max(pager.index, 0), pages.count - 1)
 
-                header(for: pages[index])
+                header(for: pages[index], index: index, count: pages.count)
                 Divider()
                 pinnedRow
                 pagerStrip(pages: pages, index: index)
@@ -261,10 +261,21 @@ struct RootView: View {
         .clipped()
     }
 
-    private func header(for page: WidgetPage) -> some View {
-        HStack {
+    /// Composed toolbar: bucket title + inline page indicator on the left,
+    /// search/refresh on the right, all on `.bar` material so header and footer
+    /// read as one continuous chrome around the scrolling cards.
+    private func header(for page: WidgetPage, index: Int, count: Int) -> some View {
+        HStack(spacing: 8) {
             Text(page.group)
                 .font(.system(size: 13, weight: .semibold))
+                .lineLimit(1)
+                .truncationMode(.tail)
+            if count > 1 {
+                Text("\(index + 1) of \(count)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .accessibilityLabel("Bucket \(index + 1) of \(count)")
+            }
             Spacer()
             Button {
                 searchPresented.toggle()
@@ -285,6 +296,7 @@ struct RootView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+        .background(.bar)
     }
 
     private func footer(pages: [WidgetPage], index: Int) -> some View {
@@ -345,7 +357,8 @@ struct RootView: View {
             .accessibilityLabel("Open settings")
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.vertical, 6)
+        .background(.bar)
     }
 
     /// Footer "+" entry point: add widgets from the gallery, a URL, or the
@@ -527,6 +540,25 @@ struct WidgetCardView: View {
     @State private var showNewBucket = false
     @State private var newBucketName = ""
     @State private var removeError: String?
+    /// Hovering reveals the per-card refresh button (hidden at rest to reduce
+    /// visual noise). The button stays in the accessibility tree either way.
+    @State private var isHovering = false
+
+    /// Effective theming (user override → author default → neutral). Injected
+    /// into the rendered tree and used for the card's own chrome.
+    private var appearance: WidgetAppearance {
+        runtime.prefs.effectiveAppearance(for: widget.manifest)
+    }
+
+    /// showHeader defaults to true; false hides the card header row (refresh
+    /// stays reachable via the context menu).
+    private var showsHeader: Bool { appearance.showHeader ?? true }
+
+    /// compact density tightens the card's content insets.
+    private var contentInset: CGFloat { appearance.density == .compact ? 8 : 12 }
+
+    /// Accent used for the tinted wash and the reveal highlight.
+    private var cardAccent: Color { appearance.accentColor ?? .accentColor }
 
     init(widget: LoadedWidget, runtime: WidgetRuntime, isHighlighted: Bool = false) {
         self.widget = widget
@@ -538,7 +570,9 @@ struct WidgetCardView: View {
     var body: some View {
         let snapshot = model.snapshot
         VStack(alignment: .leading, spacing: 8) {
-            cardHeader(snapshot: snapshot)
+            if showsHeader {
+                cardHeader(snapshot: snapshot)
+            }
 
             if let overlay = model.overlay {
                 // Host-generated card (permission approval / restart) replaces
@@ -554,12 +588,13 @@ struct WidgetCardView: View {
             } else if let error = snapshot.error {
                 failureState(error: error)
             } else if snapshot.isLoading {
-                HStack(spacing: 6) {
-                    ProgressView().controlSize(.small)
-                    Text("Loading…").font(.caption).foregroundColor(.secondary)
-                }
+                loadingState
             } else {
-                Text("No data yet").font(.caption).foregroundColor(.secondary)
+                Text("No data yet")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 8)
             }
 
             if let updatedAt = snapshot.updatedAt {
@@ -568,20 +603,16 @@ struct WidgetCardView: View {
                     .foregroundColor(.secondary)
             }
         }
-        .padding(10)
+        .padding(contentInset)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color(nsColor: .controlBackgroundColor))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(
-                    isHighlighted ? Color.accentColor : Color.secondary.opacity(0.2),
-                    lineWidth: isHighlighted ? 2 : 1
-                )
-        )
+        .environment(\.widgetAppearance, appearance)
+        .background(cardBackground)
+        .overlay(cardBorder)
+        .shadow(color: .black.opacity(0.08), radius: 3, y: 1)
         .animation(.easeInOut(duration: 0.4), value: isHighlighted)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) { isHovering = hovering }
+        }
         .contextMenu { cardContextMenu }
         .sheet(isPresented: $showSettings) {
             WidgetSettingsView(widget: widget, runtime: runtime)
@@ -659,16 +690,18 @@ struct WidgetCardView: View {
         }
     }
 
+    /// Quieter header: `.caption` secondary so the widget name recedes and the
+    /// content reads first. The refresh button is revealed on hover only.
     private func cardHeader(snapshot: WidgetSnapshot) -> some View {
         HStack(spacing: 6) {
             if let icon = widget.manifest.icon {
                 Image(systemName: icon)
-                    .font(.system(size: 11))
+                    .font(.caption)
                     .foregroundColor(.secondary)
                     .accessibilityHidden(true)
             }
             Text(widget.manifest.name)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.caption)
                 .foregroundColor(.secondary)
                 .lineLimit(1)
                 .truncationMode(.tail)
@@ -684,9 +717,43 @@ struct WidgetCardView: View {
                     .font(.system(size: 10))
             }
             .buttonStyle(.borderless)
+            .opacity(isHovering ? 1 : 0)
             .help("Refresh \(widget.manifest.name)")
             .accessibilityLabel("Refresh \(widget.manifest.name)")
         }
+    }
+
+    /// Centered progress + caption while the first data load is in flight.
+    private var loadingState: some View {
+        VStack(spacing: 6) {
+            ProgressView().controlSize(.small)
+            Text("Loading…").font(.caption).foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.vertical, 10)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Loading")
+    }
+
+    /// Card fill: neutral control background, or an accent wash when the
+    /// effective card style is `tinted`.
+    private var cardBackground: some View {
+        RoundedRectangle(cornerRadius: 10)
+            .fill(Color(nsColor: .controlBackgroundColor))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(appearance.cardStyle == .tinted ? cardAccent.opacity(0.12) : Color.clear)
+            )
+    }
+
+    /// Softer 0.12-opacity hairline at rest; a gentle accent glow while the
+    /// card is flashing after a reveal request.
+    private var cardBorder: some View {
+        RoundedRectangle(cornerRadius: 10)
+            .strokeBorder(
+                isHighlighted ? cardAccent.opacity(0.8) : Color.secondary.opacity(0.12),
+                lineWidth: isHighlighted ? 2 : 1
+            )
     }
 
     private func staleBanner(error: String) -> some View {
@@ -697,9 +764,10 @@ struct WidgetCardView: View {
                 .font(.caption)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(6)
+        .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 6).fill(Color.orange.opacity(0.12)))
+        .background(RoundedRectangle(cornerRadius: 8).fill(.ultraThinMaterial))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.orange.opacity(0.35), lineWidth: 1))
     }
 
     private func failureState(error: String) -> some View {
@@ -710,9 +778,10 @@ struct WidgetCardView: View {
                 .font(.caption)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(6)
+        .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 6).fill(Color.red.opacity(0.1)))
+        .background(RoundedRectangle(cornerRadius: 8).fill(.ultraThinMaterial))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.red.opacity(0.35), lineWidth: 1))
     }
 
     private static let relativeFormatter: RelativeDateTimeFormatter = {

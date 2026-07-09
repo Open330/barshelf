@@ -4,6 +4,7 @@
 
 관련 문서:
 
+- 에이전트용 축약 스펙(전체 API 한 파일): [`docs/AGENTS.md`](AGENTS.md) — `mbk agent-spec`로도 출력
 - 시작하기: [`docs/GETTING-STARTED.md`](GETTING-STARTED.md)
 - URL 설치: [`docs/INSTALLING-WIDGETS.md`](INSTALLING-WIDGETS.md)
 - 위젯 배포: [`docs/PUBLISHING.md`](PUBLISHING.md)

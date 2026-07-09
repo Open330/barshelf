@@ -14,6 +14,34 @@ public final class PermissionStore: @unchecked Sendable {
         case denied
     }
 
+    /// Categories of gated capability a manifest may declare. Approval is still
+    /// per-widget (the whole declared set is hashed and approved at once); a
+    /// kind only matters when a runtime feature must confirm the manifest opted
+    /// in before using it — e.g. an `http` workflow source requires `.network`.
+    public enum PermissionKind: String, Sendable, CaseIterable {
+        case exec
+        case network
+        case keychain
+        case notifications
+    }
+
+    /// True when the manifest declares the given permission kind. Used to gate
+    /// runtime features (`.network` → `http` sources) before the shared
+    /// approval flow runs; deny-until-approved is still enforced by `status`.
+    public static func manifestDeclares(_ kind: PermissionKind, in manifest: Manifest) -> Bool {
+        let permissions = manifest.permissions
+        switch kind {
+        case .exec:
+            return !(permissions?.exec ?? []).isEmpty
+        case .network:
+            return !(permissions?.network ?? []).isEmpty
+        case .keychain:
+            return permissions?.keychain == true
+        case .notifications:
+            return permissions?.notifications == true
+        }
+    }
+
     public struct Record: Codable, Equatable, Sendable {
         public var hash: String
         /// "approved" | "denied"

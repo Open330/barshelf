@@ -18,6 +18,9 @@ public struct Manifest: Codable, Equatable {
     public var permissions: Permissions?
     /// M1: decode-only (settings UI is M2).
     public var settings: [Setting]?
+    /// R12: author-provided default theming. Lenient decode (invalid values →
+    /// nil fields, never a decode failure) via `WidgetAppearance`.
+    public var appearance: WidgetAppearance?
 
     public init(
         schemaVersion: Int,
@@ -30,7 +33,8 @@ public struct Manifest: Codable, Equatable {
         refresh: Refresh? = nil,
         statusItem: StatusItem? = nil,
         permissions: Permissions? = nil,
-        settings: [Setting]? = nil
+        settings: [Setting]? = nil,
+        appearance: WidgetAppearance? = nil
     ) {
         self.schemaVersion = schemaVersion
         self.id = id
@@ -43,6 +47,7 @@ public struct Manifest: Codable, Equatable {
         self.statusItem = statusItem
         self.permissions = permissions
         self.settings = settings
+        self.appearance = appearance
     }
 
     public struct Bucket: Codable, Equatable {
@@ -113,6 +118,10 @@ public struct Manifest: Codable, Equatable {
         public var watchPaths: [String]?
         /// Allow relaxed interval polling while the popup is closed.
         public var runInBackground: Bool?
+        /// R12 event triggers (`refresh.triggers`). Lenient decode: the array
+        /// accepts mixed strings and objects; unrecognized entries are dropped
+        /// (never a decode failure). `nil` when the key is absent.
+        public var triggers: [TriggerSpec]?
 
         public init(
             onOpen: Bool? = nil,
@@ -120,7 +129,8 @@ public struct Manifest: Codable, Equatable {
             staleAfterSec: Double? = nil,
             deadlineField: String? = nil,
             watchPaths: [String]? = nil,
-            runInBackground: Bool? = nil
+            runInBackground: Bool? = nil,
+            triggers: [TriggerSpec]? = nil
         ) {
             self.onOpen = onOpen
             self.interval = interval
@@ -128,6 +138,40 @@ public struct Manifest: Codable, Equatable {
             self.deadlineField = deadlineField
             self.watchPaths = watchPaths
             self.runInBackground = runInBackground
+            self.triggers = triggers
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case onOpen, interval, staleAfterSec, deadlineField, watchPaths
+            case runInBackground, triggers
+        }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            onOpen = try container.decodeIfPresent(Bool.self, forKey: .onOpen)
+            interval = try container.decodeIfPresent(Double.self, forKey: .interval)
+            staleAfterSec = try container.decodeIfPresent(Double.self, forKey: .staleAfterSec)
+            deadlineField = try container.decodeIfPresent(String.self, forKey: .deadlineField)
+            watchPaths = try container.decodeIfPresent([String].self, forKey: .watchPaths)
+            runInBackground = try container.decodeIfPresent(Bool.self, forKey: .runInBackground)
+            // Lenient: decode as raw JSON first, then map each entry through
+            // `TriggerSpec(json:)`, silently dropping anything unrecognized.
+            if let raw = try container.decodeIfPresent([JSONValue].self, forKey: .triggers) {
+                triggers = raw.compactMap(TriggerSpec.init(json:))
+            } else {
+                triggers = nil
+            }
+        }
+
+        public func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encodeIfPresent(onOpen, forKey: .onOpen)
+            try container.encodeIfPresent(interval, forKey: .interval)
+            try container.encodeIfPresent(staleAfterSec, forKey: .staleAfterSec)
+            try container.encodeIfPresent(deadlineField, forKey: .deadlineField)
+            try container.encodeIfPresent(watchPaths, forKey: .watchPaths)
+            try container.encodeIfPresent(runInBackground, forKey: .runInBackground)
+            try container.encodeIfPresent(triggers?.map(\.json), forKey: .triggers)
         }
     }
 
@@ -238,6 +282,51 @@ public struct Manifest: Codable, Equatable {
             self.min = min
             self.max = max
             self.defaultValue = defaultValue
+        }
+    }
+}
+
+/// R12 refresh trigger (`refresh.triggers`). The manifest array is decoded
+/// leniently: strings map to the parameterless cases, `{ "fs": "<path>" }`
+/// objects map to `.fs`, and anything else is dropped.
+public enum TriggerSpec: Equatable, Sendable {
+    /// `NSWorkspace.didWakeNotification`.
+    case wake
+    /// Every popup open (debounced ≥5 s per widget).
+    case popupOpen
+    /// Directory/file change (FSEvents), coalesced ~2 s. `~` expansion applies
+    /// at watch time.
+    case fs(path: String)
+    /// `barshelf://refresh?widget=<id>`.
+    case url
+
+    /// Lenient parse of one manifest array entry (`nil` when unrecognized).
+    public init?(json: JSONValue) {
+        switch json {
+        case let .string(token):
+            switch token {
+            case "wake": self = .wake
+            case "popup-open", "popupOpen", "open": self = .popupOpen
+            case "url": self = .url
+            default: return nil
+            }
+        case let .object(object):
+            guard case let .string(path)? = object["fs"],
+                  !path.trimmingCharacters(in: .whitespaces).isEmpty
+            else { return nil }
+            self = .fs(path: path)
+        default:
+            return nil
+        }
+    }
+
+    /// Canonical manifest form (round-trips through `init(json:)`).
+    public var json: JSONValue {
+        switch self {
+        case .wake: return .string("wake")
+        case .popupOpen: return .string("popup-open")
+        case .url: return .string("url")
+        case let .fs(path): return .object(["fs": .string(path)])
         }
     }
 }

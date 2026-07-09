@@ -11,9 +11,19 @@ struct WidgetSettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var values: [String: JSONValue] = [:]
+    /// The theming override being edited (R12). Loaded from the effective
+    /// appearance so the controls reflect the widget's current look.
+    @State private var appearanceDraft = WidgetAppearance()
 
     private var entries: [Manifest.Setting] {
         (widget.manifest.settings ?? []).filter { $0.key != nil }
+    }
+
+    /// The widget's author default (manifest appearance over neutral). Editing
+    /// the controls back to this is treated as "no override".
+    private var authorBase: WidgetAppearance {
+        let neutral = WidgetAppearance()
+        return (widget.manifest.appearance ?? neutral).merged(over: neutral)
     }
 
     var body: some View {
@@ -21,45 +31,198 @@ struct WidgetSettingsView: View {
             Text("\(widget.manifest.name) Settings")
                 .font(.system(size: 13, weight: .semibold))
 
-            if entries.isEmpty {
-                Text("This widget has no settings.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            } else {
-                ForEach(entries, id: \.key) { entry in
-                    row(for: entry, key: entry.key ?? "")
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    if entries.isEmpty {
+                        Text("This widget has no settings.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } else {
+                        ForEach(entries, id: \.key) { entry in
+                            row(for: entry, key: entry.key ?? "")
+                        }
+                    }
+
+                    Divider()
+                    appearanceSection
                 }
             }
+            .frame(maxHeight: 420)
 
             HStack {
                 Spacer()
                 Button("Cancel") { dismiss() }
                     .keyboardShortcut(.cancelAction)
-                Button("Save") {
-                    for entry in entries {
-                        guard let key = entry.key else { continue }
-                        // Enforce integer min/max on commit so free-typed
-                        // out-of-range values never reach the widget.
-                        if entry.type == "integer",
-                           let number = values[key]?.numberValue {
-                            values[key] = .number(clampedInteger(number, entry: entry))
-                        }
-                        runtime.prefs.setSetting(
-                            widgetID: widget.id, key: key, value: values[key]
-                        )
-                    }
-                    dismiss()
-                    runtime.refresh(widgetID: widget.id)
-                }
-                .keyboardShortcut(.defaultAction)
-                .disabled(entries.isEmpty)
+                Button("Save") { save() }
+                    .keyboardShortcut(.defaultAction)
             }
         }
         .padding(16)
-        .frame(width: 300)
+        .frame(width: 320)
         .onAppear {
             values = runtime.prefs.effectiveSettings(for: widget.manifest).objectValue ?? [:]
+            appearanceDraft = runtime.prefs.effectiveAppearance(for: widget.manifest)
         }
+    }
+
+    private func save() {
+        for entry in entries {
+            guard let key = entry.key else { continue }
+            // Enforce integer min/max on commit so free-typed out-of-range
+            // values never reach the widget.
+            if entry.type == "integer", let number = values[key]?.numberValue {
+                values[key] = .number(clampedInteger(number, entry: entry))
+            }
+            runtime.prefs.setSetting(widgetID: widget.id, key: key, value: values[key])
+        }
+        // Editing everything back to the author default clears the override.
+        let base = authorBase
+        runtime.prefs.setAppearanceOverride(
+            appearanceDraft == base ? nil : appearanceDraft, for: widget.id
+        )
+        dismiss()
+        runtime.refresh(widgetID: widget.id)
+    }
+
+    // MARK: - Appearance section (R12)
+
+    /// One accent choice: a display name and the stored `accent` value
+    /// (nil for the system-accent "Default").
+    private struct AccentSwatch {
+        let name: String
+        let value: String?
+    }
+
+    private let accentSwatches: [AccentSwatch] = [
+        .init(name: "Default", value: nil),
+        .init(name: "Blue", value: "blue"),
+        .init(name: "Purple", value: "purple"),
+        .init(name: "Pink", value: "pink"),
+        .init(name: "Red", value: "red"),
+        .init(name: "Orange", value: "orange"),
+        .init(name: "Yellow", value: "yellow"),
+        .init(name: "Green", value: "green"),
+        .init(name: "Gray", value: "gray"),
+    ]
+
+    private var appearanceSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Appearance")
+                .font(.system(size: 12, weight: .semibold))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Accent").font(.system(size: 11)).foregroundColor(.secondary)
+                HStack(spacing: 6) {
+                    ForEach(accentSwatches, id: \.name) { swatch in
+                        accentButton(swatch)
+                    }
+                }
+                HStack(spacing: 6) {
+                    Text("Hex").font(.system(size: 11)).foregroundColor(.secondary)
+                    TextField("#RRGGBB", text: hexBinding)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 90)
+                        .accessibilityLabel("Custom accent hex color")
+                }
+            }
+
+            HStack {
+                Text("Density").font(.system(size: 12))
+                Spacer()
+                Picker("", selection: densityBinding) {
+                    Text("Regular").tag(WidgetAppearance.Density.regular)
+                    Text("Compact").tag(WidgetAppearance.Density.compact)
+                }
+                .pickerStyle(.segmented).labelsHidden().frame(width: 160)
+            }
+
+            HStack {
+                Text("Card style").font(.system(size: 12))
+                Spacer()
+                Picker("", selection: cardStyleBinding) {
+                    Text("Plain").tag(WidgetAppearance.CardStyle.plain)
+                    Text("Tinted").tag(WidgetAppearance.CardStyle.tinted)
+                }
+                .pickerStyle(.segmented).labelsHidden().frame(width: 160)
+            }
+
+            Toggle("Show header", isOn: showHeaderBinding)
+                .font(.system(size: 12))
+
+            Button("Reset to widget default") { appearanceDraft = authorBase }
+                .controlSize(.small)
+        }
+    }
+
+    private func accentButton(_ swatch: AccentSwatch) -> some View {
+        let selected = isAccentSelected(swatch.value)
+        return Button {
+            appearanceDraft.accent = swatch.value
+        } label: {
+            Circle()
+                .fill(swatchColor(swatch))
+                .frame(width: 18, height: 18)
+                .overlay(
+                    Circle().stroke(
+                        Color.primary.opacity(selected ? 0.9 : 0.15),
+                        lineWidth: selected ? 2 : 1
+                    )
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(swatch.name) accent")
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
+    }
+
+    private func swatchColor(_ swatch: AccentSwatch) -> Color {
+        WidgetAppearance(accent: swatch.value).accentColor ?? .accentColor
+    }
+
+    private func isAccentSelected(_ value: String?) -> Bool {
+        switch (value, appearanceDraft.accent) {
+        case (nil, nil): return true
+        case let (candidate?, current?):
+            return candidate.caseInsensitiveCompare(current) == .orderedSame
+        default: return false
+        }
+    }
+
+    private var hexBinding: Binding<String> {
+        Binding(
+            get: {
+                guard let accent = appearanceDraft.accent, accent.hasPrefix("#") else { return "" }
+                return accent
+            },
+            set: { text in
+                let trimmed = text.trimmingCharacters(in: .whitespaces)
+                if trimmed.isEmpty {
+                    appearanceDraft.accent = nil
+                } else {
+                    appearanceDraft.accent = trimmed.hasPrefix("#") ? trimmed : "#" + trimmed
+                }
+            }
+        )
+    }
+
+    private var densityBinding: Binding<WidgetAppearance.Density> {
+        Binding(
+            get: { appearanceDraft.density ?? .regular },
+            set: { appearanceDraft.density = $0 }
+        )
+    }
+
+    private var cardStyleBinding: Binding<WidgetAppearance.CardStyle> {
+        Binding(
+            get: { appearanceDraft.cardStyle ?? .plain },
+            set: { appearanceDraft.cardStyle = $0 }
+        )
+    }
+
+    private var showHeaderBinding: Binding<Bool> {
+        Binding(
+            get: { appearanceDraft.showHeader ?? true },
+            set: { appearanceDraft.showHeader = $0 }
+        )
     }
 
     @ViewBuilder

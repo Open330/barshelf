@@ -48,6 +48,30 @@ public enum SchedulePolicy {
         return max(scaled * backgroundRelaxFactor, minBackgroundIntervalSec)
     }
 
+    // MARK: - Event triggers (R12)
+
+    /// Minimum spacing between two `popup-open` trigger refreshes of the same
+    /// widget (contract: debounce ≥5 s per widget).
+    public static let popupOpenTriggerDebounceSec: Double = 5
+    /// Trailing-edge coalescing window for `fs` triggers (bursts of FSEvents
+    /// collapse into one refresh).
+    public static let fsTriggerCoalesceSec: Double = 2
+    /// Minimum spacing an event trigger keeps from the widget's most recent
+    /// refresh so a trigger never double-fires alongside interval polling.
+    public static let triggerMinSpacingSec: Double = 5
+
+    /// True when an event-triggered refresh may fire, given when the widget was
+    /// last refreshed (by any trigger) and the required spacing. `nil` last-time
+    /// (never refreshed) always allows. Pure — unit-tested.
+    public static func triggerAllowed(
+        lastRefreshAt: Date?,
+        now: Date = Date(),
+        minSpacing: Double = triggerMinSpacingSec
+    ) -> Bool {
+        guard let lastRefreshAt else { return true }
+        return now.timeIntervalSince(lastRefreshAt) >= minSpacing
+    }
+
     /// `staleAfter` scaled by the refresh multiplier: at 2× data stays
     /// "fresh" twice as long. `nil` stays nil ("always stale").
     public static func effectiveStaleAfter(

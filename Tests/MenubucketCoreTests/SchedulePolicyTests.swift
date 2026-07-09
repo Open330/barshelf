@@ -88,6 +88,55 @@ final class SchedulePolicyTests: XCTestCase {
         XCTAssertNil(SchedulePolicy.effectiveStaleAfter(configured: nil, multiplier: 4))
     }
 
+    // MARK: - Event trigger debounce / spacing (R12)
+
+    func testTriggerAllowedWhenNeverRefreshed() {
+        XCTAssertTrue(SchedulePolicy.triggerAllowed(lastRefreshAt: nil, now: Date()))
+    }
+
+    func testTriggerDebouncedWithinMinSpacing() {
+        let last = Date(timeIntervalSince1970: 1_000_000)
+        // popup-open trigger: ≥5 s per widget.
+        XCTAssertFalse(
+            SchedulePolicy.triggerAllowed(
+                lastRefreshAt: last,
+                now: last.addingTimeInterval(4),
+                minSpacing: SchedulePolicy.popupOpenTriggerDebounceSec
+            )
+        )
+        XCTAssertTrue(
+            SchedulePolicy.triggerAllowed(
+                lastRefreshAt: last,
+                now: last.addingTimeInterval(5),
+                minSpacing: SchedulePolicy.popupOpenTriggerDebounceSec
+            )
+        )
+    }
+
+    func testTriggerNeverDoubleFiresRightAfterIntervalRefresh() {
+        let intervalRefresh = Date(timeIntervalSince1970: 2_000_000)
+        // A wake/fs trigger arriving 1 s after an interval refresh is suppressed.
+        XCTAssertFalse(
+            SchedulePolicy.triggerAllowed(
+                lastRefreshAt: intervalRefresh,
+                now: intervalRefresh.addingTimeInterval(1),
+                minSpacing: SchedulePolicy.triggerMinSpacingSec
+            )
+        )
+        XCTAssertTrue(
+            SchedulePolicy.triggerAllowed(
+                lastRefreshAt: intervalRefresh,
+                now: intervalRefresh.addingTimeInterval(SchedulePolicy.triggerMinSpacingSec),
+                minSpacing: SchedulePolicy.triggerMinSpacingSec
+            )
+        )
+    }
+
+    func testTriggerSpacingConstants() {
+        XCTAssertEqual(SchedulePolicy.popupOpenTriggerDebounceSec, 5)
+        XCTAssertEqual(SchedulePolicy.fsTriggerCoalesceSec, 2)
+    }
+
     // MARK: - Backoff
 
     func testBackoffProgression15_60_300Capped() {

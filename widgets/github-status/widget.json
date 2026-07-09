@@ -1,0 +1,22 @@
+{
+  "$schema": "https://barshelf.dev/schema/widget-0.1.json",
+  "schemaVersion": 1,
+  "id": "dev.barshelf.github-status",
+  "name": "GitHub Status",
+  "version": "0.1.0",
+  "icon": "checkmark.seal.fill",
+  "bucket": { "group": "Developer", "order": 40, "size": "S" },
+
+  "entry": { "kind": "workflow", "main": "workflow.json" },
+
+  "refresh": {
+    "onOpen": true,
+    "interval": 900,
+    "staleAfterSec": 900,
+    "triggers": ["wake"]
+  },
+
+  "permissions": {
+    "network": ["www.githubstatus.com"]
+  }
+}

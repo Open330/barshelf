@@ -23,6 +23,8 @@ public enum MbkMain {
           mbk pack <dir> [-o <name>.mbw] Pack a widget directory into a .mbw
                                          archive (includes manifest.sha256).
           mbk list                       List installed widgets.
+          mbk agent-spec                 Print the widget-authoring spec
+                                         (docs/AGENTS.md) for LLM agents.
           mbk --version                  Print the mbk version.
           mbk --help                     Show this help.
 
@@ -54,6 +56,8 @@ public enum MbkMain {
             return runPack(arguments: rest)
         case "list":
             return runList(arguments: rest)
+        case "agent-spec":
+            return runAgentSpec(arguments: rest)
         default:
             printError("mbk: unknown command \"\(command)\"")
             printError(usage)
@@ -355,6 +359,17 @@ public enum MbkMain {
             printError("error: \(error.localizedDescription)")
             return 1
         }
+    }
+
+    // MARK: - mbk agent-spec
+
+    private static func runAgentSpec(arguments: [String]) -> Int32 {
+        guard arguments.isEmpty else {
+            printError("usage: mbk agent-spec")
+            return 1
+        }
+        print(AgentSpec.render())
+        return 0
     }
 
     // MARK: - Helpers

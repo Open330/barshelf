@@ -259,6 +259,12 @@ final class WidgetInstaller {
     /// after a single-widget install success (main thread).
     var onReveal: ((String) -> Void)?
 
+    /// `barshelf://refresh?widget=<id>` routing hook (main thread). The
+    /// integrator wires this to `WidgetRuntime.handleURLRefreshTrigger`. The
+    /// argument is the optional `widget` query item (`nil` → refresh all
+    /// url-trigger widgets).
+    var onRefreshRequest: ((_ widgetID: String?) -> Void)?
+
     /// Menu entry point: "Install Widget from URL…".
     func promptForURL() {
         NSApp.activate(ignoringOtherApps: true)
@@ -280,8 +286,23 @@ final class WidgetInstaller {
         install(input: input)
     }
 
-    /// Deep link entry point: `barshelf://install?url=…`.
+    /// Deep link entry point. Routes by host:
+    /// - `barshelf://refresh?widget=<id>` → `onRefreshRequest` (no `widget`
+    ///   query item → refresh all url-trigger widgets).
+    /// - anything else (`barshelf://install?url=…`, bare URLs) → install.
     func handleDeepLink(_ url: URL) {
+        let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        let route = (components?.host ?? url.host
+            ?? url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")))
+            .lowercased()
+        if route == "refresh" {
+            let widgetID = components?.queryItems?
+                .first { $0.name == "widget" }?
+                .value?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            onRefreshRequest?(widgetID?.isEmpty == true ? nil : widgetID)
+            return
+        }
         install(input: url.absoluteString)
     }
 

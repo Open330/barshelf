@@ -2,40 +2,17 @@ import AppKit
 import MenubucketCore
 import SwiftUI
 
-// MARK: - Window (independent NSWindow — the popup is too small for a gallery)
+// MARK: - Window shim (the gallery now lives in the hub's Gallery section)
 
-/// Owns the standalone "Widget Gallery" window. Opened from the status item
-/// context menu; a plain resizable window (not a popover) so the card list
-/// and search field get real estate.
+/// Back-compat shim: `GalleryView` is embedded in the hub, so opening the
+/// gallery just routes to the hub's Gallery section. Keeps the historical
+/// `show()` signature so RootView and the status item menu need no edits.
 @MainActor
 final class GalleryWindowController {
     static let shared = GalleryWindowController()
 
-    private var window: NSWindow?
-    private let model = GalleryModel()
-
     func show() {
-        NSApp.activate(ignoringOtherApps: true)
-        if let window {
-            window.makeKeyAndOrderFront(nil)
-            model.onWindowShown()
-            return
-        }
-
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 560, height: 640),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
-            backing: .buffered,
-            defer: false
-        )
-        window.title = "Widget Gallery"
-        window.isReleasedWhenClosed = false
-        window.minSize = NSSize(width: 420, height: 320)
-        window.contentView = NSHostingView(rootView: GalleryView(model: model))
-        window.center()
-        window.makeKeyAndOrderFront(nil)
-        self.window = window
-        model.onWindowShown()
+        HubWindowController.shared.show(tab: .gallery)
     }
 }
 
@@ -739,6 +716,9 @@ private struct GalleryCard: View {
         }
         if permissions.notifications == true {
             chips.append(Chip(text: "Notifications", symbol: "bell"))
+        }
+        for host in permissions.network ?? [] {
+            chips.append(Chip(text: "network: \(host)", symbol: "network"))
         }
         return chips
     }

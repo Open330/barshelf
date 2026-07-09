@@ -21,6 +21,61 @@ extension EnvironmentValues {
     }
 }
 
+// MARK: - Appearance environment (R12)
+
+private struct WidgetAppearanceKey: EnvironmentKey {
+    static let defaultValue = WidgetAppearance()
+}
+
+extension EnvironmentValues {
+    /// Effective theming for the widget currently being rendered. The default
+    /// is neutral (`WidgetAppearance()`), so an un-injected tree renders exactly
+    /// as it did before theming existed. The popup injects
+    /// `prefs.effectiveAppearance(for:)` here.
+    var widgetAppearance: WidgetAppearance {
+        get { self[WidgetAppearanceKey.self] }
+        set { self[WidgetAppearanceKey.self] = newValue }
+    }
+}
+
+extension WidgetAppearance {
+    /// App-side mapping of the `accent` string to a SwiftUI color. Returns nil
+    /// for an absent/unrecognized value so callers fall back to the system
+    /// accent — which keeps neutral appearance pixel-identical to today.
+    var accentColor: Color? {
+        guard let accent = accent?.trimmingCharacters(in: .whitespaces),
+              !accent.isEmpty else { return nil }
+        if accent.hasPrefix("#") { return Color(hex: accent) }
+        switch accent.lowercased() {
+        case "default": return nil
+        case "blue": return .blue
+        case "purple": return .purple
+        case "pink": return .pink
+        case "red": return .red
+        case "orange": return .orange
+        case "yellow": return .yellow
+        case "green": return .green
+        case "gray", "grey": return .gray
+        default: return nil
+        }
+    }
+}
+
+extension Color {
+    /// Parses `"#RRGGBB"` (case-insensitive, `#` optional). Nil on malformed input.
+    init?(hex: String) {
+        var string = hex
+        if string.hasPrefix("#") { string.removeFirst() }
+        guard string.count == 6, let value = UInt32(string, radix: 16) else { return nil }
+        self.init(
+            .sRGB,
+            red: Double((value >> 16) & 0xFF) / 255,
+            green: Double((value >> 8) & 0xFF) / 255,
+            blue: Double(value & 0xFF) / 255
+        )
+    }
+}
+
 // MARK: - Renderer
 
 /// Recursive UINode → SwiftUI renderer (v0).
@@ -57,6 +112,16 @@ struct NodeChildrenView: View {
 struct NodeView: View {
     let node: UINode
     @Environment(\.actionContext) private var actionContext
+    @Environment(\.widgetAppearance) private var appearance
+
+    /// Custom accent color, or nil when the widget uses the system accent.
+    private var accentOverride: Color? { appearance.accentColor }
+    /// The accent to draw with: custom when set, else the system accent (so a
+    /// neutral appearance is unchanged).
+    private var effectiveAccent: Color { appearance.accentColor ?? .accentColor }
+    /// Compact density shrinks paddings, spacing and text ≈15%. Regular = 1.0
+    /// so a neutral appearance renders identically.
+    private var scale: Double { (appearance.density ?? .regular) == .compact ? 0.85 : 1 }
 
     var body: some View {
         // Explicit widget-author label (VoiceOver). When absent, keep the
@@ -86,15 +151,15 @@ struct NodeView: View {
     private var content: some View {
         switch UINode.KnownType(rawValue: node.type) {
         case .vstack:
-            VStack(alignment: .leading, spacing: node.spacing ?? 6) {
+            VStack(alignment: .leading, spacing: (node.spacing ?? 6) * scale) {
                 NodeChildrenView(nodes: node.children ?? [])
             }
         case .hstack:
-            HStack(alignment: .center, spacing: node.spacing ?? 6) {
+            HStack(alignment: .center, spacing: (node.spacing ?? 6) * scale) {
                 NodeChildrenView(nodes: node.children ?? [])
             }
         case .list:
-            VStack(alignment: .leading, spacing: node.spacing ?? 4) {
+            VStack(alignment: .leading, spacing: (node.spacing ?? 4) * scale) {
                 NodeChildrenView(nodes: node.items ?? node.children ?? [])
             }
         case .section:
@@ -125,10 +190,10 @@ struct NodeView: View {
     // MARK: - Leaf views
 
     private var sectionView: some View {
-        VStack(alignment: .leading, spacing: node.spacing ?? 4) {
+        VStack(alignment: .leading, spacing: (node.spacing ?? 4) * scale) {
             if let title = node.title {
                 Text(title)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 11 * scale, weight: .semibold))
                     .foregroundColor(.secondary)
             }
             NodeChildrenView(nodes: node.children ?? [])
@@ -141,20 +206,20 @@ struct NodeView: View {
         var defaultColor: Color? = nil
         switch node.role {
         case "title":
-            font = .system(size: 13, weight: .semibold)
+            font = .system(size: 13 * scale, weight: .semibold)
         case "caption":
             font = .caption
             defaultColor = .secondary
         case "code":
-            font = .system(size: 11, design: .monospaced)
+            font = .system(size: 11 * scale, design: .monospaced)
         default: // "body"
-            font = .system(size: 12)
+            font = .system(size: 12 * scale)
         }
         if node.monospacedDigit == true {
             font = font.monospacedDigit()
         }
         text = text.font(font)
-        if let color = nodeColor(node.foreground) ?? defaultColor {
+        if let color = nodeColor(node.foreground, accent: accentOverride) ?? defaultColor {
             text = text.foregroundColor(color)
         }
         return text
@@ -167,7 +232,7 @@ struct NodeView: View {
         if let source = node.source, source.kind == "sfSymbol", let name = source.name {
             Image(systemName: name)
                 .font(.system(size: node.size ?? 13))
-                .foregroundColor(nodeColor(node.tint ?? node.foreground) ?? .primary)
+                .foregroundColor(nodeColor(node.tint ?? node.foreground, accent: accentOverride) ?? .primary)
         } else if let source = node.source,
                   source.kind == "fileIcon" || source.kind == "fileThumbnail",
                   let path = source.path {
@@ -187,7 +252,7 @@ struct NodeView: View {
         } else if node.style == "ring" {
             RingProgressView(
                 fraction: min(max(node.value ?? 0, 0), 1),
-                tint: nodeColor(node.tint) ?? .accentColor,
+                tint: nodeColor(node.tint, accent: accentOverride) ?? effectiveAccent,
                 centerText: nil,
                 diameter: CGFloat(node.size ?? 26)
             )
@@ -201,7 +266,7 @@ struct NodeView: View {
                 }
                 LinearMeter(
                     fraction: min(max(node.value ?? 0, 0), 1),
-                    tint: nodeColor(node.tint) ?? .accentColor
+                    tint: nodeColor(node.tint, accent: accentOverride) ?? effectiveAccent
                 )
             }
         }
@@ -225,10 +290,11 @@ struct NodeView: View {
         }
         .buttonStyle(.bordered)
         .controlSize(.small)
+        .modifier(AccentTint(color: accentOverride))
     }
 
     private var badgeView: some View {
-        let color = nodeColor(node.tint ?? node.tone) ?? .secondary
+        let color = nodeColor(node.tint ?? node.tone, accent: accentOverride) ?? .secondary
         return Text(node.text ?? node.title ?? "")
             .font(.system(size: 10, weight: .medium))
             .padding(.horizontal, 6)
@@ -238,7 +304,7 @@ struct NodeView: View {
     }
 
     private var bannerView: some View {
-        let color = nodeColor(node.tone ?? node.tint) ?? .orange
+        let color = nodeColor(node.tone ?? node.tint, accent: accentOverride) ?? .orange
         return HStack(alignment: .firstTextBaseline, spacing: 6) {
             Image(systemName: node.icon ?? "exclamationmark.triangle.fill")
                 .foregroundColor(color)
@@ -290,13 +356,15 @@ struct NodeView: View {
 /// Ticks stop when the view leaves the window (popup closed).
 private struct CountdownProgressView: View {
     let node: UINode
+    @Environment(\.widgetAppearance) private var appearance
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { timeline in
             let nowMs = timeline.date.timeIntervalSince1970 * 1000
             let fraction = node.countdownFraction(nowMs: nowMs) ?? 0
             let remaining = node.countdownRemainingSeconds(nowMs: nowMs) ?? 0
-            let tint = nodeColor(node.countdownTint(nowMs: nowMs)) ?? .accentColor
+            let tint = nodeColor(node.countdownTint(nowMs: nowMs), accent: appearance.accentColor)
+                ?? (appearance.accentColor ?? .accentColor)
             let remainingText = node.labelFrom == "remainingSeconds"
                 ? String(Int(remaining.rounded(.down)))
                 : nil
@@ -383,10 +451,13 @@ private struct RingProgressView: View {
 
 private struct NodeLayoutModifier: ViewModifier {
     let node: UINode
+    @Environment(\.widgetAppearance) private var appearance
+
+    private var scale: Double { (appearance.density ?? .regular) == .compact ? 0.85 : 1 }
 
     func body(content: Content) -> some View {
         content
-            .padding(.all, node.padding.map { CGFloat($0) } ?? 0)
+            .padding(.all, node.padding.map { $0 * scale } ?? 0)
             .frame(
                 maxWidth: node.widthFill == true ? .infinity : nil,
                 alignment: .leading
@@ -397,17 +468,34 @@ private struct NodeLayoutModifier: ViewModifier {
 // MARK: - Color mapping
 
 /// Maps semantic color names from the view-tree contract to SwiftUI colors.
-func nodeColor(_ name: String?) -> Color? {
+/// When `accent` is supplied, the semantic `"accent"` name resolves to it (the
+/// widget's custom accent); otherwise it falls back to the system accent, so an
+/// un-themed call is unchanged.
+func nodeColor(_ name: String?, accent: Color? = nil) -> Color? {
     switch name {
     case "primary": return .primary
     case "secondary": return .secondary
     case "tertiary": return Color(nsColor: .tertiaryLabelColor)
-    case "accent": return .accentColor
+    case "accent": return accent ?? .accentColor
     case "good": return .green
     case "warning": return .orange
     case "danger": return .red
     case "neutral": return .gray
     default: return nil
+    }
+}
+
+/// Applies a custom accent tint only when one is set. A nil color leaves the
+/// view untouched so neutral appearance keeps the system accent unchanged.
+private struct AccentTint: ViewModifier {
+    let color: Color?
+
+    func body(content: Content) -> some View {
+        if let color {
+            content.tint(color)
+        } else {
+            content
+        }
     }
 }
 

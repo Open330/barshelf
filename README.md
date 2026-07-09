@@ -155,6 +155,7 @@ Reference: **[docs/MBK.md](docs/MBK.md)**.
 | [Getting Started](docs/GETTING-STARTED.md) | Install, first widget, the bundled examples |
 | [Install](docs/INSTALL.md) | Release install, `mbk`, source build, troubleshooting |
 | [Widget Spec](docs/WIDGET-SPEC.md) | `widget.json`, UINode nodes, actions, refresh, permissions |
+| [Agents](docs/AGENTS.md) | Self-contained widget-authoring spec for LLM agents (also `mbk agent-spec`) |
 | [Workflow DSL](docs/WORKFLOW.md) | Sources, transforms, interpolation, built-ins, `forEach` |
 | [Script Runtime](docs/SCRIPT-RUNTIME.md) | Deno JSON-RPC protocol, `mb.*` SDK, sandboxing |
 | [Publishing](docs/PUBLISHING.md) | Repo layout, install badges, registry submission |

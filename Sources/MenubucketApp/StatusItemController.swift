@@ -34,6 +34,16 @@ final class StatusItemController: NSObject {
     private lazy var statusMenu: NSMenu = {
         let menu = NSMenu()
 
+        let hubItem = NSMenuItem(
+            title: "Open BarShelf…",
+            action: #selector(openHub(_:)),
+            keyEquivalent: ""
+        )
+        hubItem.target = self
+        menu.addItem(hubItem)
+
+        menu.addItem(.separator())
+
         let refreshItem = NSMenuItem(
             title: "Refresh All",
             action: #selector(refreshAll(_:)),
@@ -128,6 +138,16 @@ final class StatusItemController: NSObject {
             self?.openPopupIfNeeded()
             self?.runtime.reveal(widgetID: id)
         }
+        // barshelf://refresh?widget=<id> — nil id means "refresh all".
+        WidgetInstaller.shared.onRefreshRequest = { [weak self] widgetID in
+            self?.runtime.handleURLRefreshTrigger(widgetID: widgetID)
+        }
+
+        // Register the app's single runtime so runtime-less hub shims work.
+        // Construction is guaranteed on the main thread (applicationDidFinishLaunching).
+        MainActor.assumeIsolated {
+            HubWindowController.shared.register(runtime: runtime)
+        }
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
@@ -192,6 +212,13 @@ final class StatusItemController: NSObject {
     private func showStatusItemMenu(with event: NSEvent) {
         guard let button = statusItem.button else { return }
         NSMenu.popUpContextMenu(statusMenu, with: event, for: button)
+    }
+
+    @objc private func openHub(_ sender: Any?) {
+        popup.hide()
+        Task { @MainActor in
+            HubWindowController.shared.show(runtime: runtime, tab: .widgets)
+        }
     }
 
     @objc private func refreshAll(_ sender: Any?) {

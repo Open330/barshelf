@@ -948,9 +948,13 @@ final class WidgetRuntime: ObservableObject {
                     sourceValues[sourceID] = try await runWorkflowExecSource(
                         widget: widget, params: value
                     )
+                case "http":
+                    sourceValues[sourceID] = try await runWorkflowHTTPSource(
+                        widget: widget, params: value
+                    )
                 default:
                     throw RuntimeError.invalidWorkflow(
-                        "unknown source use \"\(source.use)\" (v1: exec, fs.directory)"
+                        "unknown source use \"\(source.use)\" (v1: exec, fs.directory, http)"
                     )
                 }
             }
@@ -1017,6 +1021,78 @@ final class WidgetRuntime: ObservableObject {
         }
         // Default: JSON (the DSL transforms/templates need structured data).
         return try JSONDecoder().decode(JSONValue.self, from: data)
+    }
+
+    /// `http` workflow source — gated behind the `network` manifest
+    /// permission (declared + user-approved) and restricted to the declared
+    /// host allowlist. The fetch itself (https-only, GET, 20 s / 5 MB caps,
+    /// no redirect downgrade) lives in `MenubucketCore.HttpSource`.
+    private func runWorkflowHTTPSource(
+        widget: LoadedWidget,
+        params: JSONValue
+    ) async throws -> JSONValue {
+        guard PermissionStore.manifestDeclares(.network, in: widget.manifest) else {
+            auditLog.record("network.blocked", widgetId: widget.id, detail: [
+                "reason": .string("http source without permissions.network"),
+            ])
+            throw RuntimeError.invalidWorkflow(
+                "http source requires the \"network\" permission in the manifest"
+            )
+        }
+        let httpParams = try HttpSource.Params(from: params)
+        guard Self.networkHostAllowed(url: httpParams.url, manifest: widget.manifest) else {
+            auditLog.record("network.blocked", widgetId: widget.id, detail: [
+                "url": .string(httpParams.url),
+                "reason": .string("host not in permissions.network allowlist"),
+            ])
+            throw RuntimeError.invalidWorkflow(
+                "http source host is not covered by the permissions.network allowlist"
+            )
+        }
+        auditLog.record("network.fetch", widgetId: widget.id, detail: [
+            "url": .string(httpParams.url),
+            "trigger": .string("workflow"),
+        ])
+        return try await HttpSource.fetch(httpParams)
+    }
+
+    /// True when `url`'s host matches an entry in `permissions.network`.
+    /// Entries may be a bare host (`api.github.com`), a leading-dot wildcard
+    /// (`*.github.com`), a full URL/origin (host is extracted), or `*`.
+    static func networkHostAllowed(url: String, manifest: Manifest) -> Bool {
+        guard let allowed = manifest.permissions?.network, !allowed.isEmpty,
+              let host = URL(string: url)?.host?.lowercased()
+        else { return false }
+        for raw in allowed {
+            let entry = raw.trimmingCharacters(in: .whitespaces).lowercased()
+            if entry.isEmpty { continue }
+            if entry == "*" { return true }
+            if entry.hasPrefix("*.") {
+                if host.hasSuffix(String(entry.dropFirst())) { return true } // ".github.com"
+                continue
+            }
+            if host == entry { return true }
+            if let entryHost = URL(string: entry)?.host?.lowercased(), host == entryHost {
+                return true
+            }
+        }
+        return false
+    }
+
+    // MARK: - URL refresh trigger (`barshelf://refresh?widget=<id>`)
+
+    /// Deep-link trigger handler. Refreshes only widgets that opted in with a
+    /// `url` trigger: a specific `widgetID` refreshes that widget (unknown or
+    /// non-opted-in id → no-op); `nil` refreshes every url-trigger widget.
+    func handleURLRefreshTrigger(widgetID: String?) {
+        for widget in widgets where declaresURLTrigger(widget.manifest) {
+            if let widgetID, widget.id != widgetID { continue }
+            refresh(widget, manual: false)
+        }
+    }
+
+    private func declaresURLTrigger(_ manifest: Manifest) -> Bool {
+        manifest.refresh?.triggers?.contains(.url) ?? false
     }
 
     private func registerWorkflowWatch(widgetID: String, path: String) {

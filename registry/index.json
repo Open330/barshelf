@@ -79,6 +79,36 @@
       "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/clock-script", "bundled": "clock-script" },
       "permissions": { "exec": [], "keychain": false, "notifications": false },
       "homepage": "https://github.com/Open330/barshelf"
+    },
+    {
+      "id": "dev.barshelf.github-status",
+      "name": "GitHub Status",
+      "description": "Workflow example that fetches GitHub's public status JSON over HTTPS and refreshes when your Mac wakes.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "checkmark.seal.fill",
+      "kind": "workflow",
+      "tags": ["developer", "status", "workflow", "http"],
+      "category": "Developer",
+      "requires": "Network access",
+      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/github-status", "bundled": "github-status" },
+      "permissions": { "exec": [], "keychain": false, "notifications": false, "network": ["www.githubstatus.com"] },
+      "homepage": "https://www.githubstatus.com/"
+    },
+    {
+      "id": "dev.barshelf.downloads-watch",
+      "name": "Downloads Watch",
+      "description": "Workflow example that refreshes from the R12 file-system trigger when ~/Downloads changes, with tinted appearance defaults.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "arrow.down.circle.fill",
+      "kind": "workflow",
+      "tags": ["files", "workflow", "trigger", "appearance"],
+      "category": "Files",
+      "requires": "Downloads folder access",
+      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/downloads-watch", "bundled": "downloads-watch" },
+      "permissions": { "exec": [], "keychain": false, "notifications": false, "network": [] },
+      "homepage": "https://github.com/Open330/barshelf"
     }
   ]
 }

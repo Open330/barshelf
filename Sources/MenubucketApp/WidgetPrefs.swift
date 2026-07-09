@@ -20,6 +20,8 @@ final class WidgetPrefs: ObservableObject {
     @Published private(set) var disabled: Set<String> = []
     /// User overrides of manifest bucket placement, keyed by widget id (R11).
     @Published private(set) var bucketOverrides: [String: BucketOverride] = [:]
+    /// User theming overrides, keyed by widget id (R12).
+    @Published private(set) var appearanceOverrides: [String: WidgetAppearance] = [:]
 
     private let fileURL: URL
 
@@ -31,6 +33,8 @@ final class WidgetPrefs: ObservableObject {
         /// Optional for backward compatibility with pre-R11 prefs files.
         var disabled: [String]?
         var bucketOverrides: [String: BucketOverride]?
+        /// Optional for backward compatibility with pre-R12 prefs files.
+        var appearanceOverrides: [String: WidgetAppearance]?
     }
 
     init(fileURL: URL? = nil) {
@@ -108,7 +112,36 @@ final class WidgetPrefs: ObservableObject {
         if settings.removeValue(forKey: id) != nil { changed = true }
         if bucketOverrides.removeValue(forKey: id) != nil { changed = true }
         if disabled.remove(id) != nil { changed = true }
+        if appearanceOverrides.removeValue(forKey: id) != nil { changed = true }
         if changed { save() }
+    }
+
+    // MARK: - Appearance overrides (R12)
+
+    /// The user's stored theming override for a widget, if any.
+    func appearanceOverride(for id: String) -> WidgetAppearance? {
+        appearanceOverrides[id]
+    }
+
+    /// Stores a theming override; passing `nil` or an all-nil (neutral)
+    /// appearance clears the entry so the widget reverts to its author default.
+    func setAppearanceOverride(_ appearance: WidgetAppearance?, for id: String) {
+        if let appearance, appearance != WidgetAppearance() {
+            guard appearanceOverrides[id] != appearance else { return }
+            appearanceOverrides[id] = appearance
+        } else {
+            guard appearanceOverrides.removeValue(forKey: id) != nil else { return }
+        }
+        save()
+    }
+
+    /// Effective theming = user override merged over the manifest's author
+    /// default merged over the neutral baseline.
+    func effectiveAppearance(for manifest: Manifest) -> WidgetAppearance {
+        let neutral = WidgetAppearance()
+        let base = (manifest.appearance ?? neutral).merged(over: neutral)
+        guard let override = appearanceOverrides[manifest.id] else { return base }
+        return override.merged(over: base)
     }
 
     // MARK: - Settings overrides
@@ -144,13 +177,15 @@ final class WidgetPrefs: ObservableObject {
         welcomePending = persisted.welcomePending ?? false
         disabled = Set(persisted.disabled ?? [])
         bucketOverrides = persisted.bucketOverrides ?? [:]
+        appearanceOverrides = persisted.appearanceOverrides ?? [:]
     }
 
     private func save() {
         let persisted = Persisted(
             pinned: pinned, settings: settings, welcomePending: welcomePending,
             disabled: disabled.isEmpty ? nil : disabled.sorted(),
-            bucketOverrides: bucketOverrides.isEmpty ? nil : bucketOverrides
+            bucketOverrides: bucketOverrides.isEmpty ? nil : bucketOverrides,
+            appearanceOverrides: appearanceOverrides.isEmpty ? nil : appearanceOverrides
         )
         guard let data = try? JSONEncoder().encode(persisted) else { return }
         try? FileManager.default.createDirectory(

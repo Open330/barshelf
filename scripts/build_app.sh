@@ -108,6 +108,16 @@ else
   echo "warning: widgets directory not found; skipping widget resources: ${WIDGETS_DIR}" >&2
 fi
 
+# Deno TS SDK — script widgets import "barshelf" via an import map pointing
+# here; without it every script widget fails with "SDK (sdk/mod.ts) not found".
+SDK_DIR=${SDK_DIR:-"${PROJECT_ROOT}/sdk"}
+if [[ -f "${SDK_DIR}/mod.ts" ]]; then
+  mkdir -p "${RESOURCES_DIR}/sdk"
+  rsync -a --delete "${SDK_DIR}/" "${RESOURCES_DIR}/sdk/"
+else
+  echo "warning: sdk/mod.ts not found; script widgets will not run: ${SDK_DIR}" >&2
+fi
+
 # Bundled registry fallback (offline/dev gallery)
 REGISTRY_DIR=${REGISTRY_DIR:-"${PROJECT_ROOT}/registry"}
 if [[ -d "${REGISTRY_DIR}" ]]; then
