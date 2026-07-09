@@ -924,7 +924,6 @@ public enum DenoRuntime {
         let map = JSONValue.object([
             "imports": .object([
                 "barshelf": .string("file://" + sdkModule.path),
-                "menubucket": .string("file://" + sdkModule.path),
             ])
         ])
         let encoder = JSONEncoder()

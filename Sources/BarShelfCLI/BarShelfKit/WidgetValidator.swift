@@ -2,7 +2,7 @@ import Foundation
 import CryptoKit
 import MenubucketCore
 
-/// `mbk validate` — decodes widget.json (and workflow.json when present)
+/// `barshelf validate` — decodes widget.json (and workflow.json when present)
 /// with the MenubucketCore decoders and reports problems per file / field.
 public enum WidgetValidator {
     public struct Issue: Equatable, CustomStringConvertible, Sendable {
@@ -74,7 +74,7 @@ public enum WidgetValidator {
         let data = try Data(contentsOf: archive)
         let staging = FileManager.default.temporaryDirectory
             .appendingPathComponent(
-                "mbk-validate-\(UUID().uuidString)", isDirectory: true
+                "barshelf-validate-\(UUID().uuidString)", isDirectory: true
             )
         defer { try? FileManager.default.removeItem(at: staging) }
         try SafeZipExtractor.extract(zipData: data, to: staging)
@@ -175,7 +175,7 @@ public enum WidgetValidator {
             ))
         }
 
-        // A manifest.sha256 written by `mbk pack` must match widget.json.
+        // A manifest.sha256 written by `barshelf pack` must match widget.json.
         let sha256URL = directory.appendingPathComponent(packSHA256FileName)
         if let recorded = try? String(contentsOf: sha256URL, encoding: .utf8) {
             let expected = recorded

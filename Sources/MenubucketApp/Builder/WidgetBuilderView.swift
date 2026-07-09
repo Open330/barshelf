@@ -6,12 +6,37 @@ import SwiftUI
 /// ViewTreeRenderer, so what you see is what the widget will show.
 struct WidgetBuilderView: View {
     @ObservedObject var model: WidgetBuilderModel
+    @State private var advancedExpanded = false
 
     private let iconChoices = [
         "square.grid.2x2", "terminal", "folder", "gauge", "chart.bar",
         "bell", "calendar", "clock", "bolt", "cube.box", "network", "tag",
     ]
-    private let sizes = ["S", "M", "L"]
+    private let sizes = ["XS", "S", "M", "L"]
+    private let refreshChoices = [
+        ("On open", 0),
+        ("1s", 1),
+        ("5s", 5),
+        ("15s", 15),
+        ("30s", 30),
+        ("1m", 60),
+        ("5m", 300),
+        ("15m", 900),
+    ]
+    private struct AccentChoice: Identifiable {
+        let id: String
+        let name: String
+        let value: String?
+        let color: Color
+    }
+    private let accentChoices: [AccentChoice] = [
+        .init(id: "default", name: "Default", value: nil, color: .accentColor),
+        .init(id: "blue", name: "Blue", value: "blue", color: .blue),
+        .init(id: "green", name: "Green", value: "green", color: .green),
+        .init(id: "orange", name: "Orange", value: "orange", color: .orange),
+        .init(id: "purple", name: "Purple", value: "purple", color: .purple),
+        .init(id: "pink", name: "Pink", value: "pink", color: .pink),
+    ]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -89,6 +114,7 @@ struct WidgetBuilderView: View {
                 HStack {
                     Button(model.testRunning ? "Running…" : "Test run") { model.runTest() }
                         .disabled(model.testRunning || model.commandText.isEmpty)
+                    Button("Use sample JSON") { model.useSampleJSON() }
                     if model.detectedIsJSONArray {
                         Label("JSON array detected", systemImage: "curlybraces")
                             .font(.caption).foregroundStyle(.green)
@@ -121,6 +147,70 @@ struct WidgetBuilderView: View {
                     .background(Color(nsColor: .textBackgroundColor))
                     .clipShape(RoundedRectangle(cornerRadius: 6))
                 }
+            case .shellScript:
+                Text("Shell script").font(.caption).foregroundStyle(.secondary)
+                TextEditor(text: $model.scriptText)
+                    .font(.system(size: 12, design: .monospaced))
+                    .frame(height: 120)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(.secondary.opacity(0.3)))
+                Text("Runs with /bin/sh -c — pipe, jq, awk, chained commands. Emit JSON for list / table / value / meter displays.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Button(model.testRunning ? "Running…" : "Test run") { model.runTest() }
+                        .disabled(model.testRunning || !model.canAdvanceFromSource)
+                    Button("Use sample JSON") { model.useSampleJSON() }
+                    if model.detectedIsJSONArray {
+                        Label("JSON array detected", systemImage: "curlybraces")
+                            .font(.caption).foregroundStyle(.green)
+                    } else if model.isCommandJSON {
+                        Label("JSON object", systemImage: "curlybraces")
+                            .font(.caption).foregroundStyle(.green)
+                    } else if !model.testOutput.isEmpty && model.testError == nil {
+                        Label("Plain text — renders as text", systemImage: "text.alignleft")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                previewOutputBlock
+            case .httpJSON:
+                Text("HTTPS JSON endpoint").font(.caption).foregroundStyle(.secondary)
+                TextField("https://api.example.com/status.json", text: $model.httpURL)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 12, design: .monospaced))
+                headerEditor
+                HStack {
+                    Button(model.testRunning ? "Fetching…" : "Fetch preview") {
+                        model.fetchHTTPPreview()
+                    }
+                    .disabled(model.testRunning || !model.canAdvanceFromSource)
+                    Button("Use sample JSON") { model.useSampleJSON() }
+                    if model.hasStructuredJSON {
+                        Label("JSON ready", systemImage: "curlybraces")
+                            .font(.caption).foregroundStyle(.green)
+                    }
+                }
+                previewOutputBlock
+            case .pastedJSON:
+                Text("JSON").font(.caption).foregroundStyle(.secondary)
+                TextEditor(text: Binding(
+                    get: { model.pastedJSONText },
+                    set: { model.setPastedJSON($0) }
+                ))
+                .font(.system(size: 12, design: .monospaced))
+                .frame(height: 132)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(.secondary.opacity(0.3)))
+                HStack {
+                    Button("Use sample JSON") { model.useSampleJSON() }
+                    if let error = model.pastedJSONError {
+                        Label(error, systemImage: "exclamationmark.triangle")
+                            .font(.caption).foregroundStyle(.orange)
+                    } else {
+                        Label("JSON ready", systemImage: "checkmark.circle.fill")
+                            .font(.caption).foregroundStyle(.green)
+                    }
+                }
             case .folder:
                 Text("Folder").font(.caption).foregroundStyle(.secondary)
                 HStack {
@@ -141,9 +231,63 @@ struct WidgetBuilderView: View {
         }
     }
 
+    /// Editable list of HTTP request headers (auth etc.) for the HTTP source.
+    private var headerEditor: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Headers (optional)").font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Button { model.httpHeaders.append(.init()) } label: {
+                    Label("Add", systemImage: "plus")
+                }
+                .buttonStyle(.borderless).font(.caption)
+            }
+            ForEach(Array(model.httpHeaders.enumerated()), id: \.element.id) { index, _ in
+                HStack(spacing: 6) {
+                    TextField("Header", text: Binding(
+                        get: { model.httpHeaders[index].key },
+                        set: { model.httpHeaders[index].key = $0 }
+                    )).textFieldStyle(.roundedBorder).frame(width: 130)
+                    TextField("Value", text: Binding(
+                        get: { model.httpHeaders[index].value },
+                        set: { model.httpHeaders[index].value = $0 }
+                    )).textFieldStyle(.roundedBorder)
+                    Button { model.httpHeaders.remove(at: index) } label: {
+                        Image(systemName: "minus.circle")
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("Remove header \(index + 1)")
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var previewOutputBlock: some View {
+        if let err = model.testError {
+            Label {
+                Text(err).lineLimit(3)
+            } icon: {
+                Image(systemName: "exclamationmark.triangle.fill")
+            }
+            .font(.caption).foregroundStyle(.red)
+            .fixedSize(horizontal: false, vertical: true)
+        } else if !model.testOutput.isEmpty {
+            ScrollView {
+                Text(model.testOutput)
+                    .font(.system(size: 11, design: .monospaced))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
+            }
+            .frame(height: 120)
+            .background(Color(nsColor: .textBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+    }
+
     private func sourceCard(_ kind: WidgetBuilderModel.SourceKind) -> some View {
         Button {
-            model.sourceKind = kind
+            model.selectSource(kind)
         } label: {
             HStack {
                 Image(systemName: kind.symbol).frame(width: 22)
@@ -224,7 +368,7 @@ struct WidgetBuilderView: View {
             Divider().padding(.vertical, 2)
 
             switch model.effectiveDisplay {
-            case .list where model.sourceKind == .command && !model.detectedFields.isEmpty:
+            case .list where model.usesStructuredSource && !model.detectedFields.isEmpty:
                 fieldPicker("Show field", selection: $model.listField)
             case .table:
                 tableColumnEditor
@@ -232,8 +376,116 @@ struct WidgetBuilderView: View {
                 fieldPicker("Value field", selection: $model.valuePath)
                 TextField("Caption (optional)", text: $model.valueCaption)
                     .textFieldStyle(.roundedBorder)
+            case .meter:
+                fieldPicker("Value field", selection: $model.valuePath)
+                HStack {
+                    Text("Max value").font(.system(size: 12))
+                    TextField("100", value: $model.meterMax, format: .number)
+                        .textFieldStyle(.roundedBorder).frame(width: 90)
+                    Text("(bar fills at this value)").font(.caption).foregroundStyle(.secondary)
+                }
+                TextField("Label (optional)", text: $model.meterLabel)
+                    .textFieldStyle(.roundedBorder)
             default:
                 Text(displayHint).font(.caption).foregroundStyle(.secondary)
+            }
+
+            if model.refineApplicable {
+                refineSection
+            }
+        }
+    }
+
+    // MARK: Refine (filter / sort / limit / row action)
+
+    private var refineSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Divider().padding(.vertical, 2)
+            Text("Refine (optional)").font(.system(size: 13, weight: .semibold))
+
+            Toggle("Only keep rows that match", isOn: $model.filterEnabled)
+                .toggleStyle(.switch)
+                .onChange(of: model.filterEnabled) { on in
+                    if on, model.filterField.isEmpty {
+                        model.filterField = model.detectedFields.first ?? ""
+                    }
+                }
+            if model.filterEnabled {
+                HStack(spacing: 6) {
+                    refineField($model.filterField)
+                    Picker("", selection: $model.filterIsNot) {
+                        Text("is").tag(false)
+                        Text("is not").tag(true)
+                    }
+                    .labelsHidden().frame(width: 78)
+                    TextField("value", text: $model.filterValue)
+                        .textFieldStyle(.roundedBorder)
+                }
+            }
+
+            Toggle("Sort rows", isOn: $model.sortEnabled)
+                .toggleStyle(.switch)
+                .onChange(of: model.sortEnabled) { on in
+                    if on, model.sortField.isEmpty {
+                        model.sortField = model.detectedFields.first ?? ""
+                    }
+                }
+            if model.sortEnabled {
+                HStack(spacing: 6) {
+                    refineField($model.sortField)
+                    Picker("", selection: $model.sortDescending) {
+                        Text("Asc").tag(false)
+                        Text("Desc").tag(true)
+                    }
+                    .pickerStyle(.segmented).labelsHidden().frame(width: 112)
+                }
+            }
+
+            Toggle("Limit number of rows", isOn: $model.limitEnabled)
+                .toggleStyle(.switch)
+            if model.limitEnabled {
+                Stepper("Show at most \(model.limitCount)", value: $model.limitCount, in: 1...100)
+                    .font(.system(size: 12))
+            }
+
+            Divider().padding(.vertical, 2)
+            Text("When a row is clicked").font(.system(size: 12))
+            Picker("", selection: $model.rowActionKind) {
+                ForEach(WidgetBuilderModel.RowActionKind.allCases) { Text($0.label).tag($0) }
+            }
+            .labelsHidden().frame(maxWidth: 260, alignment: .leading)
+            .onChange(of: model.rowActionKind) { kind in
+                if kind != .none, model.rowActionField.isEmpty {
+                    model.rowActionField = model.detectedFields.first ?? ""
+                }
+            }
+            if model.rowActionKind != .none {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(model.rowActionKind.fieldPrompt)
+                        .font(.caption).foregroundStyle(.secondary)
+                    refineField($model.rowActionField)
+                }
+            }
+        }
+    }
+
+    /// Compact field selector reused across refine rows: a menu of detected
+    /// fields, or a free-text box when none were detected.
+    private func refineField(_ selection: Binding<String>) -> some View {
+        Group {
+            if model.detectedFields.isEmpty {
+                TextField("field", text: selection)
+                    .textFieldStyle(.roundedBorder).frame(width: 130)
+            } else {
+                Picker("", selection: selection) {
+                    Text("—").tag("")
+                    if !model.detectedFields.contains(selection.wrappedValue),
+                       !selection.wrappedValue.isEmpty {
+                        Text(selection.wrappedValue).tag(selection.wrappedValue)
+                    }
+                    ForEach(model.detectedFields, id: \.self) { Text($0).tag($0) }
+                }
+                .labelsHidden().frame(width: 130)
             }
         }
     }
@@ -242,6 +494,14 @@ struct WidgetBuilderView: View {
         switch model.effectiveDisplay {
         case .list where model.sourceKind == .folder:
             return "Files render as rows with a thumbnail, name, and modified time."
+        case .list where model.sourceKind == .httpJSON,
+             .table where model.sourceKind == .httpJSON,
+             .value where model.sourceKind == .httpJSON:
+            return "Fetch the endpoint once to map fields from its JSON response."
+        case .list where model.sourceKind == .pastedJSON,
+             .table where model.sourceKind == .pastedJSON,
+             .value where model.sourceKind == .pastedJSON:
+            return "Paste valid JSON in step 1 to map fields."
         case .text:
             return "The raw source output is shown as text."
         default:
@@ -250,13 +510,23 @@ struct WidgetBuilderView: View {
     }
 
     private func fieldPicker(_ title: String, selection: Binding<String>) -> some View {
-        HStack {
+        VStack(alignment: .leading, spacing: 4) {
             Text(title).font(.system(size: 12))
-            Spacer()
-            Picker("", selection: selection) {
-                ForEach(model.detectedFields, id: \.self) { Text($0).tag($0) }
+            if model.detectedFields.isEmpty {
+                TextField("Field path, e.g. name", text: selection)
+                    .textFieldStyle(.roundedBorder)
+            } else {
+                Picker("", selection: selection) {
+                    if !model.detectedFields.contains(selection.wrappedValue),
+                       !selection.wrappedValue.isEmpty {
+                        Text(selection.wrappedValue).tag(selection.wrappedValue)
+                    }
+                    ForEach(model.detectedFields, id: \.self) { Text($0).tag($0) }
+                }
+                .labelsHidden()
+                TextField("Or type a custom field path", text: selection)
+                    .textFieldStyle(.roundedBorder)
             }
-            .labelsHidden().frame(width: 160)
         }
     }
 
@@ -265,7 +535,7 @@ struct WidgetBuilderView: View {
             Text("Columns").font(.system(size: 12))
             if model.detectedFields.isEmpty {
                 Label(
-                    "Run a command that returns a JSON array in step 1 to pick columns.",
+                    "Run a JSON command or use sample JSON to auto-fill fields. You can also type field paths manually.",
                     systemImage: "info.circle"
                 )
                 .font(.caption).foregroundStyle(.secondary)
@@ -277,12 +547,24 @@ struct WidgetBuilderView: View {
                         get: { model.tableColumns[index].title },
                         set: { model.tableColumns[index].title = $0 }
                     )).textFieldStyle(.roundedBorder).frame(width: 110)
-                    Picker("", selection: Binding(
-                        get: { model.tableColumns[index].field },
-                        set: { model.tableColumns[index].field = $0 }
-                    )) {
-                        ForEach(model.detectedFields, id: \.self) { Text($0).tag($0) }
-                    }.labelsHidden()
+                    if model.detectedFields.isEmpty {
+                        TextField("field", text: Binding(
+                            get: { model.tableColumns[index].field },
+                            set: { model.tableColumns[index].field = $0 }
+                        ))
+                        .textFieldStyle(.roundedBorder)
+                    } else {
+                        Picker("", selection: Binding(
+                            get: { model.tableColumns[index].field },
+                            set: { model.tableColumns[index].field = $0 }
+                        )) {
+                            if !model.detectedFields.contains(model.tableColumns[index].field),
+                               !model.tableColumns[index].field.isEmpty {
+                                Text(model.tableColumns[index].field).tag(model.tableColumns[index].field)
+                            }
+                            ForEach(model.detectedFields, id: \.self) { Text($0).tag($0) }
+                        }.labelsHidden()
+                    }
                     Button {
                         model.tableColumns.remove(at: index)
                     } label: { Image(systemName: "minus.circle") }
@@ -290,7 +572,8 @@ struct WidgetBuilderView: View {
                         .accessibilityLabel("Remove column \(index + 1)")
                 }
             }
-            if model.tableColumns.count < 4, let first = model.detectedFields.first {
+            if model.tableColumns.count < 4 {
+                let first = model.detectedFields.first ?? "name"
                 Button {
                     model.tableColumns.append(.init(title: first.capitalized, field: first))
                 } label: { Label("Add column", systemImage: "plus") }
@@ -324,9 +607,20 @@ struct WidgetBuilderView: View {
                         )
                 }
             }
+            HStack(spacing: 6) {
+                Text("Or SF Symbol").font(.caption).foregroundStyle(.secondary)
+                TextField("e.g. gauge.badge.plus", text: Binding(
+                    get: { model.icon },
+                    set: { model.setIcon($0) }
+                )).textFieldStyle(.roundedBorder)
+                Image(systemName: model.icon)
+                    .frame(width: 22, height: 22)
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+            }
 
             HStack {
-                Text("Bucket").font(.system(size: 12))
+                Text("Panel").font(.system(size: 12))
                 Spacer()
                 Picker("", selection: $model.group) {
                     ForEach(model.existingGroups, id: \.self) { Text($0).tag($0) }
@@ -335,28 +629,55 @@ struct WidgetBuilderView: View {
                     }
                 }.labelsHidden().frame(width: 150)
             }
-            TextField("Or new bucket name", text: $model.group).textFieldStyle(.roundedBorder)
+            TextField("Or new panel name", text: $model.group).textFieldStyle(.roundedBorder)
 
-            HStack {
-                Text("Size").font(.system(size: 12))
-                Picker("", selection: $model.size) {
-                    ForEach(sizes, id: \.self) { Text($0).tag($0) }
-                }.pickerStyle(.segmented).labelsHidden().frame(width: 130)
+            VStack(alignment: .leading, spacing: 5) {
+                HStack {
+                    Text("Size").font(.system(size: 12))
+                    Picker("", selection: $model.size) {
+                        ForEach(sizes, id: \.self) { Text($0).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .frame(width: 172)
+                }
+                Text(model.sizeDescription)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
-            HStack {
-                Text("Refresh").font(.system(size: 12))
-                Picker("", selection: Binding(
-                    get: { model.refreshSeconds ?? 0 },
-                    set: { model.refreshSeconds = $0 == 0 ? nil : $0 }
-                )) {
-                    Text("On open").tag(0)
-                    Text("30s").tag(30)
-                    Text("1m").tag(60)
-                    Text("5m").tag(300)
-                    Text("15m").tag(900)
-                }.labelsHidden().frame(width: 150)
+            DisclosureGroup("Advanced", isExpanded: $advancedExpanded) {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Refresh").font(.system(size: 12))
+                        Picker("", selection: Binding(
+                            get: { model.refreshSeconds ?? 0 },
+                            set: { model.refreshSeconds = $0 == 0 ? nil : $0 }
+                        )) {
+                            ForEach(refreshChoices.indices, id: \.self) { index in
+                                Text(refreshChoices[index].0).tag(refreshChoices[index].1)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(width: 150)
+                    }
+                    HStack {
+                        Text("Custom (seconds)").font(.system(size: 12))
+                        TextField("e.g. 45", value: Binding(
+                            get: { model.refreshSeconds ?? 0 },
+                            set: { model.refreshSeconds = $0 <= 0 ? nil : $0 }
+                        ), format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 80)
+                    }
+                    Text("Short intervals are useful while testing; production widgets should usually stay at 30s or slower.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
+
+            appearanceSection
 
             if let created = model.createdPath {
                 Divider()
@@ -376,17 +697,98 @@ struct WidgetBuilderView: View {
         }
     }
 
+    private var appearanceSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Divider().padding(.vertical, 2)
+            Text("Appearance").font(.system(size: 13, weight: .semibold))
+            Text("Accent").font(.caption).foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                ForEach(accentChoices) { choice in
+                    accentSwatch(choice)
+                }
+            }
+
+            HStack {
+                Text("Density").font(.system(size: 12))
+                Picker("", selection: $model.appearanceDensity) {
+                    Text("Regular").tag(WidgetAppearance.Density.regular)
+                    Text("Compact").tag(WidgetAppearance.Density.compact)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 150)
+            }
+
+            HStack {
+                Text("Card").font(.system(size: 12))
+                Picker("", selection: $model.appearanceCardStyle) {
+                    Text("Plain").tag(WidgetAppearance.CardStyle.plain)
+                    Text("Tinted").tag(WidgetAppearance.CardStyle.tinted)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 150)
+            }
+
+            Toggle("Show header", isOn: $model.appearanceShowHeader)
+                .toggleStyle(.switch)
+        }
+    }
+
+    private func accentSwatch(_ choice: AccentChoice) -> some View {
+        let selected = model.appearanceAccent == choice.value
+        return Button {
+            model.appearanceAccent = choice.value
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(choice.color)
+                    .frame(width: 24, height: 24)
+                if choice.value == nil {
+                    Circle()
+                        .stroke(Color(nsColor: .windowBackgroundColor), lineWidth: 3)
+                        .frame(width: 10, height: 10)
+                }
+                if selected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+            }
+            .padding(3)
+            .background(selected ? Color.primary.opacity(0.08) : .clear)
+            .clipShape(Circle())
+            .overlay(Circle().stroke(selected ? Color.primary.opacity(0.28) : Color.secondary.opacity(0.18)))
+        }
+        .buttonStyle(.plain)
+        .help(choice.name)
+        .accessibilityLabel("\(choice.name) accent")
+    }
+
     // MARK: Preview
 
     private var preview: some View {
         VStack(spacing: 0) {
-            Text("Live preview").font(.caption).foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading).padding(10)
+            HStack {
+                Text("Live preview").font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Text(model.size)
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(Color.secondary.opacity(0.12)))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(10)
             Divider()
             Group {
                 switch model.previewTree() {
                 case let .tree(node):
-                    ScrollView { ViewTreeRenderer(node: node).padding(8) }
+                    ScrollView {
+                        previewCard(node)
+                            .padding(18)
+                    }
                 case let .failure(message):
                     VStack(spacing: 8) {
                         Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange)
@@ -398,6 +800,48 @@ struct WidgetBuilderView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(nsColor: .windowBackgroundColor))
         }
+    }
+
+    private func previewCard(_ node: UINode) -> some View {
+        let appearance = model.previewAppearance
+        let accent = appearance.accentColor ?? .accentColor
+        let inset: CGFloat = appearance.density == .compact ? 8 : 12
+        return VStack(alignment: .leading, spacing: 8) {
+            if model.appearanceShowHeader {
+                HStack(spacing: 6) {
+                    Image(systemName: model.icon)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+                    Text(model.previewTitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Spacer()
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                        .accessibilityHidden(true)
+                }
+            }
+            ViewTreeRenderer(node: node)
+                .environment(\.widgetAppearance, appearance)
+        }
+        .padding(inset)
+        .frame(maxWidth: .infinity, minHeight: model.previewMinHeight, alignment: .topLeading)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color(nsColor: .controlBackgroundColor))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(appearance.cardStyle == .tinted ? accent.opacity(0.12) : Color.clear)
+                )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(Color.secondary.opacity(0.12), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.08), radius: 3, y: 1)
     }
 
     // MARK: Footer

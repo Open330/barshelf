@@ -27,6 +27,15 @@ enum HubTab: String, CaseIterable, Identifiable {
         case .settings: return "gearshape"
         }
     }
+
+    var subtitle: String {
+        switch self {
+        case .widgets: return "Arrange, theme, and maintain installed widgets."
+        case .gallery: return "Install curated examples and production-ready starters."
+        case .create: return "Build a widget from command, HTTP JSON, pasted JSON, folder, or text."
+        case .settings: return "Tune BarShelf behavior, performance, and diagnostics."
+        }
+    }
 }
 
 /// Sidebar selection shared between `HubWindowController` and `HubView`, so a
@@ -79,14 +88,16 @@ final class HubWindowController: NSObject, NSWindowDelegate {
 
         let model = HubModel(tab: tab)
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 860, height: 620),
+            contentRect: NSRect(x: 0, y: 0, width: 1040, height: 720),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = "BarShelf"
         window.isReleasedWhenClosed = false
-        window.minSize = NSSize(width: 720, height: 480)
+        window.minSize = NSSize(width: 840, height: 560)
+        window.titlebarAppearsTransparent = true
+        window.toolbarStyle = .unified
         window.delegate = self
         window.contentView = NSHostingView(
             rootView: HubView(runtime: runtime, appPrefs: .shared, model: model)

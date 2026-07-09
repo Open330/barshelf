@@ -201,7 +201,7 @@ extension UINode {
 
     /// Node types the v0 renderer understands. Unknown types must still decode.
     public enum KnownType: String, CaseIterable {
-        case vstack, hstack, list, section, text, image, progress
+        case vstack, hstack, list, section, card, text, image, progress
         case button, badge, banner, empty, divider, spacer
     }
 

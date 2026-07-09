@@ -18,13 +18,13 @@ final class WidgetPrefsTests: XCTestCase {
     func testDisabledAndOverridesRoundTrip() {
         let prefs = WidgetPrefs(fileURL: fileURL)
         prefs.setDisabled("a", true)
-        prefs.setOverride(group: "Ops", order: 3, for: "b")
+        prefs.setOverride(group: "Ops", order: 3, size: "L", for: "b")
         prefs.setOverride(group: nil, order: 7, for: "c")
 
         let reloaded = WidgetPrefs(fileURL: fileURL)
         XCTAssertTrue(reloaded.isDisabled("a"))
         XCTAssertFalse(reloaded.isDisabled("b"))
-        XCTAssertEqual(reloaded.override(for: "b"), BucketOverride(group: "Ops", order: 3))
+        XCTAssertEqual(reloaded.override(for: "b"), BucketOverride(group: "Ops", order: 3, size: "L"))
         XCTAssertEqual(reloaded.override(for: "c"), BucketOverride(group: nil, order: 7))
     }
 
@@ -44,8 +44,8 @@ final class WidgetPrefsTests: XCTestCase {
 
     func testSetOverrideWithBothNilClearsEntry() {
         let prefs = WidgetPrefs(fileURL: fileURL)
-        prefs.setOverride(group: "Ops", order: 2, for: "a")
-        prefs.setOverride(group: nil, order: nil, for: "a")
+        prefs.setOverride(group: "Ops", order: 2, size: "S", for: "a")
+        prefs.setOverride(group: nil, order: nil, size: nil, for: "a")
 
         XCTAssertNil(prefs.override(for: "a"))
     }
@@ -54,7 +54,7 @@ final class WidgetPrefsTests: XCTestCase {
         let prefs = WidgetPrefs(fileURL: fileURL)
         prefs.togglePin("a")
         prefs.setDisabled("a", true)
-        prefs.setOverride(group: "Ops", order: 1, for: "a")
+        prefs.setOverride(group: "Ops", order: 1, size: "L", for: "a")
         prefs.setAppearanceOverride(WidgetAppearance(accent: "red"), for: "a")
 
         prefs.removeAllState(for: "a")

@@ -73,6 +73,23 @@ public final class StorageService: @unchecked Sendable {
         try persistLocked(widgetId: widgetId, namespace: namespace, data: serialize(namespace))
     }
 
+    /// All live (non-expired) entries for a widget as a plain object — the
+    /// read surface the workflow engine injects as `storage.*`.
+    public func snapshot(
+        widgetId: String,
+        nowMs: Double = Date().timeIntervalSince1970 * 1000
+    ) -> [String: JSONValue] {
+        lock.lock()
+        defer { lock.unlock() }
+        let namespace = loadLocked(widgetId: widgetId)
+        var out: [String: JSONValue] = [:]
+        for (key, entry) in namespace.entries {
+            if let expiresAt = entry.expiresAt, expiresAt <= nowMs { continue }
+            out[key] = entry.value
+        }
+        return out
+    }
+
     public func list(
         widgetId: String,
         prefix: String? = nil,

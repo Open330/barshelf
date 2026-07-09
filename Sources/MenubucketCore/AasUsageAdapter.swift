@@ -5,8 +5,9 @@ import Foundation
 /// Lives in MenubucketCore (Foundation-only) so its output structure is unit-testable.
 /// Transforms the aas payload into a UINode tree:
 /// - header: "aas" title + worst-remaining summary
-/// - one section per provider; account rows (active dot + name + plan badge),
-///   meter rows (label + linear progress + percent), account errors as danger captions
+/// - one section per provider; account cards (provider glyph + name + plan chips),
+///   meter rows (label + health-colored linear progress + reset ETA), account
+///   errors as danger captions
 /// - footer: Refresh button (action: refresh)
 public enum AasUsageAdapter {
     public static let name = "aas-usage"
@@ -137,7 +138,7 @@ public enum AasUsageAdapter {
             items.append(UINode(
                 id: "aas-summary",
                 type: "text",
-                text: String(format: "worst: %.0f%% left", worst),
+                text: String(format: "%.0f%% left", worst),
                 role: "caption",
                 monospacedDigit: true,
                 foreground: severity(remainingPct: worst)
@@ -148,88 +149,154 @@ public enum AasUsageAdapter {
 
     static func section(provider: String, accounts: [Account]) -> UINode {
         var rows: [UINode] = []
-        for account in accounts {
-            let key = accountKey(provider: provider, account: account)
-            rows.append(accountRow(account: account, key: key))
-            if let headline = account.headline, !headline.isEmpty {
-                rows.append(UINode(
-                    id: "\(key)-headline",
-                    type: "text",
-                    text: headline,
-                    role: "caption",
-                    lineLimit: 1
-                ))
-            }
-            if let error = account.error, !error.isEmpty {
-                rows.append(UINode(
-                    id: "\(key)-error",
-                    type: "text",
-                    text: error,
-                    role: "caption",
-                    lineLimit: 2,
-                    foreground: "danger"
-                ))
-            }
-            for (index, meter) in (account.meters ?? []).enumerated() {
-                rows.append(meterRow(meter: meter, key: "\(key)-meter-\(index)"))
-            }
+        for (index, account) in accounts.enumerated() {
+            let key = accountKey(provider: provider, account: account, index: index)
+            rows.append(accountCard(provider: provider, account: account, key: key))
         }
         return UINode(
             id: "aas-section-\(provider)",
             type: "section",
             children: rows,
-            spacing: 4,
-            title: provider
+            spacing: 6,
+            title: providerTitle(provider)
         )
     }
 
-    static func accountRow(account: Account, key: String) -> UINode {
-        var items: [UINode] = [
-            UINode(
-                id: "\(key)-dot",
-                type: "image",
-                source: ImageSource(kind: "sfSymbol", name: "circle.fill"),
-                size: 7,
-                tint: (account.active ?? false) ? "good" : "neutral"
-            ),
+    static func accountCard(provider: String, account: Account, key: String) -> UINode {
+        var children: [UINode] = [accountHeader(provider: provider, account: account, key: key)]
+        if let headline = account.headline, !headline.isEmpty {
+            children.append(UINode(
+                id: "\(key)-headline",
+                type: "text",
+                text: headline,
+                role: "caption",
+                lineLimit: 1,
+                foreground: accountSeverity(account)
+            ))
+        }
+        if let error = account.error, !error.isEmpty {
+            children.append(UINode(
+                id: "\(key)-error",
+                type: "banner",
+                text: error,
+                tone: "danger",
+                icon: "exclamationmark.triangle.fill"
+            ))
+        }
+        for (index, meter) in (account.meters ?? []).enumerated() {
+            children.append(meterBlock(meter: meter, key: "\(key)-meter-\(index)"))
+        }
+        if (account.meters ?? []).isEmpty, account.error?.isEmpty != false {
+            children.append(UINode(
+                id: "\(key)-no-meters",
+                type: "text",
+                text: "No usage meters reported",
+                role: "caption",
+                foreground: "secondary"
+            ))
+        }
+        return UINode(
+            id: "\(key)-card",
+            type: "card",
+            children: children,
+            spacing: 6,
+            tone: accountSeverity(account),
+            widthFill: true
+        )
+    }
+
+    static func accountHeader(provider: String, account: Account, key: String) -> UINode {
+        var titleStack: [UINode] = [
             UINode(
                 id: "\(key)-name",
                 type: "text",
                 text: account.name ?? account.email ?? "unknown",
                 role: "body",
                 lineLimit: 1
+            )
+        ]
+        if let email = account.email, !email.isEmpty, email != account.name {
+            titleStack.append(UINode(
+                id: "\(key)-email",
+                type: "text",
+                text: email,
+                role: "caption",
+                lineLimit: 1,
+                foreground: "secondary"
+            ))
+        }
+
+        var items: [UINode] = [
+            UINode(
+                id: "\(key)-provider-icon",
+                type: "image",
+                source: ImageSource(kind: "sfSymbol", name: providerSymbol(provider)),
+                size: 16,
+                tint: providerTint(provider),
+                accessibilityLabel: providerTitle(provider)
+            ),
+            UINode(
+                id: "\(key)-identity",
+                type: "vstack",
+                children: titleStack,
+                spacing: 1
             ),
             UINode(id: "\(key)-row-spacer", type: "spacer"),
         ]
-        if let plan = account.planLabel ?? account.plan, !plan.isEmpty {
-            items.append(UINode(id: "\(key)-plan", type: "badge", text: plan, tint: "accent"))
+        if account.active == true {
+            items.append(UINode(id: "\(key)-active", type: "badge", text: "ACTIVE", tint: "good"))
         }
-        return UINode(id: "\(key)-row", type: "hstack", children: items, spacing: 6)
+        if let plan = formattedPlan(account), !plan.isEmpty {
+            items.append(UINode(id: "\(key)-plan", type: "badge", text: plan, tint: planTone(account.plan)))
+        }
+        return UINode(id: "\(key)-header", type: "hstack", children: items, spacing: 7)
     }
 
-    static func meterRow(meter: Meter, key: String) -> UINode {
+    static func meterBlock(meter: Meter, key: String) -> UINode {
         let used = min(max(meter.usedPct ?? 0, 0), 100)
         let remaining = 100 - used
+        let tint = severity(remainingPct: remaining)
+        var caption = String(format: "%.0f%% left", remaining)
+        if let reset = resetDescription(ms: meter.resetMs) {
+            caption += " · \(reset)"
+        }
         return UINode(
             id: key,
-            type: "hstack",
+            type: "vstack",
             children: [
+                UINode(
+                    id: "\(key)-top",
+                    type: "hstack",
+                    children: [
+                        UINode(
+                            id: "\(key)-label",
+                            type: "text",
+                            text: meter.label ?? "Usage",
+                            role: "caption",
+                            lineLimit: 1
+                        ),
+                        UINode(id: "\(key)-spacer", type: "spacer"),
+                        UINode(
+                            id: "\(key)-caption",
+                            type: "text",
+                            text: caption,
+                            role: "caption",
+                            lineLimit: 1,
+                            monospacedDigit: true,
+                            foreground: tint
+                        ),
+                    ],
+                    spacing: 6
+                ),
                 UINode(
                     id: "\(key)-progress",
                     type: "progress",
-                    tint: severity(remainingPct: remaining),
+                    tint: tint,
                     value: used / 100.0,
-                    label: meter.label
-                ),
-                UINode(
-                    id: "\(key)-pct",
-                    type: "text",
-                    text: String(format: "%.0f%%", used),
-                    role: "caption",
-                    monospacedDigit: true
-                ),
+                    style: "linear"
+                )
             ],
-            spacing: 6
+            spacing: 3
         )
     }
 
@@ -240,6 +307,15 @@ public enum AasUsageAdapter {
         if remainingPct < 10 { return "danger" }
         if remainingPct < 30 { return "warning" }
         return "good"
+    }
+
+    static func accountSeverity(_ account: Account) -> String {
+        if account.error?.isEmpty == false { return "danger" }
+        let remainings = (account.meters ?? [])
+            .compactMap(\.usedPct)
+            .map { 100 - min(max($0, 0), 100) }
+        guard let worst = remainings.min() else { return "neutral" }
+        return severity(remainingPct: worst)
     }
 
     static func worstRemaining(in payload: Payload) -> Double? {
@@ -264,7 +340,81 @@ public enum AasUsageAdapter {
         return order.map { ($0, buckets[$0] ?? []) }
     }
 
-    static func accountKey(provider: String, account: Account) -> String {
-        "aas-\(provider)-\(account.name ?? account.email ?? "unknown")"
+    static func accountKey(provider: String, account: Account, index: Int) -> String {
+        let raw = "\(provider)-\(account.name ?? account.email ?? "unknown")-\(index)"
+        let safe = raw.map { char -> Character in
+            char.isLetter || char.isNumber || char == "-" || char == "_" || char == "."
+                ? char : "-"
+        }
+        return "aas-\(String(safe))"
+    }
+
+    static func providerTitle(_ provider: String) -> String {
+        switch provider.lowercased() {
+        case "anthropic": return "Claude"
+        case "openai": return "OpenAI"
+        case "google": return "Google"
+        case "xai": return "xAI"
+        default:
+            return provider.split(separator: "-")
+                .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+                .joined(separator: " ")
+        }
+    }
+
+    static func providerSymbol(_ provider: String) -> String {
+        switch provider.lowercased() {
+        case "anthropic": return "sparkles"
+        case "openai": return "circle.hexagongrid.fill"
+        case "google": return "g.circle.fill"
+        case "xai": return "xmark.circle.fill"
+        default: return "cpu.fill"
+        }
+    }
+
+    static func providerTint(_ provider: String) -> String {
+        switch provider.lowercased() {
+        case "anthropic": return "warning"
+        case "openai": return "good"
+        case "google": return "accent"
+        case "xai": return "primary"
+        default: return "secondary"
+        }
+    }
+
+    static func formattedPlan(_ account: Account) -> String? {
+        let raw = (account.planLabel ?? account.plan)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let raw, !raw.isEmpty else { return nil }
+        let normalizedPlan = account.plan?.lowercased()
+        if normalizedPlan == "max" {
+            let suffix = raw
+                .replacingOccurrences(of: "max", with: "", options: [.caseInsensitive])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return suffix.isEmpty ? "MAX" : "MAX · \(suffix)"
+        }
+        return raw.uppercased()
+    }
+
+    static func planTone(_ plan: String?) -> String {
+        switch plan?.lowercased() {
+        case "max": return "accent"
+        case "pro": return "neutral"
+        case "team", "enterprise": return "good"
+        default: return "neutral"
+        }
+    }
+
+    static func resetDescription(ms: Double?, now: Date = Date()) -> String? {
+        guard let ms else { return nil }
+        let reset = Date(timeIntervalSince1970: ms / 1000.0)
+        let seconds = reset.timeIntervalSince(now)
+        if seconds <= 0 { return "reset due" }
+        let minutes = Int((seconds / 60).rounded(.up))
+        if minutes < 60 { return "resets in \(minutes)m" }
+        let hours = Int((Double(minutes) / 60).rounded(.up))
+        if hours < 48 { return "resets in \(hours)h" }
+        let days = Int((Double(hours) / 24).rounded(.up))
+        return "resets in \(days)d"
     }
 }

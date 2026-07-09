@@ -156,7 +156,7 @@ final class RegistryTests: XCTestCase {
             .appendingPathComponent("registry/index.json")
         let (index, warnings) = try RegistryIndex.parse(Data(contentsOf: sample))
         XCTAssertEqual(index.schemaVersion, 1)
-        XCTAssertEqual(index.widgets.count, 7)
+        XCTAssertEqual(index.widgets.count, 12)
         XCTAssertTrue(warnings.isEmpty, "\(warnings)")
         XCTAssertEqual(
             Set(index.widgets.compactMap(\.kind)),
@@ -170,6 +170,9 @@ final class RegistryTests: XCTestCase {
         XCTAssertEqual(byID["dev.barshelf.clock-script"]?.requires, "Deno runtime")
         XCTAssertNil(byID["dev.barshelf.hello"]?.requires)
         XCTAssertNil(byID["dev.barshelf.recent-files"]?.requires)
+        XCTAssertNil(byID["dev.barshelf.local-time"]?.requires)
+        XCTAssertEqual(byID["dev.barshelf.battery"]?.requires, "Deno runtime")
+        XCTAssertEqual(byID["dev.barshelf.top-processes"]?.requires, "Deno runtime")
         // Origin-project links surfaced per user feedback (Stashbar / aas).
         XCTAssertEqual(
             byID["dev.barshelf.recent-files"]?.homepage,

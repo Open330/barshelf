@@ -11,6 +11,7 @@ struct LoadedWidget: Identifiable {
     var id: String { manifest.id }
     var group: String { manifest.bucket?.group ?? "General" }
     var order: Int { manifest.bucket?.order ?? 0 }
+    var size: String { manifest.bucket?.size ?? "M" }
 
     /// Sensitive widgets never log stdout and never cache renders to disk.
     var isSensitive: Bool {
@@ -86,6 +87,14 @@ final class WidgetRuntime: ObservableObject {
     )
     private let notificationService = NotificationService()
     private var scriptSupervisorStorage: RuntimeSupervisor?
+
+    /// Per-widget persistent KV store, shared by the script runtime
+    /// (`host.storage.*`) and workflow persistence (`storage.*` reads +
+    /// `store` writes) so both see one namespace per widget.
+    private let storage = StorageService(
+        directory: WidgetRuntime.applicationSupportDirectory
+            .appendingPathComponent("storage", isDirectory: true)
+    )
 
     /// Builtin adapter registry for `output = "data"` sources (M1 contract:
     /// async, context-carrying, may return a deadline + status text).
@@ -181,9 +190,7 @@ final class WidgetRuntime: ObservableObject {
                     stateDirectory: appSupport.appendingPathComponent("runtime", isDirectory: true)
                 )
             },
-            storage: StorageService(
-                directory: appSupport.appendingPathComponent("storage", isDirectory: true)
-            ),
+            storage: storage,
             secrets: KeychainSecretStore(),
             notify: { title, body in
                 try await notificationService.show(title: title, body: body)
@@ -570,6 +577,20 @@ final class WidgetRuntime: ObservableObject {
         prefs.setOverride(
             group: trimmed.isEmpty ? nil : trimmed,
             order: prefs.override(for: id)?.order,
+            size: prefs.override(for: id)?.size,
+            for: id
+        )
+        objectWillChange.send()
+    }
+
+    /// Changes the popup card size override. `nil` restores the manifest size.
+    func resizeWidget(id: String, toSize size: String?) {
+        let normalized = Self.normalizedBucketSize(size)
+        let existing = prefs.override(for: id)
+        prefs.setOverride(
+            group: existing?.group,
+            order: existing?.order,
+            size: normalized,
             for: id
         )
         objectWillChange.send()
@@ -652,6 +673,21 @@ final class WidgetRuntime: ObservableObject {
             return override
         }
         return widgets.first(where: { $0.id == id })?.group ?? "General"
+    }
+
+    /// The card size a widget renders with: a user override wins over manifest.
+    func effectiveSize(for id: String) -> String {
+        if let override = prefs.override(for: id)?.size,
+           let normalized = Self.normalizedBucketSize(override) {
+            return normalized
+        }
+        return widgets.first(where: { $0.id == id })?.size ?? "M"
+    }
+
+    private static func normalizedBucketSize(_ size: String?) -> String? {
+        guard let size else { return nil }
+        let uppercased = size.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        return ["XS", "S", "M", "L"].contains(uppercased) ? uppercased : nil
     }
 
     /// The sort key within a page: an override wins over the manifest order.
@@ -930,7 +966,16 @@ final class WidgetRuntime: ObservableObject {
     ) async -> Result<RefreshSuccess, Error> {
         do {
             let definition = try WorkflowDefinition.decode(from: try Data(contentsOf: workflowURL))
-            let params = try WorkflowEngine.resolvedSourceParams(definition, settings: settings)
+            // Storage is opt-in: only widgets that declare `permissions.storage`
+            // (as `true` or an object) can read `storage.*` or commit a `store`
+            // block. An explicit `false` declines.
+            let storageAllowed = widget.manifest.permissions?.storage?.granted == true
+            let storageSnapshot: JSONValue = storageAllowed
+                ? .object(storage.snapshot(widgetId: widget.id))
+                : .object([:])
+            let params = try WorkflowEngine.resolvedSourceParams(
+                definition, settings: settings, storage: storageSnapshot
+            )
 
             var sourceValues: [String: JSONValue] = [:]
             for (sourceID, source) in definition.sources {
@@ -952,16 +997,37 @@ final class WidgetRuntime: ObservableObject {
                     sourceValues[sourceID] = try await runWorkflowHTTPSource(
                         widget: widget, params: value
                     )
+                case "value":
+                    sourceValues[sourceID] = value
                 default:
                     throw RuntimeError.invalidWorkflow(
-                        "unknown source use \"\(source.use)\" (v1: exec, fs.directory, http)"
+                        "unknown source use \"\(source.use)\" (v1: exec, fs.directory, http, value)"
                     )
                 }
             }
 
             let output = try WorkflowEngine.evaluate(
-                definition, sources: sourceValues, settings: settings
+                definition, sources: sourceValues, settings: settings, storage: storageSnapshot
             )
+
+            // Commit the store block after a successful eval. Failures here are
+            // non-fatal (e.g. quota) — the view already rendered; log and move on.
+            if storageAllowed {
+                for write in output.writes {
+                    do {
+                        try storage.set(
+                            widgetId: widget.id,
+                            key: write.key,
+                            value: write.value,
+                            ttlMs: write.ttlMs
+                        )
+                    } catch {
+                        NSLog("barshelf[%@] store %@ failed: %@",
+                              widget.id, write.key, String(describing: error))
+                    }
+                }
+            }
+
             return .success(RefreshSuccess(
                 viewTree: output.viewTree,
                 statusText: output.statusTooltip

@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "kind": "workflow",
+  "_comment": "Diff/delta demo — counts files in a folder, compares to the count stored on the previous check (storage.count), shows the signed change, then persists the new count. Requires permissions.storage + readPaths.",
+
+  "sources": {
+    "files": {
+      "use": "fs.directory",
+      "with": {
+        "path": "${settings.folder}",
+        "skipHidden": true,
+        "sortBy": "modifiedAt",
+        "sortDirection": "descending",
+        "limit": 500
+      }
+    }
+  },
+
+  "transforms": {
+    "items": { "use": "assign", "from": "$.sources.files.items" }
+  },
+
+  "view": {
+    "type": "card",
+    "tone": "accent",
+    "spacing": 6,
+    "children": [
+      {
+        "type": "hstack",
+        "spacing": 7,
+        "children": [
+          { "type": "image", "source": { "kind": "sfSymbol", "name": "arrow.down.circle.fill" }, "size": 15, "tint": "accent" },
+          { "type": "text", "text": "${file.basename(settings.folder)}", "role": "title", "lineLimit": 1 },
+          { "type": "spacer" },
+          { "type": "text", "text": "${count(transforms.items)} files", "role": "caption", "foreground": "secondary", "monospacedDigit": true }
+        ]
+      },
+      {
+        "type": "text",
+        "text": "${if(gte(sub(count(transforms.items), coalesce(storage.count, count(transforms.items))), 0), '+', '')}${string(sub(count(transforms.items), coalesce(storage.count, count(transforms.items))))} since last check",
+        "role": "body",
+        "monospacedDigit": true,
+        "foreground": "${if(gt(sub(count(transforms.items), coalesce(storage.count, count(transforms.items))), 0), 'good', if(lt(sub(count(transforms.items), coalesce(storage.count, count(transforms.items))), 0), 'warning', 'secondary'))}"
+      }
+    ]
+  },
+
+  "store": {
+    "count": { "value": "${count(transforms.items)}" }
+  },
+
+  "status": {
+    "label": "${string(count(transforms.items))}",
+    "tooltip": "${count(transforms.items)} files in ${file.basename(settings.folder)}"
+  }
+}

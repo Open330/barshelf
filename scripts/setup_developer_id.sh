@@ -35,7 +35,7 @@ esac
 
 if [[ -z "$KEY" ]]; then
   echo "error: private key not given. Pass the PEM key paired with the CSR." >&2
-  echo "       (restore from vault item 'Developer ID Application - menubucket', field private_key_pem_b64)" >&2
+  echo "       (restore from vault item 'Developer ID Application - barshelf', field private_key_pem_b64)" >&2
   exit 1
 fi
 

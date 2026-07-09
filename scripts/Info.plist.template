@@ -38,7 +38,6 @@
             <key>CFBundleURLSchemes</key>
             <array>
                 <string>barshelf</string>
-                <string>menubucket</string>
             </array>
         </dict>
     </array>

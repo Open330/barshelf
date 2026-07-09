@@ -71,7 +71,7 @@ public struct WidgetInstallSource: Equatable, Sendable {
     private static let maxDeepLinkDepth = 1
     private static let archiveExtensions: Set<String> = ["zip", "mbw"]
     private static let gitHubHosts: Set<String> = ["github.com", "www.github.com"]
-    private static let deepLinkSchemes: Set<String> = ["barshelf", "menubucket"]
+    private static let deepLinkSchemes: Set<String> = ["barshelf"]
 
     public static func parse(_ input: String) throws -> WidgetInstallSource {
         try parse(input, deepLinkDepth: 0)

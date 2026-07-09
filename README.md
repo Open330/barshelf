@@ -68,11 +68,11 @@ Install BarShelf on my Mac and scaffold my first widget.
 1. Download the latest release from
    https://github.com/Open330/barshelf/releases/latest, unzip the
    BarShelf-<version>-arm64.zip, move BarShelf.app into /Applications, and open it.
-2. Download the mbk CLI — it ships as a separate release asset
-   (mbk-<version>-arm64.tar.gz). Extract it and put mbk on my PATH.
-3. Scaffold a widget:  mbk new my-widget --kind workflow
-   then validate it:   mbk validate ./my-widget
-   then install it:    mbk install ./my-widget
+2. Download the barshelf CLI — it ships as a separate release asset
+   (barshelf-cli-<version>-arm64.tar.gz). Extract it and put barshelf on my PATH.
+3. Scaffold a widget:  barshelf new my-widget --kind workflow
+   then validate it:   barshelf validate ./my-widget
+   then install it:    barshelf install ./my-widget
 4. Confirm the widget appears in the menu bar popover.
 
 Requires macOS 13+ on Apple Silicon. Script widgets also need Deno (brew install deno).
@@ -89,7 +89,7 @@ Grab `BarShelf-<version>-arm64.zip` from
 `/Applications`, and **double-click** — the build is Developer ID signed and
 Apple-notarized, so there's no Gatekeeper dance.
 
-Full guide, `mbk` CLI, and troubleshooting: **[docs/INSTALL.md](docs/INSTALL.md)**.
+Full guide, `barshelf` CLI, and troubleshooting: **[docs/INSTALL.md](docs/INSTALL.md)**.
 
 > Requires macOS 13+ on Apple Silicon. Script widgets need [Deno](https://deno.land)
 > (`brew install deno`); exec and workflow widgets work without it.
@@ -131,36 +131,38 @@ Drop it in `~/Library/Application Support/barshelf/widgets/` (hot-reloaded), or
 install straight from a repo:
 
 ```bash
-mbk install https://github.com/Open330/aas       # GitHub repo
-mbk install ./MyWidget.mbw                        # packed archive
+barshelf install https://github.com/Open330/aas       # GitHub repo
+barshelf install ./MyWidget.mbw                        # packed archive
 open "barshelf://install?url=…"                   # deep link (README badge)
 ```
 
-## `mbk` — the widget CLI
+## `barshelf` — the widget CLI
 
 ```bash
-mbk new my-widget --kind workflow   # scaffold from a template
-mbk validate ./my-widget            # check manifest + workflow
-mbk pack ./my-widget -o my.mbw      # zip a distributable bundle
-mbk install <url|path>              # install from repo / archive / deep link
-mbk list                            # installed widgets
+barshelf new my-widget --kind workflow   # scaffold from a template
+barshelf validate ./my-widget            # check manifest + workflow
+barshelf pack ./my-widget -o my.mbw      # zip a distributable bundle
+barshelf install <url|path>              # install from repo / archive / deep link
+barshelf list                            # installed widgets
 ```
 
-Reference: **[docs/MBK.md](docs/MBK.md)**.
+`bsf` is the same CLI as a shorter alias.
+
+Reference: **[docs/CLI.md](docs/CLI.md)**.
 
 ## Documentation
 
 | Doc | Contents |
 |---|---|
 | [Getting Started](docs/GETTING-STARTED.md) | Install, first widget, the bundled examples |
-| [Install](docs/INSTALL.md) | Release install, `mbk`, source build, troubleshooting |
+| [Install](docs/INSTALL.md) | Release install, `barshelf`, source build, troubleshooting |
 | [Widget Spec](docs/WIDGET-SPEC.md) | `widget.json`, UINode nodes, actions, refresh, permissions |
-| [Agents](docs/AGENTS.md) | Self-contained widget-authoring spec for LLM agents (also `mbk agent-spec`) |
+| [Agents](docs/AGENTS.md) | Self-contained widget-authoring spec for LLM agents (also `barshelf agent-spec`) |
 | [Workflow DSL](docs/WORKFLOW.md) | Sources, transforms, interpolation, built-ins, `forEach` |
-| [Script Runtime](docs/SCRIPT-RUNTIME.md) | Deno JSON-RPC protocol, `mb.*` SDK, sandboxing |
+| [Script Runtime](docs/SCRIPT-RUNTIME.md) | Deno JSON-RPC protocol, `barshelf.*` SDK, sandboxing |
 | [Publishing](docs/PUBLISHING.md) | Repo layout, install badges, registry submission |
 | [Registry](docs/REGISTRY.md) | The curated gallery index and how to list a widget |
-| [MBK](docs/MBK.md) | CLI reference |
+| [CLI](docs/CLI.md) | CLI reference |
 
 JSON Schemas: [`widget-0.1.json`](schema/widget-0.1.json) ·
 [`uinode-0.1.json`](schema/uinode-0.1.json) ·
@@ -178,13 +180,13 @@ JSON Schemas: [`widget-0.1.json`](schema/widget-0.1.json) ·
 
 ```bash
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift build   # dev
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test    # 161 tests
-bash scripts/build_app.sh                                              # dist/BarShelf.app + dist/mbk
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test    # 220 tests
+bash scripts/build_app.sh                                              # dist/BarShelf.app + dist/barshelf + dist/bsf
 ```
 
 The package splits into `MenubucketCore` (models, manifest/workflow parsing,
 schedule policy — UI-free, tested) and `MenubucketApp` (AppKit shell, SwiftUI
-renderer, runtime), with a standalone `mbk` executable target.
+renderer, runtime), with standalone `barshelf` and `bsf` CLI executable targets.
 
 ## License
 

@@ -1,5 +1,5 @@
 import XCTest
-import MbkKit
+import BarShelfKit
 import MenubucketCore
 
 /// R06 공통 계약 1 — HeadlessInstaller against a local zip archive
@@ -9,7 +9,7 @@ final class HeadlessInstallerTests: XCTestCase {
 
     override func setUpWithError() throws {
         workDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("mbk-install-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("barshelf-install-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(
             at: workDir, withIntermediateDirectories: true
         )
@@ -28,7 +28,7 @@ final class HeadlessInstallerTests: XCTestCase {
     }
 
     func testFetchSessionAcceptsLocalDirectory() async throws {
-        // `mbk install ./my-widget` — a widget directory, no packing required.
+        // `barshelf install ./my-widget` — a widget directory, no packing required.
         let widgetDir = workDir.appendingPathComponent("dir-widget", isDirectory: true)
         try WidgetScaffold.create(name: "dir-widget", kind: .exec, at: widgetDir)
 
@@ -95,7 +95,7 @@ final class HeadlessInstallerTests: XCTestCase {
     func testFetchSessionAcceptsLocalPathString() async throws {
         let archiveURL = try makeArchive(name: "path-widget")
 
-        // Plain filesystem path (what `mbk install ./x.mbw` passes through).
+        // Plain filesystem path (what `barshelf install ./x.mbw` passes through).
         let session = try await HeadlessInstaller.fetchSession(input: archiveURL.path)
         defer { session.cleanup() }
         XCTAssertEqual(session.candidates.map(\.manifest.id), ["path-widget"])
@@ -146,10 +146,10 @@ final class HeadlessInstallerTests: XCTestCase {
     func testListWidgetsExitCodes() throws {
         let widgetsDir = workDir.appendingPathComponent("installed", isDirectory: true)
         // Missing directory → still exit 0 ("no widgets installed").
-        XCTAssertEqual(MbkMain.listWidgets(in: widgetsDir), 0)
+        XCTAssertEqual(BarShelfMain.listWidgets(in: widgetsDir), 0)
 
         let widgetDir = widgetsDir.appendingPathComponent("list-widget", isDirectory: true)
         try WidgetScaffold.create(name: "list-widget", kind: .exec, at: widgetDir)
-        XCTAssertEqual(MbkMain.listWidgets(in: widgetsDir), 0)
+        XCTAssertEqual(BarShelfMain.listWidgets(in: widgetsDir), 0)
     }
 }

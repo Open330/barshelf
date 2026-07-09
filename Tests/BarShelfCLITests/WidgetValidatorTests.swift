@@ -1,15 +1,15 @@
 import XCTest
-import MbkKit
+import BarShelfKit
 import MenubucketCore
 
-/// `mbk validate` error reporting — broken manifests must surface
+/// `barshelf validate` error reporting — broken manifests must surface
 /// file:field-level issues.
 final class WidgetValidatorTests: XCTestCase {
     private var workDir: URL!
 
     override func setUpWithError() throws {
         workDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("mbk-validate-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("barshelf-validate-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(
             at: workDir, withIntermediateDirectories: true
         )
@@ -150,9 +150,9 @@ final class WidgetValidatorTests: XCTestCase {
 
     func testBundledWidgetsValidate() throws {
         // The repo's bundled widgets are the reference packages — they must
-        // stay green under `mbk validate`.
+        // stay green under `barshelf validate`.
         let repoWidgets = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent() // MbkCLITests
+            .deletingLastPathComponent() // BarShelfCLITests
             .deletingLastPathComponent() // Tests
             .deletingLastPathComponent() // repo root
             .appendingPathComponent("widgets", isDirectory: true)
@@ -160,7 +160,18 @@ final class WidgetValidatorTests: XCTestCase {
             FileManager.default.fileExists(atPath: repoWidgets.path),
             "bundled widgets directory not present"
         )
-        for name in ["hello", "recent-files", "clock-script", "aas-usage", "otpeek"] {
+        let names = try FileManager.default.contentsOfDirectory(atPath: repoWidgets.path)
+            .filter { name in
+                FileManager.default.fileExists(
+                    atPath: repoWidgets
+                        .appendingPathComponent(name, isDirectory: true)
+                        .appendingPathComponent("widget.json")
+                        .path
+                )
+            }
+            .sorted()
+        XCTAssertGreaterThanOrEqual(names.count, 10)
+        for name in names {
             let report = WidgetValidator.validate(
                 directory: repoWidgets.appendingPathComponent(name, isDirectory: true)
             )

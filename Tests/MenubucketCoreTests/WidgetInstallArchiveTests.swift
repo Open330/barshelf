@@ -33,7 +33,7 @@ final class WidgetInstallArchiveTests: XCTestCase {
     // MARK: Extraction
 
     func testExtractsStoredAndDeflatedEntries() throws {
-        let big = Data(String(repeating: "menubucket ", count: 2000).utf8)
+        let big = Data(String(repeating: "barshelf ", count: 2000).utf8)
         let zip = ZipFixture.build([
             .file("a.txt", Data("hello".utf8)),
             .file("dir/b.txt", big, deflate: true),

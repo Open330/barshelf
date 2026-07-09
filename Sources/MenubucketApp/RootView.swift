@@ -81,7 +81,7 @@ final class PagerState: ObservableObject {
     }
 }
 
-/// Popup root: one page per bucket group, vertical scroll inside a page,
+/// Popup root: one page per panel group, vertical scroll inside a page,
 /// horizontal two-finger swipe / arrow buttons / dots / keyboard for page
 /// switching. Pages sit side by side in a sliding strip so swipes track the
 /// fingers and snap with a spring.
@@ -172,7 +172,7 @@ struct RootView: View {
     }
 
     /// Pinned widgets stay above the pager on every page (invariant: at most
-    /// a compact strip — full cards live in their bucket).
+    /// a compact strip — full cards live in their panel).
     @ViewBuilder
     private var pinnedRow: some View {
         let pinnedWidgets = runtime.prefs.pinned.compactMap { id in
@@ -195,7 +195,7 @@ struct RootView: View {
     }
 
     /// "+N pinned hidden" caption below the two-card pinned strip: jumps to the
-    /// bucket page of the first still-visible pinned widget beyond the strip.
+    /// panel page of the first still-visible pinned widget beyond the strip.
     private func pinnedOverflow(pinnedWidgets: [LoadedWidget]) -> some View {
         let hidden = pinnedWidgets.count - 2
         return Button {
@@ -214,8 +214,8 @@ struct RootView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .buttonStyle(.borderless)
-        .help("Jump to the next pinned widget's bucket")
-        .accessibilityLabel("\(hidden) more pinned widgets hidden; jump to bucket")
+        .help("Jump to the next pinned widget's panel")
+        .accessibilityLabel("\(hidden) more pinned widgets hidden; jump to panel")
     }
 
     /// All pages laid out horizontally; offset = current page + live drag.
@@ -261,7 +261,7 @@ struct RootView: View {
         .clipped()
     }
 
-    /// Composed toolbar: bucket title + inline page indicator on the left,
+    /// Composed toolbar: panel title + inline page indicator on the left,
     /// search/refresh on the right, all on `.bar` material so header and footer
     /// read as one continuous chrome around the scrolling cards.
     private func header(for page: WidgetPage, index: Int, count: Int) -> some View {
@@ -274,7 +274,7 @@ struct RootView: View {
                 Text("\(index + 1) of \(count)")
                     .font(.caption)
                     .foregroundColor(.secondary)
-                    .accessibilityLabel("Bucket \(index + 1) of \(count)")
+                    .accessibilityLabel("Panel \(index + 1) of \(count)")
             }
             Spacer()
             Button {
@@ -310,8 +310,8 @@ struct RootView: View {
             }
             .buttonStyle(.borderless)
             .disabled(index == 0)
-            .help("Previous bucket")
-            .accessibilityLabel("Previous bucket")
+            .help("Previous panel")
+            .accessibilityLabel("Previous panel")
 
             Spacer()
 
@@ -331,7 +331,7 @@ struct RootView: View {
                 }
             }
             .accessibilityElement(children: .contain)
-            .accessibilityLabel("Bucket \(index + 1) of \(pages.count)")
+            .accessibilityLabel("Panel \(index + 1) of \(pages.count)")
 
             Spacer()
 
@@ -342,8 +342,8 @@ struct RootView: View {
             }
             .buttonStyle(.borderless)
             .disabled(index >= pages.count - 1)
-            .help("Next bucket")
-            .accessibilityLabel("Next bucket")
+            .help("Next panel")
+            .accessibilityLabel("Next panel")
 
             Button {
                 Task { @MainActor in
@@ -395,7 +395,7 @@ struct RootView: View {
         string: "https://github.com/Open330/barshelf/blob/master/docs/GETTING-STARTED.md"
     )!
 
-    /// The welcome card sits above the seeded `hello` widget ("Demo" bucket);
+    /// The welcome card sits above the seeded `hello` widget ("Demo" panel);
     /// if that page is gone (starter deleted) it falls back to the first page.
     private static func welcomePageID(pages: [WidgetPage]) -> String? {
         let helloPage = pages.first { page in
@@ -505,7 +505,7 @@ struct WelcomeCardView: View {
                 }
                 .controlSize(.small)
             }
-            Text("Tip: right-click the menu bar icon for Settings — swipe with two fingers to switch buckets.")
+            Text("Tip: right-click the menu bar icon for Settings — swipe with two fingers to switch panels.")
                 .font(.caption2)
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -560,6 +560,17 @@ struct WidgetCardView: View {
     /// Accent used for the tinted wash and the reveal highlight.
     private var cardAccent: Color { appearance.accentColor ?? .accentColor }
 
+    /// Manifest/user layout size. The popup remains a vertical stack, so size is
+    /// expressed as a conservative minimum height rather than a grid span.
+    private var cardMinHeight: CGFloat? {
+        switch runtime.effectiveSize(for: widget.id).uppercased() {
+        case "XS": return 56
+        case "S": return 78
+        case "L": return 160
+        default: return 110
+        }
+    }
+
     init(widget: LoadedWidget, runtime: WidgetRuntime, isHighlighted: Bool = false) {
         self.widget = widget
         self.runtime = runtime
@@ -604,7 +615,7 @@ struct WidgetCardView: View {
             }
         }
         .padding(contentInset)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: cardMinHeight, alignment: .topLeading)
         .environment(\.widgetAppearance, appearance)
         .background(cardBackground)
         .overlay(cardBorder)
@@ -617,8 +628,8 @@ struct WidgetCardView: View {
         .sheet(isPresented: $showSettings) {
             WidgetSettingsView(widget: widget, runtime: runtime)
         }
-        .alert("Move to a new bucket", isPresented: $showNewBucket) {
-            TextField("Bucket name", text: $newBucketName)
+        .alert("Move to a new panel", isPresented: $showNewBucket) {
+            TextField("Panel name", text: $newBucketName)
             Button("Cancel", role: .cancel) { newBucketName = "" }
             Button("Move") {
                 let name = newBucketName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -626,7 +637,7 @@ struct WidgetCardView: View {
                 newBucketName = ""
             }
         } message: {
-            Text("Enter a name for the bucket to move \(widget.manifest.name) into.")
+            Text("Enter a name for the panel to move \(widget.manifest.name) into.")
         }
         .alert("Remove \(widget.manifest.name)?", isPresented: $showRemoveConfirm) {
             Button("Cancel", role: .cancel) {}
@@ -651,7 +662,7 @@ struct WidgetCardView: View {
     }
 
     /// Card right-click actions: pin/refresh/settings plus R11 management —
-    /// disable, move to a bucket, reveal on disk, and destructive removal.
+    /// disable, move to a panel, reveal on disk, and destructive removal.
     @ViewBuilder
     private var cardContextMenu: some View {
         Button(runtime.prefs.isPinned(widget.id) ? "Unpin" : "Pin") {
@@ -666,12 +677,12 @@ struct WidgetCardView: View {
         Button(runtime.prefs.isDisabled(widget.id) ? "Enable" : "Disable") {
             runtime.setWidgetDisabled(widget.id, !runtime.prefs.isDisabled(widget.id))
         }
-        Menu("Move to Bucket") {
+        Menu("Move to Panel") {
             ForEach(runtime.allGroups, id: \.self) { group in
                 Button(group) { runtime.moveWidget(id: widget.id, toGroup: group) }
             }
             Divider()
-            Button("New Bucket…") { showNewBucket = true }
+            Button("New Panel…") { showNewBucket = true }
         }
         Button("Reveal in Finder") {
             if let directory = runtime.widgetDirectory(for: widget.id) {

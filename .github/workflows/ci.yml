@@ -40,8 +40,9 @@ jobs:
 
       - name: Validate bundled widgets
         run: |
-          swift build --product mbk
-          MBK="$(swift build --product mbk --show-bin-path)/mbk"
+          swift build --product barshelf
+          swift build --product bsf
+          BARSHELF_CLI="$(swift build --product barshelf --show-bin-path)/barshelf"
           for w in widgets/*/; do
-            [ -f "$w/widget.json" ] && "$MBK" validate "$w"
+            [ -f "$w/widget.json" ] && "$BARSHELF_CLI" validate "$w"
           done

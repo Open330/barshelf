@@ -219,10 +219,19 @@ export interface SectionNode extends UINodeBase {
   children?: UINode[];
 }
 
+export interface CardNode extends UINodeBase {
+  type: "card";
+  children?: UINode[];
+  spacing?: number;
+  tone?: SemanticColor;
+  tint?: SemanticColor;
+}
+
 export interface BadgeNode extends UINodeBase {
   type: "badge";
   text: string;
   tone?: SemanticColor;
+  tint?: SemanticColor;
 }
 
 export interface BannerNode extends UINodeBase {
@@ -277,6 +286,7 @@ export type UINode =
   | ProgressNode
   | ButtonNode
   | SectionNode
+  | CardNode
   | BadgeNode
   | BannerNode
   | EmptyNode
@@ -296,11 +306,44 @@ type ButtonOptions = Omit<NodeOptions<ButtonNode>, "action" | "icon"> & {
   icon?: string | ImageSource;
 };
 type SectionOptions = Omit<NodeOptions<SectionNode>, "children" | "title">;
+type CardOptions = Omit<NodeOptions<CardNode>, "children">;
 type BadgeOptions = Omit<NodeOptions<BadgeNode>, "text">;
 type BannerOptions = Omit<NodeOptions<BannerNode>, "text">;
 type EmptyOptions = NodeOptions<EmptyNode>;
 type DividerOptions = NodeOptions<DividerNode>;
 type SpacerOptions = NodeOptions<SpacerNode>;
+
+export interface HeaderOptions extends StackOptions {
+  icon?: string | ImageSource;
+  iconSize?: number;
+  subtitle?: string;
+  badge?: string;
+  badgeTone?: SemanticColor;
+  tint?: SemanticColor;
+}
+
+export interface StatOptions extends CardOptions {
+  icon?: string | ImageSource;
+  caption?: string;
+  tone?: SemanticColor;
+  valueTone?: SemanticColor;
+}
+
+export interface MeterRowOptions extends StackOptions {
+  valueText?: string;
+  tint?: SemanticColor;
+}
+
+export interface MetricCardOptions extends CardOptions {
+  icon?: string | ImageSource;
+  caption?: string;
+  badge?: string;
+  badgeTone?: SemanticColor;
+  tone?: SemanticColor;
+  progress?: number;
+  progressLabel?: string;
+  progressTint?: SemanticColor;
+}
 
 function compact<T extends Record<string, unknown>>(value: T): T {
   const out: Record<string, unknown> = {};
@@ -318,6 +361,13 @@ function sfSymbol(name: string): ImageSource {
 
 function imageSource(source: string | ImageSource): ImageSource {
   return typeof source === "string" ? sfSymbol(source) : source;
+}
+
+function clamp01(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.min(Math.max(value, 0), 1);
 }
 
 function stack(type: "vstack" | "hstack" | "zstack", children: UINode[] = [], options: StackOptions = {}): StackNode {
@@ -389,6 +439,108 @@ export const ui = {
     return compact({ ...options, type: "section", title, children }) as SectionNode;
   },
 
+  card(children: UINode[] = [], options: CardOptions = {}): CardNode {
+    return compact({ ...options, type: "card", children }) as CardNode;
+  },
+
+  header(title: string, options: HeaderOptions = {}): StackNode {
+    const {
+      icon,
+      iconSize = 16,
+      subtitle,
+      badge,
+      badgeTone = "neutral",
+      tint = "accent",
+      ...rest
+    } = options;
+    const row = stack("hstack", [
+      ...(icon === undefined ? [] : [ui.image(icon, { size: iconSize, tint })]),
+      ui.text(title, { role: "title", lineLimit: 1 }),
+      ui.spacer(),
+      ...(badge === undefined ? [] : [ui.badge(badge, { tone: badgeTone })]),
+    ], { spacing: rest.spacing ?? 6 });
+
+    if (subtitle === undefined || subtitle.length === 0) {
+      return compact({ ...rest, type: "hstack", spacing: rest.spacing ?? 6, children: row.children }) as StackNode;
+    }
+    return stack("vstack", [
+      row,
+      ui.text(subtitle, { role: "caption", foreground: "secondary", lineLimit: 1 }),
+    ], { ...rest, spacing: 2 });
+  },
+
+  stat(label: string, value: string | number, options: StatOptions = {}): CardNode {
+    const {
+      icon,
+      caption,
+      tone = "accent",
+      valueTone,
+      ...rest
+    } = options;
+    return ui.card([
+      ui.hstack([
+        ...(icon === undefined ? [] : [ui.image(icon, { size: 13, tint: tone })]),
+        ui.text(label, { role: "caption", foreground: "secondary", lineLimit: 1 }),
+      ], { spacing: 4 }),
+      ui.text(String(value), {
+        role: "title",
+        monospacedDigit: true,
+        foreground: valueTone,
+        lineLimit: 1,
+      }),
+      ...(caption === undefined ? [] : [
+        ui.text(caption, { role: "caption", foreground: "secondary", lineLimit: 1 }),
+      ]),
+    ], { ...rest, tone, spacing: rest.spacing ?? 3 });
+  },
+
+  meterRow(label: string, value: number, options: MeterRowOptions = {}): StackNode {
+    const {
+      valueText = `${Math.round(clamp01(value) * 100)}%`,
+      tint = "accent",
+      ...rest
+    } = options;
+    return ui.vstack([
+      ui.hstack([
+        ui.text(label, { role: "caption", foreground: "secondary", lineLimit: 1 }),
+        ui.spacer(),
+        ui.text(valueText, { role: "caption", monospacedDigit: true, lineLimit: 1 }),
+      ], { spacing: 6 }),
+      ui.progress(clamp01(value), { tint }),
+    ], { ...rest, spacing: rest.spacing ?? 4 });
+  },
+
+  metricCard(title: string, value: string | number, options: MetricCardOptions = {}): CardNode {
+    const {
+      icon,
+      caption,
+      badge,
+      badgeTone = "neutral",
+      tone = "accent",
+      progress,
+      progressLabel,
+      progressTint,
+      ...rest
+    } = options;
+    return ui.card([
+      ui.header(title, { icon, badge, badgeTone, tint: tone }),
+      ui.text(String(value), {
+        role: "title",
+        monospacedDigit: true,
+        lineLimit: 1,
+      }),
+      ...(caption === undefined ? [] : [
+        ui.text(caption, { role: "caption", foreground: "secondary", lineLimit: 1 }),
+      ]),
+      ...(progress === undefined ? [] : [
+        ui.progress(clamp01(progress), {
+          label: progressLabel,
+          tint: progressTint ?? tone,
+        }),
+      ]),
+    ], { ...rest, tone, spacing: rest.spacing ?? 6 });
+  },
+
   progress(valueOrOptions: number | ProgressOptions = {}, options: ProgressOptions = {}): ProgressNode {
     const node = typeof valueOrOptions === "number"
       ? { ...options, value: valueOrOptions }
@@ -443,7 +595,8 @@ export interface WidgetRuntimeContext {
   notify: typeof notify;
   log: typeof log;
   ui: typeof ui;
-  mb: typeof mb;
+  barshelf: typeof barshelf;
+  bsf: typeof bsf;
   reload: () => Promise<void>;
 }
 
@@ -561,7 +714,8 @@ function makeContext<T extends object>(params: T): T & WidgetRuntimeContext {
     notify,
     log,
     ui,
-    mb,
+    barshelf,
+    bsf,
     reload: async () => {
       if (!handlers?.load || !lastLoadParams) {
         return;
@@ -581,7 +735,7 @@ function reportHandlerError(method: string, error: unknown): void {
 function dispatchNotification(method: string, params: unknown): void {
   void (async () => {
     if (!handlers) {
-      writeStderr(`barshelf sdk: received ${method} before mb.widget registration`);
+      writeStderr(`barshelf sdk: received ${method} before barshelf.widget registration`);
       return;
     }
 
@@ -781,7 +935,7 @@ function widget(newHandlers: WidgetHandlers): WidgetRegistration {
   return { handlers: newHandlers };
 }
 
-export const mb = {
+export const barshelf = {
   widget,
   render,
   exec,
@@ -792,4 +946,6 @@ export const mb = {
   log,
 };
 
-export default mb;
+export const bsf = barshelf;
+
+export default barshelf;

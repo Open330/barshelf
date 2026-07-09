@@ -37,7 +37,7 @@ Pick the **least powerful** layer that does the job:
 
 | Use… | When | Runs |
 |---|---|---|
-| **workflow** | Data comes from a local command, a directory listing, or an HTTPS JSON GET, and the view is a straightforward mapping of that data. **Prefer this.** No code, declarative, safest. | Host-executed sources → pure transforms → templated view. |
+| **workflow** | Data comes from a local command, a directory listing, an HTTPS JSON GET, or pasted/literal JSON, and the view is a straightforward mapping of that data. **Prefer this.** No code, declarative, safest. | Host-executed or literal sources → pure transforms → templated view. |
 | **exec** | You need a shell/binary to compute the whole view and can emit UINode JSON (or feed a builtin data adapter). | Your command runs each refresh; stdout is the view (or adapter input). |
 | **script** | You need persistent state, timers/countdowns, click handlers that mutate state, secrets, or notifications — i.e. interactivity/logic a template can't express. | A long-lived Deno process talking JSON-RPC to the host via the `barshelf` SDK. |
 
@@ -156,32 +156,32 @@ Deno process (run with `--no-remote --no-prompt`, read-only access to its own
 dir) that talks JSON-RPC to the host via the SDK. Import with:
 
 ```ts
-import { mb, ui, action, type WidgetLoadContext, type WidgetActionContext, type WidgetTimerContext } from "barshelf";
+import { barshelf, ui, action, type WidgetLoadContext, type WidgetActionContext, type WidgetTimerContext } from "barshelf";
 ```
 
 Register handlers and start the loop:
 
 ```ts
-export default mb.widget({
+export default barshelf.widget({
   load,     // (ctx: WidgetLoadContext)   — first run / open / manual / timer / interval
   action,   // (ctx, event)               — a UINode action of type "event" fired
   timer,    // (ctx, event)               — a scheduled timer fired
 });
 ```
 
-Host APIs (all `async`, reachable via `mb.*` or the context object):
+Host APIs (all `async`, reachable via `barshelf.*`, the short alias `bsf.*`, or the context object):
 
-- `mb.render(root: UINode, opts?)` — push a view tree. `opts`: `{ status?, nextRefreshAt?, cacheTtlMs?, sensitive? }`.
-- `mb.exec.run({ command, args?, parse?, timeoutMs?, sensitive?, env? })` — run an allowlisted command; `parse`: `"text" | "json" | "lines"`. Needs `permissions.exec`.
-- `mb.storage.get/set/delete/list(prefix?)` — per-widget KV store, ~1 MB quota. **No permission needed.**
-- `mb.secret.get/set(key[, value])` — Keychain-backed; account `<widgetId>/<key>`. Needs `permissions.keychain`.
-- `mb.timer.once(id, atMs) / after(id, delayMs) / every(id, intervalMs) / clear(id)` — schedule callbacks into your `timer` handler.
-- `mb.notify.show({ title, body? })` — system notification. Needs `permissions.notifications`.
-- `mb.log(level, message)` — `"debug" | "info" | "warn" | "error"`.
-- `ui.*` / `action.*` — typed builders that return UINode / NodeAction objects (see §10).
+- `barshelf.render(root: UINode, opts?)` — push a view tree. `opts`: `{ status?, nextRefreshAt?, cacheTtlMs?, sensitive? }`.
+- `barshelf.exec.run({ command, args?, parse?, timeoutMs?, sensitive?, env? })` — run an allowlisted command; `parse`: `"text" | "json" | "lines"`. Needs `permissions.exec`.
+- `barshelf.storage.get/set/delete/list(prefix?)` — per-widget KV store, ~1 MB quota. **No permission needed.**
+- `barshelf.secret.get/set(key[, value])` — Keychain-backed; account `<widgetId>/<key>`. Needs `permissions.keychain`.
+- `barshelf.timer.once(id, atMs) / after(id, delayMs) / every(id, intervalMs) / clear(id)` — schedule callbacks into your `timer` handler.
+- `barshelf.notify.show({ title, body? })` — system notification. Needs `permissions.notifications`.
+- `barshelf.log(level, message)` — `"debug" | "info" | "warn" | "error"`.
+- `ui.*` / `action.*` — typed UINode / NodeAction builders plus higher-level UI components (`header`, `metricCard`, `meterRow`, `stat`) for production-looking widgets (see §10).
 
 The script never touches the network or filesystem directly — everything goes
-through `mb.*`, which the host gates by manifest permissions.
+through `barshelf.*`, which the host gates by manifest permissions.
 
 ---
 
@@ -246,21 +246,21 @@ permissions invalidates approval (re-approval required).
   "network": ["api.github.com"],     // hosts the widget may HTTPS-GET (enables workflow "http" source)
   "readPaths": ["~/Downloads"],      // paths the widget may read (e.g. fs.directory source)
   "env": ["HOME", "PATH"],           // env vars exposed to processes
-  "keychain": true,                  // allow mb.secret.* (Keychain)
-  "notifications": true              // allow mb.notify.show
+  "keychain": true,                  // allow barshelf.secret.* (Keychain)
+  "notifications": true              // allow barshelf.notify.show
 }
 ```
 
 Gating specifics:
-- Any exec (workflow `exec` source, UINode `run` action, `mb.exec.run`) must
+- Any exec (workflow `exec` source, UINode `run` action, `barshelf.exec.run`) must
   match an `exec` allowlist entry.
 - The workflow **`http` source requires a non-empty `network` list** (the R12
   `network` permission). https only; GET only; 20 s timeout; 5 MB cap; no
   redirect downgrade to non-https.
-- `keychain` gates `mb.secret.*`; `notifications` gates `mb.notify.show`.
-- `mb.storage.*` needs **no** permission (per-widget sandbox).
+- `keychain` gates `barshelf.secret.*`; `notifications` gates `barshelf.notify.show`.
+- `barshelf.storage.*` needs **no** permission (per-widget sandbox).
 
-The install-confirm summary (`mbk install`) prints one line per gated capability,
+The install-confirm summary (`barshelf install`) prints one line per gated capability,
 e.g. `exec: /bin/ls`, `network: fetches from api.github.com`, `keychain: …`,
 `notifications: …`. The gallery shows the same as chips.
 
@@ -270,10 +270,10 @@ e.g. `exec: /bin/ls`, `network: fetches from api.github.com`, `keychain: …`,
 
 The view tree is one root UINode object. `type` is a string discriminator; every
 other field is optional; unknown types decode fine but render as a placeholder.
-**The native renderer knows exactly these 13 types** (anything else, including the
+**The native renderer knows exactly these 14 types** (anything else, including the
 SDK's `zstack`/`scroll`/`none`, renders as an unsupported placeholder today):
 
-`vstack`, `hstack`, `list`, `section`, `text`, `image`, `progress`, `button`,
+`vstack`, `hstack`, `list`, `section`, `card`, `text`, `image`, `progress`, `button`,
 `badge`, `banner`, `empty`, `divider`, `spacer`.
 
 Shared/common fields: `id` (stable identity, needed for lists & action routing),
@@ -301,6 +301,12 @@ Shared/common fields: `id` (stable identity, needed for lists & action routing),
 ```json
 { "type": "section", "title": "Recent", "spacing": 4, "children": [
   { "type": "text", "text": "item" }
+] }
+```
+```json
+{ "type": "card", "tone": "accent", "spacing": 6, "children": [
+  { "type": "text", "text": "Account", "role": "body" },
+  { "type": "progress", "style": "linear", "value": 0.72, "tint": "warning" }
 ] }
 ```
 
@@ -334,6 +340,18 @@ Shared/common fields: `id` (stable identity, needed for lists & action routing),
 `value` is 0.0–1.0. `countdown` (epoch ms) makes the host tick the ring 1 Hz with
 no re-run; `labelFrom: "remainingSeconds"` renders the seconds left; `tintRules`
 (first match wins) override `tint`.
+
+### Script SDK component helpers
+
+Use the component helpers when authoring script widgets; they emit ordinary
+UINode JSON but avoid hand-assembling common product UI:
+
+```ts
+ui.header("Battery", { icon: "battery.100percent", badge: "Charging", badgeTone: "good" })
+ui.metricCard("Charge", "86%", { tone: "good", progress: 0.86, progressLabel: "86%" })
+ui.meterRow("CPU", 0.42, { valueText: "42%", tint: "warning" })
+ui.stat("Source", "AC Power", { icon: "powerplug.fill", tone: "accent" })
+```
 
 ### Button (carries an action, see below)
 
@@ -389,15 +407,15 @@ and the install source. See `docs/REGISTRY.md`. Keep it out of `widget.json`.
 
 ---
 
-## 12. Build / test loop (the `mbk` CLI)
+## 12. Build / test loop (the `barshelf` CLI)
 
 ```bash
-mbk new my-widget --kind workflow      # scaffold a valid widget (auto-validates)
-mbk validate ./my-widget               # decode widget.json (+workflow.json) via the real Core decoders
-mbk install ./my-widget                # install from a local dir (also: GitHub URL, .zip/.mbw, barshelf://install)
-mbk list                               # list installed widgets
-mbk pack ./my-widget -o my-widget.mbw  # package (adds manifest.sha256)
-mbk agent-spec                          # print THIS document
+barshelf new my-widget --kind workflow      # scaffold a valid widget (auto-validates)
+barshelf validate ./my-widget               # decode widget.json (+workflow.json) via the real Core decoders
+barshelf install ./my-widget                # install from a local dir (also: GitHub URL, .zip/.mbw, barshelf://install)
+barshelf list                               # list installed widgets
+barshelf pack ./my-widget -o my-widget.mbw  # package (adds manifest.sha256)
+barshelf agent-spec                          # print THIS document
 ```
 
 - **Dev mode:** BarShelf discovers `./widgets/<name>/widget.json` relative to the
@@ -406,7 +424,7 @@ mbk agent-spec                          # print THIS document
   copy wins. Drop your widget in `./widgets/` and it loads without installing.
 - **Force a refresh** while testing the `"url"` trigger:
   `open "barshelf://refresh?widget=<id>"` (omit `?widget=` to refresh all).
-- Exit codes: `0` success, `1` failure; errors go to stderr. Run `mbk validate`
+- Exit codes: `0` success, `1` failure; errors go to stderr. Run `barshelf validate`
   until it prints `valid:` before installing.
 
 ---
@@ -490,7 +508,7 @@ EOF
   }
 }
 ```
-Workflow sources: `use` is `"exec"`, `"fs.directory"`, or `"http"`. Values flow
+Workflow sources: `use` is `"exec"`, `"fs.directory"`, `"http"`, or `"value"`. Values flow
 into `${...}` expressions in `transforms`/`view`: reference source output as
 `$.sources.<id>.<path>`, transforms as `transforms.<id>`, settings as
 `settings.<key>`. Built-in expression functions: `string`, `now`, `count`,
@@ -518,14 +536,14 @@ Provide an `"empty"` node for the zero-items case.
 ```
 `index.ts`
 ```ts
-import { mb, ui, action, type WidgetLoadContext, type WidgetActionContext } from "barshelf";
+import { barshelf, ui, action, type WidgetLoadContext, type WidgetActionContext } from "barshelf";
 
 async function render(): Promise<void> {
-  const count = (await mb.storage.get<number>("count")) ?? 0;
-  await mb.render(
+  const count = (await barshelf.storage.get<number>("count")) ?? 0;
+  await barshelf.render(
     ui.vstack([
-      ui.text("Counter", { id: "title", role: "title" }),
-      ui.text(String(count), { id: "n", role: "body", monospacedDigit: true }),
+      ui.header("Counter", { icon: "plus.circle", badge: "SDK" }),
+      ui.metricCard("Clicks", String(count), { tone: "accent" }),
       ui.button("Increment", action.event("inc"), { id: "btn" }),
     ], { id: "root", spacing: 8 }),
     { cacheTtlMs: 60_000 },
@@ -536,13 +554,13 @@ async function load(_ctx: WidgetLoadContext): Promise<void> { await render(); }
 
 async function action_(ctx: WidgetActionContext, event: { id?: string }): Promise<void> {
   if (event.id === "inc") {
-    const count = (await mb.storage.get<number>("count")) ?? 0;
-    await mb.storage.set("count", count + 1);
+    const count = (await barshelf.storage.get<number>("count")) ?? 0;
+    await barshelf.storage.set("count", count + 1);
     await render();
   }
 }
 
-export default mb.widget({ load, action: action_ });
+export default barshelf.widget({ load, action: action_ });
 ```
 
 ---
@@ -552,7 +570,7 @@ export default mb.widget({ load, action: action_ });
 - `schemaVersion`, `id` (filesystem-safe), `name`, `entry.kind` present.
 - Every command/host you touch is declared in `permissions` (exec allowlist,
   `network` for `http`, `keychain`/`notifications` as needed).
-- View tree uses only the 13 rendered node types; lists give each row a stable `id`.
-- `mbk validate ./my-widget` prints `valid:`.
-- Loads in dev mode from `./widgets/` (or `mbk install ./my-widget`), and the
+- View tree uses only the 14 rendered node types; lists give each row a stable `id`.
+- `barshelf validate ./my-widget` prints `valid:`.
+- Loads in dev mode from `./widgets/` (or `barshelf install ./my-widget`), and the
   first-run permission prompt lists what you expect.

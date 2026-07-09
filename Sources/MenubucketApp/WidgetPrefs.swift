@@ -6,6 +6,13 @@ import MenubucketCore
 struct BucketOverride: Codable, Equatable {
     var group: String?
     var order: Double?
+    var size: String?
+
+    init(group: String? = nil, order: Double? = nil, size: String? = nil) {
+        self.group = group
+        self.order = order
+        self.size = size
+    }
 }
 
 /// User-scoped widget preferences: pinned widget ids and per-widget settings
@@ -94,11 +101,11 @@ final class WidgetPrefs: ObservableObject {
     }
 
     /// Stores a placement override; passing both fields nil clears the entry.
-    func setOverride(group: String?, order: Double?, for id: String) {
-        if group == nil, order == nil {
+    func setOverride(group: String?, order: Double?, size: String? = nil, for id: String) {
+        if group == nil, order == nil, size == nil {
             guard bucketOverrides.removeValue(forKey: id) != nil else { return }
         } else {
-            let override = BucketOverride(group: group, order: order)
+            let override = BucketOverride(group: group, order: order, size: size)
             guard bucketOverrides[id] != override else { return }
             bucketOverrides[id] = override
         }

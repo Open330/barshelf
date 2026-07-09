@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "kind": "workflow",
+  "_comment": "Persistence demo — no source. Reads `storage.*` (last snapshot), renders the running count, and commits the new values via the `store` block. Requires permissions.storage.",
+
+  "sources": {},
+
+  "view": {
+    "type": "card",
+    "tone": "accent",
+    "spacing": 6,
+    "children": [
+      {
+        "type": "hstack",
+        "spacing": 7,
+        "children": [
+          { "type": "image", "source": { "kind": "sfSymbol", "name": "sparkles" }, "size": 15, "tint": "accent" },
+          { "type": "text", "text": "Visit Counter", "role": "title", "lineLimit": 1 }
+        ]
+      },
+      {
+        "type": "hstack",
+        "spacing": 6,
+        "children": [
+          { "type": "text", "text": "${string(add(coalesce(storage.count, 0), 1))}", "role": "title", "monospacedDigit": true },
+          { "type": "text", "text": "visits", "role": "caption", "foreground": "secondary" }
+        ]
+      },
+      { "type": "text", "text": "First seen ${date.relative(coalesce(storage.firstAt, now()))}", "role": "caption", "foreground": "secondary", "lineLimit": 1 },
+      { "type": "text", "text": "Previous visit ${date.relative(coalesce(storage.lastAt, now()))}", "role": "caption", "foreground": "tertiary", "lineLimit": 1 }
+    ]
+  },
+
+  "store": {
+    "count":   { "value": "${add(coalesce(storage.count, 0), 1)}" },
+    "firstAt": { "value": "${coalesce(storage.firstAt, now())}" },
+    "lastAt":  { "value": "${now()}" }
+  },
+
+  "status": {
+    "label": "${string(add(coalesce(storage.count, 0), 1))}",
+    "tooltip": "Visits: ${string(add(coalesce(storage.count, 0), 1))}"
+  }
+}

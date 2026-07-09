@@ -210,6 +210,99 @@ final class WorkflowEngineTests: XCTestCase {
         XCTAssertEqual(row.drag?.filePath, "/tmp/a.txt")
         XCTAssertEqual(row.action?.path, "/tmp/a.txt")
     }
+
+    // MARK: - Persistence: storage read + store writes
+
+    func testStorageSnapshotReadableAsRoot() throws {
+        let def = try definition("""
+        { "schemaVersion": 1, "sources": {},
+          "view": { "type": "text", "id": "t", "text": "seen ${coalesce(storage.count, 0)} times" } }
+        """)
+        let output = try WorkflowEngine.evaluate(
+            def, sources: [:], settings: .object([:]),
+            storage: .object(["count": .number(7)]), nowMs: nowMs
+        )
+        XCTAssertEqual(output.viewTree.text, "seen 7 times")
+    }
+
+    func testStoreBlockProducesWritesWithTtl() throws {
+        let def = try definition("""
+        { "schemaVersion": 1, "sources": { "s": { "use": "exec" } },
+          "view": { "type": "text", "text": "${string(sources.s.n)}" },
+          "store": {
+            "count":  { "value": "${add(coalesce(storage.count, 0), 1)}" },
+            "cached": { "value": "${sources.s.n}", "ttlSec": 60 }
+          } }
+        """)
+        let output = try WorkflowEngine.evaluate(
+            def, sources: ["s": .object(["n": .number(42)])], settings: .object([:]),
+            storage: .object(["count": .number(4)]), nowMs: nowMs
+        )
+        // Deterministic (sorted-key) order: "cached" then "count".
+        XCTAssertEqual(output.writes.map(\.key), ["cached", "count"])
+        let byKey = Dictionary(uniqueKeysWithValues: output.writes.map { ($0.key, $0) })
+        XCTAssertEqual(byKey["count"]?.value, .number(5))   // incremented from prior snapshot
+        XCTAssertNil(byKey["count"]?.ttlMs)
+        XCTAssertEqual(byKey["cached"]?.value, .number(42)) // whole-string expr keeps number type
+        XCTAssertEqual(byKey["cached"]?.ttlMs, 60_000)      // ttlSec → ms
+    }
+
+    // MARK: - Logic: conditions, comparison, arithmetic, string literals
+
+    func testLogicComparisonAndArithmeticFunctions() throws {
+        let def = try definition("""
+        { "schemaVersion": 1, "sources": { "s": { "use": "exec" } },
+          "view": { "type": "vstack", "children": [
+            { "type": "text", "id": "if",   "text": "${if(eq(sources.s.status, 'ok'), 'good', 'bad')}" },
+            { "type": "text", "id": "gt",   "text": "${string(gt(sources.s.n, 10))}" },
+            { "type": "text", "id": "math", "text": "${string(add(mul(sources.s.n, 2), 1))}" },
+            { "type": "text", "id": "and",  "text": "${string(and(true, gt(sources.s.n, 3)))}" },
+            { "type": "text", "id": "def",  "text": "${default(sources.s.missing, 'fallback')}" },
+            { "type": "text", "id": "has",  "text": "${string(contains(sources.s.status, 'o'))}" }
+          ] } }
+        """)
+        let output = try WorkflowEngine.evaluate(
+            def,
+            sources: ["s": .object(["status": .string("ok"), "n": .number(21)])],
+            settings: .object([:]), nowMs: nowMs
+        )
+        let texts = output.viewTree.children?.compactMap(\.text)
+        XCTAssertEqual(texts, ["good", "true", "43", "true", "fallback", "true"])
+    }
+
+    func testArithmeticCoercesNumericStrings() throws {
+        // CLI output often arrives as strings; add()/gt() should still work.
+        let def = try definition("""
+        { "schemaVersion": 1, "sources": { "s": { "use": "exec" } },
+          "view": { "type": "text", "id": "t", "text": "${string(add(sources.s.a, sources.s.b))}" } }
+        """)
+        let output = try WorkflowEngine.evaluate(
+            def, sources: ["s": .object(["a": .string("40"), "b": .string("2")])],
+            settings: .object([:]), nowMs: nowMs
+        )
+        XCTAssertEqual(output.viewTree.text, "42")
+    }
+}
+
+final class StorageServiceSnapshotTests: XCTestCase {
+    func testSnapshotExcludesExpiredEntries() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("barshelf-storage-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = StorageService(directory: dir)
+        let now: Double = 1_000_000
+
+        try store.set(widgetId: "w", key: "live", value: .string("a"), ttlMs: nil, nowMs: now)
+        try store.set(widgetId: "w", key: "soon", value: .string("b"), ttlMs: 100, nowMs: now)
+
+        let before = store.snapshot(widgetId: "w", nowMs: now + 50)
+        XCTAssertEqual(before["live"], .string("a"))
+        XCTAssertEqual(before["soon"], .string("b"))
+
+        let after = store.snapshot(widgetId: "w", nowMs: now + 200)
+        XCTAssertEqual(after["live"], .string("a"))
+        XCTAssertNil(after["soon"]) // TTL elapsed → excluded from the snapshot
+    }
 }
 
 final class FileSourceTests: XCTestCase {
@@ -217,7 +310,7 @@ final class FileSourceTests: XCTestCase {
 
     override func setUpWithError() throws {
         dir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("mb-filesource-\(UUID().uuidString)")
+            .appendingPathComponent("barshelf-filesource-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         for (name, age) in [("old.txt", 300.0), ("mid.png", 200.0), ("new.pdf", 100.0), (".hidden", 50.0)] {
             let url = dir.appendingPathComponent(name)
@@ -253,7 +346,7 @@ final class FileSourceTests: XCTestCase {
         let params = try FileSource.Params(from: .object(["path": .string("~/")]))
         XCTAssertFalse(params.path.hasPrefix("~"))
 
-        let missing = try FileSource.Params(from: .object(["path": .string("/nonexistent-mb-test")]))
+        let missing = try FileSource.Params(from: .object(["path": .string("/nonexistent-barshelf-test")]))
         XCTAssertThrowsError(try FileSource.list(missing))
     }
 
@@ -292,5 +385,74 @@ final class FileSourceTests: XCTestCase {
         XCTAssertEqual(row.children?.first?.source?.kind, "fileThumbnail")
         XCTAssertNotNil(row.children?.first?.source?.modifiedAt)
         XCTAssertNotNil(row.drag)
+    }
+}
+
+/// End-to-end evaluation of the shipped persistence example widgets, so the
+/// hand-authored nested expressions can't silently rot.
+final class PersistenceWidgetTests: XCTestCase {
+    private let nowMs: Double = 1_783_442_400_000
+
+    private func widgetWorkflow(_ name: String) throws -> WorkflowDefinition {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let url = packageRoot.appendingPathComponent("widgets/\(name)/workflow.json")
+        return try WorkflowDefinition.decode(from: try Data(contentsOf: url))
+    }
+
+    func testVisitCounterIncrementsAndPersists() throws {
+        let def = try widgetWorkflow("visit-counter")
+        let firstAt = nowMs - 3 * 60_000
+        let output = try WorkflowEngine.evaluate(
+            def, sources: [:], settings: .object([:]),
+            storage: .object([
+                "count": .number(2),
+                "firstAt": .number(firstAt),
+                "lastAt": .number(nowMs - 60_000),
+            ]),
+            nowMs: nowMs
+        )
+        // The running count renders as prior + 1.
+        let valueNode = output.viewTree.children?[1].children?.first
+        XCTAssertEqual(valueNode?.text, "3")
+        XCTAssertEqual(output.statusLabel, "3")
+
+        let byKey = Dictionary(uniqueKeysWithValues: output.writes.map { ($0.key, $0.value) })
+        XCTAssertEqual(byKey["count"], .number(3))
+        XCTAssertEqual(byKey["firstAt"], .number(firstAt)) // preserved across visits
+        XCTAssertEqual(byKey["lastAt"], .number(nowMs))     // stamped now
+    }
+
+    func testDownloadsNewShowsSignedDelta() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("barshelf-downloads-new-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        for name in ["a.txt", "b.txt", "c.txt", "d.txt", "e.txt"] {
+            try Data(name.utf8).write(to: dir.appendingPathComponent(name))
+        }
+
+        let def = try widgetWorkflow("downloads-new")
+        let settings: JSONValue = .object(["folder": .string(dir.path)])
+        let params = try WorkflowEngine.resolvedSourceParams(def, settings: settings)
+        let listing = try FileSource.list(try FileSource.Params(from: try XCTUnwrap(params["files"])))
+
+        // 5 files now, 3 at the last check → +2.
+        let output = try WorkflowEngine.evaluate(
+            def, sources: ["files": listing], settings: settings,
+            storage: .object(["count": .number(3)]), nowMs: nowMs
+        )
+        let deltaNode = output.viewTree.children?[1]
+        XCTAssertEqual(deltaNode?.text, "+2 since last check")
+        XCTAssertEqual(deltaNode?.foreground, "good")
+        XCTAssertEqual(output.writes.first(where: { $0.key == "count" })?.value, .number(5))
+
+        // First-ever check (no stored count) → no change, neutral tint.
+        let firstRun = try WorkflowEngine.evaluate(
+            def, sources: ["files": listing], settings: settings,
+            storage: .object([:]), nowMs: nowMs
+        )
+        XCTAssertEqual(firstRun.viewTree.children?[1].text, "+0 since last check")
+        XCTAssertEqual(firstRun.viewTree.children?[1].foreground, "secondary")
     }
 }

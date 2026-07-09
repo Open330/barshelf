@@ -563,15 +563,15 @@ final class DownloadProgressPanel: NSObject, @unchecked Sendable {
     }
 }
 
-// MARK: - CLI mode (`menubucket install <url>`)
+// MARK: - App-binary headless mode (`barshelf-app install <url>`)
 
-/// Headless install used by `BarShelf.app/Contents/MacOS/menubucket install
+/// Headless install used by `BarShelf.app/Contents/MacOS/barshelf-app install
 /// <url>` — no dialogs; the permission summary is printed to stdout instead.
 /// Exit code 0 on success, 1 on any failure.
 enum WidgetInstallCLI {
     static func run(arguments: [String]) -> Int32 {
         guard arguments.count == 1, let input = arguments.first, !input.isEmpty else {
-            printError("usage: menubucket install <url>")
+            printError("usage: barshelf-app install <url>")
             printError("  <url>: GitHub repo URL, .zip/.mbw archive URL, or barshelf://install?url=…")
             return 1
         }

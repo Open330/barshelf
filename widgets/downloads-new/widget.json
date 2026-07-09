@@ -1,0 +1,27 @@
+{
+  "$schema": "https://barshelf.dev/schema/widget-0.1.json",
+  "schemaVersion": 1,
+  "id": "dev.barshelf.downloads-new",
+  "name": "New Downloads",
+  "version": "0.1.0",
+  "icon": "arrow.down.circle.badge.clock",
+  "bucket": { "group": "Files", "order": 35, "size": "S" },
+
+  "entry": { "kind": "workflow", "main": "workflow.json" },
+
+  "refresh": { "onOpen": true, "interval": null, "staleAfterSec": 5 },
+
+  "permissions": {
+    "readPaths": ["~/Downloads"],
+    "storage": true
+  },
+
+  "settings": [
+    { "key": "folder", "title": "Folder", "type": "directory", "default": "~/Downloads" }
+  ],
+
+  "appearance": {
+    "accent": "green",
+    "cardStyle": "tinted"
+  }
+}

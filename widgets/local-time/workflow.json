@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "kind": "workflow",
+
+  "sources": {
+    "time": {
+      "use": "exec",
+      "with": {
+        "command": ["/bin/date", "+%H:%M:%S"],
+        "parse": "text"
+      }
+    },
+    "date": {
+      "use": "exec",
+      "with": {
+        "command": ["/bin/date", "+%A, %b %d"],
+        "parse": "text"
+      }
+    }
+  },
+
+  "transforms": {
+    "time": { "use": "assign", "from": "$.sources.time" },
+    "date": { "use": "assign", "from": "$.sources.date" }
+  },
+
+  "view": {
+    "type": "card",
+    "tone": "accent",
+    "spacing": 6,
+    "children": [
+      {
+        "type": "hstack",
+        "spacing": 7,
+        "children": [
+          { "type": "image", "source": { "kind": "sfSymbol", "name": "clock.fill" }, "size": 16, "tint": "accent" },
+          { "type": "text", "text": "Local Time", "role": "title", "lineLimit": 1 }
+        ]
+      },
+      { "type": "text", "text": "${text.truncate(string(transforms.time), 8)}", "role": "code", "monospacedDigit": true },
+      { "type": "text", "text": "${string(transforms.date)}", "role": "caption", "foreground": "secondary", "lineLimit": 1 }
+    ]
+  },
+
+  "status": {
+    "label": "${text.truncate(string(transforms.time), 5)}",
+    "tooltip": "Local time: ${string(transforms.time)}"
+  }
+}

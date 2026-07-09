@@ -84,4 +84,27 @@ final class ManifestTests: XCTestCase {
         """.data(using: .utf8)!
         XCTAssertThrowsError(try Manifest.decode(from: json))
     }
+
+    func testStoragePermissionAcceptsBoolAndObjectShapes() throws {
+        func permission(_ storageJSON: String) throws -> Manifest.StoragePermission? {
+            let json = """
+            { "schemaVersion": 1, "id": "dev.example.s", "name": "S",
+              "entry": { "kind": "workflow" },
+              "source": { "kind": "workflow" },
+              "permissions": { "storage": \(storageJSON) } }
+            """.data(using: .utf8)!
+            return try Manifest.decode(from: json).permissions?.storage
+        }
+
+        // Original script convention: bool.
+        XCTAssertEqual(try permission("true"), .init(granted: true))
+        XCTAssertEqual(try permission("false"), .init(granted: false))
+        // Object form with a byte cap.
+        let object = try permission("{ \"maxBytes\": 4096 }")
+        XCTAssertEqual(object?.maxBytes, 4096)
+        XCTAssertEqual(object?.granted, true)
+        // Round-trips: bool grant stays a bool, object stays an object.
+        let boolData = try JSONEncoder().encode(Manifest.StoragePermission(granted: true))
+        XCTAssertEqual(String(data: boolData, encoding: .utf8), "true")
+    }
 }

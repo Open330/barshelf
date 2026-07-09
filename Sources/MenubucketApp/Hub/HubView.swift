@@ -15,16 +15,27 @@ struct HubView: View {
 
     var body: some View {
         NavigationSplitView {
-            List(HubTab.allCases, selection: selection) { tab in
-                Label(tab.title, systemImage: tab.symbol)
-                    .tag(tab)
-                    .accessibilityLabel(tab.title)
+            VStack(spacing: 0) {
+                sidebarHeader
+                List(HubTab.allCases, selection: selection) { tab in
+                    Label(tab.title, systemImage: tab.symbol)
+                        .tag(tab)
+                        .padding(.vertical, 3)
+                        .accessibilityLabel(tab.title)
+                }
+                .listStyle(.sidebar)
+                Spacer(minLength: 0)
+                sidebarFooter
             }
             .navigationSplitViewColumnWidth(min: 168, ideal: 188, max: 240)
-            .listStyle(.sidebar)
         } detail: {
-            detail
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            VStack(spacing: 0) {
+                detailHeader
+                Divider()
+                detail
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .background(Color(nsColor: .windowBackgroundColor))
         }
         .navigationTitle(model.tab.title)
         .background(
@@ -35,6 +46,66 @@ struct HubView: View {
                 .opacity(0)
                 .accessibilityHidden(true)
         )
+    }
+
+    private var sidebarHeader: some View {
+        HStack(spacing: 10) {
+            Image(nsImage: BarShelfStatusIcon.logoImage(size: NSSize(width: 26, height: 20)))
+                .renderingMode(.template)
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 30, height: 30)
+                .background(
+                    RoundedRectangle(cornerRadius: 7)
+                        .fill(Color.accentColor.opacity(0.12))
+                )
+            VStack(alignment: .leading, spacing: 1) {
+                Text("BarShelf")
+                    .font(.system(size: 13, weight: .semibold))
+                Text("Widget workspace")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.top, 16)
+        .padding(.bottom, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var sidebarFooter: some View {
+        Text("\(runtime.widgets.count) installed")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 12)
+    }
+
+    private var detailHeader: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: model.tab.symbol)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 34, height: 34)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.accentColor.opacity(0.12))
+                )
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(model.tab.title)
+                    .font(.system(size: 18, weight: .semibold))
+                Text(model.tab.subtitle)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 18)
+        .padding(.bottom, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 
     private var selection: Binding<HubTab?> {

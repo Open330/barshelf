@@ -81,6 +81,50 @@
       "homepage": "https://github.com/Open330/barshelf"
     },
     {
+      "id": "dev.barshelf.local-time",
+      "name": "Local Time",
+      "description": "Workflow example that renders the current local time and date from macOS date. No external dependency.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "clock.fill",
+      "kind": "workflow",
+      "tags": ["demo", "time", "workflow", "local"],
+      "category": "Demo",
+      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/local-time", "bundled": "local-time" },
+      "permissions": { "exec": ["/bin/date"], "keychain": false, "notifications": false },
+      "homepage": "https://github.com/Open330/barshelf"
+    },
+    {
+      "id": "dev.barshelf.battery",
+      "name": "Battery",
+      "description": "Modern SDK widget that turns pmset battery data into native cards, badges, and progress meters.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "battery.100percent",
+      "kind": "script",
+      "tags": ["system", "battery", "script", "sdk", "local"],
+      "category": "System",
+      "requires": "Deno runtime",
+      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/battery", "bundled": "battery" },
+      "permissions": { "exec": ["/usr/bin/pmset"], "keychain": false, "notifications": false },
+      "homepage": "https://github.com/Open330/barshelf"
+    },
+    {
+      "id": "dev.barshelf.top-processes",
+      "name": "Top Processes",
+      "description": "Modern SDK widget that ranks CPU-heavy processes with native metric cards and per-process meters.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "cpu.fill",
+      "kind": "script",
+      "tags": ["system", "processes", "cpu", "script", "sdk"],
+      "category": "System",
+      "requires": "Deno runtime",
+      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/top-processes", "bundled": "top-processes" },
+      "permissions": { "exec": ["/bin/ps"], "keychain": false, "notifications": false },
+      "homepage": "https://github.com/Open330/barshelf"
+    },
+    {
       "id": "dev.barshelf.github-status",
       "name": "GitHub Status",
       "description": "Workflow example that fetches GitHub's public status JSON over HTTPS and refreshes when your Mac wakes.",
@@ -108,6 +152,35 @@
       "requires": "Downloads folder access",
       "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/downloads-watch", "bundled": "downloads-watch" },
       "permissions": { "exec": [], "keychain": false, "notifications": false, "network": [] },
+      "homepage": "https://github.com/Open330/barshelf"
+    },
+    {
+      "id": "dev.barshelf.visit-counter",
+      "name": "Visit Counter",
+      "description": "Persistence demo — counts how many times you've opened it and remembers first/previous visit times across restarts using the workflow storage layer. No external dependency.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "sparkles",
+      "kind": "workflow",
+      "tags": ["demo", "workflow", "storage", "persistence"],
+      "category": "Demo",
+      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/visit-counter", "bundled": "visit-counter" },
+      "permissions": { "exec": [], "keychain": false, "notifications": false },
+      "homepage": "https://github.com/Open330/barshelf"
+    },
+    {
+      "id": "dev.barshelf.downloads-new",
+      "name": "New Downloads",
+      "description": "Diff/delta demo — counts files in a folder and shows how many were added or removed since your last check, persisting the count across refreshes with the workflow storage layer.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "arrow.down.circle.badge.clock",
+      "kind": "workflow",
+      "tags": ["files", "workflow", "storage", "persistence", "diff"],
+      "category": "Files",
+      "requires": "Downloads folder access",
+      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/downloads-new", "bundled": "downloads-new" },
+      "permissions": { "exec": [], "keychain": false, "notifications": false },
       "homepage": "https://github.com/Open330/barshelf"
     }
   ]

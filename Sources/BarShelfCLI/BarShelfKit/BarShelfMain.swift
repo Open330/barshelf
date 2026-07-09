@@ -1,32 +1,32 @@
 import Foundation
 import MenubucketCore
 
-/// mbk — BarShelf developer CLI (R06 common contract 3).
+/// barshelf — BarShelf developer CLI (R06 common contract 3).
 ///
 /// Plain-text output, errors on stderr, exit 0 on success / 1 on failure.
-public enum MbkMain {
+public enum BarShelfMain {
     public static let version = "0.1.0"
 
     public static let usage = """
-        mbk — BarShelf widget developer CLI
+        barshelf — BarShelf widget developer CLI
 
         usage:
-          mbk install <src> [--yes]      Install widget(s) from a GitHub repo URL,
+          barshelf install <src> [--yes]      Install widget(s) from a GitHub repo URL,
                                          a local widget directory, a .zip/.mbw
                                          archive (local path or URL), or a
                                          barshelf://install deep link.
-          mbk new <name> [--kind exec|workflow|script] [--dir <path>]
+          barshelf new <name> [--kind exec|workflow|script] [--dir <path>]
                                          Scaffold a widget (default: --kind exec,
                                          --dir ./<name>) and validate it.
-          mbk validate <path>            Validate a widget directory or packed
+          barshelf validate <path>            Validate a widget directory or packed
                                          .mbw/.zip archive.
-          mbk pack <dir> [-o <name>.mbw] Pack a widget directory into a .mbw
+          barshelf pack <dir> [-o <name>.mbw] Pack a widget directory into a .mbw
                                          archive (includes manifest.sha256).
-          mbk list                       List installed widgets.
-          mbk agent-spec                 Print the widget-authoring spec
+          barshelf list                       List installed widgets.
+          barshelf agent-spec                 Print the widget-authoring spec
                                          (docs/AGENTS.md) for LLM agents.
-          mbk --version                  Print the mbk version.
-          mbk --help                     Show this help.
+          barshelf --version                  Print the barshelf version.
+          barshelf --help                     Show this help.
 
         exit status: 0 on success, 1 on failure.
         """
@@ -44,7 +44,7 @@ public enum MbkMain {
             print(usage)
             return 0
         case "--version", "-V", "version":
-            print("mbk \(version)")
+            print("barshelf \(version)")
             return 0
         case "install":
             return runInstall(arguments: rest)
@@ -59,13 +59,13 @@ public enum MbkMain {
         case "agent-spec":
             return runAgentSpec(arguments: rest)
         default:
-            printError("mbk: unknown command \"\(command)\"")
+            printError("barshelf: unknown command \"\(command)\"")
             printError(usage)
             return 1
         }
     }
 
-    // MARK: - mbk install
+    // MARK: - barshelf install
 
     private static func runInstall(arguments: [String]) -> Int32 {
         var input: String?
@@ -76,21 +76,22 @@ public enum MbkMain {
                 assumeYes = true
             default:
                 guard input == nil else {
-                    printError("usage: mbk install <url> [--yes]")
+                    printError("usage: barshelf install <url> [--yes]")
                     return 1
                 }
                 input = argument
             }
         }
         guard let input, !input.isEmpty else {
-            printError("usage: mbk install <src> [--yes]")
+            printError("usage: barshelf install <src> [--yes]")
             printError("  <src>: GitHub repo URL, a local widget directory,"
                 + " a .zip/.mbw archive (path or URL), or barshelf://install?url=…")
             return 1
         }
 
+        let finalAssumeYes = assumeYes
         return runBlocking {
-            await performInstall(input: input, assumeYes: assumeYes)
+            await performInstall(input: input, assumeYes: finalAssumeYes)
         }
     }
 
@@ -170,7 +171,7 @@ public enum MbkMain {
         return answer == "y" || answer == "yes"
     }
 
-    // MARK: - mbk new
+    // MARK: - barshelf new
 
     private static func runNew(arguments: [String]) -> Int32 {
         var name: String?
@@ -185,21 +186,21 @@ public enum MbkMain {
                 guard index + 1 < arguments.count,
                       let parsed = WidgetScaffold.Kind(rawValue: arguments[index + 1])
                 else {
-                    printError("mbk new: --kind expects exec | workflow | script")
+                    printError("barshelf new: --kind expects exec | workflow | script")
                     return 1
                 }
                 kind = parsed
                 index += 2
             case "--dir":
                 guard index + 1 < arguments.count else {
-                    printError("mbk new: --dir expects a path")
+                    printError("barshelf new: --dir expects a path")
                     return 1
                 }
                 directory = arguments[index + 1]
                 index += 2
             default:
                 guard name == nil, !argument.hasPrefix("-") else {
-                    printError("usage: mbk new <name> [--kind exec|workflow|script] [--dir <path>]")
+                    printError("usage: barshelf new <name> [--kind exec|workflow|script] [--dir <path>]")
                     return 1
                 }
                 name = argument
@@ -207,7 +208,7 @@ public enum MbkMain {
             }
         }
         guard let name else {
-            printError("usage: mbk new <name> [--kind exec|workflow|script] [--dir <path>]")
+            printError("usage: barshelf new <name> [--kind exec|workflow|script] [--dir <path>]")
             return 1
         }
 
@@ -235,15 +236,15 @@ public enum MbkMain {
             printError("error: generated widget failed validation (please report this)")
             return 1
         }
-        print("validate: OK — try `mbk pack \(target.relativePathFromCwd)`")
+        print("validate: OK — try `barshelf pack \(target.relativePathFromCwd)`")
         return 0
     }
 
-    // MARK: - mbk validate
+    // MARK: - barshelf validate
 
     private static func runValidate(arguments: [String]) -> Int32 {
         guard arguments.count == 1, let path = arguments.first else {
-            printError("usage: mbk validate <path>   (widget directory or .mbw/.zip archive)")
+            printError("usage: barshelf validate <path>   (widget directory or .mbw/.zip archive)")
             return 1
         }
         let url = URL(
@@ -272,7 +273,7 @@ public enum MbkMain {
         }
     }
 
-    // MARK: - mbk pack
+    // MARK: - barshelf pack
 
     private static func runPack(arguments: [String]) -> Int32 {
         var directory: String?
@@ -284,14 +285,14 @@ public enum MbkMain {
             switch argument {
             case "-o", "--output":
                 guard index + 1 < arguments.count else {
-                    printError("mbk pack: -o expects a file name")
+                    printError("barshelf pack: -o expects a file name")
                     return 1
                 }
                 output = arguments[index + 1]
                 index += 2
             default:
                 guard directory == nil, !argument.hasPrefix("-") else {
-                    printError("usage: mbk pack <dir> [-o <name>.mbw]")
+                    printError("usage: barshelf pack <dir> [-o <name>.mbw]")
                     return 1
                 }
                 directory = argument
@@ -299,7 +300,7 @@ public enum MbkMain {
             }
         }
         guard let directory else {
-            printError("usage: mbk pack <dir> [-o <name>.mbw]")
+            printError("usage: barshelf pack <dir> [-o <name>.mbw]")
             return 1
         }
 
@@ -322,11 +323,11 @@ public enum MbkMain {
         }
     }
 
-    // MARK: - mbk list
+    // MARK: - barshelf list
 
     private static func runList(arguments: [String]) -> Int32 {
         guard arguments.isEmpty else {
-            printError("usage: mbk list")
+            printError("usage: barshelf list")
             return 1
         }
         let widgetsDir = HeadlessInstaller.defaultWidgetsDirectory
@@ -361,11 +362,11 @@ public enum MbkMain {
         }
     }
 
-    // MARK: - mbk agent-spec
+    // MARK: - barshelf agent-spec
 
     private static func runAgentSpec(arguments: [String]) -> Int32 {
         guard arguments.isEmpty else {
-            printError("usage: mbk agent-spec")
+            printError("usage: barshelf agent-spec")
             return 1
         }
         print(AgentSpec.render())

@@ -1,7 +1,7 @@
 import Foundation
 import MenubucketCore
 
-/// `mbk new` — writes a minimal, valid widget package of the requested kind.
+/// `barshelf new` — writes a minimal, valid widget package of the requested kind.
 public enum WidgetScaffold {
     public enum Kind: String, CaseIterable, Sendable {
         case exec
@@ -256,13 +256,13 @@ public enum WidgetScaffold {
 
     private static func scriptEntry(name: String) -> String {
         """
-        import { mb, ui, type WidgetLoadContext, type WidgetTimerContext } from "barshelf";
+        import { barshelf, ui, type WidgetLoadContext, type WidgetTimerContext } from "barshelf";
 
         const TIMER_ID = "tick";
 
         async function render(nowMs: number): Promise<void> {
           const now = new Date(nowMs);
-          await mb.render(
+          await barshelf.render(
             ui.vstack([
               ui.text("\(displayName(name))", { id: "title", role: "title" }),
               ui.text(now.toLocaleTimeString(), {
@@ -280,7 +280,7 @@ public enum WidgetScaffold {
         }
 
         async function load(ctx: WidgetLoadContext): Promise<void> {
-          await mb.timer.every(TIMER_ID, 60_000);
+          await barshelf.timer.every(TIMER_ID, 60_000);
           await render(ctx.now);
         }
 
@@ -290,7 +290,7 @@ public enum WidgetScaffold {
           }
         }
 
-        export default mb.widget({ load, timer });
+        export default barshelf.widget({ load, timer });
         """
     }
 }

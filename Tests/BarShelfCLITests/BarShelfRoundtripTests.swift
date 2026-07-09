@@ -1,15 +1,15 @@
 import XCTest
-import MbkKit
+import BarShelfKit
 import MenubucketCore
 
-/// R06 Track A — `mbk new` → `validate` → `pack` → `validate(.mbw)` roundtrip
+/// R06 Track A — `barshelf new` → `validate` → `pack` → `validate(.mbw)` roundtrip
 /// for all three scaffold kinds, in a temporary directory.
-final class MbkRoundtripTests: XCTestCase {
+final class BarShelfRoundtripTests: XCTestCase {
     private var workDir: URL!
 
     override func setUpWithError() throws {
         workDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("mbk-roundtrip-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("barshelf-roundtrip-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(
             at: workDir, withIntermediateDirectories: true
         )

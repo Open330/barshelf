@@ -4,7 +4,7 @@
 
 관련 문서:
 
-- 에이전트용 축약 스펙(전체 API 한 파일): [`docs/AGENTS.md`](AGENTS.md) — `mbk agent-spec`로도 출력
+- 에이전트용 축약 스펙(전체 API 한 파일): [`docs/AGENTS.md`](AGENTS.md) — `barshelf agent-spec`로도 출력
 - 시작하기: [`docs/GETTING-STARTED.md`](GETTING-STARTED.md)
 - URL 설치: [`docs/INSTALLING-WIDGETS.md`](INSTALLING-WIDGETS.md)
 - 위젯 배포: [`docs/PUBLISHING.md`](PUBLISHING.md)
@@ -443,7 +443,7 @@ Countdown progress:
 }
 ```
 
-### `section`, `badge`, `banner`, `empty`
+### `section`, `card`, `badge`, `banner`, `empty`
 
 ```json
 {
@@ -458,6 +458,23 @@ Countdown progress:
 ```
 
 `section`은 card가 아니라 header가 있는 unframed group으로 렌더링된다.
+
+`card`는 반복 항목이나 작은 상태 묶음을 위한 framed group이다. `tone`/`tint`는
+배경 wash와 border 색에 쓰이며, 내부에는 일반 UINode `children`을 넣는다.
+Script 위젯에서는 같은 구조를 직접 쓰는 대신 SDK의 `ui.metricCard`,
+`ui.meterRow`, `ui.stat`, `ui.header` helper로 흔한 product UI 패턴을 만들 수 있다.
+
+```json
+{
+  "type": "card",
+  "tone": "warning",
+  "spacing": 6,
+  "children": [
+    { "type": "text", "role": "body", "text": "personal" },
+    { "type": "progress", "style": "linear", "value": 0.88, "tint": "warning" }
+  ]
+}
+```
 
 ### `switch`, `none`
 
@@ -671,7 +688,7 @@ stdout 예:
 1. 호스트가 `discover` 순서대로 `aas` 실행 파일을 찾는다.
 2. `source.command`가 `permissions.exec`의 `command=aas`, `allowedArgs=["usage","--json"]`와 매칭되는지 확인한다.
 3. stdout data를 `aas-usage` adapter로 넘긴다.
-4. adapter가 usage table/progress UINode와 선택적 `statusText`를 반환한다.
+4. adapter가 provider/account card와 usage progress UINode, 선택적 `statusText`를 반환한다.
 5. 별도 버튼에서 `run` 액션을 추가하려면 해당 argv를 `permissions.exec[].allowedArgs`에 명시해야 한다. 예를 들어 `["aas", "switch", "work"]`는 `["switch", "*"]` 패턴이 있을 때만 실행되고, `thenRefresh`가 `true`면 다시 갱신한다.
 
 ## 예제 3: otpeek

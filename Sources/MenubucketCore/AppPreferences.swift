@@ -24,7 +24,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
     /// verbatim; parsing/registration happens app-side.
     public var popupHotkey: String
 
-    public static let defaultMenuBarSymbol = "tray.full"
+    public static let defaultMenuBarSymbol = "barshelf.logo"
     public static let defaultPopupHotkey = "cmd+shift+b"
 
     public init(

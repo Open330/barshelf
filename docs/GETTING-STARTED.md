@@ -14,7 +14,7 @@
 
 ## 설치
 
-전체 설치 방법(릴리스 zip, Gatekeeper 안내, mbk CLI, 문제 해결)은 [`docs/INSTALL.md`](INSTALL.md)를 따른다. 요약:
+전체 설치 방법(릴리스 zip, Gatekeeper 안내, barshelf CLI, 문제 해결)은 [`docs/INSTALL.md`](INSTALL.md)를 따른다. 요약:
 
 ### GitHub Releases (권장)
 
@@ -29,7 +29,7 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer bash scripts/build_app.
 open dist/BarShelf.app
 ```
 
-`scripts/build_app.sh`는 SwiftPM product `menubucket`을 release로 빌드하고, `dist/BarShelf.app/Contents/MacOS/barshelf` 실행 파일과 `Contents/Info.plist`를 만든 뒤 `widgets/`를 앱 리소스로 복사한다. 개발 중 검증은 다음 명령을 사용한다.
+`scripts/build_app.sh`는 SwiftPM product `barshelf-app`을 release로 빌드하고, `dist/BarShelf.app/Contents/MacOS/barshelf-app` 실행 파일과 `Contents/Info.plist`를 만든 뒤 `widgets/`를 앱 리소스로 복사한다. 같은 빌드에서 `dist/barshelf`와 `dist/bsf` CLI도 생성된다. 개발 중 검증은 다음 명령을 사용한다.
 
 ```bash
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test
@@ -41,9 +41,9 @@ JSON을 직접 작성하지 않고도 위젯을 만들고 싶다면 in-app **Wid
 
 3단계로 진행한다.
 
-1. **Source** — 데이터 출처를 고른다: 셸 명령 실행, 폴더의 파일 목록, 고정 텍스트 중 하나. 명령을 골랐다면 **Test run** 버튼으로 즉시 실행해 출력이 JSON 배열/객체인지 일반 텍스트인지 바로 확인할 수 있다.
-2. **Display** — 결과를 목록, 표, 값, 텍스트 중 어떤 모습으로 보여줄지 고른다. 명령 출력이 JSON이면 감지된 필드를 드롭다운에서 골라 매핑하고, 오른쪽 미리보기 패널에 실제 렌더링 결과가 즉시 반영된다.
-3. **Details** — 이름, 아이콘, Bucket, 크기, 새로고침 주기를 정하고 **Create**를 누르면 위젯이 바로 만들어진다.
+1. **Source** — 데이터 출처를 고른다: 셸 명령, HTTP JSON, 붙여넣은 JSON, 폴더 파일 목록, 고정 텍스트 중 하나. 명령은 **Test run**, HTTP는 **Fetch preview**로 출력 구조를 확인할 수 있다.
+2. **Display** — 결과를 목록, 표, 값, 텍스트 중 어떤 모습으로 보여줄지 고른다. JSON이면 감지된 필드를 드롭다운에서 골라 매핑하고, 오른쪽 미리보기 패널에 실제 렌더링 결과가 즉시 반영된다.
+3. **Details** — 이름, 아이콘, Panel, 크기, 고급 새로고침 주기를 정하고 **Create**를 누르면 위젯이 바로 만들어진다.
 
 코드를 한 줄도 쓰지 않고 셸 명령이나 폴더 기반 위젯을 몇 분 안에 만들 수 있는 가장 빠른 경로다. manifest와 workflow JSON을 직접 다루는 방법을 배우고 싶다면 아래 튜토리얼을 계속 읽는다.
 
@@ -150,7 +150,7 @@ chmod +x "$install_root/hello.sh"
 ## 기본 조작
 
 - 메뉴바 아이콘을 클릭하면 팝오버가 열린다.
-- 좌우 화살표, 하단 점, 두 손가락 가로 스와이프로 Bucket 페이지를 전환한다.
+- 좌우 화살표, 하단 점, 두 손가락 가로 스와이프로 Panel 페이지를 전환한다.
 - `Command-1`부터 `Command-9`까지는 페이지로 바로 이동한다.
 - `Command-F` 또는 타이핑으로 검색을 연다.
 - 위젯 카드 우클릭 메뉴에서 pin, settings, refresh 등을 사용할 수 있다 (자세한 목록은 아래 "위젯 관리" 참고).
@@ -163,8 +163,8 @@ chmod +x "$install_root/hello.sh"
 - **Pin**: 위젯을 상단에 고정해 페이지를 넘겨도 계속 보이게 한다.
 - **Settings**: 위젯별 설정 화면을 연다.
 - **Disable**: 삭제하지 않고 새로고침과 팝오버 노출만 끈다.
-- **Move to Bucket**: 다른 Bucket으로 옮기거나 새 Bucket 이름을 입력해 만든다.
+- **Move to Panel**: 다른 Panel로 옮기거나 새 Panel 이름을 입력해 만든다.
 - **Reveal in Finder**: 위젯이 설치된 디렉터리를 Finder로 연다.
 - **Remove**: 확인 후 위젯 디렉터리와 관련 상태(pin, 설정, 새로고침 기록 등)를 모두 삭제한다.
 
-메뉴바 아이콘 우클릭 → **Settings**로 여는 설정 창의 **Widgets** 탭에서도 전체 위젯을 한 목록으로 보면서 활성화/비활성화, Bucket 이동, 순서 변경, 삭제를 관리할 수 있다.
+메뉴바 아이콘 우클릭 → **Settings**로 여는 설정 창의 **Widgets** 탭에서도 전체 위젯을 한 목록으로 보면서 활성화/비활성화, Panel 이동, 드래그 순서 변경, 삭제를 관리할 수 있다.

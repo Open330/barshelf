@@ -26,6 +26,13 @@ final class UINodeTests: XCTestCase {
                 ),
                 UINode(id: "p", type: "progress", tint: "warning", value: 0.42, label: "Quota"),
                 UINode(
+                    id: "card",
+                    type: "card",
+                    children: [UINode(id: "card-text", type: "text", text: "Grouped")],
+                    spacing: 4,
+                    tone: "accent"
+                ),
+                UINode(
                     id: "b",
                     type: "button",
                     title: "Copy",
@@ -65,6 +72,7 @@ final class UINodeTests: XCTestCase {
         XCTAssertEqual(node.children?[1].type, "sparkline")
         XCTAssertFalse(node.children?[1].isKnownType ?? true)
         XCTAssertTrue(node.children?[0].isKnownType ?? false)
+        XCTAssertTrue(UINode(type: "card").isKnownType)
     }
 
     func testAccessibilityLabelDecoding() throws {

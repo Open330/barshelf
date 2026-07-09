@@ -164,6 +164,8 @@ struct NodeView: View {
             }
         case .section:
             sectionView
+        case .card:
+            cardView
         case .text:
             textView
         case .image:
@@ -198,6 +200,23 @@ struct NodeView: View {
             }
             NodeChildrenView(nodes: node.children ?? [])
         }
+    }
+
+    private var cardView: some View {
+        let color = nodeColor(node.tone ?? node.tint, accent: accentOverride) ?? effectiveAccent
+        return VStack(alignment: .leading, spacing: (node.spacing ?? 6) * scale) {
+            NodeChildrenView(nodes: node.children ?? [])
+        }
+        .padding(node.padding ?? 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(color.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(color.opacity(0.18), lineWidth: 1)
+        )
     }
 
     private var textView: some View {

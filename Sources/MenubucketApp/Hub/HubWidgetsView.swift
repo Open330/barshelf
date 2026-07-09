@@ -3,12 +3,14 @@ import MenubucketCore
 import SwiftUI
 
 /// Widget management section of the hub (moved here from the R11 Settings
-/// "Widgets" tab and upgraded): a `List` grouped by bucket with `.onMove`
-/// drag-reorder inside each bucket, an enable toggle, bucket menu, per-widget
+/// "Widgets" tab and upgraded): a `List` grouped by panel with `.onMove`
+/// drag-reorder inside each panel, an enable toggle, panel menu, per-widget
 /// settings sheet, reveal, and remove. Disabled widgets are shown too (they
 /// never appear in `runtime.pages`).
 struct HubWidgetsView: View {
     @ObservedObject var runtime: WidgetRuntime
+
+    private let layoutSizes = ["XS", "S", "M", "L"]
 
     @State private var settingsSheetWidget: LoadedWidget?
     @State private var removalTarget: LoadedWidget?
@@ -18,17 +20,7 @@ struct HubWidgetsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("Installed Widgets")
-                    .font(.headline)
-                Spacer()
-                Text("\(runtime.widgets.count) total")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 16)
-            .padding(.bottom, 8)
+            managementHeader
 
             if runtime.widgets.isEmpty {
                 VStack(spacing: 6) {
@@ -47,7 +39,7 @@ struct HubWidgetsView: View {
                         Section {
                             ForEach(widgets(inBucket: bucket)) { widget in
                                 widgetRow(widget)
-                                    .padding(.vertical, 3)
+                                    .padding(.vertical, 5)
                             }
                             .onMove { source, destination in
                                 move(bucket: bucket, from: source, to: destination)
@@ -76,14 +68,14 @@ struct HubWidgetsView: View {
             Text("This permanently deletes \"\(widget.manifest.name)\" and all of its data. This cannot be undone.")
         }
         .alert(
-            "New Bucket",
+            "New Panel",
             isPresented: Binding(
                 get: { newBucketTarget != nil },
                 set: { if !$0 { newBucketTarget = nil } }
             ),
             presenting: newBucketTarget
         ) { widget in
-            TextField("Bucket name", text: $newBucketName)
+            TextField("Panel name", text: $newBucketName)
             Button("Move") {
                 let name = newBucketName.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !name.isEmpty { runtime.moveWidget(id: widget.id, toGroup: name) }
@@ -95,7 +87,7 @@ struct HubWidgetsView: View {
                 newBucketTarget = nil
             }
         } message: { _ in
-            Text("Move this widget to a new bucket.")
+            Text("Move this widget to a new panel.")
         }
         .alert(
             "Could Not Remove Widget",
@@ -110,11 +102,65 @@ struct HubWidgetsView: View {
         }
     }
 
+    private var managementHeader: some View {
+        HStack(alignment: .center, spacing: 14) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Installed Widgets")
+                    .font(.system(size: 15, weight: .semibold))
+                Text("Drag the handle on each row to arrange popup pages. Panels become pages.")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+            statPill("\(runtime.widgets.count)", "total")
+            statPill("\(runtime.pages.count)", "pages")
+            statPill("\(runtime.prefs.disabled.count)", "disabled")
+            Button {
+                resetLayoutOverrides()
+            } label: {
+                Label("Reset Layout", systemImage: "arrow.counterclockwise")
+            }
+            .controlSize(.small)
+            .disabled(runtime.prefs.bucketOverrides.isEmpty)
+            .help("Clear custom panel, order, and size overrides")
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 16)
+        .padding(.bottom, 10)
+    }
+
+    private func statPill(_ value: String, _ label: String) -> some View {
+        VStack(spacing: 0) {
+            Text(value)
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+            Text(label)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+        .frame(width: 54, height: 34)
+        .background(
+            RoundedRectangle(cornerRadius: 7)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 7)
+                .stroke(Color.primary.opacity(0.08))
+        )
+    }
+
     @ViewBuilder
     private func widgetRow(_ widget: LoadedWidget) -> some View {
         let disabled = runtime.prefs.isDisabled(widget.id)
         let group = runtime.effectiveGroup(for: widget.id)
+        let size = runtime.effectiveSize(for: widget.id)
         HStack(spacing: 10) {
+            Image(systemName: "line.3.horizontal")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.secondary.opacity(0.75))
+                .frame(width: 14)
+                .help("Drag to reorder")
+                .accessibilityLabel("Drag to reorder \(widget.manifest.name)")
+
             Image(systemName: widget.manifest.icon ?? "square.grid.2x2")
                 .frame(width: 20)
                 .foregroundColor(disabled ? .secondary : .primary)
@@ -127,9 +173,14 @@ struct HubWidgetsView: View {
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
-            .frame(minWidth: 130, alignment: .leading)
+            .frame(minWidth: 170, alignment: .leading)
 
             Spacer(minLength: 8)
+
+            Text("#\(displayPosition(widget))")
+                .font(.caption2.monospacedDigit())
+                .foregroundColor(.secondary)
+                .frame(width: 28, alignment: .trailing)
 
             Toggle("", isOn: Binding(
                 get: { !runtime.prefs.isDisabled(widget.id) },
@@ -154,7 +205,7 @@ struct HubWidgetsView: View {
                     }
                 }
                 Divider()
-                Button("New Bucket…") {
+                Button("New Panel…") {
                     newBucketName = ""
                     newBucketTarget = widget
                 }
@@ -164,8 +215,40 @@ struct HubWidgetsView: View {
             }
             .menuStyle(.borderlessButton)
             .frame(width: 110)
-            .help("Move to bucket")
-            .accessibilityLabel("Bucket for \(widget.manifest.name)")
+            .help("Move to panel")
+            .accessibilityLabel("Panel for \(widget.manifest.name)")
+
+            Menu {
+                Button {
+                    runtime.resizeWidget(id: widget.id, toSize: nil)
+                } label: {
+                    if runtime.prefs.override(for: widget.id)?.size == nil {
+                        Label("Widget Default (\(widget.size))", systemImage: "checkmark")
+                    } else {
+                        Text("Widget Default (\(widget.size))")
+                    }
+                }
+                Divider()
+                ForEach(layoutSizes, id: \.self) { option in
+                    Button {
+                        runtime.resizeWidget(id: widget.id, toSize: option)
+                    } label: {
+                        if runtime.prefs.override(for: widget.id)?.size != nil,
+                           option == size {
+                            Label(option, systemImage: "checkmark")
+                        } else {
+                            Text(option)
+                        }
+                    }
+                }
+            } label: {
+                Text(size)
+                    .monospacedDigit()
+            }
+            .menuStyle(.borderlessButton)
+            .frame(width: 46)
+            .help("Change card size")
+            .accessibilityLabel("Size for \(widget.manifest.name)")
 
             Button {
                 settingsSheetWidget = widget
@@ -193,6 +276,14 @@ struct HubWidgetsView: View {
         }
         .buttonStyle(.borderless)
         .controlSize(.small)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(disabled
+                    ? Color.secondary.opacity(0.06)
+                    : Color(nsColor: .controlBackgroundColor))
+        )
     }
 
     // MARK: - Ordering
@@ -233,6 +324,12 @@ struct HubWidgetsView: View {
         runtime.prefs.override(for: widget.id)?.order ?? Double(widget.order)
     }
 
+    private func displayPosition(_ widget: LoadedWidget) -> Int {
+        let bucket = runtime.effectiveGroup(for: widget.id)
+        let index = widgets(inBucket: bucket).firstIndex { $0.id == widget.id } ?? 0
+        return index + 1
+    }
+
     private func bucketOptions(current: String) -> [String] {
         var options = Set(runtime.allGroups)
         options.insert(current)
@@ -245,12 +342,24 @@ struct HubWidgetsView: View {
     private func move(bucket: String, from source: IndexSet, to destination: Int) {
         var items = widgets(inBucket: bucket)
         items.move(fromOffsets: source, toOffset: destination)
+        persistOrder(items)
+    }
+
+    private func persistOrder(_ items: [LoadedWidget]) {
         for (position, widget) in items.enumerated() {
             runtime.prefs.setOverride(
                 group: runtime.prefs.override(for: widget.id)?.group,
                 order: Double(position),
+                size: runtime.prefs.override(for: widget.id)?.size,
                 for: widget.id
             )
+        }
+        runtime.objectWillChange.send()
+    }
+
+    private func resetLayoutOverrides() {
+        for widget in runtime.widgets {
+            runtime.prefs.setOverride(group: nil, order: nil, size: nil, for: widget.id)
         }
         runtime.objectWillChange.send()
     }

@@ -50,12 +50,12 @@ final class AasUsageAdapterTests: XCTestCase {
         XCTAssertEqual(header.type, "hstack")
         XCTAssertEqual(header.children?.first?.text, "aas")
         let summary = try XCTUnwrap(header.children?.last)
-        XCTAssertEqual(summary.text, "worst: 5% left")
+        XCTAssertEqual(summary.text, "5% left")
         XCTAssertEqual(summary.foreground, "danger")
 
         // One section per provider, order preserved.
         let sections = children.filter { $0.type == "section" }
-        XCTAssertEqual(sections.map { $0.title }, ["anthropic", "openai"])
+        XCTAssertEqual(sections.map { $0.title }, ["Claude", "OpenAI"])
 
         // Footer refresh button.
         let footer = try XCTUnwrap(children.last)
@@ -65,7 +65,7 @@ final class AasUsageAdapterTests: XCTestCase {
 
     func testMeterSeverityTints() throws {
         let tree = AasUsageAdapter.adapt(fixture)
-        let anthropic = try XCTUnwrap(tree.children?.first { $0.type == "section" && $0.title == "anthropic" })
+        let anthropic = try XCTUnwrap(tree.children?.first { $0.type == "section" && $0.title == "Claude" })
         let progressNodes = flatten(anthropic).filter { $0.type == "progress" }
         XCTAssertEqual(progressNodes.count, 3)
 
@@ -80,19 +80,34 @@ final class AasUsageAdapterTests: XCTestCase {
         let tree = AasUsageAdapter.adapt(fixture)
         let all = flatten(tree)
 
-        // Plan badge uses planLabel when present.
+        // Accounts render as dedicated cards.
+        let cards = all.filter { $0.type == "card" }
+        XCTAssertEqual(cards.count, 3)
+        XCTAssertTrue(cards.contains { $0.tone == "warning" })
+        XCTAssertTrue(cards.contains { $0.tone == "danger" })
+
+        // Provider glyphs are mapped from provider identity.
+        let providerIcons = all.filter { $0.id?.hasSuffix("-provider-icon") == true }
+        XCTAssertEqual(providerIcons.map { $0.source?.name }, [
+            "sparkles", "sparkles", "circle.hexagongrid.fill",
+        ])
+
+        // Plan badge uses planLabel when present and normalizes max labels.
         let badges = all.filter { $0.type == "badge" }
-        XCTAssertTrue(badges.contains { $0.text == "Max 20x" })
-        XCTAssertTrue(badges.contains { $0.text == "pro" })
+        XCTAssertTrue(badges.contains { $0.text == "MAX · 20x" })
+        XCTAssertTrue(badges.contains { $0.text == "PRO" })
+        XCTAssertTrue(badges.contains { $0.text == "ACTIVE" })
 
-        // Account error rendered as danger caption.
+        // Account error rendered as a danger banner.
         let errorNode = try XCTUnwrap(all.first { $0.text == "token expired" })
-        XCTAssertEqual(errorNode.role, "caption")
-        XCTAssertEqual(errorNode.foreground, "danger")
+        XCTAssertEqual(errorNode.type, "banner")
+        XCTAssertEqual(errorNode.tone, "danger")
 
-        // Active dot tints.
-        let dots = all.filter { $0.source?.name == "circle.fill" }
-        XCTAssertEqual(dots.map { $0.tint }, ["good", "neutral", "good"])
+        // resetMs is surfaced as a visible ETA/reset caption.
+        XCTAssertTrue(all.contains { node in
+            node.id?.hasSuffix("-caption") == true
+                && (node.text?.contains("reset") ?? false)
+        })
     }
 
     func testRepeatedNodesHaveStableUniqueIDs() {

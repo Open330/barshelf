@@ -263,15 +263,9 @@ final class StatusItemController: NSObject {
 
     private func applyStatusSymbol(_ symbol: String) {
         let fallback = AppPreferences.defaultMenuBarSymbol
-        let trimmed = symbol.trimmingCharacters(in: .whitespacesAndNewlines)
-        let image = NSImage(
-            systemSymbolName: trimmed.isEmpty ? fallback : trimmed,
-            accessibilityDescription: "BarShelf"
-        ) ?? NSImage(
-            systemSymbolName: fallback,
-            accessibilityDescription: "BarShelf"
-        )
+        let image = BarShelfStatusIcon.image(for: symbol, fallback: fallback)
         statusItem.button?.image = image
+        statusItem.button?.imagePosition = .imageOnly
     }
 
     // MARK: - Global hotkey (Carbon RegisterEventHotKey — no a11y permission)

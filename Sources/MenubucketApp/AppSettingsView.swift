@@ -17,7 +17,8 @@ final class AppSettingsWindowController {
 }
 
 /// The hub's Settings section: General / Performance / Monitoring behind a
-/// segmented sub-picker (the R11 "Widgets" tab moved to `HubWidgetsView`).
+/// segmented sub-picker, rendered as native grouped `Form`s so the screen reads
+/// like a modern macOS System Settings pane.
 struct AppSettingsView: View {
     @ObservedObject var appPrefs: AppPrefs
     @ObservedObject var runtime: WidgetRuntime
@@ -33,13 +34,13 @@ struct AppSettingsView: View {
     @State private var launchError: String?
 
     private let symbolPresets = [
-        "tray.full", "square.grid.2x2", "menubar.rectangle",
-        "switch.2", "bolt", "gauge", "sparkles", "circle.grid.3x3",
-        "rectangle.stack", "app", "command", "terminal",
+        BarShelfStatusIcon.logoSymbol, "tray.full", "square.grid.2x2",
+        "menubar.rectangle", "switch.2", "bolt", "gauge", "sparkles",
+        "circle.grid.3x3", "rectangle.stack", "app", "terminal",
     ]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(spacing: 0) {
             Picker("Section", selection: $section) {
                 ForEach(Section.allCases) { section in
                     Text(section.rawValue).tag(section)
@@ -48,177 +49,240 @@ struct AppSettingsView: View {
             .pickerStyle(.segmented)
             .labelsHidden()
             .accessibilityLabel("Settings section")
-            .frame(maxWidth: 360)
+            .frame(maxWidth: 380)
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+            .padding(.bottom, 4)
 
-            switch section {
-            case .general: generalTab
-            case .performance: performanceTab
-            case .monitoring: monitoringTab
+            Form {
+                switch section {
+                case .general: generalSection
+                case .performance: performanceSection
+                case .monitoring: monitoringSection
+                }
             }
+            .formStyle(.grouped)
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear(perform: syncLaunchAtLoginStatus)
     }
 
-    private var generalTab: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Menu Bar Icon")
-                .font(.headline)
-            LazyVGrid(columns: Array(repeating: GridItem(.fixed(42)), count: 6), spacing: 8) {
+    // MARK: - General
+
+    @ViewBuilder
+    private var generalSection: some View {
+        SwiftUI.Section {
+            LazyVGrid(columns: Array(repeating: GridItem(.fixed(40), spacing: 8), count: 6), spacing: 8) {
                 ForEach(symbolPresets, id: \.self) { symbol in
                     Button {
                         appPrefs.update { $0.menuBarSymbol = symbol }
                     } label: {
-                        Image(systemName: symbol)
-                            .frame(width: 34, height: 28)
-                            .background(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(symbol == appPrefs.preferences.menuBarSymbol
-                                        ? Color.accentColor.opacity(0.18)
-                                        : Color.clear)
-                            )
+                        menuBarIconPreview(symbol)
+                            .frame(width: 40, height: 30)
+                            .background(selectionBackground(for: symbol))
                     }
                     .buttonStyle(.plain)
-                    .help(symbol)
-                    .accessibilityLabel("Menu bar icon \(symbol)")
+                    .help(symbol == BarShelfStatusIcon.logoSymbol ? "BarShelf logo" : symbol)
+                    .accessibilityLabel(
+                        "Menu bar icon \(symbol == BarShelfStatusIcon.logoSymbol ? "BarShelf logo" : symbol)"
+                    )
                     .accessibilityAddTraits(
                         symbol == appPrefs.preferences.menuBarSymbol ? [.isSelected] : []
                     )
                 }
             }
+            .padding(.vertical, 4)
+        } header: {
+            Text("Menu Bar Icon")
+        } footer: {
+            Text("Shown in the menu bar. Pick the icon that best fits your setup.")
+        }
 
-            HStack {
-                Text("Custom Symbol")
-                TextField("SF Symbol", text: Binding(
-                    get: { appPrefs.preferences.menuBarSymbol },
-                    set: { value in appPrefs.update { $0.menuBarSymbol = value } }
-                ))
-                .textFieldStyle(.roundedBorder)
-                .frame(maxWidth: 220)
-            }
-
-            Toggle("Launch at Login", isOn: Binding(
+        SwiftUI.Section {
+            Toggle(isOn: Binding(
                 get: { appPrefs.preferences.launchAtLogin },
                 set: setLaunchAtLogin
-            ))
+            )) {
+                Text("Launch at Login")
+                Text("Open BarShelf automatically when you sign in.")
+            }
 
-            Divider()
-
-            Text("Open Popup Hotkey")
-                .font(.headline)
-            Toggle("Toggle the popup with a global shortcut", isOn: Binding(
+            Toggle(isOn: Binding(
                 get: { appPrefs.preferences.popupHotkeyEnabled },
                 set: { value in appPrefs.update { $0.popupHotkeyEnabled = value } }
-            ))
-            HStack {
-                Text("Shortcut")
-                TextField("cmd+shift+b", text: Binding(
-                    get: { appPrefs.preferences.popupHotkey },
-                    set: { value in appPrefs.update { $0.popupHotkey = value } }
-                ))
-                .textFieldStyle(.roundedBorder)
-                .frame(maxWidth: 200)
-                .disabled(!appPrefs.preferences.popupHotkeyEnabled)
+            )) {
+                Text("Global Shortcut")
+                Text("Toggle the popup from anywhere with a keyboard shortcut.")
             }
-            Text("e.g. cmd+shift+b")
-                .font(.caption)
-                .foregroundColor(.secondary)
 
-            if let launchError {
+            if appPrefs.preferences.popupHotkeyEnabled {
+                LabeledContent("Shortcut") {
+                    TextField("cmd+shift+b", text: Binding(
+                        get: { appPrefs.preferences.popupHotkey },
+                        set: { value in appPrefs.update { $0.popupHotkey = value } }
+                    ))
+                    .textFieldStyle(.roundedBorder)
+                    .multilineTextAlignment(.trailing)
+                    .frame(maxWidth: 180)
+                }
+            }
+        } header: {
+            Text("General")
+        }
+
+        if let launchError {
+            SwiftUI.Section {
                 Label(launchError, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption)
                     .foregroundColor(.red)
             }
-            if let error = appPrefs.lastError {
+        }
+        if let error = appPrefs.lastError {
+            SwiftUI.Section {
                 Label(error, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption)
                     .foregroundColor(.red)
             }
-            Spacer()
         }
-        .padding(.top, 8)
     }
 
-    private var performanceTab: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Refresh")
-                .font(.headline)
-            Picker("Refresh Multiplier", selection: Binding(
+    @ViewBuilder
+    private func menuBarIconPreview(_ symbol: String) -> some View {
+        if symbol == BarShelfStatusIcon.logoSymbol {
+            Image(nsImage: BarShelfStatusIcon.logoImage())
+                .renderingMode(.template)
+                .foregroundStyle(Color.primary)
+        } else {
+            Image(systemName: symbol)
+        }
+    }
+
+    private func selectionBackground(for symbol: String) -> some View {
+        RoundedRectangle(cornerRadius: 7)
+            .fill(symbol == appPrefs.preferences.menuBarSymbol
+                ? Color.accentColor.opacity(0.20)
+                : Color.clear)
+            .overlay(
+                RoundedRectangle(cornerRadius: 7)
+                    .strokeBorder(
+                        symbol == appPrefs.preferences.menuBarSymbol
+                            ? Color.accentColor.opacity(0.55) : Color.clear
+                    )
+            )
+    }
+
+    // MARK: - Performance
+
+    @ViewBuilder
+    private var performanceSection: some View {
+        SwiftUI.Section {
+            Picker("Refresh Cadence", selection: Binding(
                 get: { appPrefs.preferences.refreshMultiplier },
-                set: { value in
-                    appPrefs.update { $0.refreshMultiplier = value }
-                }
+                set: { value in appPrefs.update { $0.refreshMultiplier = value } }
             )) {
-                Text("0.5x").tag(0.5)
-                Text("1x").tag(1.0)
-                Text("2x").tag(2.0)
-                Text("4x").tag(4.0)
+                Text("0.5×").tag(0.5)
+                Text("1×").tag(1.0)
+                Text("2×").tag(2.0)
+                Text("4×").tag(4.0)
             }
             .pickerStyle(.segmented)
-            .frame(maxWidth: 320)
 
-            Toggle("Pause all refreshes while the popup is closed", isOn: Binding(
+            Toggle(isOn: Binding(
                 get: { appPrefs.preferences.pauseWhenClosed },
                 set: { value in appPrefs.update { $0.pauseWhenClosed = value } }
-            ))
-
-            Spacer()
+            )) {
+                Text("Pause When Closed")
+                Text("Stop refreshing widgets while the popup is hidden.")
+            }
+        } header: {
+            Text("Refresh Policy")
+        } footer: {
+            Text("Scales every widget's cadence without editing individual manifests.")
         }
-        .padding(.top, 8)
+
+        SwiftUI.Section {
+            HStack(spacing: 10) {
+                statTile("\(runtime.widgets.count)", "widgets")
+                statTile("\(runtime.pages.count)", "panels")
+                statTile("\(runtime.refreshStatsSnapshot.count)", "tracked")
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 2)
+        } header: {
+            Text("Runtime")
+        }
     }
 
-    private var monitoringTab: some View {
-        VStack(alignment: .leading, spacing: 12) {
+    // MARK: - Monitoring
+
+    @ViewBuilder
+    private var monitoringSection: some View {
+        SwiftUI.Section {
+            if monitoringRows.isEmpty {
+                Label("No widgets installed yet.", systemImage: "tray")
+                    .font(.callout)
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 12)
+            } else {
+                ForEach(monitoringRows) { row in
+                    monitoringRowView(row)
+                }
+            }
+        } header: {
             HStack {
                 Text("Refresh Statistics")
-                    .font(.headline)
                 Spacer()
-                Button("Open Logs Folder", action: openLogsFolder)
+                Button("Open Logs", action: openLogsFolder)
+                    .buttonStyle(.link)
+                    .font(.caption)
             }
-
-            List(monitoringRows) { row in
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(row.name)
-                            .font(.system(size: 12, weight: .semibold))
-                        Text(row.id)
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(minWidth: 160, alignment: .leading)
-
-                    HStack(spacing: 5) {
-                        Circle()
-                            .fill(row.statusColor)
-                            .frame(width: 8, height: 8)
-                            .accessibilityHidden(true)
-                        Text(row.status)
-                            .font(.caption)
-                    }
-                    .frame(width: 70, alignment: .leading)
-
-                    Text("S \(row.successCount) / F \(row.failureCount)")
-                        .font(.caption)
-                        .frame(width: 86, alignment: .leading)
-
-                    Text(row.averageDuration)
-                        .font(.caption)
-                        .frame(width: 82, alignment: .leading)
-
-                    Text(row.lastDuration)
-                        .font(.caption)
-                        .frame(width: 82, alignment: .leading)
-
-                    Text(row.lastRefresh)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .padding(.vertical, 3)
-            }
+        } footer: {
+            Text("Recent outcomes and timing per installed widget.")
         }
-        .padding(.top, 8)
+    }
+
+    private func monitoringRowView(_ row: MonitoringRow) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(row.name)
+                    .font(.system(size: 12, weight: .semibold))
+                Text(row.id)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(row.statusColor)
+                    .frame(width: 7, height: 7)
+                    .accessibilityHidden(true)
+                Text(row.status)
+                    .font(.caption)
+            }
+            .frame(width: 66, alignment: .leading)
+
+            Text("\(row.successCount)✓ \(row.failureCount)✗")
+                .font(.caption)
+                .monospacedDigit()
+                .foregroundColor(.secondary)
+                .frame(width: 64, alignment: .trailing)
+
+            Text(row.lastDuration)
+                .font(.caption)
+                .monospacedDigit()
+                .foregroundColor(.secondary)
+                .frame(width: 66, alignment: .trailing)
+
+            Text(row.lastRefresh)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .frame(width: 74, alignment: .trailing)
+        }
+        .padding(.vertical, 3)
     }
 
     private var monitoringRows: [MonitoringRow] {
@@ -226,6 +290,25 @@ struct AppSettingsView: View {
             MonitoringRow(widget: widget, stats: runtime.refreshStatsSnapshot[widget.id])
         }
     }
+
+    private func statTile(_ value: String, _ label: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value)
+                .font(.system(size: 17, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+            Text(label)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 52)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.primary.opacity(0.05))
+        )
+    }
+
+    // MARK: - Launch at login
 
     private func setLaunchAtLogin(_ enabled: Bool) {
         do {
@@ -275,7 +358,7 @@ struct AppSettingsView: View {
             successCount = stats?.successCount ?? 0
             failureCount = stats?.failureCount ?? 0
             averageDuration = Self.ms(stats?.averageDurationMs, prefix: "avg")
-            lastDuration = Self.ms(stats?.lastDurationMs, prefix: "last")
+            lastDuration = Self.ms(stats?.lastDurationMs, prefix: "")
             if let last = stats?.lastRefreshAt {
                 lastRefresh = Self.relativeFormatter.localizedString(
                     for: last, relativeTo: Date()
@@ -291,8 +374,9 @@ struct AppSettingsView: View {
         }
 
         private static func ms(_ value: Double?, prefix: String) -> String {
-            guard let value else { return "\(prefix) -" }
-            return "\(prefix) \(Int(value.rounded())) ms"
+            guard let value else { return prefix.isEmpty ? "–" : "\(prefix) –" }
+            let body = "\(Int(value.rounded())) ms"
+            return prefix.isEmpty ? body : "\(prefix) \(body)"
         }
 
         private static let relativeFormatter: RelativeDateTimeFormatter = {

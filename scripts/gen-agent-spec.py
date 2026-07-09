@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Regenerate Sources/MbkCLI/MbkKit/AgentSpecEmbedded.swift from docs/AGENTS.md.
+"""Regenerate Sources/BarShelfCLI/BarShelfKit/AgentSpecEmbedded.swift from docs/AGENTS.md.
 
-`mbk agent-spec` prefers the on-disk docs/AGENTS.md (dev checkout) and falls
+`barshelf agent-spec` prefers the on-disk docs/AGENTS.md (dev checkout) and falls
 back to the embedded copy this script produces, so the standalone release
 binary (which ships no resources) still prints the full spec. Run this whenever
 docs/AGENTS.md changes:
@@ -13,7 +13,7 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DOC = ROOT / "docs" / "AGENTS.md"
-OUT = ROOT / "Sources" / "MbkCLI" / "MbkKit" / "AgentSpecEmbedded.swift"
+OUT = ROOT / "Sources" / "BarShelfCLI" / "BarShelfKit" / "AgentSpecEmbedded.swift"
 DELIM = "#####"
 
 
@@ -24,7 +24,7 @@ def main() -> int:
         return 1
     lines = [
         "// Generated from docs/AGENTS.md by scripts/gen-agent-spec.py (do not edit by hand).",
-        "// `mbk agent-spec` prints the on-disk docs/AGENTS.md when found (dev checkout),",
+        "// `barshelf agent-spec` prints the on-disk docs/AGENTS.md when found (dev checkout),",
         "// otherwise this embedded copy - so the packaged bare binary still works.",
         "",
         "enum AgentSpecEmbedded {",

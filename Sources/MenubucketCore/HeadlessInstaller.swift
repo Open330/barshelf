@@ -56,7 +56,7 @@ public struct InstallCandidate: Equatable, Sendable {
 
 /// Headless download → extract → discover → install pipeline (URL-install
 /// v1). No UI, no AppKit — shared by the app's `WidgetInstaller` (GUI + CLI
-/// mode) and the standalone `mbk` CLI.
+/// mode) and the standalone `barshelf` CLI.
 public enum HeadlessInstaller {
     /// Archive download cap (bytes).
     // Repo archives legitimately reach tens of MB once app assets are in the
@@ -112,7 +112,7 @@ public enum HeadlessInstaller {
         return try await fetchSession(source: WidgetInstallSource.parse(input))
     }
 
-    /// Installs from a local widget directory (e.g. `mbk install ./my-widget`).
+    /// Installs from a local widget directory (e.g. `barshelf install ./my-widget`).
     /// The directory is copied into a temp staging root — never discovered in
     /// place — so `Session.cleanup()` and permission-preserving copy behave
     /// exactly like the archive path and never touch the user's source.
@@ -295,11 +295,11 @@ public enum HeadlessInstaller {
         return data
     }
 
-    // MARK: Local archives (mbk install ./widget.mbw)
+    // MARK: Local archives (barshelf install ./widget.mbw)
 
     /// Recognizes `file://…` URLs and existing local `.zip`/`.mbw` paths.
-    /// Note: `menubucket://` deep links still go through
-    /// `WidgetInstallSource.parse`, which rejects the `file` scheme — local
+    /// Deep links still go through `WidgetInstallSource.parse`, which rejects
+    /// the `file` scheme — local
     /// archives are only reachable from direct CLI/API input.
     static func localArchiveSource(for input: String) -> WidgetInstallSource? {
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)

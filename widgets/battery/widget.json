@@ -1,0 +1,31 @@
+{
+  "$schema": "https://barshelf.dev/schema/widget-0.1.json",
+  "schemaVersion": 1,
+  "id": "dev.barshelf.battery",
+  "name": "Battery",
+  "version": "0.1.0",
+  "icon": "battery.100percent",
+  "bucket": { "group": "System", "order": 10, "size": "M" },
+
+  "entry": { "kind": "script", "runtime": "deno-ts@1" },
+  "source": { "kind": "script", "output": "viewtree" },
+
+  "refresh": { "onOpen": true, "interval": 300, "staleAfterSec": 300 },
+
+  "permissions": {
+    "exec": [
+      {
+        "command": "/usr/bin/pmset",
+        "allowedArgs": [["-g", "batt"]],
+        "maxOutputBytes": 8192,
+        "sensitiveOutput": false
+      }
+    ]
+  },
+
+  "appearance": {
+    "accent": "green",
+    "density": "compact",
+    "cardStyle": "tinted"
+  }
+}

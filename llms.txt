@@ -8,14 +8,14 @@
 
 ## Widget authoring (start here)
 
-- [AGENTS.md — full widget authoring spec for agents](https://github.com/Open330/barshelf/blob/master/docs/AGENTS.md): manifest schema, exec/workflow/script decision rule, UINode catalog, settings, appearance, permissions, triggers, build/test loop, and 3 worked examples. Also available via `mbk agent-spec`.
+- [AGENTS.md — full widget authoring spec for agents](https://github.com/Open330/barshelf/blob/master/docs/AGENTS.md): manifest schema, exec/workflow/script decision rule, UINode catalog, settings, appearance, permissions, triggers, build/test loop, and 3 worked examples. Also available via `barshelf agent-spec`.
 - [WIDGET-SPEC.md — manifest & UINode reference](https://github.com/Open330/barshelf/blob/master/docs/WIDGET-SPEC.md)
 - [WORKFLOW.md — declarative workflow sources/transforms/templates](https://github.com/Open330/barshelf/blob/master/docs/WORKFLOW.md)
 - [SCRIPT-RUNTIME.md — Deno TypeScript SDK and host APIs](https://github.com/Open330/barshelf/blob/master/docs/SCRIPT-RUNTIME.md)
 
 ## Tooling & publishing
 
-- [MBK.md — the `mbk` developer CLI (new/validate/pack/install/list/agent-spec)](https://github.com/Open330/barshelf/blob/master/docs/MBK.md)
+- [CLI.md — the `barshelf` developer CLI (new/validate/pack/install/list/agent-spec)](https://github.com/Open330/barshelf/blob/master/docs/CLI.md)
 - [GETTING-STARTED.md](https://github.com/Open330/barshelf/blob/master/docs/GETTING-STARTED.md)
 - [INSTALLING-WIDGETS.md — install URL contract](https://github.com/Open330/barshelf/blob/master/docs/INSTALLING-WIDGETS.md)
 - [REGISTRY.md — gallery registry entries (category, screenshot)](https://github.com/Open330/barshelf/blob/master/docs/REGISTRY.md)
@@ -30,4 +30,4 @@
 
 ## SDK
 
-- [sdk/mod.ts — the `barshelf` script SDK (ui, action, mb.* host APIs)](https://github.com/Open330/barshelf/blob/master/sdk/mod.ts)
+- [sdk/mod.ts — the `barshelf` script SDK (ui, action, barshelf.* host APIs)](https://github.com/Open330/barshelf/blob/master/sdk/mod.ts)

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Packages a GitHub Release payload: BarShelf-<ver>-<arch>.zip (.app) and
-# mbk-<ver>-<arch>.tar.gz, plus SHA256SUMS. Run scripts/build_app.sh first
+# barshelf-cli-<ver>-<arch>.tar.gz, plus SHA256SUMS. Run scripts/build_app.sh first
 # (this script runs it if dist/ is missing).
 #
 # Signing: uses ad-hoc identity unless SIGN_IDENTITY is set to a
@@ -22,7 +22,7 @@ APP_BUNDLE_PATH="${DIST_DIR}/${APP_BUNDLE_NAME}"
 VERSION=${VERSION:-$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' \
   "${APP_BUNDLE_PATH}/Contents/Info.plist" 2>/dev/null || echo "0.1.0")}
 
-if [[ ! -d "${APP_BUNDLE_PATH}" || ! -x "${DIST_DIR}/mbk" ]]; then
+if [[ ! -d "${APP_BUNDLE_PATH}" || ! -x "${DIST_DIR}/barshelf" || ! -x "${DIST_DIR}/bsf" ]]; then
   bash "${PROJECT_ROOT}/scripts/build_app.sh"
 fi
 
@@ -30,11 +30,11 @@ rm -rf "${RELEASE_DIR}"
 mkdir -p "${RELEASE_DIR}"
 
 APP_ZIP="${RELEASE_DIR}/${APP_DISPLAY_NAME}-${VERSION}-${ARCH}.zip"
-MBK_TAR="${RELEASE_DIR}/mbk-${VERSION}-${ARCH}.tar.gz"
+CLI_TAR="${RELEASE_DIR}/barshelf-cli-${VERSION}-${ARCH}.tar.gz"
 
 # ditto preserves resource forks, permissions, and code signatures.
 ditto -c -k --keepParent "${APP_BUNDLE_PATH}" "${APP_ZIP}"
-tar -czf "${MBK_TAR}" -C "${DIST_DIR}" mbk
+tar -czf "${CLI_TAR}" -C "${DIST_DIR}" barshelf bsf
 
 if [[ "${NOTARIZE:-0}" == "1" ]]; then
   if [[ -z "${SIGN_IDENTITY:-}" ]]; then

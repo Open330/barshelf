@@ -19,7 +19,7 @@ final class RuntimeSupervisorTests: XCTestCase {
 
     override func setUpWithError() throws {
         tempDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("mb-supervisor-tests-\(UUID().uuidString)")
+            .appendingPathComponent("barshelf-supervisor-tests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
     }
 

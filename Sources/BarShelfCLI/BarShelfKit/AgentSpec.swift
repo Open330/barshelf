@@ -1,11 +1,11 @@
 import Foundation
 
-/// `mbk agent-spec` — prints the widget-authoring spec (docs/AGENTS.md) so an
+/// `barshelf agent-spec` — prints the widget-authoring spec (docs/AGENTS.md) so an
 /// LLM agent can be handed the whole contract in one command.
 ///
 /// Resolution order (filesystem first, so a dev checkout always prints the live
 /// file; the embedded copy is the fallback that keeps the packaged bare binary
-/// working — the release tarball ships only the `mbk` executable, no resources):
+/// working — the release tarball ships only CLI binaries, no resources):
 ///   1. `<cwd>/docs/AGENTS.md`
 ///   2. repo-relative to this source file (`#filePath` walk-up) — dev builds
 ///   3. executable-relative walk-up (like `RuntimeSupervisor.locateSDKModule`)
@@ -31,11 +31,11 @@ public enum AgentSpec {
             .appendingPathComponent(relative)
         if fileManager.fileExists(atPath: cwd.path) { return cwd }
 
-        // 2. Repo-relative to this file: Sources/MbkCLI/MbkKit/AgentSpec.swift
+        // 2. Repo-relative to this file: Sources/BarShelfCLI/BarShelfKit/AgentSpec.swift
         //    → repo root is four parent directories up.
         let repoRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()  // MbkKit
-            .deletingLastPathComponent()  // MbkCLI
+            .deletingLastPathComponent()  // BarShelfKit
+            .deletingLastPathComponent()  // BarShelfCLI
             .deletingLastPathComponent()  // Sources
             .deletingLastPathComponent()  // repo root
         let sourceRelative = repoRoot.appendingPathComponent(relative)

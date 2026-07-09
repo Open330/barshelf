@@ -7,6 +7,7 @@
 - 시작하기: [`docs/GETTING-STARTED.md`](GETTING-STARTED.md)
 - URL 설치: [`docs/INSTALLING-WIDGETS.md`](INSTALLING-WIDGETS.md)
 - 위젯 배포: [`docs/PUBLISHING.md`](PUBLISHING.md)
+- Workflow UI Engine 로드맵: [`docs/WORKFLOW-UI-ENGINE.md`](WORKFLOW-UI-ENGINE.md)
 - Manifest/UINode 스펙: [`docs/WIDGET-SPEC.md`](WIDGET-SPEC.md)
 
 스키마:
@@ -55,6 +56,8 @@ Workflow 위젯은 manifest에서 workflow 파일을 직접 가리킨다.
 
 `entry.main`은 위젯 번들 기준 상대 경로이며 JSON workflow 문서여야 한다. Workflow가 파일을 읽거나 명령을 실행하면 I/O는 항상 호스트 서비스가 수행하고, manifest 권한과 매칭되어야 한다.
 
+Builder의 고급 UI는 `WorkflowGraph`를 편집 모델로 사용할 수 있다. 그래프는 저장/편집을 위한 authoring 형식이고, 실행 전에는 이 문서의 `WorkflowDefinition`으로 컴파일된다.
+
 ## 파일 구조
 
 ```json
@@ -65,18 +68,20 @@ Workflow 위젯은 manifest에서 workflow 파일을 직접 가리킨다.
   "transforms": {},
   "view": { "type": "vstack", "children": [] },
   "empty": { "type": "empty", "title": "No items" },
-  "status": { "tooltip": "0 items" }
+  "status": { "tooltip": "0 items" },
+  "store": { "count": { "value": "${add(coalesce(storage.count, 0), 1)}" } }
 }
 ```
 
 | 필드 | 설명 |
 | --- | --- |
 | `schemaVersion` | v1은 `1`. |
-| `sources` | 호스트가 실행하는 I/O 단계. v1은 `exec`, `fs.directory`를 지원한다. |
+| `sources` | 호스트가 실행하거나 주입하는 입력 단계. v1은 `exec`, `fs.directory`, `http`, `value`를 지원한다. |
 | `transforms` | 순수 변환 단계. v1은 `assign`, `filter`, `sort`, `limit`를 지원한다. |
 | `view` | 렌더링할 UINode 템플릿. 문자열 필드에서만 `${...}` 보간을 허용한다. |
 | `empty` | 반복 결과가 비어 있을 때 사용할 UINode. |
 | `status` | status item label/tooltip 등에 쓸 값. |
+| `store` | 평가가 끝난 뒤 위젯 저장소에 커밋할 키/값. 자세한 내용은 [영속성](#영속성-storage) 참조. |
 
 ## 소스
 
@@ -86,6 +91,8 @@ Workflow 위젯은 manifest에서 workflow 파일을 직접 가리킨다.
 | --- | --- | --- |
 | `fs.directory` | `path`, `watch`, `skipHidden`, `sortBy`, `sortDirection`, `limit` | `{ "items": [...] }` |
 | `exec` | `command`, `timeoutMs`, `output`, `maxOutputBytes` | stdout JSON |
+| `http` | `url`, `headers` | HTTPS JSON response |
+| `value` | any JSON literal | the literal JSON value |
 
 `fs.directory` item 필드는 고정이다.
 
@@ -137,6 +144,32 @@ Workflow 위젯은 manifest에서 workflow 파일을 직접 가리킨다.
 }
 ```
 
+`http` source는 HTTPS GET만 허용하며, URL host가 manifest의 `permissions.network[]` allowlist에 있어야 한다.
+
+```json
+{
+  "sources": {
+    "status": {
+      "use": "http",
+      "with": { "url": "https://api.github.com/repos/Open330/barshelf" }
+    }
+  }
+}
+```
+
+`value` source는 I/O 없이 JSON literal을 그대로 `sources.<id>`에 넣는다. Widget Builder의 **Paste JSON** 소스가 이 형태를 생성한다. 문자열 내부의 `${...}`는 보간하지 않는다.
+
+```json
+{
+  "sources": {
+    "data": {
+      "use": "value",
+      "with": [{ "name": "Build", "status": "success" }]
+    }
+  }
+}
+```
+
 ## 변환
 
 `transforms`의 각 키는 다음 단계에서 `transforms.<id>` 또는 `$.transforms.<id>`로 참조한다.
@@ -170,19 +203,62 @@ Arbitrary JavaScript는 금지한다. 표현식은 문자열 안의 `${...}` 보
 | settings | `${settings.folder}`, `${settings.limit}` |
 | sources | `${sources.files.items}` |
 | transforms | `${count(transforms.visible)}` |
+| storage | `${storage.count}` (이전 스냅샷; [영속성](#영속성-storage) 참조) |
 | forEach 변수 | `${file.path}`, `${file.name}` |
 
-지원 내장 함수는 v1에서 다음으로 고정한다.
+표현식의 리터럴은 숫자(`42`, `-1`), 문자열(`'ok'` 또는 `"ok"`), `true`/`false`/`null`을 지원한다.
+문자열 리터럴 덕분에 `eq(status, 'success')`처럼 상수와 비교할 수 있다.
+
+지원 내장 함수는 다음과 같다.
 
 | 함수 | 설명 |
 | --- | --- |
 | `now()` | 현재 시각을 Unix epoch milliseconds로 반환한다. |
 | `count(list)` | 목록 길이를 반환한다. |
 | `date.relative(ms)` | epoch milliseconds를 상대 시간 텍스트로 변환한다. |
-| `file.basename(path)` | 경로의 마지막 파일명을 반환한다. |
-| `file.extension(path)` | 경로 확장자를 반환한다. |
+| `file.basename(path)` / `file.extension(path)` | 경로의 파일명 / 확장자. |
 | `text.truncate(s,n)` | 문자열을 최대 길이로 줄인다. |
-| `coalesce(a,b,...)` | 첫 번째 non-null 값을 반환한다. |
+| `coalesce(a,b,...)` | 첫 번째 non-null·non-empty 값을 반환한다. |
+| `default(v, fallback)` | `v`가 falsy면 `fallback`. |
+| `if(cond, a, b)` | `cond`가 truthy면 `a`, 아니면 `b`. (인자는 모두 미리 평가됨) |
+| `not`, `and`, `or` | 불리언 로직. falsy: `null`·`false`·`0`·`""`·빈 배열·빈 객체. |
+| `eq`, `ne` | 값 동등/비동등 비교. |
+| `gt`, `gte`, `lt`, `lte` | 순서 비교(양쪽이 숫자면 수치, 아니면 문자열). |
+| `contains(hay, needle)` | 문자열 부분일치 또는 배열 포함 여부. |
+| `add`, `sub`, `mul`, `div` | 사칙연산(숫자 문자열도 자동 변환). |
+| `min`, `max`, `round(v, digits?)` | 최소·최대·반올림. |
+| `number(v)` | 숫자로 변환(불가하면 `null`). |
+
+## 영속성 (storage)
+
+워크플로는 위젯별 KV 저장소(TTL 지원)를 읽고 쓸 수 있다. 스크립트 위젯의
+`host.storage.*`와 **같은 네임스페이스**를 공유한다. 사용하려면 매니페스트에서
+`permissions.storage`를 `true`(또는 `{ "maxBytes": N }`)로 선언해야 한다.
+`false`이거나 없으면 `storage.*`는 항상 빈 값이고 `store`는 무시된다.
+
+- **읽기** — 직전 스냅샷이 `${storage.<key>}` 경로로 주입된다. `view`가 평가되기
+  *전*의 값이므로, 카운터/델타처럼 "이전 값"을 참조하는 패턴에 적합하다.
+- **쓰기** — 최상위 `store` 블록의 각 항목은 뷰 평가가 끝난 뒤 커밋된다.
+  `value`는 뷰와 동일한 컨텍스트에서 평가되는 `${...}` 템플릿이고, `ttlSec`로
+  만료를 줄 수 있다. 엔진은 순수성을 유지하기 위해 *무엇을 쓸지*만 계산하고,
+  실제 커밋은 호스트가 수행한다.
+
+```json
+{
+  "sources": {},
+  "view": {
+    "type": "text",
+    "text": "방문 ${string(add(coalesce(storage.count, 0), 1))}회"
+  },
+  "store": {
+    "count":  { "value": "${add(coalesce(storage.count, 0), 1)}" },
+    "cached": { "value": "${sources.data}", "ttlSec": 300 }
+  }
+}
+```
+
+활용 예: 방문 카운터(`visit-counter`), "지난번 이후 변화" 델타(`downloads-new`),
+비싼 결과 캐시(TTL), 마지막 정상 값 보존 등.
 
 ## forEach 템플릿
 

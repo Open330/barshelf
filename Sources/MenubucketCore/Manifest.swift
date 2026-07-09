@@ -206,6 +206,10 @@ public struct Manifest: Codable, Equatable {
         public var keychain: Bool?
         /// Allow `host.notify.show` (script runtime).
         public var notifications: Bool?
+        /// Opt in to per-widget persistent storage (KV + TTL). Required for a
+        /// workflow's `storage.*` reads and `store` writes, and for a script's
+        /// `host.storage.*` calls to be honored beyond the default quota.
+        public var storage: StoragePermission?
 
         public init(
             exec: [ExecPermission]? = nil,
@@ -213,7 +217,8 @@ public struct Manifest: Codable, Equatable {
             readPaths: [String]? = nil,
             env: [String]? = nil,
             keychain: Bool? = nil,
-            notifications: Bool? = nil
+            notifications: Bool? = nil,
+            storage: StoragePermission? = nil
         ) {
             self.exec = exec
             self.network = network
@@ -221,6 +226,46 @@ public struct Manifest: Codable, Equatable {
             self.env = env
             self.keychain = keychain
             self.notifications = notifications
+            self.storage = storage
+        }
+    }
+
+    /// Per-widget storage grant. Accepts two JSON shapes for back-compat:
+    /// `"storage": true` / `false` (the original script convention) and
+    /// `"storage": { "maxBytes": N }`. `granted` is false only for an explicit
+    /// `false`; `maxBytes` caps the serialized namespace (host clamps to its
+    /// own hard ceiling), nil meaning the host default.
+    public struct StoragePermission: Codable, Equatable {
+        public var maxBytes: Int?
+        public var granted: Bool
+
+        public init(maxBytes: Int? = nil, granted: Bool = true) {
+            self.maxBytes = maxBytes
+            self.granted = granted
+        }
+
+        private enum CodingKeys: String, CodingKey { case maxBytes }
+
+        public init(from decoder: Decoder) throws {
+            if let single = try? decoder.singleValueContainer(),
+               let flag = try? single.decode(Bool.self) {
+                self.granted = flag
+                self.maxBytes = nil
+                return
+            }
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            self.maxBytes = try container.decodeIfPresent(Int.self, forKey: .maxBytes)
+            self.granted = true
+        }
+
+        public func encode(to encoder: Encoder) throws {
+            if let maxBytes {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(maxBytes, forKey: .maxBytes)
+            } else {
+                var single = encoder.singleValueContainer()
+                try single.encode(granted)
+            }
         }
     }
 
@@ -388,6 +433,7 @@ extension Manifest.Source: Sendable {}
 extension Manifest.Refresh: Sendable {}
 extension Manifest.StatusItem: Sendable {}
 extension Manifest.Permissions: Sendable {}
+extension Manifest.StoragePermission: Sendable {}
 extension Manifest.ExecPermission: Sendable {}
 extension Manifest.Setting: Sendable {}
 extension JSONValue: Sendable {}

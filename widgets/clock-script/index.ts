@@ -1,4 +1,4 @@
-import { mb, ui, type WidgetLoadContext, type WidgetTimerContext } from "barshelf";
+import { barshelf, ui, type WidgetLoadContext, type WidgetTimerContext } from "barshelf";
 
 const TIMER_ID = "clock-minute";
 const COUNT_KEY = "click-count";
@@ -17,7 +17,7 @@ function nextMinuteStart(date: Date): number {
 }
 
 async function readCount(): Promise<number> {
-  const value = await mb.storage.get<number>(COUNT_KEY);
+  const value = await barshelf.storage.get<number>(COUNT_KEY);
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
@@ -27,7 +27,7 @@ async function renderClock(nowMs: number): Promise<void> {
   const seconds = now.getSeconds();
   const timeText = formatTime(now);
 
-  await mb.render(
+  await barshelf.render(
     ui.vstack([
       ui.hstack([
         ui.image("clock", { id: "clock-icon", size: 16, tint: "accent" }),
@@ -66,7 +66,7 @@ async function renderClock(nowMs: number): Promise<void> {
 }
 
 async function load(ctx: WidgetLoadContext): Promise<void> {
-  await mb.timer.every(TIMER_ID, 60_000);
+  await barshelf.timer.every(TIMER_ID, 60_000);
   await renderClock(ctx.now);
 }
 
@@ -76,7 +76,7 @@ async function timer(ctx: WidgetTimerContext): Promise<void> {
   }
 }
 
-export default mb.widget({
+export default barshelf.widget({
   load,
 
   async action(ctx) {
@@ -85,7 +85,7 @@ export default mb.widget({
     }
 
     const count = await readCount();
-    await mb.storage.set(COUNT_KEY, count + 1);
+    await barshelf.storage.set(COUNT_KEY, count + 1);
     await renderClock(ctx.now);
   },
 

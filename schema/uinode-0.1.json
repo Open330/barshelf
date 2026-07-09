@@ -43,6 +43,9 @@
               "$ref": "#/definitions/sectionNode"
             },
             {
+              "$ref": "#/definitions/cardNode"
+            },
+            {
               "$ref": "#/definitions/badgeNode"
             },
             {
@@ -736,6 +739,33 @@
           "items": {
             "$ref": "#/definitions/uiNode"
           }
+        }
+      },
+      "additionalProperties": true
+    },
+    "cardNode": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "const": "card"
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/uiNode"
+          }
+        },
+        "spacing": {
+          "type": "number"
+        },
+        "tone": {
+          "$ref": "#/definitions/semanticColor"
+        },
+        "tint": {
+          "$ref": "#/definitions/semanticColor"
         }
       },
       "additionalProperties": true

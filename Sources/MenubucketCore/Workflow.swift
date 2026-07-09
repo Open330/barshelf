@@ -5,7 +5,7 @@ import Foundation
 /// Declarative workflow v1: host-executed `sources` → pure `transforms` →
 /// `${...}`-templated `view`. No arbitrary code — the expression language is
 /// paths + the built-in functions in `WorkflowEngine.call`.
-public struct WorkflowDefinition: Codable, Sendable {
+public struct WorkflowDefinition: Codable, Equatable, Sendable {
     public var schemaVersion: Int
     public var kind: String?
     public var sources: [String: SourceDef]
@@ -13,8 +13,33 @@ public struct WorkflowDefinition: Codable, Sendable {
     public var view: JSONValue
     public var empty: JSONValue?
     public var status: StatusDef?
+    /// Declarative persistence: after a successful eval, each entry's `value`
+    /// template is expanded and the host commits it to the widget's storage
+    /// namespace (optionally with a TTL). Keeps the engine pure — it computes
+    /// *what* to write; the host performs the side effect.
+    public var store: [String: StoreDef]?
 
-    public struct SourceDef: Codable, Sendable {
+    public init(
+        schemaVersion: Int = 1,
+        kind: String? = "workflow",
+        sources: [String: SourceDef],
+        transforms: [String: TransformDef]? = nil,
+        view: JSONValue,
+        empty: JSONValue? = nil,
+        status: StatusDef? = nil,
+        store: [String: StoreDef]? = nil
+    ) {
+        self.schemaVersion = schemaVersion
+        self.kind = kind
+        self.sources = sources
+        self.transforms = transforms
+        self.view = view
+        self.empty = empty
+        self.status = status
+        self.store = store
+    }
+
+    public struct SourceDef: Codable, Equatable, Sendable {
         public var use: String
         public var with: JSONValue?
 
@@ -24,15 +49,40 @@ public struct WorkflowDefinition: Codable, Sendable {
         }
     }
 
-    public struct TransformDef: Codable, Sendable {
+    public struct TransformDef: Codable, Equatable, Sendable {
         public var use: String
         public var from: String?
         public var with: JSONValue?
+
+        public init(use: String, from: String? = nil, with: JSONValue? = nil) {
+            self.use = use
+            self.from = from
+            self.with = with
+        }
     }
 
-    public struct StatusDef: Codable, Sendable {
+    public struct StatusDef: Codable, Equatable, Sendable {
         public var label: String?
         public var tooltip: String?
+
+        public init(label: String? = nil, tooltip: String? = nil) {
+            self.label = label
+            self.tooltip = tooltip
+        }
+    }
+
+    /// One persisted key. `value` is a `${…}` template expanded in the same
+    /// context as the view (so it can read `sources`, `transforms`, `storage`,
+    /// `now()`, etc.). `ttlSec`, when set, expires the entry after that many
+    /// seconds.
+    public struct StoreDef: Codable, Equatable, Sendable {
+        public var value: JSONValue
+        public var ttlSec: Double?
+
+        public init(value: JSONValue, ttlSec: Double? = nil) {
+            self.value = value
+            self.ttlSec = ttlSec
+        }
     }
 
     public static func decode(from data: Data) throws -> WorkflowDefinition {
@@ -61,6 +111,20 @@ public enum WorkflowError: Error, LocalizedError, Equatable {
 // MARK: - Engine
 
 public enum WorkflowEngine {
+    /// A key the host should commit to the widget's storage namespace after a
+    /// successful eval.
+    public struct StorageWrite: Sendable, Equatable {
+        public var key: String
+        public var value: JSONValue
+        public var ttlMs: Double?
+
+        public init(key: String, value: JSONValue, ttlMs: Double? = nil) {
+            self.key = key
+            self.value = value
+            self.ttlMs = ttlMs
+        }
+    }
+
     public struct Output: Sendable {
         public var viewTree: UINode
         public var statusLabel: String?
@@ -69,6 +133,24 @@ public enum WorkflowEngine {
         public var expandedItemCount: Int
         /// True when zero items were expanded and the `empty` node was used.
         public var usedEmpty: Bool
+        /// Values the `store` block computed for the host to persist.
+        public var writes: [StorageWrite]
+
+        public init(
+            viewTree: UINode,
+            statusLabel: String? = nil,
+            statusTooltip: String? = nil,
+            expandedItemCount: Int = 0,
+            usedEmpty: Bool = false,
+            writes: [StorageWrite] = []
+        ) {
+            self.viewTree = viewTree
+            self.statusLabel = statusLabel
+            self.statusTooltip = statusTooltip
+            self.expandedItemCount = expandedItemCount
+            self.usedEmpty = usedEmpty
+            self.writes = writes
+        }
     }
 
     /// Phase 1 — interpolates each source's `with` params against `settings`
@@ -76,16 +158,26 @@ public enum WorkflowEngine {
     public static func resolvedSourceParams(
         _ definition: WorkflowDefinition,
         settings: JSONValue,
+        storage: JSONValue = .object([:]),
         nowMs: Double = Date().timeIntervalSince1970 * 1000
     ) throws -> [String: JSONValue] {
         var context = Context(
-            root: ["settings": settings, "sources": .object([:]), "transforms": .object([:])],
+            root: [
+                "settings": settings,
+                "sources": .object([:]),
+                "transforms": .object([:]),
+                "storage": storage,
+            ],
             transforms: [:],
             nowMs: nowMs
         )
         var resolved: [String: JSONValue] = [:]
         for (id, source) in definition.sources {
-            resolved[id] = try context.expand(source.with ?? .object([:]))
+            if source.use == "value" {
+                resolved[id] = source.with ?? .null
+            } else {
+                resolved[id] = try context.expand(source.with ?? .object([:]))
+            }
         }
         return resolved
     }
@@ -95,6 +187,7 @@ public enum WorkflowEngine {
         _ definition: WorkflowDefinition,
         sources: [String: JSONValue],
         settings: JSONValue,
+        storage: JSONValue = .object([:]),
         nowMs: Double = Date().timeIntervalSince1970 * 1000
     ) throws -> Output {
         var context = Context(
@@ -102,6 +195,7 @@ public enum WorkflowEngine {
                 "settings": settings,
                 "sources": .object(sources),
                 "transforms": .object([:]),
+                "storage": storage,
             ],
             transforms: definition.transforms ?? [:],
             nowMs: nowMs
@@ -134,12 +228,28 @@ public enum WorkflowEngine {
             }
         }
 
+        var writes: [StorageWrite] = []
+        if let store = definition.store {
+            // Deterministic order so a `store` entry can read a sibling's
+            // previous (pre-write) value and results are reproducible.
+            for key in store.keys.sorted() {
+                guard let entry = store[key] else { continue }
+                let value = try context.expand(entry.value)
+                writes.append(StorageWrite(
+                    key: key,
+                    value: value,
+                    ttlMs: entry.ttlSec.map { $0 * 1000 }
+                ))
+            }
+        }
+
         return Output(
             viewTree: viewTree,
             statusLabel: statusLabel,
             statusTooltip: statusTooltip,
             expandedItemCount: context.expandedItemCount,
-            usedEmpty: usedEmpty
+            usedEmpty: usedEmpty,
+            writes: writes
         )
     }
 
@@ -256,6 +366,16 @@ public enum WorkflowEngine {
             let expr = raw.trimmingCharacters(in: .whitespaces)
             guard !expr.isEmpty else { throw WorkflowError.badExpression(raw) }
             if let number = Double(expr) { return .number(number) }
+            // String literal: 'text' or "text" (quotes let comparisons/coalesce
+            // reference constants, e.g. eq(status, "success")).
+            if expr.count >= 2,
+               let first = expr.first, let last = expr.last, first == last,
+               first == "\"" || first == "'" {
+                return .string(String(expr.dropFirst().dropLast()))
+            }
+            if expr == "true" { return .bool(true) }
+            if expr == "false" { return .bool(false) }
+            if expr == "null" { return .null }
             if expr.hasSuffix(")"), let paren = expr.firstIndex(of: "(") {
                 let name = String(expr[..<paren])
                 let inner = String(expr[expr.index(after: paren)..<expr.index(before: expr.endIndex)])
@@ -327,8 +447,106 @@ public enum WorkflowEngine {
                 let limit = Self.clampedInt(args.dropFirst().first?.numberValue ?? 0)
                 if limit <= 0 || text.count <= limit { return .string(text) }
                 return .string(String(text.prefix(limit)) + "…")
+
+            // MARK: logic — condition + branches
+            case "if":
+                // if(cond, thenValue, elseValue). Args are eagerly evaluated
+                // (the language is pure, so this only selects a value).
+                guard args.count >= 2 else { return .null }
+                return Self.truthy(args[0]) ? args[1] : (args.count >= 3 ? args[2] : .null)
+            case "not":
+                return .bool(!Self.truthy(args.first ?? .null))
+            case "and":
+                return .bool(args.allSatisfy(Self.truthy))
+            case "or":
+                return .bool(args.contains(where: Self.truthy))
+            case "default":
+                // default(value, fallback) — fallback when value is falsy.
+                let value = args.first ?? .null
+                return Self.truthy(value) ? value : (args.dropFirst().first ?? .null)
+
+            // MARK: comparison
+            case "eq":
+                return .bool(args.count >= 2 && args[0] == args[1])
+            case "ne":
+                return .bool(args.count >= 2 && args[0] != args[1])
+            case "gt", "gte", "lt", "lte":
+                guard args.count >= 2 else { return .bool(false) }
+                return .bool(Self.compare(name, args[0], args[1]))
+            case "contains":
+                // contains(haystack, needle) — substring or array membership.
+                guard args.count >= 2 else { return .bool(false) }
+                if case let .array(items) = args[0] { return .bool(items.contains(args[1])) }
+                let haystack = args[0].stringified
+                return .bool(haystack.contains(args[1].stringified))
+
+            // MARK: arithmetic
+            case "add", "sub", "mul", "div":
+                let lhs = Self.asNumber(args.first) ?? 0
+                let rhs = Self.asNumber(args.dropFirst().first) ?? 0
+                switch name {
+                case "add": return .number(lhs + rhs)
+                case "sub": return .number(lhs - rhs)
+                case "mul": return .number(lhs * rhs)
+                default: return .number(rhs == 0 ? 0 : lhs / rhs)
+                }
+            case "min", "max":
+                let numbers = args.compactMap(Self.asNumber)
+                guard let first = numbers.first else { return .null }
+                return .number(name == "min" ? numbers.min() ?? first : numbers.max() ?? first)
+            case "round":
+                guard let value = Self.asNumber(args.first) else { return .null }
+                let digits = Self.clampedInt(Self.asNumber(args.dropFirst().first) ?? 0)
+                if digits <= 0 { return .number(value.rounded()) }
+                let factor = pow(10.0, Double(digits))
+                return .number((value * factor).rounded() / factor)
+            case "number":
+                return Self.asNumber(args.first).map { JSONValue.number($0) } ?? .null
+
             default:
                 throw WorkflowError.unknownFunction(name)
+            }
+        }
+
+        /// Falsy: null, false, 0, "", empty array, empty object. Everything else
+        /// is truthy — mirrors the intuition for `if`/`and`/`or`/`default`.
+        static func truthy(_ value: JSONValue) -> Bool {
+            switch value {
+            case .null: return false
+            case let .bool(flag): return flag
+            case let .number(number): return number != 0
+            case let .string(text): return !text.isEmpty
+            case let .array(items): return !items.isEmpty
+            case let .object(object): return !object.isEmpty
+            }
+        }
+
+        /// Numeric coercion that also parses numeric strings (CLI output often
+        /// arrives as `"42"`), so `add(field, 1)` works without a cast.
+        static func asNumber(_ value: JSONValue?) -> Double? {
+            guard let value else { return nil }
+            if let number = value.numberValue { return number }
+            if let string = value.stringValue { return Double(string) }
+            if let flag = value.boolValue { return flag ? 1 : 0 }
+            return nil
+        }
+
+        /// Ordered comparison: numeric when both coerce to numbers, else a
+        /// lexical compare of the stringified operands.
+        static func compare(_ op: String, _ lhs: JSONValue, _ rhs: JSONValue) -> Bool {
+            let ordering: Int
+            if let ln = asNumber(lhs), let rn = asNumber(rhs) {
+                ordering = ln < rn ? -1 : (ln > rn ? 1 : 0)
+            } else {
+                let ls = lhs.stringified, rs = rhs.stringified
+                ordering = ls < rs ? -1 : (ls > rs ? 1 : 0)
+            }
+            switch op {
+            case "gt": return ordering > 0
+            case "gte": return ordering >= 0
+            case "lt": return ordering < 0
+            case "lte": return ordering <= 0
+            default: return false
             }
         }
 

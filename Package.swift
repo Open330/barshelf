@@ -2,13 +2,14 @@
 import PackageDescription
 
 let package = Package(
-    name: "menubucket",
+    name: "barshelf",
     platforms: [
         .macOS(.v13)
     ],
     products: [
-        .executable(name: "barshelf", targets: ["MenubucketApp"]),
-        .executable(name: "mbk", targets: ["MbkCLI"]),
+        .executable(name: "barshelf-app", targets: ["MenubucketApp"]),
+        .executable(name: "barshelf", targets: ["BarShelfCLI"]),
+        .executable(name: "bsf", targets: ["BsfCLI"]),
         .library(name: "MenubucketCore", targets: ["MenubucketCore"]),
     ],
     targets: [
@@ -19,17 +20,22 @@ let package = Package(
             name: "MenubucketApp",
             dependencies: ["MenubucketCore"]
         ),
-        // mbk CLI — command logic lives in MbkKit (library, unit-testable);
+        // barshelf CLI — command logic lives in BarShelfKit (library, unit-testable);
         // the executable target is a thin main.swift. Foundation only, no AppKit.
         .target(
-            name: "MbkKit",
+            name: "BarShelfKit",
             dependencies: ["MenubucketCore"],
-            path: "Sources/MbkCLI/MbkKit"
+            path: "Sources/BarShelfCLI/BarShelfKit"
         ),
         .executableTarget(
-            name: "MbkCLI",
-            dependencies: ["MbkKit"],
-            path: "Sources/MbkCLI/Main"
+            name: "BarShelfCLI",
+            dependencies: ["BarShelfKit"],
+            path: "Sources/BarShelfCLI/Main"
+        ),
+        .executableTarget(
+            name: "BsfCLI",
+            dependencies: ["BarShelfKit"],
+            path: "Sources/BsfCLI/Main"
         ),
         .testTarget(
             name: "MenubucketCoreTests",
@@ -40,8 +46,8 @@ let package = Package(
             dependencies: ["MenubucketApp", "MenubucketCore"]
         ),
         .testTarget(
-            name: "MbkCLITests",
-            dependencies: ["MbkKit", "MenubucketCore"]
+            name: "BarShelfCLITests",
+            dependencies: ["BarShelfKit", "MenubucketCore"]
         ),
     ]
 )

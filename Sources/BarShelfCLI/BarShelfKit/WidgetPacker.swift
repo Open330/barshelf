@@ -1,7 +1,7 @@
 import Foundation
 import MenubucketCore
 
-/// `mbk pack` — zips a widget directory into a `.mbw` archive, adding a
+/// `barshelf pack` — zips a widget directory into a `.mbw` archive, adding a
 /// `manifest.sha256` checksum of widget.json to the archive. Uses
 /// `/usr/bin/zip` (a developer-tool invocation, not a runtime shellout).
 public enum WidgetPacker {
@@ -62,7 +62,7 @@ public enum WidgetPacker {
 
         // Stage a copy so manifest.sha256 never pollutes the source tree.
         let staging = fm.temporaryDirectory
-            .appendingPathComponent("mbk-pack-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("barshelf-pack-\(UUID().uuidString)", isDirectory: true)
         defer { try? fm.removeItem(at: staging) }
         try fm.createDirectory(at: staging, withIntermediateDirectories: true)
 

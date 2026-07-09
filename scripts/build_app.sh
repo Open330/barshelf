@@ -6,8 +6,8 @@ umask 022
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 PROJECT_ROOT=$(cd "${SCRIPT_DIR}/.." && pwd)
 
-PRODUCT_NAME=${PRODUCT_NAME:-barshelf}
-EXECUTABLE_NAME=${EXECUTABLE_NAME:-barshelf}
+PRODUCT_NAME=${PRODUCT_NAME:-barshelf-app}
+EXECUTABLE_NAME=${EXECUTABLE_NAME:-barshelf-app}
 APP_DISPLAY_NAME=${APP_DISPLAY_NAME:-BarShelf}
 APP_BUNDLE_NAME=${APP_BUNDLE_NAME:-"${APP_DISPLAY_NAME}.app"}
 BUILD_CONFIGURATION=${BUILD_CONFIGURATION:-release}
@@ -161,48 +161,55 @@ if command -v xattr >/dev/null 2>&1; then
 fi
 chmod -R u+rwX,go+rX "${APP_BUNDLE_PATH}"
 
-# --- mbk CLI (standalone developer binary, shipped next to the .app) ---
-MBK_PRODUCT_NAME=${MBK_PRODUCT_NAME:-mbk}
+# --- BarShelf CLI binaries (standalone developer tools, shipped next to the .app) ---
+CLI_PRODUCT_NAMES=${CLI_PRODUCT_NAMES:-"barshelf bsf"}
 
-echo "Building ${MBK_PRODUCT_NAME} (${BUILD_CONFIGURATION})"
-swift build \
-  --configuration "${BUILD_CONFIGURATION}" \
-  --product "${MBK_PRODUCT_NAME}" \
-  --package-path "${PROJECT_ROOT}"
-
-MBK_EXECUTABLE_PATH="${PROJECT_ROOT}/.build/${BUILD_CONFIGURATION}/${MBK_PRODUCT_NAME}"
-if [[ ! -f "${MBK_EXECUTABLE_PATH}" ]]; then
-  MBK_EXECUTABLE_PATH=$(find "${PROJECT_ROOT}/.build" \
-    -path "*/${BUILD_CONFIGURATION}/${MBK_PRODUCT_NAME}" \
-    -type f \
-    -perm -111 \
-    2>/dev/null | head -n 1 || true)
-fi
-
-if [[ -z "${MBK_EXECUTABLE_PATH}" || ! -f "${MBK_EXECUTABLE_PATH}" ]]; then
-  echo "error: expected executable not found for product ${MBK_PRODUCT_NAME}" >&2
-  exit 1
-fi
-
-cp "${MBK_EXECUTABLE_PATH}" "${OUTPUT_DIR}/${MBK_PRODUCT_NAME}"
-chmod +x "${OUTPUT_DIR}/${MBK_PRODUCT_NAME}"
-
-if command -v strip >/dev/null 2>&1; then
-  strip -x "${OUTPUT_DIR}/${MBK_PRODUCT_NAME}" 2>/dev/null || true
-fi
-
-if command -v codesign >/dev/null 2>&1; then
-  if [[ "${SIGN_IDENTITY}" == "-" ]]; then
-    codesign --force --options runtime --sign - --timestamp=none "${OUTPUT_DIR}/${MBK_PRODUCT_NAME}" >/dev/null
-  elif [[ -n "${SIGN_KEYCHAIN}" ]]; then
-    codesign --force --options runtime --sign "${SIGN_IDENTITY}" --keychain "${SIGN_KEYCHAIN}" "${OUTPUT_DIR}/${MBK_PRODUCT_NAME}" >/dev/null
+sign_cli_binary() {
+  local binary_path=$1
+  if command -v codesign >/dev/null 2>&1; then
+    if [[ "${SIGN_IDENTITY}" == "-" ]]; then
+      codesign --force --options runtime --sign - --timestamp=none "${binary_path}" >/dev/null
+    elif [[ -n "${SIGN_KEYCHAIN}" ]]; then
+      codesign --force --options runtime --sign "${SIGN_IDENTITY}" --keychain "${SIGN_KEYCHAIN}" "${binary_path}" >/dev/null
+    else
+      codesign --force --options runtime --sign "${SIGN_IDENTITY}" "${binary_path}" >/dev/null
+    fi
   else
-    codesign --force --options runtime --sign "${SIGN_IDENTITY}" "${OUTPUT_DIR}/${MBK_PRODUCT_NAME}" >/dev/null
+    echo "warning: codesign not found; ${binary_path} is unsigned" >&2
   fi
-else
-  echo "warning: codesign not found; mbk binary is unsigned" >&2
-fi
-echo "mbk CLI copied to ${OUTPUT_DIR}/${MBK_PRODUCT_NAME}"
+}
+
+for CLI_PRODUCT_NAME in ${CLI_PRODUCT_NAMES}; do
+  echo "Building ${CLI_PRODUCT_NAME} (${BUILD_CONFIGURATION})"
+  swift build \
+    --configuration "${BUILD_CONFIGURATION}" \
+    --product "${CLI_PRODUCT_NAME}" \
+    --package-path "${PROJECT_ROOT}"
+
+  CLI_EXECUTABLE_PATH="${PROJECT_ROOT}/.build/${BUILD_CONFIGURATION}/${CLI_PRODUCT_NAME}"
+  if [[ ! -f "${CLI_EXECUTABLE_PATH}" ]]; then
+    CLI_EXECUTABLE_PATH=$(find "${PROJECT_ROOT}/.build" \
+      -path "*/${BUILD_CONFIGURATION}/${CLI_PRODUCT_NAME}" \
+      -type f \
+      -perm -111 \
+      2>/dev/null | head -n 1 || true)
+  fi
+
+  if [[ -z "${CLI_EXECUTABLE_PATH}" || ! -f "${CLI_EXECUTABLE_PATH}" ]]; then
+    echo "error: expected executable not found for product ${CLI_PRODUCT_NAME}" >&2
+    exit 1
+  fi
+
+  cp "${CLI_EXECUTABLE_PATH}" "${OUTPUT_DIR}/${CLI_PRODUCT_NAME}"
+  chmod +x "${OUTPUT_DIR}/${CLI_PRODUCT_NAME}"
+
+  if command -v strip >/dev/null 2>&1; then
+    strip -x "${OUTPUT_DIR}/${CLI_PRODUCT_NAME}" 2>/dev/null || true
+  fi
+
+  sign_cli_binary "${OUTPUT_DIR}/${CLI_PRODUCT_NAME}"
+  echo "BarShelf CLI copied to ${OUTPUT_DIR}/${CLI_PRODUCT_NAME}"
+done
 
 if command -v codesign >/dev/null 2>&1; then
   if [[ "${SIGN_IDENTITY}" == "-" ]]; then
