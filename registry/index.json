@@ -221,6 +221,36 @@
       "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/stock", "bundled": "stock" },
       "permissions": { "exec": [], "keychain": false, "notifications": false, "network": ["query1.finance.yahoo.com"] },
       "homepage": "https://finance.yahoo.com/"
+    },
+    {
+      "id": "dev.barshelf.now-playing",
+      "name": "Now Playing",
+      "description": "The current track from Music or Spotify. Requires macOS Automation permission — approve the one-time prompt so BarShelf can read Now Playing.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "music.note",
+      "kind": "workflow",
+      "tags": ["media", "music", "spotify", "native"],
+      "category": "Media",
+      "requires": "Automation permission",
+      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/now-playing", "bundled": "now-playing" },
+      "permissions": { "exec": ["/bin/sh"], "keychain": false, "notifications": false },
+      "homepage": "https://github.com/Open330/barshelf"
+    },
+    {
+      "id": "dev.barshelf.reminders",
+      "name": "Reminders",
+      "description": "How many open (incomplete) reminders you have. Requires macOS Automation permission for the Reminders app — approve the one-time prompt.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "checklist",
+      "kind": "workflow",
+      "tags": ["reminders", "tasks", "native"],
+      "category": "Media",
+      "requires": "Automation permission",
+      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/reminders", "bundled": "reminders" },
+      "permissions": { "exec": ["/bin/sh"], "keychain": false, "notifications": false },
+      "homepage": "https://github.com/Open330/barshelf"
     }
   ]
 }

@@ -30,6 +30,8 @@
     <string>__APP_COPYRIGHT__</string>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>BarShelf widgets can read Now Playing and Reminders when you allow it, to show them in the menu bar.</string>
     <key>CFBundleURLTypes</key>
     <array>
         <dict>

@@ -121,6 +121,14 @@ Workflow DSL 상세 계약은 [`docs/WORKFLOW.md`](WORKFLOW.md)를 따른다.
 | `output` | `viewtree`면 stdout을 UINode로 디코딩한다. `data`면 `adapter`가 UINode로 변환한다. |
 | `adapter` | `output=data`일 때 사용할 내장 adapter 이름. 예: `aas-usage`, `otpeek`. |
 
+> **셸 스크립트 주의 — `${...}` 금지.** 워크플로 소스의 `command` 문자열은 호스트가
+> `${...}` 보간을 먼저 적용한다(예: `${settings.folder}`). 따라서 셸의 파라미터
+> 확장 `${var}`·`${var:-default}`를 쓰면 엔진이 표현식으로 해석해 *invalid expression*
+> 오류가 난다. `/bin/sh -c` 스크립트에서는 **중괄호 없이** `$var`, 산술 `$((...))`,
+> 기본값은 `[ -z "$x" ] && x=0` 형태로, 문자열 자르기는 `sed`로 쓴다. 명령 자체가
+> 최종적으로 유효한 **JSON 한 줄**을 stdout으로 내면 workflow가 그걸 파싱한다.
+> GUI 앱은 최소 PATH로 뜨므로 하위 도구는 **절대 경로**(`/usr/bin/…`)를 권장한다.
+
 ### `refresh`
 
 | 필드 | 설명 |
@@ -302,15 +310,20 @@ VoiceOver에서 숨겨지고, 파일 썸네일은 파일명으로 읽힌다.
 ```json
 {
   "type": "text",
-  "text": "personal.codex",
-  "role": "caption",
-  "lineLimit": 1,
-  "truncation": "middle",
-  "monospacedDigit": false
+  "text": "72",
+  "role": "title",
+  "size": 40,
+  "fill": "accent",
+  "monospacedDigit": true,
+  "lineLimit": 1
 }
 ```
 
 `role` 권장값은 `title`, `body`, `caption`, `code`, `label`이다. `code`와 숫자 UI에는 `monospacedDigit`를 같이 쓰면 흔들림이 적다.
+
+- `size` — 폰트 포인트 크기를 지정해 role 기본값을 덮어쓴다. 네이티브 위젯식 **큰 숫자/헤드라인**에 쓴다(예: 배터리 `80%`, 캘린더 날짜).
+- `fill` — 시맨틱 컬러를 주면 텍스트를 **채워진 원 위에 흰 글자**로 그린다(예: 캘린더의 오늘 강조). `foreground` 대신 대비색이 자동 적용된다.
+- `foreground` — 문자열 필드라 `${if(...)}`로 상태색을 넣을 수 있다.
 
 ### `image`
 
@@ -372,13 +385,18 @@ VoiceOver에서 숨겨지고, 파일 썸네일은 파일명으로 읽힌다.
 ```json
 {
   "type": "grid",
-  "columns": { "mode": "adaptive", "minWidth": 72, "maxColumns": 5 },
-  "itemAspectRatio": 0.85,
-  "items": [
-    { "id": "tile-1", "type": "text", "text": "Tile" }
-  ]
+  "columns": 7,
+  "spacing": 2,
+  "size": 74,
+  "items": {
+    "forEach": "$.sources.files.items",
+    "as": "file",
+    "template": { "type": "text", "text": "${string(file.name)}" }
+  }
 }
 ```
+
+`columns`가 정수면 그 열 수로 고정하고(예: 캘린더 7열), 생략하면 `size`(타일 최소 너비)에 맞춰 자동 줄바꿈한다. 셀은 각 열에서 가운데 정렬된다. `items`는 배열이나 `forEach` 템플릿(스태시바식 파일 격자·캘린더 그리드)일 수 있다.
 
 ### `table`
 

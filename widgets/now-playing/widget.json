@@ -1,0 +1,29 @@
+{
+  "$schema": "https://barshelf.dev/schema/widget-0.1.json",
+  "schemaVersion": 1,
+  "id": "dev.barshelf.now-playing",
+  "name": "Now Playing",
+  "version": "0.1.0",
+  "icon": "music.note",
+  "bucket": { "group": "Media", "order": 10, "size": "M" },
+
+  "entry": { "kind": "workflow", "main": "workflow.json" },
+
+  "refresh": { "onOpen": true, "interval": 5, "staleAfterSec": 5 },
+
+  "permissions": {
+    "exec": [
+      {
+        "command": "/bin/sh",
+        "allowedArgs": [["-c", "t=$(/usr/bin/osascript -e 'tell application \"Music\" to if it is running and player state is playing then (name of current track) & \" - \" & (artist of current track)' 2>/dev/null | /usr/bin/tr -d '\"'); [ -z \"$t\" ] && t=$(/usr/bin/osascript -e 'tell application \"Spotify\" to if it is running and player state is playing then (name of current track) & \" - \" & (artist of current track)' 2>/dev/null | /usr/bin/tr -d '\"'); [ -z \"$t\" ] && t=\"Nothing playing\"; echo '{\"track\":\"'\"$t\"'\"}'"]],
+        "maxOutputBytes": 8192,
+        "sensitiveOutput": false
+      }
+    ]
+  },
+
+  "appearance": {
+    "accent": "pink",
+    "cardStyle": "tinted"
+  }
+}

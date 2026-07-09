@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "kind": "workflow",
+  "_comment": "Count of open (incomplete) reminders via osascript. Needs macOS Automation permission for the Reminders app — approve the one-time prompt. Brace-free command.",
+
+  "sources": {
+    "data": {
+      "use": "exec",
+      "with": {
+        "command": ["/bin/sh", "-c", "n=$(/usr/bin/osascript -e 'tell application \"Reminders\" to count (reminders whose completed is false)' 2>/dev/null); [ -z \"$n\" ] && n=0; echo '{\"count\":'\"$n\"'}'"]
+      }
+    }
+  },
+
+  "view": {
+    "type": "vstack",
+    "spacing": 2,
+    "children": [
+      {
+        "type": "hstack",
+        "spacing": 6,
+        "children": [
+          { "type": "image", "source": { "kind": "sfSymbol", "name": "checklist" }, "size": 13, "tint": "accent" },
+          { "type": "text", "text": "Reminders", "role": "caption", "foreground": "secondary" }
+        ]
+      },
+      { "type": "text", "text": "${string(sources.data.count)}", "size": 40, "role": "title", "monospacedDigit": true },
+      { "type": "text", "text": "open", "role": "caption", "foreground": "secondary" }
+    ]
+  },
+
+  "status": {
+    "label": "${string(sources.data.count)}",
+    "tooltip": "${string(sources.data.count)} open reminders"
+  }
+}

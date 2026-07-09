@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "kind": "workflow",
+  "_comment": "Now Playing from Music (then Spotify) via osascript. Needs macOS Automation permission — approve the one-time prompt to let BarShelf read the current track. The command is brace-free so it doesn't collide with ${…} interpolation.",
+
+  "sources": {
+    "data": {
+      "use": "exec",
+      "with": {
+        "command": ["/bin/sh", "-c", "t=$(/usr/bin/osascript -e 'tell application \"Music\" to if it is running and player state is playing then (name of current track) & \" - \" & (artist of current track)' 2>/dev/null | /usr/bin/tr -d '\"'); [ -z \"$t\" ] && t=$(/usr/bin/osascript -e 'tell application \"Spotify\" to if it is running and player state is playing then (name of current track) & \" - \" & (artist of current track)' 2>/dev/null | /usr/bin/tr -d '\"'); [ -z \"$t\" ] && t=\"Nothing playing\"; echo '{\"track\":\"'\"$t\"'\"}'"]
+      }
+    }
+  },
+
+  "view": {
+    "type": "vstack",
+    "spacing": 4,
+    "children": [
+      {
+        "type": "hstack",
+        "spacing": 6,
+        "children": [
+          { "type": "image", "source": { "kind": "sfSymbol", "name": "music.note" }, "size": 14, "tint": "accent" },
+          { "type": "text", "text": "Now Playing", "role": "caption", "foreground": "secondary" }
+        ]
+      },
+      { "type": "text", "text": "${sources.data.track}", "role": "title", "lineLimit": 2 }
+    ]
+  },
+
+  "status": {
+    "tooltip": "${sources.data.track}"
+  }
+}

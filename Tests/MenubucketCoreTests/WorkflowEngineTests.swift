@@ -825,6 +825,24 @@ final class NativeWidgetsTests: XCTestCase {
         XCTAssertTrue(text.contains("▲"))        // up
         XCTAssertEqual(out.viewTree.children?.last?.foreground, "good") // green
     }
+
+    func testNowPlayingShowsTrack() throws {
+        let out = try WorkflowEngine.evaluate(
+            try def("now-playing"),
+            sources: ["data": .object(["track": .string("Bohemian Rhapsody - Queen")])],
+            settings: .object([:])
+        )
+        XCTAssertTrue(flat(out.viewTree).contains("Bohemian Rhapsody - Queen"))
+    }
+
+    func testRemindersShowsOpenCount() throws {
+        let out = try WorkflowEngine.evaluate(
+            try def("reminders"),
+            sources: ["data": .object(["count": .number(3)])],
+            settings: .object([:])
+        )
+        XCTAssertTrue(flat(out.viewTree).contains("3"))
+    }
 }
 
 /// End-to-end evaluation of the shipped persistence example widgets, so the
