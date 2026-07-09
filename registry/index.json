@@ -21,15 +21,15 @@
     {
       "id": "dev.barshelf.recent-files",
       "name": "Recent Files",
-      "description": "Stashbar (file-stack) style stack of the most recent files in a folder of your choice — inspired by https://github.com/jiunbae/file-stack. Pure workflow widget, no dependencies; seeded automatically on first run.",
+      "description": "Stashbar (file-stack) style stack of the most recent files in a folder of your choice — inspired by https://github.com/jiunbae/stashbar. Pure workflow widget, no dependencies; seeded automatically on first run.",
       "version": "0.1.0",
       "author": "barshelf",
       "icon": "folder.fill",
       "kind": "workflow",
       "tags": ["files", "workflow", "starter", "stashbar"],
-      "install": { "url": "https://github.com/jiunbae/file-stack", "bundled": "recent-files" },
+      "install": { "url": "https://github.com/jiunbae/stashbar", "bundled": "recent-files" },
       "permissions": { "exec": [], "keychain": false, "notifications": false },
-      "homepage": "https://github.com/jiunbae/file-stack"
+      "homepage": "https://github.com/jiunbae/stashbar"
     },
     {
       "id": "dev.barshelf.aas-usage",
