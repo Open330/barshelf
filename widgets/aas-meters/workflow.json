@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "kind": "workflow",
+  "_comment": "Workflow re-creation of the aas usage widget using the meter (progress) node + nested forEach + logic functions — no native adapter. Health tint: >90% danger, >70% warning, else good. Requires the aas CLI.",
+
+  "sources": {
+    "data": {
+      "use": "exec",
+      "with": {
+        "command": ["aas", "usage", "--json"],
+        "discover": ["$AAS_BIN", "~/.cargo/bin/aas", "/opt/homebrew/bin/aas", "/usr/local/bin/aas", "PATH"],
+        "timeoutMs": 25000
+      }
+    }
+  },
+
+  "view": {
+    "type": "vstack",
+    "spacing": 8,
+    "children": [
+      {
+        "type": "hstack",
+        "spacing": 7,
+        "padding": 2,
+        "children": [
+          { "type": "image", "source": { "kind": "sfSymbol", "name": "gauge" }, "size": 15, "tint": "accent" },
+          { "type": "text", "text": "aas usage", "role": "title", "lineLimit": 1 },
+          { "type": "spacer" },
+          { "type": "text", "text": "${count(sources.data.accounts)} accounts", "role": "caption", "foreground": "secondary" }
+        ]
+      },
+      {
+        "type": "list",
+        "spacing": 6,
+        "items": {
+          "forEach": "$.sources.data.accounts",
+          "as": "acct",
+          "template": {
+            "type": "card",
+            "spacing": 6,
+            "widthFill": true,
+            "children": [
+              {
+                "type": "hstack",
+                "spacing": 6,
+                "children": [
+                  { "type": "text", "text": "${coalesce(acct.name, acct.email, 'account')}", "role": "body", "lineLimit": 1 },
+                  { "type": "spacer" },
+                  { "type": "badge", "text": "${coalesce(acct.provider, 'other')}", "tint": "neutral" }
+                ]
+              },
+              {
+                "type": "list",
+                "spacing": 4,
+                "items": {
+                  "forEach": "acct.meters",
+                  "as": "m",
+                  "template": {
+                    "type": "vstack",
+                    "spacing": 3,
+                    "children": [
+                      {
+                        "type": "hstack",
+                        "children": [
+                          { "type": "text", "text": "${coalesce(m.label, 'usage')}", "role": "caption", "lineLimit": 1 },
+                          { "type": "spacer" },
+                          {
+                            "type": "text",
+                            "text": "${string(round(m.usedPct, 0))}%",
+                            "role": "caption",
+                            "monospacedDigit": true,
+                            "foreground": "${if(gt(m.usedPct, 90), 'danger', if(gt(m.usedPct, 70), 'warning', 'good'))}"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "progress",
+                        "style": "linear",
+                        "value": "${div(m.usedPct, 100)}",
+                        "tint": "${if(gt(m.usedPct, 90), 'danger', if(gt(m.usedPct, 70), 'warning', 'good'))}"
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+
+  "empty": {
+    "type": "empty",
+    "icon": "person.crop.circle.badge.questionmark",
+    "title": "No accounts",
+    "subtitle": "Run `aas login` to add an account."
+  },
+
+  "status": {
+    "tooltip": "aas usage — ${count(sources.data.accounts)} accounts"
+  }
+}

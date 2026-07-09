@@ -182,6 +182,35 @@
       "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/downloads-new", "bundled": "downloads-new" },
       "permissions": { "exec": [], "keychain": false, "notifications": false },
       "homepage": "https://github.com/Open330/barshelf"
+    },
+    {
+      "id": "dev.barshelf.aas-meters",
+      "name": "aas Usage (meters)",
+      "description": "Workflow re-creation of the aas usage widget — per-account cards with native, health-colored meter bars built from `aas usage --json` using nested forEach + the meter display. No native adapter. Requires the aas CLI.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "gauge",
+      "kind": "workflow",
+      "tags": ["dev", "ai", "aas", "meter", "workflow"],
+      "category": "Developer",
+      "requires": "aas CLI",
+      "install": { "url": "https://github.com/Open330/aas", "bundled": "aas-meters" },
+      "permissions": { "exec": ["aas"], "keychain": false, "notifications": false },
+      "homepage": "https://github.com/Open330/aas"
+    },
+    {
+      "id": "dev.barshelf.recent-files-grid",
+      "name": "Recent Files (grid)",
+      "description": "Stashbar-style icon-grid of recent files — QuickLook thumbnail tiles that drag out to Finder/apps and open on click. Uses the grid node. Inspired by https://github.com/jiunbae/stashbar.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "square.grid.2x2",
+      "kind": "workflow",
+      "tags": ["files", "workflow", "grid", "stashbar"],
+      "category": "Files",
+      "install": { "url": "https://github.com/jiunbae/stashbar", "bundled": "recent-files-grid" },
+      "permissions": { "exec": [], "keychain": false, "notifications": false },
+      "homepage": "https://github.com/jiunbae/stashbar"
     }
   ]
 }

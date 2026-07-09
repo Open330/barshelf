@@ -136,6 +136,14 @@ struct NodeView: View {
 
     @ViewBuilder
     private var decorated: some View {
+        laidOut
+            // Non-button nodes with an `action` become tappable as a whole
+            // (e.g. a file row/tile opens on click), mirroring native lists.
+            .modifier(NodeTapModifier(action: node.type == "button" ? nil : node.action))
+    }
+
+    @ViewBuilder
+    private var laidOut: some View {
         if let drag = node.drag {
             // Drag-out surface: hand a file URL to Finder / other apps.
             content
@@ -162,6 +170,8 @@ struct NodeView: View {
             VStack(alignment: .leading, spacing: (node.spacing ?? 4) * scale) {
                 NodeChildrenView(nodes: node.items ?? node.children ?? [])
             }
+        case .grid:
+            gridView
         case .section:
             sectionView
         case .card:
@@ -190,6 +200,23 @@ struct NodeView: View {
     }
 
     // MARK: - Leaf views
+
+    /// `grid`: a stashbar-style tile grid over `items`. `columns` fixes the
+    /// column count; otherwise tiles wrap adaptively at `size` (tile min width).
+    private var gridView: some View {
+        let items = node.items ?? node.children ?? []
+        let spacing = (node.spacing ?? 8) * scale
+        let gridItems: [GridItem]
+        if let count = node.columns, count > 0 {
+            gridItems = Array(repeating: GridItem(.flexible(), spacing: spacing), count: count)
+        } else {
+            let minWidth = CGFloat(node.size ?? 72) * scale
+            gridItems = [GridItem(.adaptive(minimum: minWidth), spacing: spacing)]
+        }
+        return LazyVGrid(columns: gridItems, alignment: .leading, spacing: spacing) {
+            NodeChildrenView(nodes: items)
+        }
+    }
 
     private var sectionView: some View {
         VStack(alignment: .leading, spacing: (node.spacing ?? 4) * scale) {
@@ -467,6 +494,24 @@ private struct RingProgressView: View {
 }
 
 // MARK: - Common layout modifiers
+
+/// Makes a whole node tappable when it carries an `action` (and isn't a button,
+/// which handles its own tap). Enables clickable file rows / grid tiles.
+private struct NodeTapModifier: ViewModifier {
+    let action: NodeAction?
+    @Environment(\.actionContext) private var actionContext
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if let action {
+            content
+                .contentShape(Rectangle())
+                .onTapGesture { actionContext.perform(action) }
+        } else {
+            content
+        }
+    }
+}
 
 private struct NodeLayoutModifier: ViewModifier {
     let node: UINode

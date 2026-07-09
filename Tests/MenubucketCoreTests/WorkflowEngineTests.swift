@@ -388,6 +388,125 @@ final class FileSourceTests: XCTestCase {
     }
 }
 
+/// The aas-meters gallery widget re-creates aas usage as native meter bars via
+/// a hand-authored workflow (nested forEach + logic). Guard its expressions.
+final class AasMetersWidgetTests: XCTestCase {
+    private func allNodes(ofType type: String, in node: UINode) -> [UINode] {
+        var out = node.type == type ? [node] : []
+        for child in (node.children ?? []) + (node.items ?? []) {
+            out += allNodes(ofType: type, in: child)
+        }
+        return out
+    }
+
+    func testAasMetersRendersHealthColoredBars() throws {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let url = packageRoot.appendingPathComponent("widgets/aas-meters/workflow.json")
+        let def = try WorkflowDefinition.decode(from: try Data(contentsOf: url))
+
+        let payload: JSONValue = .object(["accounts": .array([
+            .object([
+                "provider": .string("anthropic"), "name": .string("work"),
+                "meters": .array([
+                    .object(["label": .string("5h"), "usedPct": .number(82)]),
+                    .object(["label": .string("weekly"), "usedPct": .number(95)]),
+                ]),
+            ]),
+            .object([
+                "provider": .string("openai"), "name": .string("personal"),
+                "meters": .array([]),
+            ]),
+        ])])
+
+        let output = try WorkflowEngine.evaluate(
+            def, sources: ["data": payload], settings: .object([:])
+        )
+        // 2 accounts expanded + 2 meters (first) + 0 (second) = 4.
+        XCTAssertEqual(output.expandedItemCount, 4)
+        XCTAssertFalse(output.usedEmpty)
+
+        let bars = allNodes(ofType: "progress", in: output.viewTree)
+        XCTAssertEqual(bars.count, 2)
+        XCTAssertEqual(bars[0].value ?? 0, 0.82, accuracy: 0.0001)
+        XCTAssertEqual(bars[0].tint, "warning") // 82% → warning
+        XCTAssertEqual(bars[1].value ?? 0, 0.95, accuracy: 0.0001)
+        XCTAssertEqual(bars[1].tint, "danger")  // 95% → danger
+
+        let text = flattenText(output.viewTree)
+        XCTAssertTrue(text.contains("work"))
+        XCTAssertTrue(text.contains("anthropic"))
+        XCTAssertTrue(text.contains("82%"))
+        XCTAssertTrue(text.contains("95%"))
+    }
+
+    func testAasMetersEmptyState() throws {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let url = packageRoot.appendingPathComponent("widgets/aas-meters/workflow.json")
+        let def = try WorkflowDefinition.decode(from: try Data(contentsOf: url))
+        let output = try WorkflowEngine.evaluate(
+            def, sources: ["data": .object(["accounts": .array([])])], settings: .object([:])
+        )
+        XCTAssertTrue(output.usedEmpty)
+        XCTAssertEqual(output.viewTree.type, "empty")
+    }
+
+    private func flattenText(_ node: UINode) -> String {
+        var out = node.text ?? ""
+        for child in (node.children ?? []) + (node.items ?? []) {
+            out += "\n" + flattenText(child)
+        }
+        return out
+    }
+}
+
+/// The recent-files-grid widget renders files as a stashbar-style tile grid.
+final class GridWidgetTests: XCTestCase {
+    private func firstNode(ofType type: String, in node: UINode) -> UINode? {
+        if node.type == type { return node }
+        for child in (node.children ?? []) + (node.items ?? []) {
+            if let found = firstNode(ofType: type, in: child) { return found }
+        }
+        return nil
+    }
+
+    func testRecentFilesGridProducesTappableDraggableTiles() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("barshelf-grid-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        for name in ["a.png", "b.pdf", "c.txt"] {
+            try Data(name.utf8).write(to: dir.appendingPathComponent(name))
+        }
+
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let url = packageRoot.appendingPathComponent("widgets/recent-files-grid/workflow.json")
+        let def = try WorkflowDefinition.decode(from: try Data(contentsOf: url))
+
+        let settings: JSONValue = .object(["folder": .string(dir.path), "limit": .number(24)])
+        let params = try WorkflowEngine.resolvedSourceParams(def, settings: settings)
+        let listing = try FileSource.list(try FileSource.Params(from: try XCTUnwrap(params["files"])))
+
+        let output = try WorkflowEngine.evaluate(
+            def, sources: ["files": listing], settings: settings
+        )
+        let grid = try XCTUnwrap(firstNode(ofType: "grid", in: output.viewTree))
+        XCTAssertEqual(grid.items?.count, 3)                     // one tile per file
+        let tile = try XCTUnwrap(grid.items?.first)
+        XCTAssertNotNil(tile.drag?.filePath)                     // drag-out
+        XCTAssertEqual(tile.action?.type, "openFile")           // click opens
+        XCTAssertEqual(tile.children?.first?.source?.kind, "fileThumbnail")
+        XCTAssertNotNil(tile.children?.last?.text)               // file name label
+    }
+
+    func testGridIsAKnownNodeType() {
+        XCTAssertTrue(UINode(type: "grid").isKnownType)
+        XCTAssertEqual(UINode(type: "grid", columns: 4).columns, 4)
+    }
+}
+
 /// End-to-end evaluation of the shipped persistence example widgets, so the
 /// hand-authored nested expressions can't silently rot.
 final class PersistenceWidgetTests: XCTestCase {

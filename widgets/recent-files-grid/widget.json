@@ -1,0 +1,22 @@
+{
+  "$schema": "https://barshelf.dev/schema/widget-0.1.json",
+  "schemaVersion": 1,
+  "id": "dev.barshelf.recent-files-grid",
+  "name": "Recent Files (grid)",
+  "version": "0.1.0",
+  "icon": "square.grid.2x2",
+  "bucket": { "group": "Files", "order": 31, "size": "M" },
+
+  "entry": { "kind": "workflow", "main": "workflow.json" },
+
+  "refresh": { "onOpen": true, "interval": null, "staleAfterSec": 600 },
+
+  "permissions": {
+    "readPaths": ["~/Downloads"]
+  },
+
+  "settings": [
+    { "key": "folder", "title": "Folder", "type": "directory", "default": "~/Downloads" },
+    { "key": "limit", "title": "Maximum files", "type": "integer", "default": 24, "min": 6, "max": 60 }
+  ]
+}

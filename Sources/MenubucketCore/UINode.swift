@@ -17,6 +17,8 @@ public struct UINode: Codable, Equatable {
     /// `list` rows.
     public var items: [UINode]?
     public var spacing: Double?
+    /// `grid` fixed column count (nil → adaptive by `size`).
+    public var columns: Int?
 
     // Text fields
     public var text: String?
@@ -89,6 +91,7 @@ public struct UINode: Codable, Equatable {
         children: [UINode]? = nil,
         items: [UINode]? = nil,
         spacing: Double? = nil,
+        columns: Int? = nil,
         text: String? = nil,
         role: String? = nil,
         lineLimit: Int? = nil,
@@ -118,6 +121,7 @@ public struct UINode: Codable, Equatable {
         self.children = children
         self.items = items
         self.spacing = spacing
+        self.columns = columns
         self.text = text
         self.role = role
         self.lineLimit = lineLimit
@@ -201,7 +205,7 @@ extension UINode {
 
     /// Node types the v0 renderer understands. Unknown types must still decode.
     public enum KnownType: String, CaseIterable {
-        case vstack, hstack, list, section, card, text, image, progress
+        case vstack, hstack, list, grid, section, card, text, image, progress
         case button, badge, banner, empty, divider, spacer
     }
 

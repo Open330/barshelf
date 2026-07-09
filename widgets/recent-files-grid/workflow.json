@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "kind": "workflow",
+  "_comment": "Stashbar-style icon-grid view of recent files, using the `grid` node. Tiles show a QuickLook thumbnail + name, drag out to Finder/apps, and open on click.",
+
+  "sources": {
+    "files": {
+      "use": "fs.directory",
+      "with": {
+        "path": "${settings.folder}",
+        "watch": true,
+        "skipHidden": true,
+        "sortBy": "modifiedAt",
+        "sortDirection": "descending",
+        "limit": "${settings.limit}"
+      }
+    }
+  },
+
+  "view": {
+    "type": "vstack",
+    "spacing": 0,
+    "children": [
+      {
+        "type": "hstack",
+        "spacing": 8,
+        "padding": 10,
+        "children": [
+          { "type": "image", "source": { "kind": "sfSymbol", "name": "square.grid.2x2" }, "size": 15, "tint": "secondary" },
+          { "type": "text", "text": "${file.basename(settings.folder)}", "role": "title", "lineLimit": 1 },
+          { "type": "spacer" },
+          { "type": "text", "text": "${count(sources.files.items)} files", "role": "caption", "foreground": "secondary" }
+        ]
+      },
+      { "type": "divider" },
+      {
+        "type": "grid",
+        "spacing": 10,
+        "size": 74,
+        "padding": 10,
+        "items": {
+          "forEach": "$.sources.files.items",
+          "as": "file",
+          "template": {
+            "type": "vstack",
+            "spacing": 4,
+            "id": "tile-${file.path}",
+            "drag": { "filePath": "${file.path}" },
+            "action": { "type": "openFile", "path": "${file.path}" },
+            "children": [
+              { "type": "image", "source": { "kind": "fileThumbnail", "path": "${file.path}", "modifiedAt": "${file.modifiedAt}" }, "size": 52 },
+              { "type": "text", "text": "${file.name}", "role": "caption", "lineLimit": 1 }
+            ]
+          }
+        }
+      }
+    ]
+  },
+
+  "empty": {
+    "type": "empty",
+    "icon": "square.grid.2x2",
+    "title": "No files",
+    "subtitle": "Files added to this folder appear as tiles."
+  },
+
+  "status": {
+    "tooltip": "${count(sources.files.items)} files in ${file.basename(settings.folder)}"
+  }
+}
