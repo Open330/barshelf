@@ -199,9 +199,10 @@ struct NodeView: View {
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                 }
-                ProgressView(value: min(max(node.value ?? 0, 0), 1))
-                    .progressViewStyle(.linear)
-                    .tint(nodeColor(node.tint) ?? .accentColor)
+                LinearMeter(
+                    fraction: min(max(node.value ?? 0, 0), 1),
+                    tint: nodeColor(node.tint) ?? .accentColor
+                )
             }
         }
     }
@@ -315,9 +316,7 @@ private struct CountdownProgressView: View {
                             .foregroundColor(.secondary)
                             .lineLimit(1)
                     }
-                    ProgressView(value: fraction)
-                        .progressViewStyle(.linear)
-                        .tint(tint)
+                    LinearMeter(fraction: fraction, tint: tint)
                     if let remainingText {
                         Text(remainingText + "s")
                             .font(.caption)
@@ -327,6 +326,27 @@ private struct CountdownProgressView: View {
                 }
             }
         }
+    }
+}
+
+/// Linear meter as a custom capsule (track + fill) rather than `ProgressView`.
+/// A capsule renders correctly offscreen (ImageRenderer) and honors the exact
+/// tint, where the AppKit-backed `.linear` ProgressView does neither.
+private struct LinearMeter: View {
+    let fraction: Double
+    let tint: Color
+    var height: CGFloat = 6
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.primary.opacity(0.12))
+                Capsule().fill(tint)
+                    .frame(width: max(height, geo.size.width * CGFloat(min(max(fraction, 0), 1))))
+            }
+        }
+        .frame(height: height)
+        .frame(maxWidth: .infinity)
     }
 }
 

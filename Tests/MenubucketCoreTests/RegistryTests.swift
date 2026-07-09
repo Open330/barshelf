@@ -173,7 +173,7 @@ final class RegistryTests: XCTestCase {
         // Origin-project links surfaced per user feedback (Stashbar / aas).
         XCTAssertEqual(
             byID["dev.barshelf.recent-files"]?.homepage,
-            "https://github.com/jiunbae/file-stack"
+            "https://github.com/jiunbae/stashbar"
         )
         XCTAssertEqual(
             byID["dev.barshelf.aas-usage"]?.homepage,
@@ -186,7 +186,7 @@ final class RegistryTests: XCTestCase {
         XCTAssertEqual(byID["dev.barshelf.clock-script"]?.install.bundled, "clock-script")
         XCTAssertEqual(
             byID["dev.barshelf.recent-files"]?.install.url,
-            "https://github.com/jiunbae/file-stack"
+            "https://github.com/jiunbae/stashbar"
         )
         XCTAssertEqual(
             byID["dev.barshelf.aas-usage"]?.install.url,

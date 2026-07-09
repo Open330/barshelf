@@ -242,6 +242,16 @@
     .stage { animation: floaty 7s ease-in-out infinite; }
     @media (prefers-reduced-motion: reduce) { .stage { animation: none; } }
 
+    /* real app screenshots (rendered by the app's own SwiftUI) */
+    .shot { width: 100%; height: auto; border-radius: 18px; box-shadow: var(--shadow); display: block; }
+    .shot-light { display: none; }
+    :root[data-theme="light"] .shot-dark { display: none; }
+    :root[data-theme="light"] .shot-light { display: block; }
+    @media (prefers-color-scheme: light) {
+      :root:not([data-theme="dark"]) .shot-dark { display: none; }
+      :root:not([data-theme="dark"]) .shot-light { display: block; }
+    }
+
     /* ============ Sections ============ */
     section { padding: 62px 0; }
     .sec-head { max-width: 40em; margin-bottom: 40px; }
@@ -394,38 +404,9 @@
           </div>
         </div>
 
-        <div class="stage" aria-hidden="true">
-          <div class="menubar">
-            <span class="mb-icons">􀙋 􀍜 􀋴</span>
-            <span class="mb-active"><img src="icon-512.png" alt="" /></span>
-            <span class="clock">9:41</span>
-          </div>
-          <div class="popover">
-            <div class="pop-head">
-              <span class="grp">AI</span>
-              <span class="hicons">⌕ ↻</span>
-              <span class="pg">‹ 2 / 3 ›</span>
-            </div>
-            <div class="pop-body">
-              <div class="wcard">
-                <div class="wc-head"><span class="ic">🤖</span> aas usage <span class="rt">↻ 3m</span></div>
-                <div class="meter-row"><span class="lbl">work-01</span><span class="meter"><span class="fill-good" style="width:64%"></span></span><span class="pct t-good">64%</span></div>
-                <div class="meter-row"><span class="lbl">personal</span><span class="meter"><span class="fill-warn" style="width:82%"></span></span><span class="pct t-warn">82%</span></div>
-                <div class="meter-row"><span class="lbl">team-x</span><span class="meter"><span class="fill-bad" style="width:94%"></span></span><span class="pct t-bad">94%</span></div>
-              </div>
-              <div class="wcard">
-                <div class="wc-head"><span class="ic">🔑</span> OTPeek <span class="rt">2 codes</span></div>
-                <div class="otp-row"><span class="ring" style="--p:70%"></span><span class="who">GitHub<small>aws-root</small></span><span class="code">728 419</span></div>
-                <div class="otp-row"><span class="ring" style="--p:32%"></span><span class="who">Cloudflare<small>infra</small></span><span class="code">113 907</span></div>
-              </div>
-              <div class="wcard">
-                <div class="wc-head"><span class="ic">📁</span> Recent Files <span class="rt">Downloads</span></div>
-                <div class="file-row"><span class="fi">🖼️</span><span class="fn">Screenshot 2026-07-09.png</span><span class="ft">2m</span></div>
-                <div class="file-row"><span class="fi">📄</span><span class="fn">invoice-june.pdf</span><span class="ft">1h</span></div>
-              </div>
-            </div>
-            <div class="pop-foot"><span class="dot"></span><span class="dot on"></span><span class="dot"></span></div>
-          </div>
+        <div class="stage">
+          <img class="shot shot-dark" src="shots/popover-dark.png" width="800" height="1264" alt="BarShelf popover showing aas usage meters, OTPeek codes with countdown rings, and recent files" />
+          <img class="shot shot-light" src="shots/popover-light.png" width="800" height="1264" alt="BarShelf popover in light mode" />
         </div>
       </div>
     </section>
@@ -513,34 +494,12 @@
           </ul>
         </div>
 
-        <div class="builder reveal" aria-hidden="true">
-          <div class="builder-bar"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="bt">Create Widget</span></div>
-          <div class="steps">
-            <span class="step done"><span class="num">✓</span> Source</span><span class="sep"></span>
-            <span class="step now"><span class="num">2</span> Display</span><span class="sep"></span>
-            <span class="step"><span class="num">3</span> Details</span>
-          </div>
-          <div class="builder-body">
-            <div class="builder-left">
-              <div class="opt sel"><span class="oi">☰</span> List <span class="ok">✓</span></div>
-              <div class="opt"><span class="oi">▦</span> Table</div>
-              <div class="opt"><span class="oi">◉</span> Single value</div>
-              <div class="opt"><span class="oi">¶</span> Plain text</div>
-            </div>
-            <div class="builder-preview">
-              <div class="bp-label">Live preview</div>
-              <div class="wcard" style="margin:0;">
-                <div class="wc-head"><span class="ic">⎈</span> k8s pods <span class="rt">↻ 30s</span></div>
-                <div class="file-row"><span class="fi" style="background:transparent;color:var(--good)">●</span><span class="fn">api-7f9c</span><span class="ft">Running</span></div>
-                <div class="file-row"><span class="fi" style="background:transparent;color:var(--good)">●</span><span class="fn">web-2b1d</span><span class="ft">Running</span></div>
-                <div class="file-row"><span class="fi" style="background:transparent;color:var(--warn)">●</span><span class="fn">job-x0</span><span class="ft">Pending</span></div>
-              </div>
-            </div>
-          </div>
+        <div class="reveal">
+          <img class="shot" src="shots/builder.png" width="1360" height="614" alt="BarShelf widget builder — a 3-step wizard (Source, Display, Details) with a live preview of a k8s pods list" />
         </div>
       </div>
-      <p class="wrap shot-note lang-en">Illustrative UI — actual widgets render natively with SwiftUI.</p>
-      <p class="wrap shot-note lang-ko">예시 UI — 실제 위젯은 SwiftUI로 네이티브 렌더링됩니다.</p>
+      <p class="wrap shot-note lang-en">Real renders from the app's own SwiftUI — not mockups.</p>
+      <p class="wrap shot-note lang-ko">앱의 실제 SwiftUI 렌더입니다 — 목업이 아닙니다.</p>
     </section>
 
     <section id="widgets">

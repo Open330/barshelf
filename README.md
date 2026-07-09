@@ -20,7 +20,7 @@ recent files, CI status — as native widgets in a single popover.
 [**Build a Widget**](docs/WIDGET-SPEC.md) ·
 [**Publish**](docs/PUBLISHING.md)
 
-<!-- 스크린샷 자리: 메뉴바 아이콘 + 열린 팝오버(위젯 여러 개) -->
+<img src="assets/media/popover.png" width="360" alt="BarShelf popover with aas usage, OTPeek, and recent files widgets" />
 
 </div>
 
