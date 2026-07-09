@@ -16,6 +16,9 @@ private enum Brand {
     static let warmWhite = NSColor(
         calibratedRed: 0.985, green: 0.965, blue: 0.920, alpha: 1
     )
+    static let white = NSColor(
+        calibratedWhite: 1, alpha: 1
+    )
     static let shadow = NSColor(
         calibratedWhite: 0, alpha: 0.30
     )
@@ -27,10 +30,10 @@ private enum Brand {
         }
     }
 
-    static func portableLogo(size: Int) throws -> NSBitmapImageRep {
+    static func portableLogo(size: Int, color: NSColor) throws -> NSBitmapImageRep {
         try render(size: size) {
-            ink.setFill()
-            sparkle(center: NSPoint(x: 512, y: 604), radius: 196).fill()
+            color.setFill()
+            sparkle(center: NSPoint(x: 512, y: 590), radius: 220).fill()
             barPath().fill()
         }
     }
@@ -94,7 +97,7 @@ private enum Brand {
     private static func drawTileMark() {
         withShadow(offset: NSSize(width: 0, height: -18), blur: 24, color: shadow) {
             warmWhite.setFill()
-            sparkle(center: NSPoint(x: 512, y: 600), radius: 184).fill()
+            sparkle(center: NSPoint(x: 512, y: 590), radius: 210).fill()
         }
 
         withShadow(offset: NSSize(width: 0, height: -18), blur: 20, color: shadow) {
@@ -104,7 +107,7 @@ private enum Brand {
 
         NSColor(calibratedWhite: 1, alpha: 0.10).setFill()
         NSBezierPath(
-            roundedRect: NSRect(x: 306, y: 315, width: 412, height: 10),
+            roundedRect: NSRect(x: 276, y: 286, width: 472, height: 8),
             xRadius: 5,
             yRadius: 5
         ).fill()
@@ -112,7 +115,7 @@ private enum Brand {
 
     private static func barPath() -> NSBezierPath {
         NSBezierPath(
-            roundedRect: NSRect(x: 292, y: 288, width: 440, height: 76),
+            roundedRect: NSRect(x: 256, y: 258, width: 512, height: 76),
             xRadius: 38,
             yRadius: 38
         )
@@ -177,7 +180,13 @@ private let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath
 private let iconset = root.appendingPathComponent("assets/AppIcon.iconset")
 try FileManager.default.createDirectory(at: iconset, withIntermediateDirectories: true)
 
-try writePNG(try Brand.portableLogo(size: 1024), to: root.appendingPathComponent("assets/AppIcon-1024.png"))
+let blackLogo = try Brand.portableLogo(size: 1024, color: Brand.ink)
+try writePNG(blackLogo, to: root.appendingPathComponent("assets/AppIcon-1024.png"))
+try writePNG(blackLogo, to: root.appendingPathComponent("assets/BarShelfLogo-1024-black.png"))
+try writePNG(
+    try Brand.portableLogo(size: 1024, color: Brand.white),
+    to: root.appendingPathComponent("assets/BarShelfLogo-1024-white.png")
+)
 
 let tileOutputs: [(String, Int)] = [
     ("assets/media/icon-512.png", 512),
