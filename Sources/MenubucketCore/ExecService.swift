@@ -191,10 +191,17 @@ public final class ExecService {
         if let workingDirectory {
             process.currentDirectoryURL = workingDirectory
         }
-        if let extraEnvironment, !extraEnvironment.isEmpty {
-            process.environment = ProcessInfo.processInfo.environment
-                .merging(extraEnvironment) { _, injected in injected }
+        // Always provide a sensible PATH so shell scripts find standard tools
+        // (pmset, jq, grep…) even when the GUI app was launched via Finder /
+        // login with a minimal or empty PATH. Any inherited PATH keeps priority.
+        var environment = ProcessInfo.processInfo.environment
+        let systemPath = "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin"
+        environment["PATH"] = (environment["PATH"].map { $0.isEmpty ? nil : $0 } ?? nil)
+            .map { "\($0):\(systemPath)" } ?? systemPath
+        if let extraEnvironment {
+            environment.merge(extraEnvironment) { _, injected in injected }
         }
+        process.environment = environment
 
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
