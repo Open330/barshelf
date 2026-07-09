@@ -39,6 +39,59 @@ final class WidgetBuilderModel: ObservableObject {
         }
     }
 
+    struct CommandTemplate: Identifiable, Equatable {
+        let id: String
+        let title: String
+        let command: String
+        let suggestedName: String
+        let suggestedIcon: String
+    }
+
+    static let commandTemplates: [CommandTemplate] = [
+        .init(
+            id: "github-actions",
+            title: "GitHub Actions runs",
+            command: "gh run list --limit 5 --json name,status,conclusion",
+            suggestedName: "GitHub Actions",
+            suggestedIcon: "bolt"
+        ),
+        .init(
+            id: "kubernetes-pods",
+            title: "Kubernetes pods",
+            command: "kubectl get pods -o json | jq '[.items[] | {name: .metadata.name, phase: .status.phase}]'",
+            suggestedName: "Kubernetes Pods",
+            suggestedIcon: "network"
+        ),
+        .init(
+            id: "disk-usage",
+            title: "Disk usage",
+            command: #"df -h / | tail -1 | awk '{print "{\"used\":\""$3"\",\"free\":\""$4"\",\"pct\":\""$5"\"}"}'"#,
+            suggestedName: "Disk Usage",
+            suggestedIcon: "gauge"
+        ),
+        .init(
+            id: "homebrew-outdated",
+            title: "Homebrew outdated",
+            command: "brew outdated --json=v2 | jq '[.formulae[] | {name, current: .installed_versions[0], latest: .current_version}]'",
+            suggestedName: "Homebrew Outdated",
+            suggestedIcon: "cube.box"
+        ),
+        .init(
+            id: "docker-containers",
+            title: "Docker containers",
+            command: "docker ps --format '{{json .}}' | jq -s '[.[] | {name: .Names, status: .Status}]'",
+            suggestedName: "Docker Containers",
+            suggestedIcon: "cube.box"
+        ),
+        .init(
+            id: "recent-git-commits",
+            title: "Recent git commits",
+            command: #"git -C ~/your/repo log -5 --pretty=format:'{"hash":"%h","msg":"%s"}' | jq -s ."#,
+            suggestedName: "Recent Commits",
+            suggestedIcon: "clock"
+        ),
+    ]
+
     enum DisplayKind: String, CaseIterable, Identifiable {
         case list, table, value, text
         var id: String { rawValue }
@@ -94,6 +147,8 @@ final class WidgetBuilderModel: ObservableObject {
     var onCreated: (() -> Void)?
 
     private let exec = ExecService()
+    private var userEditedName = false
+    private var userChoseIcon = false
 
     init(existingGroups: [String]) {
         self.existingGroups = existingGroups
@@ -129,17 +184,36 @@ final class WidgetBuilderModel: ObservableObject {
         !name.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
+    // MARK: - Details prefill
+
+    func applyCommandTemplate(_ template: CommandTemplate) {
+        commandText = template.command
+        clearCommandTestState(clearFieldMappings: true)
+        if !userEditedName {
+            name = template.suggestedName
+        }
+        if !userChoseIcon {
+            icon = template.suggestedIcon
+        }
+    }
+
+    func setName(_ value: String) {
+        userEditedName = true
+        name = value
+    }
+
+    func setIcon(_ value: String) {
+        userChoseIcon = true
+        icon = value
+    }
+
     // MARK: - Command test run
 
     func runTest() {
         let argv = Self.tokenize(commandText)
         guard let first = argv.first, !first.isEmpty else { return }
         testRunning = true
-        testError = nil
-        testOutput = ""
-        lastJSON = nil
-        detectedFields = []
-        detectedIsJSONArray = false
+        clearCommandTestState()
 
         Task {
             let result = await exec.run(
@@ -159,6 +233,19 @@ final class WidgetBuilderModel: ObservableObject {
                     self.analyzeJSON(data)
                 }
             }
+        }
+    }
+
+    private func clearCommandTestState(clearFieldMappings: Bool = false) {
+        testError = nil
+        testOutput = ""
+        lastJSON = nil
+        detectedFields = []
+        detectedIsJSONArray = false
+        if clearFieldMappings {
+            listField = ""
+            valuePath = ""
+            tableColumns = []
         }
     }
 

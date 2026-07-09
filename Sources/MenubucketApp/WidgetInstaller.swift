@@ -75,6 +75,107 @@ enum WidgetInstallFlow {
         try await HeadlessInstaller.download(from: url)
     }
 
+    /// Progress-reporting variant of `prepare` for the interactive URL
+    /// installer. Mirrors `HeadlessInstaller.fetchSession` (download → extract
+    /// → discover, with the 404 / subdirectory-not-found candidate fallbacks)
+    /// but streams byte counts to `progress` so the UI can show a determinate
+    /// bar. Inputs that are not remote HTTP URLs (local directories/archives)
+    /// fall back to the plain pipeline. Honors `Task` cancellation.
+    ///
+    /// `progress`: `(bytesReceived, expectedTotal)` — `expectedTotal <= 0`
+    /// means the length is unknown (caller shows an indeterminate spinner).
+    static func prepare(
+        input: String,
+        progress: @escaping (Int64, Int64) -> Void
+    ) async throws -> Prepared {
+        let source: WidgetInstallSource
+        do {
+            source = try WidgetInstallSource.parse(input)
+        } catch {
+            // Not a parseable remote URL (e.g. a local directory/archive path):
+            // there is no network wait to report — use the standard pipeline.
+            return try await prepare(input: input)
+        }
+        guard !source.candidates.contains(where: { $0.url.isFileURL }) else {
+            return try await prepare(input: input)
+        }
+
+        var lastError: Error = WidgetInstallFlowError.noDownloadCandidates
+        for candidate in source.candidates {
+            let archive: Data
+            do {
+                archive = try await download(from: candidate.url, progress: progress)
+            } catch WidgetInstallFlowError.httpStatus(404, let failedURL) {
+                lastError = WidgetInstallFlowError.httpStatus(404, failedURL)
+                continue
+            }
+
+            let staging = FileManager.default.temporaryDirectory
+                .appendingPathComponent(
+                    "barshelf-install-\(UUID().uuidString)", isDirectory: true
+                )
+            do {
+                _ = try SafeZipExtractor.extract(zipData: archive, to: staging)
+                let discovery = try WidgetDiscovery.discover(
+                    under: staging, subdirectory: candidate.subdirectory
+                )
+                return Prepared(
+                    source: source, stagingRoot: staging, discovery: discovery
+                )
+            } catch let error as WidgetDiscovery.DiscoveryError {
+                try? FileManager.default.removeItem(at: staging)
+                guard case .subdirectoryNotFound = error else { throw error }
+                lastError = error
+                continue
+            } catch {
+                try? FileManager.default.removeItem(at: staging)
+                throw error
+            }
+        }
+        throw lastError
+    }
+
+    /// Streaming HTTP download with a byte-count callback and cooperative
+    /// cancellation. Enforces the same size cap as the headless pipeline.
+    static func download(
+        from url: URL,
+        progress: @escaping (Int64, Int64) -> Void
+    ) async throws -> Data {
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 60
+        let (bytes, response) = try await URLSession.shared.bytes(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw WidgetInstallFlowError.notHTTP(url)
+        }
+        guard http.statusCode == 200 else {
+            throw WidgetInstallFlowError.httpStatus(http.statusCode, url)
+        }
+        let expected = response.expectedContentLength
+        if expected > Int64(maxDownloadBytes) {
+            throw WidgetInstallFlowError.downloadTooLarge(limitBytes: maxDownloadBytes)
+        }
+
+        var data = Data()
+        data.reserveCapacity(expected > 0 ? Int(expected) : 1 << 20)
+        var received: Int64 = 0
+        var lastReported: Int64 = 0
+        progress(0, expected)
+        for try await byte in bytes {
+            try Task.checkCancellation()
+            data.append(byte)
+            received += 1
+            if received - lastReported >= 64 * 1024 {
+                lastReported = received
+                progress(received, expected)
+            }
+            if data.count > maxDownloadBytes {
+                throw WidgetInstallFlowError.downloadTooLarge(limitBytes: maxDownloadBytes)
+            }
+        }
+        progress(received, expected)
+        return data
+    }
+
     /// Copies a validated candidate into the install directory.
     /// Returns `true` when an existing install was replaced (update).
     @discardableResult
@@ -150,6 +251,14 @@ final class WidgetInstaller {
     /// Called on the main thread after at least one widget was installed.
     var onInstalled: (() -> Void)?
 
+    /// Opens the popup after a multi-widget install summary is dismissed
+    /// (main thread).
+    var onOpenPopup: (() -> Void)?
+
+    /// Opens the popup and jumps to / highlights the freshly installed widget
+    /// after a single-widget install success (main thread).
+    var onReveal: ((String) -> Void)?
+
     /// Menu entry point: "Install Widget from URL…".
     func promptForURL() {
         NSApp.activate(ignoringOtherApps: true)
@@ -177,17 +286,29 @@ final class WidgetInstaller {
     }
 
     func install(input: String, completion: (() -> Void)? = nil) {
-        Task { @MainActor in
+        let panel = DownloadProgressPanel()
+        panel.show()
+        let task = Task { @MainActor in
             do {
-                let prepared = try await WidgetInstallFlow.prepare(input: input)
+                let prepared = try await WidgetInstallFlow.prepare(input: input) {
+                    received, expected in
+                    DispatchQueue.main.async {
+                        panel.update(received: received, expected: expected)
+                    }
+                }
+                panel.close()
                 defer { try? FileManager.default.removeItem(at: prepared.stagingRoot) }
                 if self.processCandidates(prepared) {
                     completion?()
                 }
+            } catch is CancellationError {
+                panel.close()
             } catch {
+                panel.close()
                 self.showError(error)
             }
         }
+        panel.onCancel = { task.cancel() }
     }
 
     func install(registryEntry entry: RegistryWidgetEntry, completion: (() -> Void)? = nil) {
@@ -227,6 +348,7 @@ final class WidgetInstaller {
         }
 
         var installed: [String] = []
+        var installedIDs: [String] = []
         var failed: [String] = discovery.failures.map {
             "\($0.relativePath): \($0.reason)"
         }
@@ -240,6 +362,7 @@ final class WidgetInstaller {
                     (isUpdate ? "Updated " : "Installed ")
                         + WidgetInstallFlow.describe(candidate)
                 )
+                installedIDs.append(candidate.manifest.id)
             } catch {
                 failed.append(
                     "\(candidate.manifest.id): \(error.localizedDescription)"
@@ -250,7 +373,19 @@ final class WidgetInstaller {
         if !installed.isEmpty {
             onInstalled?()
         }
-        showSummary(installed: installed, failed: failed)
+
+        // Post-install reveal: a clean single-widget install skips the summary
+        // alert and jumps straight to the new widget in the popup. Anything
+        // else (multiple widgets, or partial failures) keeps the summary and
+        // then opens the popup so the result is visible.
+        if installedIDs.count == 1, failed.isEmpty {
+            onReveal?(installedIDs[0])
+        } else {
+            showSummary(installed: installed, failed: failed)
+            if !installed.isEmpty {
+                onOpenPopup?()
+            }
+        }
         return !installed.isEmpty
     }
 
@@ -313,6 +448,97 @@ final class WidgetInstaller {
         alert.informativeText = error.localizedDescription
         alert.addButton(withTitle: "OK")
         alert.runModal()
+    }
+}
+
+// MARK: - Download progress panel
+
+/// Small non-modal floating panel shown during a URL install's download.
+/// Determinate when the server reports Content-Length, indeterminate
+/// otherwise; the Cancel button aborts the in-flight download.
+/// All access happens on the main thread (creation, updates dispatched to
+/// main, cancel from the button); `@unchecked Sendable` lets the progress
+/// callback capture it across the download's concurrency domain.
+final class DownloadProgressPanel: NSObject, @unchecked Sendable {
+    /// Invoked on the main thread when the user presses Cancel.
+    var onCancel: (() -> Void)?
+
+    private var panel: NSPanel?
+    private let indicator = NSProgressIndicator()
+    private let label = NSTextField(labelWithString: "Downloading widget…")
+
+    func show() {
+        let content = NSView(frame: NSRect(x: 0, y: 0, width: 340, height: 104))
+
+        label.frame = NSRect(x: 20, y: 66, width: 300, height: 18)
+        label.font = .systemFont(ofSize: 12)
+        label.lineBreakMode = .byTruncatingTail
+        content.addSubview(label)
+
+        indicator.frame = NSRect(x: 20, y: 44, width: 300, height: 16)
+        indicator.style = .bar
+        indicator.isIndeterminate = true
+        indicator.startAnimation(nil)
+        content.addSubview(indicator)
+
+        let cancel = NSButton(
+            title: "Cancel", target: self, action: #selector(cancelClicked)
+        )
+        cancel.bezelStyle = .rounded
+        cancel.frame = NSRect(x: 232, y: 8, width: 88, height: 28)
+        content.addSubview(cancel)
+
+        let panel = NSPanel(
+            contentRect: content.frame,
+            styleMask: [.titled, .utilityWindow],
+            backing: .buffered,
+            defer: false
+        )
+        panel.title = "Installing Widget"
+        panel.contentView = content
+        panel.isFloatingPanel = true
+        panel.hidesOnDeactivate = false
+        panel.center()
+        self.panel = panel
+
+        NSApp.activate(ignoringOtherApps: true)
+        panel.makeKeyAndOrderFront(nil)
+    }
+
+    func update(received: Int64, expected: Int64) {
+        guard let panel, panel.isVisible else { return }
+        if expected > 0 {
+            if indicator.isIndeterminate {
+                indicator.stopAnimation(nil)
+                indicator.isIndeterminate = false
+            }
+            indicator.minValue = 0
+            indicator.maxValue = Double(expected)
+            indicator.doubleValue = Double(min(received, expected))
+            label.stringValue =
+                "Downloading… \(Self.megabytes(received)) / \(Self.megabytes(expected))"
+        } else {
+            if !indicator.isIndeterminate {
+                indicator.isIndeterminate = true
+                indicator.startAnimation(nil)
+            }
+            label.stringValue = "Downloading… \(Self.megabytes(received))"
+        }
+    }
+
+    func close() {
+        indicator.stopAnimation(nil)
+        panel?.orderOut(nil)
+        panel = nil
+    }
+
+    @objc private func cancelClicked() {
+        onCancel?()
+        close()
+    }
+
+    private static func megabytes(_ bytes: Int64) -> String {
+        String(format: "%.1f MB", Double(bytes) / (1024 * 1024))
     }
 }
 

@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import Combine
 import MenubucketCore
 import SwiftUI
@@ -17,6 +18,10 @@ final class StatusItemController: NSObject {
     private var keyboardMonitor: Any?
     private var scrollMonitor: Any?
     private var cancellables: Set<AnyCancellable> = []
+
+    /// Carbon global hotkey (toggles the popup; no accessibility permission).
+    private var hotKeyRef: EventHotKeyRef?
+    private var hotKeyEventHandler: EventHandlerRef?
 
     /// Two-finger swipe tracking (scroll-wheel phases).
     private enum SwipeAxis {
@@ -114,6 +119,15 @@ final class StatusItemController: NSObject {
         WidgetInstaller.shared.onInstalled = { [weak self] in
             self?.runtime.loadWidgets()
         }
+        // Post-install: open the popup and (single-widget case) jump to and
+        // highlight the freshly installed widget.
+        WidgetInstaller.shared.onOpenPopup = { [weak self] in
+            self?.openPopupIfNeeded()
+        }
+        WidgetInstaller.shared.onReveal = { [weak self] id in
+            self?.openPopupIfNeeded()
+            self?.runtime.reveal(widgetID: id)
+        }
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
@@ -125,14 +139,20 @@ final class StatusItemController: NSObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] preferences in
                 self?.applyStatusSymbol(preferences.menuBarSymbol)
+                self?.updateHotkey(preferences)
             }
             .store(in: &cancellables)
         applyStatusSymbol(appPrefs.preferences.menuBarSymbol)
+        updateHotkey(appPrefs.preferences)
     }
 
     deinit {
         removeKeyboardMonitor()
         removeScrollMonitor()
+        unregisterHotkey()
+        if let handler = hotKeyEventHandler {
+            RemoveEventHandler(handler)
+        }
     }
 
     // MARK: - Status item events
@@ -161,6 +181,12 @@ final class StatusItemController: NSObject {
         } else if let button = statusItem.button {
             popup.show(relativeTo: button)
         }
+    }
+
+    /// Shows the popup if it is not already visible (post-install reveal).
+    private func openPopupIfNeeded() {
+        guard !popup.isShown, let button = statusItem.button else { return }
+        popup.show(relativeTo: button)
     }
 
     private func showStatusItemMenu(with event: NSEvent) {
@@ -220,6 +246,106 @@ final class StatusItemController: NSObject {
         )
         statusItem.button?.image = image
     }
+
+    // MARK: - Global hotkey (Carbon RegisterEventHotKey — no a11y permission)
+
+    /// Re-registers the popup hotkey from the current preferences. Called on
+    /// every prefs change: unregisters first, then registers only when enabled
+    /// and the string parses. Invalid strings fail silently (no hotkey).
+    private func updateHotkey(_ preferences: AppPreferences) {
+        unregisterHotkey()
+        guard preferences.popupHotkeyEnabled,
+              let combo = Self.parseHotkey(preferences.popupHotkey)
+        else { return }
+        registerHotkey(keyCode: combo.keyCode, modifiers: combo.modifiers)
+    }
+
+    private func registerHotkey(keyCode: UInt32, modifiers: UInt32) {
+        installHotkeyHandlerIfNeeded()
+        let hotKeyID = EventHotKeyID(
+            signature: OSType(0x4253_5246 /* 'BSRF' */), id: 1
+        )
+        var ref: EventHotKeyRef?
+        let status = RegisterEventHotKey(
+            keyCode, modifiers, hotKeyID, GetApplicationEventTarget(), 0, &ref
+        )
+        if status == noErr {
+            hotKeyRef = ref
+        }
+    }
+
+    private func unregisterHotkey() {
+        if let ref = hotKeyRef {
+            UnregisterEventHotKey(ref)
+            hotKeyRef = nil
+        }
+    }
+
+    /// Installs the single application-wide `kEventHotKeyPressed` handler once;
+    /// it forwards presses to `hotkeyPressed()` on the main thread.
+    private func installHotkeyHandlerIfNeeded() {
+        guard hotKeyEventHandler == nil else { return }
+        var eventType = EventTypeSpec(
+            eventClass: OSType(kEventClassKeyboard),
+            eventKind: UInt32(kEventHotKeyPressed)
+        )
+        let selfPtr = Unmanaged.passUnretained(self).toOpaque()
+        InstallEventHandler(
+            GetApplicationEventTarget(),
+            { _, _, userData -> OSStatus in
+                guard let userData else { return noErr }
+                let controller = Unmanaged<StatusItemController>
+                    .fromOpaque(userData).takeUnretainedValue()
+                DispatchQueue.main.async { controller.hotkeyPressed() }
+                return noErr
+            },
+            1, &eventType, selfPtr, &hotKeyEventHandler
+        )
+    }
+
+    fileprivate func hotkeyPressed() {
+        togglePopup()
+    }
+
+    /// Parses "cmd+shift+b"-style strings: lowercase modifiers (cmd/command,
+    /// shift, opt/option/alt, ctrl/control) plus exactly one final key, joined
+    /// by "+". Requires at least one modifier and a known key; returns nil on
+    /// anything unrecognized (caller then registers no hotkey).
+    private static func parseHotkey(_ string: String) -> (keyCode: UInt32, modifiers: UInt32)? {
+        let tokens = string.lowercased()
+            .split(separator: "+")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        guard !tokens.isEmpty else { return nil }
+
+        var modifiers: UInt32 = 0
+        var keyToken: String?
+        for token in tokens {
+            switch token {
+            case "cmd", "command": modifiers |= UInt32(cmdKey)
+            case "shift": modifiers |= UInt32(shiftKey)
+            case "opt", "option", "alt": modifiers |= UInt32(optionKey)
+            case "ctrl", "control": modifiers |= UInt32(controlKey)
+            default:
+                if keyToken != nil { return nil } // more than one non-modifier
+                keyToken = token
+            }
+        }
+        guard let keyToken, modifiers != 0,
+              let keyCode = keyCodes[keyToken]
+        else { return nil }
+        return (keyCode, modifiers)
+    }
+
+    /// ANSI virtual key codes for the keys we accept as a hotkey's final key.
+    private static let keyCodes: [String: UInt32] = [
+        "a": 0, "s": 1, "d": 2, "f": 3, "h": 4, "g": 5, "z": 6, "x": 7,
+        "c": 8, "v": 9, "b": 11, "q": 12, "w": 13, "e": 14, "r": 15, "y": 16,
+        "t": 17, "1": 18, "2": 19, "3": 20, "4": 21, "6": 22, "5": 23,
+        "9": 25, "7": 26, "8": 28, "0": 29, "o": 31, "u": 32, "i": 34,
+        "p": 35, "l": 37, "j": 38, "k": 40, "n": 45, "m": 46,
+        "space": 49, "return": 36, "tab": 48,
+    ]
 
     // MARK: - Keyboard (popup-scoped): ←/→ page switch, ⌘1..9 jump, Esc close
 

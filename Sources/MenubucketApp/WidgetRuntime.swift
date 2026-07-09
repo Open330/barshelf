@@ -62,6 +62,9 @@ final class WidgetRuntime: ObservableObject {
     let prefs = WidgetPrefs()
     let appPrefs: AppPrefs
     @Published private(set) var refreshStatsSnapshot: [String: WidgetRefreshStats] = [:]
+    /// Widget id the UI should jump to and highlight (post-install reveal, R11).
+    /// Consumers clear it after handling.
+    @Published var pendingReveal: String?
 
     private let execService = ExecService()
     let scheduler = Scheduler()
@@ -516,10 +519,87 @@ final class WidgetRuntime: ObservableObject {
             Task { await supervisor.retain(widgetIds: seenIDs) }
         }
 
-        scheduler.configure(widgets: loaded)
+        scheduler.configure(widgets: loaded.filter { !prefs.isDisabled($0.id) })
     }
 
     static let supportedEntryKinds: Set<String> = ["exec", "script", "workflow"]
+
+    // MARK: - Widget management (R11)
+
+    /// The single directory `removeWidget` is allowed to delete inside.
+    static var userWidgetsRoot: URL {
+        applicationSupportDirectory.appendingPathComponent("widgets", isDirectory: true)
+    }
+
+    /// True only for a proper subdirectory of the user widgets root. Resolving
+    /// `..` first refuses path-traversal ids and dev-checkout (`./widgets/`)
+    /// widgets, so `removeWidget` can never delete outside that root.
+    static func isRemovableWidgetDirectory(_ directory: URL) -> Bool {
+        let root = userWidgetsRoot.standardizedFileURL.path
+        let target = directory.standardizedFileURL.path
+        return target != root && target.hasPrefix(root + "/")
+    }
+
+    /// Deletes the widget's directory and scrubs every per-widget trace
+    /// (cached snapshot, permissions, prefs), then rescans — which drops the
+    /// in-memory snapshot, card model, refresh stats, and scheduler timers.
+    /// Throws (deleting nothing) for unknown ids or directories outside the
+    /// user widgets root.
+    func removeWidget(id: String) throws {
+        guard let widget = widgets.first(where: { $0.id == id }) else {
+            throw RuntimeError.widgetNotFound(id)
+        }
+        guard Self.isRemovableWidgetDirectory(widget.directory) else {
+            throw RuntimeError.notRemovable(
+                "widget \"\(id)\" is not inside the user widgets directory"
+            )
+        }
+        try FileManager.default.removeItem(at: widget.directory)
+        pendingPersists[id]?.cancel() // no queued write may re-create the cache
+        pendingPersists.removeValue(forKey: id)
+        Self.removeCachedSnapshot(widgetID: id)
+        permissionStore.reset(widgetId: id)
+        prefs.removeAllState(for: id)
+        loadWidgets()
+    }
+
+    /// Moves a widget to a bucket by writing an override, then republishes
+    /// pages. Widgets are unchanged so only this explicit action republishes.
+    func moveWidget(id: String, toGroup group: String) {
+        let trimmed = group.trimmingCharacters(in: .whitespacesAndNewlines)
+        prefs.setOverride(
+            group: trimmed.isEmpty ? nil : trimmed,
+            order: prefs.override(for: id)?.order,
+            for: id
+        )
+        objectWillChange.send()
+    }
+
+    /// Toggles a widget's disabled flag: disabled widgets leave the pages and
+    /// stop being scheduled; re-enabling resumes scheduling and refreshes once.
+    func setWidgetDisabled(_ id: String, _ flag: Bool) {
+        guard prefs.isDisabled(id) != flag else { return }
+        prefs.setDisabled(id, flag)
+        scheduler.configure(widgets: widgets.filter { !prefs.isDisabled($0.id) })
+        objectWillChange.send()
+        if !flag {
+            refresh(widgetID: id, manual: true)
+        }
+    }
+
+    /// The on-disk directory of a loaded widget (for "Reveal in Finder").
+    func widgetDirectory(for id: String) -> URL? {
+        widgets.first(where: { $0.id == id })?.directory
+    }
+
+    /// Requests the UI jump to and highlight a widget; always publishes on main.
+    func reveal(widgetID: String) {
+        if Thread.isMainThread {
+            pendingReveal = widgetID
+        } else {
+            DispatchQueue.main.async { [weak self] in self?.pendingReveal = widgetID }
+        }
+    }
 
     // MARK: - Hot reload
 
@@ -556,21 +636,61 @@ final class WidgetRuntime: ObservableObject {
 
     // MARK: - Pages
 
-    /// Distinct bucket groups in display order (for the builder's group picker).
-    var bucketGroups: [String] {
-        var seen: Set<String> = []
-        return pages.map(\.group).filter { seen.insert($0).inserted }
+    /// Distinct effective group names in page order (bucket picker / submenu).
+    var allGroups: [String] {
+        pages.map(\.group)
     }
 
+    /// Distinct bucket groups in display order (for the builder's group picker).
+    var bucketGroups: [String] {
+        allGroups
+    }
+
+    /// The group a widget renders under: a user override wins over the manifest.
+    func effectiveGroup(for id: String) -> String {
+        if let override = prefs.override(for: id)?.group, !override.isEmpty {
+            return override
+        }
+        return widgets.first(where: { $0.id == id })?.group ?? "General"
+    }
+
+    /// The sort key within a page: an override wins over the manifest order.
+    private func effectiveOrder(for id: String) -> Double {
+        if let override = prefs.override(for: id)?.order { return override }
+        return Double(widgets.first(where: { $0.id == id })?.order ?? 0)
+    }
+
+    /// Pages honor bucket overrides and hide disabled widgets; empty groups
+    /// vanish. Kept side-effect free so recomputation never republishes cards.
     var pages: [WidgetPage] {
-        let grouped = Dictionary(grouping: widgets, by: { $0.group })
+        Self.computePages(
+            widgets,
+            group: { self.effectiveGroup(for: $0.id) },
+            order: { self.effectiveOrder(for: $0.id) },
+            isDisabled: { self.prefs.isDisabled($0.id) }
+        )
+    }
+
+    /// Pure page layout: groups the enabled widgets, sorts members by effective
+    /// order, and orders pages by their first member's order then group name.
+    static func computePages(
+        _ widgets: [LoadedWidget],
+        group: (LoadedWidget) -> String,
+        order: (LoadedWidget) -> Double,
+        isDisabled: (LoadedWidget) -> Bool
+    ) -> [WidgetPage] {
+        let visible = widgets.filter { !isDisabled($0) }
+        let grouped = Dictionary(grouping: visible, by: group)
         return grouped
-            .map { group, members in
-                WidgetPage(group: group, widgets: members.sorted { $0.order < $1.order })
+            .map { groupName, members in
+                WidgetPage(
+                    group: groupName,
+                    widgets: members.sorted { order($0) < order($1) }
+                )
             }
             .sorted { lhs, rhs in
-                let lhsOrder = lhs.widgets.first?.order ?? 0
-                let rhsOrder = rhs.widgets.first?.order ?? 0
+                let lhsOrder = lhs.widgets.first.map(order) ?? 0
+                let rhsOrder = rhs.widgets.first.map(order) ?? 0
                 if lhsOrder != rhsOrder { return lhsOrder < rhsOrder }
                 return lhs.group < rhs.group
             }
@@ -628,6 +748,7 @@ final class WidgetRuntime: ObservableObject {
 
     func refresh(_ widget: LoadedWidget, manual: Bool = true) {
         let id = widget.id
+        guard !prefs.isDisabled(id) else { return } // disabled widgets never run
         guard !inFlight.contains(id) else { return } // in-flight coalescing
         if !manual, !scheduler.allowsAutomaticRefresh(widgetID: id) {
             return // exponential backoff window — automatic triggers suppressed
@@ -1104,11 +1225,15 @@ final class WidgetRuntime: ObservableObject {
     enum RuntimeError: Error, LocalizedError {
         case missingAdapter(String)
         case invalidWorkflow(String)
+        case widgetNotFound(String)
+        case notRemovable(String)
 
         var errorDescription: String? {
             switch self {
             case let .missingAdapter(message): return message
             case let .invalidWorkflow(message): return message
+            case let .widgetNotFound(id): return "widget \"\(id)\" was not found"
+            case let .notRemovable(message): return message
             }
         }
     }

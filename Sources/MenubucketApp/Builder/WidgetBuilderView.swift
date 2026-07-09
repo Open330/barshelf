@@ -80,6 +80,8 @@ struct WidgetBuilderView: View {
             Divider().padding(.vertical, 4)
             switch model.sourceKind {
             case .command:
+                Text("Templates").font(.caption).foregroundStyle(.secondary)
+                commandTemplatePicker
                 Text("Command").font(.caption).foregroundStyle(.secondary)
                 TextField("e.g. gh run list --json name,status", text: $model.commandText)
                     .textFieldStyle(.roundedBorder)
@@ -157,6 +159,55 @@ struct WidgetBuilderView: View {
             .overlay(RoundedRectangle(cornerRadius: 8).stroke(.secondary.opacity(0.2)))
         }
         .buttonStyle(.plain)
+    }
+
+    private var commandTemplatePicker: some View {
+        LazyVGrid(
+            columns: [GridItem(.adaptive(minimum: 148, maximum: 220), spacing: 8)],
+            alignment: .leading,
+            spacing: 8
+        ) {
+            ForEach(WidgetBuilderModel.commandTemplates) { template in
+                commandTemplateChip(template)
+            }
+        }
+    }
+
+    private func commandTemplateChip(_ template: WidgetBuilderModel.CommandTemplate) -> some View {
+        let selected = model.commandText == template.command
+        return Button {
+            model.applyCommandTemplate(template)
+        } label: {
+            Label {
+                Text(template.title)
+                    .font(.system(size: 11, weight: .medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            } icon: {
+                Image(systemName: template.suggestedIcon)
+                    .font(.system(size: 11, weight: .semibold))
+            }
+            .labelStyle(.titleAndIcon)
+            .foregroundStyle(selected ? Color.accentColor : .primary)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                selected
+                    ? Color.accentColor.opacity(0.16)
+                    : Color(nsColor: .controlBackgroundColor)
+            )
+            .clipShape(Capsule())
+            .overlay(
+                Capsule().stroke(
+                    selected ? Color.accentColor.opacity(0.65) : Color.secondary.opacity(0.22)
+                )
+            )
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .help(template.command)
+        .accessibilityLabel("Use \(template.title) command template")
     }
 
     // MARK: Step 2 — display
@@ -253,7 +304,10 @@ struct WidgetBuilderView: View {
     private var detailsStep: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Name & placement").font(.system(size: 13, weight: .semibold))
-            TextField("Widget name", text: $model.name).textFieldStyle(.roundedBorder)
+            TextField("Widget name", text: Binding(
+                get: { model.name },
+                set: { model.setName($0) }
+            )).textFieldStyle(.roundedBorder)
 
             Text("Icon").font(.caption).foregroundStyle(.secondary)
             LazyVGrid(columns: Array(repeating: GridItem(.fixed(34)), count: 6), spacing: 6) {
@@ -262,7 +316,7 @@ struct WidgetBuilderView: View {
                         .frame(width: 30, height: 30)
                         .background(model.icon == symbol ? Color.accentColor.opacity(0.2) : .clear)
                         .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .onTapGesture { model.icon = symbol }
+                        .onTapGesture { model.setIcon(symbol) }
                         .accessibilityElement()
                         .accessibilityLabel("Icon \(symbol)")
                         .accessibilityAddTraits(

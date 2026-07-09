@@ -42,9 +42,17 @@ public struct RegistryWidgetEntry: Codable, Equatable, Sendable {
     /// "exec" | "workflow" | "script"
     public var kind: String?
     public var tags: [String]?
+    /// Optional curated grouping for the gallery's category chips (e.g.
+    /// "Developer", "Security"). Display/filter-only. When absent the gallery
+    /// falls back to `tags` for chip derivation.
+    public var category: String?
     /// Free-text external requirement shown as a gallery badge, e.g.
     /// "aas CLI" or "Deno runtime". Display-only — not an enforcement input.
     public var requires: String?
+    /// Optional preview image for the gallery card. Either an `http(s)` URL or
+    /// a `file:`/relative path resolvable by the client. Display-only; a
+    /// missing or unloadable image degrades to no preview.
+    public var screenshot: String?
     public var install: Install
     public var permissions: PermissionsSummary?
     public var homepage: String?
@@ -58,7 +66,9 @@ public struct RegistryWidgetEntry: Codable, Equatable, Sendable {
         icon: String? = nil,
         kind: String? = nil,
         tags: [String]? = nil,
+        category: String? = nil,
         requires: String? = nil,
+        screenshot: String? = nil,
         install: Install,
         permissions: PermissionsSummary? = nil,
         homepage: String? = nil
@@ -71,7 +81,9 @@ public struct RegistryWidgetEntry: Codable, Equatable, Sendable {
         self.icon = icon
         self.kind = kind
         self.tags = tags
+        self.category = category
         self.requires = requires
+        self.screenshot = screenshot
         self.install = install
         self.permissions = permissions
         self.homepage = homepage
@@ -110,6 +122,63 @@ public struct RegistryWidgetEntry: Codable, Equatable, Sendable {
             self.keychain = keychain
             self.notifications = notifications
         }
+    }
+}
+
+// MARK: - Version comparison (gallery update detection)
+
+/// Dotted-number version ordering for the gallery's "Update available" check
+/// (registry `version` vs the installed `widget.json` version).
+///
+/// Lenient by design: each version is split on `.`, numeric components compare
+/// numerically, and any non-numeric or extra components fall back to a stable
+/// string comparison so a malformed version never crashes or falsely upgrades.
+public enum SemanticVersionOrder {
+    /// True iff `candidate` is a strictly newer release than `installed`.
+    /// Returns `false` when either side is missing or the two are equal.
+    public static func isNewer(_ candidate: String?, than installed: String?) -> Bool {
+        guard let candidate, let installed else { return false }
+        return compare(candidate, installed) == .orderedDescending
+    }
+
+    static func compare(_ lhs: String, _ rhs: String) -> ComparisonResult {
+        let left = components(of: lhs)
+        let right = components(of: rhs)
+        let count = max(left.count, right.count)
+        for index in 0..<count {
+            let l = index < left.count ? left[index] : .number(0)
+            let r = index < right.count ? right[index] : .number(0)
+            switch (l, r) {
+            case let (.number(a), .number(b)) where a != b:
+                return a < b ? .orderedAscending : .orderedDescending
+            case let (.text(a), .text(b)) where a != b:
+                return a < b ? .orderedAscending : .orderedDescending
+            case (.number, .text):
+                // Numeric release outranks a pre-release/text component.
+                return .orderedDescending
+            case (.text, .number):
+                return .orderedAscending
+            default:
+                continue
+            }
+        }
+        return .orderedSame
+    }
+
+    private enum Component: Equatable {
+        case number(Int)
+        case text(String)
+    }
+
+    private static func components(of version: String) -> [Component] {
+        let trimmed = version.trimmingCharacters(in: .whitespaces)
+            .drop { $0 == "v" || $0 == "V" }
+        return trimmed
+            .split(whereSeparator: { $0 == "." || $0 == "-" || $0 == "+" })
+            .map { part in
+                if let value = Int(part) { return .number(value) }
+                return .text(String(part))
+            }
     }
 }
 

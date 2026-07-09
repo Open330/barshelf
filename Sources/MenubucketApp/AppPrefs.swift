@@ -32,7 +32,9 @@ final class AppPrefs: ObservableObject {
             menuBarSymbol: copy.menuBarSymbol,
             refreshMultiplier: copy.refreshMultiplier,
             pauseWhenClosed: copy.pauseWhenClosed,
-            launchAtLogin: copy.launchAtLogin
+            launchAtLogin: copy.launchAtLogin,
+            popupHotkeyEnabled: copy.popupHotkeyEnabled,
+            popupHotkey: copy.popupHotkey
         )
         preferences = copy
     }

@@ -36,6 +36,10 @@ let package = Package(
             dependencies: ["MenubucketCore"]
         ),
         .testTarget(
+            name: "MenubucketAppTests",
+            dependencies: ["MenubucketApp", "MenubucketCore"]
+        ),
+        .testTarget(
             name: "MbkCLITests",
             dependencies: ["MbkKit", "MenubucketCore"]
         ),

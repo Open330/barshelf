@@ -17,20 +17,32 @@ public struct AppPreferences: Codable, Equatable, Sendable {
     public var pauseWhenClosed: Bool
     /// `SMAppService.mainApp` registration mirror.
     public var launchAtLogin: Bool
+    /// When true a global hotkey toggles the popup (R11). The hotkey itself is
+    /// registered app-side; this model only persists the preference.
+    public var popupHotkeyEnabled: Bool
+    /// Lowercase modifiers + key joined by "+" (e.g. "cmd+shift+b"). Persisted
+    /// verbatim; parsing/registration happens app-side.
+    public var popupHotkey: String
 
     public static let defaultMenuBarSymbol = "tray.full"
+    public static let defaultPopupHotkey = "cmd+shift+b"
 
     public init(
         menuBarSymbol: String = AppPreferences.defaultMenuBarSymbol,
         refreshMultiplier: Double = 1,
         pauseWhenClosed: Bool = false,
-        launchAtLogin: Bool = false
+        launchAtLogin: Bool = false,
+        popupHotkeyEnabled: Bool = false,
+        popupHotkey: String = AppPreferences.defaultPopupHotkey
     ) {
         let symbol = menuBarSymbol.trimmingCharacters(in: .whitespacesAndNewlines)
         self.menuBarSymbol = symbol.isEmpty ? Self.defaultMenuBarSymbol : symbol
         self.refreshMultiplier = SchedulePolicy.normalizedRefreshMultiplier(refreshMultiplier)
         self.pauseWhenClosed = pauseWhenClosed
         self.launchAtLogin = launchAtLogin
+        self.popupHotkeyEnabled = popupHotkeyEnabled
+        let hotkey = popupHotkey.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.popupHotkey = hotkey.isEmpty ? Self.defaultPopupHotkey : hotkey
     }
 
     /// Lenient decoding: absent keys fall back to defaults, the multiplier is
@@ -52,6 +64,13 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         launchAtLogin = try container.decodeIfPresent(
             Bool.self, forKey: .launchAtLogin
         ) ?? false
+        popupHotkeyEnabled = try container.decodeIfPresent(
+            Bool.self, forKey: .popupHotkeyEnabled
+        ) ?? false
+        let hotkey = try container.decodeIfPresent(
+            String.self, forKey: .popupHotkey
+        )?.trimmingCharacters(in: .whitespacesAndNewlines)
+        popupHotkey = (hotkey?.isEmpty == false) ? hotkey! : Self.defaultPopupHotkey
     }
 
     // MARK: - File persistence

@@ -41,11 +41,36 @@ final class GalleryWindowController {
 
 // MARK: - Model
 
+/// Top-level kind segments for the gallery filter row. `all` disables the
+/// kind predicate; the rest match `RegistryWidgetEntry.kind` exactly.
+enum GalleryKindFilter: String, CaseIterable, Identifiable {
+    case all, exec, workflow, script
+
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .all: return "All"
+        case .exec: return "exec"
+        case .workflow: return "workflow"
+        case .script: return "script"
+        }
+    }
+}
+
 @MainActor
 final class GalleryModel: ObservableObject {
     @Published var searchText: String = ""
+    /// Kind segment + optional category chip. Both narrow `filteredEntries`.
+    @Published var kindFilter: GalleryKindFilter = .all
+    @Published var selectedCategory: String?
     @Published private(set) var entries: [RegistryWidgetEntry] = []
     @Published private(set) var installedIDs: Set<String> = []
+    /// Installed widget's `widget.json` version, keyed by entry id — the input
+    /// to update detection. Absent means "not installed" or "version unknown".
+    @Published private(set) var installedVersions: [String: String] = [:]
+    /// Requirement (`requires`) PATH status keyed by entry id. Computed off the
+    /// main thread; `.unknown` until the first probe resolves.
+    @Published private(set) var requirementStatus: [String: RequirementChecker.Status] = [:]
     @Published private(set) var isLoading = false
     @Published private(set) var loadError: String?
     @Published private(set) var warnings: [String] = []
@@ -54,6 +79,7 @@ final class GalleryModel: ObservableObject {
 
     private let client: RegistryClient
     private var loadTask: Task<Void, Never>?
+    private var requirementTask: Task<Void, Never>?
     private var hasLoadedOnce = false
 
     init(client: RegistryClient = GalleryModel.makeDefaultClient()) {
@@ -86,15 +112,64 @@ final class GalleryModel: ObservableObject {
 
     var filteredEntries: [RegistryWidgetEntry] {
         let query = searchText.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !query.isEmpty else { return entries }
         return entries.filter { entry in
-            if entry.name.lowercased().contains(query) { return true }
-            if let tags = entry.tags,
-               tags.contains(where: { $0.lowercased().contains(query) }) {
-                return true
-            }
-            return false
+            matchesKind(entry) && matchesCategory(entry) && matchesQuery(entry, query)
         }
+    }
+
+    private func matchesKind(_ entry: RegistryWidgetEntry) -> Bool {
+        guard kindFilter != .all else { return true }
+        return entry.kind == kindFilter.rawValue
+    }
+
+    private func matchesCategory(_ entry: RegistryWidgetEntry) -> Bool {
+        guard let category = selectedCategory else { return true }
+        return categories(of: entry).contains(category)
+    }
+
+    private func matchesQuery(_ entry: RegistryWidgetEntry, _ query: String) -> Bool {
+        guard !query.isEmpty else { return true }
+        if entry.name.lowercased().contains(query) { return true }
+        if let tags = entry.tags,
+           tags.contains(where: { $0.lowercased().contains(query) }) {
+            return true
+        }
+        return false
+    }
+
+    /// Category chip labels for an entry: its curated `category` plus its tags.
+    /// Chips filter on this same set so either source matches a selection.
+    private func categories(of entry: RegistryWidgetEntry) -> [String] {
+        var values: [String] = []
+        if let category = entry.category?.trimmingCharacters(in: .whitespaces),
+           !category.isEmpty {
+            values.append(category)
+        }
+        values.append(contentsOf: entry.tags ?? [])
+        return values
+    }
+
+    /// Distinct category chips across the (kind-filtered) registry, sorted so
+    /// the chip row is stable. Empty when no entry carries a category or tag.
+    var availableCategories: [String] {
+        var seen = Set<String>()
+        var ordered: [String] = []
+        for entry in entries where matchesKind(entry) {
+            for value in categories(of: entry) where !value.isEmpty {
+                let key = value.lowercased()
+                if seen.insert(key).inserted { ordered.append(value) }
+            }
+        }
+        return ordered.sorted { $0.lowercased() < $1.lowercased() }
+    }
+
+    /// True when the registry advertises a strictly newer version than the
+    /// installed `widget.json` — drives the card's primary "Update" button.
+    func updateAvailable(for entry: RegistryWidgetEntry) -> Bool {
+        guard installedIDs.contains(entry.id) else { return false }
+        return SemanticVersionOrder.isNewer(
+            entry.version, than: installedVersions[entry.id]
+        )
     }
 
     func onWindowShown() {
@@ -117,6 +192,7 @@ final class GalleryModel: ObservableObject {
                 self.sourceDescription = result.source.displayName
                 self.registryName = result.index.name
                 self.hasLoadedOnce = true
+                self.recomputeRequirements()
                 for warning in result.warnings {
                     FileHandle.standardError.write(
                         Data("registry warning: \(warning)\n".utf8)
@@ -141,17 +217,71 @@ final class GalleryModel: ObservableObject {
     }
 
     /// Installed = the widget's install directory exists (same rule as the
-    /// installer's update detection).
+    /// installer's update detection). Also reads each installed widget's
+    /// `widget.json` version so the card can flip to "Update" when the registry
+    /// advertises a newer release. Both are cheap directory/file reads.
     func refreshInstalledStates() {
         let widgetsDir = WidgetRuntime.applicationSupportDirectory
             .appendingPathComponent("widgets", isDirectory: true)
         let fm = FileManager.default
         var installed: Set<String> = []
-        for entry in entries
-        where fm.fileExists(atPath: widgetsDir.appendingPathComponent(entry.id).path) {
+        var versions: [String: String] = [:]
+        for entry in entries {
+            let dir = widgetsDir.appendingPathComponent(entry.id)
+            guard fm.fileExists(atPath: dir.path) else { continue }
             installed.insert(entry.id)
+            if let version = Self.installedVersion(inWidgetDirectory: dir) {
+                versions[entry.id] = version
+            }
         }
         installedIDs = installed
+        installedVersions = versions
+    }
+
+    /// Reads the top-level `version` string from an installed widget's
+    /// `widget.json` (the `Manifest` decoder deliberately ignores this field).
+    private nonisolated static func installedVersion(
+        inWidgetDirectory directory: URL
+    ) -> String? {
+        let manifestURL = directory.appendingPathComponent("widget.json")
+        guard let data = try? Data(contentsOf: manifestURL),
+              let probe = try? JSONDecoder().decode(VersionProbe.self, from: data)
+        else { return nil }
+        return probe.version
+    }
+
+    private struct VersionProbe: Decodable {
+        let version: String?
+    }
+
+    /// Resolves `requires` PATH status for every entry off the main thread
+    /// (RequirementChecker caches, so this is a one-time cost per binary), then
+    /// publishes the map back on the main actor.
+    func recomputeRequirements() {
+        requirementTask?.cancel()
+        let pending: [(id: String, requires: String)] = entries.compactMap { entry in
+            guard let requires = entry.requires?
+                .trimmingCharacters(in: .whitespaces), !requires.isEmpty
+            else { return nil }
+            return (entry.id, requires)
+        }
+        guard !pending.isEmpty else {
+            requirementStatus = [:]
+            return
+        }
+        requirementTask = Task.detached(priority: .utility) {
+            var resolved: [String: RequirementChecker.Status] = [:]
+            for item in pending {
+                if Task.isCancelled { return }
+                resolved[item.id] = RequirementChecker.shared
+                    .status(forRequires: item.requires)
+            }
+            let result = resolved
+            await MainActor.run { [weak self] in
+                guard let self, !Task.isCancelled else { return }
+                self.requirementStatus = result
+            }
+        }
     }
 }
 
@@ -169,6 +299,7 @@ struct GalleryView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
+            filters
             Divider()
             content
         }
@@ -176,6 +307,80 @@ struct GalleryView: View {
         .onReceive(installedPoll) { _ in
             model.refreshInstalledStates()
         }
+        .onChange(of: model.kindFilter) { _ in
+            // A category chip may no longer exist for the new kind segment;
+            // drop a stale selection so results don't silently empty out.
+            if let selected = model.selectedCategory,
+               !model.availableCategories.contains(selected) {
+                model.selectedCategory = nil
+            }
+        }
+    }
+
+    /// Kind segments + tag/category chips. Both narrow the list; the chip row
+    /// hides itself when the registry carries no categories or tags.
+    @ViewBuilder
+    private var filters: some View {
+        let categories = model.availableCategories
+        VStack(spacing: 8) {
+            Picker("Filter by kind", selection: $model.kindFilter) {
+                ForEach(GalleryKindFilter.allCases) { kind in
+                    Text(kind.label).tag(kind)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .accessibilityLabel("Filter widgets by kind")
+
+            if !categories.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        categoryChip(title: "All", isSelected: model.selectedCategory == nil) {
+                            model.selectedCategory = nil
+                        }
+                        ForEach(categories, id: \.self) { category in
+                            categoryChip(
+                                title: category,
+                                isSelected: model.selectedCategory == category
+                            ) {
+                                model.selectedCategory =
+                                    (model.selectedCategory == category) ? nil : category
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 1)
+                }
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.bottom, 8)
+    }
+
+    private func categoryChip(
+        title: String, isSelected: Bool, action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.caption)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(
+                    Capsule().fill(
+                        isSelected
+                            ? Color.accentColor.opacity(0.2)
+                            : Color.secondary.opacity(0.12)
+                    )
+                )
+                .foregroundColor(isSelected ? .accentColor : .primary)
+                .overlay(
+                    Capsule().stroke(
+                        isSelected ? Color.accentColor.opacity(0.5) : .clear
+                    )
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Category \(title)")
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 
     private var header: some View {
@@ -201,6 +406,21 @@ struct GalleryView: View {
             .disabled(model.isLoading)
         }
         .padding(10)
+    }
+
+    /// Distinguishes "the registry is empty" from "your filters excluded
+    /// everything" so an active kind/category/search filter is discoverable.
+    private var emptyStateMessage: String {
+        let filtersActive = !model.searchText.isEmpty
+            || model.kindFilter != .all
+            || model.selectedCategory != nil
+        if filtersActive {
+            if !model.searchText.isEmpty {
+                return "No widgets match \"\(model.searchText)\""
+            }
+            return "No widgets match the selected filters"
+        }
+        return "No widgets in the registry"
     }
 
     @ViewBuilder
@@ -235,10 +455,9 @@ struct GalleryView: View {
                     .font(.largeTitle)
                     .foregroundColor(.secondary)
                     .accessibilityHidden(true)
-                Text(model.searchText.isEmpty
-                    ? "No widgets in the registry"
-                    : "No widgets match \"\(model.searchText)\"")
+                Text(emptyStateMessage)
                     .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
@@ -248,6 +467,8 @@ struct GalleryView: View {
                         GalleryCard(
                             entry: entry,
                             isInstalled: model.installedIDs.contains(entry.id),
+                            updateAvailable: model.updateAvailable(for: entry),
+                            requirementStatus: model.requirementStatus[entry.id],
                             install: { model.install(entry) }
                         )
                     }
@@ -275,55 +496,70 @@ struct GalleryView: View {
 private struct GalleryCard: View {
     let entry: RegistryWidgetEntry
     let isInstalled: Bool
+    /// Registry advertises a newer version than the installed widget.json.
+    let updateAvailable: Bool
+    /// PATH status of `entry.requires`; `nil` while the probe is pending.
+    let requirementStatus: RequirementChecker.Status?
     let install: () -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: entry.icon ?? "app.dashed")
-                .font(.system(size: 22))
-                .foregroundColor(.accentColor)
-                .frame(width: 36, height: 36)
-                .background(Color.accentColor.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .accessibilityHidden(true)
+        VStack(alignment: .leading, spacing: 10) {
+            screenshotPreview
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: entry.icon ?? "app.dashed")
+                    .font(.system(size: 22))
+                    .foregroundColor(.accentColor)
+                    .frame(width: 36, height: 36)
+                    .background(Color.accentColor.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Text(entry.name)
-                        .font(.headline)
-                        .lineLimit(1)
-                    if let kind = entry.kind {
-                        badge(kind)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text(entry.name)
+                            .font(.headline)
+                            .lineLimit(1)
+                        if let kind = entry.kind {
+                            badge(kind)
+                        }
+                        if let version = entry.version {
+                            Text("v\(version)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
                     }
-                    if let version = entry.version {
-                        Text("v\(version)")
-                            .font(.caption)
+                    if let description = entry.description {
+                        Text(description)
+                            .font(.subheadline)
                             .foregroundColor(.secondary)
+                            .lineLimit(4)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
+                    requiresBadge
+                    permissionChips
                 }
-                if let description = entry.description {
-                    Text(description)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .lineLimit(4)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                requiresBadge
-                permissionChips
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-            VStack(alignment: .trailing, spacing: 4) {
-                if isInstalled {
-                    Label("Installed", systemImage: "checkmark.circle.fill")
-                        .font(.caption)
-                        .foregroundColor(.green)
-                    Button("Reinstall", action: install)
-                        .controlSize(.small)
-                } else {
-                    Button("Install", action: install)
-                        .keyboardShortcut(.defaultAction)
-                        .controlSize(.small)
+                VStack(alignment: .trailing, spacing: 4) {
+                    if updateAvailable {
+                        Label("Update available", systemImage: "arrow.up.circle.fill")
+                            .font(.caption)
+                            .foregroundColor(.accentColor)
+                        Button("Update", action: install)
+                            .keyboardShortcut(.defaultAction)
+                            .controlSize(.small)
+                            .help("A newer version is available in the registry")
+                    } else if isInstalled {
+                        Label("Installed", systemImage: "checkmark.circle.fill")
+                            .font(.caption)
+                            .foregroundColor(.green)
+                        Button("Reinstall", action: install)
+                            .controlSize(.small)
+                    } else {
+                        Button("Install", action: install)
+                            .keyboardShortcut(.defaultAction)
+                            .controlSize(.small)
+                    }
                 }
             }
         }
@@ -359,20 +595,111 @@ private struct GalleryCard: View {
 
     /// External requirement badge (`requires` registry field): flags widgets
     /// that need a CLI or runtime installed first (e.g. "aas CLI", "Deno").
+    ///
+    /// Colour reflects the PATH probe (display-only — never blocks install):
+    /// green check when the binary is present, orange "not installed" when it
+    /// is missing, neutral while the probe is pending or indeterminate.
     @ViewBuilder
     private var requiresBadge: some View {
         if let requires = entry.requires,
            !requires.trimmingCharacters(in: .whitespaces).isEmpty {
-            Label("Requires \(requires)", systemImage: "wrench.and.screwdriver")
+            let style = requirementStyle
+            Label(style.text(requires), systemImage: style.symbol)
                 .font(.caption2.weight(.medium))
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
-                .background(Color.orange.opacity(0.15))
-                .foregroundColor(.orange)
+                .background(style.color.opacity(0.15))
+                .foregroundColor(style.color)
                 .clipShape(Capsule())
                 .padding(.top, 2)
-                .help("This widget needs \(requires) installed on your Mac")
+                .help(style.help(requires))
+                .accessibilityLabel(style.accessibilityLabel(requires))
         }
+    }
+
+    private struct RequirementStyle {
+        let color: Color
+        let symbol: String
+        let text: (String) -> String
+        let help: (String) -> String
+        let accessibilityLabel: (String) -> String
+    }
+
+    private var requirementStyle: RequirementStyle {
+        switch requirementStatus {
+        case .satisfied:
+            return RequirementStyle(
+                color: .green,
+                symbol: "checkmark.seal",
+                text: { "\($0) ready" },
+                help: { "\($0) was found on your PATH" },
+                accessibilityLabel: { "Requirement \($0) is installed" }
+            )
+        case .missing:
+            return RequirementStyle(
+                color: .orange,
+                symbol: "exclamationmark.triangle",
+                text: { "\($0) — not installed" },
+                help: {
+                    "This widget needs \($0) installed on your Mac. "
+                        + "You can still install the widget now."
+                },
+                accessibilityLabel: { "Requirement \($0) is not installed" }
+            )
+        case .unknown, nil:
+            return RequirementStyle(
+                color: .orange,
+                symbol: "wrench.and.screwdriver",
+                text: { "Requires \($0)" },
+                help: { "This widget needs \($0) installed on your Mac" },
+                accessibilityLabel: { "Requires \($0)" }
+            )
+        }
+    }
+
+    /// Optional preview image (`screenshot` registry field). Renders a
+    /// fixed-height thumbnail when the value forms a loadable `http(s)`/`file`
+    /// URL; loading shows a placeholder and any failure degrades to nothing.
+    @ViewBuilder
+    private var screenshotPreview: some View {
+        if let url = screenshotURL {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case let .success(image):
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 120)
+                        .clipped()
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .accessibilityLabel("\(entry.name) preview")
+                case .empty:
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.secondary.opacity(0.08))
+                        .frame(height: 120)
+                        .overlay(ProgressView().controlSize(.small))
+                        .accessibilityHidden(true)
+                case .failure:
+                    // Graceful absence — no broken-image chrome.
+                    EmptyView()
+                @unknown default:
+                    EmptyView()
+                }
+            }
+        }
+    }
+
+    /// Only `http(s)` and `file` schemes are honored; a bare relative path
+    /// (which we cannot resolve without the registry base) yields `nil`.
+    private var screenshotURL: URL? {
+        guard let raw = entry.screenshot?
+            .trimmingCharacters(in: .whitespaces), !raw.isEmpty,
+            let url = URL(string: raw),
+            let scheme = url.scheme?.lowercased(),
+            scheme == "http" || scheme == "https" || scheme == "file"
+        else { return nil }
+        return url
     }
 
     /// Display-only permission chips ("신뢰 UX") — the enforcement gate stays

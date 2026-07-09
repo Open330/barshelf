@@ -88,7 +88,11 @@ final class PagerState: ObservableObject {
 struct RootView: View {
     @ObservedObject var runtime: WidgetRuntime
     @ObservedObject var pager: PagerState
+    @ObservedObject private var toast = ToastCenter.shared
     @State private var searchPresented = false
+    /// Widget id whose card border is flashing after a `reveal` request; cleared
+    /// ~1.5s later so the accent highlight fades on its own.
+    @State private var highlightedID: String?
 
     static let defaultSize = CGSize(width: 360, height: 480)
 
@@ -117,6 +121,8 @@ struct RootView: View {
                     .padding(8)
             }
         }
+        .overlay(alignment: .bottom) { toastOverlay }
+        .animation(.easeInOut(duration: 0.2), value: toast.message)
         .background( // ⌘F without stealing layout space
             Button("") { searchPresented.toggle() }
                 .keyboardShortcut("f", modifiers: .command)
@@ -126,6 +132,42 @@ struct RootView: View {
             DispatchQueue.main.async {
                 pager.clamp(to: runtime.pages.count)
             }
+        }
+        .onReceive(runtime.$pendingReveal) { id in
+            guard let id else { return }
+            revealAndFlash(id)
+        }
+    }
+
+    /// Jumps the pager to the page holding `id`, flashes that card's border, and
+    /// consumes `pendingReveal` so a repeat reveal of the same id fires again.
+    private func revealAndFlash(_ id: String) {
+        let pages = runtime.pages
+        if let target = pages.firstIndex(where: { $0.widgets.contains { $0.id == id } }) {
+            pager.jump(to: target, pageCount: pages.count)
+        }
+        highlightedID = id
+        runtime.pendingReveal = nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            if highlightedID == id { highlightedID = nil }
+        }
+    }
+
+    /// Bottom-center transient confirmation capsule (copy/toast feedback).
+    @ViewBuilder
+    private var toastOverlay: some View {
+        if let message = toast.message {
+            Text(message)
+                .font(.caption)
+                .fontWeight(.medium)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(Capsule().fill(.ultraThinMaterial))
+                .overlay(Capsule().strokeBorder(Color.secondary.opacity(0.25), lineWidth: 1))
+                .padding(.bottom, 46)
+                .shadow(radius: 4, y: 1)
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+                .accessibilityLabel(message)
         }
     }
 
@@ -142,11 +184,38 @@ struct RootView: View {
                     WidgetCardView(widget: widget, runtime: runtime)
                         .frame(maxHeight: 120)
                 }
+                if pinnedWidgets.count > 2 {
+                    pinnedOverflow(pinnedWidgets: pinnedWidgets)
+                }
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
             Divider()
         }
+    }
+
+    /// "+N pinned hidden" caption below the two-card pinned strip: jumps to the
+    /// bucket page of the first still-visible pinned widget beyond the strip.
+    private func pinnedOverflow(pinnedWidgets: [LoadedWidget]) -> some View {
+        let hidden = pinnedWidgets.count - 2
+        return Button {
+            let pages = runtime.pages
+            if let target = pinnedWidgets.dropFirst(2).first(where: { widget in
+                pages.contains { $0.widgets.contains { $0.id == widget.id } }
+            }), let index = pages.firstIndex(where: {
+                $0.widgets.contains { $0.id == target.id }
+            }) {
+                pager.jump(to: index, pageCount: pages.count)
+            }
+        } label: {
+            Text("+\(hidden) pinned hidden")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .buttonStyle(.borderless)
+        .help("Jump to the next pinned widget's bucket")
+        .accessibilityLabel("\(hidden) more pinned widgets hidden; jump to bucket")
     }
 
     /// All pages laid out horizontally; offset = current page + live drag.
@@ -169,7 +238,11 @@ struct RootView: View {
                                 }
                             }
                             ForEach(page.widgets) { widget in
-                                WidgetCardView(widget: widget, runtime: runtime)
+                                WidgetCardView(
+                                    widget: widget,
+                                    runtime: runtime,
+                                    isHighlighted: widget.id == highlightedID
+                                )
                             }
                         }
                         .padding(10)
@@ -215,7 +288,9 @@ struct RootView: View {
     }
 
     private func footer(pages: [WidgetPage], index: Int) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
+            addWidgetMenu
+
             Button {
                 pager.step(-1, pageCount: pages.count)
             } label: {
@@ -223,6 +298,7 @@ struct RootView: View {
             }
             .buttonStyle(.borderless)
             .disabled(index == 0)
+            .help("Previous bucket")
             .accessibilityLabel("Previous bucket")
 
             Spacer()
@@ -254,10 +330,51 @@ struct RootView: View {
             }
             .buttonStyle(.borderless)
             .disabled(index >= pages.count - 1)
+            .help("Next bucket")
             .accessibilityLabel("Next bucket")
+
+            Button {
+                Task { @MainActor in
+                    AppSettingsWindowController.shared.show(runtime: runtime)
+                }
+            } label: {
+                Image(systemName: "gearshape")
+            }
+            .buttonStyle(.borderless)
+            .help("Settings")
+            .accessibilityLabel("Open settings")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+    }
+
+    /// Footer "+" entry point: add widgets from the gallery, a URL, or the
+    /// no-code builder. Mirrors the first-run empty-state CTAs.
+    private var addWidgetMenu: some View {
+        Menu {
+            Button {
+                Task { @MainActor in GalleryWindowController.shared.show() }
+            } label: {
+                Label("Widget Gallery…", systemImage: "square.grid.2x2")
+            }
+            Button {
+                WidgetInstaller.shared.promptForURL()
+            } label: {
+                Label("Install from URL…", systemImage: "link")
+            }
+            Button {
+                Task { @MainActor in WidgetBuilderController.shared.show(runtime: runtime) }
+            } label: {
+                Label("Create Widget…", systemImage: "wand.and.stars")
+            }
+        } label: {
+            Image(systemName: "plus")
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Add a widget")
+        .accessibilityLabel("Add a widget")
     }
 
     /// GETTING-STARTED guide on GitHub (opened from onboarding CTAs).
@@ -375,6 +492,10 @@ struct WelcomeCardView: View {
                 }
                 .controlSize(.small)
             }
+            Text("Tip: right-click the menu bar icon for Settings — swipe with two fingers to switch buckets.")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -398,12 +519,19 @@ struct WelcomeCardView: View {
 struct WidgetCardView: View {
     let widget: LoadedWidget
     let runtime: WidgetRuntime
+    /// When true the card border flashes accent (driven by `pendingReveal`).
+    let isHighlighted: Bool
     @ObservedObject private var model: WidgetCardModel
     @State private var showSettings = false
+    @State private var showRemoveConfirm = false
+    @State private var showNewBucket = false
+    @State private var newBucketName = ""
+    @State private var removeError: String?
 
-    init(widget: LoadedWidget, runtime: WidgetRuntime) {
+    init(widget: LoadedWidget, runtime: WidgetRuntime, isHighlighted: Bool = false) {
         self.widget = widget
         self.runtime = runtime
+        self.isHighlighted = isHighlighted
         _model = ObservedObject(wrappedValue: runtime.cardModel(for: widget.id))
     }
 
@@ -448,19 +576,81 @@ struct WidgetCardView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(Color.secondary.opacity(0.2), lineWidth: 1)
+                .strokeBorder(
+                    isHighlighted ? Color.accentColor : Color.secondary.opacity(0.2),
+                    lineWidth: isHighlighted ? 2 : 1
+                )
         )
-        .contextMenu {
-            Button(runtime.prefs.isPinned(widget.id) ? "Unpin" : "Pin") {
-                runtime.prefs.togglePin(widget.id)
-                runtime.objectWillChange.send() // pinned row lives in RootView
-            }
-            Button("Settings…") { showSettings = true }
-            Button("Refresh") { runtime.refresh(widgetID: widget.id) }
-        }
+        .animation(.easeInOut(duration: 0.4), value: isHighlighted)
+        .contextMenu { cardContextMenu }
         .sheet(isPresented: $showSettings) {
             WidgetSettingsView(widget: widget, runtime: runtime)
         }
+        .alert("Move to a new bucket", isPresented: $showNewBucket) {
+            TextField("Bucket name", text: $newBucketName)
+            Button("Cancel", role: .cancel) { newBucketName = "" }
+            Button("Move") {
+                let name = newBucketName.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !name.isEmpty { runtime.moveWidget(id: widget.id, toGroup: name) }
+                newBucketName = ""
+            }
+        } message: {
+            Text("Enter a name for the bucket to move \(widget.manifest.name) into.")
+        }
+        .alert("Remove \(widget.manifest.name)?", isPresented: $showRemoveConfirm) {
+            Button("Cancel", role: .cancel) {}
+            Button("Remove", role: .destructive) {
+                do { try runtime.removeWidget(id: widget.id) }
+                catch { removeError = error.localizedDescription }
+            }
+        } message: {
+            Text("This deletes the widget's files and settings and cannot be undone.")
+        }
+        .alert(
+            "Couldn't remove widget",
+            isPresented: Binding(
+                get: { removeError != nil },
+                set: { if !$0 { removeError = nil } }
+            )
+        ) {
+            Button("OK") {}
+        } message: {
+            Text(removeError ?? "")
+        }
+    }
+
+    /// Card right-click actions: pin/refresh/settings plus R11 management —
+    /// disable, move to a bucket, reveal on disk, and destructive removal.
+    @ViewBuilder
+    private var cardContextMenu: some View {
+        Button(runtime.prefs.isPinned(widget.id) ? "Unpin" : "Pin") {
+            runtime.prefs.togglePin(widget.id)
+            runtime.objectWillChange.send() // pinned row lives in RootView
+        }
+        Button("Settings…") { showSettings = true }
+        Button("Refresh") { runtime.refresh(widgetID: widget.id) }
+
+        Divider()
+
+        Button(runtime.prefs.isDisabled(widget.id) ? "Enable" : "Disable") {
+            runtime.setWidgetDisabled(widget.id, !runtime.prefs.isDisabled(widget.id))
+        }
+        Menu("Move to Bucket") {
+            ForEach(runtime.allGroups, id: \.self) { group in
+                Button(group) { runtime.moveWidget(id: widget.id, toGroup: group) }
+            }
+            Divider()
+            Button("New Bucket…") { showNewBucket = true }
+        }
+        Button("Reveal in Finder") {
+            if let directory = runtime.widgetDirectory(for: widget.id) {
+                NSWorkspace.shared.activateFileViewerSelecting([directory])
+            }
+        }
+
+        Divider()
+
+        Button("Remove Widget…", role: .destructive) { showRemoveConfirm = true }
     }
 
     private var actionContext: ActionContext {

@@ -53,4 +53,26 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertEqual(prefs.menuBarSymbol, AppPreferences.defaultMenuBarSymbol)
         XCTAssertEqual(prefs.refreshMultiplier, 4)
     }
+
+    func testHotkeyFieldsRoundTrip() throws {
+        let fileURL = tempDir.appendingPathComponent("app-prefs.json")
+        let prefs = AppPreferences(popupHotkeyEnabled: true, popupHotkey: "ctrl+opt+m")
+
+        try prefs.save(to: fileURL)
+        let loaded = AppPreferences.load(from: fileURL)
+
+        XCTAssertEqual(loaded, prefs)
+        XCTAssertTrue(loaded.popupHotkeyEnabled)
+        XCTAssertEqual(loaded.popupHotkey, "ctrl+opt+m")
+    }
+
+    func testHotkeyFieldsDefaultWhenAbsentOrBlank() throws {
+        // A pre-R11 file omits both keys; a blank string snaps to the default.
+        let decoded = try JSONDecoder().decode(
+            AppPreferences.self, from: Data(#"{"popupHotkey": "  "}"#.utf8)
+        )
+
+        XCTAssertFalse(decoded.popupHotkeyEnabled)
+        XCTAssertEqual(decoded.popupHotkey, AppPreferences.defaultPopupHotkey)
+    }
 }
