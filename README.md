@@ -58,6 +58,29 @@ it only differs in where its data comes from:
 └────────────────────────────────────────────────────────────────┘
 ```
 
+## Quickstart for Agents
+
+<div><img src="https://quickstart-for-agents.vercel.app/api/header.svg?theme=claude-code&logo=BarShelf&title=Install+BarShelf+and+build+my+first+widget&lang=Agents&mascot=hat" width="100%" /></div>
+
+```prompt
+Install BarShelf on my Mac and scaffold my first widget.
+
+1. Download the latest release from
+   https://github.com/Open330/barshelf/releases/latest, unzip the
+   BarShelf-<version>-arm64.zip, move BarShelf.app into /Applications, and open it.
+2. Put the bundled mbk CLI on my PATH.
+3. Scaffold a widget:  mbk new my-widget --kind workflow
+   then validate it:   mbk validate ./my-widget
+   then install it:    mbk install ./my-widget
+4. Confirm the widget appears in the menu bar popover.
+
+Requires macOS 13+ on Apple Silicon. Script widgets also need Deno (brew install deno).
+```
+<div><img src="https://quickstart-for-agents.vercel.app/api/footer.svg?theme=claude-code&tokens=1.2k&model=Opus+4.8&project=barshelf" width="100%" /></div>
+
+Copy the prompt above and paste it into your AI agent to install BarShelf and
+scaffold a widget. Prefer the manual steps? The human install guide is right below.
+
 ## Install
 
 Grab `BarShelf-<version>-arm64.zip` from
