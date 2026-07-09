@@ -594,6 +594,8 @@ final class WidgetRuntime: ObservableObject {
             for: id
         )
         objectWillChange.send()
+        // Re-evaluate so size-aware workflows (${widget.size}) re-render.
+        refresh(widgetID: id)
     }
 
     /// Toggles a widget's disabled flag: disabled widgets leave the pages and
@@ -703,17 +705,20 @@ final class WidgetRuntime: ObservableObject {
             widgets,
             group: { self.effectiveGroup(for: $0.id) },
             order: { self.effectiveOrder(for: $0.id) },
-            isDisabled: { self.prefs.isDisabled($0.id) }
+            isDisabled: { self.prefs.isDisabled($0.id) },
+            groupSort: { self.prefs.groupSortKey($0) ?? .greatestFiniteMagnitude }
         )
     }
 
     /// Pure page layout: groups the enabled widgets, sorts members by effective
-    /// order, and orders pages by their first member's order then group name.
+    /// order, and orders pages by an explicit group order (when set), then their
+    /// first member's order, then group name.
     static func computePages(
         _ widgets: [LoadedWidget],
         group: (LoadedWidget) -> String,
         order: (LoadedWidget) -> Double,
-        isDisabled: (LoadedWidget) -> Bool
+        isDisabled: (LoadedWidget) -> Bool,
+        groupSort: (String) -> Double = { _ in .greatestFiniteMagnitude }
     ) -> [WidgetPage] {
         let visible = widgets.filter { !isDisabled($0) }
         let grouped = Dictionary(grouping: visible, by: group)
@@ -725,6 +730,8 @@ final class WidgetRuntime: ObservableObject {
                 )
             }
             .sorted { lhs, rhs in
+                let lhsGroup = groupSort(lhs.group), rhsGroup = groupSort(rhs.group)
+                if lhsGroup != rhsGroup { return lhsGroup < rhsGroup }
                 let lhsOrder = lhs.widgets.first.map(order) ?? 0
                 let rhsOrder = rhs.widgets.first.map(order) ?? 0
                 if lhsOrder != rhsOrder { return lhsOrder < rhsOrder }
@@ -973,8 +980,13 @@ final class WidgetRuntime: ObservableObject {
             let storageSnapshot: JSONValue = storageAllowed
                 ? .object(storage.snapshot(widgetId: widget.id))
                 : .object([:])
+            // Expose the widget's effective size so a workflow can switch its
+            // layout per size (native small/medium/large), e.g. via a `switch`.
+            let widgetContext: JSONValue = .object([
+                "size": .string(effectiveSize(for: widget.id)),
+            ])
             let params = try WorkflowEngine.resolvedSourceParams(
-                definition, settings: settings, storage: storageSnapshot
+                definition, settings: settings, storage: storageSnapshot, widget: widgetContext
             )
 
             var sourceValues: [String: JSONValue] = [:]
@@ -1007,7 +1019,8 @@ final class WidgetRuntime: ObservableObject {
             }
 
             let output = try WorkflowEngine.evaluate(
-                definition, sources: sourceValues, settings: settings, storage: storageSnapshot
+                definition, sources: sourceValues, settings: settings,
+                storage: storageSnapshot, widget: widgetContext
             )
 
             // Commit the store block after a successful eval. Failures here are

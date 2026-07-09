@@ -29,6 +29,9 @@ final class WidgetPrefs: ObservableObject {
     @Published private(set) var bucketOverrides: [String: BucketOverride] = [:]
     /// User theming overrides, keyed by widget id (R12).
     @Published private(set) var appearanceOverrides: [String: WidgetAppearance] = [:]
+    /// Explicit panel/group display order (0-based index per group name). Empty
+    /// means "no manual order" — groups fall back to member order then name.
+    @Published private(set) var groupOrder: [String: Double] = [:]
 
     private let fileURL: URL
 
@@ -42,6 +45,20 @@ final class WidgetPrefs: ObservableObject {
         var bucketOverrides: [String: BucketOverride]?
         /// Optional for backward compatibility with pre-R12 prefs files.
         var appearanceOverrides: [String: WidgetAppearance]?
+        var groupOrder: [String: Double]?
+    }
+
+    // MARK: - Group order
+
+    func groupSortKey(_ group: String) -> Double? { groupOrder[group] }
+
+    /// Assigns 0-based ordering indices to the given groups (top → bottom).
+    func setGroupsOrder(_ orderedGroups: [String]) {
+        var map: [String: Double] = [:]
+        for (index, group) in orderedGroups.enumerated() { map[group] = Double(index) }
+        guard map != groupOrder else { return }
+        groupOrder = map
+        save()
     }
 
     init(fileURL: URL? = nil) {
@@ -185,6 +202,7 @@ final class WidgetPrefs: ObservableObject {
         disabled = Set(persisted.disabled ?? [])
         bucketOverrides = persisted.bucketOverrides ?? [:]
         appearanceOverrides = persisted.appearanceOverrides ?? [:]
+        groupOrder = persisted.groupOrder ?? [:]
     }
 
     private func save() {
@@ -192,7 +210,8 @@ final class WidgetPrefs: ObservableObject {
             pinned: pinned, settings: settings, welcomePending: welcomePending,
             disabled: disabled.isEmpty ? nil : disabled.sorted(),
             bucketOverrides: bucketOverrides.isEmpty ? nil : bucketOverrides,
-            appearanceOverrides: appearanceOverrides.isEmpty ? nil : appearanceOverrides
+            appearanceOverrides: appearanceOverrides.isEmpty ? nil : appearanceOverrides,
+            groupOrder: groupOrder.isEmpty ? nil : groupOrder
         )
         guard let data = try? JSONEncoder().encode(persisted) else { return }
         try? FileManager.default.createDirectory(

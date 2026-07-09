@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "kind": "workflow",
+  "_comment": "Native Calendar/Clock-style date widget. `date` emits one JSON line; the layout adapts to the widget's size via `switch` on ${widget.size} — like a native small/medium/large widget.",
+
+  "sources": {
+    "data": {
+      "use": "exec",
+      "with": {
+        "command": ["/bin/date", "+{\"weekday\":\"%A\",\"month\":\"%b\",\"day\":\"%d\",\"time\":\"%H:%M\",\"year\":\"%Y\"}"]
+      }
+    }
+  },
+
+  "view": {
+    "switch": "${widget.size}",
+    "cases": {
+      "M": {
+        "type": "hstack",
+        "spacing": 10,
+        "children": [
+          {
+            "type": "vstack",
+            "spacing": 0,
+            "children": [
+              { "type": "text", "text": "${sources.data.weekday}", "role": "caption", "foreground": "danger" },
+              { "type": "text", "text": "${sources.data.day}", "size": 40, "role": "title" }
+            ]
+          },
+          { "type": "spacer" },
+          {
+            "type": "vstack",
+            "spacing": 2,
+            "children": [
+              { "type": "text", "text": "${sources.data.time}", "size": 30, "role": "title", "monospacedDigit": true },
+              { "type": "text", "text": "${sources.data.month} ${sources.data.year}", "role": "caption", "foreground": "secondary" }
+            ]
+          }
+        ]
+      },
+      "L": {
+        "type": "vstack",
+        "spacing": 6,
+        "children": [
+          { "type": "text", "text": "${sources.data.weekday}", "role": "body", "foreground": "danger" },
+          {
+            "type": "hstack",
+            "spacing": 8,
+            "children": [
+              { "type": "text", "text": "${sources.data.day}", "size": 64, "role": "title" },
+              { "type": "spacer" },
+              { "type": "text", "text": "${sources.data.time}", "size": 40, "role": "title", "monospacedDigit": true }
+            ]
+          },
+          { "type": "text", "text": "${sources.data.month} ${sources.data.year}", "role": "caption", "foreground": "secondary" }
+        ]
+      }
+    },
+    "default": {
+      "type": "vstack",
+      "spacing": 1,
+      "children": [
+        { "type": "text", "text": "${sources.data.weekday}", "role": "caption", "foreground": "danger" },
+        { "type": "text", "text": "${sources.data.day}", "size": 46, "role": "title" },
+        { "type": "text", "text": "${sources.data.month}", "role": "caption", "foreground": "secondary" }
+      ]
+    }
+  },
+
+  "status": {
+    "label": "${sources.data.time}",
+    "tooltip": "${sources.data.weekday}, ${sources.data.month} ${sources.data.day}"
+  }
+}

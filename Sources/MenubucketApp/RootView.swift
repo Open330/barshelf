@@ -221,6 +221,36 @@ struct RootView: View {
     /// All pages laid out horizontally; offset = current page + live drag.
     /// During a swipe the offset follows the fingers (no animation); on
     /// release the spring snaps to the committed page (rubber band at edges).
+    /// One row of the native-style card grid: two adjacent `S` widgets pair up
+    /// (like native small widgets); every other size is a full-width row.
+    private struct CardRow: Identifiable {
+        let widgets: [LoadedWidget]
+        var id: String { widgets.map(\.id).joined(separator: "|") }
+    }
+
+    private func cardRows(_ widgets: [LoadedWidget]) -> [CardRow] {
+        var rows: [CardRow] = []
+        var pendingSmall: LoadedWidget?
+        for widget in widgets {
+            if runtime.effectiveSize(for: widget.id).uppercased() == "S" {
+                if let pending = pendingSmall {
+                    rows.append(CardRow(widgets: [pending, widget]))
+                    pendingSmall = nil
+                } else {
+                    pendingSmall = widget
+                }
+            } else {
+                if let pending = pendingSmall {
+                    rows.append(CardRow(widgets: [pending]))
+                    pendingSmall = nil
+                }
+                rows.append(CardRow(widgets: [widget]))
+            }
+        }
+        if let pending = pendingSmall { rows.append(CardRow(widgets: [pending])) }
+        return rows
+    }
+
     private func pagerStrip(pages: [WidgetPage], index: Int) -> some View {
         GeometryReader { geometry in
             let width = geometry.size.width
@@ -237,12 +267,17 @@ struct RootView: View {
                                     runtime.objectWillChange.send()
                                 }
                             }
-                            ForEach(page.widgets) { widget in
-                                WidgetCardView(
-                                    widget: widget,
-                                    runtime: runtime,
-                                    isHighlighted: widget.id == highlightedID
-                                )
+                            ForEach(cardRows(page.widgets)) { row in
+                                HStack(alignment: .top, spacing: 10) {
+                                    ForEach(row.widgets) { widget in
+                                        WidgetCardView(
+                                            widget: widget,
+                                            runtime: runtime,
+                                            isHighlighted: widget.id == highlightedID
+                                        )
+                                        .frame(maxWidth: .infinity)
+                                    }
+                                }
                             }
                         }
                         .padding(10)
@@ -560,14 +595,15 @@ struct WidgetCardView: View {
     /// Accent used for the tinted wash and the reveal highlight.
     private var cardAccent: Color { appearance.accentColor ?? .accentColor }
 
-    /// Manifest/user layout size. The popup remains a vertical stack, so size is
-    /// expressed as a conservative minimum height rather than a grid span.
-    private var cardMinHeight: CGFloat? {
+    /// Manifest/user layout size → a **fixed** card height, like a native
+    /// widget's footprint. Content taller than this scrolls inside the card, so
+    /// changing the size visibly changes the card (not just a floor on it).
+    private var cardHeight: CGFloat {
         switch runtime.effectiveSize(for: widget.id).uppercased() {
-        case "XS": return 56
-        case "S": return 78
-        case "L": return 160
-        default: return 110
+        case "XS": return 60
+        case "S": return 150
+        case "L": return 300
+        default: return 184   // M
         }
     }
 
@@ -580,33 +616,20 @@ struct WidgetCardView: View {
 
     var body: some View {
         let snapshot = model.snapshot
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             if showsHeader {
                 cardHeader(snapshot: snapshot)
             }
 
-            if let overlay = model.overlay {
-                // Host-generated card (permission approval / restart) replaces
-                // the widget content until resolved.
-                ViewTreeRenderer(node: overlay)
-                    .environment(\.actionContext, actionContext)
-            } else if let tree = snapshot.viewTree {
-                if let error = snapshot.error {
-                    staleBanner(error: error)
+            // Content fills the remaining fixed height and scrolls if it
+            // overflows — so the card keeps its native footprint per size.
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 8) {
+                    cardContent(snapshot: snapshot)
                 }
-                ViewTreeRenderer(node: tree)
-                    .environment(\.actionContext, actionContext)
-            } else if let error = snapshot.error {
-                failureState(error: error)
-            } else if snapshot.isLoading {
-                loadingState
-            } else {
-                Text("No data yet")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
             if let updatedAt = snapshot.updatedAt {
                 Text("Updated \(Self.relativeFormatter.localizedString(for: updatedAt, relativeTo: Date()))")
@@ -615,11 +638,11 @@ struct WidgetCardView: View {
             }
         }
         .padding(contentInset)
-        .frame(maxWidth: .infinity, minHeight: cardMinHeight, alignment: .topLeading)
+        .frame(maxWidth: .infinity, minHeight: cardHeight, maxHeight: cardHeight, alignment: .topLeading)
         .environment(\.widgetAppearance, appearance)
         .background(cardBackground)
         .overlay(cardBorder)
-        .shadow(color: .black.opacity(0.08), radius: 3, y: 1)
+        .shadow(color: .black.opacity(0.10), radius: 5, y: 2)
         .animation(.easeInOut(duration: 0.4), value: isHighlighted)
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) { isHovering = hovering }
@@ -658,6 +681,32 @@ struct WidgetCardView: View {
             Button("OK") {}
         } message: {
             Text(removeError ?? "")
+        }
+    }
+
+    @ViewBuilder
+    private func cardContent(snapshot: WidgetSnapshot) -> some View {
+        if let overlay = model.overlay {
+            // Host-generated card (permission approval / restart) replaces the
+            // widget content until resolved.
+            ViewTreeRenderer(node: overlay)
+                .environment(\.actionContext, actionContext)
+        } else if let tree = snapshot.viewTree {
+            if let error = snapshot.error {
+                staleBanner(error: error)
+            }
+            ViewTreeRenderer(node: tree)
+                .environment(\.actionContext, actionContext)
+        } else if let error = snapshot.error {
+            failureState(error: error)
+        } else if snapshot.isLoading {
+            loadingState
+        } else {
+            Text("No data yet")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.vertical, 8)
         }
     }
 
@@ -748,11 +797,14 @@ struct WidgetCardView: View {
 
     /// Card fill: neutral control background, or an accent wash when the
     /// effective card style is `tinted`.
+    /// Native-widget corner radius.
+    private static let cardCornerRadius: CGFloat = 16
+
     private var cardBackground: some View {
-        RoundedRectangle(cornerRadius: 10)
+        RoundedRectangle(cornerRadius: Self.cardCornerRadius, style: .continuous)
             .fill(Color(nsColor: .controlBackgroundColor))
             .overlay(
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: Self.cardCornerRadius, style: .continuous)
                     .fill(appearance.cardStyle == .tinted ? cardAccent.opacity(0.12) : Color.clear)
             )
     }
@@ -760,9 +812,9 @@ struct WidgetCardView: View {
     /// Softer 0.12-opacity hairline at rest; a gentle accent glow while the
     /// card is flashing after a reveal request.
     private var cardBorder: some View {
-        RoundedRectangle(cornerRadius: 10)
+        RoundedRectangle(cornerRadius: Self.cardCornerRadius, style: .continuous)
             .strokeBorder(
-                isHighlighted ? cardAccent.opacity(0.8) : Color.secondary.opacity(0.12),
+                isHighlighted ? cardAccent.opacity(0.8) : Color.secondary.opacity(0.10),
                 lineWidth: isHighlighted ? 2 : 1
             )
     }

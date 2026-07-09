@@ -211,6 +211,20 @@
       "install": { "url": "https://github.com/jiunbae/stashbar", "bundled": "recent-files-grid" },
       "permissions": { "exec": [], "keychain": false, "notifications": false },
       "homepage": "https://github.com/jiunbae/stashbar"
+    },
+    {
+      "id": "dev.barshelf.today",
+      "name": "Today",
+      "description": "Native Calendar/Clock-style date widget with a large day number — the layout adapts to the widget size (small / medium / large) like a native iOS/macOS widget. No external dependency.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "calendar",
+      "kind": "workflow",
+      "tags": ["demo", "date", "clock", "native", "workflow"],
+      "category": "Demo",
+      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/today", "bundled": "today" },
+      "permissions": { "exec": ["/bin/date"], "keychain": false, "notifications": false },
+      "homepage": "https://github.com/Open330/barshelf"
     }
   ]
 }

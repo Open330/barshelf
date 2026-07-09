@@ -45,7 +45,24 @@ struct HubWidgetsView: View {
                                 move(bucket: bucket, from: source, to: destination)
                             }
                         } header: {
-                            Text(bucket)
+                            HStack(spacing: 4) {
+                                Text(bucket)
+                                Spacer()
+                                Button { moveBucket(bucket, by: -1) } label: {
+                                    Image(systemName: "chevron.up")
+                                }
+                                .buttonStyle(.borderless)
+                                .disabled(buckets.first == bucket)
+                                .help("Move panel up")
+                                .accessibilityLabel("Move panel \(bucket) up")
+                                Button { moveBucket(bucket, by: 1) } label: {
+                                    Image(systemName: "chevron.down")
+                                }
+                                .buttonStyle(.borderless)
+                                .disabled(buckets.last == bucket)
+                                .help("Move panel down")
+                                .accessibilityLabel("Move panel \(bucket) down")
+                            }
                         }
                     }
                 }
@@ -305,15 +322,32 @@ struct HubWidgetsView: View {
         }
     }
 
-    /// Bucket section headers in the same order as `widgetRows`.
+    /// Bucket section headers, ordered by the user's explicit panel order (when
+    /// set) then name — matching how the popup pages are ordered.
     private var buckets: [String] {
         var seen = Set<String>()
-        var ordered: [String] = []
+        var distinct: [String] = []
         for widget in widgetRows {
             let group = runtime.effectiveGroup(for: widget.id)
-            if seen.insert(group).inserted { ordered.append(group) }
+            if seen.insert(group).inserted { distinct.append(group) }
         }
-        return ordered
+        return distinct.sorted { lhs, rhs in
+            let lk = runtime.prefs.groupSortKey(lhs) ?? .greatestFiniteMagnitude
+            let rk = runtime.prefs.groupSortKey(rhs) ?? .greatestFiniteMagnitude
+            if lk != rk { return lk < rk }
+            return lhs.localizedCaseInsensitiveCompare(rhs) == .orderedAscending
+        }
+    }
+
+    /// Moves a panel up (delta -1) or down (delta +1) and persists the order.
+    private func moveBucket(_ bucket: String, by delta: Int) {
+        var order = buckets
+        guard let index = order.firstIndex(of: bucket) else { return }
+        let target = index + delta
+        guard target >= 0, target < order.count else { return }
+        order.swapAt(index, target)
+        runtime.prefs.setGroupsOrder(order)
+        runtime.objectWillChange.send()
     }
 
     private func widgets(inBucket bucket: String) -> [LoadedWidget] {

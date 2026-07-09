@@ -204,6 +204,7 @@ Arbitrary JavaScript는 금지한다. 표현식은 문자열 안의 `${...}` 보
 | sources | `${sources.files.items}` |
 | transforms | `${count(transforms.visible)}` |
 | storage | `${storage.count}` (이전 스냅샷; [영속성](#영속성-storage) 참조) |
+| widget | `${widget.size}` (현재 카드 크기 `XS`/`S`/`M`/`L` — 크기별 뷰 분기용) |
 | forEach 변수 | `${file.path}`, `${file.name}` |
 
 표현식의 리터럴은 숫자(`42`, `-1`), 문자열(`'ok'` 또는 `"ok"`), `true`/`false`/`null`을 지원한다.

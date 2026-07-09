@@ -261,6 +261,13 @@ struct NodeView: View {
         default: // "body"
             font = .system(size: 12 * scale)
         }
+        // An explicit `size` overrides the role's size — lets widgets render
+        // native-widget-style large numbers/headlines.
+        if let size = node.size {
+            let weight: Font.Weight = node.role == "title" ? .bold : .regular
+            let design: Font.Design = node.role == "code" ? .monospaced : .default
+            font = .system(size: CGFloat(size) * scale, weight: weight, design: design)
+        }
         if node.monospacedDigit == true {
             font = font.monospacedDigit()
         }

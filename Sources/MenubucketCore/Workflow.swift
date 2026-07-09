@@ -159,6 +159,7 @@ public enum WorkflowEngine {
         _ definition: WorkflowDefinition,
         settings: JSONValue,
         storage: JSONValue = .object([:]),
+        widget: JSONValue = .object([:]),
         nowMs: Double = Date().timeIntervalSince1970 * 1000
     ) throws -> [String: JSONValue] {
         var context = Context(
@@ -167,6 +168,7 @@ public enum WorkflowEngine {
                 "sources": .object([:]),
                 "transforms": .object([:]),
                 "storage": storage,
+                "widget": widget,
             ],
             transforms: [:],
             nowMs: nowMs
@@ -188,6 +190,7 @@ public enum WorkflowEngine {
         sources: [String: JSONValue],
         settings: JSONValue,
         storage: JSONValue = .object([:]),
+        widget: JSONValue = .object([:]),
         nowMs: Double = Date().timeIntervalSince1970 * 1000
     ) throws -> Output {
         var context = Context(
@@ -196,6 +199,7 @@ public enum WorkflowEngine {
                 "sources": .object(sources),
                 "transforms": .object([:]),
                 "storage": storage,
+                "widget": widget,
             ],
             transforms: definition.transforms ?? [:],
             nowMs: nowMs

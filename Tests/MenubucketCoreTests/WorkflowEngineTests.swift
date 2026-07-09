@@ -558,6 +558,50 @@ final class GridWidgetTests: XCTestCase {
     }
 }
 
+/// The Today widget renders a different native-style layout per widget size,
+/// driven by a `switch` on ${widget.size}.
+final class TodayWidgetTests: XCTestCase {
+    private func todayDef() throws -> WorkflowDefinition {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let url = packageRoot.appendingPathComponent("widgets/today/workflow.json")
+        return try WorkflowDefinition.decode(from: try Data(contentsOf: url))
+    }
+
+    private let sample: JSONValue = .object([
+        "weekday": .string("Wednesday"), "month": .string("Jul"),
+        "day": .string("09"), "time": .string("17:45"), "year": .string("2026"),
+    ])
+
+    private func render(size: String) throws -> UINode {
+        try WorkflowEngine.evaluate(
+            try todayDef(), sources: ["data": sample], settings: .object([:]),
+            widget: .object(["size": .string(size)])
+        ).viewTree
+    }
+
+    func testSmallLayoutShowsBigDayNumber() throws {
+        let tree = try render(size: "S")               // small → default branch
+        XCTAssertEqual(tree.type, "vstack")
+        XCTAssertEqual(tree.children?[1].text, "09")
+        XCTAssertEqual(tree.children?[1].size, 46)      // large day number
+    }
+
+    func testMediumLayoutIsSideBySide() throws {
+        let tree = try render(size: "M")
+        XCTAssertEqual(tree.type, "hstack")
+        XCTAssertEqual(tree.children?.first?.children?[1].size, 40) // day number
+    }
+
+    func testLargeLayoutHasLargestNumber() throws {
+        let tree = try render(size: "L")
+        XCTAssertEqual(tree.type, "vstack")
+        let day = tree.children?[1].children?.first
+        XCTAssertEqual(day?.text, "09")
+        XCTAssertEqual(day?.size, 64)                   // largest day number
+    }
+}
+
 /// End-to-end evaluation of the shipped persistence example widgets, so the
 /// hand-authored nested expressions can't silently rot.
 final class PersistenceWidgetTests: XCTestCase {
