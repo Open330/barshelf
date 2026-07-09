@@ -579,6 +579,7 @@ struct WidgetCardView: View {
     /// Hovering reveals the per-card refresh button (hidden at rest to reduce
     /// visual noise). The button stays in the accessibility tree either way.
     @State private var isHovering = false
+    @State private var isDropTarget = false
     @Environment(\.colorScheme) private var colorScheme
 
     /// Effective theming (user override → author default → neutral). Injected
@@ -623,9 +624,19 @@ struct WidgetCardView: View {
         .background(cardBackground)
         .overlay(cardBorder)
         .overlay(alignment: .topTrailing) { cardControls }
+        // Insertion indicator while a dragged card hovers over this one.
+        .overlay(alignment: .leading) {
+            if isDropTarget {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(Color.accentColor)
+                    .frame(width: 4)
+                    .padding(.vertical, 6)
+                    .transition(.opacity)
+            }
+        }
         .contentShape(RoundedRectangle(cornerRadius: Self.cardCornerRadius, style: .continuous))
         // Drop target: another card dropped here reorders it before this one.
-        .onDrop(of: [UTType.plainText], isTargeted: nil) { providers in
+        .onDrop(of: [UTType.plainText], isTargeted: $isDropTarget.animation(.easeInOut(duration: 0.12))) { providers in
             reorderDrop(providers)
         }
         .shadow(color: .black.opacity(0.10), radius: 5, y: 2)
@@ -819,7 +830,11 @@ struct WidgetCardView: View {
                     .foregroundStyle(.secondary)
                     .frame(width: 22, height: 22)
                     .background(Circle().fill(.regularMaterial))
-                    .onDrag { NSItemProvider(object: widget.id as NSString) }
+                    .onDrag {
+                        NSItemProvider(object: widget.id as NSString)
+                    } preview: {
+                        dragPreview
+                    }
                     .help("Drag to reorder")
                     .accessibilityLabel("Reorder \(widget.manifest.name)")
                 Button { showSettings = true } label: {
@@ -835,6 +850,27 @@ struct WidgetCardView: View {
             .padding(6)
             .transition(.opacity)
         }
+    }
+
+    /// The card's drag proxy — a labeled chip so you can see what you're moving.
+    private var dragPreview: some View {
+        HStack(spacing: 6) {
+            Image(systemName: widget.manifest.icon ?? "square.grid.2x2")
+                .foregroundStyle(cardAccent)
+            Text(widget.manifest.name)
+                .font(.system(size: 12, weight: .semibold))
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(.regularMaterial)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(cardAccent.opacity(0.4), lineWidth: 1)
+        )
     }
 
     private func reorderDrop(_ providers: [NSItemProvider]) -> Bool {

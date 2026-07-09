@@ -5,7 +5,7 @@
   "name": "Today",
   "version": "0.1.0",
   "icon": "calendar",
-  "bucket": { "group": "Demo", "order": 10, "size": "S" },
+  "bucket": { "group": "Demo", "order": 10, "size": "M" },
 
   "entry": { "kind": "workflow", "main": "workflow.json" },
 
@@ -25,6 +25,6 @@
   "appearance": {
     "accent": "red",
     "cardStyle": "tinted",
-    "fixedHeight": 150
+    "fixedHeight": 132
   }
 }
