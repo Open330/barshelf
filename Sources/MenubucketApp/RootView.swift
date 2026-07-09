@@ -1,6 +1,7 @@
 import AppKit
 import MenubucketCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Pager selection, shared with StatusItemController so keyboard events
 /// (←/→, ⌘1..9) and trackpad swipes captured at the AppKit layer can drive
@@ -621,6 +622,12 @@ struct WidgetCardView: View {
             .environment(\.widgetAppearance, appearance)
         .background(cardBackground)
         .overlay(cardBorder)
+        .overlay(alignment: .topTrailing) { cardControls }
+        .contentShape(RoundedRectangle(cornerRadius: Self.cardCornerRadius, style: .continuous))
+        // Drop target: another card dropped here reorders it before this one.
+        .onDrop(of: [UTType.plainText], isTargeted: nil) { providers in
+            reorderDrop(providers)
+        }
         .shadow(color: .black.opacity(0.10), radius: 5, y: 2)
         .animation(.easeInOut(duration: 0.4), value: isHighlighted)
         .onHover { hovering in
@@ -801,6 +808,46 @@ struct WidgetCardView: View {
 
     /// Card fill: neutral control background, or an accent wash when the
     /// effective card style is `tinted`.
+    /// Hover controls at the card's top-right: a drag handle to reorder and an
+    /// edit button that opens the widget's settings.
+    @ViewBuilder
+    private var cardControls: some View {
+        if isHovering {
+            HStack(spacing: 4) {
+                Image(systemName: "line.3.horizontal")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 22, height: 22)
+                    .background(Circle().fill(.regularMaterial))
+                    .onDrag { NSItemProvider(object: widget.id as NSString) }
+                    .help("Drag to reorder")
+                    .accessibilityLabel("Reorder \(widget.manifest.name)")
+                Button { showSettings = true } label: {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 10, weight: .semibold))
+                        .frame(width: 22, height: 22)
+                        .background(Circle().fill(.regularMaterial))
+                }
+                .buttonStyle(.plain)
+                .help("Widget settings")
+                .accessibilityLabel("Settings for \(widget.manifest.name)")
+            }
+            .padding(6)
+            .transition(.opacity)
+        }
+    }
+
+    private func reorderDrop(_ providers: [NSItemProvider]) -> Bool {
+        guard let provider = providers.first else { return false }
+        provider.loadObject(ofClass: NSString.self) { object, _ in
+            guard let draggedId = object as? String else { return }
+            DispatchQueue.main.async {
+                runtime.reorderWidget(id: draggedId, before: widget.id)
+            }
+        }
+        return true
+    }
+
     /// Native-widget corner radius.
     private static let cardCornerRadius: CGFloat = 16
 
@@ -813,7 +860,9 @@ struct WidgetCardView: View {
             if let height {
                 content.frame(height: height)
             } else {
-                content
+                // Fit-to-content, but never collapse below a card-like floor so
+                // short widgets don't read as broken.
+                content.frame(minHeight: 96, alignment: .topLeading)
             }
         }
     }

@@ -583,6 +583,29 @@ final class WidgetRuntime: ObservableObject {
         objectWillChange.send()
     }
 
+    /// Drag-reorder within a panel: moves `draggedId` to sit just before
+    /// `targetId` and reassigns dense order indices so the popup pages update.
+    /// (Same-panel reordering; a drag onto another panel first needs a group
+    /// move.) No-op if they aren't in the same page.
+    func reorderWidget(id draggedId: String, before targetId: String) {
+        guard draggedId != targetId,
+              let page = pages.first(where: { p in p.widgets.contains { $0.id == targetId } }),
+              page.widgets.contains(where: { $0.id == draggedId })
+        else { return }
+        var ids = page.widgets.map(\.id)
+        guard let from = ids.firstIndex(of: draggedId) else { return }
+        ids.remove(at: from)
+        let to = ids.firstIndex(of: targetId) ?? ids.count
+        ids.insert(draggedId, at: to)
+        for (index, wid) in ids.enumerated() {
+            let existing = prefs.override(for: wid)
+            prefs.setOverride(
+                group: existing?.group, order: Double(index), size: existing?.size, for: wid
+            )
+        }
+        objectWillChange.send()
+    }
+
     /// Changes the popup card size override. `nil` restores the manifest size.
     func resizeWidget(id: String, toSize size: String?) {
         let normalized = Self.normalizedBucketSize(size)

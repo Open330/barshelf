@@ -25,6 +25,7 @@
 
   "appearance": {
     "accent": "orange",
-    "cardStyle": "tinted"
+    "cardStyle": "tinted",
+    "fixedHeight": 300
   }
 }
