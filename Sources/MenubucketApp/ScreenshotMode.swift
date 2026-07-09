@@ -100,6 +100,45 @@ private enum ShotData {
         return (try? JSONDecoder().decode(UINode.self, from: Data(json.utf8))) ?? UINode(type: "spacer")
     }
 
+    private static func decode(_ json: String) -> UINode {
+        (try? JSONDecoder().decode(UINode.self, from: Data(json.utf8))) ?? UINode(type: "spacer")
+    }
+
+    static var todayNode: UINode {
+        decode("""
+        {"type":"hstack","spacing":10,"children":[
+          {"type":"vstack","spacing":0,"children":[
+            {"type":"text","text":"Thursday","role":"caption","foreground":"danger"},
+            {"type":"text","text":"09","size":40,"role":"title"}]},
+          {"type":"spacer"},
+          {"type":"vstack","spacing":2,"children":[
+            {"type":"text","text":"20:53","size":30,"role":"title","monospacedDigit":true},
+            {"type":"text","text":"Jul 2026","role":"caption","foreground":"secondary"}]}]}
+        """)
+    }
+
+    static var batteryNode: UINode {
+        decode("""
+        {"type":"vstack","spacing":6,"children":[
+          {"type":"hstack","spacing":6,"children":[
+            {"type":"image","source":{"kind":"sfSymbol","name":"battery.100percent"},"size":15,"tint":"good"},
+            {"type":"text","text":"Battery","role":"caption","foreground":"secondary","lineLimit":1}]},
+          {"type":"text","text":"80%","size":40,"role":"title","monospacedDigit":true},
+          {"type":"progress","style":"linear","value":0.8,"tint":"good"}]}
+        """)
+    }
+
+    static var weatherNode: UINode {
+        decode("""
+        {"type":"vstack","spacing":2,"children":[
+          {"type":"hstack","spacing":6,"children":[
+            {"type":"image","source":{"kind":"sfSymbol","name":"cloud.sun.fill"},"size":14,"tint":"accent"},
+            {"type":"text","text":"Seoul","role":"caption","foreground":"secondary"}]},
+          {"type":"text","text":"24°","size":44,"role":"title","monospacedDigit":true},
+          {"type":"text","text":"Cloudy","role":"caption","foreground":"secondary"}]}
+        """)
+    }
+
     static var k8sNode: UINode {
         let json = """
         {"type":"list","spacing":3,"items":[
@@ -127,19 +166,38 @@ private struct ShotCard: View {
     let title: String
     let icon: String
     let node: UINode
+    var accentName: String? = nil
+
+    private var accent: Color { WidgetAppearance(accent: accentName).accentColor ?? .accentColor }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                Image(systemName: icon).font(.system(size: 11)).foregroundColor(.secondary)
+                Image(systemName: icon).font(.system(size: 11)).foregroundColor(accent)
                 Text(title).font(.system(size: 11, weight: .semibold)).foregroundColor(.secondary)
+                Spacer(minLength: 0)
             }
             ViewTreeRenderer(node: node)
+                .environment(\.widgetAppearance, WidgetAppearance(accent: accentName))
         }
-        .padding(11)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 8).fill(Color(nsColor: .controlBackgroundColor)))
-        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.secondary.opacity(0.2), lineWidth: 1))
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(LinearGradient(
+                            colors: [accent.opacity(scheme == .dark ? 0.32 : 0.22), accent.opacity(0.05)],
+                            startPoint: .topLeading, endPoint: .bottomTrailing
+                        ))
+                )
+        )
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.secondary.opacity(0.10), lineWidth: 1))
+        .shadow(color: .black.opacity(0.10), radius: 5, y: 2)
     }
+
+    @Environment(\.colorScheme) private var scheme
 }
 
 private struct PopoverShot: View {
@@ -147,18 +205,21 @@ private struct PopoverShot: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("AI").font(.system(size: 13, weight: .semibold))
+                Text("Demo").font(.system(size: 13, weight: .semibold))
                 Spacer()
                 Image(systemName: "magnifyingglass").font(.system(size: 11)).foregroundColor(.secondary)
                 Image(systemName: "arrow.clockwise").font(.system(size: 11)).foregroundColor(.secondary)
-                Text("‹ 2 / 3 ›").font(.system(size: 11, design: .monospaced)).foregroundColor(.secondary)
+                Text("‹ 1 / 3 ›").font(.system(size: 11, design: .monospaced)).foregroundColor(.secondary)
             }
             .padding(.horizontal, 12).padding(.vertical, 10)
             Divider()
             VStack(spacing: 10) {
-                ShotCard(title: "aas usage", icon: "gauge", node: ShotData.aasNode)
-                ShotCard(title: "OTPeek", icon: "lock.shield.fill", node: ShotData.otpNode)
-                ShotCard(title: "Recent Files", icon: "folder.fill", node: ShotData.filesNode)
+                ShotCard(title: "Today", icon: "calendar", node: ShotData.todayNode, accentName: "red")
+                HStack(alignment: .top, spacing: 10) {
+                    ShotCard(title: "Battery", icon: "battery.100percent", node: ShotData.batteryNode, accentName: "green")
+                    ShotCard(title: "Weather", icon: "cloud.sun.fill", node: ShotData.weatherNode, accentName: "blue")
+                }
+                ShotCard(title: "aas usage", icon: "gauge", node: ShotData.aasNode, accentName: "orange")
             }
             .padding(12)
             Divider()

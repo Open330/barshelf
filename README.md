@@ -20,7 +20,7 @@ recent files, CI status — as native widgets in a single popover.
 [**Build a Widget**](docs/WIDGET-SPEC.md) ·
 [**Publish**](docs/PUBLISHING.md)
 
-<img src="assets/media/popover.png" width="360" alt="BarShelf popover with aas usage, OTPeek, and recent files widgets" />
+<img src="assets/media/popover.png" width="360" alt="BarShelf popover with native Today, Battery, Weather, and aas usage widgets" />
 
 </div>
 
@@ -94,15 +94,20 @@ Full guide, `barshelf` CLI, and troubleshooting: **[docs/INSTALL.md](docs/INSTAL
 > Requires macOS 13+ on Apple Silicon. Script widgets need [Deno](https://deno.land)
 > (`brew install deno`); exec and workflow widgets work without it.
 
-## Bundled widgets
+## Gallery widgets
 
-| Widget | Layer | What it shows |
+Fifteen native widgets ship in the gallery — most are declarative **workflows**
+(no code), styled like native macOS/iOS widgets with per-widget color and a
+Fit / fixed-height layout. **Today** and **Recent Files** are seeded on first run.
+
+| Widget | Source | What it shows |
 |---|---|---|
-| **hello** | exec (viewtree) | The smallest widget — a shell script emitting a UINode tree. |
-| **aas Usage** | exec (data + adapter) | LLM account usage meters from [`aas usage --json`](https://github.com/Open330/aas). |
-| **OTPeek** | exec (data + adapter) | TOTP codes with a countdown ring; Keychain-injected vault password. |
-| **Recent Files** | workflow (`fs.directory`) | Stashbar-style recent files with QuickLook thumbnails and drag-out. |
-| **Script Clock** | script (Deno) | Live clock + storage-backed click counter via the TypeScript SDK. |
+| **Today** · **Calendar** · **Clock** | `/bin/date` | Big date, a month grid with today circled, a live clock — layout adapts to widget size. |
+| **Weather** · **Exchange** · **Stock** | http | Temperature, USD→KRW, and a stock quote (Stock needs a `User-Agent` header). |
+| **Battery** · **System** · **Network** | shell | Battery %, CPU/Memory/Disk meters, and the local IP. |
+| **Recent Files** | `fs.directory` | Stashbar-style Grid/List of recent files — QuickLook thumbnails, drag-out, click to open. |
+| **aas Usage** · **OTP Codes** | CLI | LLM usage meters from [`aas`](https://github.com/Open330/aas); TOTP codes with a countdown ring from [`otpeek`](https://github.com/jiunbae/otpeek). |
+| **Visit Counter** · **New Downloads** · **GitHub Status** | mixed | Persistence (counter, "new since last check") and an HTTPS status feed. |
 
 ## Build a widget in 3 minutes
 
