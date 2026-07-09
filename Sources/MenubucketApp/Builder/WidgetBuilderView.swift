@@ -492,6 +492,8 @@ struct WidgetBuilderView: View {
 
     private var displayHint: String {
         switch model.effectiveDisplay {
+        case .grid:
+            return "Files render as a thumbnail grid — drag out to Finder or click to open."
         case .list where model.sourceKind == .folder:
             return "Files render as rows with a thumbnail, name, and modified time."
         case .list where model.sourceKind == .httpJSON,

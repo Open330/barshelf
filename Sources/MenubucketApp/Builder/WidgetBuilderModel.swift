@@ -106,11 +106,12 @@ final class WidgetBuilderModel: ObservableObject {
     ]
 
     enum DisplayKind: String, CaseIterable, Identifiable {
-        case list, table, value, meter, text
+        case list, grid, table, value, meter, text
         var id: String { rawValue }
         var label: String {
             switch self {
             case .list: return "List"
+            case .grid: return "Grid"
             case .table: return "Table"
             case .value: return "Single value"
             case .meter: return "Meter"
@@ -238,7 +239,7 @@ final class WidgetBuilderModel: ObservableObject {
     var availableDisplays: [DisplayKind] {
         switch sourceKind {
         case .folder:
-            return [.list]
+            return [.list, .grid]
         case .staticText:
             return [.text]
         case .command, .shellScript, .httpJSON, .pastedJSON:
@@ -532,6 +533,9 @@ final class WidgetBuilderModel: ObservableObject {
         switch effectiveDisplay {
         case .list:
             display = .list(field: sourceKind == .folder ? nil : nonEmpty(listField))
+        case .grid:
+            // Folder grid is driven by `folderGrid`; the display value is unused.
+            display = .list(field: nil)
         case .table:
             display = .table(columns: tableColumns.filter { !$0.field.isEmpty })
         case .value:
@@ -556,6 +560,7 @@ final class WidgetBuilderModel: ObservableObject {
             display: display,
             refine: refineApplicable ? buildRefine() : nil,
             rowAction: refineApplicable ? buildRowAction() : .none,
+            folderGrid: sourceKind == .folder && effectiveDisplay == .grid,
             appearance: manifestAppearance
         )
     }

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "workflow",
-  "_comment": "Stashbar-style icon-grid view of recent files, using the `grid` node. Tiles show a QuickLook thumbnail + name, drag out to Finder/apps, and open on click.",
+  "_comment": "Stashbar-style recent files with a Grid/List view toggle (a `switch` on settings.viewMode) and an adjustable thumbnail size. Tiles/rows drag out to Finder and open on click.",
 
   "sources": {
     "files": {
@@ -34,23 +34,57 @@
       },
       { "type": "divider" },
       {
-        "type": "grid",
-        "spacing": 10,
-        "size": 74,
-        "padding": 10,
-        "items": {
-          "forEach": "$.sources.files.items",
-          "as": "file",
-          "template": {
-            "type": "vstack",
-            "spacing": 4,
-            "id": "tile-${file.path}",
-            "drag": { "filePath": "${file.path}" },
-            "action": { "type": "openFile", "path": "${file.path}" },
-            "children": [
-              { "type": "image", "source": { "kind": "fileThumbnail", "path": "${file.path}", "modifiedAt": "${file.modifiedAt}" }, "size": 52 },
-              { "type": "text", "text": "${file.name}", "role": "caption", "lineLimit": 1 }
-            ]
+        "switch": "${settings.viewMode}",
+        "cases": {
+          "List": {
+            "type": "list",
+            "spacing": 2,
+            "padding": 6,
+            "items": {
+              "forEach": "$.sources.files.items",
+              "as": "file",
+              "template": {
+                "type": "hstack",
+                "id": "row-${file.path}",
+                "spacing": 8,
+                "padding": 6,
+                "drag": { "filePath": "${file.path}" },
+                "action": { "type": "openFile", "path": "${file.path}" },
+                "children": [
+                  { "type": "image", "source": { "kind": "fileThumbnail", "path": "${file.path}", "modifiedAt": "${file.modifiedAt}" }, "size": "${settings.thumbSize}" },
+                  {
+                    "type": "vstack",
+                    "spacing": 2,
+                    "widthFill": true,
+                    "children": [
+                      { "type": "text", "text": "${file.name}", "role": "body", "lineLimit": 1 },
+                      { "type": "text", "text": "${date.relative(file.modifiedAt)}", "role": "caption", "foreground": "tertiary" }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "default": {
+          "type": "grid",
+          "spacing": 10,
+          "padding": 10,
+          "size": "${add(settings.thumbSize, 22)}",
+          "items": {
+            "forEach": "$.sources.files.items",
+            "as": "file",
+            "template": {
+              "type": "vstack",
+              "spacing": 4,
+              "id": "tile-${file.path}",
+              "drag": { "filePath": "${file.path}" },
+              "action": { "type": "openFile", "path": "${file.path}" },
+              "children": [
+                { "type": "image", "source": { "kind": "fileThumbnail", "path": "${file.path}", "modifiedAt": "${file.modifiedAt}" }, "size": "${settings.thumbSize}" },
+                { "type": "text", "text": "${file.name}", "role": "caption", "lineLimit": 1 }
+              ]
+            }
           }
         }
       }
@@ -61,7 +95,7 @@
     "type": "empty",
     "icon": "square.grid.2x2",
     "title": "No files",
-    "subtitle": "Files added to this folder appear as tiles."
+    "subtitle": "Files added to this folder appear here."
   },
 
   "status": {

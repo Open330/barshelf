@@ -282,6 +282,44 @@ final class WorkflowEngineTests: XCTestCase {
         )
         XCTAssertEqual(output.viewTree.text, "42")
     }
+
+    // MARK: - Conditional switch node (view modes)
+
+    func testSwitchSelectsMatchingCase() throws {
+        let def = try definition("""
+        { "schemaVersion": 1, "sources": {},
+          "view": { "switch": "${settings.mode}",
+            "cases": {
+              "grid": { "type": "grid", "id": "g", "items": [] },
+              "list": { "type": "list", "id": "l", "items": [] }
+            },
+            "default": { "type": "text", "text": "none" } } }
+        """)
+        let grid = try WorkflowEngine.evaluate(def, sources: [:], settings: .object(["mode": .string("grid")]))
+        XCTAssertEqual(grid.viewTree.type, "grid")
+        let list = try WorkflowEngine.evaluate(def, sources: [:], settings: .object(["mode": .string("list")]))
+        XCTAssertEqual(list.viewTree.type, "list")
+        let fallback = try WorkflowEngine.evaluate(def, sources: [:], settings: .object(["mode": .string("???")]))
+        XCTAssertEqual(fallback.viewTree.text, "none")
+    }
+
+    func testSwitchDoesNotExpandUnmatchedBranch() throws {
+        let def = try definition("""
+        { "schemaVersion": 1, "sources": { "s": { "use": "exec" } },
+          "view": { "switch": "on",
+            "cases": {
+              "on":  { "type": "text", "text": "on" },
+              "off": { "type": "list", "items": { "forEach": "$.sources.s.items", "as": "x",
+                        "template": { "type": "text", "text": "${x}" } } }
+            } } }
+        """)
+        let output = try WorkflowEngine.evaluate(
+            def, sources: ["s": .object(["items": .array([.string("a"), .string("b")])])],
+            settings: .object([:])
+        )
+        XCTAssertEqual(output.viewTree.text, "on")
+        XCTAssertEqual(output.expandedItemCount, 0) // the off-branch forEach never ran
+    }
 }
 
 final class StorageServiceSnapshotTests: XCTestCase {
@@ -489,6 +527,7 @@ final class GridWidgetTests: XCTestCase {
         let params = try WorkflowEngine.resolvedSourceParams(def, settings: settings)
         let listing = try FileSource.list(try FileSource.Params(from: try XCTUnwrap(params["files"])))
 
+        // Default view mode (no setting) falls through to the grid branch.
         let output = try WorkflowEngine.evaluate(
             def, sources: ["files": listing], settings: settings
         )
@@ -499,6 +538,18 @@ final class GridWidgetTests: XCTestCase {
         XCTAssertEqual(tile.action?.type, "openFile")           // click opens
         XCTAssertEqual(tile.children?.first?.source?.kind, "fileThumbnail")
         XCTAssertNotNil(tile.children?.last?.text)               // file name label
+
+        // viewMode "List" switches to a row list (no grid node present).
+        let listSettings: JSONValue = .object([
+            "folder": .string(dir.path), "limit": .number(24), "viewMode": .string("List"),
+        ])
+        let listOut = try WorkflowEngine.evaluate(
+            def, sources: ["files": listing], settings: listSettings
+        )
+        XCTAssertNil(firstNode(ofType: "grid", in: listOut.viewTree))
+        let list = try XCTUnwrap(firstNode(ofType: "list", in: listOut.viewTree))
+        XCTAssertEqual(list.items?.count, 3)
+        XCTAssertEqual(list.items?.first?.action?.type, "openFile")
     }
 
     func testGridIsAKnownNodeType() {

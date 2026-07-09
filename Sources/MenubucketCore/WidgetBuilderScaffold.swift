@@ -113,6 +113,8 @@ public enum WidgetBuilderScaffold {
         public var refine: Refine?
         /// Optional per-row click action for list/table displays.
         public var rowAction: RowAction
+        /// Render a `folder` source as a thumbnail grid instead of a row list.
+        public var folderGrid: Bool
         public var appearance: WidgetAppearance?
         /// Override the derived id (defaults to `dev.barshelf.user.<slug>`).
         public var id: String?
@@ -127,6 +129,7 @@ public enum WidgetBuilderScaffold {
             display: Display,
             refine: Refine? = nil,
             rowAction: RowAction = .none,
+            folderGrid: Bool = false,
             appearance: WidgetAppearance? = nil,
             id: String? = nil
         ) {
@@ -139,6 +142,7 @@ public enum WidgetBuilderScaffold {
             self.display = display
             self.refine = refine
             self.rowAction = rowAction
+            self.folderGrid = folderGrid
             self.appearance = appearance
             self.id = id
         }
@@ -344,7 +348,7 @@ public enum WidgetBuilderScaffold {
                 ],
             ]
             _ = path  // baked as the settings default in the manifest
-            bodyNode = folderListNode()
+            bodyNode = spec.folderGrid ? folderGridNode() : folderListNode()
 
         case let .staticText(content):
             bodyNode = ["type": "text", "role": "body", "text": content]
@@ -468,6 +472,30 @@ public enum WidgetBuilderScaffold {
         case .text:
             return ["type": "text", "role": "body", "text": "${string(\(objectPath))}"]
         }
+    }
+
+    private static func folderGridNode() -> [String: Any] {
+        [
+            "type": "grid",
+            "spacing": 10,
+            "padding": 6,
+            "size": 70,
+            "items": [
+                "forEach": "$.sources.files.items",
+                "as": "file",
+                "template": [
+                    "type": "vstack",
+                    "spacing": 4,
+                    "id": "tile-${file.path}",
+                    "drag": ["filePath": "${file.path}"],
+                    "action": ["type": "openFile", "path": "${file.path}"],
+                    "children": [
+                        ["type": "image", "source": ["kind": "fileThumbnail", "path": "${file.path}", "modifiedAt": "${file.modifiedAt}"], "size": 48],
+                        ["type": "text", "role": "caption", "text": "${file.name}", "lineLimit": 1],
+                    ],
+                ],
+            ],
+        ]
     }
 
     private static func folderListNode() -> [String: Any] {

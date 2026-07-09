@@ -299,6 +299,9 @@ public enum WorkflowEngine {
                 if case let .string(path)? = object["forEach"] {
                     return try expandForEach(path: path, spec: object)
                 }
+                if object["switch"] != nil {
+                    return try expandSwitch(spec: object)
+                }
                 var out: [String: JSONValue] = [:]
                 for (key, item) in object {
                     out[key] = try expand(item)
@@ -326,6 +329,27 @@ public enum WorkflowEngine {
                 out.append(try expand(template))
             }
             return .array(out)
+        }
+
+        /// `{ "switch": "<expr>", "cases": { key: node }, "default": node }` —
+        /// evaluates the selector, expands ONLY the matching case (or `default`,
+        /// else a spacer). Unlike the `if()` function, unmatched branches are
+        /// never expanded, so their forEach loops don't run.
+        private mutating func expandSwitch(spec: [String: JSONValue]) throws -> JSONValue {
+            let selector = spec["switch"] ?? .null
+            let key: String
+            if case let .string(text) = selector {
+                key = try interpolate(text).stringified
+            } else {
+                key = try expand(selector).stringified
+            }
+            if let chosen = spec["cases"]?.objectValue?[key] {
+                return try expand(chosen)
+            }
+            if let fallback = spec["default"] {
+                return try expand(fallback)
+            }
+            return .object(["type": .string("spacer")])
         }
 
         // MARK: interpolation

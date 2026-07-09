@@ -364,6 +364,42 @@ final class WidgetScaffoldTests: XCTestCase {
         XCTAssertTrue(text.contains("72%"))   // readout
     }
 
+    func testFolderGridGeneratesGridNode() throws {
+        let (_, workflow) = try generate(.init(
+            name: "Shots",
+            source: .folder(path: "~/Pictures", limit: 12),
+            display: .list(field: nil),
+            folderGrid: true
+        ))
+        let items: JSONValue = .object(["items": .array([
+            .object(["path": .string("/p/a.png"), "name": .string("a.png"), "modifiedAt": .number(1)]),
+        ])])
+        let output = try WorkflowEngine.evaluate(
+            workflow, sources: ["files": items], settings: .object(["folder": .string("/p")])
+        )
+        let grid = try XCTUnwrap(firstNode(ofType: "grid", in: output.viewTree))
+        let tile = try XCTUnwrap(grid.items?.first)
+        XCTAssertEqual(tile.action?.type, "openFile")
+        XCTAssertNotNil(tile.drag?.filePath)
+        XCTAssertEqual(tile.children?.first?.source?.kind, "fileThumbnail")
+    }
+
+    func testFolderListStaysListWhenNotGrid() throws {
+        let (_, workflow) = try generate(.init(
+            name: "Files",
+            source: .folder(path: "~/Downloads", limit: 12),
+            display: .list(field: nil)
+        ))
+        let items: JSONValue = .object(["items": .array([
+            .object(["path": .string("/d/x.txt"), "name": .string("x.txt"), "modifiedAt": .number(1)]),
+        ])])
+        let output = try WorkflowEngine.evaluate(
+            workflow, sources: ["files": items], settings: .object(["folder": .string("/d")])
+        )
+        XCTAssertNil(firstNode(ofType: "grid", in: output.viewTree))
+        XCTAssertNotNil(firstNode(ofType: "list", in: output.viewTree))
+    }
+
     func testMeterScalesToCustomMax() throws {
         let (_, workflow) = try generate(.init(
             name: "RAM",

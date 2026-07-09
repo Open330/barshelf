@@ -295,6 +295,25 @@ Arbitrary JavaScript는 금지한다. 표현식은 문자열 안의 `${...}` 보
 
 `as` 변수는 template 내부에서만 유효하다. 위 예제의 `${file.path}`는 각 item의 `path` 필드다.
 
+## 조건부 switch
+
+`children`/`items`/`view` 자리에 `switch` 객체를 두면 셀렉터 값으로 서브트리를
+고른다. **선택된 가지만 확장**되므로(불필요한 `forEach`는 실행되지 않는다),
+설정으로 레이아웃을 바꾸는 뷰모드 토글 등에 쓴다.
+
+```json
+{
+  "switch": "${settings.viewMode}",
+  "cases": {
+    "List": { "type": "list", "items": { "forEach": "...", "as": "f", "template": {} } }
+  },
+  "default": { "type": "grid", "items": { "forEach": "...", "as": "f", "template": {} } }
+}
+```
+
+셀렉터가 `cases`의 키와 일치하면 그 노드를, 없으면 `default`를(그것도 없으면
+빈 `spacer`를) 확장한다. `if()` 함수와 달리 미선택 가지는 평가되지 않는다.
+
 ## 파일 노드
 
 파일 아이콘과 썸네일은 호스트 썸네일 서비스가 해석한다.
