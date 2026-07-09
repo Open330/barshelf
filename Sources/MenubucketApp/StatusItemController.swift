@@ -10,6 +10,8 @@ import SwiftUI
 /// wired for `[.leftMouseUp, .rightMouseUp]` — left click toggles the popup,
 /// right click (or ctrl-click) opens the context menu (Refresh All / Quit).
 final class StatusItemController: NSObject {
+    private static let statusItemLength: CGFloat = 28
+
     private var statusItem: NSStatusItem!
     private let runtime = WidgetRuntime()
     private let appPrefs = AppPrefs.shared
@@ -149,11 +151,12 @@ final class StatusItemController: NSObject {
             HubWindowController.shared.register(runtime: runtime)
         }
 
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        statusItem = NSStatusBar.system.statusItem(withLength: Self.statusItemLength)
         if let button = statusItem.button {
             button.action = #selector(statusItemClicked(_:))
             button.target = self
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+            button.imageScaling = .scaleProportionallyDown
         }
         appPrefs.$preferences
             .receive(on: RunLoop.main)
@@ -264,6 +267,7 @@ final class StatusItemController: NSObject {
     private func applyStatusSymbol(_ symbol: String) {
         let fallback = AppPreferences.defaultMenuBarSymbol
         let image = BarShelfStatusIcon.image(for: symbol, fallback: fallback)
+        statusItem.length = Self.statusItemLength
         statusItem.button?.image = image
         statusItem.button?.imagePosition = .imageOnly
     }

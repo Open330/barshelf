@@ -1,574 +1,694 @@
 <!doctype html>
-<html lang="en" data-theme="dark" data-lang="en">
+<html lang="en" data-lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>BarShelf — Your menu bar, finally organized.</title>
-  <meta name="description" content="BarShelf is a scriptable macOS menu bar widget platform. One icon, one popover of native widgets — any CLI you already have becomes a widget in minutes." />
-  <meta property="og:title" content="BarShelf — Your menu bar, finally organized." />
-  <meta property="og:description" content="One menu bar icon. Every glanceable tool you care about — OTP codes, LLM usage, recent files — as native widgets in a single popover." />
+  <title>BarShelf — macOS menu bar widgets in one popover.</title>
+  <meta name="description" content="BarShelf collects scriptable macOS menu bar widgets into one native popover. Turn commands, workflows, and TypeScript scripts into glanceable widgets." />
+  <meta property="og:title" content="BarShelf — macOS menu bar widgets in one popover." />
+  <meta property="og:description" content="One menu bar icon for the tools you check all day: usage, builds, files, clocks, OTP, and custom scripts." />
   <meta property="og:type" content="website" />
-  <meta property="og:image" content="icon-512.png" />
+  <meta property="og:image" content="shots/macos-menubar-popover-crop.jpg" />
   <meta property="og:url" content="https://barshelf.jiun.dev/" />
-  <meta name="theme-color" content="#0c1c20" />
+  <meta name="theme-color" content="#111315" />
   <link rel="icon" href="icon-512.png" />
   <style>
-    /* ============ Tokens ============ */
     :root {
-      --bg: #0b1a1e;
-      --bg-grad: radial-gradient(1200px 700px at 78% -8%, #123039 0%, transparent 55%),
-                 radial-gradient(900px 600px at 0% 100%, #0f272c 0%, transparent 50%);
-      --surface: #10262c;
-      --surface-2: #16333a;
-      --surface-3: #1d434b;
-      --line: rgba(150, 224, 205, 0.13);
-      --line-2: rgba(150, 224, 205, 0.22);
-      --text: #e8f1ee;
-      --muted: #91aea9;
-      --faint: #6d8a86;
-      --mint: #62e2b2;
-      --mint-2: #35c996;
-      --cream: #f3ecda;
-      --good: #58d79b;
-      --warn: #f4c65a;
-      --bad: #f2795f;
-      --radius: 16px;
-      --radius-sm: 10px;
-      --radius-lg: 22px;
-      --shadow: 0 24px 70px -24px rgba(0, 0, 0, 0.7);
-      --shadow-sm: 0 8px 24px -12px rgba(0, 0, 0, 0.55);
-      --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, "Segoe UI", sans-serif;
-      --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Menlo", monospace;
-      --maxw: 1140px;
-    }
-    :root[data-theme="light"] {
-      --bg: #eef3f1;
-      --bg-grad: radial-gradient(1100px 640px at 80% -10%, #dcefe7 0%, transparent 55%),
-                 radial-gradient(800px 560px at -5% 105%, #e3efe9 0%, transparent 50%);
-      --surface: #ffffff;
-      --surface-2: #f3f7f5;
-      --surface-3: #e9f0ed;
-      --line: rgba(18, 60, 54, 0.12);
-      --line-2: rgba(18, 60, 54, 0.2);
-      --text: #0f2a2a;
-      --muted: #4c6a65;
-      --faint: #6f8a85;
-      --mint: #17a877;
-      --mint-2: #0f8e63;
-      --cream: #123c36;
-      --shadow: 0 24px 60px -26px rgba(20, 60, 54, 0.4);
-      --shadow-sm: 0 10px 26px -16px rgba(20, 60, 54, 0.32);
-    }
-    @media (prefers-color-scheme: light) {
-      :root:not([data-theme="dark"]) {
-        --bg: #eef3f1;
-        --bg-grad: radial-gradient(1100px 640px at 80% -10%, #dcefe7 0%, transparent 55%),
-                   radial-gradient(800px 560px at -5% 105%, #e3efe9 0%, transparent 50%);
-        --surface: #ffffff; --surface-2: #f3f7f5; --surface-3: #e9f0ed;
-        --line: rgba(18, 60, 54, 0.12); --line-2: rgba(18, 60, 54, 0.2);
-        --text: #0f2a2a; --muted: #4c6a65; --faint: #6f8a85;
-        --mint: #17a877; --mint-2: #0f8e63; --cream: #123c36;
-        --shadow: 0 24px 60px -26px rgba(20, 60, 54, 0.4);
-        --shadow-sm: 0 10px 26px -16px rgba(20, 60, 54, 0.32);
-      }
+      --ink: #111315;
+      --ink-2: #2c3033;
+      --muted: #676d72;
+      --paper: #f5f3ef;
+      --paper-2: #ebe7df;
+      --panel: #ffffff;
+      --line: rgba(17, 19, 21, 0.12);
+      --line-strong: rgba(17, 19, 21, 0.22);
+      --accent: #d85f4b;
+      --blue: #2f6f88;
+      --green: #58745c;
+      --gold: #aa7a2b;
+      --max: 1160px;
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
+      --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      color-scheme: light;
     }
 
-    /* ============ Base ============ */
     * { box-sizing: border-box; }
     html { scroll-behavior: smooth; }
     @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
     body {
       margin: 0;
-      font-family: var(--sans);
-      background: var(--bg);
-      background-image: var(--bg-grad);
-      background-attachment: fixed;
-      color: var(--text);
-      line-height: 1.6;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--font);
+      line-height: 1.55;
+      overflow-x: hidden;
       -webkit-font-smoothing: antialiased;
       text-rendering: optimizeLegibility;
     }
-    h1, h2, h3 { text-wrap: balance; margin: 0; line-height: 1.08; letter-spacing: -0.02em; }
-    p { margin: 0; }
+    img { display: block; max-width: 100%; }
     a { color: inherit; text-decoration: none; }
-    :focus-visible { outline: 2px solid var(--mint); outline-offset: 3px; border-radius: 6px; }
-    img { max-width: 100%; display: block; }
+    p, h1, h2, h3 { margin: 0; }
+    h1, h2, h3 { letter-spacing: 0; line-height: 1.04; text-wrap: balance; }
+    button { font: inherit; }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
-    .wrap { width: 100%; max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
-    .eyebrow {
-      font: 600 12px/1 var(--mono);
-      letter-spacing: 0.16em; text-transform: uppercase;
-      color: var(--mint); display: inline-flex; align-items: center; gap: 8px;
-    }
-    .eyebrow::before { content: ""; width: 22px; height: 1px; background: var(--mint); opacity: .6; }
+    [data-lang="en"] .ko { display: none !important; }
+    [data-lang="ko"] .en { display: none !important; }
 
-    /* language visibility */
-    [data-lang="en"] .lang-ko { display: none !important; }
-    [data-lang="ko"] .lang-en { display: none !important; }
-
-    /* ============ Nav ============ */
-    header.nav {
-      position: sticky; top: 0; z-index: 50;
-      backdrop-filter: saturate(160%) blur(14px);
-      -webkit-backdrop-filter: saturate(160%) blur(14px);
-      background: color-mix(in srgb, var(--bg) 72%, transparent);
-      border-bottom: 1px solid transparent;
-      transition: border-color .3s;
+    .wrap { width: min(var(--max), calc(100% - 40px)); margin: 0 auto; }
+    .nav {
+      position: fixed;
+      inset: 0 0 auto 0;
+      z-index: 30;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(12, 13, 14, 0.52);
+      color: #fff;
+      backdrop-filter: blur(18px) saturate(150%);
+      -webkit-backdrop-filter: blur(18px) saturate(150%);
+      transition: background 180ms ease, border-color 180ms ease;
     }
-    header.nav.scrolled { border-bottom-color: var(--line); }
-    .nav-inner { display: flex; align-items: center; gap: 18px; height: 62px; }
-    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; letter-spacing: -0.01em; }
-    .brand img { width: 26px; height: 26px; border-radius: 7px; }
-    .nav-links { display: flex; gap: 22px; margin-left: 14px; }
-    .nav-links a { color: var(--muted); font-size: 14px; font-weight: 500; transition: color .2s; }
-    .nav-links a:hover { color: var(--text); }
-    .nav-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
-    .icon-btn {
-      display: inline-grid; place-items: center; width: 34px; height: 34px;
-      border-radius: 9px; border: 1px solid var(--line); background: var(--surface-2);
-      color: var(--muted); cursor: pointer; font-size: 14px; transition: all .2s;
+    .nav.scrolled {
+      background: rgba(12, 13, 14, 0.88);
+      border-bottom-color: rgba(255, 255, 255, 0.16);
     }
-    .icon-btn:hover { color: var(--text); border-color: var(--line-2); }
-    .seg { display: flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
-    .seg button {
-      appearance: none; border: 0; background: var(--surface-2); color: var(--muted);
-      font: 600 12px var(--mono); padding: 8px 11px; cursor: pointer; transition: all .2s;
+    .nav-inner {
+      height: 64px;
+      display: flex;
+      align-items: center;
+      gap: 24px;
     }
-    .seg button[aria-pressed="true"] { background: var(--mint); color: #06231b; }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 720;
+      letter-spacing: 0;
+    }
+    .brand img { width: 28px; height: 28px; }
+    .links {
+      display: flex;
+      align-items: center;
+      gap: 22px;
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.72);
+    }
+    .links a:hover { color: #fff; }
+    .nav-actions {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .lang-toggle {
+      display: flex;
+      border: 1px solid rgba(255, 255, 255, 0.20);
+      border-radius: 8px;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.08);
+    }
+    .lang-toggle button {
+      appearance: none;
+      border: 0;
+      min-width: 42px;
+      padding: 7px 10px;
+      color: rgba(255, 255, 255, 0.72);
+      background: transparent;
+      cursor: pointer;
+      font: 680 12px/1 var(--mono);
+    }
+    .lang-toggle button[aria-pressed="true"] {
+      background: #fff;
+      color: #111315;
+    }
+    .nav-link {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 8px;
+      color: rgba(255, 255, 255, 0.82);
+      background: rgba(255, 255, 255, 0.08);
+    }
 
     .btn {
-      display: inline-flex; align-items: center; gap: 8px; justify-content: center;
-      font-weight: 600; font-size: 15px; border-radius: 11px; padding: 12px 20px;
-      border: 1px solid transparent; cursor: pointer; transition: transform .12s, box-shadow .2s, background .2s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      padding: 0 18px;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      font-weight: 690;
+      font-size: 15px;
+      white-space: nowrap;
+      cursor: pointer;
     }
-    .btn:active { transform: translateY(1px); }
-    .btn-primary { background: var(--mint); color: #06231b; box-shadow: 0 8px 22px -8px color-mix(in srgb, var(--mint) 70%, transparent); }
-    .btn-primary:hover { background: color-mix(in srgb, var(--mint) 88%, white); }
-    .btn-ghost { background: var(--surface-2); color: var(--text); border-color: var(--line); }
-    .btn-ghost:hover { border-color: var(--line-2); background: var(--surface-3); }
-    .btn-sm { padding: 9px 15px; font-size: 14px; border-radius: 10px; }
+    .btn.primary { background: #fff; color: #111315; }
+    .btn.dark { background: var(--ink); color: #fff; }
+    .btn.line { border-color: rgba(255, 255, 255, 0.28); color: #fff; background: rgba(255, 255, 255, 0.08); }
+    .btn.light-line { border-color: var(--line-strong); background: transparent; color: var(--ink); }
 
-    /* ============ Hero ============ */
-    .hero { padding: 74px 0 40px; }
-    .hero-grid { display: grid; grid-template-columns: 1.02fr 1fr; gap: 54px; align-items: center; }
-    .hero h1 { font-size: clamp(38px, 5.6vw, 66px); font-weight: 800; margin: 20px 0 0; }
-    .hero h1 .grad {
-      background: linear-gradient(100deg, var(--mint), #9ff0cf 60%, var(--cream));
-      -webkit-background-clip: text; background-clip: text; color: transparent;
+    .hero {
+      min-height: min(88svh, 900px);
+      color: #fff;
+      position: relative;
+      display: flex;
+      align-items: end;
+      isolation: isolate;
+      background-image:
+        linear-gradient(90deg, rgba(0, 0, 0, 0.82) 0%, rgba(0, 0, 0, 0.62) 33%, rgba(0, 0, 0, 0.22) 66%, rgba(0, 0, 0, 0.38) 100%),
+        linear-gradient(0deg, rgba(0, 0, 0, 0.68), rgba(0, 0, 0, 0.02) 42%),
+        url("shots/macos-menubar-popover.jpg");
+      background-size: cover;
+      background-position: center top;
     }
-    .hero .sub { color: var(--muted); font-size: clamp(16px, 2vw, 19px); margin-top: 20px; max-width: 30em; }
-    .hero-cta { display: flex; gap: 12px; margin-top: 30px; flex-wrap: wrap; align-items: center; }
-    .hero-note { color: var(--faint); font: 500 13px var(--mono); margin-top: 16px; display: flex; gap: 14px; flex-wrap: wrap; }
-    .hero-note b { color: var(--mint); font-weight: 700; }
-
-    /* ============ macOS popover mockup ============ */
-    .stage { position: relative; }
-    .menubar {
-      display: flex; align-items: center; gap: 16px; justify-content: flex-end;
-      padding: 7px 16px; border-radius: 12px 12px 0 0;
-      background: color-mix(in srgb, var(--surface) 82%, black);
-      border: 1px solid var(--line); border-bottom: 0;
-      font-size: 13px; color: var(--muted); box-shadow: var(--shadow-sm);
+    .hero-content {
+      padding: 132px 0 82px;
+      max-width: 680px;
     }
-    .menubar .mb-icons { display: flex; gap: 15px; align-items: center; opacity: .7; letter-spacing: 2px; }
-    .menubar .mb-active {
-      display: inline-grid; place-items: center; width: 26px; height: 22px; margin-right: -4px;
-      border-radius: 6px; background: color-mix(in srgb, var(--mint) 24%, transparent);
+    .kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font: 700 12px/1 var(--mono);
+      text-transform: uppercase;
+      letter-spacing: 0;
+      color: rgba(255, 255, 255, 0.72);
     }
-    .menubar .mb-active img { width: 16px; height: 16px; border-radius: 4px; }
-    .menubar .clock { font-variant-numeric: tabular-nums; color: var(--text); font-weight: 500; }
-
-    .popover {
-      position: relative; margin-top: 12px; width: 100%;
-      background: color-mix(in srgb, var(--surface) 94%, transparent);
-      border: 1px solid var(--line-2); border-radius: var(--radius-lg);
-      box-shadow: var(--shadow); overflow: hidden;
-      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    .kicker::before {
+      content: "";
+      width: 26px;
+      height: 2px;
+      background: var(--accent);
+      border-radius: 999px;
     }
-    .popover::before {
-      content: ""; position: absolute; top: -8px; right: 42px; width: 16px; height: 16px;
-      background: color-mix(in srgb, var(--surface) 94%, transparent);
-      border-left: 1px solid var(--line-2); border-top: 1px solid var(--line-2);
-      transform: rotate(45deg); border-radius: 3px 0 0 0;
+    .hero h1 {
+      margin-top: 18px;
+      font-size: clamp(52px, 9vw, 112px);
+      font-weight: 820;
+      letter-spacing: 0;
     }
-    .pop-head {
-      display: flex; align-items: center; gap: 10px; padding: 12px 14px;
-      border-bottom: 1px solid var(--line); font-size: 13px; font-weight: 600;
+    .hero-copy {
+      margin-top: 22px;
+      max-width: 590px;
+      font-size: clamp(17px, 2vw, 21px);
+      color: rgba(255, 255, 255, 0.78);
     }
-    .pop-head .grp { color: var(--text); }
-    .pop-head .pg { margin-left: auto; color: var(--faint); font: 500 11px var(--mono); }
-    .pop-head .hicons { color: var(--faint); letter-spacing: 4px; }
-    .pop-body { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
-
-    .wcard {
-      background: color-mix(in srgb, var(--surface-2) 88%, transparent);
-      border: 1px solid var(--line); border-radius: var(--radius-sm);
-      padding: 11px 12px; transition: transform .25s, border-color .25s;
+    .hero-actions {
+      margin-top: 32px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
     }
-    .wcard:hover { transform: translateY(-2px); border-color: var(--line-2); }
-    .wc-head { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); font-weight: 600; margin-bottom: 9px; }
-    .wc-head .ic { font-size: 13px; }
-    .wc-head .rt { margin-left: auto; font: 500 10px var(--mono); color: var(--faint); }
-
-    .meter-row { display: grid; grid-template-columns: 62px 1fr 38px; align-items: center; gap: 9px; padding: 3px 0; }
-    .meter-row .lbl { font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .meter { height: 6px; border-radius: 4px; background: color-mix(in srgb, var(--surface-3) 80%, transparent); overflow: hidden; }
-    .meter > span { display: block; height: 100%; border-radius: 4px; }
-    .meter-row .pct { font: 600 11px var(--mono); text-align: right; font-variant-numeric: tabular-nums; }
-    .fill-good { background: var(--good); } .fill-warn { background: var(--warn); } .fill-bad { background: var(--bad); }
-    .t-good { color: var(--good); } .t-warn { color: var(--warn); } .t-bad { color: var(--bad); }
-
-    .otp-row { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
-    .otp-row .who { font-size: 12px; line-height: 1.2; }
-    .otp-row .who small { display: block; color: var(--faint); font-size: 10px; }
-    .otp-row .code { margin-left: auto; font: 600 15px var(--mono); letter-spacing: 1px; color: var(--text); font-variant-numeric: tabular-nums; }
-    .ring {
-      width: 22px; height: 22px; border-radius: 50%; flex: none;
-      background: conic-gradient(var(--mint) var(--p, 60%), color-mix(in srgb, var(--surface-3) 70%, transparent) 0);
-      display: grid; place-items: center;
+    .capture-note {
+      margin-top: 28px;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: rgba(255, 255, 255, 0.68);
+      font: 650 12px/1.35 var(--mono);
     }
-    .ring::after { content: ""; width: 15px; height: 15px; border-radius: 50%; background: var(--surface-2); }
-
-    .file-row { display: flex; align-items: center; gap: 9px; padding: 4px 0; font-size: 12px; }
-    .file-row .fi { width: 22px; height: 22px; border-radius: 6px; background: var(--surface-3); display: grid; place-items: center; font-size: 12px; flex: none; }
-    .file-row .fn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .file-row .ft { margin-left: auto; color: var(--faint); font: 500 10px var(--mono); flex: none; }
-
-    .pop-foot { display: flex; align-items: center; justify-content: center; gap: 7px; padding: 9px; border-top: 1px solid var(--line); }
-    .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--faint); opacity: .5; }
-    .dot.on { background: var(--mint); opacity: 1; width: 7px; height: 7px; }
-
-    @keyframes floaty { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
-    .stage { animation: floaty 7s ease-in-out infinite; }
-    @media (prefers-reduced-motion: reduce) { .stage { animation: none; } }
-
-    /* real app screenshots (rendered by the app's own SwiftUI) */
-    .shot { width: 100%; height: auto; border-radius: 18px; box-shadow: var(--shadow); display: block; }
-    .shot-light { display: none; }
-    :root[data-theme="light"] .shot-dark { display: none; }
-    :root[data-theme="light"] .shot-light { display: block; }
-    @media (prefers-color-scheme: light) {
-      :root:not([data-theme="dark"]) .shot-dark { display: none; }
-      :root:not([data-theme="dark"]) .shot-light { display: block; }
+    .capture-note .pulse {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: #74d99f;
+      box-shadow: 0 0 0 4px rgba(116, 217, 159, 0.18);
+      flex: none;
     }
 
-    /* ============ Sections ============ */
-    section { padding: 62px 0; }
-    .sec-head { max-width: 40em; margin-bottom: 40px; }
-    .sec-head h2 { font-size: clamp(27px, 3.6vw, 40px); font-weight: 800; margin-top: 14px; }
-    .sec-head p { color: var(--muted); margin-top: 14px; font-size: 17px; }
+    section { padding: 76px 0; }
+    .section-head {
+      max-width: 720px;
+      margin-bottom: 34px;
+    }
+    .label {
+      color: var(--accent);
+      font: 760 12px/1 var(--mono);
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+    .section-head h2 {
+      margin-top: 12px;
+      font-size: clamp(32px, 4.5vw, 54px);
+      font-weight: 800;
+    }
+    .section-head p {
+      margin-top: 14px;
+      max-width: 680px;
+      color: var(--muted);
+      font-size: 18px;
+    }
 
-    .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
-    .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; transition: transform .25s, border-color .25s; }
-    .card:hover { transform: translateY(-3px); border-color: var(--line-2); }
-    .card .ci { font-size: 22px; margin-bottom: 12px; display: inline-grid; place-items: center; width: 42px; height: 42px; border-radius: 11px; background: color-mix(in srgb, var(--mint) 15%, transparent); }
-    .card h3 { font-size: 16px; font-weight: 700; }
-    .card p { color: var(--muted); font-size: 14px; margin-top: 8px; }
-    .card code { font: 500 12px var(--mono); color: var(--cream); background: var(--surface-3); padding: 1px 5px; border-radius: 5px; }
+    .proof {
+      background: var(--ink);
+      color: #fff;
+      padding: 28px 0;
+    }
+    .proof-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1px;
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+    .proof-item {
+      min-height: 104px;
+      padding: 18px;
+      background: var(--ink);
+    }
+    .proof-item strong {
+      display: block;
+      font-size: 24px;
+      line-height: 1;
+      font-weight: 820;
+    }
+    .proof-item span {
+      display: block;
+      margin-top: 10px;
+      color: rgba(255, 255, 255, 0.62);
+      font-size: 14px;
+    }
 
-    .layers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-    .layer { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; position: relative; overflow: hidden; }
-    .layer::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--mint); opacity: .55; }
-    .layer .tag { font: 700 12px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--mint); }
-    .layer h3 { font-size: 18px; margin-top: 12px; font-weight: 700; }
-    .layer p { color: var(--muted); font-size: 14px; margin-top: 8px; }
-    .layer code { font: 500 12px var(--mono); color: var(--cream); background: var(--surface-3); padding: 2px 6px; border-radius: 5px; }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .feature {
+      min-height: 230px;
+      padding: 24px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: 8px;
+    }
+    .feature mark {
+      display: inline-grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      background: var(--ink);
+      color: #fff;
+      font: 760 13px/1 var(--mono);
+    }
+    .feature h3 {
+      margin-top: 22px;
+      font-size: 22px;
+      font-weight: 780;
+    }
+    .feature p {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 15px;
+    }
+    .feature:nth-child(2) mark { background: var(--blue); }
+    .feature:nth-child(3) mark { background: var(--green); }
 
-    .split { display: grid; grid-template-columns: 1fr 1.05fr; gap: 48px; align-items: center; }
-    .feature-list { list-style: none; padding: 0; margin: 22px 0 0; display: flex; flex-direction: column; gap: 14px; }
-    .feature-list li { display: flex; gap: 12px; color: var(--muted); font-size: 15px; }
-    .feature-list .fk { color: var(--mint); flex: none; font-weight: 700; font-family: var(--mono); }
-    .feature-list b { color: var(--text); font-weight: 600; }
+    .band {
+      background: var(--paper-2);
+      border-block: 1px solid var(--line);
+    }
+    .split {
+      display: grid;
+      grid-template-columns: 0.9fr 1.1fr;
+      gap: 46px;
+      align-items: center;
+    }
+    .steps {
+      margin-top: 26px;
+      display: grid;
+      gap: 10px;
+    }
+    .step {
+      display: grid;
+      grid-template-columns: 34px 1fr;
+      gap: 14px;
+      align-items: start;
+      padding: 14px 0;
+      border-top: 1px solid var(--line);
+    }
+    .step:last-child { border-bottom: 1px solid var(--line); }
+    .step b {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      background: var(--ink);
+      color: #fff;
+      font: 760 13px/1 var(--mono);
+    }
+    .step h3 {
+      font-size: 18px;
+      font-weight: 760;
+    }
+    .step p {
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 15px;
+    }
+    .builder-shot {
+      border: 1px solid var(--line-strong);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #101214;
+      box-shadow: 0 24px 60px rgba(17, 19, 21, 0.22);
+    }
+    .builder-shot img { width: 100%; }
 
-    .builder { background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--radius-lg); box-shadow: var(--shadow); overflow: hidden; }
-    .builder-bar { display: flex; align-items: center; gap: 7px; padding: 11px 14px; border-bottom: 1px solid var(--line); }
-    .tl { width: 11px; height: 11px; border-radius: 50%; background: var(--surface-3); }
-    .tl.r { background: #f2795f; } .tl.y { background: #f4c65a; } .tl.g { background: #58d79b; }
-    .builder-bar .bt { margin-left: 8px; font-size: 12px; color: var(--muted); font-weight: 600; }
-    .steps { display: flex; align-items: center; gap: 8px; padding: 14px 16px 0; }
-    .step { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--faint); }
-    .step .num { width: 19px; height: 19px; border-radius: 50%; display: grid; place-items: center; font: 700 11px var(--mono); background: var(--surface-3); color: var(--faint); }
-    .step.done .num { background: var(--mint); color: #06231b; }
-    .step.now { color: var(--text); } .step.now .num { background: color-mix(in srgb, var(--mint) 30%, transparent); color: var(--mint); }
-    .step .sep { width: 16px; height: 1px; background: var(--line); }
-    .builder-body { display: grid; grid-template-columns: 1fr 1fr; }
-    .builder-left { padding: 16px; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
-    .opt { display: flex; align-items: center; gap: 9px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 9px; font-size: 12px; color: var(--muted); }
-    .opt.sel { border-color: var(--mint); background: color-mix(in srgb, var(--mint) 10%, transparent); color: var(--text); }
-    .opt .oi { font-size: 13px; } .opt .ok { margin-left: auto; color: var(--mint); }
-    .builder-preview { padding: 16px; background: color-mix(in srgb, var(--bg) 55%, var(--surface)); display: flex; flex-direction: column; }
-    .bp-label { font: 600 10px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin-bottom: 10px; }
+    .model {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      border: 1px solid var(--line);
+      background: var(--line);
+      gap: 1px;
+    }
+    .model-item {
+      background: var(--paper);
+      min-height: 260px;
+      padding: 24px;
+    }
+    .model-item small {
+      font: 760 12px/1 var(--mono);
+      color: var(--accent);
+      text-transform: uppercase;
+    }
+    .model-item h3 {
+      margin-top: 18px;
+      font-size: 25px;
+      font-weight: 800;
+    }
+    .model-item p {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 15px;
+    }
+    code {
+      font-family: var(--mono);
+      font-size: 0.92em;
+      background: rgba(17, 19, 21, 0.08);
+      padding: 2px 5px;
+      border-radius: 5px;
+    }
 
-    .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; }
-    .gcard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; transition: transform .25s, border-color .25s; }
-    .gcard:hover { transform: translateY(-3px); border-color: var(--line-2); }
-    .gcard .gi { font-size: 20px; width: 40px; height: 40px; border-radius: 11px; background: var(--surface-3); display: grid; place-items: center; margin-bottom: 12px; }
-    .gcard h3 { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
-    .gcard .pill { font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .06em; padding: 2px 7px; border-radius: 20px; background: color-mix(in srgb, var(--mint) 16%, transparent); color: var(--mint); }
-    .gcard p { color: var(--muted); font-size: 13px; margin-top: 8px; }
-    .gcard code { font: 500 11px var(--mono); color: var(--cream); background: var(--surface-3); padding: 1px 5px; border-radius: 5px; }
+    .install {
+      background: #0f1113;
+      color: #fff;
+    }
+    .install .section-head p { color: rgba(255, 255, 255, 0.62); }
+    .terminal-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .terminal {
+      min-height: 230px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      background: #171a1d;
+      overflow: hidden;
+    }
+    .terminal h3 {
+      padding: 16px 18px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+      font-size: 16px;
+      font-weight: 740;
+    }
+    .terminal pre {
+      margin: 0;
+      padding: 18px;
+      overflow-x: auto;
+      color: #d7ddd8;
+      font: 520 13px/1.8 var(--mono);
+    }
+    .terminal p {
+      padding: 0 18px 18px;
+      color: rgba(255, 255, 255, 0.58);
+      font-size: 14px;
+    }
 
-    .install-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-    .term { background: #06171b; border: 1px solid var(--line-2); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-sm); }
-    :root[data-theme="light"] .term { background: #0b2a2a; }
-    @media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .term { background: #0b2a2a; } }
-    .term-bar { display: flex; align-items: center; gap: 7px; padding: 10px 13px; border-bottom: 1px solid rgba(150,224,205,.1); }
-    .term-bar .tt { margin-left: 6px; font: 600 11px var(--mono); color: #7fa39c; }
-    .term pre { margin: 0; padding: 15px 16px; font: 500 13px/1.75 var(--mono); color: #cfe9e0; overflow-x: auto; }
-    .term .c { color: #5f8a82; } .term .g { color: var(--mint); } .term .p { color: #f4c65a; }
-    .install-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-    .install-head .n { width: 30px; height: 30px; border-radius: 9px; background: color-mix(in srgb, var(--mint) 15%, transparent); display: grid; place-items: center; color: var(--mint); font-weight: 700; font-family: var(--mono); font-size: 13px; }
-    .install-head h3 { font-size: 16px; font-weight: 700; }
-    .install-col p { color: var(--muted); font-size: 13px; margin: 10px 2px 0; }
+    .final {
+      text-align: center;
+      padding: 88px 0;
+    }
+    .final h2 {
+      font-size: clamp(34px, 5vw, 62px);
+      font-weight: 820;
+    }
+    .final p {
+      margin: 16px auto 0;
+      max-width: 580px;
+      color: var(--muted);
+      font-size: 18px;
+    }
+    .final .hero-actions { justify-content: center; }
 
-    .callout { text-align: center; background: linear-gradient(160deg, var(--surface-2), var(--surface)); border: 1px solid var(--line-2); border-radius: var(--radius-lg); padding: 52px 24px; }
-    .callout h2 { font-size: clamp(26px, 4vw, 40px); font-weight: 800; }
-    .callout p { color: var(--muted); margin: 14px auto 0; max-width: 34em; font-size: 17px; }
-    .callout .hero-cta { justify-content: center; }
+    footer {
+      padding: 34px 0;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .foot {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      flex-wrap: wrap;
+    }
+    .foot .brand { color: var(--ink); }
+    .foot .spacer { margin-left: auto; }
 
-    footer { border-top: 1px solid var(--line); padding: 40px 0; margin-top: 30px; }
-    .foot { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; color: var(--muted); font-size: 14px; }
-    .foot a { color: var(--muted); } .foot a:hover { color: var(--text); }
-    .foot .brand { color: var(--text); }
-    .foot .sp { margin-left: auto; }
-
-    .shot-note { font: 500 11px var(--mono); color: var(--faint); text-align: center; margin-top: 14px; letter-spacing: .04em; }
-
-    .reveal { opacity: 0; transform: translateY(18px); transition: opacity .6s ease, transform .6s ease; }
+    .reveal {
+      opacity: 0;
+      transform: translateY(18px);
+      transition: opacity 520ms ease, transform 520ms ease;
+    }
     .reveal.in { opacity: 1; transform: none; }
-    @media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; transition: none; } }
-
-    /* ============ Responsive ============ */
-    @media (max-width: 940px) {
-      .hero-grid { grid-template-columns: 1fr; gap: 40px; }
-      .stage { max-width: 440px; margin: 0 auto; }
-      .cards { grid-template-columns: repeat(2, 1fr); }
-      .layers { grid-template-columns: 1fr; }
-      .split { grid-template-columns: 1fr; gap: 32px; }
-      .install-grid { grid-template-columns: 1fr; }
-      .nav-links { display: none; }
+    @media (prefers-reduced-motion: reduce) {
+      .reveal { opacity: 1; transform: none; transition: none; }
     }
-    @media (max-width: 560px) {
-      .cards { grid-template-columns: 1fr; }
-      .builder-body { grid-template-columns: 1fr; }
-      .builder-left { border-right: 0; border-bottom: 1px solid var(--line); }
-      .hero { padding-top: 48px; }
+
+    @media (max-width: 920px) {
+      .links { display: none; }
+      .hero { min-height: min(82svh, 840px); background-position: 62% top; }
+      .proof-row, .grid-3, .model, .terminal-grid { grid-template-columns: 1fr 1fr; }
+      .split { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      .wrap { width: min(var(--max), calc(100% - 28px)); }
+      .nav-inner { height: 58px; gap: 12px; }
+      .brand img { width: 25px; height: 25px; }
+      .nav-link { display: none; }
+      .nav-actions > .btn { display: none; }
+      .btn { min-height: 42px; padding: 0 14px; font-size: 14px; }
+      .hero { min-height: min(86svh, 820px); background-position: 68% top; }
+      .hero-content { padding: 112px 0 54px; }
+      .hero h1 { font-size: clamp(48px, 18vw, 76px); }
+      .proof-row, .grid-3, .model, .terminal-grid { grid-template-columns: 1fr; }
+      section { padding: 58px 0; }
+      .section-head h2 { font-size: clamp(30px, 10vw, 42px); }
     }
   </style>
 </head>
 <body>
   <header class="nav" id="nav">
     <div class="wrap nav-inner">
-      <a class="brand" href="#top"><img src="icon-512.png" alt="BarShelf icon" /> BarShelf</a>
-      <nav class="nav-links" aria-label="Sections">
-        <a href="#features"><span class="lang-en">Features</span><span class="lang-ko">기능</span></a>
-        <a href="#layers"><span class="lang-en">How it works</span><span class="lang-ko">작동 방식</span></a>
-        <a href="#build"><span class="lang-en">Build</span><span class="lang-ko">위젯 제작</span></a>
-        <a href="#install"><span class="lang-en">Install</span><span class="lang-ko">설치</span></a>
+      <a class="brand" href="#top" aria-label="BarShelf home">
+        <img src="icon-512.png" alt="" />
+        <span>BarShelf</span>
+      </a>
+      <nav class="links" aria-label="Sections">
+        <a href="#features"><span class="en">Features</span><span class="ko">기능</span></a>
+        <a href="#model"><span class="en">Model</span><span class="ko">구조</span></a>
+        <a href="#builder"><span class="en">Builder</span><span class="ko">빌더</span></a>
+        <a href="#install"><span class="en">Install</span><span class="ko">설치</span></a>
       </nav>
-      <div class="nav-right">
-        <div class="seg" role="group" aria-label="Language">
+      <div class="nav-actions">
+        <div class="lang-toggle" role="group" aria-label="Language">
           <button type="button" data-lang-btn="en" aria-pressed="true">EN</button>
-          <button type="button" data-lang-btn="ko" aria-pressed="false">한국어</button>
+          <button type="button" data-lang-btn="ko" aria-pressed="false">KR</button>
         </div>
-        <button class="icon-btn" id="theme" type="button" aria-label="Toggle theme" title="Toggle theme">◐</button>
-        <a class="icon-btn" href="https://github.com/Open330/barshelf" rel="noopener" aria-label="GitHub repository" title="GitHub">↗</a>
-        <a class="btn btn-primary btn-sm" href="https://github.com/Open330/barshelf/releases/latest" rel="noopener">
-          <span class="lang-en">Download</span><span class="lang-ko">다운로드</span>
+        <a class="nav-link" href="https://github.com/Open330/barshelf" rel="noopener" aria-label="GitHub">↗</a>
+        <a class="btn primary" href="https://github.com/Open330/barshelf/releases/latest" rel="noopener">
+          <span class="en">Download</span><span class="ko">다운로드</span>
         </a>
       </div>
     </div>
   </header>
 
   <main id="top">
-    <section class="hero">
-      <div class="wrap hero-grid">
-        <div>
-          <span class="eyebrow">macOS 13+ · Apple Silicon</span>
-          <h1 class="lang-en">Your menu bar,<br /><span class="grad">finally organized.</span></h1>
-          <h1 class="lang-ko">메뉴바,<br /><span class="grad">이제 하나면 됩니다.</span></h1>
-          <p class="sub lang-en">One menu bar icon. Every glanceable tool you care about — OTP codes, LLM usage, recent files — as native widgets in a single popover. Any CLI you already have becomes a widget in minutes.</p>
-          <p class="sub lang-ko">메뉴바 아이콘 하나. 자주 확인하는 것들 — OTP 코드, LLM 사용량, 최근 파일 — 을 하나의 팝오버에 네이티브 위젯으로 모읍니다. 이미 쓰던 CLI가 몇 분 만에 위젯이 됩니다.</p>
-          <div class="hero-cta">
-            <a class="btn btn-primary" href="https://github.com/Open330/barshelf/releases/latest" rel="noopener">
-              <span aria-hidden="true">↓</span><span class="lang-en">Download for macOS</span><span class="lang-ko">macOS용 다운로드</span>
-            </a>
-            <a class="btn btn-ghost" href="#build">
-              <span class="lang-en">Build a widget</span><span class="lang-ko">위젯 만들어보기</span>
-            </a>
+    <section class="hero" aria-label="BarShelf">
+      <div class="wrap">
+        <div class="hero-content">
+          <div class="kicker">
+            <span class="en">Actual macOS capture</span>
+            <span class="ko">실제 macOS 캡처</span>
           </div>
-          <div class="hero-note">
-            <span><b>✓</b> <span class="lang-en">Notarized — opens by double-click</span><span class="lang-ko">공증 완료 — 더블클릭 실행</span></span>
-            <span><b>✓</b> <span class="lang-en">Zero dependencies</span><span class="lang-ko">의존성 0</span></span>
-            <span><b>✓</b> <span class="lang-en">MIT open source</span><span class="lang-ko">MIT 오픈소스</span></span>
+          <h1>BarShelf</h1>
+          <p class="hero-copy en">One native popover for the menu bar tools you check all day. Turn commands, workflows, and TypeScript scripts into glanceable macOS widgets.</p>
+          <p class="hero-copy ko">하루 종일 확인하는 메뉴바 도구들을 하나의 네이티브 팝오버로 모읍니다. 명령어, 워크플로, TypeScript 스크립트를 macOS 위젯으로 바꾸세요.</p>
+          <div class="hero-actions">
+            <a class="btn primary" href="https://github.com/Open330/barshelf/releases/latest" rel="noopener">
+              <span class="en">Download for macOS</span><span class="ko">macOS용 다운로드</span>
+            </a>
+            <a class="btn line" href="https://github.com/Open330/barshelf" rel="noopener">GitHub</a>
           </div>
+          <p class="capture-note"><span class="pulse"></span><span class="en">Captured from the running BarShelf app, not a mockup.</span><span class="ko">목업이 아니라 실행 중인 BarShelf 앱에서 캡처했습니다.</span></p>
         </div>
+      </div>
+    </section>
 
-        <div class="stage">
-          <img class="shot shot-dark" src="shots/popover-dark.png" width="800" height="1264" alt="BarShelf popover showing aas usage meters, OTPeek codes with countdown rings, and recent files" />
-          <img class="shot shot-light" src="shots/popover-light.png" width="800" height="1264" alt="BarShelf popover in light mode" />
-        </div>
+    <section class="proof" aria-label="Product facts">
+      <div class="wrap proof-row">
+        <div class="proof-item"><strong>1</strong><span class="en">menu bar icon</span><span class="ko">메뉴바 아이콘 하나</span></div>
+        <div class="proof-item"><strong>0</strong><span class="en">runtime dependencies</span><span class="ko">런타임 의존성</span></div>
+        <div class="proof-item"><strong>3</strong><span class="en">widget authoring paths</span><span class="ko">위젯 제작 방식</span></div>
+        <div class="proof-item"><strong>MIT</strong><span class="en">open source</span><span class="ko">오픈소스</span></div>
       </div>
     </section>
 
     <section id="features">
       <div class="wrap">
-        <div class="sec-head reveal">
-          <span class="eyebrow"><span class="lang-en">Why BarShelf</span><span class="lang-ko">왜 BarShelf인가</span></span>
-          <h2 class="lang-en">Scattered tools, one calm popover.</h2>
-          <h2 class="lang-ko">흩어진 도구들을, 하나의 팝오버로.</h2>
-          <p class="lang-en">Your most-checked tools live in a dozen menu bar icons, terminal windows, and browser tabs. BarShelf collects them into one icon.</p>
-          <p class="lang-ko">자주 확인하는 도구들이 수십 개의 메뉴바 아이콘, 터미널 창, 브라우저 탭에 흩어져 있습니다. BarShelf는 그것을 아이콘 하나로 모읍니다.</p>
+        <div class="section-head reveal">
+          <div class="label"><span class="en">What It Fixes</span><span class="ko">해결하는 문제</span></div>
+          <h2 class="en">Your menu bar should not be a junk drawer.</h2>
+          <h2 class="ko">메뉴바가 잡동사니 서랍이 될 필요는 없습니다.</h2>
+          <p class="en">BarShelf keeps glanceable tools close without spreading them across a row of tiny icons, browser tabs, and terminal windows.</p>
+          <p class="ko">BarShelf는 자주 보는 정보를 작은 아이콘, 브라우저 탭, 터미널 창에 흩뿌리지 않고 가까운 곳에 정리합니다.</p>
         </div>
-        <div class="cards reveal">
-          <div class="card">
-            <div class="ci" aria-hidden="true">🪟</div>
-            <h3 class="lang-en">One icon, many widgets</h3><h3 class="lang-ko">아이콘 하나, 위젯 여럿</h3>
-            <p class="lang-en">Bucket pages, trackpad swipe, a pinned row, and ⌘F search — no more menu bar clutter.</p>
-            <p class="lang-ko">버킷 페이지, 트랙패드 스와이프, 고정 행, ⌘F 검색 — 메뉴바 난립은 끝.</p>
-          </div>
-          <div class="card">
-            <div class="ci" aria-hidden="true">⚡</div>
-            <h3 class="lang-en">CLI is the API</h3><h3 class="lang-ko">CLI가 곧 API</h3>
-            <p class="lang-en">Pipe <code>aas usage --json</code>, <code>otpeek</code>, <code>gh</code> straight in. No new SDK.</p>
-            <p class="lang-ko"><code>aas usage --json</code>, <code>otpeek</code>, <code>gh</code>를 그대로 연결. 새 SDK 학습 없음.</p>
-          </div>
-          <div class="card">
-            <div class="ci" aria-hidden="true">🎨</div>
-            <h3 class="lang-en">Native, not web</h3><h3 class="lang-ko">웹뷰가 아닌 네이티브</h3>
-            <p class="lang-en">SwiftUI rendering, dark mode, SF Symbols, vibrancy. No Electron, zero dependencies.</p>
-            <p class="lang-ko">SwiftUI 렌더링, 다크모드, SF Symbols, 비브런시. Electron 없음, 의존성 0.</p>
-          </div>
-          <div class="card">
-            <div class="ci" aria-hidden="true">🔒</div>
-            <h3 class="lang-en">Permission-gated</h3><h3 class="lang-ko">권한 게이트</h3>
-            <p class="lang-en">Every widget is approved on first run, then enforced with an audit log.</p>
-            <p class="lang-ko">모든 위젯은 첫 실행 시 승인을 거치고, 감사 로그로 강제됩니다.</p>
-          </div>
+        <div class="grid-3 reveal">
+          <article class="feature">
+            <mark>01</mark>
+            <h3 class="en">One organized surface</h3>
+            <h3 class="ko">정리된 하나의 표면</h3>
+            <p class="en">Pages, pinned widgets, refresh controls, and search live in one popover. The menu bar stays quiet.</p>
+            <p class="ko">페이지, 고정 위젯, 새로고침, 검색이 하나의 팝오버에 있습니다. 메뉴바는 조용하게 유지됩니다.</p>
+          </article>
+          <article class="feature">
+            <mark>02</mark>
+            <h3 class="en">CLI-first by design</h3>
+            <h3 class="ko">CLI 중심 설계</h3>
+            <p class="en">If a command can emit JSON, BarShelf can render it as native UI with scheduling and permission gates.</p>
+            <p class="ko">명령어가 JSON을 출력할 수 있다면, BarShelf는 스케줄링과 권한 게이트가 있는 네이티브 UI로 렌더링합니다.</p>
+          </article>
+          <article class="feature">
+            <mark>03</mark>
+            <h3 class="en">Native macOS feel</h3>
+            <h3 class="ko">네이티브 macOS 감각</h3>
+            <p class="en">SwiftUI, SF Symbols, dark mode, app settings, and a real status item. No browser shell.</p>
+            <p class="ko">SwiftUI, SF Symbols, 다크모드, 설정 화면, 실제 status item. 브라우저 껍데기가 아닙니다.</p>
+          </article>
         </div>
       </div>
     </section>
 
-    <section id="layers">
-      <div class="wrap">
-        <div class="sec-head reveal">
-          <span class="eyebrow"><span class="lang-en">How it works</span><span class="lang-ko">작동 방식</span></span>
-          <h2 class="lang-en">Three ways to build. One widget model.</h2>
-          <h2 class="lang-ko">세 가지 제작 방식, 하나의 위젯 모델.</h2>
-          <p class="lang-en">Every widget shares the same scheduler, permission frame, and native renderer — it only differs in where its data comes from.</p>
-          <p class="lang-ko">모든 위젯은 같은 스케줄러·권한 프레임·네이티브 렌더러를 공유합니다. 다른 건 데이터가 어디서 오느냐뿐입니다.</p>
-        </div>
-        <div class="layers reveal">
-          <div class="layer">
-            <span class="tag">exec</span>
-            <h3 class="lang-en">Run a command</h3><h3 class="lang-ko">명령 실행</h3>
-            <p class="lang-en">A manifest declares a CLI; its JSON output renders as a native view tree — directly, or through a builtin adapter.</p>
-            <p class="lang-ko">manifest가 CLI를 선언하면, 그 JSON 출력이 네이티브 뷰 트리로 렌더링됩니다 — 직접 또는 내장 어댑터로.</p>
-          </div>
-          <div class="layer">
-            <span class="tag">workflow</span>
-            <h3 class="lang-en">Declarative, no code</h3><h3 class="lang-ko">선언형, 코드 없이</h3>
-            <p class="lang-en">A JSON DSL: <code>sources → transforms → view</code> with interpolation, <code>forEach</code>, folder watching and QuickLook thumbnails.</p>
-            <p class="lang-ko">JSON DSL: <code>sources → transforms → view</code>, 보간·<code>forEach</code>·폴더 감시·QuickLook 썸네일 지원.</p>
-          </div>
-          <div class="layer">
-            <span class="tag">script</span>
-            <h3 class="lang-en">Full TypeScript</h3><h3 class="lang-ko">완전한 TypeScript</h3>
-            <p class="lang-en">A resident Deno process over JSON-RPC with host-mediated <code>exec / storage / secret / timer</code> — isolated from the app.</p>
-            <p class="lang-ko">JSON-RPC로 통신하는 상주 Deno 프로세스. <code>exec / storage / secret / timer</code>를 호스트가 중개 — 앱과 격리.</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section id="build">
+    <section class="band" id="builder">
       <div class="wrap split">
         <div class="reveal">
-          <span class="eyebrow"><span class="lang-en">Widget builder</span><span class="lang-ko">위젯 빌더</span></span>
-          <h2 class="lang-en" style="font-size:clamp(26px,3.4vw,38px);font-weight:800;margin-top:14px;">Build a widget in three steps — no JSON.</h2>
-          <h2 class="lang-ko" style="font-size:clamp(26px,3.4vw,38px);font-weight:800;margin-top:14px;">세 단계로 위젯 제작 — JSON 없이.</h2>
-          <ul class="feature-list">
-            <li><span class="fk">1</span><span><b class="lang-en">Source</b><b class="lang-ko">소스</b> — <span class="lang-en">run a command, watch a folder, or static text. A test run auto-detects JSON.</span><span class="lang-ko">명령 실행, 폴더 감시, 또는 고정 텍스트. 시험 실행으로 JSON 자동 감지.</span></span></li>
-            <li><span class="fk">2</span><span><b class="lang-en">Display</b><b class="lang-ko">표시</b> — <span class="lang-en">list, table, single value, or text — with a live preview rendered by the real engine.</span><span class="lang-ko">리스트·테이블·단일 값·텍스트 — 실제 엔진이 렌더링하는 라이브 프리뷰와 함께.</span></span></li>
-            <li><span class="fk">3</span><span><b class="lang-en">Details</b><b class="lang-ko">세부</b> — <span class="lang-en">name, SF Symbol icon, bucket, refresh interval. It hot-reloads instantly.</span><span class="lang-ko">이름, SF Symbol 아이콘, 버킷, 갱신 주기. 즉시 핫 리로드.</span></span></li>
-          </ul>
-        </div>
-
-        <div class="reveal">
-          <img class="shot" src="shots/builder.png" width="1360" height="614" alt="BarShelf widget builder — a 3-step wizard (Source, Display, Details) with a live preview of a k8s pods list" />
-        </div>
-      </div>
-      <p class="wrap shot-note lang-en">Real renders from the app's own SwiftUI — not mockups.</p>
-      <p class="wrap shot-note lang-ko">앱의 실제 SwiftUI 렌더입니다 — 목업이 아닙니다.</p>
-    </section>
-
-    <section id="widgets">
-      <div class="wrap">
-        <div class="sec-head reveal">
-          <span class="eyebrow"><span class="lang-en">Bundled widgets</span><span class="lang-ko">기본 제공 위젯</span></span>
-          <h2 class="lang-en">Ready on first launch.</h2>
-          <h2 class="lang-ko">설치 즉시 사용 가능.</h2>
-        </div>
-        <div class="gallery reveal">
-          <div class="gcard"><div class="gi" aria-hidden="true">👋</div><h3>hello <span class="pill">exec</span></h3><p class="lang-en">The smallest widget — a shell script that emits a view tree.</p><p class="lang-ko">가장 작은 위젯 — 뷰 트리를 출력하는 셸 스크립트.</p></div>
-          <div class="gcard"><div class="gi" aria-hidden="true">🤖</div><h3>aas Usage <span class="pill">exec</span></h3><p class="lang-en">LLM account usage meters from <code>aas usage --json</code>.</p><p class="lang-ko"><code>aas usage --json</code>의 LLM 계정 사용량 미터.</p></div>
-          <div class="gcard"><div class="gi" aria-hidden="true">🔑</div><h3>OTPeek <span class="pill">exec</span></h3><p class="lang-en">TOTP codes with a countdown ring; Keychain-injected vault.</p><p class="lang-ko">카운트다운 링이 있는 TOTP 코드; Keychain 볼트 주입.</p></div>
-          <div class="gcard"><div class="gi" aria-hidden="true">📁</div><h3>Recent Files <span class="pill">workflow</span></h3><p class="lang-en">Recent files with QuickLook thumbnails and drag-out.</p><p class="lang-ko">QuickLook 썸네일과 드래그아웃 지원 최근 파일.</p></div>
-          <div class="gcard"><div class="gi" aria-hidden="true">🕐</div><h3>Script Clock <span class="pill">script</span></h3><p class="lang-en">A live clock + click counter via the TypeScript SDK.</p><p class="lang-ko">TypeScript SDK로 만든 라이브 시계 + 클릭 카운터.</p></div>
-        </div>
-      </div>
-    </section>
-
-    <section id="install">
-      <div class="wrap">
-        <div class="sec-head reveal">
-          <span class="eyebrow"><span class="lang-en">Install</span><span class="lang-ko">설치</span></span>
-          <h2 class="lang-en">Three ways in.</h2>
-          <h2 class="lang-ko">세 가지 설치 방법.</h2>
-        </div>
-        <div class="install-grid reveal">
-          <div class="install-col">
-            <div class="install-head"><span class="n">1</span><h3 class="lang-en">Download</h3><h3 class="lang-ko">다운로드</h3></div>
-            <div class="term"><div class="term-bar"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="tt">Releases</span></div>
-              <pre><span class="c"># Notarized — no Gatekeeper dance</span>
-<span class="g">BarShelf-*.zip</span> → <span class="p">/Applications</span>
-<span class="c"># then double-click ✓</span></pre></div>
-            <p class="lang-en">Grab the zip from GitHub Releases and drop it in Applications.</p>
-            <p class="lang-ko">GitHub Releases에서 zip을 받아 Applications에 넣으세요.</p>
+          <div class="label"><span class="en">Widget Builder</span><span class="ko">위젯 빌더</span></div>
+          <div class="section-head">
+            <h2 class="en">Build a widget without hand-writing JSON.</h2>
+            <h2 class="ko">JSON을 직접 쓰지 않고 위젯을 만드세요.</h2>
+            <p class="en">Choose a source, pick a display shape, then save. The live preview is rendered by the same engine used in the popover.</p>
+            <p class="ko">소스를 고르고, 표시 방식을 선택한 뒤 저장하세요. 라이브 프리뷰는 팝오버와 같은 엔진으로 렌더링됩니다.</p>
           </div>
-          <div class="install-col">
-            <div class="install-head"><span class="n">2</span><h3>Homebrew</h3></div>
-            <div class="term"><div class="term-bar"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="tt">Terminal</span></div>
-              <pre><span class="g">brew</span> tap Open330/barshelf \
+          <div class="steps">
+            <div class="step"><b>1</b><div><h3 class="en">Source</h3><h3 class="ko">소스</h3><p class="en">Run a command, call HTTP, watch files, or start from static data.</p><p class="ko">명령 실행, HTTP 호출, 파일 감시, 정적 데이터에서 시작할 수 있습니다.</p></div></div>
+            <div class="step"><b>2</b><div><h3 class="en">Display</h3><h3 class="ko">표시</h3><p class="en">List, table, single value, or plain text with native controls.</p><p class="ko">리스트, 테이블, 단일 값, 텍스트를 네이티브 컨트롤로 표시합니다.</p></div></div>
+            <div class="step"><b>3</b><div><h3 class="en">Ship</h3><h3 class="ko">배포</h3><p class="en">Validate, hot-reload, package, and install from a repo URL.</p><p class="ko">검증, 핫 리로드, 패키징, repo URL 설치까지 이어집니다.</p></div></div>
+          </div>
+        </div>
+        <div class="builder-shot reveal">
+          <img src="shots/builder.png" width="1360" height="614" alt="BarShelf widget builder with source, display, and details steps" />
+        </div>
+      </div>
+    </section>
+
+    <section id="model">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <div class="label"><span class="en">Widget Model</span><span class="ko">위젯 모델</span></div>
+          <h2 class="en">Three authoring modes. One renderer.</h2>
+          <h2 class="ko">세 가지 제작 방식. 하나의 렌더러.</h2>
+          <p class="en">Each widget goes through the same scheduler, permission store, cache, and native renderer. Only the data source changes.</p>
+          <p class="ko">모든 위젯은 같은 스케줄러, 권한 저장소, 캐시, 네이티브 렌더러를 거칩니다. 달라지는 것은 데이터 소스뿐입니다.</p>
+        </div>
+        <div class="model reveal">
+          <article class="model-item">
+            <small>exec</small>
+            <h3 class="en">Run commands</h3><h3 class="ko">명령 실행</h3>
+            <p class="en">Wrap tools like <code>gh</code>, <code>aas</code>, or your own script. Declare exactly what can run.</p>
+            <p class="ko"><code>gh</code>, <code>aas</code>, 직접 만든 스크립트를 감쌉니다. 실행 가능한 것을 명확히 선언합니다.</p>
+          </article>
+          <article class="model-item">
+            <small>workflow</small>
+            <h3 class="en">Describe views</h3><h3 class="ko">뷰 선언</h3>
+            <p class="en">A JSON workflow can fetch, transform, interpolate, and render without custom code.</p>
+            <p class="ko">JSON workflow로 fetch, transform, interpolate, render를 코드 없이 처리합니다.</p>
+          </article>
+          <article class="model-item">
+            <small>script</small>
+            <h3 class="en">Keep state</h3><h3 class="ko">상태 유지</h3>
+            <p class="en">TypeScript widgets run out-of-process with host-mediated storage, secrets, timers, and exec.</p>
+            <p class="ko">TypeScript 위젯은 별도 프로세스에서 storage, secret, timer, exec를 호스트 중개로 사용합니다.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="install" id="install">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <div class="label"><span class="en">Install</span><span class="ko">설치</span></div>
+          <h2 class="en">Get the app, then add widgets.</h2>
+          <h2 class="ko">앱을 설치하고 위젯을 추가하세요.</h2>
+          <p class="en">BarShelf is open source, notarized for direct download, and ships with CLI tooling for widget authors.</p>
+          <p class="ko">BarShelf는 오픈소스이며 직접 다운로드용 공증이 되어 있고, 위젯 제작자를 위한 CLI를 함께 제공합니다.</p>
+        </div>
+        <div class="terminal-grid reveal">
+          <article class="terminal">
+            <h3 class="en">Direct download</h3><h3 class="ko">직접 다운로드</h3>
+            <pre>BarShelf-*.zip
+→ /Applications
+→ Double-click</pre>
+            <p class="en">Download the latest signed build from GitHub Releases.</p>
+            <p class="ko">GitHub Releases에서 최신 서명 빌드를 받으세요.</p>
+          </article>
+          <article class="terminal">
+            <h3>Homebrew</h3>
+            <pre>brew tap Open330/barshelf \
   https://github.com/Open330/barshelf
-<span class="g">brew</span> install --cask barshelf</pre></div>
-            <p class="lang-en">Tap the repo and install the cask.</p>
-            <p class="lang-ko">repo를 tap하고 cask를 설치하세요.</p>
-          </div>
-          <div class="install-col">
-            <div class="install-head"><span class="n">3</span><h3 class="lang-en">Widget CLI</h3><h3 class="lang-ko">위젯 CLI</h3></div>
-            <div class="term"><div class="term-bar"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="tt">mbk</span></div>
-              <pre><span class="g">mbk</span> new my-widget
-<span class="g">mbk</span> validate ./my-widget
-<span class="g">mbk</span> install <span class="p">github.com/Open330/aas</span></pre></div>
-            <p class="lang-en">Scaffold, validate, pack and install widgets from a repo.</p>
-            <p class="lang-ko">위젯을 스캐폴드·검증·패키징하고 repo에서 설치하세요.</p>
-          </div>
+brew install --cask barshelf</pre>
+            <p class="en">Install through the project tap.</p>
+            <p class="ko">프로젝트 tap을 통해 설치합니다.</p>
+          </article>
+          <article class="terminal">
+            <h3 class="en">Widget CLI</h3><h3 class="ko">위젯 CLI</h3>
+            <pre>barshelf new my-widget
+barshelf validate ./my-widget
+barshelf pack ./my-widget</pre>
+            <p class="en">Scaffold, validate, and package widgets locally.</p>
+            <p class="ko">로컬에서 위젯을 생성, 검증, 패키징합니다.</p>
+          </article>
         </div>
       </div>
     </section>
 
-    <section>
-      <div class="wrap">
-        <div class="callout reveal">
-          <h2 class="lang-en">Tidy up your menu bar.</h2>
-          <h2 class="lang-ko">메뉴바를 정리할 시간.</h2>
-          <p class="lang-en">Free, open source, notarized, and dependency-free. macOS 13+ on Apple Silicon.</p>
-          <p class="lang-ko">무료, 오픈소스, 공증 완료, 의존성 0. Apple Silicon macOS 13+.</p>
-          <div class="hero-cta">
-            <a class="btn btn-primary" href="https://github.com/Open330/barshelf/releases/latest" rel="noopener"><span aria-hidden="true">↓</span> <span class="lang-en">Download for macOS</span><span class="lang-ko">macOS용 다운로드</span></a>
-            <a class="btn btn-ghost" href="https://github.com/Open330/barshelf/blob/master/docs/GETTING-STARTED.md" rel="noopener"><span class="lang-en">Read the docs</span><span class="lang-ko">문서 보기</span></a>
-          </div>
+    <section class="final">
+      <div class="wrap reveal">
+        <h2 class="en">Make the menu bar useful again.</h2>
+        <h2 class="ko">메뉴바를 다시 유용하게.</h2>
+        <p class="en">One icon, native widgets, scriptable from the tools you already trust.</p>
+        <p class="ko">아이콘 하나, 네이티브 위젯, 이미 신뢰하는 도구로 스크립팅하세요.</p>
+        <div class="hero-actions">
+          <a class="btn dark" href="https://github.com/Open330/barshelf/releases/latest" rel="noopener">
+            <span class="en">Download BarShelf</span><span class="ko">BarShelf 다운로드</span>
+          </a>
+          <a class="btn light-line" href="https://github.com/Open330/barshelf/blob/master/docs/GETTING-STARTED.md" rel="noopener">
+            <span class="en">Read the docs</span><span class="ko">문서 보기</span>
+          </a>
         </div>
       </div>
     </section>
@@ -576,11 +696,11 @@
 
   <footer>
     <div class="wrap foot">
-      <span class="brand"><img src="icon-512.png" alt="" style="width:22px;height:22px;border-radius:6px;vertical-align:middle;margin-right:6px;" />BarShelf</span>
+      <a class="brand" href="#top"><img src="icon-512.png" alt="" />BarShelf</a>
       <a href="https://github.com/Open330/barshelf" rel="noopener">GitHub</a>
-      <a href="https://github.com/Open330/barshelf/blob/master/docs/GETTING-STARTED.md" rel="noopener"><span class="lang-en">Docs</span><span class="lang-ko">문서</span></a>
-      <a href="https://github.com/Open330/barshelf/releases/latest" rel="noopener"><span class="lang-en">Releases</span><span class="lang-ko">릴리스</span></a>
-      <span class="sp"></span>
+      <a href="https://github.com/Open330/barshelf/releases/latest" rel="noopener"><span class="en">Releases</span><span class="ko">릴리스</span></a>
+      <a href="https://github.com/Open330/barshelf/blob/master/docs/GETTING-STARTED.md" rel="noopener"><span class="en">Docs</span><span class="ko">문서</span></a>
+      <span class="spacer"></span>
       <span>MIT © Jiun Bae</span>
     </div>
   </footer>
@@ -588,48 +708,41 @@
   <script>
     (function () {
       var root = document.documentElement;
-
-      try {
-        var t = localStorage.getItem("bs-theme");
-        if (t === "light" || t === "dark") root.setAttribute("data-theme", t);
-      } catch (e) {}
-      document.getElementById("theme").addEventListener("click", function () {
-        var cur = root.getAttribute("data-theme") === "light" ? "light" : "dark";
-        var next = cur === "light" ? "dark" : "light";
-        root.setAttribute("data-theme", next);
-        try { localStorage.setItem("bs-theme", next); } catch (e) {}
-      });
-
-      function setLang(l) {
-        root.setAttribute("data-lang", l);
-        root.setAttribute("lang", l === "ko" ? "ko" : "en");
-        var btns = document.querySelectorAll("[data-lang-btn]");
-        for (var i = 0; i < btns.length; i++) {
-          btns[i].setAttribute("aria-pressed", btns[i].getAttribute("data-lang-btn") === l ? "true" : "false");
+      function setLang(lang) {
+        root.setAttribute("data-lang", lang);
+        root.setAttribute("lang", lang === "ko" ? "ko" : "en");
+        var buttons = document.querySelectorAll("[data-lang-btn]");
+        for (var i = 0; i < buttons.length; i += 1) {
+          buttons[i].setAttribute("aria-pressed", buttons[i].getAttribute("data-lang-btn") === lang ? "true" : "false");
         }
-        try { localStorage.setItem("bs-lang", l); } catch (e) {}
+        try { localStorage.setItem("barshelf-lang", lang); } catch (e) {}
       }
-      var stored = null;
-      try { stored = localStorage.getItem("bs-lang"); } catch (e) {}
-      setLang(stored || ((navigator.language || "en").toLowerCase().indexOf("ko") === 0 ? "ko" : "en"));
-      var lb = document.querySelectorAll("[data-lang-btn]");
-      for (var j = 0; j < lb.length; j++) {
-        (function (b) { b.addEventListener("click", function () { setLang(b.getAttribute("data-lang-btn")); }); })(lb[j]);
+      var saved = null;
+      try { saved = localStorage.getItem("barshelf-lang"); } catch (e) {}
+      setLang(saved || ((navigator.language || "en").toLowerCase().indexOf("ko") === 0 ? "ko" : "en"));
+      var langButtons = document.querySelectorAll("[data-lang-btn]");
+      for (var j = 0; j < langButtons.length; j += 1) {
+        langButtons[j].addEventListener("click", function () { setLang(this.getAttribute("data-lang-btn")); });
       }
 
       var nav = document.getElementById("nav");
-      var onScroll = function () { nav.classList.toggle("scrolled", window.scrollY > 8); };
-      onScroll(); window.addEventListener("scroll", onScroll, { passive: true });
+      function updateNav() { nav.classList.toggle("scrolled", window.scrollY > 8); }
+      updateNav();
+      window.addEventListener("scroll", updateNav, { passive: true });
 
-      if ("IntersectionObserver" in window && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        var io = new IntersectionObserver(function (es) {
-          es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } });
-        }, { threshold: 0.12 });
-        var rv = document.querySelectorAll(".reveal");
-        for (var k = 0; k < rv.length; k++) io.observe(rv[k]);
+      var items = document.querySelectorAll(".reveal");
+      if ("IntersectionObserver" in window && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        var io = new IntersectionObserver(function (entries) {
+          for (var k = 0; k < entries.length; k += 1) {
+            if (entries[k].isIntersecting) {
+              entries[k].target.classList.add("in");
+              io.unobserve(entries[k].target);
+            }
+          }
+        }, { threshold: 0.14 });
+        for (var m = 0; m < items.length; m += 1) io.observe(items[m]);
       } else {
-        var rv2 = document.querySelectorAll(".reveal");
-        for (var m = 0; m < rv2.length; m++) rv2[m].classList.add("in");
+        for (var n = 0; n < items.length; n += 1) items[n].classList.add("in");
       }
     })();
   </script>
