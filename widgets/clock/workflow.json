@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "kind": "workflow",
+  "_comment": "Native digital clock: date emits one JSON line each second; big HH:MM with a small seconds counter.",
+
+  "sources": {
+    "data": {
+      "use": "exec",
+      "with": { "command": ["/bin/date", "+{\"h\":\"%H\",\"m\":\"%M\",\"s\":\"%S\",\"date\":\"%a %b %d\"}"] }
+    }
+  },
+
+  "view": {
+    "type": "vstack",
+    "spacing": 2,
+    "children": [
+      {
+        "type": "hstack",
+        "spacing": 6,
+        "children": [
+          { "type": "image", "source": { "kind": "sfSymbol", "name": "clock.fill" }, "size": 13, "tint": "accent" },
+          { "type": "text", "text": "Clock", "role": "caption", "foreground": "secondary" }
+        ]
+      },
+      {
+        "type": "hstack",
+        "spacing": 3,
+        "children": [
+          { "type": "text", "text": "${sources.data.h}:${sources.data.m}", "size": 44, "role": "title", "monospacedDigit": true },
+          { "type": "text", "text": "${sources.data.s}", "size": 17, "role": "caption", "foreground": "secondary", "monospacedDigit": true }
+        ]
+      },
+      { "type": "text", "text": "${sources.data.date}", "role": "caption", "foreground": "secondary" }
+    ]
+  },
+
+  "status": {
+    "label": "${sources.data.h}:${sources.data.m}",
+    "tooltip": "${sources.data.date}"
+  }
+}

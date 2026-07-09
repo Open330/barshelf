@@ -1,0 +1,29 @@
+{
+  "$schema": "https://barshelf.dev/schema/widget-0.1.json",
+  "schemaVersion": 1,
+  "id": "dev.barshelf.system",
+  "name": "System",
+  "version": "0.1.0",
+  "icon": "cpu.fill",
+  "bucket": { "group": "System", "order": 11, "size": "M" },
+
+  "entry": { "kind": "workflow", "main": "workflow.json" },
+
+  "refresh": { "onOpen": true, "interval": 5, "staleAfterSec": 5 },
+
+  "permissions": {
+    "exec": [
+      {
+        "command": "/bin/sh",
+        "allowedArgs": [["-c", "disk=$(/bin/df -k / | /usr/bin/tail -1 | /usr/bin/tr -s ' ' | /usr/bin/cut -d' ' -f5 | /usr/bin/tr -d '%'); cpu=$(/usr/bin/top -l 1 -n 0 | /usr/bin/grep 'CPU usage' | /usr/bin/sed -E 's/.*: ([0-9.]+)% user.*/\\1/'); echo '{\"disk\":'${disk:-0}',\"cpu\":'${cpu:-0}'}'"]],
+        "maxOutputBytes": 4096,
+        "sensitiveOutput": false
+      }
+    ]
+  },
+
+  "appearance": {
+    "accent": "purple",
+    "cardStyle": "tinted"
+  }
+}

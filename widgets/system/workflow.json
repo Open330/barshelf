@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "kind": "workflow",
+  "_comment": "System monitor: a shell source emits {disk, cpu} percentages; two health-colored meters. Pure workflow, no Deno.",
+
+  "sources": {
+    "data": {
+      "use": "exec",
+      "with": {
+        "command": ["/bin/sh", "-c", "disk=$(/bin/df -k / | /usr/bin/tail -1 | /usr/bin/tr -s ' ' | /usr/bin/cut -d' ' -f5 | /usr/bin/tr -d '%'); cpu=$(/usr/bin/top -l 1 -n 0 | /usr/bin/grep 'CPU usage' | /usr/bin/sed -E 's/.*: ([0-9.]+)% user.*/\\1/'); echo '{\"disk\":'${disk:-0}',\"cpu\":'${cpu:-0}'}'"]
+      }
+    }
+  },
+
+  "view": {
+    "type": "vstack",
+    "spacing": 8,
+    "children": [
+      {
+        "type": "hstack",
+        "spacing": 6,
+        "children": [
+          { "type": "image", "source": { "kind": "sfSymbol", "name": "cpu.fill" }, "size": 14, "tint": "accent" },
+          { "type": "text", "text": "System", "role": "caption", "foreground": "secondary" }
+        ]
+      },
+      {
+        "type": "vstack",
+        "spacing": 3,
+        "children": [
+          {
+            "type": "hstack",
+            "children": [
+              { "type": "text", "text": "CPU", "role": "caption" },
+              { "type": "spacer" },
+              { "type": "text", "text": "${string(round(number(sources.data.cpu), 0))}%", "role": "caption", "monospacedDigit": true, "foreground": "${if(gt(sources.data.cpu, 85), 'danger', if(gt(sources.data.cpu, 60), 'warning', 'good'))}" }
+            ]
+          },
+          { "type": "progress", "style": "linear", "value": "${div(sources.data.cpu, 100)}", "tint": "${if(gt(sources.data.cpu, 85), 'danger', if(gt(sources.data.cpu, 60), 'warning', 'good'))}" }
+        ]
+      },
+      {
+        "type": "vstack",
+        "spacing": 3,
+        "children": [
+          {
+            "type": "hstack",
+            "children": [
+              { "type": "text", "text": "Disk", "role": "caption" },
+              { "type": "spacer" },
+              { "type": "text", "text": "${string(round(number(sources.data.disk), 0))}%", "role": "caption", "monospacedDigit": true, "foreground": "${if(gt(sources.data.disk, 90), 'danger', if(gt(sources.data.disk, 75), 'warning', 'good'))}" }
+            ]
+          },
+          { "type": "progress", "style": "linear", "value": "${div(sources.data.disk, 100)}", "tint": "${if(gt(sources.data.disk, 90), 'danger', if(gt(sources.data.disk, 75), 'warning', 'good'))}" }
+        ]
+      }
+    ]
+  },
+
+  "status": {
+    "label": "${string(round(number(sources.data.cpu), 0))}%",
+    "tooltip": "CPU ${string(round(number(sources.data.cpu), 0))}% · Disk ${string(round(number(sources.data.disk), 0))}%"
+  }
+}

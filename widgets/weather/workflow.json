@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "kind": "workflow",
+  "_comment": "Native weather widget over an HTTPS JSON API (open-meteo, no key). Big temperature + a condition icon mapped from the weather code. Demonstrates the http source with settings-driven location.",
+
+  "sources": {
+    "data": {
+      "use": "http",
+      "with": {
+        "url": "https://api.open-meteo.com/v1/forecast?latitude=${settings.lat}&longitude=${settings.lon}&current=temperature_2m,weather_code"
+      }
+    }
+  },
+
+  "view": {
+    "type": "vstack",
+    "spacing": 2,
+    "children": [
+      {
+        "type": "hstack",
+        "spacing": 6,
+        "children": [
+          {
+            "type": "image",
+            "source": { "kind": "sfSymbol", "name": "${if(lt(number(sources.data.current.weather_code), 3), 'sun.max.fill', if(lt(number(sources.data.current.weather_code), 50), 'cloud.fill', if(lt(number(sources.data.current.weather_code), 70), 'cloud.rain.fill', 'cloud.bolt.rain.fill')))}" },
+            "size": 14,
+            "tint": "accent"
+          },
+          { "type": "text", "text": "${settings.place}", "role": "caption", "foreground": "secondary", "lineLimit": 1 }
+        ]
+      },
+      { "type": "text", "text": "${string(round(number(sources.data.current.temperature_2m), 0))}°", "size": 44, "role": "title", "monospacedDigit": true },
+      { "type": "text", "text": "${if(lt(number(sources.data.current.weather_code), 3), 'Clear', if(lt(number(sources.data.current.weather_code), 50), 'Cloudy', if(lt(number(sources.data.current.weather_code), 70), 'Rain', 'Storm')))}", "role": "caption", "foreground": "secondary" }
+    ]
+  },
+
+  "status": {
+    "label": "${string(round(number(sources.data.current.temperature_2m), 0))}°",
+    "tooltip": "${settings.place}: ${string(sources.data.current.temperature_2m)}°C"
+  }
+}

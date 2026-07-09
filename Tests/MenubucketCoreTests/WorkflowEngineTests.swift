@@ -644,6 +644,83 @@ final class BatteryWidgetTests: XCTestCase {
     }
 }
 
+/// End-to-end checks for the native clock / system / weather widgets.
+final class NativeWidgetsTests: XCTestCase {
+    private func def(_ name: String) throws -> WorkflowDefinition {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        return try WorkflowDefinition.decode(
+            from: try Data(contentsOf: root.appendingPathComponent("widgets/\(name)/workflow.json"))
+        )
+    }
+
+    private func allNodes(ofType type: String, in node: UINode) -> [UINode] {
+        var out = node.type == type ? [node] : []
+        for child in (node.children ?? []) + (node.items ?? []) {
+            out += allNodes(ofType: type, in: child)
+        }
+        return out
+    }
+
+    private func flat(_ node: UINode) -> String {
+        (node.text ?? "") + ((node.children ?? []) + (node.items ?? [])).map(flat).joined(separator: "\n")
+    }
+
+    func testClockShowsBigTime() throws {
+        let out = try WorkflowEngine.evaluate(
+            try def("clock"),
+            sources: ["data": .object([
+                "h": .string("20"), "m": .string("53"), "s": .string("26"), "date": .string("Thu Jul 09"),
+            ])],
+            settings: .object([:])
+        )
+        let timeRow = out.viewTree.children?[1]
+        XCTAssertEqual(timeRow?.children?.first?.text, "20:53")
+        XCTAssertEqual(timeRow?.children?.first?.size, 44)
+        XCTAssertEqual(timeRow?.children?.last?.text, "26")
+    }
+
+    func testSystemMetersHealthColors() throws {
+        let out = try WorkflowEngine.evaluate(
+            try def("system"),
+            sources: ["data": .object(["disk": .number(92), "cpu": .number(30)])],
+            settings: .object([:])
+        )
+        let bars = allNodes(ofType: "progress", in: out.viewTree)
+        XCTAssertEqual(bars.count, 2)
+        XCTAssertEqual(bars[0].value ?? 0, 0.30, accuracy: 0.0001) // CPU first
+        XCTAssertEqual(bars[0].tint, "good")
+        XCTAssertEqual(bars[1].value ?? 0, 0.92, accuracy: 0.0001) // Disk
+        XCTAssertEqual(bars[1].tint, "danger")
+    }
+
+    func testWeatherMapsCodeToConditionAndIcon() throws {
+        let out = try WorkflowEngine.evaluate(
+            try def("weather"),
+            sources: ["data": .object([
+                "current": .object(["temperature_2m": .number(24.4), "weather_code": .number(51)]),
+            ])],
+            settings: .object(["place": .string("Seoul"), "lat": .string("37.57"), "lon": .string("126.98")])
+        )
+        let text = flat(out.viewTree)
+        XCTAssertTrue(text.contains("24°"))          // rounded temperature
+        XCTAssertTrue(text.contains("Rain"))          // code 51 → Rain
+        XCTAssertEqual(allNodes(ofType: "image", in: out.viewTree).first?.source?.name, "cloud.rain.fill")
+    }
+
+    func testWeatherClearIcon() throws {
+        let out = try WorkflowEngine.evaluate(
+            try def("weather"),
+            sources: ["data": .object([
+                "current": .object(["temperature_2m": .number(18), "weather_code": .number(0)]),
+            ])],
+            settings: .object(["place": .string("X"), "lat": .string("0"), "lon": .string("0")])
+        )
+        XCTAssertEqual(allNodes(ofType: "image", in: out.viewTree).first?.source?.name, "sun.max.fill")
+        XCTAssertTrue(flat(out.viewTree).contains("Clear"))
+    }
+}
+
 /// End-to-end evaluation of the shipped persistence example widgets, so the
 /// hand-authored nested expressions can't silently rot.
 final class PersistenceWidgetTests: XCTestCase {

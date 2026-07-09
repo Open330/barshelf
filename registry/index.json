@@ -120,6 +120,49 @@
       "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/github-status", "bundled": "github-status" },
       "permissions": { "exec": [], "keychain": false, "notifications": false, "network": ["www.githubstatus.com"] },
       "homepage": "https://www.githubstatus.com/"
+    },
+    {
+      "id": "dev.barshelf.clock",
+      "name": "Clock",
+      "description": "Native digital clock — a big HH:MM with a live seconds counter and the date. No external dependency.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "clock.fill",
+      "kind": "workflow",
+      "tags": ["clock", "time", "native", "workflow"],
+      "category": "Demo",
+      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/clock", "bundled": "clock" },
+      "permissions": { "exec": ["/bin/date"], "keychain": false, "notifications": false },
+      "homepage": "https://github.com/Open330/barshelf"
+    },
+    {
+      "id": "dev.barshelf.system",
+      "name": "System",
+      "description": "Native system monitor — CPU and disk usage as health-colored meters, from a shell source. Pure workflow, no Deno.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "cpu.fill",
+      "kind": "workflow",
+      "tags": ["system", "cpu", "disk", "meter", "native"],
+      "category": "System",
+      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/system", "bundled": "system" },
+      "permissions": { "exec": ["/bin/sh"], "keychain": false, "notifications": false },
+      "homepage": "https://github.com/Open330/barshelf"
+    },
+    {
+      "id": "dev.barshelf.weather",
+      "name": "Weather",
+      "description": "Native weather widget over a free HTTPS API (open-meteo, no key) — a big temperature and a condition icon for any latitude/longitude. Demonstrates the HTTP source.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "cloud.sun.fill",
+      "kind": "workflow",
+      "tags": ["weather", "http", "native", "workflow"],
+      "category": "Demo",
+      "requires": "Network access",
+      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/weather", "bundled": "weather" },
+      "permissions": { "exec": [], "keychain": false, "notifications": false, "network": ["api.open-meteo.com"] },
+      "homepage": "https://open-meteo.com/"
     }
   ]
 }

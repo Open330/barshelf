@@ -578,6 +578,7 @@ struct WidgetCardView: View {
     /// Hovering reveals the per-card refresh button (hidden at rest to reduce
     /// visual noise). The button stays in the accessibility tree either way.
     @State private var isHovering = false
+    @Environment(\.colorScheme) private var colorScheme
 
     /// Effective theming (user override → author default → neutral). Injected
     /// into the rendered tree and used for the card's own chrome.
@@ -822,15 +823,26 @@ struct WidgetCardView: View {
     private var cardBackground: some View {
         let tinted = appearance.cardStyle == .tinted
         let hasAccent = appearance.accentColor != nil
-        let topOpacity = tinted ? 0.26 : (hasAccent ? 0.13 : 0.0)
-        let bottomOpacity = tinted ? 0.07 : (hasAccent ? 0.03 : 0.0)
+        let dark = colorScheme == .dark
+        // Dark surfaces swallow tints, so push the accent a bit harder there.
+        let top = tinted ? (dark ? 0.34 : 0.24) : (hasAccent ? (dark ? 0.20 : 0.12) : 0.0)
+        let bottom = tinted ? (dark ? 0.10 : 0.05) : (hasAccent ? (dark ? 0.05 : 0.02) : 0.0)
         return RoundedRectangle(cornerRadius: Self.cardCornerRadius, style: .continuous)
             .fill(Color(nsColor: .controlBackgroundColor))
             .overlay(
+                // Diagonal accent wash — a native home-screen-widget look.
                 RoundedRectangle(cornerRadius: Self.cardCornerRadius, style: .continuous)
                     .fill(LinearGradient(
-                        colors: [cardAccent.opacity(topOpacity), cardAccent.opacity(bottomOpacity)],
-                        startPoint: .top, endPoint: .bottom
+                        colors: [cardAccent.opacity(top), cardAccent.opacity(bottom)],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    ))
+            )
+            .overlay(
+                // Faint top sheen for depth.
+                RoundedRectangle(cornerRadius: Self.cardCornerRadius, style: .continuous)
+                    .fill(LinearGradient(
+                        colors: [Color.white.opacity(dark ? 0.04 : 0.10), .clear],
+                        startPoint: .top, endPoint: .center
                     ))
             )
     }

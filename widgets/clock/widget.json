@@ -1,0 +1,30 @@
+{
+  "$schema": "https://barshelf.dev/schema/widget-0.1.json",
+  "schemaVersion": 1,
+  "id": "dev.barshelf.clock",
+  "name": "Clock",
+  "version": "0.1.0",
+  "icon": "clock.fill",
+  "bucket": { "group": "Demo", "order": 11, "size": "S" },
+
+  "entry": { "kind": "workflow", "main": "workflow.json" },
+
+  "refresh": { "onOpen": true, "interval": 1, "staleAfterSec": 1 },
+
+  "permissions": {
+    "exec": [
+      {
+        "command": "/bin/date",
+        "allowedArgs": [["+{\"h\":\"%H\",\"m\":\"%M\",\"s\":\"%S\",\"date\":\"%a %b %d\"}"]],
+        "maxOutputBytes": 4096,
+        "sensitiveOutput": false
+      }
+    ]
+  },
+
+  "appearance": {
+    "accent": "blue",
+    "cardStyle": "tinted",
+    "fixedHeight": 150
+  }
+}

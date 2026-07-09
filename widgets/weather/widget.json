@@ -1,0 +1,29 @@
+{
+  "$schema": "https://barshelf.dev/schema/widget-0.1.json",
+  "schemaVersion": 1,
+  "id": "dev.barshelf.weather",
+  "name": "Weather",
+  "version": "0.1.0",
+  "icon": "cloud.sun.fill",
+  "bucket": { "group": "Demo", "order": 12, "size": "S" },
+
+  "entry": { "kind": "workflow", "main": "workflow.json" },
+
+  "refresh": { "onOpen": true, "interval": 900, "staleAfterSec": 900 },
+
+  "permissions": {
+    "network": ["api.open-meteo.com"]
+  },
+
+  "settings": [
+    { "key": "place", "title": "Place name", "type": "string", "default": "Seoul" },
+    { "key": "lat", "title": "Latitude", "type": "string", "default": "37.57" },
+    { "key": "lon", "title": "Longitude", "type": "string", "default": "126.98" }
+  ],
+
+  "appearance": {
+    "accent": "blue",
+    "cardStyle": "tinted",
+    "fixedHeight": 150
+  }
+}
