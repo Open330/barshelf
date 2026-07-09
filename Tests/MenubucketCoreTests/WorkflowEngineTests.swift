@@ -321,6 +321,29 @@ final class WorkflowEngineTests: XCTestCase {
         XCTAssertEqual(output.expandedItemCount, 0) // the off-branch forEach never ran
     }
 
+    func testBundledWorkflowSourcesResolveWithoutInterpolationErrors() throws {
+        // Phase-1 interpolation of a source's `with` used to choke on shell
+        // `${var}` syntax (it looks like `${expr}`). No bundled widget may throw.
+        let widgetsDir = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("widgets")
+        let dirs = try FileManager.default.contentsOfDirectory(
+            at: widgetsDir, includingPropertiesForKeys: nil
+        )
+        var checked = 0
+        for dir in dirs {
+            let wf = dir.appendingPathComponent("workflow.json")
+            guard FileManager.default.fileExists(atPath: wf.path) else { continue }
+            let def = try WorkflowDefinition.decode(from: try Data(contentsOf: wf))
+            XCTAssertNoThrow(
+                try WorkflowEngine.resolvedSourceParams(def, settings: .object([:])),
+                "resolvedSourceParams threw for \(dir.lastPathComponent)"
+            )
+            checked += 1
+        }
+        XCTAssertGreaterThan(checked, 5)
+    }
+
     func testNumericPathSegmentIndexesArrays() throws {
         let def = try definition("""
         { "schemaVersion": 1, "sources": { "s": { "use": "exec" } },

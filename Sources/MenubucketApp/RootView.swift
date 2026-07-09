@@ -586,9 +586,11 @@ struct WidgetCardView: View {
         runtime.prefs.effectiveAppearance(for: widget.manifest)
     }
 
-    /// showHeader defaults to true; false hides the card header row (refresh
-    /// stays reachable via the context menu).
-    private var showsHeader: Bool { appearance.showHeader ?? true }
+    /// The card's own chrome header (icon + name + refresh) is **off by default**
+    /// — widgets carry their own header/content, so showing the app chrome too
+    /// duplicated the logo and title. Opt in per widget with `showHeader: true`;
+    /// refresh stays reachable via the context menu either way.
+    private var showsHeader: Bool { appearance.showHeader ?? false }
 
     /// compact density tightens the card's content insets.
     private var contentInset: CGFloat { appearance.density == .compact ? 8 : 12 }

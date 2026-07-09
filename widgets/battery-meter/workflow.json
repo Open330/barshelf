@@ -7,7 +7,7 @@
     "data": {
       "use": "exec",
       "with": {
-        "command": ["/bin/sh", "-c", "pct=$(/usr/bin/pmset -g batt | /usr/bin/grep -Eo '[0-9]+%' | /usr/bin/head -1 | /usr/bin/tr -d '%'); state=$(/usr/bin/pmset -g batt | /usr/bin/grep -Eo 'charged|charging|discharging' | /usr/bin/head -1); echo '{\"pct\":'${pct:-0}',\"state\":\"'${state:-unknown}'\"}'"]
+        "command": ["/bin/sh", "-c", "pct=$(/usr/bin/pmset -g batt | /usr/bin/grep -Eo '[0-9]+%' | /usr/bin/head -1 | /usr/bin/tr -d '%'); [ -z \"$pct\" ] && pct=0; state=$(/usr/bin/pmset -g batt | /usr/bin/grep -Eo 'charged|charging|discharging' | /usr/bin/head -1); [ -z \"$state\" ] && state=unknown; echo '{\"pct\":'$pct',\"state\":\"'$state'\"}'"]
       }
     }
   },

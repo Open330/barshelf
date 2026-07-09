@@ -15,7 +15,7 @@
     "exec": [
       {
         "command": "/bin/sh",
-        "allowedArgs": [["-c", "ip=$(/usr/sbin/ipconfig getifaddr en0 2>/dev/null || /usr/sbin/ipconfig getifaddr en1 2>/dev/null); echo '{\"ip\":\"'${ip:-offline}'\"}'"]],
+        "allowedArgs": [["-c", "ip=$(/usr/sbin/ipconfig getifaddr en0 2>/dev/null || /usr/sbin/ipconfig getifaddr en1 2>/dev/null); [ -z \"$ip\" ] && ip=offline; echo '{\"ip\":\"'$ip'\"}'"]],
         "maxOutputBytes": 4096,
         "sensitiveOutput": false
       }

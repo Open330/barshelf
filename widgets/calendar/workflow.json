@@ -7,7 +7,7 @@
     "data": {
       "use": "exec",
       "with": {
-        "command": ["/bin/sh", "-c", "y=$(/bin/date +%Y); mm=$(/bin/date +%m); mnum=$(/bin/date +%-m); today=$(/bin/date +%-d); first=$(/bin/date -j -f \"%Y-%m-%d\" \"$y-$mm-01\" +%w); dim=$(/usr/bin/cal $mnum $y | /usr/bin/awk 'NF>0{d=$NF} END{print d}'); cells=\"\"; i=0; while [ $i -lt $first ]; do cells=\"${cells}0,\"; i=$((i+1)); done; d=1; while [ $d -le $dim ]; do cells=\"${cells}${d},\"; d=$((d+1)); done; cells=${cells%,}; echo '{\"today\":'$today',\"month\":\"'$(/bin/date +%B)'\",\"cells\":['$cells']}'"]
+        "command": ["/bin/sh", "-c", "y=$(/bin/date +%Y); mm=$(/bin/date +%m); mnum=$(/bin/date +%-m); today=$(/bin/date +%-d); first=$(/bin/date -j -f \"%Y-%m-%d\" \"$y-$mm-01\" +%w); [ -z \"$first\" ] && first=0; dim=$(/usr/bin/cal $mnum $y | /usr/bin/awk 'NF>0{d=$NF} END{print d}'); [ -z \"$dim\" ] && dim=30; cells=\"\"; i=0; while [ $i -lt $first ]; do cells=\"$cells\"0,; i=$((i+1)); done; d=1; while [ $d -le $dim ]; do cells=\"$cells$d,\"; d=$((d+1)); done; cells=$(printf '%s' \"$cells\" | /usr/bin/sed 's/,$//'); echo '{\"today\":'$today',\"month\":\"'$(/bin/date +%B)'\",\"cells\":['$cells']}'"]
       }
     }
   },

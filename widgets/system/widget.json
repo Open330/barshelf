@@ -15,7 +15,7 @@
     "exec": [
       {
         "command": "/bin/sh",
-        "allowedArgs": [["-c", "disk=$(/bin/df -k / | /usr/bin/tail -1 | /usr/bin/tr -s ' ' | /usr/bin/cut -d' ' -f5 | /usr/bin/tr -d '%'); cpu=$(/usr/bin/top -l 1 -n 0 | /usr/bin/grep 'CPU usage' | /usr/bin/sed -E 's/.*: ([0-9.]+)% user.*/\\1/'); free=$(/usr/bin/memory_pressure | /usr/bin/grep -i 'free percentage' | /usr/bin/sed -E 's/.*: ([0-9]+)%.*/\\1/'); mem=$((100 - ${free:-0})); echo '{\"disk\":'${disk:-0}',\"cpu\":'${cpu:-0}',\"mem\":'${mem}'}'"]],
+        "allowedArgs": [["-c", "disk=$(/bin/df -k / | /usr/bin/tail -1 | /usr/bin/tr -s ' ' | /usr/bin/cut -d' ' -f5 | /usr/bin/tr -d '%'); [ -z \"$disk\" ] && disk=0; cpu=$(/usr/bin/top -l 1 -n 0 | /usr/bin/grep 'CPU usage' | /usr/bin/sed -E 's/.*: ([0-9.]+)% user.*/\\1/'); [ -z \"$cpu\" ] && cpu=0; free=$(/usr/bin/memory_pressure | /usr/bin/grep -i 'free percentage' | /usr/bin/sed -E 's/.*: ([0-9]+)%.*/\\1/'); [ -z \"$free\" ] && free=100; mem=$((100 - free)); echo '{\"disk\":'$disk',\"cpu\":'$cpu',\"mem\":'$mem'}'"]],
         "maxOutputBytes": 4096,
         "sensitiveOutput": false
       }

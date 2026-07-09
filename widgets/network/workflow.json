@@ -7,7 +7,7 @@
     "data": {
       "use": "exec",
       "with": {
-        "command": ["/bin/sh", "-c", "ip=$(/usr/sbin/ipconfig getifaddr en0 2>/dev/null || /usr/sbin/ipconfig getifaddr en1 2>/dev/null); echo '{\"ip\":\"'${ip:-offline}'\"}'"]
+        "command": ["/bin/sh", "-c", "ip=$(/usr/sbin/ipconfig getifaddr en0 2>/dev/null || /usr/sbin/ipconfig getifaddr en1 2>/dev/null); [ -z \"$ip\" ] && ip=offline; echo '{\"ip\":\"'$ip'\"}'"]
       }
     }
   },
