@@ -1,5 +1,7 @@
 export type JsonPrimitive = string | number | boolean | null;
-export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
+export type JsonValue = JsonPrimitive | JsonValue[] | {
+  [key: string]: JsonValue;
+};
 export type RpcId = number | string;
 
 export type LoadReason = "install" | "open" | "manual" | "timer" | "interval";
@@ -155,7 +157,13 @@ export interface TextNode extends UINodeBase {
   foreground?: SemanticColor;
 }
 
-export type ImageSourceKind = "sfSymbol" | "asset" | "fileIcon" | "fileThumbnail" | "url" | "data";
+export type ImageSourceKind =
+  | "sfSymbol"
+  | "asset"
+  | "fileIcon"
+  | "fileThumbnail"
+  | "url"
+  | "data";
 
 export interface ImageSource {
   kind: ImageSourceKind;
@@ -206,7 +214,7 @@ export interface ProgressNode extends UINodeBase {
 export interface ButtonNode extends UINodeBase {
   type: "button";
   title?: string;
-  icon?: ImageSource;
+  icon?: string;
   tooltip?: string;
   role?: "normal" | "destructive" | "cancel";
   disabled?: boolean;
@@ -262,11 +270,20 @@ export interface NoneNode extends UINodeBase {
 }
 
 export type EventAction = { type: "event"; id: string; payload?: unknown };
-export type CopyTextAction = { type: "copyText"; value: string; toast?: string; clearAfterSec?: number };
+export type CopyTextAction = {
+  type: "copyText";
+  value: string;
+  toast?: string;
+  clearAfterSec?: number;
+};
 export type OpenURLAction = { type: "openURL"; url: string };
 export type OpenFileAction = { type: "openFile"; path: string };
 export type RevealFileAction = { type: "revealFile"; path: string };
-export type RunAction = { type: "run"; command: string[]; thenRefresh?: boolean };
+export type RunAction = {
+  type: "run";
+  command: string[];
+  thenRefresh?: boolean;
+};
 export type RefreshAction = { type: "refresh" };
 export type NodeAction =
   | EventAction
@@ -294,7 +311,9 @@ export type UINode =
   | SpacerNode
   | NoneNode;
 
-type NodeOptions<T extends UINodeBase> = Omit<Partial<T>, "type"> & Record<string, unknown>;
+type NodeOptions<T extends UINodeBase> =
+  & Omit<Partial<T>, "type">
+  & Record<string, unknown>;
 type StackOptions = Omit<NodeOptions<StackNode>, "children">;
 type TextOptions = Omit<NodeOptions<TextNode>, "text">;
 type ImageOptions = Omit<NodeOptions<ImageNode>, "source">;
@@ -303,7 +322,7 @@ type ProgressOptions = Omit<NodeOptions<ProgressNode>, "style"> & {
   style?: "linear" | "ring";
 };
 type ButtonOptions = Omit<NodeOptions<ButtonNode>, "action" | "icon"> & {
-  icon?: string | ImageSource;
+  icon?: string;
 };
 type SectionOptions = Omit<NodeOptions<SectionNode>, "children" | "title">;
 type CardOptions = Omit<NodeOptions<CardNode>, "children">;
@@ -370,7 +389,11 @@ function clamp01(value: number): number {
   return Math.min(Math.max(value, 0), 1);
 }
 
-function stack(type: "vstack" | "hstack" | "zstack", children: UINode[] = [], options: StackOptions = {}): StackNode {
+function stack(
+  type: "vstack" | "hstack" | "zstack",
+  children: UINode[] = [],
+  options: StackOptions = {},
+): StackNode {
   return compact({ ...options, type, children }) as StackNode;
 }
 
@@ -379,7 +402,10 @@ export const action = {
     return compact({ type: "event", id, payload }) as EventAction;
   },
 
-  copyText(value: string, options: Omit<CopyTextAction, "type" | "value"> = {}): CopyTextAction {
+  copyText(
+    value: string,
+    options: Omit<CopyTextAction, "type" | "value"> = {},
+  ): CopyTextAction {
     return compact({ ...options, type: "copyText", value }) as CopyTextAction;
   },
 
@@ -395,7 +421,10 @@ export const action = {
     return { type: "revealFile", path };
   },
 
-  run(command: string[], options: Omit<RunAction, "type" | "command"> = {}): RunAction {
+  run(
+    command: string[],
+    options: Omit<RunAction, "type" | "command"> = {},
+  ): RunAction {
     return compact({ ...options, type: "run", command }) as RunAction;
   },
 
@@ -419,7 +448,10 @@ export const ui = {
     return stack("zstack", children, options);
   },
 
-  scroll(child: UINode, options: Omit<NodeOptions<ScrollNode>, "child"> = {}): ScrollNode {
+  scroll(
+    child: UINode,
+    options: Omit<NodeOptions<ScrollNode>, "child"> = {},
+  ): ScrollNode {
     return compact({ ...options, type: "scroll", child }) as ScrollNode;
   },
 
@@ -428,15 +460,28 @@ export const ui = {
   },
 
   image(source: string | ImageSource, options: ImageOptions = {}): ImageNode {
-    return compact({ ...options, type: "image", source: imageSource(source) }) as ImageNode;
+    return compact({
+      ...options,
+      type: "image",
+      source: imageSource(source),
+    }) as ImageNode;
   },
 
   list(items: UINode[] = [], options: ListOptions = {}): ListNode {
     return compact({ ...options, type: "list", items }) as ListNode;
   },
 
-  section(title: string | undefined, children: UINode[] = [], options: SectionOptions = {}): SectionNode {
-    return compact({ ...options, type: "section", title, children }) as SectionNode;
+  section(
+    title: string | undefined,
+    children: UINode[] = [],
+    options: SectionOptions = {},
+  ): SectionNode {
+    return compact({
+      ...options,
+      type: "section",
+      title,
+      children,
+    }) as SectionNode;
   },
 
   card(children: UINode[] = [], options: CardOptions = {}): CardNode {
@@ -461,15 +506,28 @@ export const ui = {
     ], { spacing: rest.spacing ?? 6 });
 
     if (subtitle === undefined || subtitle.length === 0) {
-      return compact({ ...rest, type: "hstack", spacing: rest.spacing ?? 6, children: row.children }) as StackNode;
+      return compact({
+        ...rest,
+        type: "hstack",
+        spacing: rest.spacing ?? 6,
+        children: row.children,
+      }) as StackNode;
     }
     return stack("vstack", [
       row,
-      ui.text(subtitle, { role: "caption", foreground: "secondary", lineLimit: 1 }),
+      ui.text(subtitle, {
+        role: "caption",
+        foreground: "secondary",
+        lineLimit: 1,
+      }),
     ], { ...rest, spacing: 2 });
   },
 
-  stat(label: string, value: string | number, options: StatOptions = {}): CardNode {
+  stat(
+    label: string,
+    value: string | number,
+    options: StatOptions = {},
+  ): CardNode {
     const {
       icon,
       caption,
@@ -479,8 +537,14 @@ export const ui = {
     } = options;
     return ui.card([
       ui.hstack([
-        ...(icon === undefined ? [] : [ui.image(icon, { size: 13, tint: tone })]),
-        ui.text(label, { role: "caption", foreground: "secondary", lineLimit: 1 }),
+        ...(icon === undefined
+          ? []
+          : [ui.image(icon, { size: 13, tint: tone })]),
+        ui.text(label, {
+          role: "caption",
+          foreground: "secondary",
+          lineLimit: 1,
+        }),
       ], { spacing: 4 }),
       ui.text(String(value), {
         role: "title",
@@ -489,12 +553,20 @@ export const ui = {
         lineLimit: 1,
       }),
       ...(caption === undefined ? [] : [
-        ui.text(caption, { role: "caption", foreground: "secondary", lineLimit: 1 }),
+        ui.text(caption, {
+          role: "caption",
+          foreground: "secondary",
+          lineLimit: 1,
+        }),
       ]),
     ], { ...rest, tone, spacing: rest.spacing ?? 3 });
   },
 
-  meterRow(label: string, value: number, options: MeterRowOptions = {}): StackNode {
+  meterRow(
+    label: string,
+    value: number,
+    options: MeterRowOptions = {},
+  ): StackNode {
     const {
       valueText = `${Math.round(clamp01(value) * 100)}%`,
       tint = "accent",
@@ -502,15 +574,27 @@ export const ui = {
     } = options;
     return ui.vstack([
       ui.hstack([
-        ui.text(label, { role: "caption", foreground: "secondary", lineLimit: 1 }),
+        ui.text(label, {
+          role: "caption",
+          foreground: "secondary",
+          lineLimit: 1,
+        }),
         ui.spacer(),
-        ui.text(valueText, { role: "caption", monospacedDigit: true, lineLimit: 1 }),
+        ui.text(valueText, {
+          role: "caption",
+          monospacedDigit: true,
+          lineLimit: 1,
+        }),
       ], { spacing: 6 }),
       ui.progress(clamp01(value), { tint }),
     ], { ...rest, spacing: rest.spacing ?? 4 });
   },
 
-  metricCard(title: string, value: string | number, options: MetricCardOptions = {}): CardNode {
+  metricCard(
+    title: string,
+    value: string | number,
+    options: MetricCardOptions = {},
+  ): CardNode {
     const {
       icon,
       caption,
@@ -530,7 +614,11 @@ export const ui = {
         lineLimit: 1,
       }),
       ...(caption === undefined ? [] : [
-        ui.text(caption, { role: "caption", foreground: "secondary", lineLimit: 1 }),
+        ui.text(caption, {
+          role: "caption",
+          foreground: "secondary",
+          lineLimit: 1,
+        }),
       ]),
       ...(progress === undefined ? [] : [
         ui.progress(clamp01(progress), {
@@ -541,20 +629,31 @@ export const ui = {
     ], { ...rest, tone, spacing: rest.spacing ?? 6 });
   },
 
-  progress(valueOrOptions: number | ProgressOptions = {}, options: ProgressOptions = {}): ProgressNode {
+  progress(
+    valueOrOptions: number | ProgressOptions = {},
+    options: ProgressOptions = {},
+  ): ProgressNode {
     const node = typeof valueOrOptions === "number"
       ? { ...options, value: valueOrOptions }
       : valueOrOptions;
-    return compact({ ...node, type: "progress", style: node.style ?? "linear" }) as ProgressNode;
+    return compact({
+      ...node,
+      type: "progress",
+      style: node.style ?? "linear",
+    }) as ProgressNode;
   },
 
-  button(title: string | undefined, buttonAction: NodeAction, options: ButtonOptions = {}): ButtonNode {
+  button(
+    title: string | undefined,
+    buttonAction: NodeAction,
+    options: ButtonOptions = {},
+  ): ButtonNode {
     const { icon, ...rest } = options;
     return compact({
       ...rest,
       type: "button",
       title,
-      icon: icon === undefined ? undefined : imageSource(icon),
+      icon,
       action: buttonAction,
     }) as ButtonNode;
   },
@@ -606,8 +705,14 @@ export type WidgetTimerContext = WidgetTimerParams & WidgetRuntimeContext;
 
 export interface WidgetHandlers {
   load?: (ctx: WidgetLoadContext) => Awaitable<void>;
-  action?: (ctx: WidgetActionContext, event: WidgetActionParams) => Awaitable<void>;
-  timer?: (ctx: WidgetTimerContext, event: WidgetTimerParams) => Awaitable<void>;
+  action?: (
+    ctx: WidgetActionContext,
+    event: WidgetActionParams,
+  ) => Awaitable<void>;
+  timer?: (
+    ctx: WidgetTimerContext,
+    event: WidgetTimerParams,
+  ) => Awaitable<void>;
 }
 
 export interface WidgetRegistration {
@@ -691,7 +796,9 @@ function handleResponse(response: JsonRpcResponse): void {
 
   const request = pending.get(pendingKey(response.id));
   if (!request) {
-    writeStderr(`barshelf sdk: response for unknown id ${String(response.id)} ignored`);
+    writeStderr(
+      `barshelf sdk: response for unknown id ${String(response.id)} ignored`,
+    );
     return;
   }
 
@@ -726,7 +833,9 @@ function makeContext<T extends object>(params: T): T & WidgetRuntimeContext {
 }
 
 function reportHandlerError(method: string, error: unknown): void {
-  const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+  const message = error instanceof Error
+    ? `${error.name}: ${error.message}`
+    : String(error);
   void log("error", `${method} handler failed: ${message}`).catch(() => {
     writeStderr(`barshelf sdk: ${method} handler failed: ${message}`);
   });
@@ -735,7 +844,9 @@ function reportHandlerError(method: string, error: unknown): void {
 function dispatchNotification(method: string, params: unknown): void {
   void (async () => {
     if (!handlers) {
-      writeStderr(`barshelf sdk: received ${method} before barshelf.widget registration`);
+      writeStderr(
+        `barshelf sdk: received ${method} before barshelf.widget registration`,
+      );
       return;
     }
 
@@ -790,7 +901,9 @@ function handleLine(line: string): void {
     return;
   }
 
-  writeStderr("barshelf sdk: JSON-RPC message without method/result/error ignored");
+  writeStderr(
+    "barshelf sdk: JSON-RPC message without method/result/error ignored",
+  );
 }
 
 async function readLoop(): Promise<void> {
@@ -850,7 +963,10 @@ function startReadLoop(): void {
   void readLoop();
 }
 
-export async function render(root: UINode, options: RenderOptions = {}): Promise<RenderResult> {
+export async function render(
+  root: UINode,
+  options: RenderOptions = {},
+): Promise<RenderResult> {
   return await sendRequest<RenderResult>("host.render", {
     root,
     status: options.status,

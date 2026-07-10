@@ -39,6 +39,8 @@ interface StateStyle {
   rank: number;
 }
 
+const runtimeState = { hasRendered: false };
+
 const STATE_STYLE: Record<AgentState, StateStyle> = {
   error: {
     label: "Error",
@@ -182,6 +184,18 @@ function promptFor(agent: MuxaAgent): string | null {
   return prompt ? oneLine(prompt) : null;
 }
 
+function copyPromptButton(prompt: string): UINode {
+  // BarShelf's native UINode contract represents button icons as an SF Symbol
+  // name string. Build this tiny node directly so the widget also works with
+  // already-installed BarShelf SDKs whose ui.button helper emitted an object.
+  return {
+    type: "button",
+    icon: "doc.on.doc",
+    tooltip: "Copy last prompt",
+    action: ui.action.copyText(prompt, { toast: "Prompt copied" }),
+  } as unknown as UINode;
+}
+
 function agentRow(
   agent: MuxaAgent,
   index: number,
@@ -204,18 +218,7 @@ function agentRow(
         }),
       ], { spacing: 1 }),
       ui.spacer(),
-      ...(prompt
-        ? [
-          ui.button(
-            undefined,
-            ui.action.copyText(prompt, { toast: "Prompt copied" }),
-            {
-              icon: "doc.on.doc",
-              tooltip: "Copy last prompt",
-            },
-          ),
-        ]
-        : []),
+      ...(prompt ? [copyPromptButton(prompt)] : []),
       ui.badge(`${style.label} · ${stateAge}`, { tone: style.tone }),
     ], { spacing: 6 }),
     ...(prompt
@@ -288,13 +291,26 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
     const args = socket
       ? ["--socket", socket, "status", "--json"]
       : ["status", "--json"];
-    const result = await ctx.exec.run({
+    let result = await ctx.exec.run({
       command: "muxa",
       args,
       parse: "json",
       timeoutMs: 4_000,
       sensitive: true,
     });
+    if (result.exitCode !== 0) {
+      // The daemon can briefly hit the CLI's IPC deadline during a burst of
+      // hook traffic. One short retry prevents a transient miss from replacing
+      // a useful menu-bar snapshot with an offline state.
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      result = await ctx.exec.run({
+        command: "muxa",
+        args,
+        parse: "json",
+        timeoutMs: 4_000,
+        sensitive: true,
+      });
+    }
     if (result.exitCode !== 0) {
       if (
         /unexpected argument ['\"]--json['\"]|unknown option.*--json/i.test(
@@ -339,6 +355,7 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
           sensitive: true,
         },
       );
+      runtimeState.hasRendered = true;
       return;
     }
 
@@ -386,7 +403,16 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
         sensitive: true,
       },
     );
+    runtimeState.hasRendered = true;
   } catch (error) {
+    if (runtimeState.hasRendered) {
+      const message = error instanceof Error ? error.message : String(error);
+      await ctx.log(
+        "warn",
+        `muxa refresh kept last good render: ${oneLine(message, 240)}`,
+      );
+      return;
+    }
     await renderUnavailable(ctx, error);
   }
 }

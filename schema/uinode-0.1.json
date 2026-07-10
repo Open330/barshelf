@@ -700,7 +700,8 @@
           "type": "string"
         },
         "icon": {
-          "$ref": "#/definitions/imageSource"
+          "type": "string",
+          "description": "SF Symbol name"
         },
         "tooltip": {
           "type": "string"
