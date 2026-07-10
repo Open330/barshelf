@@ -21,7 +21,6 @@
   },
 
   "appearance": {
-    "accent": "orange",
-    "cardStyle": "tinted"
+    "accent": "orange"
   }
 }

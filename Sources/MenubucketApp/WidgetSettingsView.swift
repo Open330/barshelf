@@ -467,7 +467,7 @@ struct SearchOverlay: View {
                 }
             }
         }
-        .background(.regularMaterial)
+        .background(Color(nsColor: .windowBackgroundColor))
         .onChange(of: query) { _ in selection = 0 }
         // ↑/↓ move the highlighted result while the search field keeps focus;
         // hidden zero-size buttons capture the arrow keys on macOS 13 (no

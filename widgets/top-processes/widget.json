@@ -25,7 +25,6 @@
 
   "appearance": {
     "accent": "purple",
-    "density": "compact",
-    "cardStyle": "tinted"
+    "density": "compact"
   }
 }

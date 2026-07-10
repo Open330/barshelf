@@ -53,7 +53,6 @@
   "appearance": {
     "accent": "purple",
     "density": "compact",
-    "cardStyle": "tinted",
     "showHeader": true
   }
 }

@@ -23,7 +23,6 @@
   },
 
   "appearance": {
-    "accent": "pink",
-    "cardStyle": "tinted"
+    "accent": "pink"
   }
 }

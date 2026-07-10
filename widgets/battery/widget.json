@@ -25,7 +25,6 @@
 
   "appearance": {
     "accent": "green",
-    "density": "compact",
-    "cardStyle": "tinted"
+    "density": "compact"
   }
 }

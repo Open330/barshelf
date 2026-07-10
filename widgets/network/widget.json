@@ -23,8 +23,6 @@
   },
 
   "appearance": {
-    "accent": "blue",
-    "cardStyle": "tinted",
-    "fixedHeight": 150
+    "accent": "blue"
   }
 }

@@ -21,7 +21,6 @@
   },
 
   "appearance": {
-    "accent": "green",
-    "cardStyle": "tinted"
+    "accent": "green"
   }
 }

@@ -180,24 +180,10 @@ private struct ShotCard: View {
             ViewTreeRenderer(node: node)
                 .environment(\.widgetAppearance, WidgetAppearance(accent: accentName))
         }
-        .padding(12)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(LinearGradient(
-                            colors: [accent.opacity(scheme == .dark ? 0.32 : 0.22), accent.opacity(0.05)],
-                            startPoint: .topLeading, endPoint: .bottomTrailing
-                        ))
-                )
-        )
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.secondary.opacity(0.10), lineWidth: 1))
-        .shadow(color: .black.opacity(0.10), radius: 5, y: 2)
     }
-
-    @Environment(\.colorScheme) private var scheme
 }
 
 private struct PopoverShot: View {
@@ -213,15 +199,18 @@ private struct PopoverShot: View {
             }
             .padding(.horizontal, 12).padding(.vertical, 10)
             Divider()
-            VStack(spacing: 10) {
+            VStack(spacing: 0) {
                 ShotCard(title: "Today", icon: "calendar", node: ShotData.todayNode, accentName: "red")
-                HStack(alignment: .top, spacing: 10) {
+                Divider().padding(.horizontal, 12)
+                HStack(alignment: .top, spacing: 0) {
                     ShotCard(title: "Battery", icon: "battery.100percent", node: ShotData.batteryNode, accentName: "green")
+                    Divider()
                     ShotCard(title: "Weather", icon: "cloud.sun.fill", node: ShotData.weatherNode, accentName: "blue")
                 }
+                Divider().padding(.horizontal, 12)
                 ShotCard(title: "aas usage", icon: "gauge", node: ShotData.aasNode, accentName: "orange")
             }
-            .padding(12)
+            .padding(.vertical, 4)
             Divider()
             HStack(spacing: 7) {
                 Circle().fill(Color.secondary.opacity(0.4)).frame(width: 6, height: 6)
@@ -231,7 +220,7 @@ private struct PopoverShot: View {
             .padding(9)
         }
         .frame(width: 360)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(Color(nsColor: .controlBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.primary.opacity(0.12), lineWidth: 1))
         .padding(20)

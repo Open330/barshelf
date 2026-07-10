@@ -20,8 +20,6 @@
   ],
 
   "appearance": {
-    "accent": "green",
-    "cardStyle": "tinted",
-    "fixedHeight": 150
+    "accent": "green"
   }
 }

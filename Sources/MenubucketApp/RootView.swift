@@ -114,6 +114,8 @@ struct RootView: View {
             }
         }
         .frame(width: Self.defaultSize.width, height: Self.defaultSize.height)
+        // Solid, opaque popup surface — no popover translucency bleeding through.
+        .background(Color(nsColor: .controlBackgroundColor))
         .overlay(alignment: .top) {
             if searchPresented {
                 SearchOverlay(runtime: runtime, pager: pager, isPresented: $searchPresented)
@@ -163,10 +165,8 @@ struct RootView: View {
                 .fontWeight(.medium)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
-                .background(Capsule().fill(.ultraThinMaterial))
-                .overlay(Capsule().strokeBorder(Color.secondary.opacity(0.25), lineWidth: 1))
+                .modifier(ControlCapsule())
                 .padding(.bottom, 46)
-                .shadow(radius: 4, y: 1)
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
                 .accessibilityLabel(message)
         }
@@ -180,17 +180,17 @@ struct RootView: View {
             runtime.widgets.first { $0.id == id }
         }
         if !pinnedWidgets.isEmpty {
-            VStack(spacing: 6) {
+            VStack(spacing: 0) {
                 ForEach(pinnedWidgets.prefix(2)) { widget in
                     WidgetCardView(widget: widget, runtime: runtime)
                         .frame(maxHeight: 120)
                 }
                 if pinnedWidgets.count > 2 {
                     pinnedOverflow(pinnedWidgets: pinnedWidgets)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 4)
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
             Divider()
         }
     }
@@ -260,17 +260,20 @@ struct RootView: View {
             HStack(spacing: 0) {
                 ForEach(pages) { page in
                     ScrollView {
-                        VStack(spacing: 10) {
+                        VStack(spacing: 0) {
                             if runtime.prefs.welcomePending,
                                page.id == Self.welcomePageID(pages: pages) {
                                 WelcomeCardView {
                                     runtime.prefs.dismissWelcome()
                                     runtime.objectWillChange.send()
                                 }
+                                rowSeparator
                             }
-                            ForEach(cardRows(page.widgets)) { row in
-                                HStack(alignment: .top, spacing: 10) {
-                                    ForEach(row.widgets) { widget in
+                            let rows = cardRows(page.widgets)
+                            ForEach(Array(rows.enumerated()), id: \.element.id) { rowIndex, row in
+                                HStack(alignment: .top, spacing: 0) {
+                                    ForEach(Array(row.widgets.enumerated()), id: \.element.id) { widgetIndex, widget in
+                                        if widgetIndex > 0 { Divider() }
                                         WidgetCardView(
                                             widget: widget,
                                             runtime: runtime,
@@ -279,9 +282,10 @@ struct RootView: View {
                                         .frame(maxWidth: .infinity)
                                     }
                                 }
+                                if rowIndex < rows.count - 1 { rowSeparator }
                             }
                         }
-                        .padding(10)
+                        .padding(.bottom, 6)
                     }
                     .frame(width: width, height: geometry.size.height)
                 }
@@ -295,6 +299,11 @@ struct RootView: View {
             .onChange(of: width) { pager.pageWidth = $0 }
         }
         .clipped()
+    }
+
+    /// Inset hairline between widget sections — separation without boxes.
+    private var rowSeparator: some View {
+        Divider().padding(.horizontal, 12)
     }
 
     /// Composed toolbar: panel title + inline page indicator on the left,
@@ -332,7 +341,7 @@ struct RootView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(.bar)
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 
     private func footer(pages: [WidgetPage], index: Int) -> some View {
@@ -394,7 +403,7 @@ struct RootView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
-        .background(.bar)
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 
     /// Footer "+" entry point: add widgets from the gallery, a URL, or the
@@ -501,6 +510,17 @@ struct RootView: View {
     }
 }
 
+/// Capsule chrome for floating controls: a solid, opaque surface with a
+/// hairline border — no translucency.
+struct ControlCapsule: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .background(Capsule().fill(Color(nsColor: .windowBackgroundColor)))
+            .overlay(Capsule().strokeBorder(Color.secondary.opacity(0.25), lineWidth: 0.5))
+            .shadow(color: .black.opacity(0.10), radius: 2, y: 1)
+    }
+}
+
 /// One-time welcome card shown above the seeded starter widgets after the
 /// first-run seeding pass. The close button records the dismissal in prefs,
 /// so the card never returns.
@@ -546,16 +566,10 @@ struct WelcomeCardView: View {
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(10)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.accentColor.opacity(0.08))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(Color.accentColor.opacity(0.35), lineWidth: 1)
-        )
+        .background(Color.accentColor.opacity(0.07))
     }
 }
 
@@ -617,12 +631,13 @@ struct WidgetCardView: View {
     var body: some View {
         let snapshot = model.snapshot
         cardStack(snapshot: snapshot)
-            .padding(contentInset)
+            .padding(.horizontal, contentInset + 2)
+            .padding(.vertical, 10)
             .frame(maxWidth: .infinity, alignment: .topLeading)
             .modifier(OptionalHeight(height: effectiveFixedHeight))
             .environment(\.widgetAppearance, appearance)
-        .background(cardBackground)
-        .overlay(cardBorder)
+            .environment(\.remoteImageHosts, widget.manifest.permissions?.network ?? [])
+        .background(sectionBackground)
         .overlay(alignment: .topTrailing) { cardControls }
         // Insertion indicator while a dragged card hovers over this one.
         .overlay(alignment: .leading) {
@@ -634,12 +649,11 @@ struct WidgetCardView: View {
                     .transition(.opacity)
             }
         }
-        .contentShape(RoundedRectangle(cornerRadius: Self.cardCornerRadius, style: .continuous))
+        .contentShape(Rectangle())
         // Drop target: another card dropped here reorders it before this one.
         .onDrop(of: [UTType.plainText], isTargeted: $isDropTarget.animation(.easeInOut(duration: 0.12))) { providers in
             reorderDrop(providers)
         }
-        .shadow(color: .black.opacity(0.10), radius: 5, y: 2)
         .animation(.easeInOut(duration: 0.4), value: isHighlighted)
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) { isHovering = hovering }
@@ -792,16 +806,6 @@ struct WidgetCardView: View {
                 ProgressView().controlSize(.mini)
                     .accessibilityLabel("Refreshing")
             }
-            Button {
-                runtime.refresh(widgetID: widget.id)
-            } label: {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 10))
-            }
-            .buttonStyle(.borderless)
-            .opacity(isHovering ? 1 : 0)
-            .help("Refresh \(widget.manifest.name)")
-            .accessibilityLabel("Refresh \(widget.manifest.name)")
         }
     }
 
@@ -817,36 +821,45 @@ struct WidgetCardView: View {
         .accessibilityLabel("Loading")
     }
 
-    /// Card fill: neutral control background, or an accent wash when the
-    /// effective card style is `tinted`.
-    /// Hover controls at the card's top-right: a drag handle to reorder and an
-    /// edit button that opens the widget's settings.
+    /// Hover controls at the widget's top-right — refresh, a drag handle to
+    /// move/reorder, and settings — grouped in one glass capsule.
     @ViewBuilder
     private var cardControls: some View {
         if isHovering {
-            HStack(spacing: 4) {
+            HStack(spacing: 2) {
+                Button { runtime.refresh(widgetID: widget.id) } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 22, height: 20)
+                }
+                .buttonStyle(.plain)
+                .help("Refresh \(widget.manifest.name)")
+                .accessibilityLabel("Refresh \(widget.manifest.name)")
                 Image(systemName: "line.3.horizontal")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.secondary)
-                    .frame(width: 22, height: 22)
-                    .background(Circle().fill(.regularMaterial))
+                    .frame(width: 22, height: 20)
                     .onDrag {
                         NSItemProvider(object: widget.id as NSString)
                     } preview: {
                         dragPreview
                     }
-                    .help("Drag to reorder")
-                    .accessibilityLabel("Reorder \(widget.manifest.name)")
+                    .help("Drag to move")
+                    .accessibilityLabel("Move \(widget.manifest.name)")
                 Button { showSettings = true } label: {
                     Image(systemName: "slider.horizontal.3")
                         .font(.system(size: 10, weight: .semibold))
-                        .frame(width: 22, height: 22)
-                        .background(Circle().fill(.regularMaterial))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 22, height: 20)
                 }
                 .buttonStyle(.plain)
                 .help("Widget settings")
                 .accessibilityLabel("Settings for \(widget.manifest.name)")
             }
+            .padding(.horizontal, 3)
+            .padding(.vertical, 2)
+            .modifier(ControlCapsule())
             .padding(6)
             .transition(.opacity)
         }
@@ -865,7 +878,7 @@ struct WidgetCardView: View {
         .padding(.vertical, 8)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(.regularMaterial)
+                .fill(Color(nsColor: .windowBackgroundColor))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -884,9 +897,6 @@ struct WidgetCardView: View {
         return true
     }
 
-    /// Native-widget corner radius.
-    private static let cardCornerRadius: CGFloat = 16
-
     /// Applies a fixed height only when one is set; otherwise leaves the view to
     /// size itself (fit-to-content).
     private struct OptionalHeight: ViewModifier {
@@ -896,51 +906,28 @@ struct WidgetCardView: View {
             if let height {
                 content.frame(height: height)
             } else {
-                // Fit-to-content, but never collapse below a card-like floor so
+                // Fit-to-content, but never collapse below a row-like floor so
                 // short widgets don't read as broken.
-                content.frame(minHeight: 96, alignment: .topLeading)
+                content.frame(minHeight: 56, alignment: .topLeading)
             }
         }
     }
 
-    /// Content-colored background: a soft top-down accent gradient over the base
-    /// surface, like a native home-screen widget. Tinted widgets get a stronger
-    /// wash; a widget with a declared accent gets a subtle one even when plain;
-    /// an accent-less plain widget stays neutral gray.
-    private var cardBackground: some View {
+    /// Flat, edge-to-edge section fill. The popup's glass shows through at
+    /// rest; hover gets a whisper of contrast, a `tinted` widget a flat accent
+    /// wash, and the reveal flash a stronger accent — no gradients, no boxes.
+    private var sectionBackground: some View {
         let tinted = appearance.cardStyle == .tinted
-        let hasAccent = appearance.accentColor != nil
         let dark = colorScheme == .dark
-        // Dark surfaces swallow tints, so push the accent a bit harder there.
-        let top = tinted ? (dark ? 0.34 : 0.24) : (hasAccent ? (dark ? 0.20 : 0.12) : 0.0)
-        let bottom = tinted ? (dark ? 0.10 : 0.05) : (hasAccent ? (dark ? 0.05 : 0.02) : 0.0)
-        return RoundedRectangle(cornerRadius: Self.cardCornerRadius, style: .continuous)
-            .fill(Color(nsColor: .controlBackgroundColor))
-            .overlay(
-                // Diagonal accent wash — a native home-screen-widget look.
-                RoundedRectangle(cornerRadius: Self.cardCornerRadius, style: .continuous)
-                    .fill(LinearGradient(
-                        colors: [cardAccent.opacity(top), cardAccent.opacity(bottom)],
-                        startPoint: .topLeading, endPoint: .bottomTrailing
-                    ))
-            )
-            .overlay(
-                // Faint top sheen for depth.
-                RoundedRectangle(cornerRadius: Self.cardCornerRadius, style: .continuous)
-                    .fill(LinearGradient(
-                        colors: [Color.white.opacity(dark ? 0.04 : 0.10), .clear],
-                        startPoint: .top, endPoint: .center
-                    ))
-            )
-    }
-
-    /// Softer 0.12-opacity hairline at rest; a gentle accent glow while the
-    /// card is flashing after a reveal request.
-    private var cardBorder: some View {
-        RoundedRectangle(cornerRadius: Self.cardCornerRadius, style: .continuous)
-            .strokeBorder(
-                isHighlighted ? cardAccent.opacity(0.8) : Color.secondary.opacity(0.10),
-                lineWidth: isHighlighted ? 2 : 1
+        return Rectangle()
+            .fill(
+                isHighlighted
+                    ? cardAccent.opacity(dark ? 0.22 : 0.16)
+                    : tinted
+                        ? cardAccent.opacity(dark ? 0.12 : 0.07)
+                        : isHovering
+                            ? Color.primary.opacity(dark ? 0.06 : 0.04)
+                            : Color.clear
             )
     }
 
@@ -954,7 +941,7 @@ struct WidgetCardView: View {
         }
         .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 8).fill(.ultraThinMaterial))
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color.orange.opacity(0.10)))
         .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.orange.opacity(0.35), lineWidth: 1))
     }
 
@@ -968,7 +955,7 @@ struct WidgetCardView: View {
         }
         .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 8).fill(.ultraThinMaterial))
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color.red.opacity(0.10)))
         .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.red.opacity(0.35), lineWidth: 1))
     }
 

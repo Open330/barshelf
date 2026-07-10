@@ -16,7 +16,6 @@
   },
 
   "appearance": {
-    "accent": "purple",
-    "cardStyle": "tinted"
+    "accent": "purple"
   }
 }

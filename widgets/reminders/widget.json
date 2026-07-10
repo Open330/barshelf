@@ -23,8 +23,6 @@
   },
 
   "appearance": {
-    "accent": "orange",
-    "cardStyle": "tinted",
-    "fixedHeight": 150
+    "accent": "orange"
   }
 }
