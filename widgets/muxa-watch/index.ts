@@ -35,8 +35,12 @@ interface MuxaStatus {
 interface StateStyle {
   label: string;
   tone: string;
-  icon: string;
-  rank: number;
+  marker: string;
+}
+
+interface PreparedView {
+  root: UINode;
+  status: { label: string; tooltip: string };
 }
 
 const runtimeState = { hasRendered: false };
@@ -45,25 +49,22 @@ const STATE_STYLE: Record<AgentState, StateStyle> = {
   error: {
     label: "Error",
     tone: "danger",
-    icon: "xmark.octagon.fill",
-    rank: 0,
+    marker: "■",
   },
   waiting_choice: {
     label: "Choose",
     tone: "warning",
-    icon: "list.bullet.rectangle",
-    rank: 1,
+    marker: "◆",
   },
   waiting_input: {
     label: "Needs input",
     tone: "warning",
-    icon: "questionmark.circle.fill",
-    rank: 2,
+    marker: "▶",
   },
-  working: { label: "Working", tone: "good", icon: "bolt.fill", rank: 3 },
-  starting: { label: "Starting", tone: "accent", icon: "hourglass", rank: 4 },
-  idle: { label: "Idle", tone: "neutral", icon: "pause.circle.fill", rank: 5 },
-  stopped: { label: "Stopped", tone: "neutral", icon: "stop.circle", rank: 6 },
+  working: { label: "Working", tone: "good", marker: "●" },
+  starting: { label: "Starting", tone: "accent", marker: "◌" },
+  idle: { label: "Idle", tone: "neutral", marker: "○" },
+  stopped: { label: "Stopped", tone: "neutral", marker: "×" },
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -162,83 +163,52 @@ function agentTitle(agent: MuxaAgent): string {
   return basename(agent.cwd) ?? kindLabel(agent.kind);
 }
 
-function agentSubtitle(agent: MuxaAgent, now: number): string {
-  const parts = [kindLabel(agent.kind)];
-  const project = basename(agent.cwd);
-  if (project && project !== agentTitle(agent)) parts.push(project);
-  if (agent.model) parts.push(agent.model);
-  if (
-    agent.context_used_pct !== null && Number.isFinite(agent.context_used_pct)
-  ) {
-    parts.push(`${agent.context_used_pct.toFixed(0)}% ctx`);
-  }
-  if (agent.cost_usd !== null && Number.isFinite(agent.cost_usd)) {
-    parts.push(`$${agent.cost_usd.toFixed(2)}`);
-  }
-  parts.push(`${age(agent.last_activity_at, now)} ago`);
-  return parts.join(" · ");
-}
-
 function promptFor(agent: MuxaAgent): string | null {
   const prompt = agent.last_prompt ?? agent.last_notification;
   return prompt ? oneLine(prompt) : null;
 }
 
-function copyPromptButton(prompt: string): UINode {
-  // BarShelf's native UINode contract represents button icons as an SF Symbol
-  // name string. Build this tiny node directly so the widget also works with
-  // already-installed BarShelf SDKs whose ui.button helper emitted an object.
-  return {
-    type: "button",
-    icon: "doc.on.doc",
-    tooltip: "Copy last prompt",
-    action: ui.action.copyText(prompt, { toast: "Prompt copied" }),
-  } as unknown as UINode;
-}
-
-function agentRow(
+function agentTableRow(
   agent: MuxaAgent,
   index: number,
   now: number,
   showPrompts: boolean,
 ): UINode {
   const style = STATE_STYLE[agent.state];
-  const prompt = showPrompts ? promptFor(agent) : null;
-  const stateAge = age(agent.state_entered_at, now);
-
-  return ui.card([
-    ui.hstack([
-      ui.image(style.icon, { size: 15, tint: style.tone }),
-      ui.vstack([
-        ui.text(agentTitle(agent), { role: "label", lineLimit: 1 }),
-        ui.text(agentSubtitle(agent, now), {
-          role: "caption",
-          foreground: "secondary",
-          lineLimit: 1,
-        }),
-      ], { spacing: 1 }),
-      ui.spacer(),
-      ...(prompt ? [copyPromptButton(prompt)] : []),
-      ui.badge(`${style.label} · ${stateAge}`, { tone: style.tone }),
-    ], { spacing: 6 }),
-    ...(prompt
-      ? [
-        ui.text(prompt, {
-          role: "caption",
-          foreground: "secondary",
-          lineLimit: 2,
-        }),
-      ]
-      : []),
-  ], { id: `agent-${index}`, tone: style.tone, spacing: 5, padding: 7 });
+  const prompt = showPrompts ? promptFor(agent) ?? "-" : "-";
+  return ui.hstack([
+    ui.text(agentTitle(agent), {
+      role: "body",
+      lineLimit: 1,
+      widthFill: true,
+    }),
+    ui.text(style.marker, {
+      role: "code",
+      foreground: style.tone,
+      accessibilityLabel: style.label,
+    }),
+    ui.text(age(agent.last_activity_at, now), {
+      role: "code",
+      foreground: "secondary",
+      monospacedDigit: true,
+      lineLimit: 1,
+    }),
+    ui.text(oneLine(prompt, 80), {
+      role: "caption",
+      foreground: prompt === "-" ? "tertiary" : "primary",
+      lineLimit: 1,
+      widthFill: true,
+    }),
+  ], { id: `agent-${index}`, spacing: 7, padding: 3 });
 }
 
 function sortedAgents(agents: MuxaAgent[]): MuxaAgent[] {
   return [...agents].sort((left, right) => {
-    const rank = STATE_STYLE[left.state].rank - STATE_STYLE[right.state].rank;
-    if (rank !== 0) return rank;
-    return Date.parse(right.last_activity_at) -
+    const activity = Date.parse(right.last_activity_at) -
       Date.parse(left.last_activity_at);
+    return activity !== 0
+      ? activity
+      : agentTitle(left).localeCompare(agentTitle(right));
   });
 }
 
@@ -250,6 +220,105 @@ function statusLabel(
   if (attention > 0) return `⚠ ${attention}`;
   if (working > 0) return `● ${working}`;
   return active > 0 ? String(active) : "Idle";
+}
+
+function redactedCacheStatus(snapshot: MuxaStatus): MuxaStatus {
+  return {
+    ...snapshot,
+    agents: snapshot.agents.map((agent) => ({
+      ...agent,
+      session_id: "",
+      pane: null,
+      cwd: null,
+      model: null,
+      last_prompt: null,
+      last_notification: null,
+      context_used_pct: null,
+      cost_usd: null,
+    })),
+  };
+}
+
+function prepareStatusView(
+  ctx: WidgetLoadContext,
+  snapshot: MuxaStatus,
+  redacted = false,
+): PreparedView {
+  const includeStopped = booleanSetting(ctx.settings.includeStopped, false);
+  const showPrompts = !redacted &&
+    booleanSetting(ctx.settings.showPrompts, true);
+  const maxAgents = integerSetting(ctx.settings.maxAgents, 5, 1, 10);
+  const agents = sortedAgents(snapshot.agents).filter((agent) =>
+    includeStopped || agent.state !== "stopped"
+  );
+  const active =
+    snapshot.agents.filter((agent) => agent.state !== "stopped").length;
+  const working =
+    snapshot.agents.filter((agent) => agent.state === "working").length;
+  const attention =
+    snapshot.agents.filter((agent) =>
+      agent.state === "waiting_input" || agent.state === "waiting_choice" ||
+      agent.state === "error"
+    ).length;
+  const status = {
+    label: statusLabel(attention, working, active),
+    tooltip: `${active} active · ${working} working · ${attention} need you`,
+  };
+
+  if (agents.length === 0) {
+    return {
+      root: ui.empty({
+        icon: "checkmark.circle.fill",
+        title: "No active agents",
+        subtitle: "Tracked agents will appear here as soon as they start.",
+      }),
+      status: { label: "Idle", tooltip: "No active muxa agents" },
+    };
+  }
+
+  const visible = agents.slice(0, maxAgents);
+  const hidden = Math.max(agents.length - visible.length, 0);
+  const rows: UINode[] = [];
+  for (const [index, agent] of visible.entries()) {
+    rows.push(agentTableRow(agent, index, ctx.now, showPrompts));
+    if (index < visible.length - 1) rows.push(ui.divider());
+  }
+  return {
+    root: ui.vstack([
+      ui.hstack([
+        ui.text("NAME", {
+          role: "caption",
+          foreground: "secondary",
+          widthFill: true,
+        }),
+        ui.text("ST", { role: "caption", foreground: "secondary" }),
+        ui.text("ACT", {
+          role: "caption",
+          foreground: "secondary",
+          monospacedDigit: true,
+        }),
+        ui.text("LAST PROMPT", {
+          role: "caption",
+          foreground: "secondary",
+          widthFill: true,
+        }),
+      ], { spacing: 7, padding: 3 }),
+      ui.divider(),
+      ...rows,
+      ...(hidden > 0
+        ? [
+          ui.hstack([
+            ui.spacer(),
+            ui.text(`+${hidden} older`, {
+              role: "caption",
+              foreground: "tertiary",
+            }),
+          ]),
+        ]
+        : []),
+    ], { spacing: 5 }),
+    status,
+  };
 }
 
 async function renderUnavailable(
@@ -323,82 +392,17 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
     }
 
     const snapshot = parseStatus(result.json);
-    const includeStopped = booleanSetting(ctx.settings.includeStopped, false);
-    const showPrompts = booleanSetting(ctx.settings.showPrompts, true);
-    const maxAgents = integerSetting(ctx.settings.maxAgents, 8, 1, 20);
-    const agents = sortedAgents(snapshot.agents).filter((agent) =>
-      includeStopped || agent.state !== "stopped"
+    const live = prepareStatusView(ctx, snapshot);
+    const fallback = prepareStatusView(
+      ctx,
+      redactedCacheStatus(snapshot),
+      true,
     );
-    const active = snapshot.agents.filter((agent) =>
-      agent.state !== "stopped"
-    ).length;
-    const working = snapshot.agents.filter((agent) =>
-      agent.state === "working"
-    ).length;
-    const attention = snapshot.agents.filter((agent) =>
-      agent.state === "waiting_input" || agent.state === "waiting_choice" ||
-      agent.state === "error"
-    ).length;
-    const visible = agents.slice(0, maxAgents);
-    const hidden = Math.max(agents.length - visible.length, 0);
-
-    if (agents.length === 0) {
-      await ctx.render(
-        ui.empty({
-          icon: "checkmark.circle.fill",
-          title: "No active agents",
-          subtitle: "Tracked agents will appear here as soon as they start.",
-        }),
-        {
-          status: { label: "Idle", tooltip: "No active muxa agents" },
-          cacheTtlMs: 5_000,
-          sensitive: true,
-        },
-      );
-      runtimeState.hasRendered = true;
-      return;
-    }
-
     await ctx.render(
-      ui.vstack([
-        ui.hstack([
-          ui.stat("Active", active, { icon: "person.2.fill", tone: "accent" }),
-          ui.stat("Working", working, {
-            icon: "bolt.fill",
-            tone: working > 0 ? "good" : "neutral",
-          }),
-          ui.stat("Needs you", attention, {
-            icon: "person.crop.circle.badge.exclamationmark",
-            tone: attention > 0 ? "warning" : "neutral",
-          }),
-        ], { spacing: 6 }),
-        ui.list(
-          visible.map((agent, index) =>
-            agentRow(agent, index, ctx.now, showPrompts)
-          ),
-          {
-            spacing: 6,
-          },
-        ),
-        ...(hidden > 0
-          ? [
-            ui.banner(
-              `${hidden} more agent${
-                hidden === 1 ? "" : "s"
-              } hidden by the display limit.`,
-              {
-                tone: "neutral",
-              },
-            ),
-          ]
-          : []),
-      ], { spacing: 8 }),
+      live.root,
       {
-        status: {
-          label: statusLabel(attention, working, active),
-          tooltip:
-            `${active} active · ${working} working · ${attention} need you`,
-        },
+        status: live.status,
+        cacheRoot: fallback.root,
         cacheTtlMs: 5_000,
         sensitive: true,
       },

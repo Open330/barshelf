@@ -107,7 +107,7 @@ Fit / fixed-height layout. **Today** and **Recent Files** are seeded on first ru
 | **Battery** · **System** · **Network** | shell | Battery %, CPU/Memory/Disk meters, and the local IP. |
 | **Recent Files** | `fs.directory` | Stashbar-style Grid/List of recent files — QuickLook thumbnails, drag-out, click to open. |
 | **aas Usage** · **OTP Codes** | CLI | LLM usage meters from [`aas`](https://github.com/Open330/aas); TOTP codes with a countdown ring from [`otpeek`](https://github.com/jiunbae/otpeek). |
-| **muxa Watch** | CLI + script | Live AI-agent state from [`muxa`](https://github.com/Open330/muxa): active/working/attention counts, compact agent cards, and prompt copy. |
+| **muxa Watch** | CLI + script | The five most recently active [`muxa`](https://github.com/Open330/muxa) agents in a compact `NAME / ST / ACT / LAST PROMPT` table. |
 | **Downloads** · **GitHub Status** | mixed | Persistence ("new since last check" counting) and an HTTPS status feed. |
 
 Most native widgets are **clickable** — like a real macOS/iOS widget, clicking the card opens its companion app or page (Today → Calendar, System → Activity Monitor, Stock → Yahoo Finance, Weather → Weather app, …).
