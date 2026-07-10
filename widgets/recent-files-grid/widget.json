@@ -2,7 +2,7 @@
   "$schema": "https://barshelf.dev/schema/widget-0.1.json",
   "schemaVersion": 1,
   "id": "dev.barshelf.recent-files-grid",
-  "name": "Recent Files (views)",
+  "name": "Recent Files",
   "version": "0.1.0",
   "icon": "square.grid.2x2",
   "bucket": { "group": "Files", "order": 31, "size": "M" },

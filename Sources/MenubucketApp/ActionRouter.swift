@@ -51,6 +51,13 @@ enum ActionRouter {
             let expanded = (path as NSString).expandingTildeInPath
             NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: expanded)])
 
+        case "openApp":
+            // Launch (or foreground) an app by bundle id ("com.apple.iCal"),
+            // display name ("Activity Monitor"), or a full .app path — so a
+            // widget can behave like a native one: click → open its companion app.
+            guard let value = action.value ?? action.url else { return }
+            openApp(value)
+
         case "refresh":
             if let targetID = action.id {
                 runtime?.refresh(widgetID: targetID)
@@ -75,5 +82,48 @@ enum ActionRouter {
         default:
             NSLog("barshelf: unknown action type '%@' from %@", action.type, widgetID)
         }
+    }
+
+    /// Resolves and launches an application from a bundle identifier, a display
+    /// name, or a full `.app` path. Bundle identifiers are the most reliable for
+    /// system apps (they survive localization and relocation).
+    private static func openApp(_ identifier: String) {
+        let workspace = NSWorkspace.shared
+        let config = NSWorkspace.OpenConfiguration()
+
+        // Looks like a bundle id: dotted, no slash, no space (e.g. com.apple.iCal).
+        if identifier.contains("."), !identifier.contains("/"),
+           !identifier.contains(" "),
+           let url = workspace.urlForApplication(withBundleIdentifier: identifier) {
+            workspace.openApplication(at: url, configuration: config)
+            return
+        }
+
+        // A full path to a bundle.
+        if identifier.hasPrefix("/") {
+            if FileManager.default.fileExists(atPath: identifier) {
+                workspace.openApplication(
+                    at: URL(fileURLWithPath: identifier), configuration: config)
+            }
+            return
+        }
+
+        // A display name: search the standard application locations.
+        let appName = identifier.hasSuffix(".app") ? identifier : "\(identifier).app"
+        let searchDirs = [
+            "/System/Applications",
+            "/System/Applications/Utilities",
+            "/Applications",
+            "/Applications/Utilities",
+        ]
+        for dir in searchDirs {
+            let candidate = "\(dir)/\(appName)"
+            if FileManager.default.fileExists(atPath: candidate) {
+                workspace.openApplication(
+                    at: URL(fileURLWithPath: candidate), configuration: config)
+                return
+            }
+        }
+        NSLog("barshelf: openApp could not resolve '%@'", identifier)
     }
 }

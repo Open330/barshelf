@@ -16,6 +16,7 @@
     "switch": "${widget.size}",
     "cases": {
       "M": {
+        "action": {"type": "openApp", "value": "com.apple.iCal"},
         "type": "hstack",
         "spacing": 10,
         "children": [
@@ -39,6 +40,7 @@
         ]
       },
       "L": {
+        "action": {"type": "openApp", "value": "com.apple.iCal"},
         "type": "vstack",
         "spacing": 6,
         "children": [
@@ -57,6 +59,7 @@
       }
     },
     "default": {
+      "action": {"type": "openApp", "value": "com.apple.iCal"},
       "type": "vstack",
       "spacing": 1,
       "children": [

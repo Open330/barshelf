@@ -160,16 +160,16 @@ final class RegistryTests: XCTestCase {
         XCTAssertTrue(warnings.isEmpty, "\(warnings)")
         XCTAssertEqual(
             Set(index.widgets.compactMap(\.kind)),
-            ["exec", "workflow"]
+            ["exec", "script", "workflow"]
         )
         // CLI/runtime/hardware-dependent entries carry the display-only
         // `requires` badge; the dependency-free ones do not.
         let byID = Dictionary(uniqueKeysWithValues: index.widgets.map { ($0.id, $0) })
         XCTAssertEqual(byID["dev.barshelf.aas-meters"]?.requires, "aas CLI")
         XCTAssertEqual(byID["dev.barshelf.otpeek"]?.requires, "otpeek CLI")
+        XCTAssertEqual(byID["dev.barshelf.muxa-watch"]?.requires, "muxa CLI + Deno")
         XCTAssertEqual(byID["dev.barshelf.battery-meter"]?.requires, "Battery (laptop)")
         XCTAssertNil(byID["dev.barshelf.today"]?.requires)
-        XCTAssertNil(byID["dev.barshelf.visit-counter"]?.requires)
         XCTAssertNil(byID["dev.barshelf.recent-files-grid"]?.requires)
         // Origin-project links surfaced per user feedback (Stashbar / aas / otpeek).
         XCTAssertEqual(
@@ -184,9 +184,14 @@ final class RegistryTests: XCTestCase {
             byID["dev.barshelf.otpeek"]?.homepage,
             "https://github.com/jiunbae/otpeek"
         )
+        XCTAssertEqual(
+            byID["dev.barshelf.muxa-watch"]?.homepage,
+            "https://github.com/Open330/muxa"
+        )
         XCTAssertEqual(byID["dev.barshelf.today"]?.install.bundled, "today")
         XCTAssertEqual(byID["dev.barshelf.battery-meter"]?.install.bundled, "battery-meter")
         XCTAssertEqual(byID["dev.barshelf.otpeek"]?.install.bundled, "otpeek")
+        XCTAssertEqual(byID["dev.barshelf.muxa-watch"]?.install.bundled, "muxa-watch")
         XCTAssertEqual(
             byID["dev.barshelf.recent-files-grid"]?.install.url,
             "https://github.com/jiunbae/stashbar"

@@ -358,6 +358,45 @@ final class WorkflowEngineTests: XCTestCase {
         )
         XCTAssertEqual(output.viewTree.text, "b") // items[1].name
     }
+
+    /// Flagship native widgets behave like real ones: clicking the whole card
+    /// opens their companion app / page. Guards the declared root-level actions.
+    func testWiredNativeWidgetsDeclareClickActions() throws {
+        let widgetsDir = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("widgets")
+        let expected: [String: String] = [
+            "today": "openApp", "calendar": "openApp", "system": "openApp",
+            "weather": "openApp", "now-playing": "openApp", "reminders": "openApp",
+            "clock": "openURL", "battery-meter": "openURL", "network": "openURL",
+            "stock": "openURL", "exchange": "openURL", "github-status": "openURL",
+            "downloads-new": "revealFile",
+        ]
+        for (name, type) in expected {
+            let wf = widgetsDir.appendingPathComponent(name).appendingPathComponent("workflow.json")
+            let json = try JSONSerialization.jsonObject(with: try Data(contentsOf: wf))
+            let types = Self.collectActionTypes(json)
+            XCTAssertTrue(
+                types.contains(type),
+                "\(name) should declare a \(type) click action, found \(types)"
+            )
+        }
+    }
+
+    /// Recursively gathers every `action.type` declared anywhere in a view tree.
+    private static func collectActionTypes(_ any: Any) -> Set<String> {
+        var found: Set<String> = []
+        if let dict = any as? [String: Any] {
+            if let action = dict["action"] as? [String: Any],
+               let type = action["type"] as? String {
+                found.insert(type)
+            }
+            for value in dict.values { found.formUnion(collectActionTypes(value)) }
+        } else if let array = any as? [Any] {
+            for value in array { found.formUnion(collectActionTypes(value)) }
+        }
+        return found
+    }
 }
 
 final class StorageServiceSnapshotTests: XCTestCase {

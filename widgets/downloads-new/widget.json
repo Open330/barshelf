@@ -2,7 +2,7 @@
   "$schema": "https://barshelf.dev/schema/widget-0.1.json",
   "schemaVersion": 1,
   "id": "dev.barshelf.downloads-new",
-  "name": "New Downloads",
+  "name": "Downloads",
   "version": "0.1.0",
   "icon": "arrow.down.circle.badge.clock",
   "bucket": { "group": "Files", "order": 35, "size": "S" },

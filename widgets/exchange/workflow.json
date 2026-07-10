@@ -11,6 +11,7 @@
   },
 
   "view": {
+    "action": {"type": "openURL", "url": "https://www.xe.com/currencyconverter/"},
     "type": "vstack",
     "spacing": 2,
     "children": [

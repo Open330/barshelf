@@ -236,8 +236,13 @@ public struct ImageSource: Codable, Equatable {
     }
 }
 
-/// Declarative action attached to a node (typically `button`).
-/// `type`: "copyText" | "openURL" | "openFile" | "revealFile" | "refresh" | "run" | "event"
+/// Declarative action attached to a node. Buttons carry one; any other node
+/// with an `action` becomes tappable as a whole (a file row, a grid tile, or an
+/// entire widget card — so a widget can behave like a native one: click → open).
+/// `type`: "copyText" | "openURL" | "openFile" | "revealFile" | "openApp"
+///         | "refresh" | "run" | "event"
+/// `openApp` opens an application by bundle id ("com.apple.iCal"), display name
+/// ("Activity Monitor"), or a full `.app` path, carried in `value`.
 public struct NodeAction: Codable, Equatable {
     public var type: String
     public var value: String?

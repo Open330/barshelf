@@ -13,6 +13,7 @@
   },
 
   "view": {
+    "action": {"type": "openURL", "url": "x-apple.systempreferences:com.apple.Battery-Settings.extension"},
     "type": "vstack",
     "spacing": 6,
     "children": [

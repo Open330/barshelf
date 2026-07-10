@@ -2,7 +2,7 @@
   "$schema": "https://barshelf.dev/schema/widget-0.1.json",
   "schemaVersion": 1,
   "id": "dev.barshelf.aas-meters",
-  "name": "aas Usage (meters)",
+  "name": "aas Usage",
   "version": "0.1.0",
   "icon": "gauge",
   "bucket": { "group": "Agents", "order": 21, "size": "M" },

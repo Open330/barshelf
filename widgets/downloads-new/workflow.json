@@ -21,6 +21,7 @@
   },
 
   "view": {
+    "action": {"type": "revealFile", "value": "${settings.folder}"},
     "type": "card",
     "tone": "accent",
     "spacing": 6,

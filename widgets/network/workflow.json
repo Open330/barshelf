@@ -13,6 +13,7 @@
   },
 
   "view": {
+    "action": {"type": "openURL", "url": "x-apple.systempreferences:com.apple.Network-Settings.extension"},
     "type": "vstack",
     "spacing": 2,
     "children": [

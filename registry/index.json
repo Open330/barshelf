@@ -2,7 +2,7 @@
   "_comment": "Sample index served from this repository. install.bundled lets the packaged gallery install the starter widgets without network access. The `requires` field is a display-only gallery badge for widgets that need an external CLI/runtime. `category` is an optional curated grouping surfaced as gallery filter chips (falls back to `tags`). `screenshot` (optional, http(s)/file URL) renders a preview thumbnail.",
   "schemaVersion": 1,
   "name": "barshelf official registry",
-  "updatedAt": "2026-07-09T00:00:00Z",
+  "updatedAt": "2026-07-10T00:00:00Z",
   "widgets": [
     {
       "id": "dev.barshelf.today",
@@ -63,6 +63,21 @@
       "homepage": "https://github.com/Open330/aas"
     },
     {
+      "id": "dev.barshelf.muxa-watch",
+      "name": "muxa Watch",
+      "description": "Live muxa agent state in the BarShelf menu-bar popover — active, working, waiting, and error counts plus compact per-agent cards with one-tap prompt copy. Requires muxa 0.8.17 or newer and Deno.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "rectangle.3.group.bubble.left.fill",
+      "kind": "script",
+      "tags": ["developer", "agents", "ai", "muxa", "monitoring", "script"],
+      "category": "Developer",
+      "requires": "muxa CLI + Deno",
+      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/muxa-watch", "bundled": "muxa-watch" },
+      "permissions": { "exec": ["muxa"], "keychain": false, "notifications": false },
+      "homepage": "https://github.com/Open330/muxa"
+    },
+    {
       "id": "dev.barshelf.otpeek",
       "name": "OTP Codes",
       "description": "One-time password codes straight from your OTPeek vault with a countdown ring and one-tap copy — see https://github.com/jiunbae/otpeek. Requires the otpeek CLI and a configured vault (the vault password is read from the macOS Keychain).",
@@ -79,7 +94,7 @@
     },
     {
       "id": "dev.barshelf.downloads-new",
-      "name": "New Downloads",
+      "name": "Downloads",
       "description": "Counts files in a folder and shows how many were added or removed since your last check, persisting the count across refreshes with the workflow storage layer.",
       "version": "0.1.0",
       "author": "barshelf",
@@ -89,20 +104,6 @@
       "category": "Files",
       "requires": "Downloads folder access",
       "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/downloads-new", "bundled": "downloads-new" },
-      "permissions": { "exec": [], "keychain": false, "notifications": false },
-      "homepage": "https://github.com/Open330/barshelf"
-    },
-    {
-      "id": "dev.barshelf.visit-counter",
-      "name": "Visit Counter",
-      "description": "Counts how many times you've opened it and remembers first/previous visit times across restarts using the workflow storage layer. A persistence demo. No external dependency.",
-      "version": "0.1.0",
-      "author": "barshelf",
-      "icon": "sparkles",
-      "kind": "workflow",
-      "tags": ["demo", "workflow", "storage", "persistence"],
-      "category": "Demo",
-      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/visit-counter", "bundled": "visit-counter" },
       "permissions": { "exec": [], "keychain": false, "notifications": false },
       "homepage": "https://github.com/Open330/barshelf"
     },

@@ -18,6 +18,7 @@
   },
 
   "view": {
+    "action": {"type": "openURL", "url": "https://finance.yahoo.com/quote/${settings.symbol}"},
     "type": "vstack",
     "spacing": 2,
     "children": [

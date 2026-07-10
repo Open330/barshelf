@@ -96,7 +96,7 @@ Full guide, `barshelf` CLI, and troubleshooting: **[docs/INSTALL.md](docs/INSTAL
 
 ## Gallery widgets
 
-Fifteen native widgets ship in the gallery — most are declarative **workflows**
+Native widgets ship in the gallery — most are declarative **workflows**
 (no code), styled like native macOS/iOS widgets with per-widget color and a
 Fit / fixed-height layout. **Today** and **Recent Files** are seeded on first run.
 
@@ -107,7 +107,10 @@ Fit / fixed-height layout. **Today** and **Recent Files** are seeded on first ru
 | **Battery** · **System** · **Network** | shell | Battery %, CPU/Memory/Disk meters, and the local IP. |
 | **Recent Files** | `fs.directory` | Stashbar-style Grid/List of recent files — QuickLook thumbnails, drag-out, click to open. |
 | **aas Usage** · **OTP Codes** | CLI | LLM usage meters from [`aas`](https://github.com/Open330/aas); TOTP codes with a countdown ring from [`otpeek`](https://github.com/jiunbae/otpeek). |
-| **Visit Counter** · **New Downloads** · **GitHub Status** | mixed | Persistence (counter, "new since last check") and an HTTPS status feed. |
+| **muxa Watch** | CLI + script | Live AI-agent state from [`muxa`](https://github.com/Open330/muxa): active/working/attention counts, compact agent cards, and prompt copy. |
+| **Downloads** · **GitHub Status** | mixed | Persistence ("new since last check" counting) and an HTTPS status feed. |
+
+Most native widgets are **clickable** — like a real macOS/iOS widget, clicking the card opens its companion app or page (Today → Calendar, System → Activity Monitor, Stock → Yahoo Finance, Weather → Weather app, …).
 
 ## Build a widget in 3 minutes
 

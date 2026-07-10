@@ -13,6 +13,7 @@
   },
 
   "view": {
+    "action": {"type": "openApp", "value": "com.apple.iCal"},
     "type": "vstack",
     "spacing": 4,
     "children": [

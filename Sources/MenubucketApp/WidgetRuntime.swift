@@ -380,33 +380,45 @@ final class WidgetRuntime: ObservableObject {
         for exec in permissions?.exec ?? [] {
             if let patterns = exec.allowedArgs, !patterns.isEmpty {
                 for pattern in patterns {
-                    rows.append(UINode(
-                        type: "text",
-                        text: "• exec: " + ([exec.command] + pattern).joined(separator: " "),
-                        role: "caption"
+                    rows.append(permissionRow(
+                        icon: "terminal",
+                        title: describeExec(command: exec.command, args: pattern)
                     ))
                 }
             } else if exec.allowedArgs != nil {
-                rows.append(UINode(type: "text", text: "• exec: \(exec.command)", role: "caption"))
+                rows.append(permissionRow(
+                    icon: "terminal",
+                    title: describeExec(command: exec.command, args: [])
+                ))
             } else {
-                rows.append(UINode(
-                    type: "text", text: "• exec: \(exec.command) (any arguments)", role: "caption"
+                rows.append(permissionRow(
+                    icon: "terminal",
+                    title: "Run \(friendlyCommandName(exec.command)) with any arguments"
                 ))
             }
         }
         if permissions?.keychain == true {
-            rows.append(UINode(type: "text", text: "• keychain: secret storage access", role: "caption"))
+            rows.append(permissionRow(icon: "key.fill", title: "Read & write Keychain secrets"))
         }
         if permissions?.notifications == true {
-            rows.append(UINode(type: "text", text: "• notifications", role: "caption"))
+            rows.append(permissionRow(icon: "bell.fill", title: "Post notifications"))
+        }
+        if let net = permissions?.network, !net.isEmpty {
+            let hosts = net.prefix(4).joined(separator: ", ")
+            let suffix = net.count > 4 ? ", …" : ""
+            rows.append(permissionRow(icon: "network", title: "Connect to \(hosts)\(suffix)"))
+        }
+        if permissions?.storage?.granted == true {
+            rows.append(permissionRow(icon: "internaldrive.fill", title: "Save small data on this Mac"))
         }
         if let env = permissions?.env, !env.isEmpty {
-            rows.append(UINode(
-                type: "text", text: "• env: \(env.joined(separator: ", "))", role: "caption"
+            rows.append(permissionRow(
+                icon: "leaf.fill",
+                title: "Read environment: \(env.joined(separator: ", "))"
             ))
         }
         if rows.isEmpty {
-            rows.append(UINode(type: "text", text: "• no special permissions", role: "caption"))
+            rows.append(permissionRow(icon: "checkmark.seal.fill", title: "No special permissions"))
         }
 
         var children: [UINode] = [
@@ -426,6 +438,72 @@ final class WidgetRuntime: ObservableObject {
                    action: NodeAction(type: "permission.deny")),
         ], spacing: 8))
         return UINode(type: "vstack", children: children, spacing: 6)
+    }
+
+    /// One permission line in the approval card: a leading SF Symbol and a
+    /// human-readable description, instead of a raw shell command dump.
+    private static func permissionRow(icon: String, title: String) -> UINode {
+        UINode(type: "hstack", children: [
+            UINode(
+                type: "image",
+                source: ImageSource(kind: "sfSymbol", name: icon),
+                size: 12,
+                tint: "secondary"
+            ),
+            UINode(type: "text", text: title, role: "caption", lineLimit: 2),
+        ], spacing: 6)
+    }
+
+    /// Turns an exec permission (command + a specific argument pattern) into a
+    /// readable sentence. Shell wrappers (`/bin/sh -c "<script>"`) are the ugly
+    /// case: instead of printing the whole script we surface the tools it calls.
+    static func describeExec(command: String, args: [String]) -> String {
+        let name = friendlyCommandName(command)
+        let shells: Set<String> = ["sh", "bash", "zsh", "dash", "ksh"]
+        if shells.contains(name.lowercased()),
+           let flag = args.firstIndex(of: "-c"), flag + 1 < args.count {
+            let tools = referencedTools(in: args[flag + 1])
+            guard !tools.isEmpty else { return "Run a shell command" }
+            let shown = tools.prefix(6).joined(separator: ", ")
+            let more = tools.count > 6 ? ", …" : ""
+            return "Run system tools: \(shown)\(more)"
+        }
+        guard !args.isEmpty else { return "Run \(name)" }
+        var detail = ([name] + args).joined(separator: " ")
+        if detail.count > 72 { detail = String(detail.prefix(71)) + "…" }
+        return "Run \(detail)"
+    }
+
+    /// The basename of an executable path (`/usr/bin/top` → `top`).
+    static func friendlyCommandName(_ command: String) -> String {
+        let name = (command as NSString).lastPathComponent
+        return name.isEmpty ? command : name
+    }
+
+    /// Extracts the distinct executables a shell script invokes by absolute
+    /// path (e.g. `/usr/bin/top`, `/bin/df`), in first-seen order, so a script
+    /// can be summarized by the tools it runs rather than its full text.
+    static func referencedTools(in script: String) -> [String] {
+        let binDirs = ["/bin/", "/usr/bin/", "/sbin/", "/usr/sbin/",
+                       "/opt/homebrew/bin/", "/usr/local/bin/"]
+        let pathChars = Set(
+            "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/._-")
+        var tools: [String] = []
+        var seen = Set<String>()
+        let chars = Array(script)
+        var i = 0
+        while i < chars.count {
+            guard chars[i] == "/" else { i += 1; continue }
+            var j = i
+            while j < chars.count, pathChars.contains(chars[j]) { j += 1 }
+            let token = String(chars[i..<j])
+            if binDirs.contains(where: { token.hasPrefix($0) }) {
+                let name = (token as NSString).lastPathComponent
+                if !name.isEmpty, seen.insert(name).inserted { tools.append(name) }
+            }
+            i = j
+        }
+        return tools
     }
 
     static func disabledCard(reason: String) -> UINode {

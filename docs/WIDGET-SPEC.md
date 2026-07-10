@@ -519,8 +519,25 @@ Script 위젯에서는 같은 구조를 직접 쓰는 대신 SDK의 `ui.metricCa
 | `openURL` | `url` | 기본 브라우저로 URL을 연다. |
 | `openFile` | `path` | 파일을 기본 앱으로 연다. |
 | `revealFile` | `path` | Finder에서 파일을 표시한다. |
+| `openApp` | `value` | 앱을 실행한다. bundle id(`com.apple.iCal`), 표시 이름(`Activity Monitor`), 또는 `.app` 전체 경로를 받는다. |
 | `run` | `command`, `thenRefresh` | manifest `permissions.exec` allowlist와 매칭되는 명령만 실행한다. |
 | `refresh` | 없음 | 현재 위젯을 수동 갱신한다. |
+
+### 위젯 전체를 클릭 가능하게 (native widget처럼)
+
+`action`은 `button`뿐 아니라 **어떤 노드에도** 붙일 수 있다. 컨테이너(뷰의 루트 `vstack`/`card` 등)에 `action`을 붙이면 위젯 카드 전체가 탭 대상이 되어, 실제 iOS/macOS 위젯처럼 "클릭 → 앱/페이지 열기"가 동작한다. 안쪽 행·타일에 개별 `action`이 있으면 그 탭이 우선한다(가장 안쪽 제스처가 이긴다).
+
+```json
+{
+  "view": {
+    "action": { "type": "openApp", "value": "com.apple.iCal" },
+    "type": "vstack",
+    "children": [ /* ... */ ]
+  }
+}
+```
+
+`openURL`/`openFile`/`revealFile`/`openApp`은 사용자가 직접 클릭해 여는 host 액션이므로 별도의 `permissions.exec` 권한이 필요 없다. 번들 위젯 예: Today/Calendar→Calendar 앱, System→활성 상태 보기, Stock→Yahoo Finance, Weather→날씨 앱.
 
 `run` 예:
 
