@@ -67,17 +67,26 @@ enum ScreenshotMode {
         panel1x.scale = 1
         let panel2x = ImageRenderer(content: HeroPanel())
         panel2x.scale = 2
-        guard let panel = panel1x.nsImage, let panelSharp = panel2x.nsImage else {
+        let bar1x = ImageRenderer(content: MenuBarStrip())
+        bar1x.scale = 1
+        let bar2x = ImageRenderer(content: MenuBarStrip())
+        bar2x.scale = 2
+        guard let panel = panel1x.nsImage, let panelSharp = panel2x.nsImage,
+              let bar = bar1x.nsImage, let barSharp = bar2x.nsImage else {
             FileHandle.standardError.write(Data("hero panel render failed\n".utf8))
             return false
         }
         let origin = heroPanelOrigin
         let margin = heroPanelMargin
         let panelSize = panel.size
+        let panelHeight = panelSize.height - margin * 2
+        let barSize = bar.size
 
-        // Full hero: photo + fresh panel at the measured spot.
+        // Full hero: photo, menu bar strip (hides the photo's baked-in menus,
+        // anchors the popover to BarShelf's highlighted status item), panel.
         let hero = NSImage(size: NSSize(width: 2400, height: 1350), flipped: true) { _ in
             backdrop.draw(in: CGRect(x: 0, y: 0, width: 2400, height: 1350))
+            bar.draw(in: CGRect(x: 0, y: 0, width: barSize.width, height: barSize.height))
             panel.draw(in: CGRect(
                 x: origin.x - margin, y: origin.y - margin,
                 width: panelSize.width, height: panelSize.height
@@ -85,22 +94,33 @@ enum ScreenshotMode {
             return true
         }
 
-        // Showcase: 840×720 crop with the panel roughly centered.
+        // Showcase: 840×720 crop, menu bar included, panel roughly centered.
         let shelfOffset = CGPoint(x: origin.x - (840 - heroPanelWidth) / 2, y: 0)
         let shelf = NSImage(size: NSSize(width: 840, height: 720), flipped: true) { _ in
             hero.draw(in: CGRect(x: -shelfOffset.x, y: -shelfOffset.y, width: 2400, height: 1350))
             return true
         }
 
-        // og:image: 800×539 hero region scaled 2×, panel redrawn at 2× for
-        // sharpness (matches the previous asset's zoomed framing).
-        let ogCrop = CGPoint(x: origin.x - 278, y: 6)
+        // og:image: a zoomed 1600×1078 crop from the top strip — menu bar +
+        // full panel with a little breathing room, both redrawn from the 2×
+        // renders so the zoom stays sharp. The crop height adapts to the
+        // panel's actual height; width follows the 1600:1078 aspect.
+        // Snapped to the screen's right edge so the status cluster and clock
+        // stay whole; the panel keeps a comfortable left margin.
+        let cropHeight = origin.y + panelHeight + 16
+        let cropWidth = cropHeight * 1600 / 1078
+        let cropX = 2400 - cropWidth
+        let scale = 1600 / cropWidth
         let og = NSImage(size: NSSize(width: 1600, height: 1078), flipped: true) { _ in
-            hero.draw(in: CGRect(x: -ogCrop.x * 2, y: -ogCrop.y * 2, width: 4800, height: 2700))
+            hero.draw(in: CGRect(x: -cropX * scale, y: 0, width: 2400 * scale, height: 1350 * scale))
+            barSharp.draw(in: CGRect(
+                x: -cropX * scale, y: 0,
+                width: barSize.width * scale, height: barSize.height * scale
+            ))
             panelSharp.draw(in: CGRect(
-                x: (origin.x - margin - ogCrop.x) * 2,
-                y: (origin.y - margin - ogCrop.y) * 2,
-                width: panelSize.width * 2, height: panelSize.height * 2
+                x: (origin.x - margin - cropX) * scale,
+                y: (origin.y - margin) * scale,
+                width: panelSize.width * scale, height: panelSize.height * scale
             ))
             return true
         }
@@ -237,11 +257,10 @@ private enum ShotData {
     }
 
     static var weatherNode: UINode {
+        // No inner weather glyph — the card header already carries one.
         decode("""
         {"type":"vstack","spacing":2,"children":[
-          {"type":"hstack","spacing":6,"children":[
-            {"type":"image","source":{"kind":"sfSymbol","name":"cloud.sun.fill"},"size":14,"tint":"accent"},
-            {"type":"text","text":"Seoul","role":"caption","foreground":"secondary"}]},
+          {"type":"text","text":"Seoul","role":"caption","foreground":"secondary"},
           {"type":"text","text":"24°","size":44,"role":"title","monospacedDigit":true},
           {"type":"text","text":"Cloudy","role":"caption","foreground":"secondary"}]}
         """)
@@ -294,6 +313,56 @@ private struct ShotCard: View {
     }
 }
 
+/// The macOS menu bar composited across the hero photo's top strip — replaces
+/// the stray app menus baked into the photo and gives the popover an anchor:
+/// BarShelf's real status mark (highlighted, pressed state) sits right above
+/// the panel, among ordinary status items.
+private struct MenuBarStrip: View {
+    var body: some View {
+        ZStack {
+            // Opaque so the photo's original menu bar text cannot ghost through;
+            // the dark blue-gray reads as the translucent bar over a night scene.
+            Color(red: 0.086, green: 0.11, blue: 0.125)
+            HStack(spacing: 18) {
+                Image(systemName: "apple.logo").font(.system(size: 13))
+                Text("Finder").font(.system(size: 13, weight: .bold))
+                Group {
+                    Text("File"); Text("Edit"); Text("View"); Text("Go"); Text("Window"); Text("Help")
+                }
+                .font(.system(size: 13))
+                Spacer()
+            }
+            .padding(.leading, 18)
+            HStack(spacing: 12) {
+                Spacer()
+                ZStack {
+                    RoundedRectangle(cornerRadius: 4).fill(Color.white.opacity(0.28))
+                    Image(nsImage: BarShelfStatusIcon.logoImage())
+                        .renderingMode(.template)
+                }
+                .frame(width: 34, height: 20)
+                Image(systemName: "moon.fill").font(.system(size: 12)).frame(width: 22)
+                Image(systemName: "display").font(.system(size: 12)).frame(width: 22)
+                Image(systemName: "speaker.wave.2.fill").font(.system(size: 12)).frame(width: 22)
+                Image(systemName: "wifi").font(.system(size: 12)).frame(width: 24)
+                HStack(spacing: 4) {
+                    Text("80%").font(.system(size: 12.5))
+                    Image(systemName: "battery.75percent").font(.system(size: 13))
+                }
+                .frame(width: 58)
+                Image(systemName: "magnifyingglass").font(.system(size: 12)).frame(width: 22)
+                Image(systemName: "switch.2").font(.system(size: 12)).frame(width: 26)
+                Text("Thu 9 Jul").font(.system(size: 13)).frame(width: 64)
+                Text("20:53").font(.system(size: 13)).frame(width: 44)
+            }
+            .padding(.trailing, 14)
+        }
+        .foregroundColor(.white.opacity(0.92))
+        .frame(width: 2400, height: 24)
+        .environment(\.colorScheme, .dark)
+    }
+}
+
 /// The popover panel composited into the hero photo: same chrome as
 /// `PopoverShot` but bare (no padding/backdrop) with a night-friendly shadow.
 /// Must render at least ~470 pt tall to fully cover the old baked-in popover.
@@ -301,7 +370,7 @@ private struct HeroPanel: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("Demo").font(.system(size: 13, weight: .semibold))
+                Text("Home").font(.system(size: 13, weight: .semibold))
                 Spacer()
                 Image(systemName: "magnifyingglass").font(.system(size: 11)).foregroundColor(.secondary)
                 Image(systemName: "arrow.clockwise").font(.system(size: 11)).foregroundColor(.secondary)
