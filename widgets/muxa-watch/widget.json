@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.muxa-watch",
   "name": "muxa Watch",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "icon": "rectangle.3.group.bubble.left.fill",
   "bucket": { "group": "Agents", "order": 10, "size": "L", "pinned": true },
 
@@ -36,6 +36,14 @@
         ],
         "maxOutputBytes": 262144,
         "sensitiveOutput": true
+      },
+      {
+        "command": "ssh",
+        "allowedArgs": [
+          ["-o", "BatchMode=yes", "-o", "ConnectTimeout=3", "--", "*", "muxa", "status", "--json"]
+        ],
+        "maxOutputBytes": 262144,
+        "sensitiveOutput": true
       }
     ],
     "env": ["MUXA_BIN"],
@@ -44,10 +52,12 @@
   },
 
   "settings": [
-    { "key": "maxAgents", "title": "Maximum rows", "type": "integer", "default": 5, "min": 1, "max": 10 },
+    { "key": "includeLocal", "title": "Include this Mac", "type": "boolean", "default": true },
+    { "key": "sshHosts", "title": "SSH hosts (comma separated)", "type": "string", "default": "" },
+    { "key": "maxAgents", "title": "Maximum rows per host", "type": "integer", "default": 5, "min": 1, "max": 10 },
     { "key": "showPrompts", "title": "Show last prompts", "type": "boolean", "default": true },
     { "key": "includeStopped", "title": "Include stopped agents", "type": "boolean", "default": false },
-    { "key": "socket", "title": "Custom muxa socket", "type": "string", "default": "" }
+    { "key": "socket", "title": "Custom local muxa socket", "type": "string", "default": "" }
   ],
 
   "appearance": {

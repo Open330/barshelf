@@ -79,16 +79,16 @@
     {
       "id": "dev.barshelf.muxa-watch",
       "name": "muxa Watch",
-      "description": "A compact muxa watch table in the BarShelf menu-bar popover — the five most recently active agents with NAME, ST, ACT, and LAST PROMPT columns. Requires a muxa build with `status --json` and Deno.",
-      "version": "0.1.4",
+      "description": "Compact local and multi-host muxa watch tables in the BarShelf menu-bar popover. Add SSH aliases to monitor each host's most recently active agents with NAME, ST, ACT, and LAST PROMPT columns. Requires a muxa build with `status --json` and Deno.",
+      "version": "0.2.0",
       "author": "barshelf",
       "icon": "rectangle.3.group.bubble.left.fill",
       "kind": "script",
-      "tags": ["developer", "agents", "ai", "muxa", "monitoring", "script"],
+      "tags": ["developer", "agents", "ai", "muxa", "monitoring", "ssh", "script"],
       "category": "Developer",
       "requires": "muxa CLI + Deno",
       "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/muxa-watch", "bundled": "muxa-watch" },
-      "permissions": { "exec": ["muxa"], "keychain": false, "notifications": false },
+      "permissions": { "exec": ["muxa", "ssh"], "keychain": false, "notifications": false },
       "homepage": "https://github.com/Open330/muxa"
     },
     {

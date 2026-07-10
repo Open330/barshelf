@@ -43,7 +43,35 @@ interface PreparedView {
   status: { label: string; tooltip: string };
 }
 
-const runtimeState = { hasRendered: false };
+interface WatchSource {
+  key: string;
+  label: string;
+  kind: "local" | "ssh";
+  host?: string;
+}
+
+interface SourceResult extends WatchSource {
+  snapshot?: MuxaStatus;
+  error?: string;
+}
+
+interface SSHHostSettings {
+  hosts: string[];
+  errors: string[];
+}
+
+const runtimeState = {
+  hasRendered: false,
+  sourceSignature: "",
+};
+const MAX_SSH_HOSTS = 8;
+const SSH_OPTIONS = [
+  "-o",
+  "BatchMode=yes",
+  "-o",
+  "ConnectTimeout=3",
+  "--",
+] as const;
 
 const STATE_STYLE: Record<AgentState, StateStyle> = {
   error: {
@@ -116,6 +144,38 @@ function integerSetting(
   return Math.min(Math.max(number, min), max);
 }
 
+function parseSSHHosts(value: unknown): SSHHostSettings {
+  if (typeof value !== "string" || value.trim() === "") {
+    return { hosts: [], errors: [] };
+  }
+
+  const hosts: string[] = [];
+  const errors: string[] = [];
+  const seen = new Set<string>();
+  const entries = value.split(/[\s,]+/).map((item) => item.trim()).filter(
+    Boolean,
+  );
+
+  for (const entry of entries) {
+    if (
+      entry.length > 255 || entry.startsWith("-") ||
+      !/^[A-Za-z0-9][A-Za-z0-9._:@%+-]*$/.test(entry)
+    ) {
+      errors.push(`Invalid SSH host: ${oneLine(entry, 48)}`);
+      continue;
+    }
+    if (seen.has(entry)) continue;
+    if (hosts.length >= MAX_SSH_HOSTS) {
+      errors.push(`At most ${MAX_SSH_HOSTS} SSH hosts are supported.`);
+      break;
+    }
+    seen.add(entry);
+    hosts.push(entry);
+  }
+
+  return { hosts, errors };
+}
+
 function kindLabel(kind: string): string {
   switch (kind) {
     case "claude_code":
@@ -170,6 +230,7 @@ function promptFor(agent: MuxaAgent): string | null {
 
 function agentTableRow(
   agent: MuxaAgent,
+  sourceKey: string,
   index: number,
   now: number,
   showPrompts: boolean,
@@ -199,7 +260,7 @@ function agentTableRow(
       lineLimit: 1,
       widthFill: true,
     }),
-  ], { id: `agent-${index}`, spacing: 7, padding: 3 });
+  ], { id: `${sourceKey}-agent-${index}`, spacing: 7, padding: 3 });
 }
 
 function sortedAgents(agents: MuxaAgent[]): MuxaAgent[] {
@@ -239,33 +300,122 @@ function redactedCacheStatus(snapshot: MuxaStatus): MuxaStatus {
   };
 }
 
-function prepareStatusView(
+function filteredAgents(
   ctx: WidgetLoadContext,
   snapshot: MuxaStatus,
-  redacted = false,
-): PreparedView {
+): MuxaAgent[] {
   const includeStopped = booleanSetting(ctx.settings.includeStopped, false);
+  return sortedAgents(snapshot.agents).filter((agent) =>
+    includeStopped || agent.state !== "stopped"
+  );
+}
+
+function agentTable(
+  ctx: WidgetLoadContext,
+  sourceKey: string,
+  snapshot: MuxaStatus,
+  redacted: boolean,
+): UINode {
   const showPrompts = !redacted &&
     booleanSetting(ctx.settings.showPrompts, true);
   const maxAgents = integerSetting(ctx.settings.maxAgents, 5, 1, 10);
-  const agents = sortedAgents(snapshot.agents).filter((agent) =>
-    includeStopped || agent.state !== "stopped"
+  const agents = filteredAgents(ctx, snapshot);
+  const visible = agents.slice(0, maxAgents);
+  const hidden = Math.max(agents.length - visible.length, 0);
+  const rows: UINode[] = [];
+  for (const [index, agent] of visible.entries()) {
+    rows.push(agentTableRow(agent, sourceKey, index, ctx.now, showPrompts));
+    if (index < visible.length - 1) rows.push(ui.divider());
+  }
+
+  if (rows.length === 0) {
+    return ui.hstack([
+      ui.text("No active agents", {
+        role: "caption",
+        foreground: "tertiary",
+      }),
+    ], { padding: 3 });
+  }
+
+  return ui.vstack([
+    ui.hstack([
+      ui.text("NAME", {
+        role: "caption",
+        foreground: "secondary",
+        widthFill: true,
+      }),
+      ui.text("ST", { role: "caption", foreground: "secondary" }),
+      ui.text("ACT", {
+        role: "caption",
+        foreground: "secondary",
+        monospacedDigit: true,
+      }),
+      ui.text("LAST PROMPT", {
+        role: "caption",
+        foreground: "secondary",
+        widthFill: true,
+      }),
+    ], { spacing: 7, padding: 3 }),
+    ui.divider(),
+    ...rows,
+    ...(hidden > 0
+      ? [
+        ui.hstack([
+          ui.spacer(),
+          ui.text(`+${hidden} older`, {
+            role: "caption",
+            foreground: "tertiary",
+          }),
+        ]),
+      ]
+      : []),
+  ], { spacing: 5 });
+}
+
+function prepareStatusView(
+  ctx: WidgetLoadContext,
+  sources: SourceResult[],
+  redacted = false,
+): PreparedView {
+  const snapshots = sources.flatMap((source) =>
+    source.snapshot ? [source.snapshot] : []
   );
-  const active =
-    snapshot.agents.filter((agent) => agent.state !== "stopped").length;
-  const working =
-    snapshot.agents.filter((agent) => agent.state === "working").length;
-  const attention =
-    snapshot.agents.filter((agent) =>
+  const agents = snapshots.flatMap((snapshot) => snapshot.agents);
+  const active = agents.filter((agent) => agent.state !== "stopped").length;
+  const working = agents.filter((agent) => agent.state === "working").length;
+  const agentAttention =
+    agents.filter((agent) =>
       agent.state === "waiting_input" || agent.state === "waiting_choice" ||
       agent.state === "error"
     ).length;
+  const offline = sources.filter((source) => source.error).length;
+  const attention = agentAttention + offline;
+  const online = sources.filter((source) => source.snapshot).length;
+  const sourceSummary = sources.length > 1 || offline > 0
+    ? ` · ${online}/${sources.length} sources online`
+    : "";
   const status = {
     label: statusLabel(attention, working, active),
-    tooltip: `${active} active · ${working} working · ${attention} need you`,
+    tooltip:
+      `${active} active · ${working} working · ${agentAttention} need you${sourceSummary}`,
   };
 
-  if (agents.length === 0) {
+  if (sources.length === 0) {
+    return {
+      root: ui.empty({
+        icon: "network.slash",
+        title: "No muxa sources",
+        subtitle:
+          "Enable Local or add one or more SSH hosts in widget settings.",
+      }),
+      status: { label: "Setup", tooltip: "No muxa sources configured" },
+    };
+  }
+
+  if (
+    sources.length === 1 && sources[0].snapshot && !sources[0].error &&
+    filteredAgents(ctx, sources[0].snapshot).length === 0
+  ) {
     return {
       root: ui.empty({
         icon: "checkmark.circle.fill",
@@ -276,49 +426,47 @@ function prepareStatusView(
     };
   }
 
-  const visible = agents.slice(0, maxAgents);
-  const hidden = Math.max(agents.length - visible.length, 0);
-  const rows: UINode[] = [];
-  for (const [index, agent] of visible.entries()) {
-    rows.push(agentTableRow(agent, index, ctx.now, showPrompts));
-    if (index < visible.length - 1) rows.push(ui.divider());
+  if (sources.length === 1 && sources[0].snapshot && !sources[0].error) {
+    return {
+      root: agentTable(ctx, sources[0].key, sources[0].snapshot, redacted),
+      status,
+    };
   }
+
+  const sections: UINode[] = [];
+  for (const [index, source] of sources.entries()) {
+    const content = source.snapshot
+      ? agentTable(ctx, source.key, source.snapshot, redacted)
+      : ui.banner(source.error ?? "Unavailable", {
+        tone: "warning",
+        title: "Offline",
+      });
+    sections.push(
+      ui.section(source.label, [content], { id: `source-${source.key}` }),
+    );
+    if (index < sources.length - 1) sections.push(ui.divider());
+  }
+
   return {
-    root: ui.vstack([
-      ui.hstack([
-        ui.text("NAME", {
-          role: "caption",
-          foreground: "secondary",
-          widthFill: true,
-        }),
-        ui.text("ST", { role: "caption", foreground: "secondary" }),
-        ui.text("ACT", {
-          role: "caption",
-          foreground: "secondary",
-          monospacedDigit: true,
-        }),
-        ui.text("LAST PROMPT", {
-          role: "caption",
-          foreground: "secondary",
-          widthFill: true,
-        }),
-      ], { spacing: 7, padding: 3 }),
-      ui.divider(),
-      ...rows,
-      ...(hidden > 0
-        ? [
-          ui.hstack([
-            ui.spacer(),
-            ui.text(`+${hidden} older`, {
-              role: "caption",
-              foreground: "tertiary",
-            }),
-          ]),
-        ]
-        : []),
-    ], { spacing: 5 }),
+    root: ui.vstack(sections, { spacing: 7 }),
     status,
   };
+}
+
+function redactedCacheSources(sources: SourceResult[]): SourceResult[] {
+  let remoteIndex = 0;
+  return sources.map((source) => {
+    const label = source.kind === "local" ? "Local" : `Remote ${++remoteIndex}`;
+    return {
+      ...source,
+      label,
+      host: undefined,
+      snapshot: source.snapshot
+        ? redactedCacheStatus(source.snapshot)
+        : undefined,
+      error: source.error ? "Unavailable" : undefined,
+    };
+  });
 }
 
 async function renderUnavailable(
@@ -352,73 +500,176 @@ async function renderUnavailable(
   );
 }
 
-async function load(ctx: WidgetLoadContext): Promise<void> {
-  try {
-    const socket = typeof ctx.settings.socket === "string"
-      ? ctx.settings.socket.trim()
-      : "";
-    const args = socket
-      ? ["--socket", socket, "status", "--json"]
-      : ["status", "--json"];
-    let result = await ctx.exec.run({
-      command: "muxa",
+async function fetchStatus(
+  ctx: WidgetLoadContext,
+  command: string,
+  args: string[],
+  retry: boolean,
+): Promise<MuxaStatus> {
+  let result = await ctx.exec.run({
+    command,
+    args,
+    parse: "json",
+    timeoutMs: command === "ssh" ? 5_000 : 4_000,
+    sensitive: true,
+  });
+  if (retry && result.exitCode !== 0) {
+    // The local daemon can briefly hit the CLI's IPC deadline during a burst
+    // of hook traffic. Keep the existing one-shot retry for local snapshots;
+    // retrying SSH would only double the cost of a failed connection.
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    result = await ctx.exec.run({
+      command,
       args,
       parse: "json",
       timeoutMs: 4_000,
       sensitive: true,
     });
-    if (result.exitCode !== 0) {
-      // The daemon can briefly hit the CLI's IPC deadline during a burst of
-      // hook traffic. One short retry prevents a transient miss from replacing
-      // a useful menu-bar snapshot with an offline state.
-      await new Promise((resolve) => setTimeout(resolve, 250));
-      result = await ctx.exec.run({
-        command: "muxa",
-        args,
-        parse: "json",
-        timeoutMs: 4_000,
-        sensitive: true,
-      });
+  }
+  if (result.exitCode !== 0) {
+    if (
+      /unexpected argument ['"]--json['"]|unknown option.*--json/i.test(
+        result.stderr,
+      )
+    ) {
+      throw new Error("muxa CLI does not support status --json");
     }
-    if (result.exitCode !== 0) {
-      if (
-        /unexpected argument ['\"]--json['\"]|unknown option.*--json/i.test(
-          result.stderr,
-        )
-      ) {
-        throw new Error("muxa CLI does not support status --json");
-      }
-      throw new Error(`muxa exited with code ${result.exitCode}`);
+    const detail = oneLine(result.stderr, 200);
+    throw new Error(detail || `${command} exited with code ${result.exitCode}`);
+  }
+  return parseStatus(result.json);
+}
+
+function friendlySourceError(source: WatchSource, error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/does not support status --json/i.test(message)) {
+    return source.kind === "ssh"
+      ? "Update remote muxa to v0.8.18 or newer"
+      : "muxa CLI does not support status --json";
+  }
+  if (/timed out|timeout/i.test(message)) return "Connection timed out";
+  if (/Could not resolve hostname|nodename nor servname/i.test(message)) {
+    return "SSH host not found";
+  }
+  if (/Host key verification failed/i.test(message)) {
+    return "SSH host key is not trusted yet";
+  }
+  if (/Permission denied/i.test(message)) return "SSH authentication failed";
+  if (/Connection refused/i.test(message)) return "SSH connection refused";
+  if (/command not found|not found|ExecNotFound/i.test(message)) {
+    return source.kind === "ssh"
+      ? "muxa was not found in the remote SSH PATH"
+      : "muxa CLI not found";
+  }
+  return oneLine(message, 160) || "Unavailable";
+}
+
+async function loadSource(
+  ctx: WidgetLoadContext,
+  source: WatchSource,
+  socket: string,
+): Promise<SourceResult> {
+  try {
+    if (source.kind === "local") {
+      const args = socket
+        ? ["--socket", socket, "status", "--json"]
+        : ["status", "--json"];
+      return {
+        ...source,
+        snapshot: await fetchStatus(ctx, "muxa", args, true),
+      };
     }
 
-    const snapshot = parseStatus(result.json);
-    const live = prepareStatusView(ctx, snapshot);
-    const fallback = prepareStatusView(
-      ctx,
-      redactedCacheStatus(snapshot),
-      true,
-    );
-    await ctx.render(
-      live.root,
-      {
-        status: live.status,
-        cacheRoot: fallback.root,
-        cacheTtlMs: 5_000,
-        sensitive: true,
-      },
-    );
-    runtimeState.hasRendered = true;
+    const args = [
+      ...SSH_OPTIONS,
+      source.host ?? "",
+      "muxa",
+      "status",
+      "--json",
+    ];
+    return {
+      ...source,
+      snapshot: await fetchStatus(ctx, "ssh", args, false),
+    };
   } catch (error) {
-    if (runtimeState.hasRendered) {
-      const message = error instanceof Error ? error.message : String(error);
-      await ctx.log(
-        "warn",
-        `muxa refresh kept last good render: ${oneLine(message, 240)}`,
-      );
-      return;
-    }
-    await renderUnavailable(ctx, error);
+    const message = error instanceof Error ? error.message : String(error);
+    await ctx.log(
+      "warn",
+      `${source.label} muxa status failed: ${oneLine(message, 240)}`,
+    );
+    return { ...source, error: friendlySourceError(source, error) };
   }
+}
+
+async function load(ctx: WidgetLoadContext): Promise<void> {
+  const socket = typeof ctx.settings.socket === "string"
+    ? ctx.settings.socket.trim()
+    : "";
+  const ssh = parseSSHHosts(ctx.settings.sshHosts);
+  const sources: WatchSource[] = [];
+  if (booleanSetting(ctx.settings.includeLocal, true)) {
+    sources.push({ key: "local", label: "Local", kind: "local" });
+  }
+  for (const [index, host] of ssh.hosts.entries()) {
+    sources.push({
+      key: `ssh-${index}`,
+      label: host,
+      kind: "ssh",
+      host,
+    });
+  }
+
+  const sourceSignature = JSON.stringify({
+    local: sources.some((source) => source.kind === "local"),
+    socket,
+    hosts: ssh.hosts,
+    errors: ssh.errors,
+  });
+  const results = await Promise.all(
+    sources.map((source) => loadSource(ctx, source, socket)),
+  );
+  for (const [index, error] of ssh.errors.entries()) {
+    results.push({
+      key: `ssh-setting-${index}`,
+      label: "SSH settings",
+      kind: "ssh",
+      error,
+    });
+  }
+
+  const successful = results.filter((source) => source.snapshot).length;
+  if (
+    successful === 0 && sources.length > 0 && runtimeState.hasRendered &&
+    runtimeState.sourceSignature === sourceSignature
+  ) {
+    await ctx.log("warn", "muxa refresh kept the last good multi-host render");
+    return;
+  }
+  if (
+    results.length === 1 && results[0].kind === "local" && results[0].error &&
+    !runtimeState.hasRendered
+  ) {
+    await renderUnavailable(ctx, new Error(results[0].error));
+    return;
+  }
+
+  const live = prepareStatusView(ctx, results);
+  const fallback = prepareStatusView(
+    ctx,
+    redactedCacheSources(results),
+    true,
+  );
+  await ctx.render(
+    live.root,
+    {
+      status: live.status,
+      cacheRoot: fallback.root,
+      cacheTtlMs: 5_000,
+      sensitive: true,
+    },
+  );
+  runtimeState.hasRendered = successful > 0;
+  runtimeState.sourceSignature = sourceSignature;
 }
 
 export default barshelf.widget({ load });
