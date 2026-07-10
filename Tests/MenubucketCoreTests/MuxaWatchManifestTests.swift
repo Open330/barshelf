@@ -39,15 +39,16 @@ final class MuxaWatchManifestTests: XCTestCase {
         ))
     }
 
-    func testManifestExposesMultiHostSettings() throws {
+    func testManifestExposesOneSourcePerInstanceSettings() throws {
         let manifestURL = packageRoot.appendingPathComponent("widgets/muxa-watch/widget.json")
         let manifest = try Manifest.decode(from: Data(contentsOf: manifestURL))
         let settings = Dictionary(uniqueKeysWithValues: (manifest.settings ?? []).compactMap {
             setting in setting.key.map { ($0, setting) }
         })
 
-        XCTAssertEqual(settings["includeLocal"]?.defaultValue, .bool(true))
-        XCTAssertEqual(settings["sshHosts"]?.defaultValue, .string(""))
+        XCTAssertEqual(settings["sshHost"]?.defaultValue, .string(""))
+        XCTAssertNil(settings["includeLocal"])
+        XCTAssertNil(settings["sshHosts"])
         XCTAssertEqual(settings["maxAgents"]?.max, 10)
     }
 }

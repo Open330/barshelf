@@ -161,10 +161,13 @@ final class WidgetPrefs: ObservableObject {
 
     /// Effective theming = user override merged over the manifest's author
     /// default merged over the neutral baseline.
-    func effectiveAppearance(for manifest: Manifest) -> WidgetAppearance {
+    func effectiveAppearance(
+        for manifest: Manifest,
+        widgetID: String? = nil
+    ) -> WidgetAppearance {
         let neutral = WidgetAppearance()
         let base = (manifest.appearance ?? neutral).merged(over: neutral)
-        guard let override = appearanceOverrides[manifest.id] else { return base }
+        guard let override = appearanceOverrides[widgetID ?? manifest.id] else { return base }
         return override.merged(over: base)
     }
 
@@ -183,9 +186,12 @@ final class WidgetPrefs: ObservableObject {
     }
 
     /// Manifest defaults overlaid with the user's stored values.
-    func effectiveSettings(for manifest: Manifest) -> JSONValue {
+    func effectiveSettings(
+        for manifest: Manifest,
+        widgetID: String? = nil
+    ) -> JSONValue {
         var merged = manifest.settingsDefaults().objectValue ?? [:]
-        for (key, value) in settings(for: manifest.id) {
+        for (key, value) in settings(for: widgetID ?? manifest.id) {
             merged[key] = value
         }
         return .object(merged)

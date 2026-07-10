@@ -7,8 +7,21 @@ import MenubucketCore
 struct LoadedWidget: Identifiable {
     let manifest: Manifest
     let directory: URL
+    let instanceID: String
 
-    var id: String { manifest.id }
+    init(manifest: Manifest, directory: URL, instanceID: String? = nil) {
+        self.manifest = manifest
+        self.directory = directory
+        self.instanceID = instanceID ?? manifest.id
+    }
+
+    var id: String { instanceID }
+    var displayName: String {
+        let prefix = manifest.id + "--"
+        guard instanceID.hasPrefix(prefix) else { return manifest.name }
+        let label = String(instanceID.dropFirst(prefix.count))
+        return label.isEmpty ? manifest.name : "\(manifest.name) · \(label)"
+    }
     var group: String { manifest.bucket?.group ?? "General" }
     var order: Int { manifest.bucket?.order ?? 0 }
     var size: String { manifest.bucket?.size ?? "M" }
@@ -440,7 +453,7 @@ final class WidgetRuntime: ObservableObject {
                 type: "banner",
                 text: denied
                     ? "Permissions denied — approve to run this widget"
-                    : "\(widget.manifest.name) requests these permissions:",
+                    : "\(widget.displayName) requests these permissions:",
                 tone: denied ? "danger" : "warning"
             ),
         ]
@@ -534,7 +547,8 @@ final class WidgetRuntime: ObservableObject {
     /// 1. `./widgets/` relative to cwd (development mode)
     /// 2. `~/Library/Application Support/barshelf/widgets/`
     /// Each widget lives at `<dir>/<widget-name>/widget.json`. On duplicate
-    /// widget ids the earlier directory wins (dev overrides installed).
+    /// instance ids the earlier directory wins (dev overrides installed),
+    /// while `<manifest-id>--<label>` aliases remain independent instances.
     static var widgetSearchDirectories: [URL] {
         var directories: [URL] = [
             URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
@@ -553,31 +567,8 @@ final class WidgetRuntime: ObservableObject {
     }
 
     func loadWidgets() {
-        var loaded: [LoadedWidget] = []
-        var seenIDs: Set<String> = []
-        let fm = FileManager.default
-
-        for baseDirectory in Self.widgetSearchDirectories {
-            guard let entries = try? fm.contentsOfDirectory(
-                at: baseDirectory,
-                includingPropertiesForKeys: [.isDirectoryKey],
-                options: [.skipsHiddenFiles]
-            ) else { continue }
-
-            for entry in entries.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
-                let manifestURL = entry.appendingPathComponent("widget.json")
-                guard fm.fileExists(atPath: manifestURL.path) else { continue }
-                do {
-                    let data = try Data(contentsOf: manifestURL)
-                    let manifest = try Manifest.decode(from: data)
-                    guard !seenIDs.contains(manifest.id) else { continue }
-                    seenIDs.insert(manifest.id)
-                    loaded.append(LoadedWidget(manifest: manifest, directory: entry))
-                } catch {
-                    NSLog("barshelf: skipping \(manifestURL.path): \(error)")
-                }
-            }
-        }
+        let loaded = Self.discoverWidgets(in: Self.widgetSearchDirectories)
+        let seenIDs = Set(loaded.map(\.id))
 
         widgets = loaded
         // Remove per-widget state of widgets that disappeared (hot reload).
@@ -630,7 +621,62 @@ final class WidgetRuntime: ObservableObject {
         scheduler.setVisibleWidgetIDs(visibleWidgetIDs)
     }
 
+    static func discoverWidgets(in searchDirectories: [URL]) -> [LoadedWidget] {
+        var loaded: [LoadedWidget] = []
+        var seenIDs: Set<String> = []
+        let fm = FileManager.default
+
+        for baseDirectory in searchDirectories {
+            guard let entries = try? fm.contentsOfDirectory(
+                at: baseDirectory,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            ) else { continue }
+
+            for entry in entries.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
+                let manifestURL = entry.appendingPathComponent("widget.json")
+                guard fm.fileExists(atPath: manifestURL.path) else { continue }
+                do {
+                    let data = try Data(contentsOf: manifestURL)
+                    let manifest = try Manifest.decode(from: data)
+                    let instanceID = Self.instanceID(
+                        manifestID: manifest.id,
+                        directoryName: entry.lastPathComponent
+                    )
+                    guard !seenIDs.contains(instanceID) else { continue }
+                    seenIDs.insert(instanceID)
+                    loaded.append(LoadedWidget(
+                        manifest: manifest,
+                        directory: entry,
+                        instanceID: instanceID
+                    ))
+                    if instanceID != manifest.id {
+                        NSLog(
+                            "barshelf: loaded widget instance %@ from package %@",
+                            instanceID,
+                            manifest.id
+                        )
+                    }
+                } catch {
+                    NSLog("barshelf: skipping \(manifestURL.path): \(error)")
+                }
+            }
+        }
+        return loaded
+    }
+
     static let supportedEntryKinds: Set<String> = ["exec", "script", "workflow"]
+
+    /// The canonical install directory keeps the manifest id. Additional
+    /// instances are lightweight aliases named `<manifest-id>--<label>` and
+    /// share the same package files while retaining independent runtime state.
+    static func instanceID(manifestID: String, directoryName: String) -> String {
+        let prefix = manifestID + "--"
+        guard directoryName.hasPrefix(prefix), directoryName.count > prefix.count else {
+            return manifestID
+        }
+        return directoryName
+    }
 
     // MARK: - Widget management (R11)
 
@@ -662,6 +708,19 @@ final class WidgetRuntime: ObservableObject {
                 "widget \"\(id)\" is not inside the user widgets directory"
             )
         }
+        if id == widget.manifest.id {
+            let aliasPrefix = widget.manifest.id + "--"
+            let hasInstances = (try? FileManager.default.contentsOfDirectory(
+                at: Self.userWidgetsRoot,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+            ))?.contains { $0.lastPathComponent.hasPrefix(aliasPrefix) } ?? false
+            if hasInstances {
+                throw RuntimeError.notRemovable(
+                    "Remove the additional \"\(widget.manifest.name)\" instances before removing its package."
+                )
+            }
+        }
         try FileManager.default.removeItem(at: widget.directory)
         pendingPersists[id]?.cancel() // no queued write may re-create the cache
         pendingPersists.removeValue(forKey: id)
@@ -669,6 +728,90 @@ final class WidgetRuntime: ObservableObject {
         permissionStore.reset(widgetId: id)
         prefs.removeAllState(for: id)
         loadWidgets()
+    }
+
+    /// Creates a second independently configurable instance of an installed
+    /// widget. A symlink keeps aliases on the canonical package so registry
+    /// updates automatically update every instance instead of copying stale
+    /// script and manifest files.
+    @discardableResult
+    func duplicateWidget(id: String, label: String) throws -> String {
+        guard let widget = widgets.first(where: { $0.id == id }) else {
+            throw RuntimeError.widgetNotFound(id)
+        }
+        let normalized = Self.normalizedInstanceLabel(label)
+        guard !normalized.isEmpty else {
+            throw RuntimeError.invalidInstanceName(
+                "Instance name must contain a letter or number."
+            )
+        }
+
+        let canonical = Self.userWidgetsRoot.appendingPathComponent(
+            widget.manifest.id, isDirectory: true
+        )
+        var canonicalIsDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(
+            atPath: canonical.path, isDirectory: &canonicalIsDirectory
+        ), canonicalIsDirectory.boolValue else {
+            throw RuntimeError.notRemovable(
+                "Install \"\(widget.manifest.name)\" before adding another instance."
+            )
+        }
+
+        let instanceID = widget.manifest.id + "--" + normalized
+        let destination = Self.userWidgetsRoot.appendingPathComponent(instanceID)
+        guard !FileManager.default.fileExists(atPath: destination.path) else {
+            throw RuntimeError.invalidInstanceName(
+                "An instance named \"\(normalized)\" already exists."
+            )
+        }
+        do {
+            try FileManager.default.createSymbolicLink(
+                at: destination, withDestinationURL: canonical
+            )
+        } catch {
+            throw RuntimeError.invalidInstanceName(
+                "Could not create instance \"\(normalized)\": \(error.localizedDescription)"
+            )
+        }
+
+        for (key, value) in prefs.settings(for: id) {
+            prefs.setSetting(widgetID: instanceID, key: key, value: value)
+        }
+        if let appearance = prefs.appearanceOverride(for: id) {
+            prefs.setAppearanceOverride(appearance, for: instanceID)
+        }
+        if let placement = prefs.override(for: id) {
+            prefs.setOverride(
+                group: placement.group,
+                order: placement.order,
+                size: placement.size,
+                for: instanceID
+            )
+        }
+        if prefs.isPinned(id) {
+            prefs.togglePin(instanceID)
+        }
+        loadWidgets()
+        return instanceID
+    }
+
+    static func normalizedInstanceLabel(_ label: String) -> String {
+        let lowered = label.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        var result = ""
+        var previousWasSeparator = false
+        for scalar in lowered.unicodeScalars {
+            let allowed = CharacterSet.alphanumerics.contains(scalar)
+                || scalar == "." || scalar == "_" || scalar == "-"
+            if allowed {
+                result.unicodeScalars.append(scalar)
+                previousWasSeparator = false
+            } else if !previousWasSeparator, !result.isEmpty {
+                result.append("-")
+                previousWasSeparator = true
+            }
+        }
+        return result.trimmingCharacters(in: CharacterSet(charactersIn: "-._"))
     }
 
     /// Moves a widget to a bucket by writing an override, then republishes
@@ -1001,7 +1144,11 @@ final class WidgetRuntime: ObservableObject {
         let id = widget.id
         markRefreshStarted(widgetID: id)
         updateSnapshot(id) { $0.isLoading = true }
-        let descriptor = ScriptWidgetDescriptor(manifest: widget.manifest, directory: widget.directory)
+        let descriptor = ScriptWidgetDescriptor(
+            manifest: widget.manifest,
+            directory: widget.directory,
+            instanceID: widget.id
+        )
         let isFirstLoad = snapshots[id]?.viewTree == nil
         let reason = manual ? "manual" : (isFirstLoad ? "install" : "open")
         Task { @MainActor [weak self] in
@@ -1010,7 +1157,9 @@ final class WidgetRuntime: ObservableObject {
                 try await self.scriptSupervisor.load(
                     descriptor,
                     reason: reason,
-                    settings: self.prefs.effectiveSettings(for: widget.manifest)
+                    settings: self.prefs.effectiveSettings(
+                        for: widget.manifest, widgetID: widget.id
+                    )
                 )
             } catch {
                 let message = (error as? LocalizedError)?.errorDescription
@@ -1074,7 +1223,9 @@ final class WidgetRuntime: ObservableObject {
                         execService: execService,
                         extraEnvironment: extraEnvironment,
                         defaultTimeoutMs: source.timeoutMs ?? Self.defaultTimeoutMs,
-                        settings: prefs.effectiveSettings(for: widget.manifest).objectValue ?? [:]
+                        settings: prefs.effectiveSettings(
+                            for: widget.manifest, widgetID: widget.id
+                        ).objectValue ?? [:]
                     )
                     let result = try await adapter(data, context)
                     return .success(RefreshSuccess(
@@ -1097,7 +1248,7 @@ final class WidgetRuntime: ObservableObject {
         let id = widget.id
         let workflowURL = widget.directory
             .appendingPathComponent(widget.manifest.entry.main ?? "workflow.json")
-        let settings = prefs.effectiveSettings(for: widget.manifest)
+        let settings = prefs.effectiveSettings(for: widget.manifest, widgetID: widget.id)
 
         let startedAt = markRefreshStarted(widgetID: id)
         inFlight.insert(id)
@@ -1318,7 +1469,11 @@ final class WidgetRuntime: ObservableObject {
     func handleURLRefreshTrigger(widgetID: String?) {
         for widget in widgets where declaresURLTrigger(widget.manifest) {
             if let widgetID, widget.id != widgetID { continue }
-            refresh(widget, manual: false)
+            // A deep link is an explicit operator action, even when the popup
+            // is closed. Treat it like the refresh button so visibility and
+            // automatic-backoff gates do not turn a documented trigger into a
+            // silent no-op (especially for newly added instances).
+            refresh(widget, manual: true)
         }
     }
 
@@ -1537,6 +1692,7 @@ final class WidgetRuntime: ObservableObject {
         case invalidWorkflow(String)
         case widgetNotFound(String)
         case notRemovable(String)
+        case invalidInstanceName(String)
 
         var errorDescription: String? {
             switch self {
@@ -1544,6 +1700,7 @@ final class WidgetRuntime: ObservableObject {
             case let .invalidWorkflow(message): return message
             case let .widgetNotFound(id): return "widget \"\(id)\" was not found"
             case let .notRemovable(message): return message
+            case let .invalidInstanceName(message): return message
             }
         }
     }

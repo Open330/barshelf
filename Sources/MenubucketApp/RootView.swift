@@ -624,7 +624,7 @@ struct WidgetCardView: View {
     /// Effective theming (user override → author default → neutral). Injected
     /// into the rendered tree and used for the card's own chrome.
     private var appearance: WidgetAppearance {
-        runtime.prefs.effectiveAppearance(for: widget.manifest)
+        runtime.prefs.effectiveAppearance(for: widget.manifest, widgetID: widget.id)
     }
 
     /// The card's own chrome header (icon + name + refresh) is **off by default**
@@ -696,9 +696,9 @@ struct WidgetCardView: View {
                 newBucketName = ""
             }
         } message: {
-            Text("Enter a name for the panel to move \(widget.manifest.name) into.")
+            Text("Enter a name for the panel to move \(widget.displayName) into.")
         }
-        .alert("Remove \(widget.manifest.name)?", isPresented: $showRemoveConfirm) {
+        .alert("Remove \(widget.displayName)?", isPresented: $showRemoveConfirm) {
             Button("Cancel", role: .cancel) {}
             Button("Remove", role: .destructive) {
                 do { try runtime.removeWidget(id: widget.id) }
@@ -821,7 +821,7 @@ struct WidgetCardView: View {
                     .foregroundColor(.secondary)
                     .accessibilityHidden(true)
             }
-            Text(widget.manifest.name)
+            Text(widget.displayName)
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .lineLimit(1)
@@ -859,8 +859,8 @@ struct WidgetCardView: View {
                         .frame(width: 22, height: 20)
                 }
                 .buttonStyle(.plain)
-                .help("Refresh \(widget.manifest.name)")
-                .accessibilityLabel("Refresh \(widget.manifest.name)")
+                .help("Refresh \(widget.displayName)")
+                .accessibilityLabel("Refresh \(widget.displayName)")
                 Image(systemName: "line.3.horizontal")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.secondary)
@@ -871,7 +871,7 @@ struct WidgetCardView: View {
                         dragPreview
                     }
                     .help("Drag to move")
-                    .accessibilityLabel("Move \(widget.manifest.name)")
+                    .accessibilityLabel("Move \(widget.displayName)")
                 Button { showSettings = true } label: {
                     Image(systemName: "slider.horizontal.3")
                         .font(.system(size: 10, weight: .semibold))
@@ -880,7 +880,7 @@ struct WidgetCardView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Widget settings")
-                .accessibilityLabel("Settings for \(widget.manifest.name)")
+                .accessibilityLabel("Settings for \(widget.displayName)")
             }
             .padding(.horizontal, 3)
             .padding(.vertical, 2)
@@ -895,7 +895,7 @@ struct WidgetCardView: View {
         HStack(spacing: 6) {
             Image(systemName: widget.manifest.icon ?? "square.grid.2x2")
                 .foregroundStyle(cardAccent)
-            Text(widget.manifest.name)
+            Text(widget.displayName)
                 .font(.system(size: 12, weight: .semibold))
                 .lineLimit(1)
         }

@@ -15,6 +15,8 @@ struct HubWidgetsView: View {
 
     @State private var settingsSheetWidget: LoadedWidget?
     @State private var removalTarget: LoadedWidget?
+    @State private var duplicateTarget: LoadedWidget?
+    @State private var duplicateName = ""
     @State private var newBucketTarget: LoadedWidget?
     @State private var newBucketName = ""
     @State private var widgetActionError: String?
@@ -92,7 +94,24 @@ struct HubWidgetsView: View {
             Button("Remove", role: .destructive) { performRemoval(widget) }
             Button("Cancel", role: .cancel) { removalTarget = nil }
         } message: { widget in
-            Text("This permanently deletes \"\(widget.manifest.name)\" and all of its data. This cannot be undone.")
+            Text("This permanently deletes \"\(widget.displayName)\" and all of its data. This cannot be undone.")
+        }
+        .alert(
+            "Add Widget Instance",
+            isPresented: Binding(
+                get: { duplicateTarget != nil },
+                set: { if !$0 { duplicateTarget = nil } }
+            ),
+            presenting: duplicateTarget
+        ) { widget in
+            TextField("Instance name (for example jiun-mbp)", text: $duplicateName)
+            Button("Add") { performDuplicate(widget) }
+            Button("Cancel", role: .cancel) {
+                duplicateName = ""
+                duplicateTarget = nil
+            }
+        } message: { widget in
+            Text("Add an independently configurable instance of \"\(widget.displayName)\".")
         }
         .alert(
             "New Panel",
@@ -117,7 +136,7 @@ struct HubWidgetsView: View {
             Text("Move this widget to a new panel.")
         }
         .alert(
-            "Could Not Remove Widget",
+            "Widget Action Failed",
             isPresented: Binding(
                 get: { widgetActionError != nil },
                 set: { if !$0 { widgetActionError = nil } }
@@ -186,14 +205,14 @@ struct HubWidgetsView: View {
                 .foregroundColor(.secondary.opacity(0.75))
                 .frame(width: 14)
                 .help("Drag to reorder")
-                .accessibilityLabel("Drag to reorder \(widget.manifest.name)")
+                .accessibilityLabel("Drag to reorder \(widget.displayName)")
 
             Image(systemName: widget.manifest.icon ?? "square.grid.2x2")
                 .frame(width: 20)
                 .foregroundColor(disabled ? .secondary : .primary)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(widget.manifest.name)
+                Text(widget.displayName)
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(disabled ? .secondary : .primary)
                 Text(widget.id)
@@ -217,7 +236,7 @@ struct HubWidgetsView: View {
             .toggleStyle(.switch)
             .controlSize(.small)
             .help(disabled ? "Enable widget" : "Disable widget")
-            .accessibilityLabel("\(disabled ? "Enable" : "Disable") \(widget.manifest.name)")
+            .accessibilityLabel("\(disabled ? "Enable" : "Disable") \(widget.displayName)")
 
             Menu {
                 ForEach(bucketOptions(current: group), id: \.self) { option in
@@ -243,7 +262,7 @@ struct HubWidgetsView: View {
             .menuStyle(.borderlessButton)
             .frame(width: 110)
             .help("Move to panel")
-            .accessibilityLabel("Panel for \(widget.manifest.name)")
+            .accessibilityLabel("Panel for \(widget.displayName)")
 
             Menu {
                 Button {
@@ -275,7 +294,7 @@ struct HubWidgetsView: View {
             .menuStyle(.borderlessButton)
             .frame(width: 46)
             .help("Change card size")
-            .accessibilityLabel("Size for \(widget.manifest.name)")
+            .accessibilityLabel("Size for \(widget.displayName)")
 
             Button {
                 settingsSheetWidget = widget
@@ -283,7 +302,16 @@ struct HubWidgetsView: View {
                 Image(systemName: "gearshape")
             }
             .help("Settings…")
-            .accessibilityLabel("Settings for \(widget.manifest.name)")
+            .accessibilityLabel("Settings for \(widget.displayName)")
+
+            Button {
+                duplicateName = ""
+                duplicateTarget = widget
+            } label: {
+                Image(systemName: "plus.square.on.square")
+            }
+            .help("Add another instance…")
+            .accessibilityLabel("Add another instance of \(widget.displayName)")
 
             Button {
                 revealInFinder(widget)
@@ -291,7 +319,7 @@ struct HubWidgetsView: View {
                 Image(systemName: "folder")
             }
             .help("Reveal in Finder")
-            .accessibilityLabel("Reveal \(widget.manifest.name) in Finder")
+            .accessibilityLabel("Reveal \(widget.displayName) in Finder")
 
             Button(role: .destructive) {
                 removalTarget = widget
@@ -299,7 +327,7 @@ struct HubWidgetsView: View {
                 Image(systemName: "trash")
             }
             .help("Remove…")
-            .accessibilityLabel("Remove \(widget.manifest.name)")
+            .accessibilityLabel("Remove \(widget.displayName)")
         }
         .buttonStyle(.borderless)
         .controlSize(.small)
@@ -327,7 +355,7 @@ struct HubWidgetsView: View {
             let lo = orderValue(lhs)
             let ro = orderValue(rhs)
             if lo != ro { return lo < ro }
-            return lhs.manifest.name.localizedCaseInsensitiveCompare(rhs.manifest.name)
+            return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName)
                 == .orderedAscending
         }
     }
@@ -435,6 +463,21 @@ struct HubWidgetsView: View {
         removalTarget = nil
         do {
             try runtime.removeWidget(id: widget.id)
+        } catch {
+            widgetActionError = (error as? LocalizedError)?.errorDescription
+                ?? error.localizedDescription
+        }
+    }
+
+    private func performDuplicate(_ widget: LoadedWidget) {
+        let name = duplicateName
+        duplicateName = ""
+        duplicateTarget = nil
+        do {
+            let newID = try runtime.duplicateWidget(id: widget.id, label: name)
+            if let duplicate = runtime.widgets.first(where: { $0.id == newID }) {
+                settingsSheetWidget = duplicate
+            }
         } catch {
             widgetActionError = (error as? LocalizedError)?.errorDescription
                 ?? error.localizedDescription

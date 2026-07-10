@@ -79,8 +79,8 @@
     {
       "id": "dev.barshelf.muxa-watch",
       "name": "muxa Watch",
-      "description": "Compact local and multi-host muxa watch tables in the BarShelf menu-bar popover. Add SSH aliases to monitor each host's most recently active agents with NAME, ST, ACT, and LAST PROMPT columns. Requires a muxa build with `status --json` and Deno.",
-      "version": "0.2.0",
+      "description": "Compact muxa watch table for one local or SSH source. Add multiple independently configured widget instances to monitor each host's most recently active agents with NAME, ST, ACT, and LAST PROMPT columns. Requires a muxa build with `status --json` and Deno.",
+      "version": "0.3.0",
       "author": "barshelf",
       "icon": "rectangle.3.group.bubble.left.fill",
       "kind": "script",

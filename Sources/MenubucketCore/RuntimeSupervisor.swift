@@ -7,13 +7,19 @@ import Foundation
 public struct ScriptWidgetDescriptor: Sendable {
     public var manifest: Manifest
     public var directory: URL
+    public var instanceID: String
 
-    public init(manifest: Manifest, directory: URL) {
+    public init(
+        manifest: Manifest,
+        directory: URL,
+        instanceID: String? = nil
+    ) {
         self.manifest = manifest
         self.directory = directory
+        self.instanceID = instanceID ?? manifest.id
     }
 
-    public var id: String { manifest.id }
+    public var id: String { instanceID }
 }
 
 /// Fully resolved process invocation. Production plans launch deno; tests

@@ -101,6 +101,18 @@ final class RuntimeSupervisorTests: XCTestCase {
 
     // MARK: - Scenarios
 
+    func testDescriptorUsesExplicitInstanceID() throws {
+        let manifest = try makeManifest()
+        let descriptor = ScriptWidgetDescriptor(
+            manifest: manifest,
+            directory: tempDir,
+            instanceID: "test.stub-widget--remote"
+        )
+
+        XCTAssertEqual(descriptor.id, "test.stub-widget--remote")
+        XCTAssertEqual(descriptor.manifest.id, "test.stub-widget")
+    }
+
     func testLoadRendersStubTree() async throws {
         let capture = RenderCapture(expectation(description: "render"))
         let (supervisor, widget) = try makeSupervisor(

@@ -74,4 +74,73 @@ final class WidgetPagesTests: XCTestCase {
             ["reminders", "pinned"]
         )
     }
+
+    func testInstanceDirectorySuffixCreatesIndependentDisplayIdentity() {
+        let manifest = Manifest(
+            schemaVersion: 1,
+            id: "dev.barshelf.muxa-watch",
+            name: "muxa Watch",
+            entry: Manifest.Entry(kind: "script")
+        )
+        let instanceID = WidgetRuntime.instanceID(
+            manifestID: manifest.id,
+            directoryName: "dev.barshelf.muxa-watch--jiun-mbp"
+        )
+        let widget = LoadedWidget(
+            manifest: manifest,
+            directory: URL(fileURLWithPath: "/tmp/\(instanceID)"),
+            instanceID: instanceID
+        )
+
+        XCTAssertEqual(widget.id, "dev.barshelf.muxa-watch--jiun-mbp")
+        XCTAssertEqual(widget.displayName, "muxa Watch · jiun-mbp")
+        XCTAssertEqual(
+            WidgetRuntime.instanceID(
+                manifestID: manifest.id,
+                directoryName: "muxa-watch"
+            ),
+            manifest.id
+        )
+        XCTAssertEqual(WidgetRuntime.normalizedInstanceLabel(" Jiun MBP "), "jiun-mbp")
+    }
+
+    func testDiscoveryLoadsCanonicalWidgetAndSymlinkedInstances() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("widget-instances-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let manifestID = "dev.barshelf.muxa-watch"
+        let canonical = root.appendingPathComponent(manifestID)
+        try FileManager.default.createDirectory(
+            at: canonical, withIntermediateDirectories: true
+        )
+        let manifest = """
+        {
+          "schemaVersion": 1,
+          "id": "\(manifestID)",
+          "name": "muxa Watch",
+          "entry": { "kind": "script" }
+        }
+        """
+        try Data(manifest.utf8).write(
+            to: canonical.appendingPathComponent("widget.json")
+        )
+        for label in ["jiun-mbp", "jiun-mini", "rtzr"] {
+            try FileManager.default.createSymbolicLink(
+                at: root.appendingPathComponent("\(manifestID)--\(label)"),
+                withDestinationURL: canonical
+            )
+        }
+
+        let widgets = WidgetRuntime.discoverWidgets(in: [root])
+
+        XCTAssertEqual(
+            Set(widgets.map(\.id)),
+            Set([
+                manifestID,
+                "\(manifestID)--jiun-mbp",
+                "\(manifestID)--jiun-mini",
+                "\(manifestID)--rtzr",
+            ])
+        )
+    }
 }

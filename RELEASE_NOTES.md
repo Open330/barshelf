@@ -18,7 +18,12 @@ app is Developer ID–signed and Apple-notarized — double-click to open.
   app or page (Today → Calendar, System → Activity Monitor, Stock → Yahoo
   Finance, Weather → Weather app, …) via a new `openApp` action.
 - **In-app management** — hub window, drag to reorder / reposition widgets,
-  per-card edit button, pin, disable, and move-to-panel.
+  per-card edit button, pin, disable, move-to-panel, and independently
+  configurable duplicate instances of the same widget package.
+- **One muxa source per card** — duplicate muxa Watch into separate Local or
+  SSH-host cards, each with its own settings and latest-activity rows. Explicit
+  `barshelf://refresh` links refresh every instance even while the popover is
+  closed.
 - **OTP service icons** — OTP Codes rows lead with the service's favicon
   (letter-tile fallback), fetched only through the widget's declared network
   allowlist and switchable off with a "Show service icons" setting.

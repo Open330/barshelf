@@ -55,16 +55,15 @@ interface SourceResult extends WatchSource {
   error?: string;
 }
 
-interface SSHHostSettings {
-  hosts: string[];
-  errors: string[];
+interface SSHHostSetting {
+  host?: string;
+  error?: string;
 }
 
 const runtimeState = {
   hasRendered: false,
   sourceSignature: "",
 };
-const MAX_SSH_HOSTS = 8;
 const SSH_OPTIONS = [
   "-o",
   "BatchMode=yes",
@@ -144,36 +143,19 @@ function integerSetting(
   return Math.min(Math.max(number, min), max);
 }
 
-function parseSSHHosts(value: unknown): SSHHostSettings {
+function parseSSHHost(value: unknown): SSHHostSetting {
   if (typeof value !== "string" || value.trim() === "") {
-    return { hosts: [], errors: [] };
+    return {};
   }
 
-  const hosts: string[] = [];
-  const errors: string[] = [];
-  const seen = new Set<string>();
-  const entries = value.split(/[\s,]+/).map((item) => item.trim()).filter(
-    Boolean,
-  );
-
-  for (const entry of entries) {
-    if (
-      entry.length > 255 || entry.startsWith("-") ||
-      !/^[A-Za-z0-9][A-Za-z0-9._:@%+-]*$/.test(entry)
-    ) {
-      errors.push(`Invalid SSH host: ${oneLine(entry, 48)}`);
-      continue;
-    }
-    if (seen.has(entry)) continue;
-    if (hosts.length >= MAX_SSH_HOSTS) {
-      errors.push(`At most ${MAX_SSH_HOSTS} SSH hosts are supported.`);
-      break;
-    }
-    seen.add(entry);
-    hosts.push(entry);
+  const host = value.trim();
+  if (
+    host.length > 255 || host.startsWith("-") ||
+    !/^[A-Za-z0-9][A-Za-z0-9._:@%+-]*$/.test(host)
+  ) {
+    return { error: `Invalid SSH host: ${oneLine(host, 48)}` };
   }
-
-  return { hosts, errors };
+  return { host };
 }
 
 function kindLabel(kind: string): string {
@@ -406,9 +388,19 @@ function prepareStatusView(
         icon: "network.slash",
         title: "No muxa sources",
         subtitle:
-          "Enable Local or add one or more SSH hosts in widget settings.",
+          "Leave SSH host empty for this Mac, or enter one SSH host.",
       }),
       status: { label: "Setup", tooltip: "No muxa sources configured" },
+    };
+  }
+
+  if (sources.length === 1 && sources[0].error) {
+    return {
+      root: ui.banner(sources[0].error, {
+        tone: "warning",
+        title: sources[0].kind === "ssh" ? "SSH source offline" : "Offline",
+      }),
+      status: { label: "Offline", tooltip: sources[0].error },
     };
   }
 
@@ -605,44 +597,26 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
   const socket = typeof ctx.settings.socket === "string"
     ? ctx.settings.socket.trim()
     : "";
-  const ssh = parseSSHHosts(ctx.settings.sshHosts);
-  const sources: WatchSource[] = [];
-  if (booleanSetting(ctx.settings.includeLocal, true)) {
-    sources.push({ key: "local", label: "Local", kind: "local" });
-  }
-  for (const [index, host] of ssh.hosts.entries()) {
-    sources.push({
-      key: `ssh-${index}`,
-      label: host,
-      kind: "ssh",
-      host,
-    });
-  }
+  const ssh = parseSSHHost(ctx.settings.sshHost);
+  const source: WatchSource = ssh.host
+    ? { key: "ssh", label: ssh.host, kind: "ssh", host: ssh.host }
+    : { key: "local", label: "Local", kind: "local" };
 
   const sourceSignature = JSON.stringify({
-    local: sources.some((source) => source.kind === "local"),
-    socket,
-    hosts: ssh.hosts,
-    errors: ssh.errors,
+    host: ssh.host ?? null,
+    socket: ssh.host ? null : socket,
+    error: ssh.error ?? null,
   });
-  const results = await Promise.all(
-    sources.map((source) => loadSource(ctx, source, socket)),
-  );
-  for (const [index, error] of ssh.errors.entries()) {
-    results.push({
-      key: `ssh-setting-${index}`,
-      label: "SSH settings",
-      kind: "ssh",
-      error,
-    });
-  }
+  const results: SourceResult[] = ssh.error
+    ? [{ ...source, error: ssh.error }]
+    : [await loadSource(ctx, source, socket)];
 
   const successful = results.filter((source) => source.snapshot).length;
   if (
-    successful === 0 && sources.length > 0 && runtimeState.hasRendered &&
+    successful === 0 && runtimeState.hasRendered &&
     runtimeState.sourceSignature === sourceSignature
   ) {
-    await ctx.log("warn", "muxa refresh kept the last good multi-host render");
+    await ctx.log("warn", "muxa refresh kept the last good source render");
     return;
   }
   if (

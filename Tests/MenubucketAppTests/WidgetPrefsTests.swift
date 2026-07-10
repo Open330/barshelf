@@ -71,6 +71,32 @@ final class WidgetPrefsTests: XCTestCase {
         XCTAssertNil(reloaded.appearanceOverride(for: "a"))
     }
 
+    func testWidgetInstancesKeepSettingsIndependent() {
+        let prefs = WidgetPrefs(fileURL: fileURL)
+        let manifest = Manifest(
+            schemaVersion: 1,
+            id: "dev.barshelf.muxa-watch",
+            name: "muxa Watch",
+            entry: Manifest.Entry(kind: "script")
+        )
+        let remoteID = manifest.id + "--jiun-mbp"
+        prefs.setSetting(
+            widgetID: remoteID,
+            key: "sshHost",
+            value: .string("jiun-mbp")
+        )
+
+        XCTAssertNil(
+            prefs.effectiveSettings(for: manifest).objectValue?["sshHost"]
+        )
+        XCTAssertEqual(
+            prefs.effectiveSettings(
+                for: manifest, widgetID: remoteID
+            ).objectValue?["sshHost"],
+            .string("jiun-mbp")
+        )
+    }
+
     // MARK: - Appearance overrides (R12)
 
     func testAppearanceOverrideRoundTrip() {

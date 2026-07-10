@@ -354,7 +354,7 @@ struct AppSettingsView: View {
 
         init(widget: LoadedWidget, stats: WidgetRefreshStats?) {
             id = widget.id
-            name = widget.manifest.name
+            name = widget.displayName
             successCount = stats?.successCount ?? 0
             failureCount = stats?.failureCount ?? 0
             averageDuration = Self.ms(stats?.averageDurationMs, prefix: "avg")

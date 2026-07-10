@@ -28,7 +28,7 @@ struct WidgetSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("\(widget.manifest.name) Settings")
+            Text("\(widget.displayName) Settings")
                 .font(.system(size: 13, weight: .semibold))
 
             ScrollView {
@@ -60,8 +60,12 @@ struct WidgetSettingsView: View {
         .padding(16)
         .frame(width: 320)
         .onAppear {
-            values = runtime.prefs.effectiveSettings(for: widget.manifest).objectValue ?? [:]
-            appearanceDraft = runtime.prefs.effectiveAppearance(for: widget.manifest)
+            values = runtime.prefs.effectiveSettings(
+                for: widget.manifest, widgetID: widget.id
+            ).objectValue ?? [:]
+            appearanceDraft = runtime.prefs.effectiveAppearance(
+                for: widget.manifest, widgetID: widget.id
+            )
         }
     }
 
@@ -525,7 +529,7 @@ struct SearchOverlay: View {
         let pages = runtime.pages
         for (pageIndex, page) in pages.enumerated() {
             for widget in page.widgets {
-                let name = widget.manifest.name
+                let name = widget.displayName
                 if name.lowercased().contains(needle) {
                     results.append(SearchHit(
                         id: "widget-\(widget.id)", widgetID: widget.id,
@@ -549,7 +553,7 @@ struct SearchOverlay: View {
         if let text = node.text, text.lowercased().contains(needle) {
             results.append(SearchHit(
                 id: "\(widget.id)-\(node.id ?? text)-\(results.count)",
-                widgetID: widget.id, widgetName: widget.manifest.name,
+                widgetID: widget.id, widgetName: widget.displayName,
                 pageIndex: pageIndex, text: text, action: node.action
             ))
         }
