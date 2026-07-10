@@ -17,6 +17,24 @@ enum ScreenshotMode {
         ok = render(PopoverShot(scheme: .dark), name: "popover-dark", to: dir) && ok
         ok = render(PopoverShot(scheme: .light), name: "popover-light", to: dir) && ok
         ok = render(BuilderShot(), name: "builder", to: dir) && ok
+        // Standalone widget-card tiles for the landing-page preview gallery
+        // (light — the landing page is a fixed light theme).
+        let tiles: [(name: String, title: String, icon: String, node: UINode, accent: String?)] = [
+            ("tile-today", "Today", "calendar", ShotData.todayNode, "red"),
+            ("tile-weather", "Weather", "cloud.sun.fill", ShotData.weatherNode, "blue"),
+            ("tile-battery", "Battery", "battery.100percent", ShotData.batteryNode, "green"),
+            ("tile-otp", "OTP Codes", "key.fill", ShotData.otpNode, "purple"),
+            ("tile-files", "Recent Files", "clock.arrow.circlepath", ShotData.filesNode, nil),
+            ("tile-aas", "aas usage", "gauge", ShotData.aasNode, "orange"),
+            ("tile-k8s", "k8s pods", "shippingbox", ShotData.k8sNode, nil),
+        ]
+        for tile in tiles {
+            ok = render(
+                TileShot(title: tile.title, icon: tile.icon, node: tile.node, accentName: tile.accent),
+                name: tile.name,
+                to: dir
+            ) && ok
+        }
         return ok ? 0 : 1
     }
 
@@ -183,6 +201,26 @@ private struct ShotCard: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+}
+
+/// One widget card as a standalone tile — the landing page's preview gallery.
+/// Transparent margins around a bordered panel, so the tile sits on any page
+/// background.
+private struct TileShot: View {
+    let title: String
+    let icon: String
+    let node: UINode
+    var accentName: String? = nil
+
+    var body: some View {
+        ShotCard(title: title, icon: icon, node: node, accentName: accentName)
+            .frame(width: 280)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.primary.opacity(0.12), lineWidth: 1))
+            .padding(4)
+            .environment(\.colorScheme, .light)
     }
 }
 

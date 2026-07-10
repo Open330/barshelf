@@ -337,6 +337,28 @@
       aspect-ratio: 840 / 720;
       object-fit: cover;
     }
+    .tile-gallery {
+      columns: 3;
+      column-gap: 16px;
+      margin-top: 38px;
+    }
+    .tile-gallery figure {
+      margin: 0 0 16px;
+      break-inside: avoid;
+    }
+    .tile-gallery img {
+      width: 100%;
+      height: auto;
+      filter: drop-shadow(0 10px 24px rgba(17, 19, 21, 0.10));
+    }
+    .tile-gallery figcaption {
+      margin-top: 2px;
+      padding-left: 6px;
+      font-size: 12px;
+      color: var(--muted);
+      font-family: var(--mono);
+    }
+
     .practice-list {
       display: grid;
       gap: 0;
@@ -537,6 +559,7 @@
       .proof-row, .grid-3, .model, .terminal-grid { grid-template-columns: 1fr 1fr; }
       .split { grid-template-columns: 1fr; }
       .showcase-grid { grid-template-columns: 1fr; }
+      .tile-gallery { columns: 2; }
     }
     @media (max-width: 640px) {
       .wrap { width: min(var(--max), calc(100% - 28px)); }
@@ -551,6 +574,7 @@
       .proof-row, .grid-3, .model, .terminal-grid { grid-template-columns: 1fr; }
       section { padding: 58px 0; }
       .section-head h2 { font-size: clamp(30px, 10vw, 42px); }
+      .tile-gallery { columns: 1; }
     }
   </style>
 </head>
@@ -697,6 +721,29 @@
               </div>
             </article>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="previews">
+      <div class="wrap">
+        <div class="reveal">
+          <div class="label"><span class="en">Real Renders</span><span class="ko">실제 화면</span></div>
+          <div class="section-head">
+            <h2 class="en">Not mockups. Actual widget renders.</h2>
+            <h2 class="ko">목업이 아니라, 실제 위젯 렌더입니다.</h2>
+            <p class="en">Every tile below is drawn by the app's own SwiftUI renderer — the exact pixels the popover shows, generated straight from <code>barshelf screenshot</code>.</p>
+            <p class="ko">아래 타일은 전부 앱의 SwiftUI 렌더러가 직접 그린 결과물입니다. 팝오버에서 보게 될 화면 그대로를 <code>barshelf screenshot</code>으로 뽑았습니다.</p>
+          </div>
+        </div>
+        <div class="tile-gallery reveal">
+          <figure><img src="shots/tile-today.png" width="576" height="220" loading="lazy" alt="Today widget — date and clock, real render" /><figcaption>today</figcaption></figure>
+          <figure><img src="shots/tile-otp.png" width="576" height="225" loading="lazy" alt="OTP Codes widget with countdown rings, real render" /><figcaption>otpeek</figcaption></figure>
+          <figure><img src="shots/tile-weather.png" width="576" height="272" loading="lazy" alt="Weather widget, real render" /><figcaption>weather</figcaption></figure>
+          <figure><img src="shots/tile-aas.png" width="576" height="704" loading="lazy" alt="aas usage widget with LLM quota meters, real render" /><figcaption>aas usage</figcaption></figure>
+          <figure><img src="shots/tile-files.png" width="576" height="222" loading="lazy" alt="Recent Files widget, real render" /><figcaption>recent files</figcaption></figure>
+          <figure><img src="shots/tile-battery.png" width="576" height="256" loading="lazy" alt="Battery widget with charge meter, real render" /><figcaption>battery</figcaption></figure>
+          <figure><img src="shots/tile-k8s.png" width="576" height="202" loading="lazy" alt="Custom k8s pods list widget, real render" /><figcaption>your script here</figcaption></figure>
         </div>
       </div>
     </section>
