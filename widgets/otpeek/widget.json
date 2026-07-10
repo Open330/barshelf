@@ -25,19 +25,48 @@
     "exec": [
       {
         "command": "otpeek",
-        "allowedArgs": [["list", "--json"], ["code", "*", "--json"]],
+        "allowedArgs": [
+          ["list", "--json"],
+          ["list", "--folder", "*", "--json"],
+          ["code", "*", "--json"]
+        ],
         "env": ["OTPEEK_BIN", "OTPEEK_VAULT_PASSWORD"],
         "maxOutputBytes": 262144,
         "sensitiveOutput": true
       }
     ],
-    "network": [],
+    "network": ["www.google.com"],
     "readPaths": [],
     "env": ["OTPEEK_BIN", "OTPEEK_VAULT_PASSWORD"],
     "keychain": true
   },
 
-  "settings": [],
+  "settings": [
+    {
+      "key": "showIcons",
+      "type": "boolean",
+      "title": "Show service icons",
+      "default": true
+    },
+    {
+      "key": "favoritesOnly",
+      "type": "boolean",
+      "title": "Favorites only",
+      "default": false
+    },
+    {
+      "key": "favoritesFirst",
+      "type": "boolean",
+      "title": "Show favorites first",
+      "default": false
+    },
+    {
+      "key": "folder",
+      "type": "string",
+      "title": "Folder name (optional)",
+      "default": ""
+    }
+  ],
 
   "appearance": {
     "accent": "purple",

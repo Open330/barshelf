@@ -22,7 +22,17 @@ INFO_PLIST_TEMPLATE=${INFO_PLIST_TEMPLATE:-"${SCRIPT_DIR}/Info.plist.template"}
 APP_ICON_NAME=${APP_ICON_NAME:-AppIcon}
 APP_ICON_SOURCE=${APP_ICON_SOURCE:-"${PROJECT_ROOT}/assets/${APP_ICON_NAME}.icns"}
 WIDGETS_DIR=${WIDGETS_DIR:-"${PROJECT_ROOT}/widgets"}
-# "-" means ad-hoc signing. Use SIGN_IDENTITY="Developer ID Application: ..." for distribution builds.
+# Prefer an installed Apple Development identity for local builds so macOS can
+# recognize successive builds as the same app and preserve TCC grants. CI or
+# contributor machines without one keep the previous ad-hoc behavior. Set
+# SIGN_IDENTITY="-" explicitly to force ad-hoc signing, or provide a Developer
+# ID / Distribution identity for release builds.
+SIGN_IDENTITY=${SIGN_IDENTITY:-}
+if [[ -z "${SIGN_IDENTITY}" ]] && command -v security >/dev/null 2>&1; then
+  SIGN_IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null \
+    | sed -n 's/.*"\(Apple Development: [^"]*\)".*/\1/p' \
+    | head -n 1)
+fi
 SIGN_IDENTITY=${SIGN_IDENTITY:--}
 APP_STORE_BUILD=${APP_STORE_BUILD:-0}
 APP_STORE_ENTITLEMENTS=${APP_STORE_ENTITLEMENTS:-"${SCRIPT_DIR}/AppStore.entitlements"}

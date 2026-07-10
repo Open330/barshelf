@@ -177,7 +177,7 @@ export default barshelf.widget({
 
 Host APIs (all `async`, reachable via `barshelf.*`, the short alias `bsf.*`, or the context object):
 
-- `barshelf.render(root: UINode, opts?)` — push a view tree. `opts`: `{ status?, nextRefreshAt?, cacheTtlMs?, sensitive? }`.
+- `barshelf.render(root: UINode, opts?)` — push a view tree. `opts`: `{ status?, cacheRoot?, nextRefreshAt?, cacheTtlMs?, sensitive? }`. `cacheRoot` is an explicitly redacted, non-sensitive cold-start fallback; the host may persist it even when the live root is sensitive.
 - `barshelf.exec.run({ command, args?, parse?, timeoutMs?, sensitive?, env? })` — run an allowlisted command; `parse`: `"text" | "json" | "lines"`. Needs `permissions.exec`.
 - `barshelf.storage.get/set/delete/list(prefix?)` — per-widget KV store, ~1 MB quota. **No permission needed.**
 - `barshelf.secret.get/set(key[, value])` — Keychain-backed; account `<widgetId>/<key>`. Needs `permissions.keychain`.
@@ -214,8 +214,10 @@ neutral (field-wise, user wins). `accent` recolors progress/meter/badge/link;
 
 ## 8. `refresh` and triggers
 
-- `onOpen` — refresh when the popup opens.
-- `interval` — seconds between polls; omit/null = no polling.
+- `onOpen` — refresh when the widget's page becomes visible (including the
+  selected page when the popup opens). Offscreen pages stay lazy.
+- `interval` — seconds between polls while the widget is visible; omit/null =
+  no polling. Closed-popup background polling still follows `runInBackground`.
 - `staleAfterSec` — cached view considered stale after N seconds.
 - `watchPaths` — FSEvents-watched paths (250 ms debounce, `~` expands).
 - `runInBackground` — allow relaxed polling while the popup is closed.
@@ -331,7 +333,12 @@ action payloads are excluded and typing does not re-run the widget.
 ```json
 { "type": "image", "source": { "kind": "sfSymbol", "name": "bolt.fill" }, "size": 16, "tint": "accent" }
 ```
-`source.kind`: `"sfSymbol"` (uses `name`) | `"fileIcon"` / `"fileThumbnail"` (use `path`; thumbnail keys cache on `modifiedAt` epoch-ms).
+`source.kind`: `"sfSymbol"` (uses `name`) | `"fileIcon"` / `"fileThumbnail"` (use `path`; thumbnail keys cache on `modifiedAt` epoch-ms) | `"url"` (uses `url`) | `"monogram"` (uses `monogram`).
+
+```json
+{ "type": "image", "source": { "kind": "url", "url": "https://www.google.com/s2/favicons?domain=github.com&sz=64", "monogram": "G" }, "size": 20 }
+```
+`"url"` fetches a remote image (https only, GET, cached on disk) — the host loads it **only when the URL's host is covered by the widget's `permissions.network` allowlist**; while loading, on failure, or when blocked it renders the `monogram` letter tile instead. `"monogram"` renders that letter tile directly with no network (up to 2 characters).
 
 ### Progress (linear / ring, with optional host countdown)
 

@@ -58,4 +58,20 @@ final class WidgetPagesTests: XCTestCase {
 
         XCTAssertEqual(pages.map(\.group), ["General"])
     }
+
+    func testVisibleWidgetIDsContainOnlySelectedPageAndPinnedWidgets() {
+        let pages = [
+            WidgetPage(group: "First", widgets: [widget("a", group: "First", order: 0)]),
+            WidgetPage(group: "Third", widgets: [widget("reminders", group: "Third", order: 0)]),
+        ]
+
+        XCTAssertEqual(
+            RootView.visibleWidgetIDs(pages: pages, index: 0, pinned: ["pinned"]),
+            ["a", "pinned"]
+        )
+        XCTAssertEqual(
+            RootView.visibleWidgetIDs(pages: pages, index: 1, pinned: ["pinned"]),
+            ["reminders", "pinned"]
+        )
+    }
 }

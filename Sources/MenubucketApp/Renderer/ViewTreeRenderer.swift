@@ -21,6 +21,23 @@ extension EnvironmentValues {
     }
 }
 
+// MARK: - Remote image environment
+
+private struct RemoteImageHostsKey: EnvironmentKey {
+    static let defaultValue: [String] = []
+}
+
+extension EnvironmentValues {
+    /// The rendering widget's `permissions.network` allowlist. `url` image
+    /// nodes only load when their host matches an entry — the default (empty)
+    /// blocks all remote images, so an un-injected tree (builder preview,
+    /// screenshots) falls back to monograms and never touches the network.
+    var remoteImageHosts: [String] {
+        get { self[RemoteImageHostsKey.self] }
+        set { self[RemoteImageHostsKey.self] = newValue }
+    }
+}
+
 // MARK: - Appearance environment (R12)
 
 private struct WidgetAppearanceKey: EnvironmentKey {
@@ -308,6 +325,21 @@ struct NodeView: View {
                   source.kind == "fileIcon" || source.kind == "fileThumbnail",
                   let path = source.path {
             FileImageView(source: source, path: path, pointSize: CGFloat(node.size ?? 28))
+        } else if let source = node.source, source.kind == "url", let url = source.url {
+            RemoteImageView(
+                url: url,
+                monogram: source.monogram,
+                pointSize: CGFloat(node.size ?? 20),
+                accessibilityLabel: node.accessibilityLabel
+            )
+        } else if let source = node.source, source.kind == "monogram",
+                  let letter = source.monogram ?? source.name {
+            MonogramView(
+                text: letter,
+                pointSize: CGFloat(node.size ?? 20),
+                accent: nodeColor(node.tint, accent: accentOverride) ?? effectiveAccent
+            )
+            .accessibilityLabel(node.accessibilityLabel ?? letter)
         } else {
             Image(systemName: "questionmark.square.dashed")
                 .foregroundColor(.secondary)
@@ -692,5 +724,76 @@ private struct FileImageView: View {
             thumbnail = image
         }
         if let cached { thumbnail = cached }
+    }
+}
+
+// MARK: - Remote images (url / monogram)
+
+/// Renders the monogram fallback instantly, then swaps in the remote image
+/// once `RemoteImageService` delivers it. Loads happen only while the view is
+/// on screen and only when the widget's `permissions.network` allowlist
+/// covers the URL's host (checked with the same matcher as `http` sources) —
+/// a blocked host silently keeps the monogram.
+private struct RemoteImageView: View {
+    let url: String
+    let monogram: String?
+    let pointSize: CGFloat
+    let accessibilityLabel: String?
+
+    @Environment(\.remoteImageHosts) private var allowedHosts
+    @Environment(\.widgetAppearance) private var appearance
+    @State private var image: NSImage?
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(nsImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: pointSize, height: pointSize)
+                    .cornerRadius(pointSize * 0.22)
+            } else {
+                MonogramView(
+                    text: monogram ?? "?",
+                    pointSize: pointSize,
+                    accent: appearance.accentColor ?? .accentColor
+                )
+            }
+        }
+        .accessibilityLabel(accessibilityLabel ?? "")
+        .onAppear(perform: load)
+        .onChange(of: url) { _ in
+            image = nil
+            load()
+        }
+    }
+
+    private func load() {
+        guard WidgetRuntime.networkHostAllowed(url: url, allowlist: allowedHosts) else { return }
+        let expected = url
+        let cached = RemoteImageService.shared.image(forURL: url) { loaded in
+            guard url == expected, let loaded else { return }
+            image = loaded
+        }
+        if let cached { image = cached }
+    }
+}
+
+/// Initial-letter tile — the deterministic, network-free stand-in for a
+/// service icon (and the fallback while/if a `url` image can't load).
+private struct MonogramView: View {
+    let text: String
+    let pointSize: CGFloat
+    let accent: Color
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: pointSize * 0.22)
+            .fill(accent.opacity(0.18))
+            .frame(width: pointSize, height: pointSize)
+            .overlay(
+                Text(String(text.prefix(2)))
+                    .font(.system(size: pointSize * 0.5, weight: .semibold, design: .rounded))
+                    .foregroundColor(accent)
+            )
     }
 }

@@ -5,6 +5,7 @@ import XCTest
 private struct MockAdapterContext: AdapterContext {
     var outputs: [String: Data] = [:]
     var errors: [String: AdapterError] = [:]
+    var settings: [String: JSONValue] = [:]
 
     func runAllowed(command: [String]) async throws -> Data {
         let key = command.joined(separator: " ")
@@ -53,11 +54,11 @@ final class OtpeekAdapterTests: XCTestCase {
         #"{"code":"12345678","validFrom":1783442400000,"validUntil":1783442410000}"#.utf8
     )
 
-    private func makeContext() -> MockAdapterContext {
+    private func makeContext(settings: [String: JSONValue] = [:]) -> MockAdapterContext {
         MockAdapterContext(outputs: [
             "otpeek code acc-github --json": githubCode,
             "otpeek code acc-aws --json": awsCode,
-        ])
+        ], settings: settings)
     }
 
     // MARK: - Happy path
@@ -94,6 +95,102 @@ final class OtpeekAdapterTests: XCTestCase {
         let identity = try XCTUnwrap(children.first { $0.type == "vstack" })
         let texts = (identity.children ?? []).compactMap(\.text)
         XCTAssertEqual(texts, ["GitHub", "jiun@example.com"])
+
+        let favorite = try XCTUnwrap(children.first { $0.id == "otp-acc-github-favorite" })
+        XCTAssertEqual(favorite.type, "image")
+        XCTAssertEqual(favorite.source, ImageSource(kind: "sfSymbol", name: "star.fill"))
+        XCTAssertEqual(favorite.tint, "warning")
+        XCTAssertEqual(favorite.accessibilityLabel, "Favorite")
+
+        let regularRow = try XCTUnwrap(result.viewTree.items?.dropFirst().first)
+        XCTAssertFalse(
+            (regularRow.children ?? []).contains { $0.id == "otp-acc-aws-favorite" },
+            "non-favorites should not reserve space for an empty star"
+        )
+    }
+
+    // MARK: - Service icons (favicons)
+
+    func testRowLeadsWithFaviconIconForKnownIssuer() async throws {
+        let result = try await OtpeekAdapter.adapt(listFixture, context: makeContext())
+        let rows = result.viewTree.items ?? []
+
+        let githubIcon = try XCTUnwrap(rows[0].children?.first)
+        XCTAssertEqual(githubIcon.id, "otp-acc-github-icon")
+        XCTAssertEqual(githubIcon.type, "image")
+        XCTAssertEqual(githubIcon.source?.kind, "url")
+        XCTAssertEqual(
+            githubIcon.source?.url,
+            "https://www.google.com/s2/favicons?domain=github.com&sz=64"
+        )
+        XCTAssertEqual(githubIcon.source?.monogram, "G", "letter fallback while the favicon loads")
+        XCTAssertEqual(githubIcon.accessibilityLabel, "GitHub")
+
+        let awsIcon = try XCTUnwrap(rows[1].children?.first)
+        XCTAssertEqual(
+            awsIcon.source?.url,
+            "https://www.google.com/s2/favicons?domain=aws.amazon.com&sz=64",
+            "specific known mapping (aws) must win over the generic amazon one"
+        )
+    }
+
+    func testUnresolvedIssuerFallsBackToMonogramIcon() async throws {
+        let fixture = Data("""
+        [{"id":"acc-x","type":"totp","issuer":"Internal Admin Tool","accountName":"me@gmail.com","isFavorite":false}]
+        """.utf8)
+        var context = makeContext()
+        context.outputs["otpeek code acc-x --json"] = githubCode
+
+        let result = try await OtpeekAdapter.adapt(fixture, context: context)
+        let icon = try XCTUnwrap(result.viewTree.items?.first?.children?.first)
+        XCTAssertEqual(icon.source?.kind, "monogram", "no confident domain → no network lookup")
+        XCTAssertEqual(icon.source?.monogram, "I")
+    }
+
+    func testShowIconsOffOmitsIconNodes() async throws {
+        let context = makeContext(settings: ["showIcons": .bool(false)])
+        let result = try await OtpeekAdapter.adapt(listFixture, context: context)
+
+        for row in result.viewTree.items ?? [] {
+            XCTAssertFalse(
+                (row.children ?? []).contains { ($0.id ?? "").hasSuffix("-icon") },
+                "showIcons=false must drop the leading icon column"
+            )
+        }
+    }
+
+    func testErrorRowKeepsIconColumnForAlignment() async throws {
+        var context = makeContext()
+        context.outputs.removeValue(forKey: "otpeek code acc-aws --json")
+        context.errors["otpeek code acc-aws --json"] = .message("boom")
+
+        let result = try await OtpeekAdapter.adapt(listFixture, context: context)
+        let errorRow = try XCTUnwrap(result.viewTree.items?.last)
+        XCTAssertEqual(errorRow.children?.first?.id, "otp-acc-aws-icon")
+    }
+
+    func testFaviconDomainResolution() {
+        func account(issuer: String? = nil, name: String? = nil) -> OtpeekAdapter.Account {
+            .init(id: "x", issuer: issuer, accountName: name)
+        }
+        // Known mapping, case-insensitive substring.
+        XCTAssertEqual(OtpeekAdapter.faviconDomain(for: account(issuer: "GitHub")), "github.com")
+        XCTAssertEqual(
+            OtpeekAdapter.faviconDomain(for: account(issuer: "Amazon Web Services")),
+            "aws.amazon.com"
+        )
+        // Issuer that already looks like a domain.
+        XCTAssertEqual(OtpeekAdapter.faviconDomain(for: account(issuer: "pixiv.net")), "pixiv.net")
+        // Email account name → its host, unless it's a generic mail host.
+        XCTAssertEqual(
+            OtpeekAdapter.faviconDomain(for: account(issuer: "VPN", name: "me@callabo.ai")),
+            "callabo.ai"
+        )
+        XCTAssertNil(OtpeekAdapter.faviconDomain(for: account(issuer: "VPN", name: "me@gmail.com")))
+        // Unknown single-word issuer: guessing "{issuer}.com" would fetch a
+        // misleading globe icon, so it resolves to nothing (monogram).
+        XCTAssertNil(OtpeekAdapter.faviconDomain(for: account(issuer: "Zorbcorp")))
+        XCTAssertNil(OtpeekAdapter.faviconDomain(for: account()))
     }
 
     func testNextRefreshAtIsEarliestValidUntilPlusSlack() async throws {
@@ -101,6 +198,41 @@ final class OtpeekAdapterTests: XCTestCase {
         // AWS expires first (…410000) → min(validUntil) + 250.
         XCTAssertEqual(result.nextRefreshAtMs, 1_783_442_410_000 + 250)
         XCTAssertNil(result.statusText, "codes are sensitive — no status text")
+    }
+
+    func testFavoritesOnlyFiltersBeforeFetchingCodes() async throws {
+        let context = makeContext(settings: ["favoritesOnly": .bool(true)])
+        let result = try await OtpeekAdapter.adapt(listFixture, context: context)
+
+        XCTAssertEqual(result.viewTree.items?.map(\.id), ["otp-acc-github-row"])
+    }
+
+    func testFavoritesFirstKeepsStableOrderWithinGroups() async throws {
+        let fixture = Data("""
+        [
+          {"id":"acc-github","type":"totp","issuer":"GitHub","accountName":"me","isFavorite":false},
+          {"id":"acc-aws","type":"totp","issuer":"AWS","accountName":"ops","isFavorite":true}
+        ]
+        """.utf8)
+        let context = makeContext(settings: ["favoritesFirst": .bool(true)])
+        let result = try await OtpeekAdapter.adapt(fixture, context: context)
+
+        XCTAssertEqual(
+            result.viewTree.items?.map(\.id),
+            ["otp-acc-aws-row", "otp-acc-github-row"]
+        )
+    }
+
+    func testFolderSettingLoadsOnlyThatFolder() async throws {
+        let folderFixture = Data("""
+        [{"id":"acc-aws","type":"totp","issuer":"AWS","accountName":"ops","isFavorite":false}]
+        """.utf8)
+        var context = makeContext(settings: ["folder": .string("Work")])
+        context.outputs["otpeek list --folder Work --json"] = folderFixture
+
+        let result = try await OtpeekAdapter.adapt(listFixture, context: context)
+
+        XCTAssertEqual(result.viewTree.items?.map(\.id), ["otp-acc-aws-row"])
     }
 
     // MARK: - Failure modes

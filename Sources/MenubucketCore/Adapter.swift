@@ -25,9 +25,17 @@ extension AdapterResult: Sendable {}
 /// `permissions.exec` allowlist; the host injects declared env vars
 /// (including Keychain-backed secrets) into the child process.
 public protocol AdapterContext: Sendable {
+    /// Effective manifest defaults overlaid with the user's saved settings.
+    var settings: [String: JSONValue] { get }
     /// Runs `command` (argv, no shell) if the allowlist permits it and returns
     /// the process stdout. Throws `AdapterError.execNotAllowed` on a mismatch.
     func runAllowed(command: [String]) async throws -> Data
+}
+
+public extension AdapterContext {
+    /// Backward-compatible default for adapters and test contexts that do not
+    /// consume settings.
+    var settings: [String: JSONValue] { [:] }
 }
 
 public enum AdapterError: Error, LocalizedError, Equatable {

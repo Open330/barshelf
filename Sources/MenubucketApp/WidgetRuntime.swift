@@ -72,6 +72,9 @@ final class WidgetRuntime: ObservableObject {
     private let refreshStatsStore: RefreshStatsStore
     private var cancellables: Set<AnyCancellable> = []
     private var inFlight: Set<String> = []
+    /// Selected-page widgets plus pinned widgets. Automatic refresh and
+    /// permission-triggering work is lazy outside this set.
+    private(set) var visibleWidgetIDs: Set<String> = []
     private var refreshStartedAt: [String: Date] = [:]
     private var hotReloadWatchers: [DirectoryWatcher] = []
     /// `fs.directory` sources with `watch: true`, keyed by widget id.
@@ -621,7 +624,10 @@ final class WidgetRuntime: ObservableObject {
             Task { await supervisor.retain(widgetIds: seenIDs) }
         }
 
-        scheduler.configure(widgets: loaded.filter { !prefs.isDisabled($0.id) })
+        let enabled = loaded.filter { !prefs.isDisabled($0.id) }
+        visibleWidgetIDs.formIntersection(Set(enabled.map(\.id)))
+        scheduler.configure(widgets: enabled)
+        scheduler.setVisibleWidgetIDs(visibleWidgetIDs)
     }
 
     static let supportedEntryKinds: Set<String> = ["exec", "script", "workflow"]
@@ -722,6 +728,7 @@ final class WidgetRuntime: ObservableObject {
         guard prefs.isDisabled(id) != flag else { return }
         prefs.setDisabled(id, flag)
         scheduler.configure(widgets: widgets.filter { !prefs.isDisabled($0.id) })
+        setVisibleWidgetIDs(visibleWidgetIDs)
         objectWillChange.send()
         if !flag {
             refresh(widgetID: id, manual: true)
@@ -770,7 +777,9 @@ final class WidgetRuntime: ObservableObject {
         // While the popup is open, immediately populate widgets that have
         // never rendered (new or previously broken manifests).
         guard scheduler.popupIsOpen else { return }
-        for widget in widgets where snapshots[widget.id]?.viewTree == nil {
+        for widget in widgets
+        where visibleWidgetIDs.contains(widget.id)
+            && snapshots[widget.id]?.viewTree == nil {
             refresh(widget, manual: false)
         }
     }
@@ -859,9 +868,26 @@ final class WidgetRuntime: ObservableObject {
 
     // MARK: - Popup lifecycle
 
+    /// Called by the pager whenever the selected page changes. Page-local
+    /// `onOpen` now means "when this widget's page becomes visible"; pinned
+    /// widgets are included by the caller because they are always onscreen.
+    func setVisibleWidgetIDs(_ ids: Set<String>) {
+        let enabledIDs = Set(widgets.lazy.filter { !self.prefs.isDisabled($0.id) }.map(\.id))
+        let normalized = ids.intersection(enabledIDs)
+        let changed = normalized != visibleWidgetIDs
+        visibleWidgetIDs = normalized
+        scheduler.setVisibleWidgetIDs(normalized)
+        guard changed, scheduler.popupIsOpen else { return }
+        refreshVisibleWidgetsIfNeeded()
+    }
+
     func popupOpened() {
         scheduler.popupOpened()
-        for widget in widgets {
+        refreshVisibleWidgetsIfNeeded()
+    }
+
+    private func refreshVisibleWidgetsIfNeeded() {
+        for widget in widgets where visibleWidgetIDs.contains(widget.id) {
             let refresh = widget.manifest.refresh
             let snapshot = snapshots[widget.id] ?? WidgetSnapshot(widgetID: widget.id)
             if refresh?.onOpen == true,
@@ -893,6 +919,7 @@ final class WidgetRuntime: ObservableObject {
     func refreshStaleWidgets(backgroundOnly: Bool) {
         for widget in widgets {
             if backgroundOnly, widget.manifest.refresh?.runInBackground != true { continue }
+            if scheduler.popupIsOpen, !visibleWidgetIDs.contains(widget.id) { continue }
             let snapshot = snapshots[widget.id] ?? WidgetSnapshot(widgetID: widget.id)
             if snapshot.isStale(after: effectiveStaleAfter(widget.manifest.refresh?.staleAfterSec)) {
                 refresh(widget, manual: false)
@@ -1046,7 +1073,8 @@ final class WidgetRuntime: ObservableObject {
                         widget: widget,
                         execService: execService,
                         extraEnvironment: extraEnvironment,
-                        defaultTimeoutMs: source.timeoutMs ?? Self.defaultTimeoutMs
+                        defaultTimeoutMs: source.timeoutMs ?? Self.defaultTimeoutMs,
+                        settings: prefs.effectiveSettings(for: widget.manifest).objectValue ?? [:]
                     )
                     let result = try await adapter(data, context)
                     return .success(RefreshSuccess(
@@ -1257,10 +1285,16 @@ final class WidgetRuntime: ObservableObject {
     /// Entries may be a bare host (`api.github.com`), a leading-dot wildcard
     /// (`*.github.com`), a full URL/origin (host is extracted), or `*`.
     static func networkHostAllowed(url: String, manifest: Manifest) -> Bool {
-        guard let allowed = manifest.permissions?.network, !allowed.isEmpty,
+        networkHostAllowed(url: url, allowlist: manifest.permissions?.network ?? [])
+    }
+
+    /// Allowlist-only variant — also used by the renderer to gate `url` image
+    /// nodes on the widget's declared hosts.
+    static func networkHostAllowed(url: String, allowlist: [String]) -> Bool {
+        guard !allowlist.isEmpty,
               let host = URL(string: url)?.host?.lowercased()
         else { return false }
-        for raw in allowed {
+        for raw in allowlist {
             let entry = raw.trimmingCharacters(in: .whitespaces).lowercased()
             if entry.isEmpty { continue }
             if entry == "*" { return true }
@@ -1302,7 +1336,10 @@ final class WidgetRuntime: ObservableObject {
                 paths: [path],
                 debounce: Scheduler.watchDebounceSec
             ) { [weak self] in
-                guard let self, self.scheduler.popupIsOpen else { return }
+                guard let self,
+                      self.scheduler.popupIsOpen,
+                      self.visibleWidgetIDs.contains(widgetID)
+                else { return }
                 self.refresh(widgetID: widgetID, manual: false)
             }
         } catch {
@@ -1628,6 +1665,7 @@ struct HostAdapterContext: AdapterContext, @unchecked Sendable {
     let execService: ExecService
     let extraEnvironment: [String: String]?
     let defaultTimeoutMs: Int
+    let settings: [String: JSONValue]
 
     func runAllowed(command: [String]) async throws -> Data {
         guard let permission = ExecAllowlist.match(

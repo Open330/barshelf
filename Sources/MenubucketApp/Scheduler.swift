@@ -4,15 +4,15 @@ import MenubucketCore
 
 /// Owns all refresh triggers beyond "popup just opened" (M1):
 ///
-/// - `interval`: repeating timers — while the popup is open every widget with
-///   `refresh.interval` polls (min 5 s); while closed only
+/// - `interval`: repeating timers — while the popup is open only visible-page
+///   and pinned widgets with `refresh.interval` poll (min 5 s); while closed only
 ///   `runInBackground == true` widgets poll, at a 4× relaxed cadence (min 60 s).
 /// - `deadline`: when an adapter returns `nextRefreshAtMs`, re-run exactly once
-///   at that time. Timers are cancelled while the popup is closed and
-///   re-evaluated when it opens.
+///   at that time while its page is visible. Timers are cancelled offscreen or
+///   while the popup is closed and re-evaluated when visibility changes.
 /// - `watch`: FSEvents on `refresh.watchPaths` (250 ms debounce). While the
 ///   popup is closed events only mark the widget pending; pending widgets are
-///   refreshed in one batch when the popup opens.
+///   refreshed when their page next becomes visible.
 /// - wake: `NSWorkspace.didWakeNotification` refreshes stale widgets
 ///   (background-capable ones immediately; the rest on next open anyway).
 /// - backoff: consecutive failures gate *automatic* triggers with 15s → 60s →

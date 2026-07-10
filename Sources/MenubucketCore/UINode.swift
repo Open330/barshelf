@@ -246,17 +246,32 @@ extension UINode {
 /// Image source descriptor.
 /// `sfSymbol` uses `name`; `fileIcon`/`fileThumbnail` (M2-b) use `path`, and
 /// `fileThumbnail` keys its cache on `modifiedAt` (epoch ms) staleness.
+/// `url` fetches a remote image over https — the host only loads it when the
+/// widget's `permissions.network` allowlist covers the URL's host — and
+/// `monogram` (also a standalone kind) is the letter fallback shown while the
+/// image loads, fails, or is blocked.
 public struct ImageSource: Codable, Equatable {
     public var kind: String
     public var name: String?
     public var path: String?
     public var modifiedAt: Double?
+    public var url: String?
+    public var monogram: String?
 
-    public init(kind: String, name: String? = nil, path: String? = nil, modifiedAt: Double? = nil) {
+    public init(
+        kind: String,
+        name: String? = nil,
+        path: String? = nil,
+        modifiedAt: Double? = nil,
+        url: String? = nil,
+        monogram: String? = nil
+    ) {
         self.kind = kind
         self.name = name
         self.path = path
         self.modifiedAt = modifiedAt
+        self.url = url
+        self.monogram = monogram
     }
 }
 

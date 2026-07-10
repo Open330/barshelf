@@ -24,7 +24,11 @@ final class ManifestV01Tests: XCTestCase {
 
         let exec = try XCTUnwrap(manifest.permissions?.exec?.first)
         XCTAssertEqual(exec.command, "otpeek")
-        XCTAssertEqual(exec.allowedArgs, [["list", "--json"], ["code", "*", "--json"]])
+        XCTAssertEqual(exec.allowedArgs, [
+            ["list", "--json"],
+            ["list", "--folder", "*", "--json"],
+            ["code", "*", "--json"],
+        ])
         XCTAssertEqual(exec.sensitiveOutput, true)
         XCTAssertEqual(exec.maxOutputBytes, 262_144)
         XCTAssertEqual(exec.env?.contains("OTPEEK_VAULT_PASSWORD"), true)
@@ -34,6 +38,11 @@ final class ManifestV01Tests: XCTestCase {
             command: manifest.source?.command ?? [],
             permissions: manifest.permissions?.exec
         ))
+        XCTAssertEqual(manifest.permissions?.network, ["www.google.com"], "favicon fetch host")
+        XCTAssertEqual(
+            manifest.settings?.compactMap(\.key),
+            ["showIcons", "favoritesOnly", "favoritesFirst", "folder"]
+        )
     }
 
     func testParsesAasManifestPermissions() throws {

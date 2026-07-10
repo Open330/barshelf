@@ -131,15 +131,40 @@ struct RootView: View {
                 .keyboardShortcut("f", modifiers: .command)
                 .opacity(0)
         )
+        .onAppear { publishVisibleWidgets(pages: pages) }
+        .onChange(of: pager.index) { _ in publishVisibleWidgets(pages: runtime.pages) }
         .onReceive(runtime.objectWillChange) { _ in
             DispatchQueue.main.async {
-                pager.clamp(to: runtime.pages.count)
+                let updatedPages = runtime.pages
+                pager.clamp(to: updatedPages.count)
+                publishVisibleWidgets(pages: updatedPages)
             }
         }
         .onReceive(runtime.$pendingReveal) { id in
             guard let id else { return }
             revealAndFlash(id)
         }
+    }
+
+    /// The selected page is the actual visibility source of truth. All pages
+    /// coexist in the horizontal HStack for swipe animation, so card
+    /// `onAppear` callbacks cannot distinguish onscreen from offscreen pages.
+    private func publishVisibleWidgets(pages: [WidgetPage]) {
+        runtime.setVisibleWidgetIDs(Self.visibleWidgetIDs(
+            pages: pages,
+            index: pager.index,
+            pinned: Set(runtime.prefs.pinned)
+        ))
+    }
+
+    static func visibleWidgetIDs(
+        pages: [WidgetPage],
+        index: Int,
+        pinned: Set<String>
+    ) -> Set<String> {
+        guard !pages.isEmpty else { return [] }
+        let safeIndex = min(max(index, 0), pages.count - 1)
+        return Set(pages[safeIndex].widgets.map(\.id)).union(pinned)
     }
 
     /// Jumps the pager to the page holding `id`, flashes that card's border, and
