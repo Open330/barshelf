@@ -35,7 +35,98 @@ enum ScreenshotMode {
                 to: dir
             ) && ok
         }
+        ok = composeHeroSet(dir: dir) && ok
         return ok ? 0 : 1
+    }
+
+    // MARK: - Hero / showcase composites
+
+    /// Old popover footprint inside `macos-menubar-popover.jpg` (2400×1350),
+    /// measured from the shipped asset — the fresh render is composited at the
+    /// same top-left so it fully covers the previous one.
+    static let heroPanelOrigin = CGPoint(x: 1785, y: 25)
+    static let heroPanelWidth: CGFloat = 363
+    /// Transparent margin around the rendered panel (room for its shadow).
+    static let heroPanelMargin: CGFloat = 40
+
+    /// Re-composites the landing-page hero (`macos-menubar-popover.jpg`), the
+    /// showcase crop (`macos-widget-shelf.jpg`, 840×720) and the og:image crop
+    /// (`macos-menubar-popover-crop.jpg`, 1600×1078 at 2× panel scale) by
+    /// drawing a fresh popover render over the existing photo. Skipped when
+    /// the output directory has no hero photo (generic screenshot runs).
+    @MainActor
+    private static func composeHeroSet(dir: URL) -> Bool {
+        let heroURL = dir.appendingPathComponent("macos-menubar-popover.jpg")
+        guard FileManager.default.fileExists(atPath: heroURL.path) else { return true }
+        guard let backdrop = NSImage(contentsOf: heroURL) else {
+            FileHandle.standardError.write(Data("hero backdrop unreadable\n".utf8))
+            return false
+        }
+
+        let panel1x = ImageRenderer(content: HeroPanel())
+        panel1x.scale = 1
+        let panel2x = ImageRenderer(content: HeroPanel())
+        panel2x.scale = 2
+        guard let panel = panel1x.nsImage, let panelSharp = panel2x.nsImage else {
+            FileHandle.standardError.write(Data("hero panel render failed\n".utf8))
+            return false
+        }
+        let origin = heroPanelOrigin
+        let margin = heroPanelMargin
+        let panelSize = panel.size
+
+        // Full hero: photo + fresh panel at the measured spot.
+        let hero = NSImage(size: NSSize(width: 2400, height: 1350), flipped: true) { _ in
+            backdrop.draw(in: CGRect(x: 0, y: 0, width: 2400, height: 1350))
+            panel.draw(in: CGRect(
+                x: origin.x - margin, y: origin.y - margin,
+                width: panelSize.width, height: panelSize.height
+            ))
+            return true
+        }
+
+        // Showcase: 840×720 crop with the panel roughly centered.
+        let shelfOffset = CGPoint(x: origin.x - (840 - heroPanelWidth) / 2, y: 0)
+        let shelf = NSImage(size: NSSize(width: 840, height: 720), flipped: true) { _ in
+            hero.draw(in: CGRect(x: -shelfOffset.x, y: -shelfOffset.y, width: 2400, height: 1350))
+            return true
+        }
+
+        // og:image: 800×539 hero region scaled 2×, panel redrawn at 2× for
+        // sharpness (matches the previous asset's zoomed framing).
+        let ogCrop = CGPoint(x: origin.x - 278, y: 6)
+        let og = NSImage(size: NSSize(width: 1600, height: 1078), flipped: true) { _ in
+            hero.draw(in: CGRect(x: -ogCrop.x * 2, y: -ogCrop.y * 2, width: 4800, height: 2700))
+            panelSharp.draw(in: CGRect(
+                x: (origin.x - margin - ogCrop.x) * 2,
+                y: (origin.y - margin - ogCrop.y) * 2,
+                width: panelSize.width * 2, height: panelSize.height * 2
+            ))
+            return true
+        }
+
+        var ok = writeJPEG(hero, to: dir.appendingPathComponent("macos-menubar-popover.jpg"))
+        ok = writeJPEG(shelf, to: dir.appendingPathComponent("macos-widget-shelf.jpg")) && ok
+        ok = writeJPEG(og, to: dir.appendingPathComponent("macos-menubar-popover-crop.jpg")) && ok
+        return ok
+    }
+
+    private static func writeJPEG(_ image: NSImage, to url: URL) -> Bool {
+        guard let tiff = image.tiffRepresentation,
+              let rep = NSBitmapImageRep(data: tiff),
+              let jpeg = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.86])
+        else {
+            FileHandle.standardError.write(Data("jpeg encode failed: \(url.lastPathComponent)\n".utf8))
+            return false
+        }
+        do {
+            try jpeg.write(to: url)
+            print("wrote \(url.path)")
+            return true
+        } catch {
+            FileHandle.standardError.write(Data("write failed \(url.lastPathComponent): \(error)\n".utf8))
+            return false
+        }
     }
 
     @MainActor
@@ -136,12 +227,11 @@ private enum ShotData {
     }
 
     static var batteryNode: UINode {
+        // No inner "Battery" caption — the card header already names the widget.
         decode("""
         {"type":"vstack","spacing":6,"children":[
-          {"type":"hstack","spacing":6,"children":[
-            {"type":"image","source":{"kind":"sfSymbol","name":"battery.100percent"},"size":15,"tint":"good"},
-            {"type":"text","text":"Battery","role":"caption","foreground":"secondary","lineLimit":1}]},
           {"type":"text","text":"80%","size":40,"role":"title","monospacedDigit":true},
+          {"type":"text","text":"2:10 on battery","role":"caption","foreground":"secondary"},
           {"type":"progress","style":"linear","value":0.8,"tint":"good"}]}
         """)
     }
@@ -201,6 +291,57 @@ private struct ShotCard: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+}
+
+/// The popover panel composited into the hero photo: same chrome as
+/// `PopoverShot` but bare (no padding/backdrop) with a night-friendly shadow.
+/// Must render at least ~470 pt tall to fully cover the old baked-in popover.
+private struct HeroPanel: View {
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Demo").font(.system(size: 13, weight: .semibold))
+                Spacer()
+                Image(systemName: "magnifyingglass").font(.system(size: 11)).foregroundColor(.secondary)
+                Image(systemName: "arrow.clockwise").font(.system(size: 11)).foregroundColor(.secondary)
+            }
+            .padding(.horizontal, 12).padding(.vertical, 10)
+            Divider()
+            VStack(spacing: 0) {
+                ShotCard(title: "Today", icon: "calendar", node: ShotData.todayNode, accentName: "red")
+                Divider().padding(.horizontal, 12)
+                HStack(alignment: .top, spacing: 0) {
+                    ShotCard(title: "Weather", icon: "cloud.sun.fill", node: ShotData.weatherNode, accentName: "blue")
+                    Divider()
+                    ShotCard(title: "Battery", icon: "battery.100percent", node: ShotData.batteryNode, accentName: "green")
+                }
+                Divider().padding(.horizontal, 12)
+                ShotCard(title: "k8s pods", icon: "shippingbox", node: ShotData.k8sNode)
+                Divider().padding(.horizontal, 12)
+                ShotCard(title: "Recent Files", icon: "clock.arrow.circlepath", node: ShotData.filesNode)
+            }
+            .padding(.vertical, 4)
+            Divider()
+            HStack(spacing: 10) {
+                Image(systemName: "plus").font(.system(size: 11)).foregroundColor(.secondary)
+                Image(systemName: "chevron.left").font(.system(size: 10)).foregroundColor(.secondary.opacity(0.5))
+                Spacer()
+                Circle().fill(Color.accentColor).frame(width: 7, height: 7)
+                Spacer()
+                Image(systemName: "chevron.right").font(.system(size: 10)).foregroundColor(.secondary)
+                Image(systemName: "gearshape").font(.system(size: 11)).foregroundColor(.secondary)
+            }
+            .padding(.horizontal, 12).padding(.vertical, 8)
+        }
+        .frame(width: ScreenshotMode.heroPanelWidth)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.black.opacity(0.22), lineWidth: 0.5))
+        .compositingGroup()
+        .shadow(color: .black.opacity(0.5), radius: 20, y: 10)
+        .padding(ScreenshotMode.heroPanelMargin)
+        .environment(\.colorScheme, .light)
     }
 }
 
