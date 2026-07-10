@@ -190,6 +190,10 @@ final class WidgetBuilderModel: ObservableObject {
     // Display
     @Published var displayKind: DisplayKind = .list
     @Published var listField = ""
+    /// Optional second line (subtitle) and trailing (right-aligned) fields for
+    /// list rows — native title + subtitle + status rows.
+    @Published var listSecondaryField = ""
+    @Published var listTrailingField = ""
     @Published var valuePath = ""
     @Published var valueCaption = ""
     /// One or more meters (display step). Each renders as a bar or ring; the
@@ -588,9 +592,17 @@ final class WidgetBuilderModel: ObservableObject {
             refine: refineApplicable ? buildRefine() : nil,
             rowAction: refineApplicable ? buildRowAction() : .none,
             folderGrid: sourceKind == .folder && effectiveDisplay == .grid,
+            listSecondary: listSupportsExtraFields ? nonEmpty(listSecondaryField) : nil,
+            listTrailing: listSupportsExtraFields ? nonEmpty(listTrailingField) : nil,
             showHeader: appearanceShowHeader,
             appearance: manifestAppearance
         )
+    }
+
+    /// Secondary/trailing list fields apply only to a structured list display
+    /// (not folder lists, tables, or scalar arrays).
+    private var listSupportsExtraFields: Bool {
+        effectiveDisplay == .list && usesStructuredSource
     }
 
     /// Filter/sort/limit + row actions only apply to array (list/table)

@@ -108,6 +108,31 @@ final class WidgetScaffoldTests: XCTestCase {
         XCTAssertTrue(text.contains("db"))
     }
 
+    func testListRowSecondaryAndTrailingFields() throws {
+        let (_, workflow) = try generate(.init(
+            name: "Builds",
+            source: .command(argv: ["x"], json: true),
+            display: .list(field: "name"),
+            listSecondary: "age",
+            listTrailing: "status"
+        ))
+        let rows: JSONValue = .array([
+            .object(["name": .string("Deploy API"), "age": .string("2m ago"), "status": .string("success")]),
+        ])
+        let output = try WorkflowEngine.evaluate(
+            workflow, sources: ["data": rows], settings: .object([:])
+        )
+        let text = flatten(output.viewTree)
+        XCTAssertTrue(text.contains("Deploy API"))  // primary
+        XCTAssertTrue(text.contains("2m ago"))       // secondary line
+        XCTAssertTrue(text.contains("success"))      // trailing value
+        // The rich row wraps the title/subtitle in a vstack with a trailing spacer.
+        let list = try XCTUnwrap(firstNode(ofType: "list", in: output.viewTree))
+        let row = try XCTUnwrap(list.items?.first)
+        XCTAssertNotNil(firstNode(ofType: "vstack", in: row))
+        XCTAssertNotNil(firstNode(ofType: "spacer", in: row))
+    }
+
     func testCommandJSONTableMapsColumns() throws {
         let (_, workflow) = try generate(.init(
             name: "Usage",

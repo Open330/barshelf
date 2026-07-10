@@ -139,6 +139,12 @@ public enum WidgetBuilderScaffold {
         public var rowAction: RowAction
         /// Render a `folder` source as a thumbnail grid instead of a row list.
         public var folderGrid: Bool
+        /// Optional second line under each `list` row (a secondary/subtitle
+        /// field), for native title + subtitle rows.
+        public var listSecondary: String?
+        /// Optional trailing (right-aligned) field on each `list` row — e.g. a
+        /// status or value shown at the end of the row.
+        public var listTrailing: String?
         /// Emit an in-card name/icon header above the content (single header;
         /// the card chrome header stays off for builder widgets).
         public var showHeader: Bool
@@ -157,6 +163,8 @@ public enum WidgetBuilderScaffold {
             refine: Refine? = nil,
             rowAction: RowAction = .none,
             folderGrid: Bool = false,
+            listSecondary: String? = nil,
+            listTrailing: String? = nil,
             showHeader: Bool = true,
             appearance: WidgetAppearance? = nil,
             id: String? = nil
@@ -171,6 +179,8 @@ public enum WidgetBuilderScaffold {
             self.refine = refine
             self.rowAction = rowAction
             self.folderGrid = folderGrid
+            self.listSecondary = listSecondary
+            self.listTrailing = listTrailing
             self.showHeader = showHeader
             self.appearance = appearance
             self.id = id
@@ -336,7 +346,8 @@ public enum WidgetBuilderScaffold {
             transforms.merge(refineTransforms) { _, new in new }
             bodyNode = try body(
                 display: spec.display, arrayPath: arrayPath,
-                objectPath: "sources.data", rowAction: spec.rowAction
+                objectPath: "sources.data", rowAction: spec.rowAction,
+                secondary: spec.listSecondary, trailing: spec.listTrailing
             )
 
         case let .httpJSON(url, headers):
@@ -347,7 +358,8 @@ public enum WidgetBuilderScaffold {
             transforms.merge(refineTransforms) { _, new in new }
             bodyNode = try body(
                 display: spec.display, arrayPath: arrayPath,
-                objectPath: "sources.data", rowAction: spec.rowAction
+                objectPath: "sources.data", rowAction: spec.rowAction,
+                secondary: spec.listSecondary, trailing: spec.listTrailing
             )
 
         case let .staticJSON(value):
@@ -359,7 +371,8 @@ public enum WidgetBuilderScaffold {
             transforms.merge(refineTransforms) { _, new in new }
             bodyNode = try body(
                 display: spec.display, arrayPath: arrayPath,
-                objectPath: "sources.data", rowAction: spec.rowAction
+                objectPath: "sources.data", rowAction: spec.rowAction,
+                secondary: spec.listSecondary, trailing: spec.listTrailing
             )
 
         case let .folder(path, limit):
@@ -413,22 +426,48 @@ public enum WidgetBuilderScaffold {
 
     private static func body(
         display: Display, arrayPath: String, objectPath: String,
-        rowAction: RowAction = .none
+        rowAction: RowAction = .none,
+        secondary: String? = nil, trailing: String? = nil
     ) throws -> [String: Any] {
         switch display {
         case let .list(field):
             // string(...) keeps numeric/bool fields renderable in text nodes.
-            let text = field.map { "${string(row.\($0))}" } ?? "${string(row)}"
+            let primary = field.map { "${string(row.\($0))}" } ?? "${string(row)}"
             let rowID = field.map { "row-${string(row.\($0))}" } ?? "row"
-            var template: [String: Any] = [
-                "type": "hstack",
-                "id": rowID,
-                "children": [["type": "text", "role": "body", "text": text, "lineLimit": 1]],
-            ]
+            let sec = secondary?.trimmingCharacters(in: .whitespaces)
+            let trail = trailing?.trimmingCharacters(in: .whitespaces)
+            let hasSecondary = !(sec ?? "").isEmpty
+            let hasTrailing = !(trail ?? "").isEmpty
+
+            var rowChildren: [[String: Any]]
+            if !hasSecondary, !hasTrailing {
+                // Simple single-field row (unchanged).
+                rowChildren = [["type": "text", "role": "body", "text": primary, "lineLimit": 1]]
+            } else {
+                // Native title (+ subtitle) leading column, optional trailing value.
+                var leading: [[String: Any]] = [
+                    ["type": "text", "role": "body", "text": primary, "lineLimit": 1],
+                ]
+                if hasSecondary {
+                    leading.append([
+                        "type": "text", "role": "caption", "foreground": "secondary",
+                        "text": "${string(row.\(sec!))}", "lineLimit": 1,
+                    ])
+                }
+                rowChildren = [["type": "vstack", "spacing": 1, "children": leading]]
+                if hasTrailing {
+                    rowChildren.append(["type": "spacer"])
+                    rowChildren.append([
+                        "type": "text", "role": "caption", "monospacedDigit": true,
+                        "text": "${string(row.\(trail!))}", "lineLimit": 1,
+                    ])
+                }
+            }
+            var template: [String: Any] = ["type": "hstack", "id": rowID, "children": rowChildren]
             if let action = actionObject(rowAction) { template["action"] = action }
             return [
                 "type": "list",
-                "spacing": 2,
+                "spacing": hasSecondary || hasTrailing ? 6 : 2,
                 "items": [
                     "forEach": arrayPath,
                     "as": "row",

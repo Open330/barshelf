@@ -374,6 +374,11 @@ struct WidgetBuilderView: View {
             switch model.effectiveDisplay {
             case .list where model.usesStructuredSource && !model.detectedFields.isEmpty:
                 fieldPicker("Show field", selection: $model.listField)
+                optionalFieldRow("Secondary line", selection: $model.listSecondaryField)
+                optionalFieldRow("Trailing value", selection: $model.listTrailingField)
+                Text("Secondary shows under the title; trailing is right-aligned (e.g. a status).")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             case .table:
                 tableColumnEditor
             case .value:
@@ -504,6 +509,16 @@ struct WidgetBuilderView: View {
             return "The raw source output is shown as text."
         default:
             return "Run the command in step 1 to map fields."
+        }
+    }
+
+    /// A labeled, optional field selector ("—" clears it). Used for the list
+    /// row's secondary/trailing fields.
+    private func optionalFieldRow(_ title: String, selection: Binding<String>) -> some View {
+        HStack {
+            Text(title).font(.system(size: 12))
+            Spacer()
+            refineField(selection)
         }
     }
 
