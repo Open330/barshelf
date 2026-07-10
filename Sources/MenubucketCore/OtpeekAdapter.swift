@@ -141,7 +141,13 @@ extension OtpeekAdapter {
         }
 
         return AdapterResult(
-            viewTree: UINode(id: "otpeek-root", type: "list", items: rows, spacing: 8),
+            viewTree: UINode(
+                id: "otpeek-root",
+                type: "list",
+                items: rows,
+                spacing: 8,
+                searchPlaceholder: "Search accounts…"
+            ),
             nextRefreshAtMs: earliestValidUntil.map { $0 + deadlineSlackMs },
             statusText: nil // codes are sensitive — never promote to the menu bar
         )

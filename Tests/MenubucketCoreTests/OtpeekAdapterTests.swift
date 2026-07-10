@@ -66,6 +66,7 @@ final class OtpeekAdapterTests: XCTestCase {
         let result = try await OtpeekAdapter.adapt(listFixture, context: makeContext())
         let rows = result.viewTree.items ?? []
         XCTAssertEqual(result.viewTree.type, "list")
+        XCTAssertEqual(result.viewTree.searchPlaceholder, "Search accounts…")
         XCTAssertEqual(rows.count, 2, "hotp account must be filtered out")
         XCTAssertEqual(rows[0].id, "otp-acc-github-row")
         XCTAssertEqual(rows[1].id, "otp-acc-aws-row")

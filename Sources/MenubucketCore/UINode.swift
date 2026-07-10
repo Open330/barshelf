@@ -19,6 +19,9 @@ public struct UINode: Codable, Equatable {
     public var spacing: Double?
     /// `grid` fixed column count (nil → adaptive by `size`).
     public var columns: Int?
+    /// `list`: when present, renders a local search field and filters rows by
+    /// their visible text without re-running the widget.
+    public var searchPlaceholder: String?
 
     // Text fields
     public var text: String?
@@ -95,6 +98,7 @@ public struct UINode: Codable, Equatable {
         items: [UINode]? = nil,
         spacing: Double? = nil,
         columns: Int? = nil,
+        searchPlaceholder: String? = nil,
         text: String? = nil,
         role: String? = nil,
         lineLimit: Int? = nil,
@@ -126,6 +130,7 @@ public struct UINode: Codable, Equatable {
         self.items = items
         self.spacing = spacing
         self.columns = columns
+        self.searchPlaceholder = searchPlaceholder
         self.text = text
         self.role = role
         self.lineLimit = lineLimit
@@ -216,6 +221,25 @@ extension UINode {
 
     public var isKnownType: Bool {
         KnownType(rawValue: type) != nil
+    }
+
+    /// Whether every whitespace-delimited query term appears somewhere in the
+    /// node's visible text. Action payloads are deliberately excluded so local
+    /// list search never indexes hidden secrets such as copy values.
+    public func matchesSearch(_ query: String) -> Bool {
+        let terms = query
+            .split(whereSeparator: \.isWhitespace)
+            .map(String.init)
+        guard !terms.isEmpty else { return true }
+        let haystack = searchableText()
+        let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive]
+        return terms.allSatisfy { haystack.range(of: $0, options: options) != nil }
+    }
+
+    private func searchableText() -> String {
+        let own = [text, title, subtitle, label, accessibilityLabel].compactMap { $0 }
+        let descendants = ((children ?? []) + (items ?? [])).map { $0.searchableText() }
+        return (own + descendants).joined(separator: " ")
     }
 }
 

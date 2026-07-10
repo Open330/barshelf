@@ -189,6 +189,8 @@ export interface ListNode extends UINodeBase {
   empty?: UINode;
   rowSpacing?: number;
   virtualized?: boolean;
+  /** Enables host-local visible-text filtering for this list. */
+  searchPlaceholder?: string;
 }
 
 export interface ProgressCountdown {

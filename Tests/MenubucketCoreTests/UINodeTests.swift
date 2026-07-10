@@ -39,9 +39,12 @@ final class UINodeTests: XCTestCase {
                     icon: "doc.on.doc",
                     action: NodeAction(type: "copyText", value: "hi", toast: "Copied")
                 ),
-                UINode(id: "lst", type: "list", items: [
-                    UINode(id: "i0", type: "text", text: "row 0"),
-                ]),
+                UINode(
+                    id: "lst",
+                    type: "list",
+                    items: [UINode(id: "i0", type: "text", text: "row 0")],
+                    searchPlaceholder: "Search rows"
+                ),
             ],
             spacing: 8,
             padding: 4,
@@ -131,5 +134,30 @@ final class UINodeTests: XCTestCase {
         let node = try JSONDecoder().decode(UINode.self, from: json)
         XCTAssertEqual(node.action?.type, "openURL")
         XCTAssertEqual(node.action?.url, "https://example.com")
+    }
+
+    func testVisibleTextSearchMatchesNestedRowsAndExcludesActionPayloads() {
+        let row = UINode(
+            id: "account-row",
+            type: "hstack",
+            children: [
+                UINode(type: "vstack", children: [
+                    UINode(type: "text", text: "GitHub"),
+                    UINode(type: "text", text: "jiun@example.com"),
+                ]),
+                UINode(
+                    type: "button",
+                    title: "728 419",
+                    action: NodeAction(type: "copyText", value: "hidden-secret")
+                ),
+            ]
+        )
+
+        XCTAssertTrue(row.matchesSearch("github"))
+        XCTAssertTrue(row.matchesSearch("GITHUB example"))
+        XCTAssertTrue(row.matchesSearch("728"))
+        XCTAssertFalse(row.matchesSearch("hidden-secret"))
+        XCTAssertFalse(row.matchesSearch("aws"))
+        XCTAssertTrue(row.matchesSearch("   "))
     }
 }

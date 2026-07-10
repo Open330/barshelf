@@ -470,6 +470,10 @@
         },
         "virtualized": {
           "type": "boolean"
+        },
+        "searchPlaceholder": {
+          "description": "When present, the host renders a local search field and filters rows by visible text without re-running the widget.",
+          "type": "string"
         }
       },
       "additionalProperties": true

@@ -294,10 +294,13 @@ Shared/common fields: `id` (stable identity, needed for lists & action routing),
 ] }
 ```
 ```json
-{ "type": "list", "spacing": 2, "items": [
+{ "type": "list", "spacing": 2, "searchPlaceholder": "Search rows", "items": [
   { "type": "hstack", "id": "row-1", "children": [ { "type": "text", "text": "Row 1" } ] }
 ] }
 ```
+`searchPlaceholder` enables a host-local search field on a `list`. Each
+whitespace-delimited query term filters against visible row text recursively;
+action payloads are excluded and typing does not re-run the widget.
 ```json
 { "type": "section", "title": "Recent", "spacing": 4, "children": [
   { "type": "text", "text": "item" }

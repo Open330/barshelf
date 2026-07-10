@@ -30,13 +30,18 @@ final class Scheduler {
     private(set) var popupIsOpen = false
 
     private var widgets: [LoadedWidget] = []
+    /// Widgets on the selected page plus pinned widgets. Automatic work while
+    /// the popup is open is restricted to this set.
+    private var visibleWidgetIDs: Set<String> = []
     private var backoff: [String: BackoffState] = [:]
     private var intervalTimers: [String: Timer] = [:]
     private var deadlineTimers: [String: Timer] = [:]
     /// Pending adapter deadlines (epoch ms), survives popup close.
     private var deadlines: [String: Double] = [:]
     private var watchers: [String: DirectoryWatcher] = [:]
-    private var pendingWatchEvents: Set<String> = []
+    /// Automatic work deferred while its widget is offscreen (or while the
+    /// popup is closed and the widget is not background-capable).
+    private var pendingAutomaticEvents: Set<String> = []
     private var wakeObserver: NSObjectProtocol?
     private var refreshMultiplier: Double = 1
     private var pauseWhenClosed = false
@@ -92,7 +97,8 @@ final class Scheduler {
         backoff = backoff.filter { liveIDs.contains($0.key) }
         deadlines = deadlines.filter { liveIDs.contains($0.key) }
         lastAutoRefreshAt = lastAutoRefreshAt.filter { liveIDs.contains($0.key) }
-        pendingWatchEvents.formIntersection(liveIDs)
+        visibleWidgetIDs.formIntersection(liveIDs)
+        pendingAutomaticEvents.formIntersection(liveIDs)
         rebuildIntervalTimers()
         rebuildDeadlineTimers()
         rebuildWatchers()
@@ -109,17 +115,33 @@ final class Scheduler {
         rebuildIntervalTimers()
     }
 
+    /// Updates page visibility without changing the configured widget set.
+    /// Switching pages re-arms only the timers needed by the newly visible
+    /// widgets and drains automatic work that was deferred while offscreen.
+    func setVisibleWidgetIDs(_ ids: Set<String>) {
+        let liveIDs = Set(widgets.map(\.id))
+        let normalized = ids.intersection(liveIDs)
+        guard normalized != visibleWidgetIDs else { return }
+        visibleWidgetIDs = normalized
+        guard popupIsOpen else { return }
+        rebuildIntervalTimers()
+        rebuildDeadlineTimers()
+        flushVisiblePendingEvents()
+    }
+
+    /// Test/diagnostic surface for verifying that offscreen widgets do not own
+    /// interval timers. Kept internal so it is not part of the public API.
+    var activeIntervalWidgetIDs: Set<String> {
+        Set(intervalTimers.keys)
+    }
+
     // MARK: - Popup lifecycle
 
     func popupOpened() {
         popupIsOpen = true
         rebuildIntervalTimers()
         rebuildDeadlineTimers() // re-evaluate deadlines (fire overdue ones)
-        let pending = pendingWatchEvents
-        pendingWatchEvents.removeAll()
-        for id in pending {
-            fireAutomatic(id)
-        }
+        flushVisiblePendingEvents()
         // `popup-open` triggers: debounced ≥5 s per widget (uses the shared
         // last-refresh reference, so a burst of opens fires at most once).
         for id in popupOpenTriggerIDs {
@@ -161,6 +183,7 @@ final class Scheduler {
         intervalTimers.removeAll()
 
         for widget in widgets {
+            if popupIsOpen, !visibleWidgetIDs.contains(widget.id) { continue }
             guard let interval = SchedulePolicy.effectiveInterval(
                 configured: widget.manifest.refresh?.interval,
                 popupOpen: popupIsOpen,
@@ -196,7 +219,10 @@ final class Scheduler {
     private func armDeadlineTimer(widgetID: String) {
         deadlineTimers[widgetID]?.invalidate()
         deadlineTimers.removeValue(forKey: widgetID)
-        guard popupIsOpen, let deadlineMs = deadlines[widgetID] else { return }
+        guard popupIsOpen,
+              visibleWidgetIDs.contains(widgetID),
+              let deadlineMs = deadlines[widgetID]
+        else { return }
 
         let fireDate = Date(timeIntervalSince1970: deadlineMs / 1000)
         let delay = max(fireDate.timeIntervalSinceNow, 0.05)
@@ -232,19 +258,35 @@ final class Scheduler {
     }
 
     private func watchFired(widgetID: String) {
-        if popupIsOpen {
-            fireAutomatic(widgetID)
-        } else {
-            pendingWatchEvents.insert(widgetID) // batch on next open
-        }
+        fireAutomatic(widgetID)
     }
 
     // MARK: - Event triggers (`refresh.triggers`)
 
     /// Records an automatic refresh's time (spacing reference) and forwards it.
     private func fireAutomatic(_ id: String, now: Date = Date()) {
+        guard automaticRefreshEligible(widgetID: id) else {
+            pendingAutomaticEvents.insert(id)
+            return
+        }
         lastAutoRefreshAt[id] = now
         requestRefresh?(id, false)
+    }
+
+    private func automaticRefreshEligible(widgetID: String) -> Bool {
+        guard let widget = widgets.first(where: { $0.id == widgetID }) else { return false }
+        if popupIsOpen {
+            return visibleWidgetIDs.contains(widgetID)
+        }
+        return !pauseWhenClosed && widget.manifest.refresh?.runInBackground == true
+    }
+
+    private func flushVisiblePendingEvents() {
+        let ready = pendingAutomaticEvents.intersection(visibleWidgetIDs)
+        pendingAutomaticEvents.subtract(ready)
+        for id in ready {
+            fireAutomatic(id)
+        }
     }
 
     /// Fires an event-triggered refresh only when it clears `minSpacing` from
@@ -290,10 +332,6 @@ final class Scheduler {
     }
 
     private func triggerWatchFired(widgetID: String) {
-        if popupIsOpen {
-            fireTrigger(widgetID, minSpacing: SchedulePolicy.triggerMinSpacingSec)
-        } else {
-            pendingWatchEvents.insert(widgetID) // batch on next open
-        }
+        fireTrigger(widgetID, minSpacing: SchedulePolicy.triggerMinSpacingSec)
     }
 }

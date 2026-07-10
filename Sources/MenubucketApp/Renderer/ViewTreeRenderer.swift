@@ -167,9 +167,11 @@ struct NodeView: View {
                 NodeChildrenView(nodes: node.children ?? [])
             }
         case .list:
-            VStack(alignment: .leading, spacing: (node.spacing ?? 4) * scale) {
-                NodeChildrenView(nodes: node.items ?? node.children ?? [])
-            }
+            NodeListView(
+                items: node.items ?? node.children ?? [],
+                searchPlaceholder: node.searchPlaceholder,
+                spacing: (node.spacing ?? 4) * scale
+            )
         case .grid:
             gridView
         case .section:
@@ -461,6 +463,67 @@ private struct CountdownProgressView: View {
                             .foregroundColor(.secondary)
                     }
                 }
+            }
+        }
+    }
+}
+
+/// A regular list unless `searchPlaceholder` is present. Searchable lists keep
+/// their query entirely in SwiftUI state and filter visible row text locally,
+/// so typing never re-runs the widget or exposes the query to its process.
+private struct NodeListView: View {
+    let items: [UINode]
+    let searchPlaceholder: String?
+    let spacing: Double
+    @State private var query = ""
+
+    private var filteredItems: [UINode] {
+        guard searchPlaceholder != nil else { return items }
+        return items.filter { $0.matchesSearch(query) }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: spacing) {
+            if let searchPlaceholder {
+                HStack(spacing: 6) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(.secondary)
+                        .accessibilityHidden(true)
+                    TextField(searchPlaceholder, text: $query)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12))
+                        .accessibilityLabel(searchPlaceholder)
+                    if !query.isEmpty {
+                        Button {
+                            query = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Clear search")
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(Color.secondary.opacity(0.10))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
+                )
+            }
+
+            if filteredItems.isEmpty, !query.isEmpty {
+                Text("No matches")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+            } else {
+                NodeChildrenView(nodes: filteredItems)
             }
         }
     }
