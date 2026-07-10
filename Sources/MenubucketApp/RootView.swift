@@ -462,7 +462,7 @@ struct RootView: View {
 
     /// GETTING-STARTED guide on GitHub (opened from onboarding CTAs).
     static let gettingStartedURL = URL(
-        string: "https://github.com/Open330/barshelf/blob/master/docs/GETTING-STARTED.md"
+        string: "https://github.com/Open330/barshelf/blob/main/docs/GETTING-STARTED.md"
     )!
 
     /// The welcome card sits above the seeded `hello` widget ("Demo" panel);

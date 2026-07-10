@@ -14,7 +14,7 @@
       "kind": "workflow",
       "tags": ["date", "calendar", "clock", "native", "workflow"],
       "category": "Demo",
-      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/today", "bundled": "today" },
+      "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/today", "bundled": "today" },
       "permissions": { "exec": ["/bin/date"], "keychain": false, "notifications": false },
       "homepage": "https://github.com/Open330/barshelf"
     },
@@ -57,7 +57,7 @@
       "tags": ["system", "battery", "meter", "native", "workflow"],
       "category": "System",
       "requires": "Battery (laptop)",
-      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/battery-meter", "bundled": "battery-meter" },
+      "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/battery-meter", "bundled": "battery-meter" },
       "permissions": { "exec": ["/bin/sh"], "keychain": false, "notifications": false },
       "homepage": "https://github.com/Open330/barshelf"
     },
@@ -87,7 +87,7 @@
       "tags": ["developer", "agents", "ai", "muxa", "monitoring", "ssh", "script"],
       "category": "Developer",
       "requires": "muxa CLI + Deno",
-      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/muxa-watch", "bundled": "muxa-watch" },
+      "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/muxa-watch", "bundled": "muxa-watch" },
       "permissions": { "exec": ["muxa", "ssh"], "keychain": false, "notifications": false },
       "homepage": "https://github.com/Open330/muxa"
     },
@@ -117,7 +117,7 @@
       "tags": ["files", "workflow", "storage", "persistence", "diff"],
       "category": "Files",
       "requires": "Downloads folder access",
-      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/downloads-new", "bundled": "downloads-new" },
+      "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/downloads-new", "bundled": "downloads-new" },
       "permissions": { "exec": [], "keychain": false, "notifications": false },
       "homepage": "https://github.com/Open330/barshelf"
     },
@@ -132,7 +132,7 @@
       "tags": ["developer", "status", "workflow", "http"],
       "category": "Developer",
       "requires": "Network access",
-      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/github-status", "bundled": "github-status" },
+      "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/github-status", "bundled": "github-status" },
       "permissions": { "exec": [], "keychain": false, "notifications": false, "network": ["www.githubstatus.com"] },
       "homepage": "https://www.githubstatus.com/"
     },
@@ -146,7 +146,7 @@
       "kind": "workflow",
       "tags": ["clock", "time", "native", "workflow"],
       "category": "Demo",
-      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/clock", "bundled": "clock" },
+      "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/clock", "bundled": "clock" },
       "permissions": { "exec": ["/bin/date"], "keychain": false, "notifications": false },
       "homepage": "https://github.com/Open330/barshelf"
     },
@@ -160,7 +160,7 @@
       "kind": "workflow",
       "tags": ["system", "cpu", "disk", "meter", "native"],
       "category": "System",
-      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/system", "bundled": "system" },
+      "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/system", "bundled": "system" },
       "permissions": { "exec": ["/bin/sh"], "keychain": false, "notifications": false },
       "homepage": "https://github.com/Open330/barshelf"
     },
@@ -175,7 +175,7 @@
       "tags": ["weather", "http", "native", "workflow"],
       "category": "Demo",
       "requires": "Network access",
-      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/weather", "bundled": "weather" },
+      "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/weather", "bundled": "weather" },
       "permissions": { "exec": [], "keychain": false, "notifications": false, "network": ["api.open-meteo.com"] },
       "homepage": "https://open-meteo.com/"
     },
@@ -189,7 +189,7 @@
       "kind": "workflow",
       "tags": ["calendar", "date", "grid", "native", "workflow"],
       "category": "Demo",
-      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/calendar", "bundled": "calendar" },
+      "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/calendar", "bundled": "calendar" },
       "permissions": { "exec": ["/bin/sh"], "keychain": false, "notifications": false },
       "homepage": "https://github.com/Open330/barshelf"
     },
@@ -204,7 +204,7 @@
       "tags": ["finance", "exchange", "http", "native"],
       "category": "Demo",
       "requires": "Network access",
-      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/exchange", "bundled": "exchange" },
+      "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/exchange", "bundled": "exchange" },
       "permissions": { "exec": [], "keychain": false, "notifications": false, "network": ["open.er-api.com"] },
       "homepage": "https://www.exchangerate-api.com/"
     },
@@ -218,7 +218,7 @@
       "kind": "workflow",
       "tags": ["system", "network", "ip", "native"],
       "category": "System",
-      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/network", "bundled": "network" },
+      "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/network", "bundled": "network" },
       "permissions": { "exec": ["/bin/sh"], "keychain": false, "notifications": false },
       "homepage": "https://github.com/Open330/barshelf"
     },
@@ -233,7 +233,7 @@
       "tags": ["finance", "stock", "http", "headers", "native"],
       "category": "Demo",
       "requires": "Network access",
-      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/stock", "bundled": "stock" },
+      "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/stock", "bundled": "stock" },
       "permissions": { "exec": [], "keychain": false, "notifications": false, "network": ["query1.finance.yahoo.com"] },
       "homepage": "https://finance.yahoo.com/"
     },
@@ -248,7 +248,7 @@
       "tags": ["media", "music", "spotify", "native"],
       "category": "Media",
       "requires": "Automation permission",
-      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/now-playing", "bundled": "now-playing" },
+      "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/now-playing", "bundled": "now-playing" },
       "permissions": { "exec": ["/bin/sh"], "keychain": false, "notifications": false },
       "homepage": "https://github.com/Open330/barshelf"
     },
@@ -263,7 +263,7 @@
       "tags": ["reminders", "tasks", "native"],
       "category": "Media",
       "requires": "Automation permission",
-      "install": { "url": "https://github.com/Open330/barshelf/tree/master/widgets/reminders", "bundled": "reminders" },
+      "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/reminders", "bundled": "reminders" },
       "permissions": { "exec": ["/bin/sh"], "keychain": false, "notifications": false },
       "homepage": "https://github.com/Open330/barshelf"
     }
