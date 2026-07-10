@@ -232,11 +232,22 @@ final class WidgetRuntime: ObservableObject {
         snapshot.viewTree = params.root
         snapshot.updatedAt = Date()
         snapshot.error = nil
+        snapshot.safeForSensitiveCache = false
         setSnapshot(snapshot, for: widgetId)
         let sensitive = params.sensitive == true || widget.isSensitive
         if sensitive {
-            pendingPersists[widgetId]?.cancel() // no queued write may survive
-            Self.removeCachedSnapshot(widgetID: widgetId) // memory-only render
+            pendingPersists[widgetId]?.cancel()
+            if let cacheRoot = params.cacheRoot {
+                // Keep the live tree memory-only. Persist only the separate
+                // widget-supplied tree whose contract requires sensitive
+                // fields to be removed before host.render.
+                var cached = snapshot
+                cached.viewTree = cacheRoot
+                cached.safeForSensitiveCache = true
+                persistSnapshot(cached)
+            } else {
+                Self.removeCachedSnapshot(widgetID: widgetId)
+            }
         } else {
             persistSnapshot(snapshot)
         }
@@ -574,10 +585,16 @@ final class WidgetRuntime: ObservableObject {
         for widget in loaded {
             if snapshots[widget.id] == nil {
                 if widget.isSensitive {
-                    // Sensitive renders are memory-only; also scrub any cache
-                    // left behind by an older manifest revision.
-                    Self.removeCachedSnapshot(widgetID: widget.id)
-                    setSnapshot(WidgetSnapshot(widgetID: widget.id), for: widget.id)
+                    // A sensitive live tree is never restored. The only cache
+                    // accepted here is an explicitly redacted fallback written
+                    // through RenderParams.cacheRoot.
+                    if let cached = loadCachedSnapshot(widgetID: widget.id),
+                       cached.safeForSensitiveCache == true {
+                        setSnapshot(cached, for: widget.id)
+                    } else {
+                        Self.removeCachedSnapshot(widgetID: widget.id)
+                        setSnapshot(WidgetSnapshot(widgetID: widget.id), for: widget.id)
+                    }
                 } else {
                     setSnapshot(
                         loadCachedSnapshot(widgetID: widget.id)

@@ -127,11 +127,17 @@ barshelf.widget({
 ```ts
 await barshelf.render(root, {
   status: { label: "12:34", tooltip: "Updated now" },
+  cacheRoot: redactedRoot,
   nextRefreshAt: Date.now() + 60_000,
   cacheTtlMs: 60_000,
   sensitive: false,
 });
 ```
+
+`cacheRoot`는 `root`가 `sensitive: true`인 경우에도 cold start에서 먼저 보여줄
+수 있는 별도의 non-sensitive fallback tree다. Host는 live tree 대신 이 tree만
+disk cache에 저장한다. Widget은 prompt, secret, 개인 경로 등 민감한 값을 반드시
+제거한 뒤 전달해야 한다. 다음 fetch가 끝나면 live `root`가 cache를 대체한다.
 
 `root`는 `schema/uinode-0.1.json`과 일치하는 UINode이다. `barshelf.render`는 `host.render` 요청을 보내고 `{revision}`을 반환한다.
 

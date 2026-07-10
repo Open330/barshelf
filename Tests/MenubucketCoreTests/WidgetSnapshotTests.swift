@@ -14,6 +14,7 @@ final class WidgetSnapshotTests: XCTestCase {
             viewTree: tree,
             updatedAt: updatedAt,
             error: "aas not found",
+            safeForSensitiveCache: true,
             isLoading: true
         )
 
@@ -24,6 +25,7 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertEqual(restored.viewTree, tree)
         XCTAssertEqual(restored.updatedAt, updatedAt)
         XCTAssertEqual(restored.error, "aas not found")
+        XCTAssertEqual(restored.safeForSensitiveCache, true)
         XCTAssertFalse(restored.isLoading, "isLoading is transient and must not persist")
     }
 

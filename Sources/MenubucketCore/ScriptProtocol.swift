@@ -115,6 +115,9 @@ public struct RenderStatus: Codable, Equatable, Sendable {
 
 public struct RenderParams: Codable, Equatable, Sendable {
     public var root: UINode
+    /// Optional non-sensitive fallback persisted for cold-start display even
+    /// when `root` is sensitive. Widget authors must redact secrets first.
+    public var cacheRoot: UINode?
     public var status: RenderStatus?
     public var nextRefreshAt: Double?
     public var cacheTtlMs: Double?
@@ -122,12 +125,14 @@ public struct RenderParams: Codable, Equatable, Sendable {
 
     public init(
         root: UINode,
+        cacheRoot: UINode? = nil,
         status: RenderStatus? = nil,
         nextRefreshAt: Double? = nil,
         cacheTtlMs: Double? = nil,
         sensitive: Bool? = nil
     ) {
         self.root = root
+        self.cacheRoot = cacheRoot
         self.status = status
         self.nextRefreshAt = nextRefreshAt
         self.cacheTtlMs = cacheTtlMs

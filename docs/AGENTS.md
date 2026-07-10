@@ -171,7 +171,7 @@ export default barshelf.widget({
 
 Host APIs (all `async`, reachable via `barshelf.*`, the short alias `bsf.*`, or the context object):
 
-- `barshelf.render(root: UINode, opts?)` — push a view tree. `opts`: `{ status?, nextRefreshAt?, cacheTtlMs?, sensitive? }`.
+- `barshelf.render(root: UINode, opts?)` — push a view tree. `opts`: `{ status?, cacheRoot?, nextRefreshAt?, cacheTtlMs?, sensitive? }`. `cacheRoot` is an explicitly redacted, non-sensitive cold-start fallback; the host may persist it even when the live root is sensitive.
 - `barshelf.exec.run({ command, args?, parse?, timeoutMs?, sensitive?, env? })` — run an allowlisted command; `parse`: `"text" | "json" | "lines"`. Needs `permissions.exec`.
 - `barshelf.storage.get/set/delete/list(prefix?)` — per-widget KV store, ~1 MB quota. **No permission needed.**
 - `barshelf.secret.get/set(key[, value])` — Keychain-backed; account `<widgetId>/<key>`. Needs `permissions.keychain`.

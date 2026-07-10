@@ -35,6 +35,8 @@ export interface RenderStatus {
 
 export interface RenderOptions {
   status?: RenderStatus;
+  /** Redacted, non-sensitive fallback persisted for cold-start display. */
+  cacheRoot?: UINode;
   nextRefreshAt?: number;
   cacheTtlMs?: number;
   sensitive?: boolean;
@@ -969,6 +971,7 @@ export async function render(
 ): Promise<RenderResult> {
   return await sendRequest<RenderResult>("host.render", {
     root,
+    cacheRoot: options.cacheRoot,
     status: options.status,
     nextRefreshAt: options.nextRefreshAt,
     cacheTtlMs: options.cacheTtlMs,

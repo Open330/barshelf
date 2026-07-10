@@ -14,11 +14,14 @@ public struct WidgetSnapshot: Codable, Equatable {
     public var updatedAt: Date?
     /// Latest failure message, if the most recent refresh failed.
     public var error: String?
+    /// True only for a widget-supplied, explicitly redacted fallback tree.
+    /// Optional so caches written before this field existed still decode.
+    public var safeForSensitiveCache: Bool?
     /// Transient — not persisted.
     public var isLoading: Bool = false
 
     private enum CodingKeys: String, CodingKey {
-        case widgetID, viewTree, updatedAt, error
+        case widgetID, viewTree, updatedAt, error, safeForSensitiveCache
     }
 
     public init(
@@ -26,12 +29,14 @@ public struct WidgetSnapshot: Codable, Equatable {
         viewTree: UINode? = nil,
         updatedAt: Date? = nil,
         error: String? = nil,
+        safeForSensitiveCache: Bool? = nil,
         isLoading: Bool = false
     ) {
         self.widgetID = widgetID
         self.viewTree = viewTree
         self.updatedAt = updatedAt
         self.error = error
+        self.safeForSensitiveCache = safeForSensitiveCache
         self.isLoading = isLoading
     }
 
