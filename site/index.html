@@ -54,6 +54,7 @@
 
     [data-lang="en"] .ko { display: none !important; }
     [data-lang="ko"] .en { display: none !important; }
+    .ko { word-break: keep-all; overflow-wrap: break-word; }
 
     .wrap { width: min(var(--max), calc(100% - 40px)); margin: 0 auto; }
     .nav {
@@ -316,6 +317,60 @@
       gap: 46px;
       align-items: center;
     }
+    .split > * { min-width: 0; }
+    .showcase-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.08fr) minmax(320px, 0.92fr);
+      gap: 42px;
+      align-items: center;
+    }
+    .showcase-media {
+      border: 1px solid var(--line-strong);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #131517;
+      box-shadow: 0 26px 68px rgba(17, 19, 21, 0.20);
+    }
+    .showcase-media img {
+      width: 100%;
+      height: auto;
+      aspect-ratio: 840 / 720;
+      object-fit: cover;
+    }
+    .practice-list {
+      display: grid;
+      gap: 0;
+      border-top: 1px solid var(--line);
+    }
+    .practice-item {
+      display: grid;
+      grid-template-columns: 42px 1fr;
+      gap: 14px;
+      padding: 18px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .practice-item b {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      background: var(--ink);
+      color: #fff;
+      font: 760 12px/1 var(--mono);
+    }
+    .practice-item:nth-child(2) b { background: var(--blue); }
+    .practice-item:nth-child(3) b { background: var(--green); }
+    .practice-item:nth-child(4) b { background: var(--gold); }
+    .practice-item h3 {
+      font-size: 18px;
+      font-weight: 760;
+    }
+    .practice-item p {
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 15px;
+    }
     .steps {
       margin-top: 26px;
       display: grid;
@@ -355,8 +410,14 @@
       overflow: hidden;
       background: #101214;
       box-shadow: 0 24px 60px rgba(17, 19, 21, 0.22);
+      align-self: center;
     }
-    .builder-shot img { width: 100%; }
+    .builder-shot img {
+      width: 100%;
+      height: auto;
+      aspect-ratio: 1360 / 614;
+      object-fit: contain;
+    }
 
     .model {
       display: grid;
@@ -475,6 +536,7 @@
       .hero { min-height: min(82svh, 840px); background-position: 62% top; }
       .proof-row, .grid-3, .model, .terminal-grid { grid-template-columns: 1fr 1fr; }
       .split { grid-template-columns: 1fr; }
+      .showcase-grid { grid-template-columns: 1fr; }
     }
     @media (max-width: 640px) {
       .wrap { width: min(var(--max), calc(100% - 28px)); }
@@ -501,7 +563,7 @@
       </a>
       <nav class="links" aria-label="Sections">
         <a href="#features"><span class="en">Features</span><span class="ko">기능</span></a>
-        <a href="#model"><span class="en">Model</span><span class="ko">구조</span></a>
+        <a href="#showcase"><span class="en">Showcase</span><span class="ko">구성</span></a>
         <a href="#builder"><span class="en">Builder</span><span class="ko">빌더</span></a>
         <a href="#install"><span class="en">Install</span><span class="ko">설치</span></a>
       </nav>
@@ -584,13 +646,68 @@
       </div>
     </section>
 
+    <section id="showcase">
+      <div class="wrap showcase-grid">
+        <div class="showcase-media reveal">
+          <img src="shots/macos-widget-shelf.jpg" width="840" height="720" alt="BarShelf popover with multiple widgets arranged in one shelf" />
+        </div>
+        <div class="reveal">
+          <div class="label"><span class="en">Best Practice</span><span class="ko">구성 예시</span></div>
+          <div class="section-head">
+            <h2 class="en">A finished shelf, ready at a glance.</h2>
+            <h2 class="ko">열자마자 읽히는 완성형 위젯 선반.</h2>
+            <p class="en">A strong setup combines one primary status widget, two glance widgets, and one operational list so the popover feels useful the moment it opens.</p>
+            <p class="ko">좋은 구성은 큰 상태 위젯 하나, 빠른 확인 위젯 두 개, 운영 리스트 하나를 섞어 팝오버를 여는 순간 바로 쓸모가 보이게 합니다.</p>
+          </div>
+          <div class="practice-list">
+            <article class="practice-item">
+              <b>01</b>
+              <div>
+                <h3 class="en">Lead with the widget you check most.</h3>
+                <h3 class="ko">가장 자주 보는 위젯을 먼저 배치하세요.</h3>
+                <p class="en">Use the largest slot for usage, revenue, build health, or any state that decides your next action.</p>
+                <p class="ko">사용량, 매출, 빌드 상태처럼 다음 행동을 결정하는 정보를 가장 큰 영역에 둡니다.</p>
+              </div>
+            </article>
+            <article class="practice-item">
+              <b>02</b>
+              <div>
+                <h3 class="en">Pair small glance widgets.</h3>
+                <h3 class="ko">작은 확인 위젯을 쌍으로 묶으세요.</h3>
+                <p class="en">Weather, calendars, quotas, and inbox counts work best as compact cards with one clear number.</p>
+                <p class="ko">날씨, 캘린더, quota, inbox count는 숫자 하나가 분명한 작은 카드로 잘 맞습니다.</p>
+              </div>
+            </article>
+            <article class="practice-item">
+              <b>03</b>
+              <div>
+                <h3 class="en">Keep lists for operational context.</h3>
+                <h3 class="ko">리스트는 운영 맥락에 사용하세요.</h3>
+                <p class="en">Deployments, tasks, alerts, and recently changed files are easier to scan as short native lists.</p>
+                <p class="ko">배포, 작업, 알림, 최근 변경 파일은 짧은 네이티브 리스트로 훨씬 빠르게 읽힙니다.</p>
+              </div>
+            </article>
+            <article class="practice-item">
+              <b>04</b>
+              <div>
+                <h3 class="en">Use color only for meaning.</h3>
+                <h3 class="ko">색상은 의미가 있을 때만 쓰세요.</h3>
+                <p class="en">Reserve accents for success, warning, and active state so the shelf stays calm and professional.</p>
+                <p class="ko">성공, 경고, 활성 상태에만 포인트 색을 써서 차분하고 전문적인 인상을 유지합니다.</p>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section class="band" id="builder">
       <div class="wrap split">
         <div class="reveal">
           <div class="label"><span class="en">Widget Builder</span><span class="ko">위젯 빌더</span></div>
           <div class="section-head">
             <h2 class="en">Build a widget without hand-writing JSON.</h2>
-            <h2 class="ko">JSON을 직접 쓰지 않고 위젯을 만드세요.</h2>
+            <h2 class="ko">JSON 없이 위젯을 만드세요.</h2>
             <p class="en">Choose a source, pick a display shape, then save. The live preview is rendered by the same engine used in the popover.</p>
             <p class="ko">소스를 고르고, 표시 방식을 선택한 뒤 저장하세요. 라이브 프리뷰는 팝오버와 같은 엔진으로 렌더링됩니다.</p>
           </div>
@@ -611,7 +728,7 @@
         <div class="section-head reveal">
           <div class="label"><span class="en">Widget Model</span><span class="ko">위젯 모델</span></div>
           <h2 class="en">Three authoring modes. One renderer.</h2>
-          <h2 class="ko">세 가지 제작 방식. 하나의 렌더러.</h2>
+          <h2 class="ko">제작 방식은 세 가지, 렌더러는 하나.</h2>
           <p class="en">Each widget goes through the same scheduler, permission store, cache, and native renderer. Only the data source changes.</p>
           <p class="ko">모든 위젯은 같은 스케줄러, 권한 저장소, 캐시, 네이티브 렌더러를 거칩니다. 달라지는 것은 데이터 소스뿐입니다.</p>
         </div>
