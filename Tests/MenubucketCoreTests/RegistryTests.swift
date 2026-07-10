@@ -156,7 +156,7 @@ final class RegistryTests: XCTestCase {
             .appendingPathComponent("registry/index.json")
         let (index, warnings) = try RegistryIndex.parse(Data(contentsOf: sample))
         XCTAssertEqual(index.schemaVersion, 1)
-        XCTAssertEqual(index.widgets.count, 17)
+        XCTAssertEqual(index.widgets.count, 18)
         XCTAssertTrue(warnings.isEmpty, "\(warnings)")
         XCTAssertEqual(
             Set(index.widgets.compactMap(\.kind)),
@@ -196,6 +196,13 @@ final class RegistryTests: XCTestCase {
             byID["dev.barshelf.recent-files-grid"]?.install.url,
             "https://github.com/jiunbae/stashbar"
         )
+        // Stashbar's own bundled widget installs straight from its repo —
+        // no local bundled copy in this app.
+        XCTAssertEqual(
+            byID["dev.menubucket.stashbar-recent-files"]?.install.url,
+            "https://github.com/jiunbae/stashbar"
+        )
+        XCTAssertNil(byID["dev.menubucket.stashbar-recent-files"]?.install.bundled)
     }
 
     // MARK: Resolution order

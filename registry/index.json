@@ -2,7 +2,7 @@
   "_comment": "Sample index served from this repository. install.bundled lets the packaged gallery install the starter widgets without network access. The `requires` field is a display-only gallery badge for widgets that need an external CLI/runtime. `category` is an optional curated grouping surfaced as gallery filter chips (falls back to `tags`). `screenshot` (optional, http(s)/file URL) renders a preview thumbnail.",
   "schemaVersion": 1,
   "name": "barshelf official registry",
-  "updatedAt": "2026-07-10T00:00:00Z",
+  "updatedAt": "2026-07-10T07:00:00Z",
   "widgets": [
     {
       "id": "dev.barshelf.today",
@@ -31,6 +31,20 @@
       "install": { "url": "https://github.com/jiunbae/stashbar", "bundled": "recent-files-grid" },
       "permissions": { "exec": [], "keychain": false, "notifications": false },
       "homepage": "https://github.com/jiunbae/stashbar"
+    },
+    {
+      "id": "dev.menubucket.stashbar-recent-files",
+      "name": "Stashbar Recent Files",
+      "description": "Recent files from a folder you choose, in three view modes — Preview (a hero card for the newest file), Grid (thumbnail tiles), and a searchable List. QuickLook thumbnails, click to open, drag straight out to other apps. The official widget bundled with the native Stashbar app.",
+      "version": "0.2.0",
+      "author": "jiunbae",
+      "icon": "folder.fill",
+      "kind": "workflow",
+      "tags": ["files", "stashbar", "thumbnails", "recent", "workflow"],
+      "category": "Files",
+      "install": { "url": "https://github.com/jiunbae/stashbar" },
+      "permissions": { "exec": [], "keychain": false, "notifications": false },
+      "homepage": "https://jiun.dev/stashbar/"
     },
     {
       "id": "dev.barshelf.battery-meter",
