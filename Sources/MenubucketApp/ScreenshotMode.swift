@@ -36,7 +36,75 @@ enum ScreenshotMode {
             ) && ok
         }
         ok = composeHeroSet(dir: dir) && ok
+        ok = renderMotion(dir: dir) && ok
         return ok ? 0 : 1
+    }
+
+    // MARK: - Motion demo (frame sequence → H.264 via ffmpeg)
+
+    static let motionFPS = 24
+    static let motionDuration = 8.0
+
+    /// Renders the interaction demo — popover opens under the status item,
+    /// swipes to the OTP page, copies a code (toast), closes — as a clean
+    /// 8-second loop. Skipped when ffmpeg is not installed.
+    @MainActor
+    private static func renderMotion(dir: URL) -> Bool {
+        guard let ffmpeg = findFFmpeg() else {
+            FileHandle.standardError.write(Data("ffmpeg not found — skipping motion demo\n".utf8))
+            return true
+        }
+        let frames = FileManager.default.temporaryDirectory
+            .appendingPathComponent("barshelf-motion-\(ProcessInfo.processInfo.processIdentifier)")
+        try? FileManager.default.createDirectory(at: frames, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: frames) }
+
+        let frameCount = Int(motionDuration * Double(motionFPS))
+        for index in 0..<frameCount {
+            let t = Double(index) / Double(motionFPS)
+            let renderer = ImageRenderer(content: MotionShot(t: t))
+            renderer.scale = 2
+            guard let image = renderer.nsImage,
+                  let tiff = image.tiffRepresentation,
+                  let rep = NSBitmapImageRep(data: tiff),
+                  let png = rep.representation(using: .png, properties: [:]) else {
+                FileHandle.standardError.write(Data("motion frame \(index) failed\n".utf8))
+                return false
+            }
+            let name = String(format: "frame-%04d.png", index)
+            do { try png.write(to: frames.appendingPathComponent(name)) } catch { return false }
+        }
+
+        let output = dir.appendingPathComponent("popover-demo.mp4")
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: ffmpeg)
+        process.arguments = [
+            "-y", "-framerate", "\(motionFPS)",
+            "-i", frames.appendingPathComponent("frame-%04d.png").path,
+            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "23",
+            "-movflags", "+faststart",
+            output.path,
+        ]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch { return false }
+        guard process.terminationStatus == 0 else {
+            FileHandle.standardError.write(Data("ffmpeg failed for motion demo\n".utf8))
+            return false
+        }
+        print("wrote \(output.path)")
+        return true
+    }
+
+    private static func findFFmpeg() -> String? {
+        for candidate in ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg", "/usr/bin/ffmpeg"]
+        where FileManager.default.isExecutableFile(atPath: candidate) {
+            return candidate
+        }
+        return nil
     }
 
     // MARK: - Hero / showcase composites
@@ -310,6 +378,235 @@ private struct ShotCard: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+}
+
+// MARK: - Motion demo composition
+
+/// Smoothstep easing over [from, to], clamped.
+private func ramp(_ t: Double, _ from: Double, _ to: Double) -> Double {
+    let x = min(max((t - from) / (to - from), 0), 1)
+    return x * x * (3 - 2 * x)
+}
+
+/// One frame of the interaction demo at time `t` (seconds). Everything is a
+/// pure function of `t`, so the frame sequence is deterministic:
+/// 0.25s press the status item · 0.5s popover opens · 2.6s swipe to the OTP
+/// page · 4.7s copy a code · 5.0s toast · 7.4s popover closes (clean loop).
+private struct MotionShot: View {
+    let t: Double
+
+    var body: some View {
+        let appear = min(ramp(t, 0.5, 0.9), 1 - ramp(t, 7.4, 7.9))
+        let highlight = min(ramp(t, 0.25, 0.45), 1 - ramp(t, 7.55, 7.85))
+        let toastAlpha = min(ramp(t, 5.0, 5.3), 1 - ramp(t, 6.7, 7.1))
+        ZStack(alignment: .topLeading) {
+            LinearGradient(
+                colors: [
+                    Color(red: 0.11, green: 0.15, blue: 0.18),
+                    Color(red: 0.045, green: 0.065, blue: 0.085),
+                ],
+                startPoint: .top, endPoint: .bottom
+            )
+            MotionMenuBar(highlight: highlight)
+            MotionPanel(t: t)
+                .scaleEffect(0.96 + 0.04 * appear, anchor: .top)
+                .opacity(appear)
+                .offset(x: 401, y: 25)
+            if toastAlpha > 0 {
+                Text("Copied — clears in 30s")
+                    .font(.system(size: 11, weight: .medium))
+                    .padding(.horizontal, 14).padding(.vertical, 7)
+                    .background(Capsule().fill(Color(nsColor: .windowBackgroundColor)))
+                    .overlay(Capsule().strokeBorder(Color.black.opacity(0.15), lineWidth: 0.5))
+                    .shadow(color: .black.opacity(0.25), radius: 6, y: 2)
+                    .opacity(toastAlpha)
+                    .position(x: 571, y: 438 - 6 * toastAlpha)
+            }
+        }
+        .frame(width: 840, height: 720)
+        .environment(\.colorScheme, .light)
+    }
+}
+
+private struct MotionMenuBar: View {
+    let highlight: Double
+
+    var body: some View {
+        ZStack {
+            Color(red: 0.086, green: 0.11, blue: 0.125)
+            HStack(spacing: 14) {
+                Image(systemName: "apple.logo").font(.system(size: 13))
+                Text("Finder").font(.system(size: 13, weight: .bold))
+                Text("File").font(.system(size: 13))
+                Text("Edit").font(.system(size: 13))
+                Text("View").font(.system(size: 13))
+                Spacer()
+            }
+            .padding(.leading, 16)
+            HStack(spacing: 12) {
+                Spacer()
+                ZStack {
+                    RoundedRectangle(cornerRadius: 4).fill(Color.white.opacity(0.28 * highlight))
+                    Image(nsImage: BarShelfStatusIcon.logoImage()).renderingMode(.template)
+                }
+                .frame(width: 34, height: 20)
+                Image(systemName: "wifi").font(.system(size: 12)).frame(width: 24)
+                HStack(spacing: 4) {
+                    Text("80%").font(.system(size: 12.5))
+                    Image(systemName: "battery.75percent").font(.system(size: 13))
+                }
+                .frame(width: 58)
+                Text("Thu 9 Jul").font(.system(size: 13)).frame(width: 64)
+                Text("20:53").font(.system(size: 13)).frame(width: 44)
+            }
+            .padding(.trailing, 14)
+        }
+        .foregroundColor(.white.opacity(0.92))
+        .frame(width: 840, height: 24)
+        .environment(\.colorScheme, .dark)
+    }
+}
+
+/// The demo popover: two pages in a sliding strip (Home → Security), page
+/// title crossfading with the swipe, live countdown rings, and a copy pulse
+/// on the first OTP row.
+private struct MotionPanel: View {
+    let t: Double
+    static let pageWidth: CGFloat = 340
+    static let pageHeight: CGFloat = 392
+
+    var body: some View {
+        let swipe = ramp(t, 2.6, 3.3)
+        VStack(spacing: 0) {
+            HStack {
+                // Sequential fade (out, then in) so the titles never overlap
+                // mid-swipe into a double exposure.
+                ZStack(alignment: .leading) {
+                    Text("Home").opacity(1 - min(swipe / 0.4, 1))
+                    Text("Security").opacity(max((swipe - 0.6) / 0.4, 0))
+                }
+                .font(.system(size: 13, weight: .semibold))
+                Spacer()
+                Image(systemName: "magnifyingglass").font(.system(size: 11)).foregroundColor(.secondary)
+                Image(systemName: "arrow.clockwise").font(.system(size: 11)).foregroundColor(.secondary)
+            }
+            .padding(.horizontal, 12).padding(.vertical, 10)
+            Divider()
+            HStack(spacing: 0) {
+                homePage.frame(width: Self.pageWidth, height: Self.pageHeight, alignment: .top)
+                securityPage.frame(width: Self.pageWidth, height: Self.pageHeight, alignment: .top)
+            }
+            .offset(x: -swipe * Self.pageWidth)
+            .frame(width: Self.pageWidth, height: Self.pageHeight, alignment: .topLeading)
+            .clipped()
+            Divider()
+            HStack(spacing: 10) {
+                Image(systemName: "plus").font(.system(size: 11)).foregroundColor(.secondary)
+                Image(systemName: "chevron.left").font(.system(size: 10)).foregroundColor(.secondary.opacity(0.5))
+                Spacer()
+                Circle().fill(swipe < 0.5 ? Color.accentColor : Color.secondary.opacity(0.35))
+                    .frame(width: 6, height: 6)
+                Circle().fill(swipe < 0.5 ? Color.secondary.opacity(0.35) : Color.accentColor)
+                    .frame(width: 6, height: 6)
+                Spacer()
+                Image(systemName: "chevron.right").font(.system(size: 10)).foregroundColor(.secondary)
+                Image(systemName: "gearshape").font(.system(size: 11)).foregroundColor(.secondary)
+            }
+            .padding(.horizontal, 12).padding(.vertical, 8)
+        }
+        .frame(width: Self.pageWidth)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.black.opacity(0.22), lineWidth: 0.5))
+        .compositingGroup()
+        .shadow(color: .black.opacity(0.45), radius: 16, y: 8)
+    }
+
+    private var homePage: some View {
+        VStack(spacing: 0) {
+            ShotCard(title: "Today", icon: "calendar", node: ShotData.todayNode, accentName: "red")
+            Divider().padding(.horizontal, 12)
+            HStack(alignment: .top, spacing: 0) {
+                ShotCard(title: "Weather", icon: "cloud.sun.fill", node: ShotData.weatherNode, accentName: "blue")
+                Divider()
+                ShotCard(title: "Battery", icon: "battery.100percent", node: ShotData.batteryNode, accentName: "green")
+            }
+            Divider().padding(.horizontal, 12)
+            ShotCard(title: "Recent Files", icon: "clock.arrow.circlepath", node: ShotData.filesNode)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var securityPage: some View {
+        let elapsed = max(0, t - 1.0)
+        let pulse = min(ramp(t, 4.7, 4.85), 1 - ramp(t, 4.95, 5.2))
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "key.fill").font(.system(size: 11)).foregroundColor(.purple)
+                Text("OTP Codes").font(.system(size: 11, weight: .semibold)).foregroundColor(.secondary)
+                Spacer(minLength: 0)
+            }
+            otpRow("G", "GitHub", "aws-root", code: "728 419", remaining: 19.5 - elapsed, pulse: pulse)
+            otpRow("C", "Cloudflare", "infra", code: "245 108", remaining: 26.5 - elapsed, pulse: 0)
+            otpRow("T", "Tailscale", "ops@corp", code: "113 907", remaining: 8.5 - elapsed, pulse: 0)
+            otpRow("G", "Google", "personal", code: "094 771", remaining: 23.0 - elapsed, pulse: 0)
+            otpRow("A", "AWS", "root@acme", code: "512 380", remaining: 14.5 - elapsed, pulse: 0)
+            otpRow("S", "Slack", "team-x", code: "667 042", remaining: 27.5 - elapsed, pulse: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+    }
+
+    private func otpRow(
+        _ letter: String, _ issuer: String, _ account: String,
+        code: String, remaining: Double, pulse: Double
+    ) -> some View {
+        HStack(spacing: 8) {
+            RoundedRectangle(cornerRadius: 4.4)
+                .fill(Color.purple.opacity(0.16))
+                .frame(width: 20, height: 20)
+                .overlay(
+                    Text(letter)
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .foregroundColor(.purple)
+                )
+            VStack(alignment: .leading, spacing: 1) {
+                Text(issuer).font(.system(size: 12))
+                Text(account).font(.system(size: 10)).foregroundColor(.secondary)
+            }
+            Spacer(minLength: 0)
+            Text(code)
+                .font(.system(size: 12, design: .monospaced))
+                .padding(.horizontal, 7).padding(.vertical, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(Color.purple.opacity(0.08 + 0.28 * pulse))
+                )
+            MotionRing(remaining: remaining)
+        }
+        .padding(.vertical, 3)
+    }
+}
+
+private struct MotionRing: View {
+    let remaining: Double
+    static let period = 30.0
+
+    var body: some View {
+        let fraction = min(max(remaining / Self.period, 0), 1)
+        let tint = remaining < 10 ? Color.red : Color.purple
+        ZStack {
+            Circle().stroke(Color.primary.opacity(0.12), lineWidth: 2.5)
+            Circle()
+                .trim(from: 0, to: fraction)
+                .stroke(tint, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+            Text("\(max(Int(remaining.rounded(.up)), 0))")
+                .font(.system(size: 9, weight: .medium, design: .monospaced))
+                .foregroundColor(tint)
+        }
+        .frame(width: 25, height: 25)
     }
 }
 

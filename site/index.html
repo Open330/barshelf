@@ -331,11 +331,13 @@
       background: #131517;
       box-shadow: 0 26px 68px rgba(17, 19, 21, 0.20);
     }
-    .showcase-media img {
+    .showcase-media img,
+    .showcase-media video {
       width: 100%;
       height: auto;
       aspect-ratio: 840 / 720;
       object-fit: cover;
+      display: block;
     }
     .tile-gallery {
       columns: 3;
@@ -353,6 +355,26 @@
     }
     .tile-gallery figcaption {
       margin-top: 2px;
+      padding-left: 6px;
+      font-size: 12px;
+      color: var(--muted);
+      font-family: var(--mono);
+    }
+    .pair-gallery {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 16px;
+    }
+    .pair-gallery figure { margin: 0; }
+    .pair-gallery img {
+      width: 100%;
+      height: auto;
+      border-radius: 10px;
+      filter: drop-shadow(0 10px 24px rgba(17, 19, 21, 0.10));
+    }
+    .pair-gallery figcaption {
+      margin-top: 4px;
       padding-left: 6px;
       font-size: 12px;
       color: var(--muted);
@@ -673,7 +695,12 @@
     <section id="showcase">
       <div class="wrap showcase-grid">
         <div class="showcase-media reveal">
-          <img src="shots/macos-widget-shelf.jpg" width="840" height="720" alt="BarShelf popover with multiple widgets arranged in one shelf" />
+          <video autoplay muted loop playsinline
+                 poster="shots/macos-widget-shelf.jpg" width="840" height="720"
+                 aria-label="BarShelf demo: the popover opens from the menu bar, swipes to the OTP page, and copies a code">
+            <source src="shots/popover-demo.mp4" type="video/mp4" />
+            <img src="shots/macos-widget-shelf.jpg" width="840" height="720" alt="BarShelf popover with multiple widgets arranged in one shelf" />
+          </video>
         </div>
         <div class="reveal">
           <div class="label"><span class="en">Best Practice</span><span class="ko">구성 예시</span></div>
@@ -744,6 +771,10 @@
           <figure><img src="shots/tile-files.png" width="576" height="222" loading="lazy" alt="Recent Files widget, real render" /><figcaption>recent files</figcaption></figure>
           <figure><img src="shots/tile-battery.png" width="576" height="256" loading="lazy" alt="Battery widget with charge meter, real render" /><figcaption>battery</figcaption></figure>
           <figure><img src="shots/tile-k8s.png" width="576" height="202" loading="lazy" alt="Custom k8s pods list widget, real render" /><figcaption>your script here</figcaption></figure>
+        </div>
+        <div class="pair-gallery reveal">
+          <figure><img src="shots/popover-light.png" width="800" height="1366" loading="lazy" alt="BarShelf popover, light appearance — real render" /><figcaption>light</figcaption></figure>
+          <figure><img src="shots/popover-dark.png" width="800" height="1366" loading="lazy" alt="BarShelf popover, dark appearance — real render" /><figcaption>dark</figcaption></figure>
         </div>
       </div>
     </section>
