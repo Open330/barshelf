@@ -461,11 +461,12 @@ final class WidgetBuilderModel: ObservableObject {
             || sourceKind == .httpJSON || sourceKind == .pastedJSON
     }
 
-    /// argv used for the source "test run" — a shell script runs under `/bin/sh -c`.
+    /// argv used for the source "test run" — a shell script runs under `/bin/sh -c`,
+    /// and a command that uses shell syntax (pipes, globs, …) does too.
     private var testArgv: [String] {
         switch sourceKind {
         case .shellScript: return ["/bin/sh", "-c", scriptText]
-        default: return Self.tokenize(commandText)
+        default: return Self.commandArgv(commandText)
         }
     }
 
@@ -506,7 +507,7 @@ final class WidgetBuilderModel: ObservableObject {
         switch sourceKind {
         case .command:
             let structuredDisplay = effectiveDisplay != .text
-            source = .command(argv: Self.tokenize(commandText), json: isCommandJSON || structuredDisplay)
+            source = .command(argv: Self.commandArgv(commandText), json: isCommandJSON || structuredDisplay)
         case .shellScript:
             let structuredDisplay = effectiveDisplay != .text
             source = .command(
@@ -782,5 +783,43 @@ final class WidgetBuilderModel: ObservableObject {
         }
         if !current.isEmpty { tokens.append(current) }
         return tokens
+    }
+
+    /// Whether a command line needs a real shell to run — i.e. it uses a pipe,
+    /// redirect, sequence, subshell, glob, or variable/command substitution
+    /// *outside* quotes. Tokenizing such a line and exec'ing argv[0] directly
+    /// would pass `|`, `jq`, … as literal arguments and fail (that is exactly
+    /// why the gallery command templates broke on test run). Metacharacters that
+    /// only appear inside quotes (e.g. an `awk`/`jq` program) do not count.
+    static func needsShell(_ input: String) -> Bool {
+        var quote: Character?
+        let chars = Array(input)
+        for (i, ch) in chars.enumerated() {
+            if let q = quote {
+                if ch == q { quote = nil }
+                continue
+            }
+            switch ch {
+            case "'", "\"":
+                quote = ch
+            case "|", "&", ";", "<", ">", "`", "(", ")", "*", "?", "$":
+                return true
+            case "\\":
+                // A line continuation / escaped char implies shell semantics.
+                if i + 1 < chars.count { return true }
+            default:
+                break
+            }
+        }
+        return false
+    }
+
+    /// argv for a `.command` source: a bare command is tokenized and exec'd
+    /// directly, but a shell pipeline/expression runs under `/bin/sh -c` so it
+    /// behaves exactly as typed (and as the gallery templates intend).
+    static func commandArgv(_ input: String) -> [String] {
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        return needsShell(trimmed) ? ["/bin/sh", "-c", trimmed] : tokenize(trimmed)
     }
 }
