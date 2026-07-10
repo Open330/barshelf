@@ -256,18 +256,22 @@ async function renderUnavailable(
   const message = error instanceof Error ? error.message : String(error);
   await ctx.log("warn", `muxa status failed: ${oneLine(message, 240)}`);
   const missing = /not found|ExecNotFound/i.test(message);
+  const outdated = /does not support status --json/i.test(message);
 
   await ctx.render(
-    ui.vstack([
-      ui.header("muxa Watch", { icon: "rectangle.3.group.bubble.left.fill" }),
-      ui.empty({
-        icon: missing ? "terminal" : "bolt.horizontal.circle",
-        title: missing ? "muxa CLI not found" : "muxa is unavailable",
-        subtitle: missing
-          ? "Install muxa or set MUXA_BIN, then refresh this widget."
-          : "Make sure muxad is running and the socket setting is correct.",
-      }),
-    ], { spacing: 8 }),
+    ui.empty({
+      icon: missing || outdated ? "terminal" : "bolt.horizontal.circle",
+      title: missing
+        ? "muxa CLI not found"
+        : outdated
+        ? "Update muxa CLI"
+        : "muxa is unavailable",
+      subtitle: missing
+        ? "Install muxa or set MUXA_BIN, then refresh this widget."
+        : outdated
+        ? "This widget needs a muxa build that supports status --json."
+        : "Make sure muxad is running and the socket setting is correct.",
+    }),
     {
       status: { label: "Offline", tooltip: "muxa status is unavailable" },
       cacheTtlMs: 5_000,
@@ -292,6 +296,13 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
       sensitive: true,
     });
     if (result.exitCode !== 0) {
+      if (
+        /unexpected argument ['\"]--json['\"]|unknown option.*--json/i.test(
+          result.stderr,
+        )
+      ) {
+        throw new Error("muxa CLI does not support status --json");
+      }
       throw new Error(`muxa exited with code ${result.exitCode}`);
     }
 
@@ -314,22 +325,14 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
     ).length;
     const visible = agents.slice(0, maxAgents);
     const hidden = Math.max(agents.length - visible.length, 0);
-    const badge = attention > 0 ? `${attention} need you` : `${active} active`;
 
     if (agents.length === 0) {
       await ctx.render(
-        ui.vstack([
-          ui.header("muxa Watch", {
-            icon: "rectangle.3.group.bubble.left.fill",
-            badge: "All clear",
-            badgeTone: "good",
-          }),
-          ui.empty({
-            icon: "checkmark.circle.fill",
-            title: "No active agents",
-            subtitle: "Tracked agents will appear here as soon as they start.",
-          }),
-        ], { spacing: 8 }),
+        ui.empty({
+          icon: "checkmark.circle.fill",
+          title: "No active agents",
+          subtitle: "Tracked agents will appear here as soon as they start.",
+        }),
         {
           status: { label: "Idle", tooltip: "No active muxa agents" },
           cacheTtlMs: 5_000,
@@ -341,11 +344,6 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
 
     await ctx.render(
       ui.vstack([
-        ui.header("muxa Watch", {
-          icon: "rectangle.3.group.bubble.left.fill",
-          badge,
-          badgeTone: attention > 0 ? "warning" : "accent",
-        }),
         ui.hstack([
           ui.stat("Active", active, { icon: "person.2.fill", tone: "accent" }),
           ui.stat("Working", working, {

@@ -65,8 +65,8 @@
     {
       "id": "dev.barshelf.muxa-watch",
       "name": "muxa Watch",
-      "description": "Live muxa agent state in the BarShelf menu-bar popover — active, working, waiting, and error counts plus compact per-agent cards with one-tap prompt copy. Requires muxa 0.8.17 or newer and Deno.",
-      "version": "0.1.0",
+      "description": "Live muxa agent state in the BarShelf menu-bar popover — active, working, waiting, and error counts plus compact per-agent cards with one-tap prompt copy. Requires a muxa build with `status --json` and Deno.",
+      "version": "0.1.1",
       "author": "barshelf",
       "icon": "rectangle.3.group.bubble.left.fill",
       "kind": "script",
