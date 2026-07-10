@@ -351,7 +351,7 @@ final class WidgetScaffoldTests: XCTestCase {
         let (_, workflow) = try generate(.init(
             name: "CPU",
             source: .command(argv: ["x"], json: true),
-            display: .meter(valuePath: "pct", maxValue: 100, label: "CPU")
+            display: .meters([.init(valuePath: "pct", maxValue: 100, label: "CPU")])
         ))
         let output = try WorkflowEngine.evaluate(
             workflow, sources: ["data": .object(["pct": .number(72)])], settings: .object([:])
@@ -404,7 +404,7 @@ final class WidgetScaffoldTests: XCTestCase {
         let (_, workflow) = try generate(.init(
             name: "RAM",
             source: .command(argv: ["x"], json: true),
-            display: .meter(valuePath: "used", maxValue: 16, label: "RAM (GB)")
+            display: .meters([.init(valuePath: "used", maxValue: 16, label: "RAM (GB)")])
         ))
         let output = try WorkflowEngine.evaluate(
             workflow, sources: ["data": .object(["used": .number(4)])], settings: .object([:])
@@ -412,6 +412,61 @@ final class WidgetScaffoldTests: XCTestCase {
         let progress = try XCTUnwrap(firstNode(ofType: "progress", in: output.viewTree))
         XCTAssertEqual(progress.value ?? 0, 0.25, accuracy: 0.0001) // 4 / 16, no % suffix
         XCTAssertFalse(flatten(output.viewTree).contains("%"))
+    }
+
+    func testMultipleMetersStackAsGroup() throws {
+        let (_, workflow) = try generate(.init(
+            name: "System",
+            source: .command(argv: ["x"], json: true),
+            display: .meters([
+                .init(valuePath: "cpu", maxValue: 100, label: "CPU"),
+                .init(valuePath: "mem", maxValue: 100, label: "Memory"),
+            ])
+        ))
+        let output = try WorkflowEngine.evaluate(
+            workflow,
+            sources: ["data": .object(["cpu": .number(30), "mem": .number(60)])],
+            settings: .object([:])
+        )
+        // One progress per meter, both labels present.
+        XCTAssertEqual(countNodes(ofType: "progress", in: output.viewTree), 2)
+        let text = flatten(output.viewTree)
+        XCTAssertTrue(text.contains("CPU"))
+        XCTAssertTrue(text.contains("Memory"))
+        XCTAssertTrue(text.contains("30%"))
+        XCTAssertTrue(text.contains("60%"))
+    }
+
+    func testRingMeterUsesRingStyle() throws {
+        let (_, workflow) = try generate(.init(
+            name: "Disk",
+            source: .command(argv: ["x"], json: true),
+            display: .meters([.init(valuePath: "pct", maxValue: 100, label: "Disk", style: .ring)])
+        ))
+        let output = try WorkflowEngine.evaluate(
+            workflow, sources: ["data": .object(["pct": .number(50)])], settings: .object([:])
+        )
+        let progress = try XCTUnwrap(firstNode(ofType: "progress", in: output.viewTree))
+        XCTAssertEqual(progress.style, "ring")
+        XCTAssertEqual(progress.value ?? 0, 0.5, accuracy: 0.0001)
+    }
+
+    func testHeaderGatedByShowHeader() throws {
+        func hasHeaderTitle(showHeader: Bool) throws -> Bool {
+            let (_, workflow) = try generate(.init(
+                name: "MyWidget",
+                source: .command(argv: ["x"], json: true),
+                display: .meters([.init(valuePath: "pct")]),
+                showHeader: showHeader
+            ))
+            let output = try WorkflowEngine.evaluate(
+                workflow, sources: ["data": .object([:])], settings: .object([:])
+            )
+            // The scaffold header is the only node that carries the widget name.
+            return flatten(output.viewTree).contains("MyWidget")
+        }
+        XCTAssertTrue(try hasHeaderTitle(showHeader: true))
+        XCTAssertFalse(try hasHeaderTitle(showHeader: false))
     }
 
     // MARK: - Helpers
@@ -432,5 +487,14 @@ final class WidgetScaffoldTests: XCTestCase {
             if let found = firstNode(ofType: type, in: child) { return found }
         }
         return nil
+    }
+
+    /// Count of nodes of `type` in a depth-first walk of children + list items.
+    private func countNodes(ofType type: String, in node: UINode) -> Int {
+        var total = node.type == type ? 1 : 0
+        for child in (node.children ?? []) + (node.items ?? []) {
+            total += countNodes(ofType: type, in: child)
+        }
+        return total
     }
 }

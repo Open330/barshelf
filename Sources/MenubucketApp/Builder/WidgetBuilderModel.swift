@@ -143,6 +143,23 @@ final class WidgetBuilderModel: ObservableObject {
         }
     }
 
+    /// A meter's drawing style in the builder (mirrors scaffold `MeterStyle`).
+    enum MeterStyle: String, CaseIterable, Identifiable {
+        case bar, ring
+        var id: String { rawValue }
+        var label: String { self == .bar ? "Bar" : "Ring" }
+    }
+
+    /// One editable meter in the display step: a numeric field scaled by
+    /// `maxValue`, with an optional label and a bar/ring style.
+    struct MeterSpec: Identifiable, Equatable {
+        let id = UUID()
+        var field = ""
+        var maxValue: Double = 100
+        var label = ""
+        var style: MeterStyle = .bar
+    }
+
     @Published var step: Step = .source
 
     // Source
@@ -175,8 +192,9 @@ final class WidgetBuilderModel: ObservableObject {
     @Published var listField = ""
     @Published var valuePath = ""
     @Published var valueCaption = ""
-    @Published var meterMax: Double = 100
-    @Published var meterLabel = ""
+    /// One or more meters (display step). Each renders as a bar or ring; the
+    /// scaffold stacks them into a grouped meter panel.
+    @Published var meters: [MeterSpec] = [MeterSpec()]
     @Published var tableColumns: [WidgetBuilderScaffold.Column] = []
 
     // Refine (list/table over a structured source)
@@ -542,11 +560,19 @@ final class WidgetBuilderModel: ObservableObject {
         case .value:
             display = .value(valuePath: listOrValuePath(), caption: nonEmpty(valueCaption))
         case .meter:
-            display = .meter(
-                valuePath: valuePath.trimmingCharacters(in: .whitespaces),
-                maxValue: meterMax > 0 ? meterMax : 100,
-                label: nonEmpty(meterLabel)
-            )
+            let built = meters
+                .filter { !$0.field.trimmingCharacters(in: .whitespaces).isEmpty }
+                .map { spec in
+                    WidgetBuilderScaffold.Meter(
+                        valuePath: spec.field.trimmingCharacters(in: .whitespaces),
+                        maxValue: spec.maxValue > 0 ? spec.maxValue : 100,
+                        label: nonEmpty(spec.label),
+                        style: spec.style == .ring ? .ring : .bar
+                    )
+                }
+            display = .meters(built.isEmpty
+                ? [WidgetBuilderScaffold.Meter(valuePath: detectedFields.first ?? "value")]
+                : built)
         case .text:
             display = .text
         }
@@ -562,6 +588,7 @@ final class WidgetBuilderModel: ObservableObject {
             refine: refineApplicable ? buildRefine() : nil,
             rowAction: refineApplicable ? buildRowAction() : .none,
             folderGrid: sourceKind == .folder && effectiveDisplay == .grid,
+            showHeader: appearanceShowHeader,
             appearance: manifestAppearance
         )
     }
@@ -672,11 +699,13 @@ final class WidgetBuilderModel: ObservableObject {
     }
 
     private var manifestAppearance: WidgetAppearance? {
+        // The card-chrome header stays off; the single name/icon header is the
+        // scaffold's in-card node, gated by `spec.showHeader`. So we never set
+        // appearance.showHeader here (that would double the name).
         let appearance = WidgetAppearance(
             accent: appearanceAccent,
             density: appearanceDensity == .regular ? nil : appearanceDensity,
-            cardStyle: appearanceCardStyle == .plain ? nil : appearanceCardStyle,
-            showHeader: appearanceShowHeader ? nil : false
+            cardStyle: appearanceCardStyle == .plain ? nil : appearanceCardStyle
         )
         return appearance == WidgetAppearance() ? nil : appearance
     }

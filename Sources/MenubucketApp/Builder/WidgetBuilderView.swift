@@ -7,6 +7,10 @@ import SwiftUI
 struct WidgetBuilderView: View {
     @ObservedObject var model: WidgetBuilderModel
     @State private var advancedExpanded = false
+    /// Reveals the free-text field for naming a brand-new panel (issue #5: the
+    /// input is no longer permanently on screen).
+    @State private var addingPanel = false
+    private static let newPanelSentinel = "\u{1}__new_panel__"
 
     private let iconChoices = [
         "square.grid.2x2", "terminal", "folder", "gauge", "chart.bar",
@@ -377,15 +381,7 @@ struct WidgetBuilderView: View {
                 TextField("Caption (optional)", text: $model.valueCaption)
                     .textFieldStyle(.roundedBorder)
             case .meter:
-                fieldPicker("Value field", selection: $model.valuePath)
-                HStack {
-                    Text("Max value").font(.system(size: 12))
-                    TextField("100", value: $model.meterMax, format: .number)
-                        .textFieldStyle(.roundedBorder).frame(width: 90)
-                    Text("(bar fills at this value)").font(.caption).foregroundStyle(.secondary)
-                }
-                TextField("Label (optional)", text: $model.meterLabel)
-                    .textFieldStyle(.roundedBorder)
+                meterEditor
             default:
                 Text(displayHint).font(.caption).foregroundStyle(.secondary)
             }
@@ -584,6 +580,63 @@ struct WidgetBuilderView: View {
         }
     }
 
+    // MARK: Meter editor (one or more meters, bar / ring)
+
+    private var meterEditor: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(Array(model.meters.enumerated()), id: \.element.id) { index, _ in
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("Meter \(index + 1)").font(.system(size: 12, weight: .medium))
+                        Spacer()
+                        Picker("", selection: Binding(
+                            get: { model.meters[index].style },
+                            set: { model.meters[index].style = $0 }
+                        )) {
+                            ForEach(WidgetBuilderModel.MeterStyle.allCases) { Text($0.label).tag($0) }
+                        }
+                        .pickerStyle(.segmented).labelsHidden().frame(width: 104)
+                        if model.meters.count > 1 {
+                            Button {
+                                model.meters.remove(at: index)
+                            } label: { Image(systemName: "minus.circle") }
+                                .buttonStyle(.borderless)
+                                .accessibilityLabel("Remove meter \(index + 1)")
+                        }
+                    }
+                    HStack(spacing: 6) {
+                        Text("Field").font(.system(size: 12)).frame(width: 36, alignment: .leading)
+                        refineField(Binding(
+                            get: { model.meters[index].field },
+                            set: { model.meters[index].field = $0 }
+                        ))
+                        Text("Max").font(.system(size: 12))
+                        TextField("100", value: Binding(
+                            get: { model.meters[index].maxValue },
+                            set: { model.meters[index].maxValue = $0 }
+                        ), format: .number)
+                            .textFieldStyle(.roundedBorder).frame(width: 60)
+                    }
+                    TextField("Label (optional)", text: Binding(
+                        get: { model.meters[index].label },
+                        set: { model.meters[index].label = $0 }
+                    )).textFieldStyle(.roundedBorder)
+                }
+                .padding(8)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.06)))
+            }
+            if model.meters.count < 6 {
+                Button {
+                    model.meters.append(.init())
+                } label: { Label("Add meter", systemImage: "plus") }
+                    .buttonStyle(.borderless).font(.caption)
+            }
+            Text("Each meter reads a numeric field and fills at its max (100 → percentage).")
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
     // MARK: Step 3 — details
 
     private var detailsStep: some View {
@@ -624,14 +677,28 @@ struct WidgetBuilderView: View {
             HStack {
                 Text("Panel").font(.system(size: 12))
                 Spacer()
-                Picker("", selection: $model.group) {
-                    ForEach(model.existingGroups, id: \.self) { Text($0).tag($0) }
-                    if !model.existingGroups.contains(model.group) {
-                        Text(model.group).tag(model.group)
-                    }
-                }.labelsHidden().frame(width: 150)
+                if addingPanel {
+                    TextField("New panel name", text: $model.group)
+                        .textFieldStyle(.roundedBorder).frame(width: 150)
+                    Button {
+                        if model.group.trimmingCharacters(in: .whitespaces).isEmpty {
+                            model.group = model.existingGroups.first ?? "My Widgets"
+                        }
+                        addingPanel = false
+                    } label: { Image(systemName: "checkmark.circle.fill") }
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel("Confirm new panel name")
+                } else {
+                    Picker("", selection: panelSelection) {
+                        ForEach(model.existingGroups, id: \.self) { Text($0).tag($0) }
+                        if !model.existingGroups.contains(model.group) {
+                            Text(model.group).tag(model.group)
+                        }
+                        Divider()
+                        Label("New Panel…", systemImage: "plus").tag(Self.newPanelSentinel)
+                    }.labelsHidden().frame(width: 170)
+                }
             }
-            TextField("Or new panel name", text: $model.group).textFieldStyle(.roundedBorder)
 
             VStack(alignment: .leading, spacing: 5) {
                 HStack {
@@ -697,6 +764,22 @@ struct WidgetBuilderView: View {
                 .fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+
+    /// Panel dropdown selection: picking "New Panel…" clears the name and
+    /// reveals the text field instead of committing the sentinel value.
+    private var panelSelection: Binding<String> {
+        Binding(
+            get: { model.group },
+            set: { value in
+                if value == Self.newPanelSentinel {
+                    model.group = ""
+                    addingPanel = true
+                } else {
+                    model.group = value
+                }
+            }
+        )
     }
 
     private var appearanceSection: some View {
@@ -808,24 +891,10 @@ struct WidgetBuilderView: View {
         let appearance = model.previewAppearance
         let accent = appearance.accentColor ?? .accentColor
         let inset: CGFloat = appearance.density == .compact ? 8 : 12
+        // The name/icon header is part of the rendered tree (the scaffold emits
+        // it when "Show header" is on), so the preview shows it exactly once —
+        // no separate chrome header here.
         return VStack(alignment: .leading, spacing: 8) {
-            if model.appearanceShowHeader {
-                HStack(spacing: 6) {
-                    Image(systemName: model.icon)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .accessibilityHidden(true)
-                    Text(model.previewTitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                    Spacer()
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                        .accessibilityHidden(true)
-                }
-            }
             ViewTreeRenderer(node: node)
                 .environment(\.widgetAppearance, appearance)
         }

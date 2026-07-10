@@ -33,9 +33,8 @@ public enum WidgetBuilderScaffold {
         case table(columns: [Column])
         /// A single prominent value from `valuePath` in an object source.
         case value(valuePath: String, caption: String?)
-        /// A numeric `valuePath` rendered as a labeled progress bar. `maxValue`
-        /// scales the fraction (default 100 → percentage).
-        case meter(valuePath: String, maxValue: Double, label: String?)
+        /// One or more numeric fields rendered as meters, stacked as a group.
+        case meters([Meter])
         /// Raw source text (command stdout / static text) in one block.
         case text
     }
@@ -46,6 +45,31 @@ public enum WidgetBuilderScaffold {
         public init(title: String, field: String) {
             self.title = title
             self.field = field
+        }
+    }
+
+    /// How a single meter is drawn. `bar` is a labeled horizontal fill; `ring`
+    /// is a circular gauge with the value beside it.
+    public enum MeterStyle: String, Equatable, CaseIterable {
+        case bar
+        case ring
+    }
+
+    /// One meter: a numeric `valuePath` scaled by `maxValue` (default 100 →
+    /// percentage), with an optional `label` and a `style`.
+    public struct Meter: Equatable {
+        public var valuePath: String
+        public var maxValue: Double
+        public var label: String?
+        public var style: MeterStyle
+        public init(
+            valuePath: String, maxValue: Double = 100,
+            label: String? = nil, style: MeterStyle = .bar
+        ) {
+            self.valuePath = valuePath
+            self.maxValue = maxValue
+            self.label = label
+            self.style = style
         }
     }
 
@@ -115,6 +139,9 @@ public enum WidgetBuilderScaffold {
         public var rowAction: RowAction
         /// Render a `folder` source as a thumbnail grid instead of a row list.
         public var folderGrid: Bool
+        /// Emit an in-card name/icon header above the content (single header;
+        /// the card chrome header stays off for builder widgets).
+        public var showHeader: Bool
         public var appearance: WidgetAppearance?
         /// Override the derived id (defaults to `dev.barshelf.user.<slug>`).
         public var id: String?
@@ -130,6 +157,7 @@ public enum WidgetBuilderScaffold {
             refine: Refine? = nil,
             rowAction: RowAction = .none,
             folderGrid: Bool = false,
+            showHeader: Bool = true,
             appearance: WidgetAppearance? = nil,
             id: String? = nil
         ) {
@@ -143,6 +171,7 @@ public enum WidgetBuilderScaffold {
             self.refine = refine
             self.rowAction = rowAction
             self.folderGrid = folderGrid
+            self.showHeader = showHeader
             self.appearance = appearance
             self.id = id
         }
@@ -293,8 +322,6 @@ public enum WidgetBuilderScaffold {
         var sources: [String: Any] = [:]
         var transforms: [String: Any] = [:]
 
-        let header = headerNode(spec.name, icon: spec.icon)
-
         let bodyNode: [String: Any]
         switch spec.source {
         case let .command(argv, json):
@@ -358,14 +385,16 @@ public enum WidgetBuilderScaffold {
         if !transforms.isEmpty {
             workflow["transforms"] = transforms
         }
+        var children: [[String: Any]] = []
+        if spec.showHeader {
+            children.append(headerNode(spec.name, icon: spec.icon))
+            children.append(["type": "divider"])
+        }
+        children.append(["type": "vstack", "spacing": 6, "padding": 10, "children": [bodyNode]])
         workflow["view"] = [
             "type": "vstack",
             "spacing": 0,
-            "children": [
-                header,
-                ["type": "divider"],
-                ["type": "vstack", "spacing": 6, "padding": 10, "children": [bodyNode]],
-            ],
+            "children": children,
         ]
         return workflow
     }
@@ -441,10 +470,49 @@ public enum WidgetBuilderScaffold {
             }
             return ["type": "vstack", "spacing": 2, "children": children]
 
-        case let .meter(valuePath, maxValue, label):
-            let path = "\(objectPath).\(valuePath)"
-            let maxLiteral = numberLiteral(maxValue <= 0 ? 100 : maxValue)
-            let suffix = maxValue == 100 ? "%" : ""
+        case let .meters(meters):
+            let nodes = meters.map { meterNode($0, objectPath: objectPath) }
+            if nodes.count == 1 { return nodes[0] }
+            return ["type": "vstack", "spacing": 10, "children": nodes]
+
+        case .text:
+            return ["type": "text", "role": "body", "text": "${string(\(objectPath))}"]
+        }
+    }
+
+    /// A single meter node. `bar` is a label/value row above a linear fill;
+    /// `ring` is a circular gauge with the value and label beside it.
+    private static func meterNode(_ meter: Meter, objectPath: String) -> [String: Any] {
+        let path = "\(objectPath).\(meter.valuePath)"
+        let maxValue = meter.maxValue <= 0 ? 100 : meter.maxValue
+        let maxLiteral = numberLiteral(maxValue)
+        let suffix = maxValue == 100 ? "%" : ""
+        let valueText = "${string(round(number(\(path)), 0))}\(suffix)"
+        let fraction = "${div(number(\(path)), \(maxLiteral))}"
+        let label = meter.label ?? meter.valuePath
+
+        switch meter.style {
+        case .ring:
+            return [
+                "type": "hstack",
+                "spacing": 10,
+                "children": [
+                    [
+                        "type": "progress", "style": "ring", "tint": "accent",
+                        "size": 40, "value": fraction,
+                    ],
+                    [
+                        "type": "vstack",
+                        "spacing": 0,
+                        "children": [
+                            ["type": "text", "role": "title", "monospacedDigit": true, "text": valueText],
+                            ["type": "text", "role": "caption", "foreground": "secondary",
+                             "text": label, "lineLimit": 1],
+                        ],
+                    ],
+                ],
+            ]
+        case .bar:
             return [
                 "type": "vstack",
                 "spacing": 4,
@@ -452,25 +520,17 @@ public enum WidgetBuilderScaffold {
                     [
                         "type": "hstack",
                         "children": [
-                            ["type": "text", "role": "caption", "text": label ?? valuePath, "lineLimit": 1],
+                            ["type": "text", "role": "caption", "text": label, "lineLimit": 1],
                             ["type": "spacer"],
-                            [
-                                "type": "text", "role": "caption", "monospacedDigit": true,
-                                "text": "${string(round(number(\(path)), 0))}\(suffix)",
-                            ],
+                            ["type": "text", "role": "caption", "monospacedDigit": true, "text": valueText],
                         ],
                     ],
                     [
-                        "type": "progress",
-                        "style": "linear",
-                        "tint": "accent",
-                        "value": "${div(number(\(path)), \(maxLiteral))}",
+                        "type": "progress", "style": "linear", "tint": "accent",
+                        "value": fraction,
                     ],
                 ],
             ]
-
-        case .text:
-            return ["type": "text", "role": "body", "text": "${string(\(objectPath))}"]
         }
     }
 
