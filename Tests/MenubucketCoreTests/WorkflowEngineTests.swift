@@ -503,9 +503,91 @@ final class FileSourceTests: XCTestCase {
     }
 }
 
-/// The aas-meters gallery widget re-creates aas usage as native meter bars via
-/// a hand-authored workflow (nested forEach + logic). Guard its expressions.
+/// Nested forEach + logic-function regression coverage. The fixture is the
+/// former aas-meters workflow (the gallery widget now uses the native
+/// adapter, so the definition lives inline here instead of in widgets/).
 final class AasMetersWidgetTests: XCTestCase {
+    private static let fixture = Data("""
+    {
+      "schemaVersion": 1,
+      "kind": "workflow",
+      "sources": {
+        "data": {
+          "use": "exec",
+          "with": { "command": ["aas", "usage", "--json"] }
+        }
+      },
+      "view": {
+        "type": "vstack",
+        "spacing": 8,
+        "children": [
+          {
+            "type": "list",
+            "spacing": 6,
+            "items": {
+              "forEach": "$.sources.data.accounts",
+              "as": "acct",
+              "template": {
+                "type": "card",
+                "spacing": 6,
+                "children": [
+                  {
+                    "type": "hstack",
+                    "spacing": 6,
+                    "children": [
+                      { "type": "text", "text": "${coalesce(acct.name, acct.email, 'account')}", "role": "body" },
+                      { "type": "spacer" },
+                      { "type": "badge", "text": "${coalesce(acct.provider, 'other')}", "tint": "neutral" }
+                    ]
+                  },
+                  {
+                    "type": "list",
+                    "spacing": 4,
+                    "items": {
+                      "forEach": "acct.meters",
+                      "as": "m",
+                      "template": {
+                        "type": "vstack",
+                        "spacing": 3,
+                        "children": [
+                          {
+                            "type": "hstack",
+                            "children": [
+                              { "type": "text", "text": "${coalesce(m.label, 'usage')}", "role": "caption" },
+                              { "type": "spacer" },
+                              {
+                                "type": "text",
+                                "text": "${string(round(m.usedPct, 0))}%",
+                                "role": "caption",
+                                "foreground": "${if(gt(m.usedPct, 90), 'danger', if(gt(m.usedPct, 70), 'warning', 'good'))}"
+                              }
+                            ]
+                          },
+                          {
+                            "type": "progress",
+                            "style": "linear",
+                            "value": "${div(m.usedPct, 100)}",
+                            "tint": "${if(gt(m.usedPct, 90), 'danger', if(gt(m.usedPct, 70), 'warning', 'good'))}"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "empty": {
+        "type": "empty",
+        "icon": "person.crop.circle.badge.questionmark",
+        "title": "No accounts",
+        "subtitle": "Run `aas login` to add an account."
+      }
+    }
+    """.utf8)
+
     private func allNodes(ofType type: String, in node: UINode) -> [UINode] {
         var out = node.type == type ? [node] : []
         for child in (node.children ?? []) + (node.items ?? []) {
@@ -515,10 +597,7 @@ final class AasMetersWidgetTests: XCTestCase {
     }
 
     func testAasMetersRendersHealthColoredBars() throws {
-        let packageRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let url = packageRoot.appendingPathComponent("widgets/aas-meters/workflow.json")
-        let def = try WorkflowDefinition.decode(from: try Data(contentsOf: url))
+        let def = try WorkflowDefinition.decode(from: Self.fixture)
 
         let payload: JSONValue = .object(["accounts": .array([
             .object([
@@ -556,10 +635,7 @@ final class AasMetersWidgetTests: XCTestCase {
     }
 
     func testAasMetersEmptyState() throws {
-        let packageRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let url = packageRoot.appendingPathComponent("widgets/aas-meters/workflow.json")
-        let def = try WorkflowDefinition.decode(from: try Data(contentsOf: url))
+        let def = try WorkflowDefinition.decode(from: Self.fixture)
         let output = try WorkflowEngine.evaluate(
             def, sources: ["data": .object(["accounts": .array([])])], settings: .object([:])
         )
