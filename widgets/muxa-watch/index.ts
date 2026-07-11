@@ -210,7 +210,44 @@ function promptFor(agent: MuxaAgent): string | null {
   return prompt ? oneLine(prompt) : null;
 }
 
-function agentTableRow(
+/// Agents that need the user float above the rest; ties fall back to
+/// most-recent activity so the list still reads chronologically.
+const ATTENTION_RANK: Record<AgentState, number> = {
+  error: 0,
+  waiting_choice: 1,
+  waiting_input: 1,
+  working: 2,
+  starting: 2,
+  idle: 3,
+  stopped: 4,
+};
+
+function needsAttention(state: AgentState): boolean {
+  return ATTENTION_RANK[state] <= 1;
+}
+
+/// Second line: what the agent is / why it wants you, then the last prompt.
+/// Attention states lead with their label in the state's tone so waiting
+/// rows read at a glance; calm rows lead with the agent kind.
+function agentSubtitle(
+  agent: MuxaAgent,
+  showPrompts: boolean,
+): { text: string; tone: string } {
+  const style = STATE_STYLE[agent.state];
+  const attention = needsAttention(agent.state);
+  const lead = attention ? style.label : kindLabel(agent.kind);
+  const prompt = showPrompts ? promptFor(agent) : null;
+  return {
+    text: prompt ? `${lead} · ${prompt}` : lead,
+    tone: attention ? style.tone : "secondary",
+  };
+}
+
+/// Native two-line row — colored state dot, name + relative activity on the
+/// first line, kind/state + last prompt as the caption line. No column
+/// headers, no per-row dividers: the same shape as the system-style lists
+/// used elsewhere in the shelf.
+function agentRow(
   agent: MuxaAgent,
   sourceKey: string,
   index: number,
@@ -218,35 +255,40 @@ function agentTableRow(
   showPrompts: boolean,
 ): UINode {
   const style = STATE_STYLE[agent.state];
-  const prompt = showPrompts ? promptFor(agent) ?? "-" : "-";
+  const subtitle = agentSubtitle(agent, showPrompts);
   return ui.hstack([
-    ui.text(agentTitle(agent), {
-      role: "body",
-      lineLimit: 1,
-      widthFill: true,
-    }),
-    ui.text(style.marker, {
-      role: "code",
-      foreground: style.tone,
+    ui.image("circle.fill", {
+      size: 8,
+      tint: style.tone === "neutral" ? "tertiary" : style.tone,
       accessibilityLabel: style.label,
     }),
-    ui.text(age(agent.last_activity_at, now), {
-      role: "code",
-      foreground: "secondary",
-      monospacedDigit: true,
-      lineLimit: 1,
-    }),
-    ui.text(oneLine(prompt, 80), {
-      role: "caption",
-      foreground: prompt === "-" ? "tertiary" : "primary",
-      lineLimit: 1,
-      widthFill: true,
-    }),
-  ], { id: `${sourceKey}-agent-${index}`, spacing: 7, padding: 3 });
+    ui.vstack([
+      ui.hstack([
+        ui.text(agentTitle(agent), {
+          role: "body",
+          lineLimit: 1,
+          widthFill: true,
+        }),
+        ui.text(age(agent.last_activity_at, now), {
+          role: "caption",
+          foreground: "tertiary",
+          monospacedDigit: true,
+          lineLimit: 1,
+        }),
+      ], { spacing: 8 }),
+      ui.text(oneLine(subtitle.text, 90), {
+        role: "caption",
+        foreground: subtitle.tone,
+        lineLimit: 1,
+      }),
+    ], { spacing: 1, widthFill: true }),
+  ], { id: `${sourceKey}-agent-${index}`, spacing: 8 });
 }
 
 function sortedAgents(agents: MuxaAgent[]): MuxaAgent[] {
   return [...agents].sort((left, right) => {
+    const rank = ATTENTION_RANK[left.state] - ATTENTION_RANK[right.state];
+    if (rank !== 0) return rank;
     const activity = Date.parse(right.last_activity_at) -
       Date.parse(left.last_activity_at);
     return activity !== 0
@@ -304,11 +346,9 @@ function agentTable(
   const agents = filteredAgents(ctx, snapshot);
   const visible = agents.slice(0, maxAgents);
   const hidden = Math.max(agents.length - visible.length, 0);
-  const rows: UINode[] = [];
-  for (const [index, agent] of visible.entries()) {
-    rows.push(agentTableRow(agent, sourceKey, index, ctx.now, showPrompts));
-    if (index < visible.length - 1) rows.push(ui.divider());
-  }
+  const rows = visible.map((agent, index) =>
+    agentRow(agent, sourceKey, index, ctx.now, showPrompts)
+  );
 
   if (rows.length === 0) {
     return ui.hstack([
@@ -320,38 +360,19 @@ function agentTable(
   }
 
   return ui.vstack([
-    ui.hstack([
-      ui.text("NAME", {
-        role: "caption",
-        foreground: "secondary",
-        widthFill: true,
-      }),
-      ui.text("ST", { role: "caption", foreground: "secondary" }),
-      ui.text("ACT", {
-        role: "caption",
-        foreground: "secondary",
-        monospacedDigit: true,
-      }),
-      ui.text("LAST PROMPT", {
-        role: "caption",
-        foreground: "secondary",
-        widthFill: true,
-      }),
-    ], { spacing: 7, padding: 3 }),
-    ui.divider(),
     ...rows,
     ...(hidden > 0
       ? [
         ui.hstack([
           ui.spacer(),
-          ui.text(`+${hidden} older`, {
+          ui.text(`+${hidden} more`, {
             role: "caption",
             foreground: "tertiary",
           }),
         ]),
       ]
       : []),
-  ], { spacing: 5 });
+  ], { spacing: 8 });
 }
 
 function prepareStatusView(
