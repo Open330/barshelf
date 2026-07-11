@@ -5,6 +5,13 @@ enum BarShelfStatusIcon {
     static let logoSymbol = "barshelf.logo"
     private static let canvasSize = NSSize(width: 24, height: 18)
 
+    /// The bar + spark mark is drawn well inside the canvas, so at native size it
+    /// reads lighter than the SF Symbols beside it in the menu bar. Enlarge the
+    /// mark about its optical center to close that gap without changing the
+    /// image's point size (which would risk the status bar down-scaling it).
+    private static let contentZoom: CGFloat = 1.2
+    private static let inkCenter = NSPoint(x: 12.0, y: 9.325)
+
     static func image(for symbol: String, fallback: String) -> NSImage {
         let trimmed = symbol.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty || trimmed == logoSymbol {
@@ -35,6 +42,14 @@ enum BarShelfStatusIcon {
             yBy: size.height / canvasSize.height
         )
         transform.concat()
+
+        // Grow the mark in place (about its optical center) so it fills more of
+        // the canvas — larger presence in the bar, same image bounds.
+        let zoom = NSAffineTransform()
+        zoom.translateX(by: inkCenter.x, yBy: inkCenter.y)
+        zoom.scale(by: contentZoom)
+        zoom.translateX(by: -inkCenter.x, yBy: -inkCenter.y)
+        zoom.concat()
 
         NSColor.black.setStroke()
         NSColor.black.setFill()
