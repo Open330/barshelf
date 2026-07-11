@@ -183,9 +183,7 @@ public enum AasUsageAdapter {
                 icon: "exclamationmark.triangle.fill"
             ))
         }
-        for (index, meter) in (account.meters ?? []).enumerated() {
-            children.append(meterBlock(meter: meter, key: "\(key)-meter-\(index)"))
-        }
+        children.append(contentsOf: meterGrid(meters: account.meters ?? [], key: key))
         if (account.meters ?? []).isEmpty, account.error?.isEmpty != false {
             children.append(UINode(
                 id: "\(key)-no-meters",
@@ -252,41 +250,80 @@ public enum AasUsageAdapter {
         return UINode(id: "\(key)-header", type: "hstack", children: items, spacing: 7)
     }
 
-    static func meterBlock(meter: Meter, key: String) -> UINode {
+    /// Meters laid out two per row (the aas windows come in pairs — 5h/7d),
+    /// each cell a compact stat: window label, a large remaining-% figure
+    /// with the actual time until the window resets beside it, and the
+    /// health-colored bar underneath. A lone meter spans the full width.
+    static func meterGrid(meters: [Meter], key: String) -> [UINode] {
+        guard !meters.isEmpty else { return [] }
+        var rows: [UINode] = []
+        var index = 0
+        var rowNumber = 0
+        while index < meters.count {
+            let pair = Array(meters[index..<min(index + 2, meters.count)])
+            var cells: [UINode] = []
+            for (offset, meter) in pair.enumerated() {
+                cells.append(meterCell(meter: meter, key: "\(key)-meter-\(index + offset)"))
+            }
+            rows.append(UINode(
+                id: "\(key)-meters-\(rowNumber)",
+                type: "hstack",
+                children: cells,
+                spacing: 12,
+                widthFill: true,
+                alignment: "top"
+            ))
+            index += 2
+            rowNumber += 1
+        }
+        return rows
+    }
+
+    static func meterCell(meter: Meter, key: String) -> UINode {
         let used = min(max(meter.usedPct ?? 0, 0), 100)
         let remaining = 100 - used
         let tint = severity(remainingPct: remaining)
-        var caption = String(format: "%.0f%% left", remaining)
-        if let reset = resetDescription(ms: meter.resetMs) {
-            caption += " · \(reset)"
+        var figureRow: [UINode] = [
+            UINode(
+                id: "\(key)-pct",
+                type: "text",
+                text: String(format: "%.0f%%", remaining),
+                role: "title",
+                lineLimit: 1,
+                monospacedDigit: true,
+                size: 19,
+                foreground: tint
+            ),
+        ]
+        if let reset = remainingTime(untilMs: meter.resetMs) {
+            figureRow.append(UINode(
+                id: "\(key)-reset",
+                type: "text",
+                text: reset,
+                role: "caption",
+                lineLimit: 1,
+                monospacedDigit: true,
+                foreground: "secondary"
+            ))
         }
         return UINode(
             id: key,
             type: "vstack",
             children: [
                 UINode(
-                    id: "\(key)-top",
+                    id: "\(key)-label",
+                    type: "text",
+                    text: "\(meter.label ?? "Usage") left",
+                    role: "caption",
+                    lineLimit: 1,
+                    foreground: "secondary"
+                ),
+                UINode(
+                    id: "\(key)-figure",
                     type: "hstack",
-                    children: [
-                        UINode(
-                            id: "\(key)-label",
-                            type: "text",
-                            text: meter.label ?? "Usage",
-                            role: "caption",
-                            lineLimit: 1
-                        ),
-                        UINode(id: "\(key)-spacer", type: "spacer"),
-                        UINode(
-                            id: "\(key)-caption",
-                            type: "text",
-                            text: caption,
-                            role: "caption",
-                            lineLimit: 1,
-                            monospacedDigit: true,
-                            foreground: tint
-                        ),
-                    ],
-                    spacing: 6
+                    children: figureRow,
+                    spacing: 6,
+                    alignment: "baseline"
                 ),
                 UINode(
                     id: "\(key)-progress",
@@ -294,9 +331,10 @@ public enum AasUsageAdapter {
                     tint: tint,
                     value: used / 100.0,
                     style: "linear"
-                )
+                ),
             ],
-            spacing: 3
+            spacing: 2,
+            widthFill: true
         )
     }
 
@@ -405,16 +443,23 @@ public enum AasUsageAdapter {
         }
     }
 
-    static func resetDescription(ms: Double?, now: Date = Date()) -> String? {
+    /// Precise time until a window reset — "42m", "2h 10m", "3d 9h" — so the
+    /// meter can show the actual wait next to the remaining percentage.
+    /// Zero minor components collapse ("2h", "3d"); past timestamps → "due".
+    static func remainingTime(untilMs ms: Double?, now: Date = Date()) -> String? {
         guard let ms else { return nil }
         let reset = Date(timeIntervalSince1970: ms / 1000.0)
         let seconds = reset.timeIntervalSince(now)
-        if seconds <= 0 { return "reset due" }
-        let minutes = Int((seconds / 60).rounded(.up))
-        if minutes < 60 { return "resets in \(minutes)m" }
-        let hours = Int((Double(minutes) / 60).rounded(.up))
-        if hours < 48 { return "resets in \(hours)h" }
-        let days = Int((Double(hours) / 24).rounded(.up))
-        return "resets in \(days)d"
+        if seconds <= 0 { return "due" }
+        let totalMinutes = max(Int((seconds / 60).rounded(.up)), 1)
+        if totalMinutes < 60 { return "\(totalMinutes)m" }
+        let totalHours = totalMinutes / 60
+        if totalHours < 48 {
+            let minutes = totalMinutes % 60
+            return minutes == 0 ? "\(totalHours)h" : "\(totalHours)h \(minutes)m"
+        }
+        let days = totalHours / 24
+        let hours = totalHours % 24
+        return hours == 0 ? "\(days)d" : "\(days)d \(hours)h"
     }
 }

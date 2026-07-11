@@ -94,6 +94,40 @@ final class GalleryModel: ObservableObject {
         }
     }
 
+    struct GallerySection: Identifiable {
+        let id: String
+        let title: String
+        let subtitle: String
+        let entries: [RegistryWidgetEntry]
+    }
+
+    /// Two shelves: built-ins first, then the custom-tool integrations
+    /// (`collection == "custom"` — muxa, aas, otpeek, stashbar). Sections
+    /// respect the active filters and drop out when they empty.
+    var sections: [GallerySection] {
+        let filtered = filteredEntries
+        let custom = filtered.filter { $0.collection?.lowercased() == "custom" }
+        let builtin = filtered.filter { $0.collection?.lowercased() != "custom" }
+        var result: [GallerySection] = []
+        if !builtin.isEmpty {
+            result.append(GallerySection(
+                id: "builtin",
+                title: "Built-in Widgets",
+                subtitle: "Native widgets that work out of the box.",
+                entries: builtin
+            ))
+        }
+        if !custom.isEmpty {
+            result.append(GallerySection(
+                id: "custom",
+                title: "Custom Widgets",
+                subtitle: "Companions for your own tools — muxa, aas, otpeek, Stashbar.",
+                entries: custom
+            ))
+        }
+        return result
+    }
+
     private func matchesKind(_ entry: RegistryWidgetEntry) -> Bool {
         guard kindFilter != .all else { return true }
         return entry.kind == kindFilter.rawValue
@@ -154,6 +188,13 @@ final class GalleryModel: ObservableObject {
         if !hasLoadedOnce {
             refresh(force: false)
         }
+    }
+
+    /// Screenshot/preview support: inject entries directly (no registry
+    /// fetch, no requirement probes) so offscreen renders are deterministic.
+    func setEntries(forPreview entries: [RegistryWidgetEntry]) {
+        self.entries = entries
+        self.hasLoadedOnce = true
     }
 
     func refresh(force: Bool) {
@@ -439,19 +480,48 @@ struct GalleryView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             ScrollView {
-                LazyVStack(spacing: 10) {
-                    ForEach(model.filteredEntries, id: \.id) { entry in
-                        GalleryCard(
-                            entry: entry,
-                            isInstalled: model.installedIDs.contains(entry.id),
-                            updateAvailable: model.updateAvailable(for: entry),
-                            requirementStatus: model.requirementStatus[entry.id],
-                            install: { model.install(entry) }
-                        )
+                LazyVStack(alignment: .leading, spacing: 18) {
+                    ForEach(model.sections) { section in
+                        sectionView(section)
                     }
                     footer
                 }
                 .padding(12)
+            }
+        }
+    }
+
+    /// One shelf: title + count, a one-line subtitle, and an adaptive grid of
+    /// compact cards (two columns at hub width, one when narrow).
+    private func sectionView(_ section: GalleryModel.GallerySection) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(section.title)
+                    .font(.system(size: 13, weight: .semibold))
+                Text("\(section.entries.count)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .monospacedDigit()
+                Spacer()
+            }
+            Text(section.subtitle)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .padding(.top, -4)
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 290), spacing: 10, alignment: .top)],
+                alignment: .leading,
+                spacing: 10
+            ) {
+                ForEach(section.entries, id: \.id) { entry in
+                    GalleryCard(
+                        entry: entry,
+                        isInstalled: model.installedIDs.contains(entry.id),
+                        updateAvailable: model.updateAvailable(for: entry),
+                        requirementStatus: model.requirementStatus[entry.id],
+                        install: { model.install(entry) }
+                    )
+                }
             }
         }
     }
@@ -470,7 +540,7 @@ struct GalleryView: View {
 
 // MARK: - Card
 
-private struct GalleryCard: View {
+struct GalleryCard: View {
     let entry: RegistryWidgetEntry
     let isInstalled: Bool
     /// Registry advertises a newer version than the installed widget.json.
@@ -479,68 +549,57 @@ private struct GalleryCard: View {
     let requirementStatus: RequirementChecker.Status?
     let install: () -> Void
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            screenshotPreview
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: entry.icon ?? "app.dashed")
-                    .font(.system(size: 22))
-                    .foregroundColor(.accentColor)
-                    .frame(width: 36, height: 36)
-                    .background(Color.accentColor.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .accessibilityHidden(true)
+    /// Card accent: the entry's registry `accent` (same vocabulary as widget
+    /// `appearance.accent`), falling back to the system accent.
+    private var accent: Color {
+        WidgetAppearance(accent: entry.accent).accentColor ?? .accentColor
+    }
 
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        Text(entry.name)
-                            .font(.headline)
-                            .lineLimit(1)
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            screenshotPreview
+            HStack(alignment: .top, spacing: 10) {
+                iconTile
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(entry.name)
+                        .font(.headline)
+                        .lineLimit(1)
+                    HStack(spacing: 5) {
                         if let kind = entry.kind {
                             badge(kind)
                         }
-                        if let version = entry.version {
-                            Text("v\(version)")
-                                .font(.caption)
+                        if let category = entry.category, !category.isEmpty {
+                            Text(category)
+                                .font(.caption2)
                                 .foregroundColor(.secondary)
                         }
+                        if let version = entry.version {
+                            Text("v\(version)")
+                                .font(.caption2)
+                                .foregroundColor(Color.secondary.opacity(0.7))
+                                .monospacedDigit()
+                        }
                     }
-                    if let description = entry.description {
-                        Text(description)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .lineLimit(4)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    requiresBadge
-                    permissionChips
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-
-                VStack(alignment: .trailing, spacing: 4) {
-                    if updateAvailable {
-                        Label("Update available", systemImage: "arrow.up.circle.fill")
-                            .font(.caption)
-                            .foregroundColor(.accentColor)
-                        Button("Update", action: install)
-                            .keyboardShortcut(.defaultAction)
-                            .controlSize(.small)
-                            .help("A newer version is available in the registry")
-                    } else if isInstalled {
-                        Label("Installed", systemImage: "checkmark.circle.fill")
-                            .font(.caption)
-                            .foregroundColor(.green)
-                        Button("Reinstall", action: install)
-                            .controlSize(.small)
-                    } else {
-                        Button("Install", action: install)
-                            .keyboardShortcut(.defaultAction)
-                            .controlSize(.small)
-                    }
-                }
+                installControl
+            }
+            if let description = entry.description {
+                Text(description)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack(spacing: 4) {
+                requiresBadge
+                permissionChips
+                Spacer(minLength: 0)
             }
         }
         .padding(12)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
         .background(
             RoundedRectangle(cornerRadius: 10)
                 .fill(Color(nsColor: .controlBackgroundColor))
@@ -549,6 +608,52 @@ private struct GalleryCard: View {
             RoundedRectangle(cornerRadius: 10)
                 .stroke(Color.primary.opacity(0.08))
         )
+    }
+
+    /// App Store-style identity tile: filled accent square with a white glyph
+    /// — the strongest per-card differentiator, so cards stop reading as
+    /// walls of identical text.
+    private var iconTile: some View {
+        RoundedRectangle(cornerRadius: 9, style: .continuous)
+            .fill(
+                LinearGradient(
+                    colors: [accent.opacity(0.95), accent.opacity(0.7)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .frame(width: 40, height: 40)
+            .overlay(
+                Image(systemName: entry.icon ?? "app.dashed")
+                    .font(.system(size: 19, weight: .medium))
+                    .foregroundColor(.white)
+            )
+            .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var installControl: some View {
+        if updateAvailable {
+            Button("Update", action: install)
+                .keyboardShortcut(.defaultAction)
+                .controlSize(.small)
+                .help("A newer version is available in the registry")
+        } else if isInstalled {
+            HStack(spacing: 4) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.green)
+                Text("Installed")
+                    .foregroundColor(.secondary)
+            }
+            .font(.caption)
+            .contextMenu { Button("Reinstall", action: install) }
+            .help("Installed — right-click to reinstall")
+            .accessibilityLabel("\(entry.name) is installed")
+        } else {
+            Button("Install", action: install)
+                .keyboardShortcut(.defaultAction)
+                .controlSize(.small)
+        }
     }
 
     private func badge(_ kind: String) -> some View {
@@ -680,45 +785,56 @@ private struct GalleryCard: View {
     }
 
     /// Display-only permission chips ("신뢰 UX") — the enforcement gate stays
-    /// the first-run approval card after install.
+    /// the first-run approval card after install. Compact icon capsules; the
+    /// specifics (which commands, which hosts) live in each chip's tooltip so
+    /// the card stays scannable.
     @ViewBuilder
     private var permissionChips: some View {
         let chips = permissionChipLabels
         if !chips.isEmpty {
             HStack(spacing: 4) {
                 ForEach(chips, id: \.self) { chip in
-                    Label(chip.text, systemImage: chip.symbol)
+                    Image(systemName: chip.symbol)
                         .font(.caption2)
                         .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
+                        .padding(.vertical, 3)
                         .background(Color.secondary.opacity(0.12))
                         .foregroundColor(.secondary)
                         .clipShape(Capsule())
+                        .help(chip.help)
+                        .accessibilityLabel(chip.help)
                 }
             }
-            .padding(.top, 2)
         }
     }
 
     private struct Chip: Hashable {
-        let text: String
         let symbol: String
+        let help: String
     }
 
     private var permissionChipLabels: [Chip] {
         guard let permissions = entry.permissions else { return [] }
         var chips: [Chip] = []
-        for command in permissions.exec ?? [] {
-            chips.append(Chip(text: "exec: \(command)", symbol: "terminal"))
+        let commands = permissions.exec ?? []
+        if !commands.isEmpty {
+            chips.append(Chip(
+                symbol: "terminal",
+                help: "Runs: \(commands.joined(separator: ", "))"
+            ))
         }
         if permissions.keychain == true {
-            chips.append(Chip(text: "Keychain", symbol: "key"))
+            chips.append(Chip(symbol: "key", help: "Reads a Keychain secret"))
         }
         if permissions.notifications == true {
-            chips.append(Chip(text: "Notifications", symbol: "bell"))
+            chips.append(Chip(symbol: "bell", help: "Posts notifications"))
         }
-        for host in permissions.network ?? [] {
-            chips.append(Chip(text: "network: \(host)", symbol: "network"))
+        let hosts = permissions.network ?? []
+        if !hosts.isEmpty {
+            chips.append(Chip(
+                symbol: "network",
+                help: "Network: \(hosts.joined(separator: ", "))"
+            ))
         }
         return chips
     }

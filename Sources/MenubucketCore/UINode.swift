@@ -71,6 +71,9 @@ public struct UINode: Codable, Equatable {
     // Layout modifiers
     public var padding: Double?
     public var widthFill: Bool?
+    /// `hstack` cross-axis alignment: "center" (default) | "top" | "bottom"
+    /// | "baseline" (first text baseline — big number + small caption rows).
+    public var alignment: String?
 
     /// Present → the rendered view can be dragged out as a file
     /// (Finder / other apps), M2-b.
@@ -121,6 +124,7 @@ public struct UINode: Codable, Equatable {
         action: NodeAction? = nil,
         padding: Double? = nil,
         widthFill: Bool? = nil,
+        alignment: String? = nil,
         drag: DragSpec? = nil,
         accessibilityLabel: String? = nil
     ) {
@@ -153,6 +157,7 @@ public struct UINode: Codable, Equatable {
         self.action = action
         self.padding = padding
         self.widthFill = widthFill
+        self.alignment = alignment
         self.drag = drag
         self.accessibilityLabel = accessibilityLabel
     }

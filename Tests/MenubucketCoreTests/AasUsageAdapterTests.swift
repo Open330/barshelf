@@ -103,11 +103,57 @@ final class AasUsageAdapterTests: XCTestCase {
         XCTAssertEqual(errorNode.type, "banner")
         XCTAssertEqual(errorNode.tone, "danger")
 
-        // resetMs is surfaced as a visible ETA/reset caption.
+        // resetMs is surfaced beside the percentage (fixture timestamps are
+        // in the past → "due").
         XCTAssertTrue(all.contains { node in
-            node.id?.hasSuffix("-caption") == true
-                && (node.text?.contains("reset") ?? false)
+            node.id?.hasSuffix("-reset") == true && node.text == "due"
         })
+    }
+
+    func testMeterCellsPairIntoTopAlignedColumns() throws {
+        let tree = AasUsageAdapter.adapt(fixture)
+        let all = flatten(tree)
+
+        // Account "work" has two meters → one two-column row.
+        let workRow = try XCTUnwrap(all.first { $0.id?.hasSuffix("work-0-meters-0") == true })
+        XCTAssertEqual(workRow.type, "hstack")
+        XCTAssertEqual(workRow.alignment, "top")
+        XCTAssertEqual(workRow.children?.count, 2)
+
+        // Each cell: window label, large remaining % (severity-colored,
+        // baseline-aligned with the reset time), then the bar.
+        let cell = try XCTUnwrap(workRow.children?.first)
+        XCTAssertEqual(cell.widthFill, true)
+        XCTAssertEqual(cell.children?.first?.text, "5h window left")
+        let figure = try XCTUnwrap(cell.children?[1])
+        XCTAssertEqual(figure.alignment, "baseline")
+        XCTAssertEqual(figure.children?.first?.text, "12%")
+        XCTAssertEqual(figure.children?.first?.foreground, "warning")
+        XCTAssertEqual(figure.children?.first?.size, 19)
+        XCTAssertEqual(cell.children?.last?.type, "progress")
+
+        // Account "personal" has a single meter → lone full-width cell.
+        let personalRow = try XCTUnwrap(all.first { $0.id?.hasSuffix("personal-1-meters-0") == true })
+        XCTAssertEqual(personalRow.children?.count, 1)
+    }
+
+    func testRemainingTimeFormatting() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        func ms(_ seconds: Double) -> Double { (1_700_000_000 + seconds) * 1000 }
+
+        XCTAssertNil(AasUsageAdapter.remainingTime(untilMs: nil, now: now))
+        XCTAssertEqual(AasUsageAdapter.remainingTime(untilMs: ms(-5), now: now), "due")
+        XCTAssertEqual(AasUsageAdapter.remainingTime(untilMs: ms(42 * 60), now: now), "42m")
+        XCTAssertEqual(
+            AasUsageAdapter.remainingTime(untilMs: ms(2 * 3600 + 10 * 60), now: now),
+            "2h 10m"
+        )
+        XCTAssertEqual(AasUsageAdapter.remainingTime(untilMs: ms(2 * 3600), now: now), "2h")
+        XCTAssertEqual(
+            AasUsageAdapter.remainingTime(untilMs: ms(3 * 86400 + 9 * 3600), now: now),
+            "3d 9h"
+        )
+        XCTAssertEqual(AasUsageAdapter.remainingTime(untilMs: ms(4 * 86400), now: now), "4d")
     }
 
     func testRepeatedNodesHaveStableUniqueIDs() {

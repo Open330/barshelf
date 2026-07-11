@@ -172,6 +172,16 @@ struct NodeView: View {
         }
     }
 
+    /// `hstack` cross-axis alignment from the node's `alignment` hint.
+    private var hstackAlignment: VerticalAlignment {
+        switch node.alignment {
+        case "top": return .top
+        case "bottom": return .bottom
+        case "baseline": return .firstTextBaseline
+        default: return .center
+        }
+    }
+
     @ViewBuilder
     private var content: some View {
         switch UINode.KnownType(rawValue: node.type) {
@@ -180,7 +190,7 @@ struct NodeView: View {
                 NodeChildrenView(nodes: node.children ?? [])
             }
         case .hstack:
-            HStack(alignment: .center, spacing: (node.spacing ?? 6) * scale) {
+            HStack(alignment: hstackAlignment, spacing: (node.spacing ?? 6) * scale) {
                 NodeChildrenView(nodes: node.children ?? [])
             }
         case .list:
@@ -398,8 +408,12 @@ struct NodeView: View {
 
     private var badgeView: some View {
         let color = nodeColor(node.tint ?? node.tone, accent: accentOverride) ?? .secondary
+        // A badge is a single-line pill — never wrap; shrink instead of
+        // splitting ("ACTIVE" must not become "ACTIV E" in narrow cards).
         return Text(node.text ?? node.title ?? "")
             .font(.system(size: 10, weight: .medium))
+            .lineLimit(1)
+            .fixedSize()
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
             .foregroundColor(color)

@@ -36,8 +36,41 @@ enum ScreenshotMode {
             ) && ok
         }
         ok = composeHeroSet(dir: dir) && ok
+        ok = renderGallery(dir: dir) && ok
         ok = renderMotion(dir: dir) && ok
         return ok ? 0 : 1
+    }
+
+    /// Renders the gallery shelves (bundled registry, no network) — used to
+    /// eyeball the shelf layout and as a marketing/README asset. Uses the
+    /// real `GalleryCard`, but in a non-lazy composition: `ImageRenderer`
+    /// cannot rasterize native controls (TextField/Picker) or lazy grids.
+    @MainActor
+    private static func renderGallery(dir: URL) -> Bool {
+        let model = GalleryModel()
+        let client = GalleryModel.makeDefaultClient()
+        let semaphore = DispatchSemaphore(value: 0)
+        let box = LoadedEntriesBox()
+        Task.detached {
+            if let result = try? await client.load(forceRefresh: false) {
+                box.entries = result.index.widgets
+            }
+            semaphore.signal()
+        }
+        // Offscreen CLI context — blocking the main thread briefly is fine.
+        _ = semaphore.wait(timeout: .now() + 10)
+        guard !box.entries.isEmpty else {
+            FileHandle.standardError.write(Data("gallery registry load failed\n".utf8))
+            return false
+        }
+        model.setEntries(forPreview: box.entries)
+        let view = GalleryShot(sections: model.sections)
+            .environment(\.colorScheme, .light)
+        return render(view, name: "gallery", to: dir)
+    }
+
+    private final class LoadedEntriesBox: @unchecked Sendable {
+        var entries: [RegistryWidgetEntry] = []
     }
 
     // MARK: - Motion demo (frame sequence → H.264 via ffmpeg)
@@ -245,12 +278,14 @@ enum ScreenshotMode {
 private enum ShotData {
     /// Real `AasUsageAdapter` output from representative JSON.
     static var aasNode: UINode {
-        let reset = Int(Date().timeIntervalSince1970 * 1000) + 3_600_000
+        let now = Int(Date().timeIntervalSince1970 * 1000)
+        let reset5h = now + 2 * 3_600_000 + 10 * 60_000
+        let reset7d = now + 3 * 86_400_000 + 9 * 3_600_000
         let json = """
         {"accounts":[
-          {"provider":"claude","name":"work-01","email":null,"active":true,"plan":"max","planLabel":"Max","headline":"","error":null,"meters":[{"label":"5h","usedPct":64,"resetMs":\(reset)}]},
-          {"provider":"claude","name":"personal","email":null,"active":false,"plan":"pro","planLabel":"Pro","headline":"","error":null,"meters":[{"label":"5h","usedPct":82,"resetMs":\(reset)}]},
-          {"provider":"codex","name":"team-x","email":null,"active":false,"plan":null,"planLabel":null,"headline":"","error":null,"meters":[{"label":"5h","usedPct":94,"resetMs":\(reset)}]}
+          {"provider":"claude","name":"work-01","email":null,"active":true,"plan":"max","planLabel":"Max 20x","headline":"","error":null,"meters":[{"label":"5h","usedPct":64,"resetMs":\(reset5h)},{"label":"7d","usedPct":36,"resetMs":\(reset7d)}]},
+          {"provider":"claude","name":"personal","email":null,"active":false,"plan":"pro","planLabel":"Pro","headline":"","error":null,"meters":[{"label":"5h","usedPct":82,"resetMs":\(reset5h)},{"label":"7d","usedPct":58,"resetMs":\(reset7d)}]},
+          {"provider":"codex","name":"team-x","email":null,"active":false,"plan":null,"planLabel":null,"headline":"","error":null,"meters":[{"label":"5h","usedPct":94,"resetMs":\(reset5h)},{"label":"7d","usedPct":71,"resetMs":\(reset7d)}]}
         ]}
         """
         return AasUsageAdapter.adapt(Data(json.utf8))
@@ -378,6 +413,59 @@ private struct ShotCard: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+}
+
+// MARK: - Gallery composition (non-lazy, ImageRenderer-safe)
+
+private struct GalleryShot: View {
+    let sections: [GalleryModel.GallerySection]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            ForEach(sections) { section in
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(section.title)
+                            .font(.system(size: 13, weight: .semibold))
+                        Text("\(section.entries.count)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .monospacedDigit()
+                    }
+                    Text(section.subtitle)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.top, -4)
+                    ForEach(pairs(section.entries), id: \.self.first?.id) { pair in
+                        HStack(alignment: .top, spacing: 10) {
+                            ForEach(pair, id: \.id) { entry in
+                                GalleryCard(
+                                    entry: entry,
+                                    isInstalled: false,
+                                    updateAvailable: false,
+                                    requirementStatus: .satisfied,
+                                    install: {}
+                                )
+                                .frame(maxWidth: .infinity, alignment: .topLeading)
+                            }
+                            if pair.count == 1 {
+                                Color.clear.frame(maxWidth: .infinity)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding(14)
+        .frame(width: 720)
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private func pairs(_ entries: [RegistryWidgetEntry]) -> [[RegistryWidgetEntry]] {
+        stride(from: 0, to: entries.count, by: 2).map { start in
+            Array(entries[start..<min(start + 2, entries.count)])
+        }
     }
 }
 

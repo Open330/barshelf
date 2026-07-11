@@ -6,6 +6,7 @@
   "widgets": [
     {
       "id": "dev.barshelf.today",
+      "accent": "red",
       "name": "Today",
       "description": "Native Calendar/Clock-style date widget with a large day number — the layout adapts to the widget size (small / medium / large) like a native iOS/macOS widget. No external dependency.",
       "version": "0.1.0",
@@ -20,6 +21,7 @@
     },
     {
       "id": "dev.barshelf.recent-files-grid",
+      "accent": "blue",
       "name": "Recent Files",
       "description": "Stashbar-style recent files with a Grid/List view toggle and adjustable thumbnail size. QuickLook thumbnails that drag out to Finder/apps and open on click. Inspired by https://github.com/jiunbae/stashbar.",
       "version": "0.1.0",
@@ -34,6 +36,8 @@
     },
     {
       "id": "dev.menubucket.stashbar-recent-files",
+      "collection": "custom",
+      "accent": "blue",
       "name": "Stashbar Recent Files",
       "description": "Recent files from a folder you choose, in three view modes — Preview (a hero card for the newest file), Grid (thumbnail tiles), and a searchable List. QuickLook thumbnails, click to open, drag straight out to other apps. The official widget bundled with the native Stashbar app.",
       "version": "0.2.0",
@@ -48,6 +52,7 @@
     },
     {
       "id": "dev.barshelf.battery-meter",
+      "accent": "green",
       "name": "Battery",
       "description": "Native-style battery widget — a big percentage and a level-colored meter with a matching battery glyph, read from pmset. Pure workflow, no Deno.",
       "version": "0.1.0",
@@ -63,6 +68,8 @@
     },
     {
       "id": "dev.barshelf.aas-meters",
+      "collection": "custom",
+      "accent": "orange",
       "name": "aas Usage",
       "description": "LLM account usage as native, health-colored meter bars from `aas usage --json` — per-account cards built with the meter display. See https://github.com/Open330/aas. Requires the aas CLI.",
       "version": "0.1.0",
@@ -78,6 +85,8 @@
     },
     {
       "id": "dev.barshelf.muxa-watch",
+      "collection": "custom",
+      "accent": "purple",
       "name": "muxa Watch",
       "description": "Compact muxa watch table for one local or SSH source. Add multiple independently configured widget instances to monitor each host's most recently active agents with NAME, ST, ACT, and LAST PROMPT columns. Requires a muxa build with `status --json` and Deno.",
       "version": "0.3.0",
@@ -93,6 +102,8 @@
     },
     {
       "id": "dev.barshelf.otpeek",
+      "collection": "custom",
+      "accent": "purple",
       "name": "OTP Codes",
       "description": "One-time password codes straight from your OTPeek vault with a countdown ring and one-tap copy — see https://github.com/jiunbae/otpeek. Requires the otpeek CLI and a configured vault (the vault password is read from the macOS Keychain).",
       "version": "0.1.0",
@@ -108,6 +119,7 @@
     },
     {
       "id": "dev.barshelf.downloads-new",
+      "accent": "green",
       "name": "Downloads",
       "description": "Counts files in a folder and shows how many were added or removed since your last check, persisting the count across refreshes with the workflow storage layer.",
       "version": "0.1.0",
@@ -123,6 +135,7 @@
     },
     {
       "id": "dev.barshelf.github-status",
+      "accent": "green",
       "name": "GitHub Status",
       "description": "Fetches GitHub's public status JSON over HTTPS and refreshes when your Mac wakes — an HTTP-source example.",
       "version": "0.1.0",
@@ -138,6 +151,7 @@
     },
     {
       "id": "dev.barshelf.clock",
+      "accent": "blue",
       "name": "Clock",
       "description": "Native digital clock — a big HH:MM with a live seconds counter and the date. No external dependency.",
       "version": "0.1.0",
@@ -152,6 +166,7 @@
     },
     {
       "id": "dev.barshelf.system",
+      "accent": "purple",
       "name": "System",
       "description": "Native system monitor — CPU and disk usage as health-colored meters, from a shell source. Pure workflow, no Deno.",
       "version": "0.1.0",
@@ -166,6 +181,7 @@
     },
     {
       "id": "dev.barshelf.weather",
+      "accent": "blue",
       "name": "Weather",
       "description": "Native weather widget over a free HTTPS API (open-meteo, no key) — a big temperature and a condition icon for any latitude/longitude. Demonstrates the HTTP source.",
       "version": "0.1.0",
@@ -181,6 +197,7 @@
     },
     {
       "id": "dev.barshelf.calendar",
+      "accent": "red",
       "name": "Calendar",
       "description": "Native month calendar grid with today highlighted — a 7-column grid built from a shell source. No external dependency.",
       "version": "0.1.0",
@@ -195,6 +212,7 @@
     },
     {
       "id": "dev.barshelf.exchange",
+      "accent": "green",
       "name": "Exchange",
       "description": "USD→KRW exchange rate over a free HTTPS API (open.er-api.com, no key) — a big rate figure. Another HTTP-source example.",
       "version": "0.1.0",
@@ -210,6 +228,7 @@
     },
     {
       "id": "dev.barshelf.network",
+      "accent": "blue",
       "name": "Network",
       "description": "Shows your Mac's local IP address (Wi-Fi / Ethernet), via a shell source. No external dependency.",
       "version": "0.1.0",
@@ -224,6 +243,7 @@
     },
     {
       "id": "dev.barshelf.stock",
+      "accent": "green",
       "name": "Stock",
       "description": "Live stock quote (any ticker) over the Yahoo Finance API — a big price with a colored up/down change. Demonstrates the HTTP source with a required User-Agent header.",
       "version": "0.1.0",
@@ -239,6 +259,7 @@
     },
     {
       "id": "dev.barshelf.now-playing",
+      "accent": "pink",
       "name": "Now Playing",
       "description": "The current track from Music or Spotify. Requires macOS Automation permission — approve the one-time prompt so BarShelf can read Now Playing.",
       "version": "0.1.0",
@@ -254,6 +275,7 @@
     },
     {
       "id": "dev.barshelf.reminders",
+      "accent": "orange",
       "name": "Reminders",
       "description": "How many open (incomplete) reminders you have. Requires macOS Automation permission for the Reminders app — approve the one-time prompt.",
       "version": "0.1.0",

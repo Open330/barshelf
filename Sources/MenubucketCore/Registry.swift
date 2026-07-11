@@ -53,6 +53,14 @@ public struct RegistryWidgetEntry: Codable, Equatable, Sendable {
     /// a `file:`/relative path resolvable by the client. Display-only; a
     /// missing or unloadable image degrades to no preview.
     public var screenshot: String?
+    /// Gallery shelf grouping: `"custom"` marks integrations built around the
+    /// author's own tools (muxa, aas, otpeek, stashbar). Anything else — or
+    /// absent — files under the built-in shelf. Display-only.
+    public var collection: String?
+    /// Accent color for the gallery card's icon tile — a named accent
+    /// ("purple", "green", …) or `#RRGGBB`, the `appearance.accent`
+    /// vocabulary. Display-only; absent falls back to the system accent.
+    public var accent: String?
     public var install: Install
     public var permissions: PermissionsSummary?
     public var homepage: String?
@@ -69,6 +77,8 @@ public struct RegistryWidgetEntry: Codable, Equatable, Sendable {
         category: String? = nil,
         requires: String? = nil,
         screenshot: String? = nil,
+        collection: String? = nil,
+        accent: String? = nil,
         install: Install,
         permissions: PermissionsSummary? = nil,
         homepage: String? = nil
@@ -84,6 +94,8 @@ public struct RegistryWidgetEntry: Codable, Equatable, Sendable {
         self.category = category
         self.requires = requires
         self.screenshot = screenshot
+        self.collection = collection
+        self.accent = accent
         self.install = install
         self.permissions = permissions
         self.homepage = homepage
