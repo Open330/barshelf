@@ -5,7 +5,7 @@ import MenubucketCore
 ///
 /// Plain-text output, errors on stderr, exit 0 on success / 1 on failure.
 public enum BarShelfMain {
-    public static let version = "0.1.1"
+    public static let version = "0.1.2"
 
     public static let usage = """
         barshelf — BarShelf widget developer CLI
