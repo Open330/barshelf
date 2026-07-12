@@ -118,6 +118,9 @@ public struct Manifest: Codable, Equatable {
         public var watchPaths: [String]?
         /// Allow relaxed interval polling while the popup is closed.
         public var runInBackground: Bool?
+        /// Restrict automatic execution to the visible `onOpen` path. Manual refresh remains
+        /// available, but interval/deadline/watch/wake/event automation is disabled.
+        public var popupOnly: Bool?
         /// R12 event triggers (`refresh.triggers`). Lenient decode: the array
         /// accepts mixed strings and objects; unrecognized entries are dropped
         /// (never a decode failure). `nil` when the key is absent.
@@ -130,6 +133,7 @@ public struct Manifest: Codable, Equatable {
             deadlineField: String? = nil,
             watchPaths: [String]? = nil,
             runInBackground: Bool? = nil,
+            popupOnly: Bool? = nil,
             triggers: [TriggerSpec]? = nil
         ) {
             self.onOpen = onOpen
@@ -138,12 +142,13 @@ public struct Manifest: Codable, Equatable {
             self.deadlineField = deadlineField
             self.watchPaths = watchPaths
             self.runInBackground = runInBackground
+            self.popupOnly = popupOnly
             self.triggers = triggers
         }
 
         private enum CodingKeys: String, CodingKey {
             case onOpen, interval, staleAfterSec, deadlineField, watchPaths
-            case runInBackground, triggers
+            case runInBackground, popupOnly, triggers
         }
 
         public init(from decoder: Decoder) throws {
@@ -154,6 +159,7 @@ public struct Manifest: Codable, Equatable {
             deadlineField = try container.decodeIfPresent(String.self, forKey: .deadlineField)
             watchPaths = try container.decodeIfPresent([String].self, forKey: .watchPaths)
             runInBackground = try container.decodeIfPresent(Bool.self, forKey: .runInBackground)
+            popupOnly = try container.decodeIfPresent(Bool.self, forKey: .popupOnly)
             // Lenient: decode as raw JSON first, then map each entry through
             // `TriggerSpec(json:)`, silently dropping anything unrecognized.
             if let raw = try container.decodeIfPresent([JSONValue].self, forKey: .triggers) {
@@ -171,6 +177,7 @@ public struct Manifest: Codable, Equatable {
             try container.encodeIfPresent(deadlineField, forKey: .deadlineField)
             try container.encodeIfPresent(watchPaths, forKey: .watchPaths)
             try container.encodeIfPresent(runInBackground, forKey: .runInBackground)
+            try container.encodeIfPresent(popupOnly, forKey: .popupOnly)
             try container.encodeIfPresent(triggers?.map(\.json), forKey: .triggers)
         }
     }

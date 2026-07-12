@@ -42,7 +42,8 @@
     "staleAfterSec": 600,
     "deadlineField": null,
     "watchPaths": [],
-    "runInBackground": false
+    "runInBackground": false,
+    "popupOnly": false
   },
   "statusItem": { "mode": "none" },
   "permissions": {
@@ -139,6 +140,7 @@ Workflow DSL 상세 계약은 [`docs/WORKFLOW.md`](WORKFLOW.md)를 따른다.
 | `deadlineField` | v0.1 예약 필드. M1에서는 adapter가 반환하는 `nextRefreshAtMs`가 deadline 갱신을 대체한다. |
 | `watchPaths` | FSEvents 감시 경로 목록. 변경 이벤트는 250ms debounce 후 처리한다. |
 | `runInBackground` | 팝오버가 닫힌 동안에도 interval 실행을 허용할지 여부. 닫힌 상태에서는 완화된 주기를 사용한다. |
+| `popupOnly` | `true`이면 화면에 보이는 `onOpen`과 사용자 수동 Refresh만 허용한다. interval/deadline/watch/wake/event 자동 실행은 차단한다. |
 
 ### `statusItem`
 
@@ -588,6 +590,7 @@ BarShelf은 cache-first로 동작한다. 팝오버가 열리면 마지막 성공
 - 한 위젯의 동시 갱신은 하나로 coalesce한다.
 - 연속 실패는 15초, 60초, 300초 cap의 지수 백오프로 완화한다.
 - 성공하면 실패 백오프를 리셋한다.
+- `popupOnly=true` 위젯은 visible `onOpen` 이외의 모든 자동 트리거를 무시한다.
 - Countdown progress는 host tick으로만 갱신하므로 스크립트 재실행이 필요 없다.
 
 ## 민감 데이터 규칙

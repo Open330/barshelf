@@ -94,6 +94,7 @@ except `schemaVersion`, `id`, `name`, and `entry`.
     "staleAfterSec": 30,
     "watchPaths": ["~/Downloads"],    // FSEvents paths, 250ms debounce, ~ expands
     "runInBackground": false,
+    "popupOnly": false,                // true = visible onOpen + manual refresh only
     "triggers": ["wake", "popup-open", { "fs": "~/Downloads" }, "url"]  // R12, see §8
   },
 
@@ -221,6 +222,9 @@ neutral (field-wise, user wins). `accent` recolors progress/meter/badge/link;
 - `staleAfterSec` — cached view considered stale after N seconds.
 - `watchPaths` — FSEvents-watched paths (250 ms debounce, `~` expands).
 - `runInBackground` — allow relaxed polling while the popup is closed.
+- `popupOnly` — when true, automatic execution is allowed only through visible
+  `onOpen`. Interval, deadline, watch, wake, and event triggers are disabled;
+  explicit manual Refresh remains available.
 - `triggers` (R12) — event-driven refreshes. Array of mixed strings/objects;
   unrecognized entries are silently dropped:
   - `"wake"` — on system wake (`NSWorkspace.didWakeNotification`).

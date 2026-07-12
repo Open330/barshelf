@@ -922,6 +922,7 @@ final class WidgetRuntime: ObservableObject {
         guard scheduler.popupIsOpen else { return }
         for widget in widgets
         where visibleWidgetIDs.contains(widget.id)
+            && widget.manifest.refresh?.popupOnly != true
             && snapshots[widget.id]?.viewTree == nil {
             refresh(widget, manual: false)
         }
@@ -1061,6 +1062,7 @@ final class WidgetRuntime: ObservableObject {
     /// only `runInBackground` widgets run (invariant 3).
     func refreshStaleWidgets(backgroundOnly: Bool) {
         for widget in widgets {
+            if widget.manifest.refresh?.popupOnly == true { continue }
             if backgroundOnly, widget.manifest.refresh?.runInBackground != true { continue }
             if scheduler.popupIsOpen, !visibleWidgetIDs.contains(widget.id) { continue }
             let snapshot = snapshots[widget.id] ?? WidgetSnapshot(widgetID: widget.id)

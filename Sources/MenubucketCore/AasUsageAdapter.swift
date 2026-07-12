@@ -27,10 +27,13 @@ public enum AasUsageAdapter {
         public var name: String?
         public var email: String?
         public var active: Bool?
+        public var cached: Bool?
+        public var fetchedAtMs: Double?
         public var plan: String?
         public var planLabel: String?
         public var headline: String?
         public var error: String?
+        public var notes: [String]?
         public var meters: [Meter]?
 
         public init(
@@ -38,20 +41,26 @@ public enum AasUsageAdapter {
             name: String? = nil,
             email: String? = nil,
             active: Bool? = nil,
+            cached: Bool? = nil,
+            fetchedAtMs: Double? = nil,
             plan: String? = nil,
             planLabel: String? = nil,
             headline: String? = nil,
             error: String? = nil,
+            notes: [String]? = nil,
             meters: [Meter]? = nil
         ) {
             self.provider = provider
             self.name = name
             self.email = email
             self.active = active
+            self.cached = cached
+            self.fetchedAtMs = fetchedAtMs
             self.plan = plan
             self.planLabel = planLabel
             self.headline = headline
             self.error = error
+            self.notes = notes
             self.meters = meters
         }
     }
@@ -176,6 +185,18 @@ public enum AasUsageAdapter {
                 icon: "exclamationmark.triangle.fill"
             ))
         }
+        for (index, note) in (account.notes ?? []).enumerated() where !note.isEmpty {
+            let warning = note.localizedCaseInsensitiveContains("refresh failed")
+            children.append(UINode(
+                id: "\(key)-note-\(index)",
+                type: warning ? "banner" : "text",
+                text: note,
+                role: warning ? nil : "caption",
+                tone: warning ? "warning" : nil,
+                foreground: warning ? nil : "secondary",
+                icon: warning ? "exclamationmark.arrow.triangle.2.circlepath" : nil
+            ))
+        }
         children.append(contentsOf: meterGrid(meters: account.meters ?? [], key: key))
         if (account.meters ?? []).isEmpty, account.error?.isEmpty != false {
             children.append(UINode(
@@ -229,6 +250,9 @@ public enum AasUsageAdapter {
         ]
         if account.active == true {
             items.append(UINode(id: "\(key)-active", type: "badge", text: "ACTIVE", tint: "good"))
+        }
+        if account.cached == true {
+            items.append(UINode(id: "\(key)-cached", type: "badge", text: "CACHED", tint: "neutral"))
         }
         if let plan = formattedPlan(account), !plan.isEmpty {
             items.append(UINode(id: "\(key)-plan", type: "badge", text: plan, tint: planTone(account.plan)))

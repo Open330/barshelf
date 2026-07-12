@@ -289,6 +289,10 @@
         },
         "runInBackground": {
           "type": "boolean"
+        },
+        "popupOnly": {
+          "description": "Allow automatic execution only from visible onOpen; manual refresh remains available.",
+          "type": "boolean"
         }
       },
       "additionalProperties": true

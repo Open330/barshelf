@@ -62,7 +62,8 @@ final class ManifestTests: XCTestCase {
           "entry": { "kind": "exec" },
           "source": { "kind": "exec", "command": ["true"], "output": "viewtree" },
           "refresh": { "onOpen": true, "interval": null, "staleAfterSec": 60,
-                       "deadlineField": null, "watchPaths": [], "runInBackground": false },
+                       "deadlineField": null, "watchPaths": [], "runInBackground": false,
+                       "popupOnly": true },
           "statusItem": { "mode": "none" },
           "permissions": {
             "exec": [{ "command": "true", "allowedArgs": [[]], "maxOutputBytes": 1048576 }],
@@ -76,6 +77,7 @@ final class ManifestTests: XCTestCase {
         let manifest = try Manifest.decode(from: json)
         XCTAssertEqual(manifest.id, "dev.example.full")
         XCTAssertEqual(manifest.refresh?.staleAfterSec, 60)
+        XCTAssertEqual(manifest.refresh?.popupOnly, true)
     }
 
     func testMissingRequiredFieldFails() {

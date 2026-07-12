@@ -10,10 +10,13 @@ final class AasUsageAdapterTests: XCTestCase {
           "name": "work",
           "email": "work@example.com",
           "active": true,
+          "cached": true,
+          "fetchedAtMs": 1752000000000,
           "plan": "max",
           "planLabel": "Max 20x",
           "headline": "5h: 12% left",
           "error": null,
+          "notes": ["credential refresh failed: re-login required"],
           "meters": [
             { "label": "5h window", "usedPct": 88, "resetMs": 1752003600000 },
             { "label": "Weekly", "usedPct": 45, "resetMs": 1752300000000 }
@@ -98,6 +101,14 @@ final class AasUsageAdapterTests: XCTestCase {
         XCTAssertTrue(badges.contains { $0.text == "MAX · 20x" })
         XCTAssertTrue(badges.contains { $0.text == "PRO" })
         XCTAssertTrue(badges.contains { $0.text == "ACTIVE" })
+        XCTAssertTrue(badges.contains { $0.text == "CACHED" })
+
+        // Cache provenance and refresh warnings from the additive aas JSON contract are visible.
+        let refreshWarning = try XCTUnwrap(all.first {
+            $0.text == "credential refresh failed: re-login required"
+        })
+        XCTAssertEqual(refreshWarning.type, "banner")
+        XCTAssertEqual(refreshWarning.tone, "warning")
 
         // Account error rendered as a danger banner.
         let errorNode = try XCTUnwrap(all.first { $0.text == "token expired" })

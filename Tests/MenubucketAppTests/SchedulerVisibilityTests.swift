@@ -7,7 +7,8 @@ final class SchedulerVisibilityTests: XCTestCase {
         _ id: String,
         interval: Double? = nil,
         triggers: [TriggerSpec]? = nil,
-        runInBackground: Bool = false
+        runInBackground: Bool = false,
+        popupOnly: Bool = false
     ) -> LoadedWidget {
         LoadedWidget(
             manifest: Manifest(
@@ -19,6 +20,7 @@ final class SchedulerVisibilityTests: XCTestCase {
                     onOpen: true,
                     interval: interval,
                     runInBackground: runInBackground,
+                    popupOnly: popupOnly,
                     triggers: triggers
                 )
             ),
@@ -56,6 +58,27 @@ final class SchedulerVisibilityTests: XCTestCase {
         scheduler.setVisibleWidgetIDs([hidden.id])
         XCTAssertEqual(scheduler.activeIntervalWidgetIDs, [hidden.id])
 
+        scheduler.popupClosed()
+        XCTAssertTrue(scheduler.activeIntervalWidgetIDs.isEmpty)
+    }
+
+    func testPopupOnlyWidgetRejectsEverySchedulerAutomationPath() {
+        let scheduler = Scheduler()
+        let guarded = widget(
+            "guarded",
+            interval: 5,
+            triggers: [.popupOpen, .wake],
+            runInBackground: true,
+            popupOnly: true
+        )
+        var refreshed: [String] = []
+        scheduler.requestRefresh = { id, _ in refreshed.append(id) }
+        scheduler.configure(widgets: [guarded])
+        scheduler.setVisibleWidgetIDs([guarded.id])
+
+        scheduler.popupOpened()
+        XCTAssertTrue(refreshed.isEmpty)
+        XCTAssertTrue(scheduler.activeIntervalWidgetIDs.isEmpty)
         scheduler.popupClosed()
         XCTAssertTrue(scheduler.activeIntervalWidgetIDs.isEmpty)
     }

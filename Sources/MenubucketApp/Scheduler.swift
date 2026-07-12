@@ -183,6 +183,7 @@ final class Scheduler {
         intervalTimers.removeAll()
 
         for widget in widgets {
+            if widget.manifest.refresh?.popupOnly == true { continue }
             if popupIsOpen, !visibleWidgetIDs.contains(widget.id) { continue }
             guard let interval = SchedulePolicy.effectiveInterval(
                 configured: widget.manifest.refresh?.interval,
@@ -219,8 +220,10 @@ final class Scheduler {
     private func armDeadlineTimer(widgetID: String) {
         deadlineTimers[widgetID]?.invalidate()
         deadlineTimers.removeValue(forKey: widgetID)
-        guard popupIsOpen,
+        guard let widget = widgets.first(where: { $0.id == widgetID }),
+              popupIsOpen,
               visibleWidgetIDs.contains(widgetID),
+              widget.manifest.refresh?.popupOnly != true,
               let deadlineMs = deadlines[widgetID]
         else { return }
 
@@ -242,6 +245,7 @@ final class Scheduler {
         watchers.removeAll()
 
         for widget in widgets {
+            if widget.manifest.refresh?.popupOnly == true { continue }
             guard let paths = widget.manifest.refresh?.watchPaths, !paths.isEmpty else { continue }
             let id = widget.id
             do {
@@ -306,6 +310,7 @@ final class Scheduler {
         popupOpenTriggerIDs.removeAll()
 
         for widget in widgets {
+            if widget.manifest.refresh?.popupOnly == true { continue }
             guard let triggers = widget.manifest.refresh?.triggers, !triggers.isEmpty else { continue }
             let id = widget.id
             var fsPaths: [String] = []
