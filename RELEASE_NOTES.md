@@ -1,62 +1,37 @@
-# BarShelf 0.1.1
+# BarShelf 0.1.2
 
-A big quality pass on top of 0.1.0: a curated set of **native-looking widgets**, a
-much more capable **visual builder**, clickable widgets, and a lot of polish. The
-app is Developer ID–signed and Apple-notarized — double-click to open.
+This release makes external widgets first-class, improves the native widget
+gallery, and prevents usage widgets from polling while their popup is closed.
 
-> Requires macOS 13+ on Apple Silicon. Script widgets need [Deno](https://deno.land)
-> (`brew install deno`); exec and workflow widgets work without it.
+> Requires macOS 13+ on Apple Silicon. Script widgets need
+> [Deno](https://deno.land) (`brew install deno`); exec and workflow widgets do
+> not.
 
 ## Highlights
 
-- **Native widget gallery** — a curated set styled like real macOS/iOS widgets:
-  content-based color, per-widget accent, and a Fit / fixed-height layout.
-  Today · Calendar · Clock · Weather · Exchange · Stock · Battery · System ·
-  Network · Recent Files · aas Usage · OTP Codes · muxa Watch · Downloads ·
-  GitHub Status · Reminders · Now Playing.
-- **Clickable widgets** — like a real widget, clicking a card opens its companion
-  app or page (Today → Calendar, System → Activity Monitor, Stock → Yahoo
-  Finance, Weather → Weather app, …) via a new `openApp` action.
-- **In-app management** — hub window, drag to reorder / reposition widgets,
-  per-card edit button, pin, disable, move-to-panel, and independently
-  configurable duplicate instances of the same widget package.
-- **One muxa source per card** — duplicate muxa Watch into separate Local or
-  SSH-host cards, each with its own settings and latest-activity rows. Explicit
-  `barshelf://refresh` links refresh every instance even while the popover is
-  closed.
-- **OTP service icons** — OTP Codes rows lead with the service's favicon
-  (letter-tile fallback), fetched only through the widget's declared network
-  allowlist and switchable off with a "Show service icons" setting.
+- **Popup-only refresh policy** — widgets can declare `popupOnly` so interval,
+  wake/deadline, watcher, and event refresh paths remain dormant until the
+  BarShelf popup is visible. This is especially useful for rate-limited usage
+  APIs.
+- **External widget ownership** — custom widgets install directly from their
+  own repository URL, including GitHub `/tree/{branch}/{subdirectory}` links.
+  Widget packages no longer need to be copied into the BarShelf registry.
+- **Native aas Usage adapter** — additive support for the `aas usage --json`
+  contract, rendered as compact Claude/Codex quota cards with reset times and
+  vector provider marks. The widget package itself now lives in the
+  [aas repository](https://github.com/Open330/aas/tree/main/widgets/barshelf-aas-usage).
+- **Gallery and visual polish** — a shelved gallery layout, two-column usage
+  meters, larger menu-bar mark, and refreshed light/dark product screenshots.
+- **Native muxa rows** — muxa Watch uses compact two-line native rows instead
+  of a terminal-style table.
 
-## Visual builder
+## Install the aas widget
 
-- **More sources** — run a command, a shell **pipeline** (now correctly run under
-  `/bin/sh -c`), an HTTP JSON endpoint with request headers, a watched folder, or
-  pasted/static JSON.
-- **Richer displays** — list, table, single value, plain text, and **meters**:
-  add multiple meters, each a **Bar** or **Ring**, grouped into a panel.
-- **Native list rows** — an optional **secondary line** (subtitle) and **trailing**
-  right-aligned value, plus a **local search field** that filters rows without a
-  re-run.
-- **Refine** — filter / sort / limit and a per-row click action.
-- **Readable permissions** — the approval card summarizes what a widget runs
-  (e.g. "Run system tools: df, top, memory_pressure") instead of a raw script.
+```bash
+barshelf install https://github.com/Open330/aas/tree/main/widgets/barshelf-aas-usage
+```
 
-## Workflow engine
+The older `mbk` executable remains available as a compatibility alias; new
+commands and documentation use `barshelf`.
 
-- Per-widget **storage / persistence** (KV + TTL), a **switch** conditional node,
-  logic & arithmetic functions, string literals, and array-index paths.
-
-## Fixes
-
-- Shell `${var}` no longer collides with workflow `${expr}` interpolation.
-- Shell/exec widgets get a sane `PATH`; battery/system/network/calendar use
-  absolute tool paths and read reliably.
-- Removed the duplicated card header; reliable card heights across sizes.
-- Drag-to-reorder now shows a preview and a drop indicator.
-
-## Notes
-
-- The bundled CLI is now `barshelf` (was `mbk`).
-
-**Full changelog:** https://github.com/Open330/barshelf/compare/v0.1.0...v0.1.1
+**Full changelog:** https://github.com/Open330/barshelf/compare/v0.1.1...v0.1.2
