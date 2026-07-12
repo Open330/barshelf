@@ -58,6 +58,18 @@ barshelf-widgets/
 
 GitHub URL이 `/tree/{branch}/{subdir}` 형식이면 설치기는 그 `subdir` 안에서만 `widget.json`을 찾는다.
 
+### 자기 도구의 저장소에 위젯 두기 (권장)
+
+위젯은 그 위젯이 감싸는 도구(CLI/앱)의 저장소 안 `widgets/<name>/`에 두는 것을 권장한다 — 위젯이 도구와 함께 버전 관리되고, 사용자는 그 GitHub URL로 바로 설치한다.
+
+```bash
+bsf install https://github.com/<owner>/<repo>/tree/main/widgets/<name>
+```
+
+저장소가 커도 문제없다. `/tree/{branch}/{subdir}` URL이면 설치기는 저장소 전체 아카이브를 받지 않고 GitHub contents API로 해당 `subdir`의 파일만 내려받는다(대용량 멀티플랫폼 저장소에 위젯 하나만 있어도 가볍게 설치된다). 서브디렉터리 지정 없이 저장소 루트 URL을 주면 전체 아카이브를 받으므로, 큰 저장소에서는 `/tree/...` 형식을 쓰는 것이 좋다.
+
+BarShelf 공식 레지스트리(갤러리)에 올리려면 각 도구 저장소의 위젯을 가리키는 항목을 레지스트리에 추가하면 되고([`docs/REGISTRY.md`](REGISTRY.md)), 갤러리에 없더라도 사용자는 위 URL로 언제든 직접 설치할 수 있다.
+
 ## manifest 필수값
 
 모든 위젯 디렉터리는 `widget.json`을 가져야 한다. `id`와 `schemaVersion`은 URL 설치 후보 검증의 필수 필드다.

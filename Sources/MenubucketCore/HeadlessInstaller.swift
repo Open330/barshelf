@@ -167,6 +167,20 @@ public enum HeadlessInstaller {
     ) async throws -> Session {
         var lastError: Error = HeadlessInstallError.noDownloadCandidates
         for candidate in source.candidates {
+            // Subdirectory install: fetch just that folder via the GitHub
+            // contents API (raw files) so a small widget in a large repo does
+            // not pull the whole-repo archive (which can exceed the size cap).
+            // Any failure falls through to the full-archive path below.
+            if candidate.subdirectory != nil {
+                do {
+                    if let session = try await fetchSubdirectorySession(source: source, candidate: candidate) {
+                        return session
+                    }
+                } catch {
+                    FileHandle.standardError.write(Data("subdir-fetch failed: \(error)\n".utf8))
+                }
+            }
+
             let archive: Data
             do {
                 archive = try await download(from: candidate.url)
@@ -199,6 +213,104 @@ public enum HeadlessInstaller {
             }
         }
         throw lastError
+    }
+
+    // MARK: Subdirectory fetch (GitHub contents API)
+
+    /// Per-fetch caps so a hostile or huge subdirectory can't blow past the
+    /// download limits file-by-file.
+    static let maxSubdirFiles = 64
+    static let maxSubdirDepth = 6
+
+    /// Downloads only `candidate.subdirectory` from a GitHub repo (parsed from
+    /// the codeload URL) via the contents API, staging it so
+    /// `WidgetDiscovery` finds the widget exactly as it would in an extracted
+    /// archive. Returns nil when the candidate is not a GitHub codeload URL.
+    private static func fetchSubdirectorySession(
+        source: WidgetInstallSource,
+        candidate: WidgetInstallSource.Candidate
+    ) async throws -> Session? {
+        guard let subdir = candidate.subdirectory,
+              candidate.url.host == "codeload.github.com" else { return nil }
+        // /{owner}/{repo}/zip/refs/heads/{branch…}
+        let parts = candidate.url.path.split(separator: "/").map(String.init)
+        guard parts.count >= 6, parts[2] == "zip", parts[3] == "refs", parts[4] == "heads"
+        else { return nil }
+        let owner = parts[0], repo = parts[1]
+        let branch = parts[5...].joined(separator: "/")
+
+        let staging = FileManager.default.temporaryDirectory
+            .appendingPathComponent("barshelf-install-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
+        do {
+            // Stage the subdirectory's contents flat at the staging root so
+            // `WidgetDiscovery` finds widget.json directly — no `{repo}-{branch}`
+            // wrapper to unwrap and no subdirectory to descend.
+            var fileCount = 0
+            try await downloadContents(
+                owner: owner, repo: repo, path: subdir, ref: branch,
+                into: staging, depth: 0, fileCount: &fileCount
+            )
+            let discovery = try WidgetDiscovery.discover(under: staging, subdirectory: nil)
+            return Session(source: source, stagingRoot: staging, discovery: discovery)
+        } catch {
+            try? FileManager.default.removeItem(at: staging)
+            throw error
+        }
+    }
+
+    private struct ContentsEntry: Decodable {
+        let name: String
+        let type: String
+        let downloadURL: URL?
+        enum CodingKeys: String, CodingKey {
+            case name, type
+            case downloadURL = "download_url"
+        }
+    }
+
+    /// Recursively writes a GitHub directory's files into `dest`. Bounded by
+    /// `maxSubdirFiles`/`maxSubdirDepth` and the per-file download cap.
+    private static func downloadContents(
+        owner: String, repo: String, path: String, ref: String,
+        into dest: URL, depth: Int, fileCount: inout Int
+    ) async throws {
+        guard depth <= maxSubdirDepth else {
+            throw HeadlessInstallError.noWidgetsFound(details: ["subdirectory nesting too deep"])
+        }
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "api.github.com"
+        components.path = "/repos/\(owner)/\(repo)/contents/\(path)"
+        components.queryItems = [URLQueryItem(name: "ref", value: ref)]
+        guard let apiURL = components.url else { return }
+
+        var request = URLRequest(url: apiURL)
+        request.timeoutInterval = 30
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.setValue("barshelf", forHTTPHeaderField: "User-Agent")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw HeadlessInstallError.notHTTP(apiURL) }
+        guard http.statusCode == 200 else { throw HeadlessInstallError.httpStatus(http.statusCode, apiURL) }
+        let entries = try JSONDecoder().decode([ContentsEntry].self, from: data)
+
+        try FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
+        for entry in entries {
+            if entry.type == "dir" {
+                try await downloadContents(
+                    owner: owner, repo: repo, path: "\(path)/\(entry.name)", ref: ref,
+                    into: dest.appendingPathComponent(entry.name, isDirectory: true),
+                    depth: depth + 1, fileCount: &fileCount
+                )
+            } else if entry.type == "file", let downloadURL = entry.downloadURL {
+                fileCount += 1
+                guard fileCount <= maxSubdirFiles else {
+                    throw HeadlessInstallError.noWidgetsFound(details: ["subdirectory has too many files"])
+                }
+                let bytes = try await download(from: downloadURL)
+                try bytes.write(to: dest.appendingPathComponent(entry.name), options: .atomic)
+            }
+        }
     }
 
     // MARK: Contract API
