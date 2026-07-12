@@ -67,7 +67,7 @@
       "homepage": "https://github.com/Open330/barshelf"
     },
     {
-      "id": "dev.barshelf.aas-meters",
+      "id": "dev.barshelf.aas-usage",
       "collection": "custom",
       "accent": "orange",
       "name": "aas Usage",
@@ -79,7 +79,7 @@
       "tags": ["dev", "ai", "aas", "meter", "workflow"],
       "category": "Developer",
       "requires": "aas CLI",
-      "install": { "url": "https://github.com/Open330/aas", "bundled": "aas-meters" },
+      "install": { "url": "https://github.com/Open330/aas/tree/main/widgets/barshelf-aas-usage" },
       "permissions": { "exec": ["aas"], "keychain": false, "notifications": false },
       "homepage": "https://github.com/Open330/aas"
     },
@@ -96,7 +96,7 @@
       "tags": ["developer", "agents", "ai", "muxa", "monitoring", "ssh", "script"],
       "category": "Developer",
       "requires": "muxa CLI + Deno",
-      "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/muxa-watch", "bundled": "muxa-watch" },
+      "install": { "url": "https://github.com/Open330/muxa/tree/main/widgets/muxa-watch" },
       "permissions": { "exec": ["muxa", "ssh"], "keychain": false, "notifications": false },
       "homepage": "https://github.com/Open330/muxa"
     },
@@ -113,7 +113,7 @@
       "tags": ["security", "otp", "2fa", "cli"],
       "category": "Security",
       "requires": "otpeek CLI",
-      "install": { "url": "https://github.com/jiunbae/otpeek", "bundled": "otpeek" },
+      "install": { "url": "https://github.com/jiunbae/otpeek/tree/main/widgets/otpeek" },
       "permissions": { "exec": ["otpeek"], "keychain": true, "notifications": false },
       "homepage": "https://github.com/jiunbae/otpeek"
     },

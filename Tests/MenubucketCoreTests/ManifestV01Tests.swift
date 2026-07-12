@@ -12,7 +12,7 @@ final class ManifestV01Tests: XCTestCase {
     }
 
     func testParsesOtpeekExampleManifest() throws {
-        let url = packageRoot.appendingPathComponent("widgets/otpeek/widget.json")
+        let url = packageRoot.appendingPathComponent("Tests/fixtures/otpeek.widget.json")
         let manifest = try Manifest.decode(from: try Data(contentsOf: url))
 
         XCTAssertEqual(manifest.id, "dev.barshelf.otpeek")
@@ -46,7 +46,7 @@ final class ManifestV01Tests: XCTestCase {
     }
 
     func testParsesAasManifestPermissions() throws {
-        let url = packageRoot.appendingPathComponent("widgets/aas-usage/widget.json")
+        let url = packageRoot.appendingPathComponent("Tests/fixtures/aas-usage.widget.json")
         let manifest = try Manifest.decode(from: try Data(contentsOf: url))
 
         let exec = try XCTUnwrap(manifest.permissions?.exec?.first)

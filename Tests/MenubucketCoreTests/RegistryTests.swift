@@ -165,7 +165,7 @@ final class RegistryTests: XCTestCase {
         // CLI/runtime/hardware-dependent entries carry the display-only
         // `requires` badge; the dependency-free ones do not.
         let byID = Dictionary(uniqueKeysWithValues: index.widgets.map { ($0.id, $0) })
-        XCTAssertEqual(byID["dev.barshelf.aas-meters"]?.requires, "aas CLI")
+        XCTAssertEqual(byID["dev.barshelf.aas-usage"]?.requires, "aas CLI")
         XCTAssertEqual(byID["dev.barshelf.otpeek"]?.requires, "otpeek CLI")
         XCTAssertEqual(byID["dev.barshelf.muxa-watch"]?.requires, "muxa CLI + Deno")
         XCTAssertEqual(byID["dev.barshelf.battery-meter"]?.requires, "Battery (laptop)")
@@ -177,7 +177,7 @@ final class RegistryTests: XCTestCase {
             "https://github.com/jiunbae/stashbar"
         )
         XCTAssertEqual(
-            byID["dev.barshelf.aas-meters"]?.homepage,
+            byID["dev.barshelf.aas-usage"]?.homepage,
             "https://github.com/Open330/aas"
         )
         XCTAssertEqual(
@@ -188,10 +188,26 @@ final class RegistryTests: XCTestCase {
             byID["dev.barshelf.muxa-watch"]?.homepage,
             "https://github.com/Open330/muxa"
         )
+        // Built-in widgets bundle for offline install…
         XCTAssertEqual(byID["dev.barshelf.today"]?.install.bundled, "today")
         XCTAssertEqual(byID["dev.barshelf.battery-meter"]?.install.bundled, "battery-meter")
-        XCTAssertEqual(byID["dev.barshelf.otpeek"]?.install.bundled, "otpeek")
-        XCTAssertEqual(byID["dev.barshelf.muxa-watch"]?.install.bundled, "muxa-watch")
+        // …while custom widgets are owned by their tool's repo and install
+        // over the network from a GitHub URL (no bundled copy in this app).
+        XCTAssertNil(byID["dev.barshelf.otpeek"]?.install.bundled)
+        XCTAssertNil(byID["dev.barshelf.muxa-watch"]?.install.bundled)
+        XCTAssertNil(byID["dev.barshelf.aas-usage"]?.install.bundled)
+        XCTAssertEqual(
+            byID["dev.barshelf.aas-usage"]?.install.url,
+            "https://github.com/Open330/aas/tree/main/widgets/barshelf-aas-usage"
+        )
+        XCTAssertEqual(
+            byID["dev.barshelf.muxa-watch"]?.install.url,
+            "https://github.com/Open330/muxa/tree/main/widgets/muxa-watch"
+        )
+        XCTAssertEqual(
+            byID["dev.barshelf.otpeek"]?.install.url,
+            "https://github.com/jiunbae/otpeek/tree/main/widgets/otpeek"
+        )
         XCTAssertEqual(
             byID["dev.barshelf.recent-files-grid"]?.install.url,
             "https://github.com/jiunbae/stashbar"

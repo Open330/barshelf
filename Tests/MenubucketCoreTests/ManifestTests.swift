@@ -12,7 +12,7 @@ final class ManifestTests: XCTestCase {
 
     func testParsesAasUsageExampleManifest() throws {
         let url = packageRoot
-            .appendingPathComponent("widgets/aas-usage/widget.json")
+            .appendingPathComponent("Tests/fixtures/aas-usage.widget.json")
         let data = try Data(contentsOf: url)
         let manifest = try Manifest.decode(from: data)
 
