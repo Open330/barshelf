@@ -163,17 +163,10 @@ public enum AasUsageAdapter {
     }
 
     static func accountCard(provider: String, account: Account, key: String) -> UINode {
+        // The raw `headline` (e.g. "subscription=max tier=default_claude_max_20x
+        // org=…") is diagnostic noise — the plan badge already conveys the tier,
+        // so it is intentionally not rendered.
         var children: [UINode] = [accountHeader(provider: provider, account: account, key: key)]
-        if let headline = account.headline, !headline.isEmpty {
-            children.append(UINode(
-                id: "\(key)-headline",
-                type: "text",
-                text: headline,
-                role: "caption",
-                lineLimit: 1,
-                foreground: accountSeverity(account)
-            ))
-        }
         if let error = account.error, !error.isEmpty {
             children.append(UINode(
                 id: "\(key)-error",
@@ -225,14 +218,7 @@ public enum AasUsageAdapter {
         }
 
         var items: [UINode] = [
-            UINode(
-                id: "\(key)-provider-icon",
-                type: "image",
-                source: ImageSource(kind: "sfSymbol", name: providerSymbol(provider)),
-                size: 16,
-                tint: providerTint(provider),
-                accessibilityLabel: providerTitle(provider)
-            ),
+            providerIcon(provider: provider, key: key),
             UINode(
                 id: "\(key)-identity",
                 type: "vstack",
@@ -400,10 +386,41 @@ public enum AasUsageAdapter {
         }
     }
 
+    /// Leading account icon: a vector brand mark (rendered app-side via the
+    /// `brand` image kind) for providers we recognize — claude/anthropic and
+    /// codex/openai — falling back to a provider-tinted SF Symbol otherwise.
+    static func providerIcon(provider: String, key: String) -> UINode {
+        if let brand = brandName(for: provider) {
+            return UINode(
+                id: "\(key)-provider-icon",
+                type: "image",
+                source: ImageSource(kind: "brand", name: brand),
+                size: 16,
+                accessibilityLabel: providerTitle(provider)
+            )
+        }
+        return UINode(
+            id: "\(key)-provider-icon",
+            type: "image",
+            source: ImageSource(kind: "sfSymbol", name: providerSymbol(provider)),
+            size: 16,
+            tint: providerTint(provider),
+            accessibilityLabel: providerTitle(provider)
+        )
+    }
+
+    /// Brand-mark name for the `brand` image kind, or nil for providers without
+    /// a bundled mark. Aliases the API provider ids and the display names.
+    static func brandName(for provider: String) -> String? {
+        switch provider.lowercased() {
+        case "claude", "anthropic": return "claude"
+        case "codex", "openai": return "codex"
+        default: return nil
+        }
+    }
+
     static func providerSymbol(_ provider: String) -> String {
         switch provider.lowercased() {
-        case "anthropic": return "sparkles"
-        case "openai": return "circle.hexagongrid.fill"
         case "google": return "g.circle.fill"
         case "xai": return "xmark.circle.fill"
         default: return "cpu.fill"

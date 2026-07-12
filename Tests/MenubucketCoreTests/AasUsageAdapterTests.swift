@@ -86,10 +86,11 @@ final class AasUsageAdapterTests: XCTestCase {
         XCTAssertTrue(cards.contains { $0.tone == "warning" })
         XCTAssertTrue(cards.contains { $0.tone == "danger" })
 
-        // Provider glyphs are mapped from provider identity.
+        // Provider glyphs are vector brand marks for recognized providers.
         let providerIcons = all.filter { $0.id?.hasSuffix("-provider-icon") == true }
+        XCTAssertEqual(providerIcons.map { $0.source?.kind }, ["brand", "brand", "brand"])
         XCTAssertEqual(providerIcons.map { $0.source?.name }, [
-            "sparkles", "sparkles", "circle.hexagongrid.fill",
+            "claude", "claude", "codex",
         ])
 
         // Plan badge uses planLabel when present and normalizes max labels.

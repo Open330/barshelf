@@ -342,6 +342,14 @@ struct NodeView: View {
                 pointSize: CGFloat(node.size ?? 20),
                 accessibilityLabel: node.accessibilityLabel
             )
+        } else if let source = node.source, source.kind == "brand",
+                  let name = source.name, let mark = BrandMark(rawValue: name.lowercased()) {
+            BrandGlyphView(
+                mark: mark,
+                size: CGFloat(node.size ?? 16),
+                foreground: nodeColor(node.tint ?? node.foreground, accent: accentOverride) ?? .primary,
+                accessibilityLabel: node.accessibilityLabel
+            )
         } else if let source = node.source, source.kind == "monogram",
                   let letter = source.monogram ?? source.name {
             MonogramView(
