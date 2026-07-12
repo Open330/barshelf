@@ -50,9 +50,13 @@ public struct RegistryWidgetEntry: Codable, Equatable, Sendable {
     /// "aas CLI" or "Deno runtime". Display-only — not an enforcement input.
     public var requires: String?
     /// Optional preview image for the gallery card. Either an `http(s)` URL or
-    /// a `file:`/relative path resolvable by the client. Display-only; a
+    /// a `file:` URL. Display-only; a
     /// missing or unloadable image degrades to no preview.
     public var screenshot: String?
+    /// Optional long-form introduction page. A GitHub Markdown (`blob`) URL,
+    /// rendered documentation page, or local `file:` URL can be opened from
+    /// the gallery card. Display-only and never fetched by the widget runtime.
+    public var readme: String?
     /// Gallery shelf grouping: `"custom"` marks integrations built around the
     /// author's own tools (muxa, aas, otpeek, stashbar). Anything else — or
     /// absent — files under the built-in shelf. Display-only.
@@ -77,6 +81,7 @@ public struct RegistryWidgetEntry: Codable, Equatable, Sendable {
         category: String? = nil,
         requires: String? = nil,
         screenshot: String? = nil,
+        readme: String? = nil,
         collection: String? = nil,
         accent: String? = nil,
         install: Install,
@@ -94,6 +99,7 @@ public struct RegistryWidgetEntry: Codable, Equatable, Sendable {
         self.category = category
         self.requires = requires
         self.screenshot = screenshot
+        self.readme = readme
         self.collection = collection
         self.accent = accent
         self.install = install

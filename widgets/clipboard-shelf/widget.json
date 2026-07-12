@@ -1,0 +1,55 @@
+{
+  "$schema": "https://barshelf.dev/schema/widget-0.1.json",
+  "schemaVersion": 1,
+  "id": "dev.barshelf.clipboard-shelf",
+  "name": "Clipboard Shelf",
+  "version": "0.1.0",
+  "icon": "clipboard.fill",
+  "bucket": { "group": "Everyday", "order": 40, "size": "M" },
+
+  "entry": { "kind": "script", "runtime": "deno-ts@1" },
+  "source": { "kind": "script", "output": "viewtree" },
+
+  "refresh": {
+    "onOpen": true,
+    "interval": 5,
+    "staleAfterSec": 5,
+    "runInBackground": false
+  },
+
+  "permissions": {
+    "exec": [
+      {
+        "command": "/usr/bin/pbpaste",
+        "allowedArgs": [[]],
+        "maxOutputBytes": 65536,
+        "sensitiveOutput": true
+      }
+    ]
+  },
+
+  "settings": [
+    {
+      "key": "historyLimit",
+      "type": "integer",
+      "title": "History items",
+      "min": 3,
+      "max": 20,
+      "default": 8
+    },
+    {
+      "key": "clearAfterSec",
+      "type": "integer",
+      "title": "Clear clipboard after re-copy (seconds, 0 = never)",
+      "min": 0,
+      "max": 300,
+      "default": 0
+    }
+  ],
+
+  "appearance": {
+    "accent": "purple",
+    "density": "compact",
+    "cardStyle": "plain"
+  }
+}

@@ -16,7 +16,9 @@ public enum StarterWidgetSeeder {
     /// `aas-usage`, `otpeek` and `clock-script` are deliberately *not* seeded
     /// (they need the aas/otpeek CLIs or Deno) — users discover them in the
     /// gallery, where their requirements are shown.
-    public static let starterWidgetNames = ["today", "recent-files-grid"]
+    public static let starterWidgetNames = [
+        "today", "recent-files-grid", "quick-shelf",
+    ]
 
     /// Written next to the user widget directory, e.g.
     /// `~/Library/Application Support/barshelf/.seeded-v1`.

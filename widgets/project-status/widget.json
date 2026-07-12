@@ -1,0 +1,48 @@
+{
+  "$schema": "https://barshelf.dev/schema/widget-0.1.json",
+  "schemaVersion": 1,
+  "id": "dev.barshelf.project-status",
+  "name": "Project Status",
+  "version": "0.1.0",
+  "icon": "point.3.connected.trianglepath.dotted",
+  "bucket": { "group": "Developer", "order": 30, "size": "M" },
+
+  "entry": { "kind": "script", "runtime": "deno-ts@1" },
+  "source": { "kind": "script", "output": "viewtree" },
+
+  "refresh": {
+    "onOpen": true,
+    "interval": 120,
+    "staleAfterSec": 60,
+    "triggers": ["wake"]
+  },
+
+  "permissions": {
+    "exec": [
+      {
+        "command": "/usr/bin/git",
+        "allowedArgs": [
+          ["-C", "*", "status", "--porcelain=v2", "--branch", "--untracked-files=normal"],
+          ["-C", "*", "log", "-1", "--format=%h%x1f%s%x1f%ct"],
+          ["-C", "*", "remote", "get-url", "origin"]
+        ],
+        "maxOutputBytes": 131072,
+        "sensitiveOutput": true
+      }
+    ]
+  },
+
+  "settings": [
+    {
+      "key": "projectDirectory",
+      "type": "directory",
+      "title": "Project directory",
+      "default": ""
+    }
+  ],
+
+  "appearance": {
+    "accent": "purple",
+    "cardStyle": "tinted"
+  }
+}

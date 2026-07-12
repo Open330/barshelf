@@ -27,10 +27,10 @@ final class StarterWidgetSeederTests: XCTestCase {
         appSupportDir.appendingPathComponent(StarterWidgetSeeder.markerFileName)
     }
 
-    /// Bundled resources: the two starters plus a CLI-dependent widget that
+    /// Bundled resources: the permission-free starters plus a CLI-dependent widget that
     /// must never be seeded.
     private func makeBundledWidgets(
-        names: [String] = ["today", "recent-files-grid", "otpeek"]
+        names: [String] = ["today", "recent-files-grid", "quick-shelf", "otpeek"]
     ) throws {
         let fm = FileManager.default
         for name in names {
@@ -58,7 +58,7 @@ final class StarterWidgetSeederTests: XCTestCase {
 
         let outcome = seed()
 
-        XCTAssertEqual(outcome.seededNames, ["today", "recent-files-grid"])
+        XCTAssertEqual(outcome.seededNames, ["today", "recent-files-grid", "quick-shelf"])
         XCTAssertTrue(outcome.didSeed)
         let fm = FileManager.default
         for name in StarterWidgetSeeder.starterWidgetNames {

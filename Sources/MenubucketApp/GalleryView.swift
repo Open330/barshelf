@@ -596,6 +596,12 @@ struct GalleryCard: View {
                 requiresBadge
                 permissionChips
                 Spacer(minLength: 0)
+                if detailsURL != nil {
+                    Button("Details") { openDetails() }
+                        .buttonStyle(.link)
+                        .font(.caption)
+                        .help("Open the widget's Markdown introduction page")
+                }
             }
         }
         .padding(12)
@@ -782,6 +788,23 @@ struct GalleryCard: View {
             scheme == "http" || scheme == "https" || scheme == "file"
         else { return nil }
         return url
+    }
+
+    /// Registry `readme` accepts a rendered Markdown/documentation URL. Keep
+    /// navigation user-initiated and outside the widget permission model.
+    private var detailsURL: URL? {
+        guard let raw = entry.readme?
+            .trimmingCharacters(in: .whitespaces), !raw.isEmpty,
+            let url = URL(string: raw),
+            let scheme = url.scheme?.lowercased(),
+            scheme == "http" || scheme == "https" || scheme == "file"
+        else { return nil }
+        return url
+    }
+
+    private func openDetails() {
+        guard let detailsURL else { return }
+        NSWorkspace.shared.open(detailsURL)
     }
 
     /// Display-only permission chips ("신뢰 UX") — the enforcement gate stays

@@ -1,0 +1,38 @@
+{
+  "$schema": "https://barshelf.dev/schema/widget-0.1.json",
+  "schemaVersion": 1,
+  "id": "dev.barshelf.focus-timer",
+  "name": "Focus Timer",
+  "version": "0.1.0",
+  "icon": "timer",
+  "bucket": { "group": "Productivity", "order": 20, "size": "S" },
+
+  "entry": { "kind": "script", "runtime": "deno-ts@1" },
+  "source": { "kind": "script", "output": "viewtree" },
+
+  "refresh": {
+    "onOpen": true,
+    "interval": null,
+    "staleAfterSec": 60
+  },
+
+  "permissions": {
+    "notifications": true
+  },
+
+  "settings": [
+    {
+      "key": "focusMinutes",
+      "type": "integer",
+      "title": "Focus duration (minutes)",
+      "default": 25,
+      "min": 1,
+      "max": 120
+    }
+  ],
+
+  "appearance": {
+    "accent": "orange",
+    "cardStyle": "tinted"
+  }
+}

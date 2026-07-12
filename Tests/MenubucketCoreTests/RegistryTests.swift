@@ -33,6 +33,8 @@ final class RegistryTests: XCTestCase {
           "icon": "gauge",
           "kind": "exec",
           "tags": ["dev", "ai"],
+          "screenshot": "https://example.com/one.png",
+          "readme": "https://github.com/owner/repo/blob/main/widgets/one/README.md",
           "install": { "url": "https://github.com/owner/repo/tree/main/widgets/one", "bundled": "one" },
           "permissions": { "exec": ["one-cli"], "keychain": true, "notifications": false },
           "homepage": "https://example.com"
@@ -91,6 +93,11 @@ final class RegistryTests: XCTestCase {
         XCTAssertEqual(first.icon, "gauge")
         XCTAssertEqual(first.kind, "exec")
         XCTAssertEqual(first.tags, ["dev", "ai"])
+        XCTAssertEqual(first.screenshot, "https://example.com/one.png")
+        XCTAssertEqual(
+            first.readme,
+            "https://github.com/owner/repo/blob/main/widgets/one/README.md"
+        )
         XCTAssertEqual(first.install.url, "https://github.com/owner/repo/tree/main/widgets/one")
         XCTAssertEqual(first.install.bundled, "one")
         XCTAssertEqual(first.permissions?.exec, ["one-cli"])
@@ -156,7 +163,7 @@ final class RegistryTests: XCTestCase {
             .appendingPathComponent("registry/index.json")
         let (index, warnings) = try RegistryIndex.parse(Data(contentsOf: sample))
         XCTAssertEqual(index.schemaVersion, 1)
-        XCTAssertEqual(index.widgets.count, 18)
+        XCTAssertEqual(index.widgets.count, 24)
         XCTAssertTrue(warnings.isEmpty, "\(warnings)")
         XCTAssertEqual(
             Set(index.widgets.compactMap(\.kind)),
@@ -171,6 +178,15 @@ final class RegistryTests: XCTestCase {
         XCTAssertEqual(byID["dev.barshelf.battery-meter"]?.requires, "Battery (laptop)")
         XCTAssertNil(byID["dev.barshelf.today"]?.requires)
         XCTAssertNil(byID["dev.barshelf.recent-files-grid"]?.requires)
+        XCTAssertNil(byID["dev.barshelf.quick-shelf"]?.requires)
+        XCTAssertEqual(
+            byID["dev.barshelf.next-meeting"]?.readme,
+            "https://github.com/Open330/barshelf/blob/main/widgets/next-meeting/README.md"
+        )
+        XCTAssertEqual(
+            byID["dev.barshelf.developer-inbox"]?.screenshot,
+            "https://raw.githubusercontent.com/Open330/barshelf/main/assets/widget-previews/tile-developer-inbox.png"
+        )
         // Origin-project links surfaced per user feedback (Stashbar / aas / otpeek).
         XCTAssertEqual(
             byID["dev.barshelf.recent-files-grid"]?.homepage,

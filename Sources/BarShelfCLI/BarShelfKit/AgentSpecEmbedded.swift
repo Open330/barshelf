@@ -114,7 +114,7 @@ Notes:
 - `source.output: "data"` routes stdout through a builtin adapter (`source.adapter`).
   Only a small set of builtin adapters exists; for anything custom use
   `output: "viewtree"` and emit UINode JSON yourself.
-- **`category` and `screenshot` are NOT manifest fields.** They live on the
+- **`category`, `screenshot`, and `readme` are NOT manifest fields.** They live on the
   *registry* entry (see §11). Do not put them in `widget.json`.
 
 ---
@@ -422,7 +422,7 @@ view draggable out to Finder/other apps.
 
 To list a widget in the gallery, add an entry to `registry/index.json`. That
 entry — **not the manifest** — carries `category` (gallery grouping chip) and
-`screenshot` (preview image), alongside `id`, `name`, `requires`, `permissions`,
+`screenshot` (preview image) and `readme` (a rendered Markdown/details URL), alongside `id`, `name`, `requires`, `permissions`,
 and the install source. See `docs/REGISTRY.md`. Keep it out of `widget.json`.
 
 ---

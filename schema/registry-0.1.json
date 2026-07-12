@@ -86,9 +86,31 @@
           },
           "description": "Search/filter tags."
         },
+        "category": {
+          "$ref": "#/definitions/nonEmptyString",
+          "description": "Curated gallery category shown as a filter chip."
+        },
         "requires": {
           "type": "string",
           "description": "Free-text external requirement shown as a gallery badge, e.g. \"aas CLI\" or \"Deno runtime\". Display-only; never an enforcement input."
+        },
+        "screenshot": {
+          "type": "string",
+          "format": "uri",
+          "description": "HTTP(S) or file URL of a gallery preview image. Display-only."
+        },
+        "readme": {
+          "type": "string",
+          "format": "uri",
+          "description": "Rendered Markdown introduction or documentation URL opened by the gallery Details action. Display-only."
+        },
+        "collection": {
+          "$ref": "#/definitions/nonEmptyString",
+          "description": "Optional gallery shelf grouping, such as custom."
+        },
+        "accent": {
+          "$ref": "#/definitions/nonEmptyString",
+          "description": "Gallery card accent name or #RRGGBB value."
         },
         "install": {
           "$ref": "#/definitions/install"
@@ -139,6 +161,13 @@
         "notifications": {
           "type": "boolean",
           "description": "Whether the widget declares notification permission."
+        },
+        "network": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/nonEmptyString"
+          },
+          "description": "HTTPS hosts the widget declares for network access."
         }
       },
       "additionalProperties": true

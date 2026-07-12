@@ -27,6 +27,12 @@ enum ScreenshotMode {
             ("tile-files", "Recent Files", "clock.arrow.circlepath", ShotData.filesNode, nil),
             ("tile-aas", "aas usage", "gauge", ShotData.aasNode, "orange"),
             ("tile-k8s", "k8s pods", "shippingbox", ShotData.k8sNode, nil),
+            ("tile-next-meeting", "Next Meeting", "calendar.badge.clock", ShotData.nextMeetingNode, "blue"),
+            ("tile-quick-shelf", "Quick Shelf", "square.grid.2x2", ShotData.quickShelfNode, "purple"),
+            ("tile-project-status", "Project Status", "point.3.connected.trianglepath.dotted", ShotData.projectStatusNode, "purple"),
+            ("tile-focus-timer", "Focus Timer", "timer", ShotData.focusTimerNode, "orange"),
+            ("tile-clipboard-shelf", "Clipboard Shelf", "doc.on.clipboard", ShotData.clipboardShelfNode, "purple"),
+            ("tile-developer-inbox", "Developer Inbox", "tray.full", ShotData.developerInboxNode, "blue"),
         ]
         for tile in tiles {
             ok = render(
@@ -387,6 +393,75 @@ private enum ShotData {
         ]}
         """
         return (try? JSONDecoder().decode(UINode.self, from: Data(json.utf8))) ?? UINode(type: "spacer")
+    }
+
+    static var nextMeetingNode: UINode {
+        decode("""
+        {"type":"vstack","spacing":7,"children":[
+          {"type":"hstack","spacing":6,"children":[
+            {"type":"badge","text":"IN 18 MIN","tone":"accent"},{"type":"spacer"},
+            {"type":"text","text":"10:30–11:00","role":"caption","foreground":"secondary"}]},
+          {"type":"text","text":"Product weekly sync","role":"title","lineLimit":2},
+          {"type":"hstack","spacing":6,"children":[
+            {"type":"image","source":{"kind":"sfSymbol","name":"video.fill"},"size":12,"tint":"accent"},
+            {"type":"text","text":"Join Google Meet","role":"caption","foreground":"accent"}]}]}
+        """)
+    }
+
+    static var quickShelfNode: UINode {
+        decode("""
+        {"type":"vstack","spacing":7,"children":[
+          {"type":"hstack","spacing":7,"children":[
+            {"type":"button","title":"Finder","icon":"folder.fill"},
+            {"type":"button","title":"Notes","icon":"note.text"}]},
+          {"type":"hstack","spacing":7,"children":[
+            {"type":"button","title":"Terminal","icon":"terminal.fill"},
+            {"type":"button","title":"GitHub","icon":"chevron.left.forwardslash.chevron.right"}]},
+          {"type":"text","text":"Apps, folders and links — one click away","role":"caption","foreground":"secondary"}]}
+        """)
+    }
+
+    static var projectStatusNode: UINode {
+        decode("""
+        {"type":"vstack","spacing":7,"children":[
+          {"type":"hstack","spacing":6,"children":[
+            {"type":"text","text":"barshelf","role":"title"},{"type":"spacer"},{"type":"badge","text":"main","tone":"accent"}]},
+          {"type":"hstack","spacing":7,"children":[
+            {"type":"badge","text":"3 modified","tone":"warning"},
+            {"type":"badge","text":"↑2 ↓0","tone":"good"}]},
+          {"type":"text","text":"feat: add useful starter widgets","role":"caption","foreground":"secondary","lineLimit":1}]}
+        """)
+    }
+
+    static var focusTimerNode: UINode {
+        let now = Int(Date().timeIntervalSince1970 * 1000)
+        return decode("""
+        {"type":"hstack","spacing":12,"children":[
+          {"type":"progress","style":"ring","countdown":{"from":\(now),"until":\(now + 1_125_000)},"size":52,"tint":"accent"},
+          {"type":"vstack","spacing":5,"widthFill":true,"children":[
+            {"type":"text","text":"18:45","size":30,"role":"title","monospacedDigit":true},
+            {"type":"text","text":"Deep work · session 3","role":"caption","foreground":"secondary"},
+            {"type":"hstack","spacing":6,"children":[{"type":"button","title":"Pause","icon":"pause.fill"},{"type":"button","title":"Reset","icon":"arrow.counterclockwise"}]}]}]}
+        """)
+    }
+
+    static var clipboardShelfNode: UINode {
+        decode("""
+        {"type":"list","spacing":4,"items":[
+          {"type":"hstack","id":"clip-1","spacing":7,"children":[{"type":"image","source":{"kind":"sfSymbol","name":"link"},"size":13,"tint":"accent"},{"type":"text","text":"https://github.com/Open330/barshelf","role":"body","lineLimit":1}]},
+          {"type":"hstack","id":"clip-2","spacing":7,"children":[{"type":"image","source":{"kind":"sfSymbol","name":"text.alignleft"},"size":13,"tint":"secondary"},{"type":"text","text":"Ship the small useful thing first.","role":"body","lineLimit":1}]},
+          {"type":"hstack","id":"clip-3","spacing":7,"children":[{"type":"image","source":{"kind":"sfSymbol","name":"doc.on.doc"},"size":13,"tint":"secondary"},{"type":"text","text":"swift test --filter RegistryTests","role":"code","lineLimit":1}]}]}
+        """)
+    }
+
+    static var developerInboxNode: UINode {
+        decode("""
+        {"type":"vstack","spacing":7,"children":[
+          {"type":"hstack","spacing":7,"children":[{"type":"badge","text":"2 reviews","tone":"warning"},{"type":"badge","text":"1 failed","tone":"danger"},{"type":"spacer"},{"type":"text","text":"GitHub","role":"caption","foreground":"secondary"}]},
+          {"type":"list","spacing":4,"items":[
+            {"type":"hstack","id":"pr-1","spacing":6,"children":[{"type":"image","source":{"kind":"sfSymbol","name":"arrow.triangle.pull"},"size":12,"tint":"warning"},{"type":"text","text":"#128 Review registry previews","lineLimit":1}]},
+            {"type":"hstack","id":"pr-2","spacing":6,"children":[{"type":"image","source":{"kind":"sfSymbol","name":"xmark.circle.fill"},"size":12,"tint":"danger"},{"type":"text","text":"#126 macOS CI failed","lineLimit":1}]}]}]}
+        """)
     }
 }
 

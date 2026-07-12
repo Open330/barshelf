@@ -17,6 +17,7 @@ recent files, CI status — as native widgets in a single popover.
 
 [**Download**](https://github.com/Open330/barshelf/releases/latest) ·
 [**Getting Started**](docs/GETTING-STARTED.md) ·
+[**Featured Widgets**](docs/widgets/README.md) ·
 [**Build a Widget**](docs/WIDGET-SPEC.md) ·
 [**Publish**](docs/PUBLISHING.md)
 
@@ -98,7 +99,8 @@ Full guide, `barshelf` CLI, and troubleshooting: **[docs/INSTALL.md](docs/INSTAL
 
 Native widgets ship in the gallery — most are declarative **workflows**
 (no code), styled like native macOS/iOS widgets with per-widget color and a
-Fit / fixed-height layout. **Today** and **Recent Files** are seeded on first run.
+Fit / fixed-height layout. **Today**, **Recent Files**, and the permission-free
+**Quick Shelf** are seeded on first run.
 
 | Widget | Source | What it shows |
 |---|---|---|
@@ -109,6 +111,8 @@ Fit / fixed-height layout. **Today** and **Recent Files** are seeded on first ru
 | **aas Usage** · **OTP Codes** | CLI | LLM usage meters from [`aas`](https://github.com/Open330/aas); TOTP codes with a countdown ring from [`otpeek`](https://github.com/jiunbae/otpeek). |
 | **muxa Watch** | CLI + script | Local and SSH-host [`muxa`](https://github.com/Open330/muxa) agents, grouped by host in compact `NAME / ST / ACT / LAST PROMPT` tables. |
 | **Downloads** · **GitHub Status** | mixed | Persistence ("new since last check" counting) and an HTTPS status feed. |
+| **Quick Shelf** · **Next Meeting** · **Focus Timer** | mixed | A permission-free launcher, your next Calendar event with Join action, and a persistent native countdown. |
+| **Project Status** · **Developer Inbox** · **Clipboard Shelf** | script | Git repository state, GitHub review activity, and a privacy-first memory-only clipboard history. |
 
 For **muxa Watch**, enter aliases such as `jiun-mbp, jiun-mini, rtzr` in the
 *SSH hosts* setting. It uses your existing `~/.ssh/config` and key-based access
@@ -117,6 +121,54 @@ in non-interactive mode; remote hosts need muxa v0.8.18 or newer.
 Most native widgets are **clickable** — like a real macOS/iOS widget, clicking the card opens its companion app or page (Today → Calendar, System → Activity Monitor, Stock → Yahoo Finance, Weather → Weather app, …).
 
 ## Build a widget in 3 minutes
+
+### Build with an AI agent
+
+Describe the result you want — the agent can discover the BarShelf API, choose
+the right execution layer, implement the widget, and validate it. Replace only
+the text inside **What I want**, then paste the whole prompt into Codex, Claude
+Code, or another coding agent:
+
+```prompt
+Build a production-ready BarShelf widget for me.
+
+What I want:
+[Describe the information the widget should show, where that data comes from,
+what should happen when I click it, and any settings I want. Plain language is
+fine. Example: "Show review-requested GitHub PRs, highlight old requests, and
+open a PR when clicked. Let me choose how many rows to show."]
+
+First, learn the current BarShelf widget API instead of guessing it:
+1. Run `barshelf agent-spec` and treat its output as the source of truth.
+2. If that command is unavailable, read `docs/AGENTS.md` in the BarShelf repo:
+   https://github.com/Open330/barshelf/blob/main/docs/AGENTS.md
+3. For script widgets, inspect the typed SDK in `sdk/mod.ts`:
+   https://github.com/Open330/barshelf/blob/main/sdk/mod.ts
+4. When relevant, consult `docs/WORKFLOW.md`, `docs/SCRIPT-RUNTIME.md`, the JSON
+   schemas under `schema/`, and two similar widgets under `widgets/`.
+
+Then implement it end to end:
+- Choose the least-powerful suitable layer: workflow first, exec for a command
+  that emits a view tree, and script only for state, timers, or click handlers.
+- Create the complete widget directory with `widget.json`, its entry file, and
+  a README explaining setup, settings, requirements, and every permission.
+- Use only supported UINode types and real SDK helpers. Do not invent APIs.
+- Declare the smallest exact permission/command/host allowlist possible. Treat
+  private output as sensitive and provide useful empty, setup, and error states.
+- Run `barshelf validate <widget-directory>` until it passes. For TypeScript,
+  also run `deno check` and `deno fmt --check` with the local BarShelf SDK map.
+- Install the local widget with `barshelf install <widget-directory>` after it
+  validates, then tell me where it was installed and how to configure it.
+- Finish by summarizing the files created, data sources, refresh behavior,
+  interactions, settings, permissions, requirements, and verification results.
+```
+
+The compact API bundle behind `barshelf agent-spec` is also available as
+[the agent authoring spec](docs/AGENTS.md). The [typed SDK](sdk/mod.ts) is the
+reference for `barshelf.*`, `ui.*`, `action.*`, storage, secrets, timers,
+notifications, and host-mediated command execution. Workflow expressions and
+sources are documented in [Workflow DSL](docs/WORKFLOW.md); manifest fields and
+native UINode actions are covered by [Widget Spec](docs/WIDGET-SPEC.md).
 
 **Visual builder** — status menu → *Create Widget…* → pick a source (run a
 command / watch a folder / static text), a display (list · table · value · text)

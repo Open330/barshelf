@@ -1,0 +1,70 @@
+{
+  "$schema": "https://barshelf.dev/schema/widget-0.1.json",
+  "schemaVersion": 1,
+  "id": "dev.barshelf.developer-inbox",
+  "name": "Developer Inbox",
+  "version": "0.1.0",
+  "icon": "tray.full.fill",
+  "bucket": { "group": "Developer", "order": 20, "size": "L" },
+
+  "entry": { "kind": "script", "runtime": "deno-ts@1" },
+  "source": { "kind": "script", "output": "viewtree" },
+
+  "refresh": {
+    "onOpen": true,
+    "interval": 300,
+    "staleAfterSec": 300,
+    "runInBackground": false,
+    "triggers": ["wake"]
+  },
+
+  "permissions": {
+    "exec": [
+      {
+        "command": "/opt/homebrew/bin/gh",
+        "allowedArgs": [
+          ["--version"],
+          ["auth", "status"],
+          ["search", "prs", "--review-requested", "@me", "--state", "open", "--limit", "10", "--json", "number,title,url,repository,author,isDraft,updatedAt"],
+          ["api", "notifications?per_page=30"]
+        ],
+        "maxOutputBytes": 524288,
+        "sensitiveOutput": true
+      },
+      {
+        "command": "/usr/local/bin/gh",
+        "allowedArgs": [
+          ["--version"],
+          ["auth", "status"],
+          ["search", "prs", "--review-requested", "@me", "--state", "open", "--limit", "10", "--json", "number,title,url,repository,author,isDraft,updatedAt"],
+          ["api", "notifications?per_page=30"]
+        ],
+        "maxOutputBytes": 524288,
+        "sensitiveOutput": true
+      }
+    ]
+  },
+
+  "settings": [
+    {
+      "key": "itemLimit",
+      "type": "integer",
+      "title": "Items per section",
+      "min": 3,
+      "max": 10,
+      "default": 5
+    },
+    {
+      "key": "showNotifications",
+      "type": "boolean",
+      "title": "Show GitHub notifications",
+      "default": true
+    }
+  ],
+
+  "appearance": {
+    "accent": "blue",
+    "density": "compact",
+    "cardStyle": "plain"
+  }
+}
