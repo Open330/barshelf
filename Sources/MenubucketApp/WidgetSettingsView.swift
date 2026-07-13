@@ -608,18 +608,23 @@ struct SearchField: NSViewRepresentable {
         field.focusRingType = .none
         field.sendsWholeSearchString = false
         field.font = .systemFont(ofSize: 13)
-        DispatchQueue.main.async { field.window?.makeFirstResponder(field) }
         return field
     }
 
     func updateNSView(_ field: NSSearchField, context: Context) {
         if field.stringValue != text { field.stringValue = text }
+        // Focus once the field is actually in a window (nil during makeNSView).
+        if !context.coordinator.didFocus, let window = field.window {
+            context.coordinator.didFocus = true
+            DispatchQueue.main.async { window.makeFirstResponder(field) }
+        }
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     final class Coordinator: NSObject, NSSearchFieldDelegate {
         let parent: SearchField
+        var didFocus = false
         init(_ parent: SearchField) { self.parent = parent }
 
         func controlTextDidChange(_ note: Notification) {
