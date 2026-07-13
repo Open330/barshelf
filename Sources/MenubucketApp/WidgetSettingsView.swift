@@ -430,6 +430,8 @@ struct SearchOverlay: View {
                 // plain SwiftUI TextField can't route those), plus autofocus and a
                 // built-in search icon + clear button.
                 SearchField(text: $query,
+                            placeholder: "Search widgets and items…",
+                            autofocus: true,
                             onSubmit: { execute(hits: hits) },
                             onCancel: { isPresented = false })
                     .frame(height: 22)
@@ -599,13 +601,15 @@ final class KeyEquivSearchField: NSSearchField {
 /// a built-in magnifier + clear button, and autofocus when it appears.
 struct SearchField: NSViewRepresentable {
     @Binding var text: String
-    var onSubmit: () -> Void
-    var onCancel: () -> Void
+    var placeholder: String = "Search"
+    var autofocus: Bool = false
+    var onSubmit: () -> Void = {}
+    var onCancel: () -> Void = {}
 
     func makeNSView(context: Context) -> NSSearchField {
         let field = KeyEquivSearchField()
         field.delegate = context.coordinator
-        field.placeholderString = "Search widgets and items…"
+        field.placeholderString = placeholder
         field.focusRingType = .none
         field.sendsWholeSearchString = false
         field.font = .systemFont(ofSize: 13)
@@ -614,8 +618,10 @@ struct SearchField: NSViewRepresentable {
 
     func updateNSView(_ field: NSSearchField, context: Context) {
         if field.stringValue != text { field.stringValue = text }
-        // Focus once the field is actually in a window (nil during makeNSView).
-        if !context.coordinator.didFocus, let window = field.window {
+        if field.placeholderString != placeholder { field.placeholderString = placeholder }
+        // Autofocus once the field is in a window (nil during makeNSView). Off by
+        // default so widget-card search fields don't steal focus on render.
+        if autofocus, !context.coordinator.didFocus, let window = field.window {
             context.coordinator.didFocus = true
             DispatchQueue.main.async { window.makeFirstResponder(field) }
         }

@@ -539,39 +539,16 @@ private struct NodeListView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: spacing) {
             if let searchPlaceholder {
-                HStack(spacing: 6) {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundColor(.secondary)
-                        .accessibilityHidden(true)
-                    TextField(searchPlaceholder, text: $query)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 12))
-                        .accessibilityLabel(searchPlaceholder)
-                    if !query.isEmpty {
-                        Button {
-                            query = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Clear search")
-                    }
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .fill(Color.secondary.opacity(0.10))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
-                )
-                // Keep the field (and its clear ✕) left of the card's top-trailing
-                // hover controls (refresh/drag/settings capsule, ~82pt wide), which
-                // otherwise cover the ✕ on hover.
-                .padding(.trailing, 76)
+                // AppKit-backed search field: native ⌘A/⌘C/⌘V/⌘X (a plain SwiftUI
+                // TextField in this .accessory/NSPopover app can't route them) and a
+                // built-in clear button. No autofocus — cards must not grab focus.
+                // Trailing inset keeps the field and its clear button left of the
+                // card's top-trailing hover controls (~82pt) that otherwise cover them.
+                SearchField(text: $query, placeholder: searchPlaceholder,
+                            onCancel: { query = "" })
+                    .frame(height: 24)
+                    .padding(.trailing, 76)
+                    .accessibilityLabel(searchPlaceholder)
             }
 
             if filteredItems.isEmpty, !query.isEmpty {
