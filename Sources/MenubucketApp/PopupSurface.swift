@@ -35,8 +35,11 @@ final class PopoverSurface: NSObject, PopupSurface, NSPopoverDelegate {
     }
 
     func show(relativeTo button: NSStatusBarButton) {
-        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         NSApp.activate(ignoringOtherApps: true)
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        // Make the popover window key so its text fields receive keyboard input
+        // and standard editing key equivalents (⌘A/⌘C/⌘V/⌘X).
+        popover.contentViewController?.view.window?.makeKey()
         onShow?()
     }
 

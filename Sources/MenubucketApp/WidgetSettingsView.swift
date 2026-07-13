@@ -581,10 +581,11 @@ struct SearchOverlay: View {
 final class KeyEquivSearchField: NSSearchField {
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        guard mods == .command, let editor = currentEditor() else {
+        guard mods == .command, let ch = event.charactersIgnoringModifiers,
+              let editor = currentEditor() else {
             return super.performKeyEquivalent(with: event)
         }
-        switch event.charactersIgnoringModifiers {
+        switch ch {
         case "a": editor.selectAll(nil); return true
         case "c": editor.copy(nil); return true
         case "v": editor.paste(nil); return true

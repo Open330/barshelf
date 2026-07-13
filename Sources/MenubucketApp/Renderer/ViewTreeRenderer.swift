@@ -568,6 +568,10 @@ private struct NodeListView: View {
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
                         .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
                 )
+                // Keep the field (and its clear ✕) left of the card's top-trailing
+                // hover controls (refresh/drag/settings capsule, ~82pt wide), which
+                // otherwise cover the ✕ on hover.
+                .padding(.trailing, 76)
             }
 
             if filteredItems.isEmpty, !query.isEmpty {
