@@ -60,10 +60,10 @@ final class AasUsageAdapterTests: XCTestCase {
         let sections = children.filter { $0.type == "section" }
         XCTAssertEqual(sections.map { $0.title }, ["Claude", "OpenAI"])
 
-        // Footer refresh button.
-        let footer = try XCTUnwrap(children.last)
-        XCTAssertEqual(footer.type, "button")
-        XCTAssertEqual(footer.action?.type, "refresh")
+        // Refresh remains available through BarShelf's per-widget controls;
+        // the adapter must not duplicate it inside the widget body.
+        XCTAssertFalse(flatten(tree).contains { $0.action?.type == "refresh" })
+        XCTAssertNil(flatten(tree).first { $0.id == "aas-refresh" })
     }
 
     func testMeterSeverityTints() throws {

@@ -8,7 +8,6 @@ import Foundation
 /// - one section per provider; account cards (provider glyph + name + plan chips),
 ///   meter rows (label + health-colored linear progress + reset ETA), account
 ///   errors as danger captions
-/// - footer: Refresh button (action: refresh)
 public enum AasUsageAdapter {
     public static let name = "aas-usage"
 
@@ -123,15 +122,6 @@ public enum AasUsageAdapter {
                 children.append(section(provider: provider, accounts: accounts))
             }
         }
-
-        children.append(UINode(id: "aas-footer-divider", type: "divider"))
-        children.append(UINode(
-            id: "aas-refresh",
-            type: "button",
-            title: "Refresh",
-            icon: "arrow.clockwise",
-            action: NodeAction(type: "refresh")
-        ))
 
         return UINode(id: "aas-root", type: "vstack", children: children, spacing: 8)
     }
