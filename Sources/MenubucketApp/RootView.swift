@@ -118,10 +118,20 @@ struct RootView: View {
         .background(Color(nsColor: .controlBackgroundColor))
         .overlay(alignment: .top) {
             if searchPresented {
-                SearchOverlay(runtime: runtime, pager: pager, isPresented: $searchPresented)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .shadow(radius: 8)
-                    .padding(8)
+                ZStack(alignment: .top) {
+                    // Modal scrim: absorbs hover + clicks on the content behind the
+                    // search bar, so widget cards don't reveal their top-trailing
+                    // hover controls over the close button. Tap outside to dismiss.
+                    Rectangle()
+                        .fill(Color.black.opacity(0.12))
+                        .contentShape(Rectangle())
+                        .onTapGesture { searchPresented = false }
+                    SearchOverlay(runtime: runtime, pager: pager, isPresented: $searchPresented)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .shadow(radius: 8)
+                        .padding(8)
+                }
+                .transition(.opacity)
             }
         }
         .overlay(alignment: .bottom) { toastOverlay }

@@ -425,13 +425,14 @@ struct SearchOverlay: View {
         let hits = self.hits
         return VStack(spacing: 0) {
             HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundColor(.secondary)
-                    .accessibilityHidden(true)
-                TextField("Search widgets and items…", text: $query)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 13))
-                    .onSubmit { execute(hits: hits) }
+                // AppKit-backed field: native ⌘A/⌘C/⌘V/⌘X via the field editor
+                // (a .accessory menu-bar app in an NSPopover has no Edit menu, so a
+                // plain SwiftUI TextField can't route those), plus autofocus and a
+                // built-in search icon + clear button.
+                SearchField(text: $query,
+                            onSubmit: { execute(hits: hits) },
+                            onCancel: { isPresented = false })
+                    .frame(height: 22)
                     .accessibilityLabel("Search widgets and items")
                 Button {
                     isPresented = false
@@ -571,5 +572,67 @@ struct SearchOverlay: View {
             ActionRouter.perform(action, widgetID: hit.widgetID, runtime: runtime)
         }
         isPresented = false
+    }
+}
+
+/// `NSSearchField` that guarantees the standard editing shortcuts even when the
+/// popover isn't the key window and the (`.accessory`) app has no Edit menu —
+/// the usual reason ⌘A/⌘C/⌘V do nothing in a menu-bar app's text fields.
+final class KeyEquivSearchField: NSSearchField {
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        guard mods == .command, let editor = currentEditor() else {
+            return super.performKeyEquivalent(with: event)
+        }
+        switch event.charactersIgnoringModifiers {
+        case "a": editor.selectAll(nil); return true
+        case "c": editor.copy(nil); return true
+        case "v": editor.paste(nil); return true
+        case "x": editor.cut(nil); return true
+        default: return super.performKeyEquivalent(with: event)
+        }
+    }
+}
+
+/// SwiftUI wrapper around `NSSearchField`: native selection/clipboard behavior,
+/// a built-in magnifier + clear button, and autofocus when it appears.
+struct SearchField: NSViewRepresentable {
+    @Binding var text: String
+    var onSubmit: () -> Void
+    var onCancel: () -> Void
+
+    func makeNSView(context: Context) -> NSSearchField {
+        let field = KeyEquivSearchField()
+        field.delegate = context.coordinator
+        field.placeholderString = "Search widgets and items…"
+        field.focusRingType = .none
+        field.sendsWholeSearchString = false
+        field.font = .systemFont(ofSize: 13)
+        DispatchQueue.main.async { field.window?.makeFirstResponder(field) }
+        return field
+    }
+
+    func updateNSView(_ field: NSSearchField, context: Context) {
+        if field.stringValue != text { field.stringValue = text }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    final class Coordinator: NSObject, NSSearchFieldDelegate {
+        let parent: SearchField
+        init(_ parent: SearchField) { self.parent = parent }
+
+        func controlTextDidChange(_ note: Notification) {
+            if let f = note.object as? NSSearchField { parent.text = f.stringValue }
+        }
+
+        func control(_ control: NSControl, textView: NSTextView,
+                     doCommandBy selector: Selector) -> Bool {
+            switch selector {
+            case #selector(NSResponder.insertNewline(_:)): parent.onSubmit(); return true
+            case #selector(NSResponder.cancelOperation(_:)): parent.onCancel(); return true
+            default: return false
+            }
+        }
     }
 }
