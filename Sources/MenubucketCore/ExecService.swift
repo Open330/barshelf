@@ -38,7 +38,7 @@ public final class ExecService {
 
     public init() {}
 
-    public enum ExecError: Error, LocalizedError {
+    public enum ExecError: Error, LocalizedError, Sendable {
         case emptyCommand
         case binaryNotFound(command: String, searched: [String])
         case launchFailed(String)
@@ -68,7 +68,7 @@ public final class ExecService {
     /// Raw process outcome — non-zero exits are *not* errors here (the script
     /// runtime surfaces `exitCode` to widgets; the exec-widget pipeline maps
     /// non-zero to `ExecError.nonZeroExit` itself in `runSync`).
-    public struct Capture {
+    public struct Capture: Sendable {
         public var exitCode: Int32
         public var stdout: Data
         public var stderr: Data
