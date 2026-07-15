@@ -194,6 +194,35 @@ public actor RuntimeSupervisor {
         }
     }
 
+    /// Bridges a GCD timer callback back to the supervisor actor without
+    /// retaining the actor for the lifetime of the timer source. Keeping the
+    /// actor reference behind a Sendable callback object also makes the
+    /// isolation hop explicit to Swift 6's region-based checker.
+    private final class TimerCallback: @unchecked Sendable {
+        weak var supervisor: RuntimeSupervisor?
+        let widgetId: String
+        let timerId: String
+        let repeats: Bool
+
+        init(supervisor: RuntimeSupervisor, widgetId: String, timerId: String, repeats: Bool) {
+            self.supervisor = supervisor
+            self.widgetId = widgetId
+            self.timerId = timerId
+            self.repeats = repeats
+        }
+
+        func fire() {
+            guard let supervisor else { return }
+            Task {
+                await supervisor.timerFired(
+                    widgetId: widgetId,
+                    timerId: timerId,
+                    repeats: repeats
+                )
+            }
+        }
+    }
+
     private let configuration: RuntimeSupervisorConfiguration
     private let events: RuntimeSupervisorEvents
 
@@ -784,8 +813,14 @@ public actor RuntimeSupervisor {
             source.schedule(deadline: .now() + delaySec)
         }
         let repeats = repeatingSec != nil
-        source.setEventHandler { [weak self] in
-            Task { await self?.timerFired(widgetId: widgetId, timerId: timerId, repeats: repeats) }
+        let callback = TimerCallback(
+            supervisor: self,
+            widgetId: widgetId,
+            timerId: timerId,
+            repeats: repeats
+        )
+        source.setEventHandler {
+            callback.fire()
         }
         timers[widgetId, default: [:]][timerId] = source
         source.resume()
