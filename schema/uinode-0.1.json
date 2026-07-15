@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://barshelf.dev/schema/uinode-0.1.json",
+  "$id": "https://barshelf.jiun.dev/schema/uinode-0.1.json",
   "title": "BarShelf UINode v0.1",
   "description": "Declarative JSON view tree schema for BarShelf widgets.",
   "$ref": "#/definitions/uiNode",
@@ -31,9 +31,6 @@
               "$ref": "#/definitions/gridNode"
             },
             {
-              "$ref": "#/definitions/tableNode"
-            },
-            {
               "$ref": "#/definitions/progressNode"
             },
             {
@@ -59,9 +56,6 @@
             },
             {
               "$ref": "#/definitions/spacerNode"
-            },
-            {
-              "$ref": "#/definitions/switchNode"
             },
             {
               "$ref": "#/definitions/noneNode"
@@ -93,18 +87,11 @@
           "type": "string"
         },
         "style": {
-          "description": "Layout/style object for most nodes. Progress nodes use this key for the progress style string.",
-          "oneOf": [
-            {
-              "$ref": "#/definitions/style"
-            },
-            {
-              "type": "string",
-              "enum": [
-                "linear",
-                "ring"
-              ]
-            }
+          "description": "Progress presentation style.",
+          "type": "string",
+          "enum": [
+            "linear",
+            "ring"
           ]
         },
         "drag": {

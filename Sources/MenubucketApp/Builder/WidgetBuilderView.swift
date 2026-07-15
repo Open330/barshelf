@@ -263,6 +263,15 @@ struct WidgetBuilderView: View {
                     .accessibilityLabel("Remove header \(index + 1)")
                 }
             }
+            if !model.httpHeaders.isEmpty {
+                Label(
+                    "Header values are saved as plain text in workflow.json. Do not paste API tokens or passwords.",
+                    systemImage: "exclamationmark.shield"
+                )
+                .font(.caption2)
+                .foregroundStyle(.orange)
+                .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
@@ -665,15 +674,16 @@ struct WidgetBuilderView: View {
             Text("Icon").font(.caption).foregroundStyle(.secondary)
             LazyVGrid(columns: Array(repeating: GridItem(.fixed(34)), count: 6), spacing: 6) {
                 ForEach(iconChoices, id: \.self) { symbol in
-                    Image(systemName: symbol)
-                        .frame(width: 30, height: 30)
-                        .background(model.icon == symbol ? Color.accentColor.opacity(0.2) : .clear)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .onTapGesture { model.setIcon(symbol) }
-                        .accessibilityElement()
+                    Button { model.setIcon(symbol) } label: {
+                        Image(systemName: symbol)
+                            .frame(width: 30, height: 30)
+                            .background(model.icon == symbol ? Color.accentColor.opacity(0.2) : .clear)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                    }
+                        .buttonStyle(.plain)
                         .accessibilityLabel("Icon \(symbol)")
                         .accessibilityAddTraits(
-                            model.icon == symbol ? [.isButton, .isSelected] : .isButton
+                            model.icon == symbol ? [.isSelected] : []
                         )
                 }
             }

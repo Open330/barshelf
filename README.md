@@ -11,7 +11,7 @@ recent files, CI status — as native widgets in a single popover.
 
 [![Platform](https://img.shields.io/badge/macOS-13%2B-000000?logo=apple&logoColor=white)](https://www.apple.com/macos/)
 [![Swift](https://img.shields.io/badge/Swift-5.9-F05138?logo=swift&logoColor=white)](https://swift.org)
-[![Notarized](https://img.shields.io/badge/Developer%20ID-notarized-2E7D32?logo=apple&logoColor=white)](https://github.com/Open330/barshelf/releases/latest)
+[![Release](https://img.shields.io/github/v/release/Open330/barshelf)](https://github.com/Open330/barshelf/releases/latest)
 [![Dependencies](https://img.shields.io/badge/dependencies-zero-4c1)](Package.swift)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -38,7 +38,7 @@ new SDK to learn.
 - **⚡ CLI is the API** — `aas usage --json`, `otpeek`, `gh`, `kubectl`… pipe them straight in.
 - **🎨 Native, not web** — SwiftUI rendering, dark mode, SF Symbols, vibrancy. No Electron.
 - **🧩 Three ways to build** — declarative workflows, a Shortcuts-style visual builder, or full scripts.
-- **🔒 Signed & notarized** — opens by double-click; every widget is permission-gated with an audit log.
+- **🔒 Permission-gated** — widget capabilities are declared, approved, enforced, and recorded in an audit log.
 
 ## Three execution layers, one widget model
 
@@ -69,6 +69,7 @@ Install BarShelf on my Mac and scaffold my first widget.
 1. Download the latest release from
    https://github.com/Open330/barshelf/releases/latest, unzip the
    BarShelf-<version>-arm64.zip, move BarShelf.app into /Applications, and open it.
+   The current v0.1.3 build is Developer ID signed, notarized, and stapled.
 2. Download the barshelf CLI — it ships as a separate release asset
    (barshelf-cli-<version>-arm64.tar.gz). Extract it and put barshelf on my PATH.
 3. Scaffold a widget:  barshelf new my-widget --kind workflow
@@ -87,8 +88,8 @@ scaffold a widget. Prefer the manual steps? The human install guide is right bel
 
 Grab `BarShelf-<version>-arm64.zip` from
 **[Releases](https://github.com/Open330/barshelf/releases/latest)**, move it to
-`/Applications`, and **double-click** — the build is Developer ID signed and
-Apple-notarized, so there's no Gatekeeper dance.
+`/Applications`, then open it normally. The current v0.1.3 asset is Developer ID
+signed, Apple-notarized, and includes a stapled ticket for offline verification.
 
 Full guide, `barshelf` CLI, and troubleshooting: **[docs/INSTALL.md](docs/INSTALL.md)**.
 
@@ -178,7 +179,7 @@ with a **live preview**, then name it. No JSON.
 
 ```jsonc
 {
-  "$schema": "https://barshelf.dev/schema/widget-0.1.json",
+  "$schema": "https://barshelf.jiun.dev/schema/widget-0.1.json",
   "schemaVersion": 1,
   "id": "dev.example.docker-ps",
   "name": "Docker",
@@ -227,6 +228,7 @@ Reference: **[docs/CLI.md](docs/CLI.md)**.
 | [Publishing](docs/PUBLISHING.md) | Repo layout, install badges, registry submission |
 | [Registry](docs/REGISTRY.md) | The curated gallery index and how to list a widget |
 | [CLI](docs/CLI.md) | CLI reference |
+| [Privacy](docs/PRIVACY.md) | Local data, widget permissions, network access, support contact |
 
 JSON Schemas: [`widget-0.1.json`](schema/widget-0.1.json) ·
 [`uinode-0.1.json`](schema/uinode-0.1.json) ·
@@ -244,7 +246,7 @@ JSON Schemas: [`widget-0.1.json`](schema/widget-0.1.json) ·
 
 ```bash
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift build   # dev
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test    # 220 tests
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test    # full test suite
 bash scripts/build_app.sh                                              # dist/BarShelf.app + dist/barshelf + dist/bsf
 ```
 

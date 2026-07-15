@@ -54,29 +54,34 @@ enum ScreenshotMode {
     @MainActor
     private static func renderGallery(dir: URL) -> Bool {
         let model = GalleryModel()
-        let client = GalleryModel.makeDefaultClient()
-        let semaphore = DispatchSemaphore(value: 0)
-        let box = LoadedEntriesBox()
-        Task.detached {
-            if let result = try? await client.load(forceRefresh: false) {
-                box.entries = result.index.widgets
-            }
-            semaphore.signal()
+        var candidates: [URL] = []
+        if let resources = Bundle.main.resourceURL {
+            candidates.append(resources.appendingPathComponent("registry/index.json"))
         }
-        // Offscreen CLI context — blocking the main thread briefly is fine.
-        _ = semaphore.wait(timeout: .now() + 10)
-        guard !box.entries.isEmpty else {
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        candidates.append(repoRoot.appendingPathComponent("registry/index.json"))
+        guard let data = candidates.lazy.compactMap({ try? Data(contentsOf: $0) }).first,
+              let parsed = try? RegistryIndex.parse(data).index
+        else {
             FileHandle.standardError.write(Data("gallery registry load failed\n".utf8))
             return false
         }
-        model.setEntries(forPreview: box.entries)
+        // ImageRenderer captures synchronously and cannot wait for AsyncImage.
+        // Omit remote art so marketing generation is deterministic and never
+        // records loading/error placeholders as product UI.
+        let deterministic = parsed.widgets.map { entry -> RegistryWidgetEntry in
+            var copy = entry
+            copy.screenshot = nil
+            copy.readme = nil
+            return copy
+        }
+        model.setEntries(forPreview: deterministic)
         let view = GalleryShot(sections: model.sections)
             .environment(\.colorScheme, .light)
         return render(view, name: "gallery", to: dir)
-    }
-
-    private final class LoadedEntriesBox: @unchecked Sendable {
-        var entries: [RegistryWidgetEntry] = []
     }
 
     // MARK: - Motion demo (frame sequence → H.264 via ffmpeg)

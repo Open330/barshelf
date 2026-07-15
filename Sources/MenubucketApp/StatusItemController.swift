@@ -378,6 +378,9 @@ final class StatusItemController: NSObject {
         removeKeyboardMonitor()
         keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
             guard let self, self.popup.isShown else { return event }
+            // Search fields and settings editors own arrows, Escape, and
+            // Command-number shortcuts while they are being edited.
+            if Self.isTextEditing(event.window?.firstResponder) { return event }
             let pageCount = self.runtime.pages.count
 
             switch event.keyCode {
@@ -403,6 +406,16 @@ final class StatusItemController: NSObject {
 
             return event
         }
+    }
+
+    private static func isTextEditing(_ responder: NSResponder?) -> Bool {
+        if let textView = responder as? NSTextView {
+            return textView.isEditable || textView.isFieldEditor
+        }
+        if let textField = responder as? NSTextField {
+            return textField.isEditable || textField.isSelectable
+        }
+        return false
     }
 
     private func removeKeyboardMonitor() {

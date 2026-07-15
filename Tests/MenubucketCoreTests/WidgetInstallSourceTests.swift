@@ -170,8 +170,26 @@ final class WidgetInstallSourceTests: XCTestCase {
         XCTAssertThrowsError(try WidgetInstallSource.parse(""))
         XCTAssertThrowsError(try WidgetInstallSource.parse("   "))
         XCTAssertThrowsError(try WidgetInstallSource.parse("ftp://example.com/w.zip"))
+        XCTAssertThrowsError(try WidgetInstallSource.parse("http://example.com/w.zip"))
         XCTAssertThrowsError(try WidgetInstallSource.parse("file:///tmp/w.zip"))
         // https but neither GitHub nor an archive
         XCTAssertThrowsError(try WidgetInstallSource.parse("https://example.com/widgets"))
+    }
+
+    func testInstallRedirectPolicyIsHTTPSAndOriginBound() {
+        let origin = URL(string: "https://example.com/widget.zip")!
+        XCTAssertTrue(HeadlessInstaller.redirectAllowed(
+            from: origin, to: URL(string: "https://example.com/v2/widget.zip")!
+        ))
+        XCTAssertFalse(HeadlessInstaller.redirectAllowed(
+            from: origin, to: URL(string: "https://evil.example/widget.zip")!
+        ))
+        XCTAssertFalse(HeadlessInstaller.redirectAllowed(
+            from: origin, to: URL(string: "http://example.com/widget.zip")!
+        ))
+        XCTAssertTrue(HeadlessInstaller.redirectAllowed(
+            from: URL(string: "https://github.com/a/b/releases/download/v1/w.zip")!,
+            to: URL(string: "https://release-assets.githubusercontent.com/asset")!
+        ))
     }
 }

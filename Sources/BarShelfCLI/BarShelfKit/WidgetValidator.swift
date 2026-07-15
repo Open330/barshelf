@@ -157,6 +157,41 @@ public enum WidgetValidator {
             workflowFileName = "workflow.json"
         }
 
+        if manifest.entry.kind == "workflow" || manifest.entry.kind == "script" {
+            do {
+                let entryURL = try WidgetEntryResolver.resolve(
+                    directory: directory,
+                    main: manifest.entry.main,
+                    defaultName: manifest.entry.kind == "script" ? "index.ts" : "workflow.json"
+                )
+                if !FileManager.default.fileExists(atPath: entryURL.path) {
+                    report.issues.append(Issue(
+                        file: manifestFile,
+                        field: "entry.main",
+                        message: "entry file not found: \(entryURL.lastPathComponent)"
+                    ))
+                }
+            } catch {
+                report.issues.append(Issue(
+                    file: manifestFile,
+                    field: "entry.main",
+                    message: error.localizedDescription
+                ))
+                workflowFileName = nil
+            }
+        }
+
+        if manifest.entry.kind == "exec",
+           let command = manifest.source?.command,
+           !command.isEmpty,
+           ExecAllowlist.match(command: command, permissions: manifest.permissions?.exec) == nil {
+            report.issues.append(Issue(
+                file: manifestFile,
+                field: "permissions.exec",
+                message: "source.command is not covered by an exact exec allowlist entry"
+            ))
+        }
+
         if let workflowFileName {
             validateWorkflow(
                 at: directory.appendingPathComponent(workflowFileName),

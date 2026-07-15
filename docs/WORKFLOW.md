@@ -22,7 +22,7 @@ Workflow 위젯은 manifest에서 workflow 파일을 직접 가리킨다.
 
 ```json
 {
-  "$schema": "https://barshelf.dev/schema/widget-0.1.json",
+  "$schema": "https://barshelf.jiun.dev/schema/widget-0.1.json",
   "schemaVersion": 1,
   "id": "dev.example.recent-files",
   "name": "Recent Files",
@@ -62,7 +62,7 @@ Builder의 고급 UI는 `WorkflowGraph`를 편집 모델로 사용할 수 있다
 
 ```json
 {
-  "$schema": "https://barshelf.dev/schema/workflow-0.1.json",
+  "$schema": "https://barshelf.jiun.dev/schema/workflow-0.1.json",
   "schemaVersion": 1,
   "sources": {},
   "transforms": {},

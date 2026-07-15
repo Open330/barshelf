@@ -88,7 +88,7 @@ public enum WidgetScaffold {
     private static func execManifest(name: String) -> String {
         """
         {
-          "$schema": "https://barshelf.dev/schema/widget-0.1.json",
+          "$schema": "https://barshelf.jiun.dev/schema/widget-0.1.json",
           "schemaVersion": 1,
           "id": "\(name)",
           "name": "\(displayName(name))",
@@ -104,7 +104,10 @@ public enum WidgetScaffold {
             "output": "viewtree"
           },
 
-          "refresh": { "onOpen": true, "interval": 60, "staleAfterSec": 30 }
+          "refresh": { "onOpen": true, "interval": 60, "staleAfterSec": 30 },
+          "permissions": {
+            "exec": [{ "command": "./widget.sh", "allowedArgs": [[]] }]
+          }
         }
         """
     }
@@ -135,7 +138,7 @@ public enum WidgetScaffold {
     private static func workflowManifest(name: String) -> String {
         """
         {
-          "$schema": "https://barshelf.dev/schema/widget-0.1.json",
+          "$schema": "https://barshelf.jiun.dev/schema/widget-0.1.json",
           "schemaVersion": 1,
           "id": "\(name)",
           "name": "\(displayName(name))",
@@ -234,7 +237,7 @@ public enum WidgetScaffold {
     private static func scriptManifest(name: String) -> String {
         """
         {
-          "$schema": "https://barshelf.dev/schema/widget-0.1.json",
+          "$schema": "https://barshelf.jiun.dev/schema/widget-0.1.json",
           "schemaVersion": 1,
           "id": "\(name)",
           "name": "\(displayName(name))",

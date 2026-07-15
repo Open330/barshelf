@@ -31,7 +31,7 @@
       "tags": ["files", "workflow", "grid", "list", "stashbar"],
       "category": "Files",
       "install": { "url": "https://github.com/jiunbae/stashbar", "bundled": "recent-files-grid" },
-      "permissions": { "exec": [], "keychain": false, "notifications": false },
+      "permissions": { "exec": [], "readPaths": ["~/Downloads"], "keychain": false, "notifications": false },
       "homepage": "https://github.com/jiunbae/stashbar"
     },
     {
@@ -47,7 +47,7 @@
       "tags": ["files", "stashbar", "thumbnails", "recent", "workflow"],
       "category": "Files",
       "install": { "url": "https://github.com/jiunbae/stashbar" },
-      "permissions": { "exec": [], "keychain": false, "notifications": false },
+      "permissions": { "exec": [], "readPaths": ["User-selected folder"], "keychain": false, "notifications": false },
       "homepage": "https://jiun.dev/stashbar/"
     },
     {
@@ -61,7 +61,6 @@
       "kind": "workflow",
       "tags": ["system", "battery", "meter", "native", "workflow"],
       "category": "System",
-      "requires": "Battery (laptop)",
       "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/battery-meter", "bundled": "battery-meter" },
       "permissions": { "exec": ["/bin/sh"], "keychain": false, "notifications": false },
       "homepage": "https://github.com/Open330/barshelf"
@@ -128,9 +127,8 @@
       "kind": "workflow",
       "tags": ["files", "workflow", "storage", "persistence", "diff"],
       "category": "Files",
-      "requires": "Downloads folder access",
       "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/downloads-new", "bundled": "downloads-new" },
-      "permissions": { "exec": [], "keychain": false, "notifications": false },
+      "permissions": { "exec": [], "readPaths": ["~/Downloads"], "keychain": false, "notifications": false },
       "homepage": "https://github.com/Open330/barshelf"
     },
     {
@@ -144,7 +142,6 @@
       "kind": "workflow",
       "tags": ["developer", "status", "workflow", "http"],
       "category": "Developer",
-      "requires": "Network access",
       "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/github-status", "bundled": "github-status" },
       "permissions": { "exec": [], "keychain": false, "notifications": false, "network": ["www.githubstatus.com"] },
       "homepage": "https://www.githubstatus.com/"
@@ -190,7 +187,6 @@
       "kind": "workflow",
       "tags": ["weather", "http", "native", "workflow"],
       "category": "Demo",
-      "requires": "Network access",
       "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/weather", "bundled": "weather" },
       "permissions": { "exec": [], "keychain": false, "notifications": false, "network": ["api.open-meteo.com"] },
       "homepage": "https://open-meteo.com/"
@@ -221,7 +217,6 @@
       "kind": "workflow",
       "tags": ["finance", "exchange", "http", "native"],
       "category": "Demo",
-      "requires": "Network access",
       "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/exchange", "bundled": "exchange" },
       "permissions": { "exec": [], "keychain": false, "notifications": false, "network": ["open.er-api.com"] },
       "homepage": "https://www.exchangerate-api.com/"
@@ -252,7 +247,6 @@
       "kind": "workflow",
       "tags": ["finance", "stock", "http", "headers", "native"],
       "category": "Demo",
-      "requires": "Network access",
       "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/stock", "bundled": "stock" },
       "permissions": { "exec": [], "keychain": false, "notifications": false, "network": ["query1.finance.yahoo.com"] },
       "homepage": "https://finance.yahoo.com/"
@@ -268,7 +262,6 @@
       "kind": "workflow",
       "tags": ["media", "music", "spotify", "native"],
       "category": "Media",
-      "requires": "Automation permission",
       "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/now-playing", "bundled": "now-playing" },
       "permissions": { "exec": ["/bin/sh"], "keychain": false, "notifications": false },
       "homepage": "https://github.com/Open330/barshelf"
@@ -284,7 +277,6 @@
       "kind": "workflow",
       "tags": ["reminders", "tasks", "native"],
       "category": "Media",
-      "requires": "Automation permission",
       "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/reminders", "bundled": "reminders" },
       "permissions": { "exec": ["/bin/sh"], "keychain": false, "notifications": false },
       "homepage": "https://github.com/Open330/barshelf"
@@ -300,7 +292,7 @@
       "kind": "script",
       "tags": ["calendar", "meeting", "productivity", "automation", "script"],
       "category": "Productivity",
-      "requires": "Deno + Calendar permission",
+      "requires": "Deno runtime",
       "screenshot": "https://raw.githubusercontent.com/Open330/barshelf/main/assets/widget-previews/tile-next-meeting.png",
       "readme": "https://github.com/Open330/barshelf/blob/main/widgets/next-meeting/README.md",
       "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/next-meeting", "bundled": "next-meeting" },

@@ -98,7 +98,7 @@ swift run barshelf-app screenshot assets/widget-previews
 앱과 도구는 레지스트리 위치를 다음 순서로 해석한다.
 
 1. 환경 변수 `BARSHELF_REGISTRY` — URL 또는 로컬 파일 경로. `MENUBUCKET_REGISTRY`도 호환용으로 읽는다.
-2. 기본 원격 URL 상수 — 플레이스홀더: `https://raw.githubusercontent.com/barshelf/registry/main/index.json`.
+2. 프로젝트가 관리하는 기본 원격 URL: `https://raw.githubusercontent.com/Open330/barshelf/main/registry/index.json`.
 3. 번들 `registry/index.json` 폴백 — 오프라인/개발용.
 
 ## 등재 방법 (PR 절차)

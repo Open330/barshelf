@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://barshelf.dev/schema/registry-0.1.json",
+  "$id": "https://barshelf.jiun.dev/schema/registry-0.1.json",
   "title": "BarShelf Registry Index v0.1",
   "description": "Schema for BarShelf registry index.json files. The registry is a curation layer on top of the widget publishing repo contract; each entry points to an installable widget source URL.",
   "type": "object",
@@ -168,6 +168,13 @@
             "$ref": "#/definitions/nonEmptyString"
           },
           "description": "HTTPS hosts the widget declares for network access."
+        },
+        "readPaths": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/nonEmptyString"
+          },
+          "description": "Local file roots the widget declares for read access."
         }
       },
       "additionalProperties": true

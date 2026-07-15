@@ -14,6 +14,12 @@ public struct UINode: Codable, Equatable {
 
     // Container fields
     public var children: [UINode]?
+    /// `scroll` single child.
+    public var child: UINodeBox?
+    /// `scroll`: "vertical" | "horizontal" | "both".
+    public var axis: String?
+    /// SDK conditional rendering. Hidden nodes render no view.
+    public var hidden: Bool?
     /// `list` rows.
     public var items: [UINode]?
     public var spacing: Double?
@@ -85,6 +91,23 @@ public struct UINode: Codable, Equatable {
     /// default behavior (decorative images stay hidden, file thumbnails use
     /// the file name, etc.).
     public var accessibilityLabel: String?
+    /// SDK/schema-native nested accessibility metadata. The flat label stays
+    /// supported for existing workflow widgets.
+    public var accessibility: Accessibility?
+    /// `spacer` minimum length in points.
+    public var minLength: Double?
+
+    public struct Accessibility: Codable, Equatable, Sendable {
+        public var label: String?
+        public var hint: String?
+        public var value: String?
+
+        public init(label: String? = nil, hint: String? = nil, value: String? = nil) {
+            self.label = label
+            self.hint = hint
+            self.value = value
+        }
+    }
 
     public struct DragSpec: Codable, Equatable, Sendable {
         public var filePath: String
@@ -98,6 +121,9 @@ public struct UINode: Codable, Equatable {
         id: String? = nil,
         type: String,
         children: [UINode]? = nil,
+        child: UINode? = nil,
+        axis: String? = nil,
+        hidden: Bool? = nil,
         items: [UINode]? = nil,
         spacing: Double? = nil,
         columns: Int? = nil,
@@ -126,11 +152,16 @@ public struct UINode: Codable, Equatable {
         widthFill: Bool? = nil,
         alignment: String? = nil,
         drag: DragSpec? = nil,
-        accessibilityLabel: String? = nil
+        accessibilityLabel: String? = nil,
+        accessibility: Accessibility? = nil,
+        minLength: Double? = nil
     ) {
         self.id = id
         self.type = type
         self.children = children
+        self.child = child.map(UINodeBox.init)
+        self.axis = axis
+        self.hidden = hidden
         self.items = items
         self.spacing = spacing
         self.columns = columns
@@ -160,6 +191,12 @@ public struct UINode: Codable, Equatable {
         self.alignment = alignment
         self.drag = drag
         self.accessibilityLabel = accessibilityLabel
+        self.accessibility = accessibility
+        self.minLength = minLength
+    }
+
+    public var effectiveAccessibilityLabel: String? {
+        accessibilityLabel ?? accessibility?.label
     }
 }
 
@@ -220,8 +257,8 @@ extension UINode {
 
     /// Node types the v0 renderer understands. Unknown types must still decode.
     public enum KnownType: String, CaseIterable {
-        case vstack, hstack, list, grid, section, card, text, image, progress
-        case button, badge, banner, empty, divider, spacer
+        case vstack, hstack, zstack, scroll, list, grid, section, card, text, image, progress
+        case button, badge, banner, empty, divider, spacer, none
     }
 
     public var isKnownType: Bool {
@@ -243,8 +280,30 @@ extension UINode {
 
     private func searchableText() -> String {
         let own = [text, title, subtitle, label, accessibilityLabel].compactMap { $0 }
-        let descendants = ((children ?? []) + (items ?? [])).map { $0.searchableText() }
+        let descendants = ((children ?? []) + (items ?? []) + [child?.node].compactMap { $0 })
+            .map { $0.searchableText() }
         return (own + descendants).joined(separator: " ")
+    }
+}
+
+/// Reference wrapper permits the schema's single recursive `scroll.child`
+/// shape while keeping `UINode` a value type. It encodes transparently as the
+/// child node object (there is no wrapper key in JSON).
+public final class UINodeBox: Codable, Equatable, @unchecked Sendable {
+    public var node: UINode
+
+    public init(_ node: UINode) { self.node = node }
+
+    public required init(from decoder: Decoder) throws {
+        node = try UINode(from: decoder)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        try node.encode(to: encoder)
+    }
+
+    public static func == (lhs: UINodeBox, rhs: UINodeBox) -> Bool {
+        lhs.node == rhs.node
     }
 }
 

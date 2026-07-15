@@ -21,6 +21,7 @@ public final class PermissionStore: @unchecked Sendable {
     public enum PermissionKind: String, Sendable, CaseIterable {
         case exec
         case network
+        case readPaths
         case keychain
         case notifications
     }
@@ -35,6 +36,8 @@ public final class PermissionStore: @unchecked Sendable {
             return !(permissions?.exec ?? []).isEmpty
         case .network:
             return !(permissions?.network ?? []).isEmpty
+        case .readPaths:
+            return !(permissions?.readPaths ?? []).isEmpty
         case .keychain:
             return permissions?.keychain == true
         case .notifications:
@@ -77,7 +80,22 @@ public final class PermissionStore: @unchecked Sendable {
 
     // MARK: - API
 
+    /// Permission-free widgets do not need a meaningless approval click. Any
+    /// capability that can execute code, access user data, persist data, or
+    /// contact another process/service makes the widget approval-gated.
+    public static func requiresApproval(for manifest: Manifest) -> Bool {
+        let permissions = manifest.permissions
+        return !(permissions?.exec ?? []).isEmpty
+            || !(permissions?.network ?? []).isEmpty
+            || !(permissions?.readPaths ?? []).isEmpty
+            || !(permissions?.env ?? []).isEmpty
+            || permissions?.keychain == true
+            || permissions?.notifications == true
+            || permissions?.storage?.granted == true
+    }
+
     public func status(for manifest: Manifest) -> Status {
+        guard Self.requiresApproval(for: manifest) else { return .approved }
         lock.lock()
         defer { lock.unlock() }
         guard let record = records[manifest.id] else { return .pending }

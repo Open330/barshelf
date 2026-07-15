@@ -8,15 +8,20 @@ public struct ScriptWidgetDescriptor: Sendable {
     public var manifest: Manifest
     public var directory: URL
     public var instanceID: String
+    /// Host-provided package generation. A changed value forces the existing
+    /// resident process to be terminated before the new descriptor is used.
+    public var revision: String?
 
     public init(
         manifest: Manifest,
         directory: URL,
-        instanceID: String? = nil
+        instanceID: String? = nil,
+        revision: String? = nil
     ) {
         self.manifest = manifest
         self.directory = directory
         self.instanceID = instanceID ?? manifest.id
+        self.revision = revision
     }
 
     public var id: String { instanceID }
@@ -140,7 +145,7 @@ public struct RuntimeSupervisorEvents: Sendable {
 /// manifest permission enforcement; crashes feed the crash-loop policy
 /// (3 crashes within 5 minutes → `disabled`, cleared via `restart`).
 public actor RuntimeSupervisor {
-    private final class ScriptInstance {
+    private final class ScriptInstance: @unchecked Sendable {
         let process: Process
         let stdinHandle: FileHandle
         let dispatcher: JsonRpcDispatcher
@@ -157,6 +162,36 @@ public actor RuntimeSupervisor {
     private enum StdoutEvent {
         case line(Data)
         case overflow
+    }
+
+    private final class LineBuffer: @unchecked Sendable {
+        private let lock = NSLock()
+        private var data = Data()
+
+        func append(_ chunk: Data, maxBytes: Int? = nil) -> (lines: [Data], overflow: Bool) {
+            lock.withLock {
+                data.append(chunk)
+                var lines: [Data] = []
+                while let newlineIndex = data.firstIndex(of: UInt8(ascii: "\n")) {
+                    let line = data.subdata(in: data.startIndex..<newlineIndex)
+                    data.removeSubrange(data.startIndex...newlineIndex)
+                    if !line.isEmpty { lines.append(line) }
+                }
+                if let maxBytes, data.count > maxBytes {
+                    data.removeAll(keepingCapacity: false)
+                    return (lines, true)
+                }
+                return (lines, false)
+            }
+        }
+
+        func drain() -> Data {
+            lock.withLock {
+                let result = data
+                data.removeAll(keepingCapacity: false)
+                return result
+            }
+        }
     }
 
     private let configuration: RuntimeSupervisorConfiguration
@@ -182,6 +217,12 @@ public actor RuntimeSupervisor {
         reason: String,
         settings: JSONValue? = nil
     ) async throws {
+        if let previous = descriptors[widget.id],
+           previous.revision != widget.revision
+            || previous.manifest != widget.manifest
+            || previous.directory.standardizedFileURL != widget.directory.standardizedFileURL {
+            terminateAndDiscard(widgetId: widget.id)
+        }
         descriptors[widget.id] = widget
         if let reason = disabledReasons[widget.id] {
             throw RuntimeSupervisorError.widgetDisabled(reason)
@@ -244,6 +285,16 @@ public actor RuntimeSupervisor {
         for id in instances.keys { stop(widgetId: id) }
     }
 
+    private func terminateAndDiscard(widgetId: String) {
+        cancelTimers(widgetId: widgetId)
+        descriptors.removeValue(forKey: widgetId)
+        guard let instance = instances.removeValue(forKey: widgetId) else { return }
+        instance.stopping = true
+        instance.readTask?.cancel()
+        try? instance.stdinHandle.close()
+        if instance.process.isRunning { instance.process.terminate() }
+    }
+
     /// "Restart Widget": clears the crash-loop `disabled` state and reloads.
     public func restart(widgetId: String) async throws {
         guard let widget = descriptors[widgetId] else {
@@ -279,10 +330,7 @@ public actor RuntimeSupervisor {
         process.executableURL = plan.executable
         process.arguments = plan.arguments
         process.currentDirectoryURL = plan.currentDirectory ?? widget.directory
-        if let environment = plan.environment {
-            process.environment = ProcessInfo.processInfo.environment
-                .merging(environment) { _, injected in injected }
-        }
+        process.environment = ExecService.childEnvironment(extraEnvironment: plan.environment)
 
         let stdinPipe = Pipe()
         let stdoutPipe = Pipe()
@@ -323,7 +371,7 @@ public actor RuntimeSupervisor {
     private func startStdoutReader(widgetId: String, handle: FileHandle) -> Task<Void, Never> {
         let maxLineBytes = configuration.maxStdoutLineBytes
         let stream = AsyncStream<StdoutEvent> { continuation in
-            var buffer = Data()
+            let buffer = LineBuffer()
             handle.readabilityHandler = { readHandle in
                 let chunk = readHandle.availableData
                 if chunk.isEmpty {
@@ -331,18 +379,9 @@ public actor RuntimeSupervisor {
                     continuation.finish()
                     return
                 }
-                buffer.append(chunk)
-                while let newlineIndex = buffer.firstIndex(of: UInt8(ascii: "\n")) {
-                    let line = buffer.subdata(in: buffer.startIndex..<newlineIndex)
-                    buffer.removeSubrange(buffer.startIndex...newlineIndex)
-                    if !line.isEmpty {
-                        continuation.yield(.line(line))
-                    }
-                }
-                if buffer.count > maxLineBytes {
-                    buffer.removeAll()
-                    continuation.yield(.overflow)
-                }
+                let result = buffer.append(chunk, maxBytes: maxLineBytes)
+                for line in result.lines { continuation.yield(.line(line)) }
+                if result.overflow { continuation.yield(.overflow) }
             }
         }
         return Task { [weak self] in
@@ -362,21 +401,21 @@ public actor RuntimeSupervisor {
     private func startStderrDrain(widgetId: String, handle: FileHandle) {
         let logs = configuration.widgetLogs
         let onWidgetLog = events.onWidgetLog
-        var buffer = Data()
+        let buffer = LineBuffer()
         handle.readabilityHandler = { readHandle in
             let chunk = readHandle.availableData
             if chunk.isEmpty {
-                if !buffer.isEmpty, let text = String(data: buffer, encoding: .utf8), !text.isEmpty {
+                let remainder = buffer.drain()
+                if !remainder.isEmpty,
+                   let text = String(data: remainder, encoding: .utf8),
+                   !text.isEmpty {
                     logs?.append(widgetId: widgetId, level: "stderr", message: text)
                     onWidgetLog(widgetId, "stderr", text)
                 }
                 readHandle.readabilityHandler = nil
                 return
             }
-            buffer.append(chunk)
-            while let newlineIndex = buffer.firstIndex(of: UInt8(ascii: "\n")) {
-                let line = buffer.subdata(in: buffer.startIndex..<newlineIndex)
-                buffer.removeSubrange(buffer.startIndex...newlineIndex)
+            for line in buffer.append(chunk).lines {
                 guard let text = String(data: line, encoding: .utf8), !text.isEmpty else { continue }
                 logs?.append(widgetId: widgetId, level: "stderr", message: text)
                 onWidgetLog(widgetId, "stderr", text)
@@ -904,13 +943,18 @@ public enum DenoRuntime {
         let importMapURL = try writeImportMap(
             widgetId: widget.id, sdkModule: sdkModule, stateDirectory: stateDirectory
         )
+        let entryURL = try WidgetEntryResolver.resolve(
+            directory: widget.directory,
+            main: widget.manifest.entry.main,
+            defaultName: "index.ts"
+        )
         return ScriptLaunchPlan(
             executable: deno,
             arguments: [
                 "run", "--quiet", "--no-prompt", "--no-remote",
                 "--allow-read=\(widget.directory.path)",
                 "--import-map=\(importMapURL.path)",
-                widget.directory.appendingPathComponent("index.ts").path,
+                entryURL.path,
             ],
             currentDirectory: widget.directory
         )

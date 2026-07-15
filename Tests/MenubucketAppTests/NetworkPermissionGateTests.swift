@@ -55,6 +55,19 @@ final class NetworkPermissionGateTests: XCTestCase {
         ))
     }
 
+    func testRemoteImageRedirectsCannotLeaveApprovedOrigin() {
+        let origin = URL(string: "https://images.example.test/a.png")!
+        XCTAssertTrue(RemoteImageService.redirectAllowed(
+            from: origin, to: URL(string: "https://images.example.test/b.png")!
+        ))
+        XCTAssertFalse(RemoteImageService.redirectAllowed(
+            from: origin, to: URL(string: "https://tracker.example.test/b.png")!
+        ))
+        XCTAssertFalse(RemoteImageService.redirectAllowed(
+            from: origin, to: URL(string: "http://images.example.test/b.png")!
+        ))
+    }
+
     // MARK: - Deep-link routing (barshelf://refresh)
 
     func testRefreshDeepLinkRoutesToHook() {

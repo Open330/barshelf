@@ -4,9 +4,9 @@ import AppKit
 ///
 /// No Sparkle: the project ships zero runtime dependencies. This compares the
 /// running `CFBundleShortVersionString` with the latest release tag and, when a
-/// newer one exists, offers to open the release page (the download is the
-/// notarized zip). Auto-download/replace is intentionally out of scope — a
-/// signed, notarized zip is safest fetched through the browser.
+/// newer one exists, offers to open the release page. Auto-download/replace is
+/// intentionally out of scope so users can inspect release notes and verify
+/// the published checksum before replacing the app.
 @MainActor
 enum UpdateChecker {
     static let latestReleaseAPI = URL(
@@ -48,7 +48,7 @@ enum UpdateChecker {
     }
 
     static var currentVersion: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
+        AppVersionInfo.current.version ?? "0.0.0"
     }
 
     /// Semantic-ish numeric compare (`1.2.10` > `1.2.9`); missing components are 0.
@@ -68,7 +68,7 @@ enum UpdateChecker {
         alert.messageText = "BarShelf \(latest) is available"
         alert.informativeText = "You're on \(currentVersion). "
             + (name.map { "\($0)\n\n" } ?? "")
-            + "Open the release page to download the notarized build."
+            + "Open the release page to download the build and verify its checksum."
         alert.addButton(withTitle: "Download")
         alert.addButton(withTitle: "Later")
         if alert.runModal() == .alertFirstButtonReturn {

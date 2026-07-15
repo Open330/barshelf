@@ -249,7 +249,7 @@ public enum WidgetBuilderScaffold {
         }
 
         var manifest: [String: Any] = [
-            "$schema": "https://barshelf.dev/schema/widget-0.1.json",
+            "$schema": "https://barshelf.jiun.dev/schema/widget-0.1.json",
             "schemaVersion": 1,
             "id": spec.resolvedID,
             "name": spec.name,

@@ -315,7 +315,7 @@ private struct NumberScanner {
     mutating func number() -> CGFloat? {
         skipSeparators()
         guard index < chars.count else { return nil }
-        var start = index
+        let start = index
         var seenDigit = false
         var seenDot = false
 

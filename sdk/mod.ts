@@ -133,7 +133,6 @@ export interface UINodeBase {
   type: string;
   hidden?: boolean;
   accessibility?: Accessibility;
-  style?: unknown;
   [key: string]: unknown;
 }
 
@@ -161,18 +160,19 @@ export interface TextNode extends UINodeBase {
 
 export type ImageSourceKind =
   | "sfSymbol"
-  | "asset"
   | "fileIcon"
   | "fileThumbnail"
   | "url"
-  | "data";
+  | "brand"
+  | "monogram";
 
 export interface ImageSource {
   kind: ImageSourceKind;
   name?: string;
   path?: string;
   url?: string;
-  value?: string;
+  modifiedAt?: number;
+  monogram?: string;
   [key: string]: unknown;
 }
 
@@ -191,6 +191,14 @@ export interface ListNode extends UINodeBase {
   virtualized?: boolean;
   /** Enables host-local visible-text filtering for this list. */
   searchPlaceholder?: string;
+}
+
+export interface GridNode extends UINodeBase {
+  type: "grid";
+  items: UINode[];
+  columns?: number;
+  spacing?: number;
+  size?: number;
 }
 
 export interface ProgressCountdown {
@@ -304,6 +312,7 @@ export type UINode =
   | TextNode
   | ImageNode
   | ListNode
+  | GridNode
   | ProgressNode
   | ButtonNode
   | SectionNode
@@ -322,6 +331,7 @@ type StackOptions = Omit<NodeOptions<StackNode>, "children">;
 type TextOptions = Omit<NodeOptions<TextNode>, "text">;
 type ImageOptions = Omit<NodeOptions<ImageNode>, "source">;
 type ListOptions = Omit<NodeOptions<ListNode>, "items">;
+type GridOptions = Omit<NodeOptions<GridNode>, "items">;
 type ProgressOptions = Omit<NodeOptions<ProgressNode>, "style"> & {
   style?: "linear" | "ring";
 };
@@ -473,6 +483,10 @@ export const ui = {
 
   list(items: UINode[] = [], options: ListOptions = {}): ListNode {
     return compact({ ...options, type: "list", items }) as ListNode;
+  },
+
+  grid(items: UINode[] = [], options: GridOptions = {}): GridNode {
+    return compact({ ...options, type: "grid", items }) as GridNode;
   },
 
   section(

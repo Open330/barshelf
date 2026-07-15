@@ -42,13 +42,17 @@ final class ExecAllowlistTests: XCTestCase {
         ))
     }
 
-    func testMatchesPathBasename() {
-        XCTAssertTrue(ExecAllowlist.permits(
+    func testBareDeclarationDoesNotAuthorizeAnotherPath() {
+        XCTAssertFalse(ExecAllowlist.permits(
             command: ["/opt/homebrew/bin/otpeek", "list", "--json"],
             permissions: otpeekPermissions
         ))
         XCTAssertFalse(ExecAllowlist.permits(
             command: ["/tmp/evil/not-otpeek", "list", "--json"],
+            permissions: otpeekPermissions
+        ))
+        XCTAssertFalse(ExecAllowlist.permits(
+            command: ["./otpeek", "list", "--json"],
             permissions: otpeekPermissions
         ))
     }

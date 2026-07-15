@@ -63,7 +63,7 @@ final class GalleryModel: ObservableObject {
         self.client = client
     }
 
-    /// Default client: env var → remote placeholder URL → bundled fallback.
+    /// Default client: env override → project remote URL → bundled fallback.
     /// Fallback candidates cover the packaged app (Resources/registry/) and
     /// running from a source checkout (repo-root registry/).
     nonisolated static func makeDefaultClient() -> RegistryClient {
@@ -641,7 +641,6 @@ struct GalleryCard: View {
     private var installControl: some View {
         if updateAvailable {
             Button("Update", action: install)
-                .keyboardShortcut(.defaultAction)
                 .controlSize(.small)
                 .help("A newer version is available in the registry")
         } else if isInstalled {
@@ -657,7 +656,6 @@ struct GalleryCard: View {
             .accessibilityLabel("\(entry.name) is installed")
         } else {
             Button("Install", action: install)
-                .keyboardShortcut(.defaultAction)
                 .controlSize(.small)
         }
     }
@@ -857,6 +855,13 @@ struct GalleryCard: View {
             chips.append(Chip(
                 symbol: "network",
                 help: "Network: \(hosts.joined(separator: ", "))"
+            ))
+        }
+        let paths = permissions.readPaths ?? []
+        if !paths.isEmpty {
+            chips.append(Chip(
+                symbol: "folder",
+                help: "Reads files in: \(paths.joined(separator: ", "))"
             ))
         }
         return chips

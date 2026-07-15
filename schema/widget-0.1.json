@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://barshelf.dev/schema/widget-0.1.json",
+  "$id": "https://barshelf.jiun.dev/schema/widget-0.1.json",
   "title": "BarShelf Widget Manifest v0.1",
   "description": "Manifest schema for BarShelf widget.json files.",
   "type": "object",

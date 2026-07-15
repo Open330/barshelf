@@ -54,7 +54,7 @@ except `schemaVersion`, `id`, `name`, and `entry`.
 
 ```jsonc
 {
-  "$schema": "https://barshelf.dev/schema/widget-0.1.json",  // optional, tolerated
+  "$schema": "https://barshelf.jiun.dev/schema/widget-0.1.json",  // optional, tolerated
   "schemaVersion": 1,                 // REQUIRED (int)
   "id": "dev.you.my-widget",          // REQUIRED, filesystem-safe (see §1)
   "name": "My Widget",                // REQUIRED, display name
@@ -267,8 +267,8 @@ Gating specifics:
 - `barshelf.storage.*` needs **no** permission (per-widget sandbox).
 
 The install-confirm summary (`barshelf install`) prints one line per gated capability,
-e.g. `exec: /bin/ls`, `network: fetches from api.github.com`, `keychain: …`,
-`notifications: …`. The gallery shows the same as chips.
+e.g. `exec: /bin/ls`, `network: fetches from api.github.com`, `files: reads
+~/Downloads`, `keychain: …`, `notifications: …`. The gallery shows the same as chips.
 
 ---
 
@@ -276,11 +276,11 @@ e.g. `exec: /bin/ls`, `network: fetches from api.github.com`, `keychain: …`,
 
 The view tree is one root UINode object. `type` is a string discriminator; every
 other field is optional; unknown types decode fine but render as a placeholder.
-**The native renderer knows exactly these 14 types** (anything else, including the
-SDK's `zstack`/`scroll`/`none`, renders as an unsupported placeholder today):
+**The native renderer knows exactly these 18 types** (anything else renders as
+an unsupported placeholder today):
 
-`vstack`, `hstack`, `list`, `section`, `card`, `text`, `image`, `progress`, `button`,
-`badge`, `banner`, `empty`, `divider`, `spacer`.
+`vstack`, `hstack`, `zstack`, `scroll`, `list`, `grid`, `section`, `card`, `text`,
+`image`, `progress`, `button`, `badge`, `banner`, `empty`, `divider`, `spacer`, `none`.
 
 Shared/common fields: `id` (stable identity, needed for lists & action routing),
 `padding` (points), `widthFill` (bool), `tint`/`tone`/`foreground`
@@ -450,7 +450,7 @@ barshelf agent-spec                          # print THIS document
 `widget.json`
 ```json
 {
-  "$schema": "https://barshelf.dev/schema/widget-0.1.json",
+  "$schema": "https://barshelf.jiun.dev/schema/widget-0.1.json",
   "schemaVersion": 1,
   "id": "dev.you.clock",
   "name": "Clock",
@@ -483,7 +483,7 @@ EOF
 `widget.json`
 ```json
 {
-  "$schema": "https://barshelf.dev/schema/widget-0.1.json",
+  "$schema": "https://barshelf.jiun.dev/schema/widget-0.1.json",
   "schemaVersion": 1,
   "id": "dev.you.gh-status",
   "name": "GitHub Status",
@@ -536,7 +536,7 @@ Provide an `"empty"` node for the zero-items case.
 `widget.json`
 ```json
 {
-  "$schema": "https://barshelf.dev/schema/widget-0.1.json",
+  "$schema": "https://barshelf.jiun.dev/schema/widget-0.1.json",
   "schemaVersion": 1,
   "id": "dev.you.counter",
   "name": "Counter",
@@ -584,7 +584,7 @@ export default barshelf.widget({ load, action: action_ });
 - `schemaVersion`, `id` (filesystem-safe), `name`, `entry.kind` present.
 - Every command/host you touch is declared in `permissions` (exec allowlist,
   `network` for `http`, `keychain`/`notifications` as needed).
-- View tree uses only the 14 rendered node types; lists give each row a stable `id`.
+- View tree uses only the 18 rendered node types; lists give each row a stable `id`.
 - `barshelf validate ./my-widget` prints `valid:`.
 - Loads in dev mode from `./widgets/` (or `barshelf install ./my-widget`), and the
   first-run permission prompt lists what you expect.

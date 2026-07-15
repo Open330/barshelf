@@ -43,11 +43,13 @@ enum ActionRouter {
 
         case "openFile":
             guard let path = action.path ?? action.value else { return }
+            guard runtime?.filePathAllowed(path, widgetID: widgetID) == true else { return }
             let expanded = (path as NSString).expandingTildeInPath
             NSWorkspace.shared.open(URL(fileURLWithPath: expanded))
 
         case "revealFile":
             guard let path = action.path ?? action.value else { return }
+            guard runtime?.filePathAllowed(path, widgetID: widgetID) == true else { return }
             let expanded = (path as NSString).expandingTildeInPath
             NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: expanded)])
 

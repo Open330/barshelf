@@ -3,16 +3,33 @@ import Combine
 import Foundation
 import MenubucketCore
 
+private final class WeakWidgetRuntimeBox: @unchecked Sendable {
+    weak var value: WidgetRuntime?
+
+    init(_ value: WidgetRuntime) {
+        self.value = value
+    }
+}
+
 /// A discovered widget: manifest plus the directory it was loaded from.
 struct LoadedWidget: Identifiable {
     let manifest: Manifest
     let directory: URL
     let instanceID: String
+    /// Changes on every rescan so resident script processes cannot be reused
+    /// across package/code/permission updates that keep the same widget id.
+    let loadRevision: String
 
-    init(manifest: Manifest, directory: URL, instanceID: String? = nil) {
+    init(
+        manifest: Manifest,
+        directory: URL,
+        instanceID: String? = nil,
+        loadRevision: String = UUID().uuidString
+    ) {
         self.manifest = manifest
         self.directory = directory
         self.instanceID = instanceID ?? manifest.id
+        self.loadRevision = loadRevision
     }
 
     var id: String { instanceID }
@@ -199,6 +216,7 @@ final class WidgetRuntime: ObservableObject {
         if let existing = scriptSupervisorStorage { return existing }
         let appSupport = Self.applicationSupportDirectory
         let notificationService = self.notificationService
+        let weakRuntime = WeakWidgetRuntimeBox(self)
         let configuration = RuntimeSupervisorConfiguration(
             makeLaunchPlan: { widget in
                 try DenoRuntime.makeLaunchPlan(
@@ -214,20 +232,24 @@ final class WidgetRuntime: ObservableObject {
             audit: auditLog,
             widgetLogs: WidgetLogStore(),
             appearance: {
-                let appearance = NSApp?.effectiveAppearance
-                    .bestMatch(from: [.darkAqua, .aqua])
-                return appearance == .darkAqua ? "dark" : "light"
+                UserDefaults.standard.string(forKey: "AppleInterfaceStyle") == "Dark"
+                    ? "dark"
+                    : "light"
             }
         )
         let events = RuntimeSupervisorEvents(
-            onRender: { [weak self] widgetId, params, revision in
+            onRender: { widgetId, params, revision in
                 DispatchQueue.main.async {
-                    self?.handleScriptRender(widgetId: widgetId, params: params, revision: revision)
+                    weakRuntime.value?.handleScriptRender(
+                        widgetId: widgetId,
+                        params: params,
+                        revision: revision
+                    )
                 }
             },
-            onStateChange: { [weak self] widgetId, state in
+            onStateChange: { widgetId, state in
                 DispatchQueue.main.async {
-                    self?.handleScriptStateChange(widgetId: widgetId, state: state)
+                    weakRuntime.value?.handleScriptStateChange(widgetId: widgetId, state: state)
                 }
             },
             onWidgetLog: { widgetId, level, message in
@@ -435,6 +457,9 @@ final class WidgetRuntime: ObservableObject {
             let suffix = net.count > 4 ? ", …" : ""
             rows.append(permissionRow(icon: "network", title: "Connect to \(hosts)\(suffix)"))
         }
+        for path in permissions?.readPaths ?? [] {
+            rows.append(permissionRow(icon: "folder.fill", title: "Read files in \(path)"))
+        }
         if permissions?.storage?.granted == true {
             rows.append(permissionRow(icon: "internaldrive.fill", title: "Save small data on this Mac"))
         }
@@ -609,10 +634,13 @@ final class WidgetRuntime: ObservableObject {
             _ = gatePermissions(for: widget)
         }
 
-        // Stop script processes for removed widgets (hot reload cleanup).
+        // A same-id package may have changed its code or permissions. Stop all
+        // resident script processes and discard their descriptors before a
+        // rescan can approve/start the replacement; retaining by id alone
+        // would let old code continue under the previous descriptor.
         scriptDisabledReasonCache = scriptDisabledReasonCache.filter { seenIDs.contains($0.key) }
         if let supervisor = scriptSupervisorStorage {
-            Task { await supervisor.retain(widgetIds: seenIDs) }
+            Task { await supervisor.retain(widgetIds: []) }
         }
 
         let enabled = loaded.filter { !prefs.isDisabled($0.id) }
@@ -1113,10 +1141,9 @@ final class WidgetRuntime: ObservableObject {
             recordRefreshFailure(widgetID: id, error: message, startedAt: Date())
             return
         }
-        // Runtime allowlist enforcement: a declared exec allowlist must also
-        // cover the widget's own source command.
-        if let execPermissions = widget.manifest.permissions?.exec, !execPermissions.isEmpty,
-           ExecAllowlist.match(command: command, permissions: execPermissions) == nil {
+        // Runtime allowlist enforcement is fail-closed: missing/empty exec
+        // permissions authorize nothing.
+        if !Self.execCommandAllowed(command, manifest: widget.manifest) {
             auditLog.record("exec.blocked", widgetId: id, detail: [
                 "command": .string(command.joined(separator: " ")),
                 "reason": .string("source.command not in permissions.exec allowlist"),
@@ -1149,7 +1176,8 @@ final class WidgetRuntime: ObservableObject {
         let descriptor = ScriptWidgetDescriptor(
             manifest: widget.manifest,
             directory: widget.directory,
-            instanceID: widget.id
+            instanceID: widget.id,
+            revision: widget.loadRevision
         )
         let isFirstLoad = snapshots[id]?.viewTree == nil
         let reason = manual ? "manual" : (isFirstLoad ? "install" : "open")
@@ -1248,8 +1276,18 @@ final class WidgetRuntime: ObservableObject {
 
     private func refreshWorkflow(_ widget: LoadedWidget) {
         let id = widget.id
-        let workflowURL = widget.directory
-            .appendingPathComponent(widget.manifest.entry.main ?? "workflow.json")
+        let workflowURL: URL
+        do {
+            workflowURL = try WidgetEntryResolver.resolve(
+                directory: widget.directory,
+                main: widget.manifest.entry.main,
+                defaultName: "workflow.json"
+            )
+        } catch {
+            updateSnapshot(id) { $0.error = error.localizedDescription }
+            recordRefreshFailure(widgetID: id, error: error.localizedDescription)
+            return
+        }
         let settings = prefs.effectiveSettings(for: widget.manifest, widgetID: widget.id)
 
         let startedAt = markRefreshStarted(widgetID: id)
@@ -1294,6 +1332,15 @@ final class WidgetRuntime: ObservableObject {
                 switch source.use {
                 case "fs.directory":
                     let fsParams = try FileSource.Params(from: value)
+                    guard Self.filePathAllowed(fsParams.path, manifest: widget.manifest) else {
+                        auditLog.record("file.blocked", widgetId: widget.id, detail: [
+                            "path": .string(fsParams.path),
+                            "reason": .string("path not in permissions.readPaths allowlist"),
+                        ])
+                        throw RuntimeError.invalidWorkflow(
+                            "file source path is not covered by permissions.readPaths"
+                        )
+                    }
                     sourceValues[sourceID] = try await Task.detached(priority: .userInitiated) {
                         try FileSource.list(fsParams)
                     }.value
@@ -1365,8 +1412,7 @@ final class WidgetRuntime: ObservableObject {
         let permission = ExecAllowlist.match(
             command: command, permissions: widget.manifest.permissions?.exec
         )
-        if let execPermissions = widget.manifest.permissions?.exec,
-           !execPermissions.isEmpty, permission == nil {
+        if !Self.execCommandAllowed(command, manifest: widget.manifest) {
             auditLog.record("exec.blocked", widgetId: widget.id, detail: [
                 "command": .string(command.joined(separator: " ")),
                 "reason": .string("workflow exec source not in permissions.exec allowlist"),
@@ -1461,6 +1507,52 @@ final class WidgetRuntime: ObservableObject {
             }
         }
         return false
+    }
+
+    static func execCommandAllowed(_ command: [String], manifest: Manifest) -> Bool {
+        ExecAllowlist.match(command: command, permissions: manifest.permissions?.exec) != nil
+    }
+
+    /// Symlink-aware file allowlist check shared by workflow reads, rendered
+    /// file thumbnails/drag items, and open/reveal actions.
+    static func filePathAllowed(_ path: String, manifest: Manifest) -> Bool {
+        filePathAllowed(path, allowlist: manifest.permissions?.readPaths ?? [])
+    }
+
+    static func filePathAllowed(_ path: String, allowlist: [String]) -> Bool {
+        guard !allowlist.isEmpty else { return false }
+        let target = canonicalFileURL(path)
+        return allowlist.contains { allowed in
+            let root = canonicalFileURL(allowed)
+            return target.path == root.path || target.path.hasPrefix(root.path + "/")
+        }
+    }
+
+    private static func canonicalFileURL(_ path: String) -> URL {
+        let expanded = (path as NSString).expandingTildeInPath
+        var existing = URL(fileURLWithPath: expanded).standardizedFileURL
+        var missingComponents: [String] = []
+        while existing.path != "/", !FileManager.default.fileExists(atPath: existing.path) {
+            missingComponents.insert(existing.lastPathComponent, at: 0)
+            existing.deleteLastPathComponent()
+        }
+        var resolved = existing.resolvingSymlinksInPath()
+        for component in missingComponents {
+            resolved.appendPathComponent(component)
+        }
+        return resolved.standardizedFileURL
+    }
+
+    func filePathAllowed(_ path: String, widgetID: String) -> Bool {
+        guard let widget = widgets.first(where: { $0.id == widgetID }) else { return false }
+        let allowed = Self.filePathAllowed(path, manifest: widget.manifest)
+        if !allowed {
+            auditLog.record("file.blocked", widgetId: widgetID, detail: [
+                "path": .string(path),
+                "reason": .string("path not in permissions.readPaths allowlist"),
+            ])
+        }
+        return allowed
     }
 
     // MARK: - URL refresh trigger (`barshelf://refresh?widget=<id>`)
@@ -1614,18 +1706,19 @@ final class WidgetRuntime: ObservableObject {
         return names.filter { seen.insert($0).inserted }
     }
 
-    /// Keychain-backed env injection: for `permissions.keychain == true`, each
-    /// declared env var missing from the host environment is looked up in the
-    /// Keychain (service `dev.barshelf`, account = lowercased var with `_`→`-`).
+    /// Builds the only widget-specific environment values an exec may receive:
+    /// explicitly declared host variables, with an optional Keychain fallback.
     static func secretEnvironment(for manifest: Manifest) -> [String: String]? {
-        guard manifest.permissions?.keychain == true else { return nil }
         var extra: [String: String] = [:]
         let hostEnvironment = ProcessInfo.processInfo.environment
-        for name in declaredEnvironmentVariables(for: manifest)
-        where hostEnvironment[name] == nil {
-            let account = KeychainStore.account(forEnvironmentVariable: name)
-            if let value = KeychainStore.readPassword(account: account) {
+        for name in declaredEnvironmentVariables(for: manifest) {
+            if let value = hostEnvironment[name] {
                 extra[name] = value
+            } else if manifest.permissions?.keychain == true {
+                let account = KeychainStore.account(forEnvironmentVariable: name)
+                if let value = KeychainStore.readPassword(account: account) {
+                    extra[name] = value
+                }
             }
         }
         return extra.isEmpty ? nil : extra

@@ -398,13 +398,15 @@ struct RootView: View {
             HStack(spacing: 6) {
                 ForEach(Array(pages.enumerated()), id: \.element.id) { pageIndex, page in
                     // Size + fill cue (not hue alone) marks the current page.
-                    Circle()
-                        .fill(pageIndex == index ? Color.primary : Color.secondary.opacity(0.35))
-                        .frame(width: pageIndex == index ? 7 : 6,
-                               height: pageIndex == index ? 7 : 6)
-                        .onTapGesture {
+                    Button {
                             pager.jump(to: pageIndex, pageCount: pages.count)
+                    } label: {
+                        Circle()
+                            .fill(pageIndex == index ? Color.primary : Color.secondary.opacity(0.35))
+                            .frame(width: pageIndex == index ? 7 : 6,
+                                   height: pageIndex == index ? 7 : 6)
                         }
+                        .buttonStyle(.plain)
                         .help(page.group)
                         .accessibilityLabel(page.group)
                         .accessibilityAddTraits(pageIndex == index ? [.isSelected] : [])
@@ -672,6 +674,7 @@ struct WidgetCardView: View {
             .modifier(OptionalHeight(height: effectiveFixedHeight))
             .environment(\.widgetAppearance, appearance)
             .environment(\.remoteImageHosts, widget.manifest.permissions?.network ?? [])
+            .environment(\.localFileReadPaths, widget.manifest.permissions?.readPaths ?? [])
         .background(sectionBackground)
         .overlay(alignment: .topTrailing) { cardControls }
         // Insertion indicator while a dragged card hovers over this one.

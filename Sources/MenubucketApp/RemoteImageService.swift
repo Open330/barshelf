@@ -28,6 +28,27 @@ final class RemoteImageService: @unchecked Sendable {
     /// time the popup reopens.
     private var failed: Set<String> = []
 
+    private final class RedirectGuard: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+        let origin: URL
+        init(origin: URL) { self.origin = origin }
+
+        func urlSession(
+            _ session: URLSession,
+            task: URLSessionTask,
+            willPerformHTTPRedirection response: HTTPURLResponse,
+            newRequest request: URLRequest,
+            completionHandler: @escaping (URLRequest?) -> Void
+        ) {
+            guard let destination = request.url,
+                  RemoteImageService.redirectAllowed(from: origin, to: destination)
+            else {
+                completionHandler(nil)
+                return
+            }
+            completionHandler(request)
+        }
+    }
+
     init(diskDirectory: URL? = nil) {
         cache.countLimit = Self.memoryCountLimit
         cache.totalCostLimit = Self.memoryCostLimitBytes
@@ -81,7 +102,12 @@ final class RemoteImageService: @unchecked Sendable {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.timeoutInterval = Self.timeoutSec
-        let task = URLSession.shared.dataTask(with: request) { [weak self] data, response, _ in
+        let delegate = RedirectGuard(origin: url)
+        let session = URLSession(
+            configuration: .ephemeral, delegate: delegate, delegateQueue: nil
+        )
+        let task = session.dataTask(with: request) { [weak self] data, response, _ in
+            defer { session.finishTasksAndInvalidate() }
             guard let self else { return }
             guard let data,
                   let http = response as? HTTPURLResponse, http.statusCode == 200,
@@ -98,6 +124,14 @@ final class RemoteImageService: @unchecked Sendable {
             self.finish(key: key, image: image, cost: data.count)
         }
         task.resume()
+    }
+
+    static func redirectAllowed(from origin: URL, to destination: URL) -> Bool {
+        guard origin.scheme?.lowercased() == "https",
+              destination.scheme?.lowercased() == "https",
+              origin.host?.lowercased() == destination.host?.lowercased()
+        else { return false }
+        return (origin.port ?? 443) == (destination.port ?? 443)
     }
 
     private func finish(key: String, image: NSImage, cost: Int) {

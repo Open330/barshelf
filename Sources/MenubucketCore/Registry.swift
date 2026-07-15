@@ -132,17 +132,21 @@ public struct RegistryWidgetEntry: Codable, Equatable, Sendable {
         public var notifications: Bool?
         /// Host patterns the widget declares in `permissions.network` (R12).
         public var network: [String]?
+        /// Local roots the widget declares in `permissions.readPaths`.
+        public var readPaths: [String]?
 
         public init(
             exec: [String]? = nil,
             keychain: Bool? = nil,
             notifications: Bool? = nil,
-            network: [String]? = nil
+            network: [String]? = nil,
+            readPaths: [String]? = nil
         ) {
             self.exec = exec
             self.keychain = keychain
             self.notifications = notifications
             self.network = network
+            self.readPaths = readPaths
         }
     }
 }
@@ -343,7 +347,7 @@ extension RegistryIndex {
 /// 1. `BARSHELF_REGISTRY` environment variable, then legacy
 ///    `MENUBUCKET_REGISTRY` — an http(s) URL or a local file path
 ///    (`~` expansion supported).
-/// 2. The default remote index URL (placeholder constant).
+/// 2. The project-controlled default remote index URL.
 /// 3. Bundled/local fallback files (offline / development).
 ///
 /// Remote fetches go through a 24-hour disk cache; `forceRefresh` bypasses it
@@ -353,9 +357,9 @@ public final class RegistryClient: @unchecked Sendable {
     public static let environmentVariable = "BARSHELF_REGISTRY"
     public static let legacyEnvironmentVariable = "MENUBUCKET_REGISTRY"
 
-    /// Placeholder — real registry repo TBD.
+    /// Project-controlled canonical registry bundled in this repository.
     public static let defaultRemoteIndexURL = URL(
-        string: "https://raw.githubusercontent.com/barshelf/registry/main/index.json"
+        string: "https://raw.githubusercontent.com/Open330/barshelf/main/registry/index.json"
     )!
 
     public static let maxResponseBytes = 5 * 1024 * 1024

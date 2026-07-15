@@ -58,6 +58,22 @@ public final class RequirementChecker: @unchecked Sendable {
     /// spellings (e.g. "Deno runtime" → ["Deno", "deno"], "aas CLI" → ["aas"]).
     /// Returns `[]` when nothing usable remains.
     public static func candidateBinaries(from requires: String) -> [String] {
+        candidateGroups(from: requires).flatMap { $0 }
+    }
+
+    /// `A + B` means both dependencies are required, while candidates within
+    /// one group are spelling variants for the same executable.
+    static func candidateGroups(from requires: String) -> [[String]] {
+        let groups = requires.components(
+            separatedBy: CharacterSet(charactersIn: "+&,;")
+        )
+        return groups.compactMap { rawGroup in
+            let candidates = candidatesForSingleRequirement(rawGroup)
+            return candidates.isEmpty ? nil : candidates
+        }
+    }
+
+    private static func candidatesForSingleRequirement(_ requires: String) -> [String] {
         let cleaned = requires
             .replacingOccurrences(
                 of: "\\([^)]*\\)", with: " ", options: .regularExpression
@@ -93,12 +109,11 @@ public final class RequirementChecker: @unchecked Sendable {
 
     /// PATH status for a `requires` string. Cached per binary name.
     public func status(forRequires requires: String) -> Status {
-        let candidates = Self.candidateBinaries(from: requires)
-        guard !candidates.isEmpty else { return .unknown }
-        for candidate in candidates where isAvailable(candidate) {
-            return .satisfied
-        }
-        return .missing
+        let groups = Self.candidateGroups(from: requires)
+        guard !groups.isEmpty else { return .unknown }
+        return groups.allSatisfy { group in
+            group.contains(where: isAvailable)
+        } ? .satisfied : .missing
     }
 
     /// Whether `name` resolves to an executable on PATH. Bare names only —

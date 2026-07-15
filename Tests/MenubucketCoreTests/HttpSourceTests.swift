@@ -87,6 +87,22 @@ final class HttpSourceTests: XCTestCase {
         XCTAssertNil(MockURLProtocol.lastRequest) // never hit the network
     }
 
+    func testRedirectsStayOnApprovedHTTPSOrigin() {
+        let origin = URL(string: "https://api.example.test/data")!
+        XCTAssertTrue(HttpSource.redirectAllowed(
+            from: origin, to: URL(string: "https://api.example.test/v2/data")!
+        ))
+        XCTAssertFalse(HttpSource.redirectAllowed(
+            from: origin, to: URL(string: "https://other.example.test/data")!
+        ))
+        XCTAssertFalse(HttpSource.redirectAllowed(
+            from: origin, to: URL(string: "http://api.example.test/data")!
+        ))
+        XCTAssertFalse(HttpSource.redirectAllowed(
+            from: origin, to: URL(string: "https://api.example.test:8443/data")!
+        ))
+    }
+
     func testMissingURLThrows() {
         XCTAssertThrowsError(try HttpSource.Params(from: .object([:]))) { error in
             XCTAssertEqual(error as? HttpSource.HttpSourceError, .missingURL)

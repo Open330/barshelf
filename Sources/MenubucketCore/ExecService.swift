@@ -18,6 +18,24 @@ public final class ExecService {
         ("~/.cargo/bin" as NSString).expandingTildeInPath,
     ]
 
+    /// Minimal process environment plus explicitly authorized/injected values.
+    public static func childEnvironment(
+        extraEnvironment: [String: String]? = nil
+    ) -> [String: String] {
+        let hostEnvironment = ProcessInfo.processInfo.environment
+        var environment: [String: String] = [:]
+        for key in ["HOME", "TMPDIR", "USER", "LOGNAME", "LANG", "LC_ALL", "LC_CTYPE"] {
+            if let value = hostEnvironment[key], !value.isEmpty { environment[key] = value }
+        }
+        let systemPath = "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin"
+        environment["PATH"] = (hostEnvironment["PATH"].map { $0.isEmpty ? nil : $0 } ?? nil)
+            .map { "\($0):\(systemPath)" } ?? systemPath
+        if let extraEnvironment {
+            environment.merge(extraEnvironment) { _, injected in injected }
+        }
+        return environment
+    }
+
     public init() {}
 
     public enum ExecError: Error, LocalizedError {
@@ -66,10 +84,44 @@ public final class ExecService {
 
     private let queue = DispatchQueue(label: "dev.barshelf.exec", qos: .utility, attributes: .concurrent)
 
+    private final class CaptureState: @unchecked Sendable {
+        private let lock = NSLock()
+        private var stdout = Data()
+        private var stderr = Data()
+        private var stdoutOverflowed = false
+        private var timedOut = false
+
+        func appendStdout(_ chunk: Data, limit: Int) -> Bool {
+            lock.withLock {
+                stdout.append(chunk)
+                if stdout.count > limit {
+                    stdoutOverflowed = true
+                    return true
+                }
+                return false
+            }
+        }
+
+        func appendStderr(_ chunk: Data, limit: Int) {
+            lock.withLock {
+                guard stderr.count < limit else { return }
+                stderr.append(chunk.prefix(limit - stderr.count))
+            }
+        }
+
+        func markTimedOut() {
+            lock.withLock { timedOut = true }
+        }
+
+        func snapshot() -> (stdout: Data, stderr: Data, overflowed: Bool, timedOut: Bool) {
+            lock.withLock { (stdout, stderr, stdoutOverflowed, timedOut) }
+        }
+    }
+
     /// Runs `command` and delivers stdout data (or an error) on an arbitrary queue.
     /// `workingDirectory` doubles as the base for `./relative` command paths
     /// (used by widgets shipping their own scripts). `extraEnvironment` is
-    /// merged over the inherited environment (secret injection).
+    /// merged over a minimal environment (declared value/secret injection).
     public func run(
         command: [String],
         discover: [String]?,
@@ -77,7 +129,7 @@ public final class ExecService {
         workingDirectory: URL?,
         extraEnvironment: [String: String]? = nil,
         stdoutLimit: Int = ExecService.maxStdoutBytes,
-        completion: @escaping (Result<Data, ExecError>) -> Void
+        completion: @escaping @Sendable (Result<Data, ExecError>) -> Void
     ) {
         queue.async {
             completion(Self.runSync(
@@ -191,17 +243,10 @@ public final class ExecService {
         if let workingDirectory {
             process.currentDirectoryURL = workingDirectory
         }
-        // Always provide a sensible PATH so shell scripts find standard tools
-        // (pmset, jq, grep…) even when the GUI app was launched via Finder /
-        // login with a minimal or empty PATH. Any inherited PATH keeps priority.
-        var environment = ProcessInfo.processInfo.environment
-        let systemPath = "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin"
-        environment["PATH"] = (environment["PATH"].map { $0.isEmpty ? nil : $0 } ?? nil)
-            .map { "\($0):\(systemPath)" } ?? systemPath
-        if let extraEnvironment {
-            environment.merge(extraEnvironment) { _, injected in injected }
-        }
-        process.environment = environment
+        // Start from a minimal environment. Widgets receive declared values
+        // through `extraEnvironment`; inheriting the whole app environment can
+        // leak unrelated tokens from shells, IDEs, or launch agents.
+        process.environment = childEnvironment(extraEnvironment: extraEnvironment)
 
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
@@ -209,9 +254,7 @@ public final class ExecService {
         process.standardError = stderrPipe
         process.standardInput = FileHandle.nullDevice
 
-        var stdoutData = Data()
-        var stderrData = Data()
-        var stdoutOverflowed = false
+        let captureState = CaptureState()
         let readGroup = DispatchGroup()
         let readQueue = DispatchQueue(label: "dev.barshelf.exec.read", attributes: .concurrent)
 
@@ -229,9 +272,7 @@ public final class ExecService {
             while true {
                 let chunk = handle.availableData
                 if chunk.isEmpty { break }
-                stdoutData.append(chunk)
-                if stdoutData.count > stdoutLimit {
-                    stdoutOverflowed = true
+                if captureState.appendStdout(chunk, limit: stdoutLimit) {
                     if process.isRunning { process.terminate() }
                     break
                 }
@@ -246,16 +287,13 @@ public final class ExecService {
             while true {
                 let chunk = handle.availableData
                 if chunk.isEmpty { break }
-                if stderrData.count < maxStderrBytes {
-                    stderrData.append(chunk.prefix(maxStderrBytes - stderrData.count))
-                }
+                captureState.appendStderr(chunk, limit: maxStderrBytes)
             }
             try? handle.close()
         }
 
-        var timedOut = false
         let timeoutItem = DispatchWorkItem {
-            timedOut = true
+            captureState.markTimedOut()
             if process.isRunning { process.terminate() }
             let pid = process.processIdentifier
             DispatchQueue.global().asyncAfter(deadline: .now() + 2) {
@@ -271,16 +309,18 @@ public final class ExecService {
         timeoutItem.cancel()
         readGroup.wait()
 
-        if timedOut {
+        let capture = captureState.snapshot()
+
+        if capture.timedOut {
             return .failure(.timeout(ms: timeoutMs))
         }
-        if stdoutOverflowed {
+        if capture.overflowed {
             return .failure(.outputTooLarge(limit: stdoutLimit))
         }
         return .success(Capture(
             exitCode: process.terminationStatus,
-            stdout: stdoutData,
-            stderr: stderrData,
+            stdout: capture.stdout,
+            stderr: capture.stderr,
             durationMs: Date().timeIntervalSince(startedAt) * 1000
         ))
     }

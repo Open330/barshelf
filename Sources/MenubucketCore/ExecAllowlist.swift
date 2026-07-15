@@ -3,7 +3,7 @@ import Foundation
 /// Runtime enforcement of the manifest `permissions.exec` allowlist.
 ///
 /// A command is permitted when some `ExecPermission` matches:
-/// - `permission.command` equals the command's argv[0] or its basename, and
+/// - `permission.command` exactly equals the command's argv[0], and
 /// - some `allowedArgs` pattern matches the remaining argv element-wise,
 ///   where the literal `"*"` matches exactly one argument.
 ///
@@ -38,12 +38,11 @@ public enum ExecAllowlist {
         match(command: command, permissions: permissions) != nil
     }
 
-    /// argv[0] may be a bare name or a path; the declared command matches
-    /// either the whole string or the path basename.
+    /// Bare names and paths are different executable identities. This keeps a
+    /// familiar declared name such as `date` from authorizing `./date` or an
+    /// attacker-controlled `/tmp/date`.
     static func commandMatches(declared: String, argv0: String) -> Bool {
-        if declared == argv0 { return true }
-        let basename = (argv0 as NSString).lastPathComponent
-        return declared == basename
+        declared == argv0
     }
 
     /// Element-wise pattern match; `"*"` matches exactly one argument.

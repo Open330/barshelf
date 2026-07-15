@@ -21,7 +21,9 @@ public final class AuditLog: @unchecked Sendable {
     /// Appends one JSON line: `{"ts": ..., "event": ..., "widgetId": ..., ...detail}`.
     public func record(_ event: String, widgetId: String, detail: [String: JSONValue] = [:]) {
         var object: [String: JSONValue] = detail
-        object["ts"] = .string(Self.timestampFormatter.string(from: Date()))
+        let timestampFormatter = ISO8601DateFormatter()
+        timestampFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        object["ts"] = .string(timestampFormatter.string(from: Date()))
         object["event"] = .string(event)
         object["widgetId"] = .string(widgetId)
 
@@ -49,11 +51,6 @@ public final class AuditLog: @unchecked Sendable {
         }
     }
 
-    private static let timestampFormatter: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter
-    }()
 }
 
 /// Per-widget log files backing `host.log` and script stderr.

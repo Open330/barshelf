@@ -18,7 +18,7 @@
 
 ### GitHub Releases (권장)
 
-[Releases](https://github.com/Open330/barshelf/releases)에서 `BarShelf-<버전>-arm64.zip`을 받아 `/Applications`에 옮기고, 첫 실행은 **우클릭 → 열기**로 허용한다 (현재 릴리스는 공증 전 ad-hoc 서명 빌드 — Homebrew cask는 공증 이후 제공 예정).
+[Releases](https://github.com/Open330/barshelf/releases)에서 `BarShelf-<버전>-arm64.zip`을 받아 `/Applications`에 옮긴 뒤 일반 더블클릭으로 실행한다. v0.1.3은 Developer ID 서명·Apple 공증·티켓 스테이플과 Gatekeeper 배포 검사를 통과했다.
 
 ### 소스에서 수동 빌드
 
@@ -63,7 +63,7 @@ mkdir -p "$install_root"
 ```bash
 cat > "$install_root/widget.json" <<'JSON'
 {
-  "$schema": "https://barshelf.dev/schema/widget-0.1.json",
+  "$schema": "https://barshelf.jiun.dev/schema/widget-0.1.json",
   "schemaVersion": 1,
   "id": "dev.example.quick-hello",
   "name": "Quick Hello",

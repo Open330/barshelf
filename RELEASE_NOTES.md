@@ -1,7 +1,7 @@
-# BarShelf 0.1.2
+# BarShelf 0.1.3
 
-This release makes external widgets first-class, improves the native widget
-gallery, and prevents usage widgets from polling while their popup is closed.
+This release focuses on launch trust, safer third-party widgets, and
+the first-run/authoring experience.
 
 > Requires macOS 13+ on Apple Silicon. Script widgets need
 > [Deno](https://deno.land) (`brew install deno`); exec and workflow widgets do
@@ -9,29 +9,25 @@ gallery, and prevents usage widgets from polling while their popup is closed.
 
 ## Highlights
 
-- **Popup-only refresh policy** — widgets can declare `popupOnly` so interval,
-  wake/deadline, watcher, and event refresh paths remain dormant until the
-  BarShelf popup is visible. This is especially useful for rate-limited usage
-  APIs.
-- **External widget ownership** — custom widgets install directly from their
-  own repository URL, including GitHub `/tree/{branch}/{subdirectory}` links.
-  Widget packages no longer need to be copied into the BarShelf registry.
-- **Native aas Usage adapter** — additive support for the `aas usage --json`
-  contract, rendered as compact Claude/Codex quota cards with reset times and
-  vector provider marks. The widget package itself now lives in the
-  [aas repository](https://github.com/Open330/aas/tree/main/widgets/barshelf-aas-usage).
-- **Gallery and visual polish** — a shelved gallery layout, two-column usage
-  meters, larger menu-bar mark, and refreshed light/dark product screenshots.
-- **Native muxa rows** — muxa Watch uses compact two-line native rows instead
-  of a terminal-style table.
+- **Fail-closed permissions** — exec and workflow commands now require an exact
+  allowlist match. File reads, thumbnails, drag items, and open/reveal actions
+  are restricted to approved `readPaths`, including symlink-escape checks.
+- **Clearer onboarding** — permission-free widgets open immediately; privileged
+  widgets show file roots, network hosts, environment values, storage, and
+  command access before approval.
+- **Safer installs and updates** — remote installs require HTTPS, redirects stay
+  on an approved origin, and widget updates are staged before the live package
+  is replaced.
+- **Keyboard and VoiceOver polish** — search fields keep their navigation keys,
+  actionable containers use real buttons, and SDK accessibility label/hint/value
+  metadata reaches the native renderer.
+- **Authoring contract repair** — official schema URLs are publishable from the
+  project site, SDK container/grid types match the renderer, and unsafe entry
+  paths are rejected by validation and runtime.
+- **Release gate** — public packaging now requires Developer ID signing,
+  notarization, stapling, Gatekeeper assessment, and matching app/CLI versions.
 
-## Install the aas widget
+`bsf` ships as the short alias; commands and documentation use the canonical
+`barshelf` name.
 
-```bash
-barshelf install https://github.com/Open330/aas/tree/main/widgets/barshelf-aas-usage
-```
-
-The older `mbk` executable remains available as a compatibility alias; new
-commands and documentation use `barshelf`.
-
-**Full changelog:** https://github.com/Open330/barshelf/compare/v0.1.1...v0.1.2
+**Full changelog:** https://github.com/Open330/barshelf/compare/v0.1.2...v0.1.3

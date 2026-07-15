@@ -98,6 +98,42 @@ final class UINodeTests: XCTestCase {
         XCTAssertNil(node.accessibilityLabel)
     }
 
+    func testNestedAccessibilityMetadataDecoding() throws {
+        let json = """
+        {
+          "type": "text",
+          "text": "12:34",
+          "accessibility": {
+            "label": "Current time",
+            "hint": "Updated every minute",
+            "value": "12:34"
+          }
+        }
+        """.data(using: .utf8)!
+        let node = try JSONDecoder().decode(UINode.self, from: json)
+        XCTAssertEqual(node.effectiveAccessibilityLabel, "Current time")
+        XCTAssertEqual(node.accessibility?.hint, "Updated every minute")
+        XCTAssertEqual(node.accessibility?.value, "12:34")
+    }
+
+    func testSDKContainerShapesDecodeAsKnownNodes() throws {
+        let json = """
+        {
+          "type": "scroll",
+          "axis": "vertical",
+          "child": {
+            "type": "zstack",
+            "children": [{ "type": "none" }]
+          }
+        }
+        """.data(using: .utf8)!
+        let node = try JSONDecoder().decode(UINode.self, from: json)
+        XCTAssertTrue(node.isKnownType)
+        XCTAssertEqual(node.child?.node.type, "zstack")
+        XCTAssertTrue(node.child?.node.isKnownType == true)
+        XCTAssertTrue(node.child?.node.children?.first?.isKnownType == true)
+    }
+
     func testAccessibilityLabelRoundTrip() throws {
         let node = UINode(
             type: "button",

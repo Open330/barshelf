@@ -58,7 +58,7 @@ final class HeadlessInstallerTests: XCTestCase {
         XCTAssertEqual(candidate.manifest.id, "local-widget")
         XCTAssertEqual(candidate.manifest.entry.kind, "exec")
         XCTAssertEqual(candidate.displayVersion, "0.1.0")
-        XCTAssertTrue(candidate.permissionSummary.isEmpty)
+        XCTAssertEqual(candidate.permissionSummary, ["exec: ./widget.sh"])
 
         let widgetsDir = workDir.appendingPathComponent("widgets", isDirectory: true)
         let installed = try HeadlessInstaller.install(candidate, into: widgetsDir)
@@ -90,6 +90,26 @@ final class HeadlessInstallerTests: XCTestCase {
         )
         XCTAssertEqual(installed, reinstalled)
         XCTAssertFalse(FileManager.default.fileExists(atPath: leftover.path))
+    }
+
+    func testFailedUpdateKeepsExistingInstall() throws {
+        let widgetsDir = workDir.appendingPathComponent("widgets", isDirectory: true)
+        let existing = widgetsDir.appendingPathComponent("safe-widget", isDirectory: true)
+        try FileManager.default.createDirectory(at: existing, withIntermediateDirectories: true)
+        let marker = existing.appendingPathComponent("working.txt")
+        try "still here".write(to: marker, atomically: true, encoding: .utf8)
+
+        let missingSource = workDir.appendingPathComponent("missing-source", isDirectory: true)
+        let manifest = Manifest(
+            schemaVersion: 1, id: "safe-widget", name: "Safe",
+            entry: .init(kind: "workflow")
+        )
+        let candidate = InstallCandidate(
+            manifest: manifest, sourceDirectory: missingSource, permissionSummary: []
+        )
+
+        XCTAssertThrowsError(try HeadlessInstaller.install(candidate, into: widgetsDir))
+        XCTAssertEqual(try String(contentsOf: marker), "still here")
     }
 
     func testFetchSessionAcceptsLocalPathString() async throws {

@@ -750,9 +750,14 @@ public enum HttpSource {
         }
     }
 
-    /// Blocks redirects that would downgrade to a non-https URL; https→https
-    /// redirects are followed normally.
+    /// Blocks redirects that downgrade or leave the approved origin. The host
+    /// checks the initial URL against the widget allowlist; keeping every hop
+    /// same-origin makes that authorization valid for the whole request.
     private final class RedirectGuard: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+        private let origin: URL
+
+        init(origin: URL) { self.origin = origin }
+
         func urlSession(
             _ session: URLSession,
             task: URLSessionTask,
@@ -760,12 +765,21 @@ public enum HttpSource {
             newRequest request: URLRequest,
             completionHandler: @escaping (URLRequest?) -> Void
         ) {
-            if request.url?.scheme?.lowercased() == "https" {
+            if let destination = request.url,
+               HttpSource.redirectAllowed(from: origin, to: destination) {
                 completionHandler(request)
             } else {
                 completionHandler(nil) // stop — no downgrade to http
             }
         }
+    }
+
+    static func redirectAllowed(from origin: URL, to destination: URL) -> Bool {
+        guard origin.scheme?.lowercased() == "https",
+              destination.scheme?.lowercased() == "https",
+              origin.host?.lowercased() == destination.host?.lowercased()
+        else { return false }
+        return (origin.port ?? 443) == (destination.port ?? 443)
     }
 
     public static func fetch(
@@ -787,7 +801,7 @@ public enum HttpSource {
             request.setValue(value, forHTTPHeaderField: key)
         }
 
-        let guardDelegate = RedirectGuard()
+        let guardDelegate = RedirectGuard(origin: url)
         let (bytes, response) = try await session.bytes(for: request, delegate: guardDelegate)
         guard let http = response as? HTTPURLResponse else {
             throw HttpSourceError.notHTTP

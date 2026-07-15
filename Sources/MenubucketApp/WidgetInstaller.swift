@@ -36,8 +36,8 @@ enum WidgetInstallFlow {
         let discovery: WidgetDiscovery.Result
     }
 
-    /// Parses the input, downloads the archive (20 MB cap), extracts it
-    /// safely (50 MB cap) and discovers widget candidates.
+    /// Parses the input, downloads the archive (128 MB cap), extracts it
+    /// safely (256 MB cap) and discovers widget candidates.
     static func prepare(input: String) async throws -> Prepared {
         let session = try await HeadlessInstaller.fetchSession(input: input)
         return Prepared(
@@ -141,11 +141,20 @@ enum WidgetInstallFlow {
         from url: URL,
         progress: @escaping (Int64, Int64) -> Void
     ) async throws -> Data {
+        guard url.scheme?.lowercased() == "https" else {
+            throw WidgetInstallFlowError.notHTTP(url)
+        }
         var request = URLRequest(url: url)
         request.timeoutInterval = 60
-        let (bytes, response) = try await URLSession.shared.bytes(for: request)
+        let redirectGuard = HeadlessInstaller.InstallRedirectGuard(origin: url)
+        let (bytes, response) = try await URLSession.shared.bytes(
+            for: request, delegate: redirectGuard
+        )
         guard let http = response as? HTTPURLResponse else {
             throw WidgetInstallFlowError.notHTTP(url)
+        }
+        guard response.url?.scheme?.lowercased() == "https" else {
+            throw WidgetInstallFlowError.notHTTP(response.url ?? url)
         }
         guard http.statusCode == 200 else {
             throw WidgetInstallFlowError.httpStatus(http.statusCode, url)

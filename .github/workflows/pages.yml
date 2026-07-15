@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "site/**"
+      - "schema/**"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -26,8 +27,13 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: actions/configure-pages@v5
+      - name: Stage site and public schemas
+        run: |
+          mkdir -p _site/schema
+          cp -R site/. _site/
+          cp schema/*.json _site/schema/
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: _site
       - id: deployment
         uses: actions/deploy-pages@v4

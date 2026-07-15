@@ -130,6 +130,30 @@ struct AppSettingsView: View {
             Text("General")
         }
 
+        SwiftUI.Section {
+            LabeledContent("Version") {
+                Text(AppVersionInfo.current.versionLabel)
+                    .monospacedDigit()
+                    .textSelection(.enabled)
+            }
+
+            if let build = AppVersionInfo.current.build {
+                LabeledContent("Build") {
+                    Text(build)
+                        .monospacedDigit()
+                        .textSelection(.enabled)
+                }
+            }
+
+            Button("Check for Updates…") {
+                UpdateChecker.check(explicit: true)
+            }
+        } header: {
+            Text("About BarShelf")
+        } footer: {
+            Text("Version and build information for this installation.")
+        }
+
         if let launchError {
             SwiftUI.Section {
                 Label(launchError, systemImage: "exclamationmark.triangle.fill")

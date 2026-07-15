@@ -95,7 +95,7 @@ public struct WidgetInstallSource: Equatable, Sendable {
             return try parseDeepLink(components, deepLinkDepth: deepLinkDepth)
         }
 
-        guard scheme == "https" || scheme == "http" else {
+        guard scheme == "https" else {
             throw WidgetInstallSourceError.unsupportedScheme(scheme)
         }
         guard let url = components.url else {

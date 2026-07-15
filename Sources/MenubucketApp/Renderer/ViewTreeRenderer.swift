@@ -27,6 +27,10 @@ private struct RemoteImageHostsKey: EnvironmentKey {
     static let defaultValue: [String] = []
 }
 
+private struct LocalFileReadPathsKey: EnvironmentKey {
+    static let defaultValue: [String] = []
+}
+
 extension EnvironmentValues {
     /// The rendering widget's `permissions.network` allowlist. `url` image
     /// nodes only load when their host matches an entry — the default (empty)
@@ -35,6 +39,13 @@ extension EnvironmentValues {
     var remoteImageHosts: [String] {
         get { self[RemoteImageHostsKey.self] }
         set { self[RemoteImageHostsKey.self] = newValue }
+    }
+
+    /// The rendering widget's `permissions.readPaths` allowlist. Empty is
+    /// deliberately deny-all for previews and other un-injected trees.
+    var localFileReadPaths: [String] {
+        get { self[LocalFileReadPathsKey.self] }
+        set { self[LocalFileReadPathsKey.self] = newValue }
     }
 }
 
@@ -130,6 +141,7 @@ struct NodeView: View {
     let node: UINode
     @Environment(\.actionContext) private var actionContext
     @Environment(\.widgetAppearance) private var appearance
+    @Environment(\.localFileReadPaths) private var localFileReadPaths
 
     /// Custom accent color, or nil when the widget uses the system accent.
     private var accentOverride: Color? { appearance.accentColor }
@@ -144,8 +156,15 @@ struct NodeView: View {
         // Explicit widget-author label (VoiceOver). When absent, keep the
         // default behavior of each leaf (decorative symbols, file-name
         // thumbnails, etc.).
-        if let label = node.accessibilityLabel {
-            decorated.accessibilityLabel(label)
+        if node.hidden == true {
+            EmptyView()
+        } else if let label = node.effectiveAccessibilityLabel {
+            decorated
+                .accessibilityLabel(label)
+                .modifier(NodeAccessibilityModifier(
+                    hint: node.accessibility?.hint,
+                    value: node.accessibility?.value
+                ))
         } else {
             decorated
         }
@@ -161,7 +180,8 @@ struct NodeView: View {
 
     @ViewBuilder
     private var laidOut: some View {
-        if let drag = node.drag {
+        if let drag = node.drag,
+           WidgetRuntime.filePathAllowed(drag.filePath, allowlist: localFileReadPaths) {
             // Drag-out surface: hand a file URL to Finder / other apps.
             content
                 .modifier(NodeLayoutModifier(node: node))
@@ -193,6 +213,14 @@ struct NodeView: View {
             HStack(alignment: hstackAlignment, spacing: (node.spacing ?? 6) * scale) {
                 NodeChildrenView(nodes: node.children ?? [])
             }
+        case .zstack:
+            ZStack {
+                NodeChildrenView(nodes: node.children ?? [])
+            }
+        case .scroll:
+            ScrollView(scrollAxes, showsIndicators: true) {
+                if let child = node.child?.node { NodeView(node: child) }
+            }
         case .list:
             NodeListView(
                 items: node.items ?? node.children ?? [],
@@ -222,9 +250,19 @@ struct NodeView: View {
         case .divider:
             Divider()
         case .spacer:
-            Spacer(minLength: 0)
+            Spacer(minLength: node.minLength ?? 0)
+        case .some(.none):
+            EmptyView()
         case nil:
             unsupportedView
+        }
+    }
+
+    private var scrollAxes: Axis.Set {
+        switch node.axis {
+        case "horizontal": return .horizontal
+        case "both": return [.horizontal, .vertical]
+        default: return .vertical
         }
     }
 
@@ -625,9 +663,30 @@ private struct NodeTapModifier: ViewModifier {
     @ViewBuilder
     func body(content: Content) -> some View {
         if let action {
+            Button {
+                actionContext.perform(action)
+            } label: {
+                content.contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        } else {
             content
-                .contentShape(Rectangle())
-                .onTapGesture { actionContext.perform(action) }
+        }
+    }
+}
+
+private struct NodeAccessibilityModifier: ViewModifier {
+    let hint: String?
+    let value: String?
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if let hint, let value {
+            content.accessibilityHint(hint).accessibilityValue(value)
+        } else if let hint {
+            content.accessibilityHint(hint)
+        } else if let value {
+            content.accessibilityValue(value)
         } else {
             content
         }
@@ -695,10 +754,22 @@ private struct FileImageView: View {
     let pointSize: CGFloat
 
     @State private var thumbnail: NSImage?
+    @Environment(\.localFileReadPaths) private var localFileReadPaths
+
+    private var isAllowed: Bool {
+        WidgetRuntime.filePathAllowed(path, allowlist: localFileReadPaths)
+    }
 
     var body: some View {
-        Image(nsImage: thumbnail ?? ThumbnailService.shared.icon(forPath: path))
-            .resizable()
+        Group {
+            if isAllowed {
+                Image(nsImage: thumbnail ?? ThumbnailService.shared.icon(forPath: path))
+                    .resizable()
+            } else {
+                Image(systemName: "lock.fill")
+                    .resizable()
+            }
+        }
             .aspectRatio(contentMode: .fit)
             .frame(width: pointSize, height: pointSize)
             .cornerRadius(3)
@@ -716,7 +787,7 @@ private struct FileImageView: View {
     }
 
     private func load() {
-        guard source.kind == "fileThumbnail" else { return }
+        guard isAllowed, source.kind == "fileThumbnail" else { return }
         let expected = cacheIdentity
         let cached = ThumbnailService.shared.thumbnail(
             path: path,

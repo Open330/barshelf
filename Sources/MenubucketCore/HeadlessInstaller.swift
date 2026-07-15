@@ -64,6 +64,48 @@ public enum HeadlessInstaller {
     // guards memory/bandwidth abuse rather than typical repo size.
     public static let maxDownloadBytes = 128 * 1024 * 1024
 
+    public final class InstallRedirectGuard: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+        private let origin: URL
+        public init(origin: URL) { self.origin = origin }
+
+        public func urlSession(
+            _ session: URLSession,
+            task: URLSessionTask,
+            willPerformHTTPRedirection response: HTTPURLResponse,
+            newRequest request: URLRequest,
+            completionHandler: @escaping (URLRequest?) -> Void
+        ) {
+            guard let destination = request.url,
+                  HeadlessInstaller.redirectAllowed(from: origin, to: destination)
+            else {
+                completionHandler(nil)
+                return
+            }
+            completionHandler(request)
+        }
+    }
+
+    /// Same-origin redirects are accepted. GitHub release/repository URLs may
+    /// additionally move to GitHub's controlled download hosts.
+    public static func redirectAllowed(from origin: URL, to destination: URL) -> Bool {
+        guard origin.scheme?.lowercased() == "https",
+              destination.scheme?.lowercased() == "https",
+              let originHost = origin.host?.lowercased(),
+              let destinationHost = destination.host?.lowercased()
+        else { return false }
+        if originHost == destinationHost {
+            return (origin.port ?? 443) == (destination.port ?? 443)
+        }
+        let githubOrigins: Set<String> = [
+            "github.com", "www.github.com", "api.github.com", "codeload.github.com"
+        ]
+        let githubDestinations: Set<String> = [
+            "codeload.github.com", "objects.githubusercontent.com",
+            "release-assets.githubusercontent.com", "raw.githubusercontent.com"
+        ]
+        return githubOrigins.contains(originHost) && githubDestinations.contains(destinationHost)
+    }
+
     /// `~/Library/Application Support/barshelf/widgets` — where the app
     /// loads user-installed widgets from.
     public static var defaultWidgetsDirectory: URL {
@@ -333,8 +375,8 @@ public enum HeadlessInstaller {
         return session.candidates
     }
 
-    /// Copies a candidate into `widgetsDir/<manifest.id>/`, replacing any
-    /// existing install (update). Returns the installed directory.
+    /// Stages a complete candidate beside the live install, then swaps it in.
+    /// Copy/validation failures therefore leave the previous widget intact.
     @discardableResult
     public static func install(
         _ candidate: InstallCandidate, into widgetsDir: URL
@@ -345,10 +387,39 @@ public enum HeadlessInstaller {
         let destination = widgetsDir.appendingPathComponent(
             candidate.manifest.id, isDirectory: true
         )
-        if fm.fileExists(atPath: destination.path) {
-            try fm.removeItem(at: destination)
+        let transactionID = UUID().uuidString
+        let staging = widgetsDir.appendingPathComponent(
+            ".install-\(candidate.manifest.id)-\(transactionID)", isDirectory: true
+        )
+        let backupName = ".backup-\(candidate.manifest.id)-\(transactionID)"
+        let backup = widgetsDir.appendingPathComponent(backupName, isDirectory: true)
+
+        do {
+            try fm.copyItem(at: candidate.sourceDirectory, to: staging)
+            guard fm.fileExists(
+                atPath: staging.appendingPathComponent("widget.json").path
+            ) else {
+                throw HeadlessInstallError.noWidgetsFound(details: ["staged widget has no widget.json"])
+            }
+
+            if fm.fileExists(atPath: destination.path) {
+                _ = try fm.replaceItemAt(
+                    destination,
+                    withItemAt: staging,
+                    backupItemName: backupName,
+                    options: []
+                )
+                try? fm.removeItem(at: backup)
+            } else {
+                try fm.moveItem(at: staging, to: destination)
+            }
+        } catch {
+            try? fm.removeItem(at: staging)
+            if !fm.fileExists(atPath: destination.path), fm.fileExists(atPath: backup.path) {
+                try? fm.moveItem(at: backup, to: destination)
+            }
+            throw error
         }
-        try fm.copyItem(at: candidate.sourceDirectory, to: destination)
         return destination
     }
 
@@ -379,12 +450,21 @@ public enum HeadlessInstaller {
         if url.isFileURL {
             return try readLocalArchive(at: url)
         }
+        guard url.scheme?.lowercased() == "https" else {
+            throw HeadlessInstallError.notHTTP(url)
+        }
 
         var request = URLRequest(url: url)
         request.timeoutInterval = 60
-        let (bytes, response) = try await URLSession.shared.bytes(for: request)
+        let redirectGuard = InstallRedirectGuard(origin: url)
+        let (bytes, response) = try await URLSession.shared.bytes(
+            for: request, delegate: redirectGuard
+        )
         guard let http = response as? HTTPURLResponse else {
             throw HeadlessInstallError.notHTTP(url)
+        }
+        guard response.url?.scheme?.lowercased() == "https" else {
+            throw HeadlessInstallError.notHTTP(response.url ?? url)
         }
         guard http.statusCode == 200 else {
             throw HeadlessInstallError.httpStatus(http.statusCode, url)

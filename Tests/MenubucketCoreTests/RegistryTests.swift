@@ -169,13 +169,13 @@ final class RegistryTests: XCTestCase {
             Set(index.widgets.compactMap(\.kind)),
             ["exec", "script", "workflow"]
         )
-        // CLI/runtime/hardware-dependent entries carry the display-only
-        // `requires` badge; the dependency-free ones do not.
+        // Only actual PATH-resolvable CLI/runtime dependencies carry the
+        // display-only `requires` badge; platform capabilities do not.
         let byID = Dictionary(uniqueKeysWithValues: index.widgets.map { ($0.id, $0) })
         XCTAssertEqual(byID["dev.barshelf.aas-usage"]?.requires, "aas CLI")
         XCTAssertEqual(byID["dev.barshelf.otpeek"]?.requires, "otpeek CLI")
         XCTAssertEqual(byID["dev.barshelf.muxa-watch"]?.requires, "muxa CLI + Deno")
-        XCTAssertEqual(byID["dev.barshelf.battery-meter"]?.requires, "Battery (laptop)")
+        XCTAssertNil(byID["dev.barshelf.battery-meter"]?.requires)
         XCTAssertNil(byID["dev.barshelf.today"]?.requires)
         XCTAssertNil(byID["dev.barshelf.recent-files-grid"]?.requires)
         XCTAssertNil(byID["dev.barshelf.quick-shelf"]?.requires)

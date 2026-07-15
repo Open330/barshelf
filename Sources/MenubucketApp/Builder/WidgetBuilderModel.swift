@@ -784,14 +784,25 @@ final class WidgetBuilderModel: ObservableObject {
         let spec = makeSpec()
         do {
             let files = try WidgetBuilderScaffold.files(for: spec)
-            let dir = HeadlessInstaller.defaultWidgetsDirectory
+            let root = HeadlessInstaller.defaultWidgetsDirectory
+            let dir = root
                 .appendingPathComponent(spec.resolvedID, isDirectory: true)
-            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            guard !FileManager.default.fileExists(atPath: dir.path) else {
+                createError = "A widget with id \"\(spec.resolvedID)\" already exists. Change the name/id or remove the existing widget first."
+                return
+            }
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            let staging = root.appendingPathComponent(
+                ".builder-\(spec.resolvedID)-\(UUID().uuidString)", isDirectory: true
+            )
+            defer { try? FileManager.default.removeItem(at: staging) }
+            try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
             for (name, contents) in files {
                 try contents.write(
-                    to: dir.appendingPathComponent(name), atomically: true, encoding: .utf8
+                    to: staging.appendingPathComponent(name), atomically: true, encoding: .utf8
                 )
             }
+            try FileManager.default.moveItem(at: staging, to: dir)
             createdPath = dir
             createError = nil
             onCreated?()  // triggers WidgetRuntime rescan

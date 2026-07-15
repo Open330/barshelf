@@ -73,8 +73,7 @@ public enum WidgetDiscovery {
         return result
     }
 
-    /// Human-readable permission summary (URL-install v1 contract:
-    /// exec commands / keychain / notifications). Empty means the widget
+    /// Human-readable permission summary. Empty means the widget
     /// requests no gated permissions.
     public static func permissionSummary(for manifest: Manifest) -> [String] {
         var lines: [String] = []
@@ -84,11 +83,20 @@ public enum WidgetDiscovery {
         if let network = manifest.permissions?.network, !network.isEmpty {
             lines.append("network: fetches from " + network.joined(separator: ", "))
         }
+        if let readPaths = manifest.permissions?.readPaths, !readPaths.isEmpty {
+            lines.append("files: reads " + readPaths.joined(separator: ", "))
+        }
         if manifest.permissions?.keychain == true {
             lines.append("keychain: reads secrets from the macOS Keychain")
         }
         if manifest.permissions?.notifications == true {
             lines.append("notifications: may show system notifications")
+        }
+        if let environment = manifest.permissions?.env, !environment.isEmpty {
+            lines.append("environment: reads " + environment.joined(separator: ", "))
+        }
+        if manifest.permissions?.storage?.granted == true {
+            lines.append("storage: saves small data on this Mac")
         }
         return lines
     }

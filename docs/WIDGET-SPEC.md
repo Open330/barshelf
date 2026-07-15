@@ -21,7 +21,7 @@
 
 ```json
 {
-  "$schema": "https://barshelf.dev/schema/widget-0.1.json",
+  "$schema": "https://barshelf.jiun.dev/schema/widget-0.1.json",
   "schemaVersion": 1,
   "id": "dev.example.widget",
   "name": "Example",
@@ -69,7 +69,7 @@
 
 | 필드 | 필수 | 설명 |
 | --- | --- | --- |
-| `$schema` | 아니오 | JSON Schema URL. 권장값은 `https://barshelf.dev/schema/widget-0.1.json`. |
+| `$schema` | 아니오 | JSON Schema URL. 권장값은 `https://barshelf.jiun.dev/schema/widget-0.1.json`. |
 | `schemaVersion` | 예 | v0.1은 `1`. |
 | `id` | 예 | 전역에서 안정적인 위젯 ID. 예: `dev.barshelf.aas-usage`. |
 | `name` | 예 | UI에 표시할 위젯 이름. |
@@ -166,7 +166,7 @@ Workflow DSL 상세 계약은 [`docs/WORKFLOW.md`](WORKFLOW.md)를 따른다.
 | --- | --- |
 | `exec` | 위젯이 실행할 수 있는 명령 allowlist. `source.command`와 선언적 `run` 액션이 이 목록과 매칭되어야 한다. |
 | `network` | 예약. 네트워크 접근 선언용 배열. |
-| `readPaths` | 예약. 파일 읽기 허용 경로 배열. |
+| `readPaths` | `fs.directory`, 파일 썸네일·드래그·열기/Finder 표시가 접근할 수 있는 루트 경로 배열. 경로는 심볼릭 링크 해석 후 런타임에서 강제한다. |
 | `files` | workflow `fs.directory`와 script host API가 사용할 파일 권한 선언. `id`, `access`, `prompt`, `bookmarkSetting`, `defaultPath`, `watch`를 둘 수 있다. |
 | `storage` | script storage quota와 secret 허용 여부 선언. 스키마의 정식 형식은 `{ "maxBytes": 1048576, "secrets": false }`다. |
 | `notifications` | `true`이면 script 런타임의 `host.notify.show` 요청을 허용한다. |
@@ -338,9 +338,9 @@ VoiceOver에서 숨겨지고, 파일 썸네일은 파일명으로 읽힌다.
 }
 ```
 
-`source.kind`는 `sfSymbol`, `asset`, `fileIcon`, `fileThumbnail`, `url`, `data`를 사용할 수 있다.
+`source.kind`는 `sfSymbol`, `fileIcon`, `fileThumbnail`, `url`, `brand`, `monogram`을 사용할 수 있다.
 
-파일 썸네일은 호스트 썸네일 서비스가 해석한다. `fileThumbnail`은 캐시 무효화를 위해 `path`와 `modifiedAt`을 함께 제공해야 하며, 실패 시 `fallback`으로 `fileIcon`을 둘 수 있다.
+파일 썸네일은 호스트 썸네일 서비스가 해석한다. `fileThumbnail`은 캐시 무효화를 위해 `path`와 `modifiedAt`을 함께 제공한다. 이 경로는 반드시 승인된 `permissions.readPaths` 안에 있어야 한다.
 
 ```json
 {
@@ -350,11 +350,7 @@ VoiceOver에서 숨겨지고, 파일 썸네일은 파일명으로 읽힌다.
     "path": "/Users/me/Downloads/report.pdf",
     "modifiedAt": 1783442400000
   },
-  "fallback": {
-    "kind": "fileIcon",
-    "path": "/Users/me/Downloads/report.pdf"
-  },
-  "size": { "width": 72, "height": 54 }
+  "size": 54
 }
 ```
 
@@ -363,8 +359,7 @@ VoiceOver에서 숨겨지고, 파일 썸네일은 파일명으로 읽힌다.
 ```json
 {
   "type": "list",
-  "rowSpacing": 2,
-  "virtualized": false,
+  "spacing": 2,
   "items": [
     {
       "id": "row-1",
@@ -375,12 +370,11 @@ VoiceOver에서 숨겨지고, 파일 썸네일은 파일명으로 읽힌다.
         { "type": "badge", "text": "OK", "tone": "good" }
       ]
     }
-  ],
-  "empty": { "type": "empty", "icon": "tray", "title": "No items" }
+  ]
 }
 ```
 
-작은 popover 목록은 `virtualized: false`가 기본 권장값이다. row 수가 많을 때만 `virtualized: true`를 사용한다.
+`searchPlaceholder`를 지정하면 호스트가 보이는 텍스트를 기준으로 로컬 검색 필드를 제공한다.
 
 ### `grid`
 
@@ -400,26 +394,7 @@ VoiceOver에서 숨겨지고, 파일 썸네일은 파일명으로 읽힌다.
 
 `columns`가 정수면 그 열 수로 고정하고(예: 캘린더 7열), 생략하면 `size`(타일 최소 너비)에 맞춰 자동 줄바꿈한다. 셀은 각 열에서 가운데 정렬된다. `items`는 배열이나 `forEach` 템플릿(스태시바식 파일 격자·캘린더 그리드)일 수 있다.
 
-### `table`
-
-```json
-{
-  "type": "table",
-  "columns": [
-    { "id": "account", "title": "Account", "width": "flex" },
-    { "id": "usage", "title": "Usage", "width": 120 }
-  ],
-  "rows": [
-    {
-      "id": "codex/personal",
-      "cells": {
-        "account": { "type": "text", "text": "personal.codex" },
-        "usage": { "type": "progress", "style": "linear", "value": 0.72, "label": "72%" }
-      }
-    }
-  ]
-}
-```
+표 형태는 현재 별도 `table` 노드가 아니라 `list` 안의 `hstack` 행으로 구성한다.
 
 ### `progress`
 
@@ -496,21 +471,15 @@ Script 위젯에서는 같은 구조를 직접 쓰는 대신 SDK의 `ui.metricCa
 }
 ```
 
-### `switch`, `none`
+### `none`
 
 ```json
 {
-  "type": "switch",
-  "value": "grid",
-  "cases": {
-    "grid": { "type": "grid", "items": [] },
-    "list": { "type": "list", "items": [] }
-  },
-  "default": { "type": "none" }
+  "type": "none"
 }
 ```
 
-`none`은 `EmptyView`에 해당한다.
+`none`은 `EmptyView`에 해당한다. Workflow 조건 분기는 템플릿의 `switch` 연산으로 최종 UINode를 선택한 뒤 렌더링한다.
 
 ## 액션
 
@@ -612,7 +581,7 @@ OTP, access token, 계정별 사용량처럼 민감할 수 있는 값은 다음 
 
 ```json
 {
-  "$schema": "https://barshelf.dev/schema/widget-0.1.json",
+  "$schema": "https://barshelf.jiun.dev/schema/widget-0.1.json",
   "schemaVersion": 1,
   "id": "dev.barshelf.hello",
   "name": "Hello",
@@ -677,7 +646,7 @@ stdout 예:
 
 ```json
 {
-  "$schema": "https://barshelf.dev/schema/widget-0.1.json",
+  "$schema": "https://barshelf.jiun.dev/schema/widget-0.1.json",
   "schemaVersion": 1,
   "id": "dev.barshelf.aas-usage",
   "name": "aas Usage",
@@ -735,7 +704,7 @@ otpeek 위젯은 TOTP 계정을 조회한 뒤 각 계정의 코드를 병렬로 
 
 ```json
 {
-  "$schema": "https://barshelf.dev/schema/widget-0.1.json",
+  "$schema": "https://barshelf.jiun.dev/schema/widget-0.1.json",
   "schemaVersion": 1,
   "id": "dev.barshelf.otpeek",
   "name": "OTPeek",

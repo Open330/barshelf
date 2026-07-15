@@ -8,9 +8,14 @@
   <meta property="og:title" content="BarShelf — macOS menu bar widgets in one popover." />
   <meta property="og:description" content="One menu bar icon for the tools you check all day: usage, builds, files, clocks, OTP, and custom scripts." />
   <meta property="og:type" content="website" />
-  <meta property="og:image" content="shots/macos-menubar-popover-crop.jpg" />
+  <meta property="og:image" content="https://barshelf.jiun.dev/shots/macos-menubar-popover-crop.jpg" />
   <meta property="og:url" content="https://barshelf.jiun.dev/" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="BarShelf — macOS menu bar widgets in one popover." />
+  <meta name="twitter:description" content="One menu bar icon for usage, builds, files, clocks, and your own scripts." />
+  <meta name="twitter:image" content="https://barshelf.jiun.dev/shots/macos-menubar-popover-crop.jpg" />
   <meta name="theme-color" content="#111315" />
+  <link rel="canonical" href="https://barshelf.jiun.dev/" />
   <link rel="icon" href="icon-512.png" />
   <style>
     :root {
@@ -650,7 +655,7 @@
     <section class="proof" aria-label="Product facts">
       <div class="wrap proof-row">
         <div class="proof-item"><strong>1</strong><span class="en">menu bar icon</span><span class="ko">메뉴바 아이콘 하나</span></div>
-        <div class="proof-item"><strong>0</strong><span class="en">runtime dependencies</span><span class="ko">런타임 의존성</span></div>
+        <div class="proof-item"><strong>0</strong><span class="en">dependencies for native widgets · Deno for scripts</span><span class="ko">네이티브 위젯 의존성 · 스크립트는 Deno</span></div>
         <div class="proof-item"><strong>3</strong><span class="en">widget authoring paths</span><span class="ko">위젯 제작 방식</span></div>
         <div class="proof-item"><strong>MIT</strong><span class="en">open source</span><span class="ko">오픈소스</span></div>
       </div>
@@ -838,25 +843,25 @@
           <div class="label"><span class="en">Install</span><span class="ko">설치</span></div>
           <h2 class="en">Get the app, then add widgets.</h2>
           <h2 class="ko">앱을 설치하고 위젯을 추가하세요.</h2>
-          <p class="en">BarShelf is open source, notarized for direct download, and ships with CLI tooling for widget authors.</p>
-          <p class="ko">BarShelf는 오픈소스이며 직접 다운로드용 공증이 되어 있고, 위젯 제작자를 위한 CLI를 함께 제공합니다.</p>
+          <p class="en">BarShelf is open source and ships with checksums plus CLI tooling for widget authors. v0.1.3 is Developer ID signed, notarized, and stapled.</p>
+          <p class="ko">BarShelf는 오픈소스이며 체크섬과 위젯 제작용 CLI를 함께 제공합니다. v0.1.3은 Developer ID 서명·Apple 공증·티켓 스테이플을 통과했습니다.</p>
         </div>
         <div class="terminal-grid reveal">
           <article class="terminal">
             <h3 class="en">Direct download</h3><h3 class="ko">직접 다운로드</h3>
             <pre>BarShelf-*.zip
 → /Applications
-→ Double-click</pre>
-            <p class="en">Download the latest signed build from GitHub Releases.</p>
-            <p class="ko">GitHub Releases에서 최신 서명 빌드를 받으세요.</p>
+→ Open normally (v0.1.3)</pre>
+            <p class="en">Download from GitHub Releases and verify SHA256SUMS before installing.</p>
+            <p class="ko">GitHub Releases에서 받은 뒤 설치 전에 SHA256SUMS를 확인하세요.</p>
           </article>
           <article class="terminal">
             <h3>Homebrew</h3>
             <pre>brew tap Open330/barshelf \
   https://github.com/Open330/barshelf
 brew install --cask barshelf</pre>
-            <p class="en">Install through the project tap.</p>
-            <p class="ko">프로젝트 tap을 통해 설치합니다.</p>
+            <p class="en">Install the same notarized v0.1.3 archive through the project tap.</p>
+            <p class="ko">프로젝트 tap에서도 동일한 공증 v0.1.3 아카이브를 설치합니다.</p>
           </article>
           <article class="terminal">
             <h3 class="en">Widget CLI</h3><h3 class="ko">위젯 CLI</h3>
@@ -894,6 +899,8 @@ barshelf pack ./my-widget</pre>
       <a href="https://github.com/Open330/barshelf" rel="noopener">GitHub</a>
       <a href="https://github.com/Open330/barshelf/releases/latest" rel="noopener"><span class="en">Releases</span><span class="ko">릴리스</span></a>
       <a href="https://github.com/Open330/barshelf/blob/main/docs/GETTING-STARTED.md" rel="noopener"><span class="en">Docs</span><span class="ko">문서</span></a>
+      <a href="https://github.com/Open330/barshelf/blob/main/docs/PRIVACY.md" rel="noopener"><span class="en">Privacy</span><span class="ko">개인정보</span></a>
+      <a href="https://github.com/Open330/barshelf/issues" rel="noopener"><span class="en">Support</span><span class="ko">지원</span></a>
       <span class="spacer"></span>
       <span>MIT © Jiun Bae</span>
     </div>

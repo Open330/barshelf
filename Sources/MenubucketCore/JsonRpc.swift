@@ -247,9 +247,7 @@ public final class JsonRpcDispatcher: @unchecked Sendable {
 
     /// Routes one request. Returns nil for notifications.
     public func dispatch(_ request: JsonRpcRequest) async -> JsonRpcResponse? {
-        lock.lock()
-        let handler = handlers[request.method]
-        lock.unlock()
+        let handler = lock.withLock { handlers[request.method] }
 
         guard let handler else {
             if request.isNotification {
