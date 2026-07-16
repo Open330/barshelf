@@ -1332,10 +1332,12 @@ final class WidgetRuntime: ObservableObject {
                 switch source.use {
                 case "fs.directory":
                     let fsParams = try FileSource.Params(from: value)
-                    guard Self.filePathAllowed(fsParams.path, manifest: widget.manifest) else {
+                    guard Self.filePathAllowed(
+                        fsParams.path, allowlist: effectiveReadPaths(for: widget)
+                    ) else {
                         auditLog.record("file.blocked", widgetId: widget.id, detail: [
                             "path": .string(fsParams.path),
-                            "reason": .string("path not in permissions.readPaths allowlist"),
+                            "reason": .string("path not in permissions.readPaths or a picked folder"),
                         ])
                         throw RuntimeError.invalidWorkflow(
                             "file source path is not covered by permissions.readPaths"
@@ -1519,6 +1521,42 @@ final class WidgetRuntime: ObservableObject {
         filePathAllowed(path, allowlist: manifest.permissions?.readPaths ?? [])
     }
 
+    /// Folders the user picked themself in a `type: "directory"` setting.
+    ///
+    /// Choosing a folder in the settings UI *is* the grant, so a widget whose
+    /// folder is user-selectable does not also have to declare every possible
+    /// choice in `permissions.readPaths` (it cannot — it has no idea what the
+    /// user will pick).
+    ///
+    /// `storedSettings` must be the user's saved values only, never the
+    /// manifest defaults overlaid: a `default` is author-controlled, so
+    /// honoring it here would let any widget self-grant a read root it was
+    /// never approved for (`{"type": "directory", "default": "~/.ssh"}`).
+    /// Defaults still have to be covered by `permissions.readPaths`.
+    static func userGrantedReadPaths(
+        manifest: Manifest,
+        storedSettings: [String: JSONValue]
+    ) -> [String] {
+        let directoryKeys = (manifest.settings ?? [])
+            .filter { $0.type == "directory" }
+            .compactMap(\.key)
+        return directoryKeys.compactMap { key in
+            guard let path = storedSettings[key]?.stringValue, !path.isEmpty else { return nil }
+            return path
+        }
+    }
+
+    /// Every read root a widget currently has: what its author declared, plus
+    /// what the user picked. Use this over `manifest.permissions.readPaths`
+    /// for any live permission check.
+    func effectiveReadPaths(for widget: LoadedWidget) -> [String] {
+        (widget.manifest.permissions?.readPaths ?? [])
+            + Self.userGrantedReadPaths(
+                manifest: widget.manifest,
+                storedSettings: prefs.settings(for: widget.id)
+            )
+    }
+
     static func filePathAllowed(_ path: String, allowlist: [String]) -> Bool {
         guard !allowlist.isEmpty else { return false }
         let target = canonicalFileURL(path)
@@ -1545,11 +1583,11 @@ final class WidgetRuntime: ObservableObject {
 
     func filePathAllowed(_ path: String, widgetID: String) -> Bool {
         guard let widget = widgets.first(where: { $0.id == widgetID }) else { return false }
-        let allowed = Self.filePathAllowed(path, manifest: widget.manifest)
+        let allowed = Self.filePathAllowed(path, allowlist: effectiveReadPaths(for: widget))
         if !allowed {
             auditLog.record("file.blocked", widgetId: widgetID, detail: [
                 "path": .string(path),
-                "reason": .string("path not in permissions.readPaths allowlist"),
+                "reason": .string("path not in permissions.readPaths or a picked folder"),
             ])
         }
         return allowed

@@ -674,7 +674,7 @@ struct WidgetCardView: View {
             .modifier(OptionalHeight(height: effectiveFixedHeight))
             .environment(\.widgetAppearance, appearance)
             .environment(\.remoteImageHosts, widget.manifest.permissions?.network ?? [])
-            .environment(\.localFileReadPaths, widget.manifest.permissions?.readPaths ?? [])
+            .environment(\.localFileReadPaths, runtime.effectiveReadPaths(for: widget))
         .background(sectionBackground)
         .overlay(alignment: .topTrailing) { cardControls }
         // Insertion indicator while a dragged card hovers over this one.
