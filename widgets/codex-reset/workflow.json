@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "kind": "workflow",
+  "_comment": "Unofficial Codex quota-reset forecast from willcodexquotareset.com. The site's /api/forecast returns forecast.score as a 0-100 percentage; the upstream feed itself only re-derives every ~30 minutes, so the refresh interval matches.",
+
+  "sources": {
+    "api": {
+      "use": "http",
+      "with": {
+        "url": "https://www.willcodexquotareset.com/api/forecast"
+      }
+    }
+  },
+
+  "transforms": {
+    "f": { "use": "assign", "from": "$.sources.api.forecast" },
+    "score": { "use": "assign", "from": "round(number($.sources.api.forecast.score), 0)" },
+    "tint": {
+      "use": "assign",
+      "from": "if(gte(transforms.score, 70), 'good', if(gte(transforms.score, 40), 'warning', 'secondary'))"
+    }
+  },
+
+  "view": {
+    "action": { "type": "openURL", "url": "https://www.willcodexquotareset.com/" },
+    "type": "vstack",
+    "spacing": 6,
+    "padding": 10,
+    "children": [
+      {
+        "type": "hstack",
+        "spacing": 6,
+        "children": [
+          {
+            "type": "image",
+            "source": { "kind": "sfSymbol", "name": "cloud.sun.fill" },
+            "size": 13,
+            "tint": "accent"
+          },
+          {
+            "type": "text",
+            "text": "Will Codex reset?",
+            "role": "caption",
+            "foreground": "secondary",
+            "lineLimit": 1
+          },
+          { "type": "spacer" },
+          {
+            "type": "text",
+            "text": "48H",
+            "role": "caption",
+            "foreground": "secondary"
+          }
+        ]
+      },
+      {
+        "type": "text",
+        "text": "${transforms.score}%",
+        "size": 32,
+        "role": "title",
+        "monospacedDigit": true,
+        "foreground": "${transforms.tint}"
+      },
+      {
+        "type": "progress",
+        "style": "linear",
+        "value": "${div(transforms.score, 100)}",
+        "tint": "${transforms.tint}"
+      },
+      {
+        "type": "text",
+        "text": "Last reset ${round(number(transforms.f.hoursSinceReset), 1)}h ago · alert at 70%",
+        "role": "caption",
+        "foreground": "secondary",
+        "lineLimit": 2
+      }
+    ]
+  },
+
+  "status": {
+    "label": "Codex ${transforms.score}%",
+    "tooltip": "${transforms.score}% chance of a Codex quota reset in the next 48 hours. ${transforms.f.aggregateAssessment.reason}"
+  }
+}
