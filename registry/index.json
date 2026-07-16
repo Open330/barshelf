@@ -2,7 +2,7 @@
   "_comment": "Sample index served from this repository. install.bundled lets the packaged gallery install the starter widgets without network access. The `requires` field is a display-only gallery badge for widgets that need an external CLI/runtime. `category` is an optional curated grouping surfaced as gallery filter chips (falls back to `tags`). `screenshot` renders a preview thumbnail and `readme` links a rendered Markdown details page.",
   "schemaVersion": 1,
   "name": "barshelf official registry",
-  "updatedAt": "2026-07-12T08:15:00Z",
+  "updatedAt": "2026-07-16T06:00:00Z",
   "widgets": [
     {
       "id": "dev.barshelf.today",
@@ -115,6 +115,22 @@
       "install": { "url": "https://github.com/jiunbae/otpeek/tree/main/widgets/otpeek" },
       "permissions": { "exec": ["otpeek"], "keychain": true, "notifications": false },
       "homepage": "https://github.com/jiunbae/otpeek"
+    },
+    {
+      "id": "dev.barshelf.codex-reset",
+      "collection": "custom",
+      "accent": "orange",
+      "name": "Codex Reset",
+      "description": "Unofficial forecast of a Codex quota reset in the next 48 hours, from willcodexquotareset.com — a 0-100 score tinted at the 70/40 marks and mirrored into the status item. The upstream feed re-derives every ~30 minutes, so the widget refreshes on that cadence.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "cloud.sun.fill",
+      "kind": "workflow",
+      "tags": ["developer", "ai", "codex", "quota", "workflow", "http"],
+      "category": "Developer",
+      "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/codex-reset", "bundled": "codex-reset" },
+      "permissions": { "exec": [], "keychain": false, "notifications": false, "network": ["www.willcodexquotareset.com"] },
+      "homepage": "https://www.willcodexquotareset.com/"
     },
     {
       "id": "dev.barshelf.downloads-new",

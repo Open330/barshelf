@@ -163,7 +163,7 @@ final class RegistryTests: XCTestCase {
             .appendingPathComponent("registry/index.json")
         let (index, warnings) = try RegistryIndex.parse(Data(contentsOf: sample))
         XCTAssertEqual(index.schemaVersion, 1)
-        XCTAssertEqual(index.widgets.count, 24)
+        XCTAssertEqual(index.widgets.count, 25)
         XCTAssertTrue(warnings.isEmpty, "\(warnings)")
         XCTAssertEqual(
             Set(index.widgets.compactMap(\.kind)),
@@ -178,6 +178,8 @@ final class RegistryTests: XCTestCase {
         XCTAssertNil(byID["dev.barshelf.battery-meter"]?.requires)
         XCTAssertNil(byID["dev.barshelf.today"]?.requires)
         XCTAssertNil(byID["dev.barshelf.recent-files-grid"]?.requires)
+        // Reaches its feed over HTTP, so it needs no CLI on PATH.
+        XCTAssertNil(byID["dev.barshelf.codex-reset"]?.requires)
         XCTAssertNil(byID["dev.barshelf.quick-shelf"]?.requires)
         XCTAssertEqual(
             byID["dev.barshelf.next-meeting"]?.readme,
