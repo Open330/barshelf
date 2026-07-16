@@ -69,7 +69,7 @@ Install BarShelf on my Mac and scaffold my first widget.
 1. Download the latest release from
    https://github.com/Open330/barshelf/releases/latest, unzip the
    BarShelf-<version>-arm64.zip, move BarShelf.app into /Applications, and open it.
-   The current v0.1.3 build is Developer ID signed, notarized, and stapled.
+   The current v0.1.4 build is Developer ID signed, notarized, and stapled.
 2. Download the barshelf CLI — it ships as a separate release asset
    (barshelf-cli-<version>-arm64.tar.gz). Extract it and put barshelf on my PATH.
 3. Scaffold a widget:  barshelf new my-widget --kind workflow
@@ -88,7 +88,7 @@ scaffold a widget. Prefer the manual steps? The human install guide is right bel
 
 Grab `BarShelf-<version>-arm64.zip` from
 **[Releases](https://github.com/Open330/barshelf/releases/latest)**, move it to
-`/Applications`, then open it normally. The current v0.1.3 asset is Developer ID
+`/Applications`, then open it normally. The current v0.1.4 asset is Developer ID
 signed, Apple-notarized, and includes a stapled ticket for offline verification.
 
 Full guide, `barshelf` CLI, and troubleshooting: **[docs/INSTALL.md](docs/INSTALL.md)**.
