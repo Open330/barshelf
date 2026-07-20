@@ -26,6 +26,7 @@ enum ScreenshotMode {
             ("tile-otp", "OTP Codes", "key.fill", ShotData.otpNode, "purple"),
             ("tile-files", "Recent Files", "clock.arrow.circlepath", ShotData.filesNode, nil),
             ("tile-aas", "aas usage", "gauge", ShotData.aasNode, "orange"),
+            ("tile-muxa-watch", "muxa Watch", "rectangle.3.group.bubble.left.fill", ShotData.muxaWatchNode, "purple"),
             ("tile-k8s", "k8s pods", "shippingbox", ShotData.k8sNode, nil),
             ("tile-next-meeting", "Next Meeting", "calendar.badge.clock", ShotData.nextMeetingNode, "blue"),
             ("tile-quick-shelf", "Quick Shelf", "square.grid.2x2", ShotData.quickShelfNode, "purple"),
@@ -287,6 +288,61 @@ enum ScreenshotMode {
 // MARK: - Sample data (authentic: rendered by the real ViewTreeRenderer)
 
 private enum ShotData {
+    /// Real `muxa Watch` output — the widget's own `load()` run against the
+    /// isolated demo fleet from muxa's `docs/demo-setup.sh` (no live sessions),
+    /// with the relative ages varied so the tile doesn't read as one instant.
+    static var muxaWatchNode: UINode {
+        let json = """
+        {"spacing":8,"type":"vstack","children":[
+          {"id":"local-agent-0","spacing":8,"alignment":"baseline","type":"hstack","children":[
+            {"size":8,"tint":"warning","accessibilityLabel":"Choose","type":"image","source":{"kind":"sfSymbol","name":"circle.fill"}},
+            {"spacing":1,"widthFill":true,"type":"vstack","children":[
+              {"spacing":8,"type":"hstack","children":[
+                {"role":"body","lineLimit":1,"widthFill":true,"type":"text","text":"auth:0.0"},
+                {"role":"caption","foreground":"tertiary","monospacedDigit":true,"lineLimit":1,"type":"text","text":"8s"}]},
+              {"role":"caption","foreground":"warning","lineLimit":1,"type":"text","text":"Choose · rotate the JWT signing keys across environments"}]}]},
+          {"id":"local-agent-1","spacing":8,"alignment":"baseline","type":"hstack","children":[
+            {"size":8,"tint":"warning","accessibilityLabel":"Needs input","type":"image","source":{"kind":"sfSymbol","name":"circle.fill"}},
+            {"spacing":1,"widthFill":true,"type":"vstack","children":[
+              {"spacing":8,"type":"hstack","children":[
+                {"role":"body","lineLimit":1,"widthFill":true,"type":"text","text":"web:0.0"},
+                {"role":"caption","foreground":"tertiary","monospacedDigit":true,"lineLimit":1,"type":"text","text":"1m"}]},
+              {"role":"caption","foreground":"warning","lineLimit":1,"type":"text","text":"Needs input · fix the SSE reconnect backoff"}]}]},
+          {"id":"local-agent-2","spacing":8,"alignment":"baseline","type":"hstack","children":[
+            {"size":8,"tint":"warning","accessibilityLabel":"Needs input","type":"image","source":{"kind":"sfSymbol","name":"circle.fill"}},
+            {"spacing":1,"widthFill":true,"type":"vstack","children":[
+              {"spacing":8,"type":"hstack","children":[
+                {"role":"body","lineLimit":1,"widthFill":true,"type":"text","text":"main:1.0"},
+                {"role":"caption","foreground":"tertiary","monospacedDigit":true,"lineLimit":1,"type":"text","text":"6m"}]},
+              {"role":"caption","foreground":"warning","lineLimit":1,"type":"text","text":"Needs input · audit the legacy auth middleware for token handling — flag anything that st…"}]}]},
+          {"id":"local-agent-3","spacing":8,"alignment":"baseline","type":"hstack","children":[
+            {"size":8,"tint":"good","accessibilityLabel":"Working","type":"image","source":{"kind":"sfSymbol","name":"circle.fill"}},
+            {"spacing":1,"widthFill":true,"type":"vstack","children":[
+              {"spacing":8,"type":"hstack","children":[
+                {"role":"body","lineLimit":1,"widthFill":true,"type":"text","text":"infra:0.0"},
+                {"role":"caption","foreground":"tertiary","monospacedDigit":true,"lineLimit":1,"type":"text","text":"22s"}]},
+              {"role":"caption","foreground":"secondary","lineLimit":1,"type":"text","text":"Codex · terraform: split the network module and pin providers"}]}]},
+          {"id":"local-agent-4","spacing":8,"alignment":"baseline","type":"hstack","children":[
+            {"size":8,"tint":"good","accessibilityLabel":"Working","type":"image","source":{"kind":"sfSymbol","name":"circle.fill"}},
+            {"spacing":1,"widthFill":true,"type":"vstack","children":[
+              {"spacing":8,"type":"hstack","children":[
+                {"role":"body","lineLimit":1,"widthFill":true,"type":"text","text":"api:0.0"},
+                {"role":"caption","foreground":"accent","monospacedDigit":true,"lineLimit":1,"type":"text","text":"◇2"},
+                {"role":"caption","foreground":"tertiary","monospacedDigit":true,"lineLimit":1,"type":"text","text":"3m"}]},
+              {"role":"caption","foreground":"secondary","lineLimit":1,"type":"text","text":"Claude Code · port the reconciler onto the new PaneBackend trait"},
+              {"id":"local-agent-4-sub-0","spacing":4,"type":"hstack","children":[
+                {"role":"caption","foreground":"tertiary","type":"text","text":"├─"},
+                {"role":"caption","foreground":"secondary","lineLimit":1,"widthFill":true,"type":"text","text":"Explore · map the reconcile call sites"}]},
+              {"id":"local-agent-4-sub-1","spacing":4,"type":"hstack","children":[
+                {"role":"caption","foreground":"tertiary","type":"text","text":"└─"},
+                {"role":"caption","foreground":"secondary","lineLimit":1,"widthFill":true,"type":"text","text":"general-purpose · port and de-dup"}]}]}]},
+          {"type":"hstack","children":[
+            {"type":"spacer"},
+            {"role":"caption","foreground":"tertiary","type":"text","text":"+3 more"}]}]}
+        """
+        return (try? JSONDecoder().decode(UINode.self, from: Data(json.utf8))) ?? UINode(type: "spacer")
+    }
+
     /// Real `AasUsageAdapter` output from representative JSON.
     static var aasNode: UINode {
         let now = Int(Date().timeIntervalSince1970 * 1000)
