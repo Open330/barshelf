@@ -344,11 +344,34 @@ public final class ExecService {
             return URL(fileURLWithPath: path)
         }
 
+        func matchesCommandIdentity(_ candidate: URL) -> Bool {
+            if !command0.contains("/") {
+                return candidate.resolvingSymlinksInPath().lastPathComponent == command0
+            }
+
+            let declared: URL
+            if command0.hasPrefix("./") || command0.hasPrefix("../") {
+                let base = workingDirectory ?? URL(fileURLWithPath: fm.currentDirectoryPath)
+                declared = base.appendingPathComponent(command0)
+            } else {
+                declared = URL(fileURLWithPath: (command0 as NSString).expandingTildeInPath)
+            }
+            return candidate.standardizedFileURL.resolvingSymlinksInPath().path
+                == declared.standardizedFileURL.resolvingSymlinksInPath().path
+        }
+
+        func authorizedExecutableURL(atPath path: String) -> URL? {
+            guard let candidate = executableURL(atPath: path), matchesCommandIdentity(candidate) else {
+                return nil
+            }
+            return candidate
+        }
+
         if let discover, !discover.isEmpty {
             for candidate in discover {
                 if candidate == "PATH" {
                     searched.append("PATH")
-                    if let found = searchPATH(for: command0, executableURL: executableURL) {
+                    if let found = searchPATH(for: command0, executableURL: authorizedExecutableURL) {
                         return found
                     }
                 } else if candidate.hasPrefix("$") {
@@ -358,13 +381,13 @@ public final class ExecService {
                         continue
                     }
                     let expanded = (value as NSString).expandingTildeInPath
-                    if let found = executableURL(atPath: expanded) {
+                    if let found = authorizedExecutableURL(atPath: expanded) {
                         return found
                     }
                 } else {
                     let expanded = (candidate as NSString).expandingTildeInPath
                     searched.append(expanded)
-                    if let found = executableURL(atPath: expanded) {
+                    if let found = authorizedExecutableURL(atPath: expanded) {
                         return found
                     }
                 }
