@@ -33,15 +33,28 @@ public struct InstallCandidate: Equatable, Sendable {
     }
 
     public init(_ discovered: WidgetDiscovery.Candidate) {
+        let workflow = Self.loadWorkflow(for: discovered)
         self.init(
             manifest: discovered.manifest,
             sourceDirectory: discovered.directory,
             permissionSummary: WidgetDiscovery.permissionSummary(
-                for: discovered.manifest
+                for: discovered.manifest,
+                workflow: workflow
             ),
             displayVersion: discovered.displayVersion,
             relativePath: discovered.relativePath
         )
+    }
+
+    private static func loadWorkflow(
+        for candidate: WidgetDiscovery.Candidate
+    ) -> WorkflowDefinition? {
+        guard candidate.manifest.entry.kind == "workflow" else { return nil }
+        let url = candidate.directory.appendingPathComponent(
+            candidate.manifest.entry.main ?? "workflow.json"
+        )
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return try? WorkflowDefinition.decode(from: data)
     }
 
     /// "Name (id) v1.2.3" — shared display line for dialogs and CLI output.

@@ -435,7 +435,7 @@ final class WidgetInstaller {
         if let version = candidate.displayVersion {
             info.append("version: \(version)")
         }
-        let permissions = WidgetDiscovery.permissionSummary(for: candidate.manifest)
+        let permissions = InstallCandidate(candidate).permissionSummary
         if permissions.isEmpty {
             info.append("Requested permissions: none")
         } else {
@@ -616,7 +616,7 @@ enum WidgetInstallCLI {
             var failureCount = discovery.failures.count
             for candidate in discovery.candidates {
                 print("widget: \(WidgetInstallFlow.describe(candidate))")
-                let permissions = WidgetDiscovery.permissionSummary(for: candidate.manifest)
+                let permissions = InstallCandidate(candidate).permissionSummary
                 if permissions.isEmpty {
                     print("  permissions: none")
                 } else {

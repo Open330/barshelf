@@ -211,8 +211,31 @@ final class WidgetInstallArchiveTests: XCTestCase {
         XCTAssertTrue(summary[1].lowercased().contains("keychain"))
         XCTAssertTrue(summary[2].lowercased().contains("notification"))
 
-        let none = try Manifest.decode(from: manifestJSON(id: "q"))
+        let none = try Manifest.decode(from: Data("""
+        { "schemaVersion": 1, "id": "q", "name": "q",
+          "entry": { "kind": "workflow" } }
+        """.utf8))
         XCTAssertTrue(WidgetDiscovery.permissionSummary(for: none).isEmpty)
+
+        let undeclaredExec = try Manifest.decode(from: manifestJSON(
+            id: "undeclared-exec",
+            extra: """
+            , "source": { "kind": "exec", "command": ["./widget.sh"] }
+            """
+        ))
+        XCTAssertEqual(
+            WidgetDiscovery.permissionSummary(for: undeclaredExec),
+            ["exec: missing required command allowlist"]
+        )
+
+        let workflow = WorkflowDefinition(
+            sources: ["data": .init(use: "exec")],
+            view: .object(["type": .string("text"), "text": .string("ok")])
+        )
+        XCTAssertEqual(
+            WidgetDiscovery.permissionSummary(for: none, workflow: workflow),
+            ["exec: missing required command allowlist"]
+        )
     }
 }
 

@@ -75,10 +75,15 @@ public enum WidgetDiscovery {
 
     /// Human-readable permission summary. Empty means the widget
     /// requests no gated permissions.
-    public static func permissionSummary(for manifest: Manifest) -> [String] {
+    public static func permissionSummary(
+        for manifest: Manifest,
+        workflow: WorkflowDefinition? = nil
+    ) -> [String] {
         var lines: [String] = []
         if let exec = manifest.permissions?.exec, !exec.isEmpty {
             lines.append("exec: " + exec.map(\.command).joined(separator: ", "))
+        } else if manifestRequiresExecPermission(manifest, workflow: workflow) {
+            lines.append("exec: missing required command allowlist")
         }
         if let network = manifest.permissions?.network, !network.isEmpty {
             lines.append("network: fetches from " + network.joined(separator: ", "))
@@ -99,6 +104,16 @@ public enum WidgetDiscovery {
             lines.append("storage: saves small data on this Mac")
         }
         return lines
+    }
+
+    /// Whether this manifest can invoke a host-managed command and therefore
+    /// must declare at least one `permissions.exec` entry.
+    public static func manifestRequiresExecPermission(
+        _ manifest: Manifest,
+        workflow: WorkflowDefinition? = nil
+    ) -> Bool {
+        manifest.entry.kind == "exec"
+            || workflow?.sources.values.contains { $0.use == "exec" } == true
     }
 
     /// Widget ids become install directory names — restrict them to a safe

@@ -181,18 +181,11 @@ public enum WidgetValidator {
             }
         }
 
-        if manifest.entry.kind == "exec",
-           let command = manifest.source?.command,
-           !command.isEmpty,
-           ExecAllowlist.match(command: command, permissions: manifest.permissions?.exec) == nil {
-            report.issues.append(Issue(
-                file: manifestFile,
-                field: "permissions.exec",
-                message: "source.command is not covered by an exact exec allowlist entry"
-            ))
-        }
-
+        var workflow: WorkflowDefinition?
         if let workflowFileName {
+            workflow = loadWorkflow(
+                at: directory.appendingPathComponent(workflowFileName)
+            )
             validateWorkflow(
                 at: directory.appendingPathComponent(workflowFileName),
                 file: joinPath(prefix, workflowFileName),
@@ -207,6 +200,32 @@ public enum WidgetValidator {
                 file: manifestFile,
                 field: "source.command",
                 message: "exec widgets need a source.command (or source.discover)"
+            ))
+        }
+
+        if manifest.entry.kind == "workflow",
+           WidgetDiscovery.manifestRequiresExecPermission(
+               manifest, workflow: workflow
+           ),
+           manifest.permissions?.exec?.isEmpty != false {
+            report.issues.append(Issue(
+                file: manifestFile,
+                field: "permissions.exec",
+                message: "workflow exec sources require permissions.exec"
+            ))
+        }
+
+        if manifest.entry.kind == "exec",
+           let command = manifest.source?.command,
+           !command.isEmpty,
+           ExecAllowlist.match(
+               command: command,
+               permissions: manifest.permissions?.exec
+           ) == nil {
+            report.issues.append(Issue(
+                file: manifestFile,
+                field: "permissions.exec",
+                message: "source.command is not covered by an exact exec allowlist entry"
             ))
         }
 
@@ -240,6 +259,11 @@ public enum WidgetValidator {
         } catch {
             report.issues.append(decodingIssue(error, file: file))
         }
+    }
+
+    private static func loadWorkflow(at url: URL) -> WorkflowDefinition? {
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return try? JSONDecoder().decode(WorkflowDefinition.self, from: data)
     }
 
     // MARK: - Helpers

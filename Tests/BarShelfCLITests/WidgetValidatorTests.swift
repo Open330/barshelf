@@ -113,6 +113,37 @@ final class WidgetValidatorTests: XCTestCase {
         XCTAssertTrue(report.issues.contains { $0.field == "source.command" })
     }
 
+    func testExecCommandRequiresMatchingPermission() throws {
+        let missing = try writeWidget("""
+        { "schemaVersion": 1, "id": "missing-permission", "name": "Missing",
+          "entry": { "kind": "exec" },
+          "source": { "kind": "exec", "command": ["./widget.sh"] } }
+        """)
+        XCTAssertTrue(WidgetValidator.validate(directory: missing).issues.contains {
+            $0.field == "permissions.exec"
+        })
+
+        let mismatch = try writeWidget("""
+        { "schemaVersion": 1, "id": "mismatch-permission", "name": "Mismatch",
+          "entry": { "kind": "exec" },
+          "source": { "kind": "exec", "command": ["./widget.sh"] },
+          "permissions": { "exec": [{ "command": "other", "allowedArgs": [] }] } }
+        """)
+        XCTAssertTrue(WidgetValidator.validate(directory: mismatch).issues.contains {
+            $0.field == "permissions.exec"
+        })
+
+        let matched = try writeWidget("""
+        { "schemaVersion": 1, "id": "matched-permission", "name": "Matched",
+          "entry": { "kind": "exec" },
+          "source": { "kind": "exec", "command": ["./widget.sh"] },
+          "permissions": { "exec": [{ "command": "./widget.sh", "allowedArgs": [] }] } }
+        """)
+        XCTAssertFalse(WidgetValidator.validate(directory: matched).issues.contains {
+            $0.field == "permissions.exec"
+        })
+    }
+
     func testWorkflowMainMissing() throws {
         let dir = try writeWidget("""
         { "schemaVersion": 1, "id": "wf", "name": "WF",
@@ -121,6 +152,32 @@ final class WidgetValidatorTests: XCTestCase {
         let report = WidgetValidator.validate(directory: dir)
         XCTAssertTrue(report.issues.contains {
             $0.file == "workflow.json" && $0.message.contains("not found")
+        })
+    }
+
+    func testWorkflowExecSourceRequiresExecPermission() throws {
+        let workflow = """
+        { "schemaVersion": 1,
+          "sources": { "data": { "use": "exec", "with": {
+            "command": ["/usr/bin/date"] } } },
+          "view": { "type": "text", "text": "${sources.data}" } }
+        """
+        let missing = try writeWidget("""
+        { "schemaVersion": 1, "id": "workflow-missing-exec", "name": "Missing",
+          "entry": { "kind": "workflow", "main": "workflow.json" } }
+        """, extra: ["workflow.json": workflow])
+        XCTAssertTrue(WidgetValidator.validate(directory: missing).issues.contains {
+            $0.field == "permissions.exec"
+        })
+
+        let declared = try writeWidget("""
+        { "schemaVersion": 1, "id": "workflow-declared-exec", "name": "Declared",
+          "entry": { "kind": "workflow", "main": "workflow.json" },
+          "permissions": { "exec": [{ "command": "/usr/bin/date",
+            "allowedArgs": [] }] } }
+        """, extra: ["workflow.json": workflow])
+        XCTAssertFalse(WidgetValidator.validate(directory: declared).issues.contains {
+            $0.field == "permissions.exec"
         })
     }
 

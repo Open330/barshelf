@@ -446,6 +446,13 @@ final class WidgetRuntime: ObservableObject {
                 ))
             }
         }
+        if permissions?.exec?.isEmpty != false,
+           widget.manifest.entry.kind == "exec" {
+            rows.append(permissionRow(
+                icon: "exclamationmark.triangle.fill",
+                title: "Blocked: executable source has no command allowlist"
+            ))
+        }
         if permissions?.keychain == true {
             rows.append(permissionRow(icon: "key.fill", title: "Read & write Keychain secrets"))
         }
@@ -1414,7 +1421,7 @@ final class WidgetRuntime: ObservableObject {
         let permission = ExecAllowlist.match(
             command: command, permissions: widget.manifest.permissions?.exec
         )
-        if !Self.execCommandAllowed(command, manifest: widget.manifest) {
+        guard let permission else {
             auditLog.record("exec.blocked", widgetId: widget.id, detail: [
                 "command": .string(command.joined(separator: " ")),
                 "reason": .string("workflow exec source not in permissions.exec allowlist"),
@@ -1425,7 +1432,7 @@ final class WidgetRuntime: ObservableObject {
         }
         auditLog.record("exec.run", widgetId: widget.id, detail: [
             "command": .string(
-                permission?.sensitiveOutput == true
+                permission.sensitiveOutput == true
                     ? (command.first ?? "") : command.joined(separator: " ")
             ),
             "trigger": .string("workflow"),
@@ -1439,7 +1446,7 @@ final class WidgetRuntime: ObservableObject {
             timeoutMs: timeoutMs ?? Self.defaultTimeoutMs,
             workingDirectory: widget.directory,
             extraEnvironment: Self.secretEnvironment(for: widget.manifest),
-            stdoutLimit: permission?.maxOutputBytes ?? ExecService.maxStdoutBytes
+            stdoutLimit: permission.maxOutputBytes ?? ExecService.maxStdoutBytes
         ).get()
 
         if params.objectValue?["parse"]?.stringValue == "text" {
