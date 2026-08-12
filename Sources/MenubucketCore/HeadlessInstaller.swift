@@ -50,9 +50,11 @@ public struct InstallCandidate: Equatable, Sendable {
         for candidate: WidgetDiscovery.Candidate
     ) -> WorkflowDefinition? {
         guard candidate.manifest.entry.kind == "workflow" else { return nil }
-        let url = candidate.directory.appendingPathComponent(
-            candidate.manifest.entry.main ?? "workflow.json"
-        )
+        guard let url = try? WidgetEntryResolver.resolve(
+            directory: candidate.directory,
+            main: candidate.manifest.entry.main,
+            defaultName: "workflow.json"
+        ) else { return nil }
         guard let data = try? Data(contentsOf: url) else { return nil }
         return try? WorkflowDefinition.decode(from: data)
     }

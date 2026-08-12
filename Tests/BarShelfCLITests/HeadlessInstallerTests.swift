@@ -72,6 +72,36 @@ final class HeadlessInstallerTests: XCTestCase {
         XCTAssertTrue(HeadlessInstaller.isInstalled(id: "local-widget", in: widgetsDir))
     }
 
+    func testInstallCandidateDoesNotReadWorkflowThroughEscapingSymlink() throws {
+        let widgetDir = workDir.appendingPathComponent("linked-workflow", isDirectory: true)
+        try FileManager.default.createDirectory(at: widgetDir, withIntermediateDirectories: true)
+        try Data("""
+        {
+          "schemaVersion": 1,
+          "id": "linked-workflow",
+          "name": "Linked Workflow",
+          "entry": { "kind": "workflow", "main": "workflow.json" }
+        }
+        """.utf8).write(to: widgetDir.appendingPathComponent("widget.json"))
+
+        let externalWorkflow = workDir.appendingPathComponent("external-workflow.json")
+        try Data("""
+        {
+          "sources": { "outside": { "use": "exec" } },
+          "view": { "type": "text", "text": "outside" }
+        }
+        """.utf8).write(to: externalWorkflow)
+        try FileManager.default.createSymbolicLink(
+            at: widgetDir.appendingPathComponent("workflow.json"),
+            withDestinationURL: externalWorkflow
+        )
+
+        let discovery = try WidgetDiscovery.discover(under: widgetDir)
+        let candidate = InstallCandidate(try XCTUnwrap(discovery.candidates.first))
+
+        XCTAssertTrue(candidate.permissionSummary.isEmpty)
+    }
+
     func testReinstallReplacesExistingDirectory() async throws {
         let archiveURL = try makeArchive(name: "twice-widget")
         let widgetsDir = workDir.appendingPathComponent("widgets", isDirectory: true)
