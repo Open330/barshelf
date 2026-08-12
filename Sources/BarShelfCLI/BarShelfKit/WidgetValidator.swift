@@ -280,6 +280,15 @@ public enum WidgetValidator {
 
     /// Maps a DecodingError onto "file: field.path: message".
     static func decodingIssue(_ error: Error, file: String) -> Issue {
+        if case let ManifestDecodingError.unsupportedSchemaVersion(version) = error {
+            return Issue(
+                file: file,
+                field: "schemaVersion",
+                message: "unsupported version \(version) "
+                    + "(supported version: \(Manifest.supportedSchemaVersion)); "
+                    + "update BarShelf to a version that supports this widget manifest"
+            )
+        }
         guard let decodingError = error as? DecodingError else {
             return Issue(file: file, message: error.localizedDescription)
         }

@@ -77,6 +77,24 @@ final class WidgetValidatorTests: XCTestCase {
         XCTAssertTrue(issue.message.contains("wrong type"))
     }
 
+    func testUnsupportedManifestSchemaVersionReportsActionableFieldIssue() throws {
+        let dir = try writeWidget("""
+        { "schemaVersion": 2, "id": "future", "name": "Future",
+          "entry": { "kind": "exec" } }
+        """)
+
+        let report = WidgetValidator.validate(directory: dir)
+
+        XCTAssertFalse(report.isValid)
+        XCTAssertTrue(report.validatedWidgets.isEmpty)
+        let issue = try XCTUnwrap(report.issues.first)
+        XCTAssertEqual(issue.file, "widget.json")
+        XCTAssertEqual(issue.field, "schemaVersion")
+        XCTAssertTrue(issue.message.contains("unsupported version 2"))
+        XCTAssertTrue(issue.message.contains("supported version: 1"))
+        XCTAssertTrue(issue.message.contains("update BarShelf"))
+    }
+
     func testLegacyFilesPermissionReportsMigrationField() throws {
         let dir = try writeWidget("""
         { "schemaVersion": 1, "id": "legacy-files", "name": "Legacy Files",

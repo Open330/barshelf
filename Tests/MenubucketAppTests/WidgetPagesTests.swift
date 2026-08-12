@@ -143,4 +143,30 @@ final class WidgetPagesTests: XCTestCase {
             ])
         )
     }
+
+    func testRuntimeDiscoveryRejectsUnsupportedManifestSchemaVersion() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("widget-version-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let supported = root.appendingPathComponent("supported", isDirectory: true)
+        let unsupported = root.appendingPathComponent("unsupported", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: supported, withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(
+            at: unsupported, withIntermediateDirectories: true
+        )
+        try Data("""
+        { "schemaVersion": 1, "id": "supported", "name": "Supported",
+          "entry": { "kind": "exec" } }
+        """.utf8).write(to: supported.appendingPathComponent("widget.json"))
+        try Data("""
+        { "schemaVersion": 2, "id": "unsupported", "name": "Unsupported",
+          "entry": { "kind": "exec" } }
+        """.utf8).write(to: unsupported.appendingPathComponent("widget.json"))
+
+        let widgets = WidgetRuntime.discoverWidgets(in: [root])
+
+        XCTAssertEqual(widgets.map(\.id), ["supported"])
+    }
 }

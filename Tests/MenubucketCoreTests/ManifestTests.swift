@@ -87,6 +87,23 @@ final class ManifestTests: XCTestCase {
         XCTAssertThrowsError(try Manifest.decode(from: json))
     }
 
+    func testRejectsUnsupportedSchemaVersionWithTypedActionableError() {
+        let json = Data("""
+        { "schemaVersion": 2, "id": "dev.example.future", "name": "Future",
+          "entry": { "kind": "exec" } }
+        """.utf8)
+
+        XCTAssertThrowsError(try Manifest.decode(from: json)) { error in
+            XCTAssertEqual(
+                error as? ManifestDecodingError,
+                .unsupportedSchemaVersion(2)
+            )
+            XCTAssertTrue(error.localizedDescription.contains("schemaVersion 2"))
+            XCTAssertTrue(error.localizedDescription.contains("supported version: 1"))
+            XCTAssertNotNil((error as? LocalizedError)?.recoverySuggestion)
+        }
+    }
+
     func testStoragePermissionAcceptsBoolAndObjectShapes() throws {
         func permission(_ storageJSON: String) throws -> Manifest.StoragePermission? {
             let json = """

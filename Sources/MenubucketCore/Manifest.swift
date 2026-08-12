@@ -464,8 +464,31 @@ public indirect enum JSONValue: Codable, Equatable {
 }
 
 extension Manifest {
+    public static let supportedSchemaVersion = 1
+
     public static func decode(from data: Data) throws -> Manifest {
-        try JSONDecoder().decode(Manifest.self, from: data)
+        let manifest = try JSONDecoder().decode(Manifest.self, from: data)
+        guard manifest.schemaVersion == supportedSchemaVersion else {
+            throw ManifestDecodingError.unsupportedSchemaVersion(manifest.schemaVersion)
+        }
+        return manifest
+    }
+}
+
+/// Errors from the shared widget-manifest ingestion boundary.
+public enum ManifestDecodingError: Error, LocalizedError, Equatable, Sendable {
+    case unsupportedSchemaVersion(Int)
+
+    public var errorDescription: String? {
+        switch self {
+        case let .unsupportedSchemaVersion(version):
+            return "unsupported widget manifest schemaVersion \(version) "
+                + "(supported version: \(Manifest.supportedSchemaVersion))"
+        }
+    }
+
+    public var recoverySuggestion: String? {
+        "Update BarShelf to a version that supports this widget manifest."
     }
 }
 

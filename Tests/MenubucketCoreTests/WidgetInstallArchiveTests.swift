@@ -201,6 +201,42 @@ final class WidgetInstallArchiveTests: XCTestCase {
         XCTAssertTrue(result.failures[0].reason.contains("permissions.readPaths"))
     }
 
+    func testDiscoveryRejectsUnsupportedManifestSchemaVersion() throws {
+        let zip = ZipFixture.build([
+            .file("repo-main/widget.json", Data("""
+            { "schemaVersion": 2, "id": "future-widget", "name": "Future",
+              "entry": { "kind": "exec" } }
+            """.utf8)),
+        ])
+        let out = workDir.appendingPathComponent("unsupported-version-out")
+        try SafeZipExtractor.extract(zipData: zip, to: out)
+
+        let result = try WidgetDiscovery.discover(under: out)
+
+        XCTAssertTrue(result.candidates.isEmpty)
+        XCTAssertEqual(result.failures.count, 1)
+        XCTAssertTrue(result.failures[0].reason.contains("schemaVersion 2"))
+        XCTAssertTrue(result.failures[0].reason.contains("supported version: 1"))
+    }
+
+    func testInstallSessionDoesNotCreateCandidateForUnsupportedManifestVersion() throws {
+        let widget = workDir.appendingPathComponent("future-widget", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: widget, withIntermediateDirectories: true
+        )
+        try Data("""
+        { "schemaVersion": 2, "id": "future-widget", "name": "Future",
+          "entry": { "kind": "exec" } }
+        """.utf8).write(to: widget.appendingPathComponent("widget.json"))
+
+        let session = try HeadlessInstaller.fetchSession(directory: widget)
+        defer { session.cleanup() }
+
+        XCTAssertTrue(session.candidates.isEmpty)
+        XCTAssertEqual(session.failures.count, 1)
+        XCTAssertTrue(session.failures[0].reason.contains("schemaVersion 2"))
+    }
+
     func testWidgetIDValidation() {
         XCTAssertTrue(WidgetDiscovery.isValidWidgetID("com.example.clock"))
         XCTAssertTrue(WidgetDiscovery.isValidWidgetID("clock-widget_2"))
