@@ -53,6 +53,9 @@ final class BarShelfRoundtripTests: XCTestCase {
         )
         XCTAssertEqual(manifest.id, name)
         XCTAssertEqual(manifest.entry.kind, kind.rawValue)
+        if kind == .workflow {
+            XCTAssertEqual(manifest.permissions?.readPaths, ["~/Downloads"])
+        }
 
         // pack
         let archiveURL = workDir.appendingPathComponent("\(name).mbw")

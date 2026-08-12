@@ -109,4 +109,43 @@ final class ManifestTests: XCTestCase {
         let boolData = try JSONEncoder().encode(Manifest.StoragePermission(granted: true))
         XCTAssertEqual(String(data: boolData, encoding: .utf8), "true")
     }
+
+    func testReadPathsIsCanonicalAndLegacyFilesIsRejected() throws {
+        let canonical = Data("""
+        { "schemaVersion": 1, "id": "dev.example.files", "name": "Files",
+          "entry": { "kind": "workflow" },
+          "permissions": { "readPaths": ["~/Downloads"] } }
+        """.utf8)
+        let manifest = try Manifest.decode(from: canonical)
+        XCTAssertEqual(manifest.permissions?.readPaths, ["~/Downloads"])
+        XCTAssertEqual(
+            WidgetDiscovery.permissionSummary(for: manifest),
+            ["files: reads ~/Downloads"]
+        )
+
+        let legacy = Data("""
+        { "schemaVersion": 1, "id": "dev.example.legacy", "name": "Legacy",
+          "entry": { "kind": "workflow" },
+          "permissions": { "files": [{ "id": "folder", "access": "read" }] } }
+        """.utf8)
+        XCTAssertThrowsError(try Manifest.decode(from: legacy)) { error in
+            guard case let DecodingError.dataCorrupted(context) = error else {
+                return XCTFail("expected dataCorrupted, got \(error)")
+            }
+            XCTAssertEqual(context.codingPath.map(\.stringValue), ["permissions", "files"])
+            XCTAssertTrue(context.debugDescription.contains("permissions.readPaths"))
+        }
+    }
+
+    func testSchemaRejectsLegacyFilesPermission() throws {
+        let schemaURL = packageRoot.appendingPathComponent("schema/widget-0.1.json")
+        let schema = try JSONDecoder().decode(
+            JSONValue.self, from: Data(contentsOf: schemaURL)
+        )
+        let permissions = schema.objectValue?["definitions"]?.objectValue?["permissions"]
+        let properties = permissions?.objectValue?["properties"]?.objectValue
+        XCTAssertNotNil(properties?["readPaths"])
+        XCTAssertEqual(properties?["files"], .bool(false))
+        XCTAssertNil(schema.objectValue?["definitions"]?.objectValue?["filePermission"])
+    }
 }

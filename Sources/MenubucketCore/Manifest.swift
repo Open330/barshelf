@@ -235,6 +235,42 @@ public struct Manifest: Codable, Equatable {
             self.notifications = notifications
             self.storage = storage
         }
+
+        private enum CodingKeys: String, CodingKey {
+            case exec, network, readPaths, env, keychain, notifications, storage
+            /// A stale, never-enforced draft shape. Keep the key solely so
+            /// ingestion can reject it with an actionable field-level error.
+            case files
+        }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            if container.contains(.files) {
+                throw DecodingError.dataCorruptedError(
+                    forKey: .files,
+                    in: container,
+                    debugDescription: "permissions.files is unsupported; use permissions.readPaths"
+                )
+            }
+            exec = try container.decodeIfPresent([ExecPermission].self, forKey: .exec)
+            network = try container.decodeIfPresent([String].self, forKey: .network)
+            readPaths = try container.decodeIfPresent([String].self, forKey: .readPaths)
+            env = try container.decodeIfPresent([String].self, forKey: .env)
+            keychain = try container.decodeIfPresent(Bool.self, forKey: .keychain)
+            notifications = try container.decodeIfPresent(Bool.self, forKey: .notifications)
+            storage = try container.decodeIfPresent(StoragePermission.self, forKey: .storage)
+        }
+
+        public func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encodeIfPresent(exec, forKey: .exec)
+            try container.encodeIfPresent(network, forKey: .network)
+            try container.encodeIfPresent(readPaths, forKey: .readPaths)
+            try container.encodeIfPresent(env, forKey: .env)
+            try container.encodeIfPresent(keychain, forKey: .keychain)
+            try container.encodeIfPresent(notifications, forKey: .notifications)
+            try container.encodeIfPresent(storage, forKey: .storage)
+        }
     }
 
     /// Per-widget storage grant. Accepts two JSON shapes for back-compat:

@@ -109,7 +109,6 @@ final class WidgetRuntime: ObservableObject {
     private var hotReloadWatchers: [DirectoryWatcher] = []
     /// `fs.directory` sources with `watch: true`, keyed by widget id.
     private var workflowWatchers: [String: DirectoryWatcher] = [:]
-    private var workflowWatchedPaths: [String: String] = [:]
 
     // MARK: Script runtime + permission enforcement (M2)
 
@@ -1339,9 +1338,13 @@ final class WidgetRuntime: ObservableObject {
                 switch source.use {
                 case "fs.directory":
                     let fsParams = try FileSource.Params(from: value)
-                    guard Self.filePathAllowed(
-                        fsParams.path, allowlist: effectiveReadPaths(for: widget)
-                    ) else {
+                    let listing: FileSource.AuthorizedListing
+                    do {
+                        let readPaths = effectiveReadPaths(for: widget)
+                        listing = try await Task.detached(priority: .userInitiated) {
+                            try FileSource.list(fsParams, authorizedBy: readPaths)
+                        }.value
+                    } catch FileSource.FileSourceError.unauthorizedPath(_) {
                         auditLog.record("file.blocked", widgetId: widget.id, detail: [
                             "path": .string(fsParams.path),
                             "reason": .string("path not in permissions.readPaths or a picked folder"),
@@ -1350,11 +1353,9 @@ final class WidgetRuntime: ObservableObject {
                             "file source path is not covered by permissions.readPaths"
                         )
                     }
-                    sourceValues[sourceID] = try await Task.detached(priority: .userInitiated) {
-                        try FileSource.list(fsParams)
-                    }.value
+                    sourceValues[sourceID] = listing.value
                     if fsParams.watch {
-                        registerWorkflowWatch(widgetID: widget.id, path: fsParams.path)
+                        registerWorkflowWatch(widgetID: widget.id, directory: listing.directory)
                     }
                 case "exec":
                     sourceValues[sourceID] = try await runWorkflowExecSource(
@@ -1620,14 +1621,16 @@ final class WidgetRuntime: ObservableObject {
         manifest.refresh?.triggers?.contains(.url) ?? false
     }
 
-    private func registerWorkflowWatch(widgetID: String, path: String) {
-        // Re-arm only when the watched path changes (settings edit).
-        if workflowWatchers[widgetID] != nil, workflowWatchedPaths[widgetID] == path { return }
+    private func registerWorkflowWatch(
+        widgetID: String,
+        directory: FileSource.AuthorizedDirectory
+    ) {
+        // Re-arm from every successful listing so the watcher retains the
+        // exact descriptor-authorized object, not a subsequently reopened path.
         workflowWatchers[widgetID]?.cancel()
-        workflowWatchedPaths[widgetID] = path
         do {
             workflowWatchers[widgetID] = try DirectoryWatcher(
-                paths: [path],
+                directory: directory,
                 debounce: Scheduler.watchDebounceSec
             ) { [weak self] in
                 guard let self,
@@ -1637,7 +1640,7 @@ final class WidgetRuntime: ObservableObject {
                 self.refresh(widgetID: widgetID, manual: false)
             }
         } catch {
-            NSLog("barshelf: workflow watch unavailable for \(path): \(error)")
+            NSLog("barshelf: workflow watch unavailable for \(directory.path): \(error)")
         }
     }
 

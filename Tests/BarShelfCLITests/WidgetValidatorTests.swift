@@ -77,6 +77,18 @@ final class WidgetValidatorTests: XCTestCase {
         XCTAssertTrue(issue.message.contains("wrong type"))
     }
 
+    func testLegacyFilesPermissionReportsMigrationField() throws {
+        let dir = try writeWidget("""
+        { "schemaVersion": 1, "id": "legacy-files", "name": "Legacy Files",
+          "entry": { "kind": "workflow" },
+          "permissions": { "files": [{ "id": "folder", "access": "read" }] } }
+        """)
+        let report = WidgetValidator.validate(directory: dir)
+        let issue = try XCTUnwrap(report.issues.first)
+        XCTAssertEqual(issue.field, "permissions.files")
+        XCTAssertTrue(issue.message.contains("permissions.readPaths"))
+    }
+
     func testInvalidJSONSyntax() throws {
         let dir = try writeWidget("{ not json")
         let report = WidgetValidator.validate(directory: dir)

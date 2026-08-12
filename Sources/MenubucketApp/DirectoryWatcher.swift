@@ -1,5 +1,6 @@
 import CoreServices
 import Foundation
+import MenubucketCore
 
 /// FSEvents watcher (file-stack `DirectoryWatcher` pattern), extended for
 /// multiple paths and a trailing debounce (default 250 ms). The handler is
@@ -11,6 +12,7 @@ final class DirectoryWatcher {
     }
 
     private var stream: FSEventStreamRef?
+    private var descriptorSource: DispatchSourceFileSystemObject?
     private let eventHandler: () -> Void
     private let debounceInterval: TimeInterval
     private var pendingWork: DispatchWorkItem?
@@ -73,6 +75,35 @@ final class DirectoryWatcher {
         }
     }
 
+    /// Watches the exact directory object that was authorized and listed.
+    /// This avoids reopening a manifest-controlled path after the permission
+    /// check, where a symlink substitution could otherwise retarget the watch.
+    init(
+        directory: FileSource.AuthorizedDirectory,
+        debounce: TimeInterval = 0.25,
+        eventHandler: @escaping () -> Void
+    ) throws {
+        self.eventHandler = eventHandler
+        self.debounceInterval = debounce
+
+        let descriptor = try directory.duplicateFileDescriptor()
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: descriptor,
+            eventMask: [.write, .delete, .rename, .attrib, .extend, .link, .revoke],
+            queue: fsQueue
+        )
+        source.setEventHandler { [weak self] in
+            DispatchQueue.main.async {
+                self?.fireDebounced()
+            }
+        }
+        source.setCancelHandler {
+            close(descriptor)
+        }
+        descriptorSource = source
+        source.resume()
+    }
+
     /// Coalesces bursts of FSEvents into a single trailing-edge callback.
     private func fireDebounced() {
         pendingWork?.cancel()
@@ -86,6 +117,8 @@ final class DirectoryWatcher {
     func cancel() {
         pendingWork?.cancel()
         pendingWork = nil
+        descriptorSource?.cancel()
+        descriptorSource = nil
         guard let stream = stream else { return }
         FSEventStreamStop(stream)
         FSEventStreamInvalidate(stream)

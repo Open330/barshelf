@@ -366,13 +366,7 @@
             "type": "string"
           }
         },
-        "files": {
-          "description": "File-system permissions used by workflow fs.directory sources and script host APIs.",
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/filePermission"
-          }
-        },
+        "files": false,
         "storage": {
           "$ref": "#/definitions/storagePermission"
         },
@@ -387,43 +381,6 @@
           }
         },
         "keychain": {
-          "type": "boolean"
-        }
-      },
-      "additionalProperties": true
-    },
-    "filePermission": {
-      "type": "object",
-      "required": [
-        "id",
-        "access"
-      ],
-      "properties": {
-        "id": {
-          "$ref": "#/definitions/nonEmptyString"
-        },
-        "access": {
-          "type": "string",
-          "enum": [
-            "read",
-            "write",
-            "readWrite"
-          ]
-        },
-        "prompt": {
-          "type": "string",
-          "enum": [
-            "file",
-            "directory"
-          ]
-        },
-        "bookmarkSetting": {
-          "type": "string"
-        },
-        "defaultPath": {
-          "type": "string"
-        },
-        "watch": {
           "type": "boolean"
         }
       },

@@ -269,6 +269,10 @@ Gating specifics:
 - The workflow **`http` source requires a non-empty `network` list** (the R12
   `network` permission). https only; GET only; 20 s timeout; 5 MB cap; no
   redirect downgrade to non-https.
+- `readPaths` is the only filesystem grant. Workflow `fs.directory` listing
+  and `watch: true` retain the same authorized directory handle, so a later
+  symlink substitution cannot retarget access. The stale `permissions.files`
+  draft form is rejected; migrate it to `permissions.readPaths`.
 - `keychain` gates `barshelf.secret.*`; `notifications` gates `barshelf.notify.show`.
 - `barshelf.storage.*` needs **no** permission (per-widget sandbox).
 

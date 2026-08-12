@@ -158,7 +158,7 @@ public enum WidgetDiscovery {
             } catch {
                 result.failures.append(Failure(
                     relativePath: relative,
-                    reason: "invalid widget.json: \(error.localizedDescription)"
+                    reason: "invalid widget.json: \(manifestDecodeDescription(error))"
                 ))
             }
             return
@@ -206,6 +206,13 @@ public enum WidgetDiscovery {
             return String(path.dropFirst(rootPath.count + 1))
         }
         return path
+    }
+
+    private static func manifestDecodeDescription(_ error: Error) -> String {
+        if case let DecodingError.dataCorrupted(context) = error {
+            return context.debugDescription
+        }
+        return error.localizedDescription
     }
 
     private struct VersionProbe: Decodable {

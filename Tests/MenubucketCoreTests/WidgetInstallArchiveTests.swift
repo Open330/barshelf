@@ -184,6 +184,23 @@ final class WidgetInstallArchiveTests: XCTestCase {
         XCTAssertEqual(result.failures.count, 1)
     }
 
+    func testDiscoveryRejectsLegacyFilesPermission() throws {
+        let zip = ZipFixture.build([
+            .file("repo-main/widget.json", manifestJSON(
+                id: "legacy-files",
+                extra: ", \"permissions\": { \"files\": [] }"
+            )),
+        ])
+        let out = workDir.appendingPathComponent("legacy-files-out")
+        try SafeZipExtractor.extract(zipData: zip, to: out)
+
+        let result = try WidgetDiscovery.discover(under: out)
+        XCTAssertTrue(result.candidates.isEmpty)
+        XCTAssertEqual(result.failures.count, 1)
+        XCTAssertTrue(result.failures[0].reason.contains("permissions.files"))
+        XCTAssertTrue(result.failures[0].reason.contains("permissions.readPaths"))
+    }
+
     func testWidgetIDValidation() {
         XCTAssertTrue(WidgetDiscovery.isValidWidgetID("com.example.clock"))
         XCTAssertTrue(WidgetDiscovery.isValidWidgetID("clock-widget_2"))

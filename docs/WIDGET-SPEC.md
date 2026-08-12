@@ -166,12 +166,14 @@ Workflow DSL 상세 계약은 [`docs/WORKFLOW.md`](WORKFLOW.md)를 따른다.
 | --- | --- |
 | `exec` | 위젯이 실행할 수 있는 명령 allowlist. `source.command`와 선언적 `run` 액션이 이 목록과 매칭되어야 한다. |
 | `network` | 예약. 네트워크 접근 선언용 배열. |
-| `readPaths` | `fs.directory`, 파일 썸네일·드래그·열기/Finder 표시가 접근할 수 있는 루트 경로 배열. 경로는 심볼릭 링크 해석 후 런타임에서 강제한다. |
-| `files` | workflow `fs.directory`와 script host API가 사용할 파일 권한 선언. `id`, `access`, `prompt`, `bookmarkSetting`, `defaultPath`, `watch`를 둘 수 있다. |
+| `readPaths` | 파일 접근의 유일한 정식 권한 선언. `fs.directory`, 파일 썸네일·드래그·열기/Finder 표시가 접근할 수 있는 루트 경로 배열이다. `fs.directory` 목록과 `watch: true` 감시는 승인된 디렉터리 핸들에 묶여 심볼릭 링크 교체로 다른 위치를 가리킬 수 없다. |
 | `storage` | script storage quota와 secret 허용 여부 선언. 스키마의 정식 형식은 `{ "maxBytes": 1048576, "secrets": false }`다. |
 | `notifications` | `true`이면 script 런타임의 `host.notify.show` 요청을 허용한다. |
 | `env` | 호스트가 읽거나 source 명령 탐색에 사용할 수 있는 환경 변수 이름. |
 | `keychain` | Keychain 조회 허용 여부. otpeek vault password 주입에 사용한다. |
+
+이전 초안의 `permissions.files` 형식은 런타임에서 구현된 적이 없으며 이제
+명시적으로 거부된다. 파일 읽기 권한은 반드시 `permissions.readPaths`로 선언한다.
 
 `permissions.exec[]`:
 

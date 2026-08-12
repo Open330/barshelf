@@ -501,6 +501,37 @@ final class FileSourceTests: XCTestCase {
         XCTAssertNotNil(row.children?.first?.source?.modifiedAt)
         XCTAssertNotNil(row.drag)
     }
+
+    func testAuthorizedListingRemainsBoundAfterSymlinkSubstitution() throws {
+        let base = FileManager.default.temporaryDirectory
+            .appendingPathComponent("barshelf-bound-list-\(UUID().uuidString)")
+        let allowed = base.appendingPathComponent("allowed", isDirectory: true)
+        let outside = base.appendingPathComponent("outside", isDirectory: true)
+        let link = base.appendingPathComponent("selected", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: base) }
+        try FileManager.default.createDirectory(at: allowed, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+        try Data("allowed".utf8).write(to: allowed.appendingPathComponent("allowed.txt"))
+        try Data("secret".utf8).write(to: outside.appendingPathComponent("secret.txt"))
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: allowed)
+
+        let params = try FileSource.Params(from: .object(["path": .string(link.path)]))
+        let directory = try FileSource.openAuthorizedDirectory(
+            path: params.path, readPaths: [allowed.path]
+        )
+
+        try FileManager.default.removeItem(at: link)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: outside)
+
+        let listing = try FileSource.list(params, in: directory)
+        let names = listing.objectValue?["items"]?.arrayValue?.compactMap {
+            $0.objectValue?["name"]?.stringValue
+        }
+        XCTAssertEqual(names, ["allowed.txt"])
+        XCTAssertThrowsError(try FileSource.list(params, authorizedBy: [allowed.path])) {
+            XCTAssertEqual($0 as? FileSource.FileSourceError, .unauthorizedPath(link.path))
+        }
+    }
 }
 
 /// Nested forEach + logic-function regression coverage. The fixture is the
