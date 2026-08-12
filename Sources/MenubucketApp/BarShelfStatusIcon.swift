@@ -3,6 +3,7 @@ import AppKit
 /// Single-color Bar + Spark brand mark for the macOS status bar.
 enum BarShelfStatusIcon {
     static let logoSymbol = "barshelf.logo"
+    static let accessibilityName = "BarShelf"
     private static let canvasSize = NSSize(width: 24, height: 18)
 
     /// The bar + spark mark is drawn well inside the canvas, so at native size it
@@ -12,16 +13,35 @@ enum BarShelfStatusIcon {
     private static let contentZoom: CGFloat = 1.2
     private static let inkCenter = NSPoint(x: 12.0, y: 9.325)
 
+    /// Applies the selected mark and its stable accessible name to the status
+    /// control. The button label is authoritative because the custom-drawn
+    /// logo has no intrinsic accessibility description.
+    static func configure(
+        _ button: NSStatusBarButton,
+        symbol: String,
+        fallback: String
+    ) {
+        button.image = image(for: symbol, fallback: fallback)
+        button.imagePosition = .imageOnly
+        button.setAccessibilityLabel(accessibilityName)
+    }
+
     static func image(for symbol: String, fallback: String) -> NSImage {
         let trimmed = symbol.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty || trimmed == logoSymbol {
             return logoImage()
         }
-        if let sf = NSImage(systemSymbolName: trimmed, accessibilityDescription: "BarShelf") {
+        if let sf = NSImage(
+            systemSymbolName: trimmed,
+            accessibilityDescription: accessibilityName
+        ) {
             sf.isTemplate = true
             return sf
         }
-        if let sf = NSImage(systemSymbolName: fallback, accessibilityDescription: "BarShelf") {
+        if let sf = NSImage(
+            systemSymbolName: fallback,
+            accessibilityDescription: accessibilityName
+        ) {
             sf.isTemplate = true
             return sf
         }
