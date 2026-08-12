@@ -345,19 +345,15 @@ public final class ExecService {
         }
 
         func matchesCommandIdentity(_ candidate: URL) -> Bool {
-            if !command0.contains("/") {
-                return candidate.resolvingSymlinksInPath().lastPathComponent == command0
-            }
-
-            let declared: URL
-            if command0.hasPrefix("./") || command0.hasPrefix("../") {
-                let base = workingDirectory ?? URL(fileURLWithPath: fm.currentDirectoryPath)
-                declared = base.appendingPathComponent(command0)
-            } else {
-                declared = URL(fileURLWithPath: (command0 as NSString).expandingTildeInPath)
-            }
-            return candidate.standardizedFileURL.resolvingSymlinksInPath().path
-                == declared.standardizedFileURL.resolvingSymlinksInPath().path
+            let trustedBareCommand = command0.contains("/")
+                ? nil
+                : searchPATH(for: command0, executableURL: executableURL)
+            return executableMatchesCommandIdentity(
+                command0: command0,
+                candidate: candidate,
+                workingDirectory: workingDirectory,
+                trustedBareCommand: trustedBareCommand
+            )
         }
 
         func authorizedExecutableURL(atPath path: String) -> URL? {
@@ -409,6 +405,33 @@ public final class ExecService {
         }
         searched.append("PATH")
         return searchPATH(for: command0, executableURL: executableURL)
+    }
+
+    static func executableMatchesCommandIdentity(
+        command0: String,
+        candidate: URL,
+        workingDirectory: URL?,
+        trustedBareCommand: URL?
+    ) -> Bool {
+        let canonicalCandidate = candidate.standardizedFileURL.resolvingSymlinksInPath()
+        if !command0.contains("/") {
+            guard candidate.lastPathComponent == command0 else { return false }
+            if canonicalCandidate.lastPathComponent == command0 { return true }
+            guard let trustedBareCommand else { return false }
+            return canonicalCandidate.path
+                == trustedBareCommand.standardizedFileURL.resolvingSymlinksInPath().path
+        }
+
+        let declared: URL
+        if command0.hasPrefix("./") || command0.hasPrefix("../") {
+            let base = workingDirectory
+                ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            declared = base.appendingPathComponent(command0)
+        } else {
+            declared = URL(fileURLWithPath: (command0 as NSString).expandingTildeInPath)
+        }
+        return canonicalCandidate.path
+            == declared.standardizedFileURL.resolvingSymlinksInPath().path
     }
 
     private static func searchPATH(

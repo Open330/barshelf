@@ -49,23 +49,55 @@ final class ExecServiceTests: XCTestCase {
         XCTAssertNil(resolved)
     }
 
-    func testDiscoveryAcceptsBareCommandSymlinkedToSameExecutableIdentity() throws {
+    func testIdentityAcceptsTrustedPATHAliasWithDifferentCanonicalBasename() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
-        let symlink = directory.appendingPathComponent("sh")
+        let symlink = directory.appendingPathComponent("python3")
         try FileManager.default.createSymbolicLink(atPath: symlink.path, withDestinationPath: "/bin/sh")
-        var searched: [String] = []
 
-        let resolved = ExecService.resolveExecutable(
-            command0: "sh",
-            discover: [symlink.path],
+        XCTAssertTrue(ExecService.executableMatchesCommandIdentity(
+            command0: "python3",
+            candidate: symlink,
             workingDirectory: nil,
-            searched: &searched
-        )
+            trustedBareCommand: URL(fileURLWithPath: "/bin/sh")
+        ))
+    }
 
-        XCTAssertEqual(try XCTUnwrap(resolved).path, symlink.path)
+    func testIdentityRejectsAliasThatDiffersFromTrustedPATHExecutable() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let symlink = directory.appendingPathComponent("git")
+        try FileManager.default.createSymbolicLink(atPath: symlink.path, withDestinationPath: "/bin/sh")
+
+        XCTAssertFalse(ExecService.executableMatchesCommandIdentity(
+            command0: "git",
+            candidate: symlink,
+            workingDirectory: nil,
+            trustedBareCommand: URL(fileURLWithPath: "/usr/bin/git")
+        ))
+    }
+
+    func testIdentityRejectsCandidateWhosePresentedNameDiffers() {
+        XCTAssertFalse(ExecService.executableMatchesCommandIdentity(
+            command0: "git",
+            candidate: URL(fileURLWithPath: "/bin/sh"),
+            workingDirectory: nil,
+            trustedBareCommand: URL(fileURLWithPath: "/bin/sh")
+        ))
+    }
+
+    func testIdentityAcceptsOrdinarySameCanonicalBasename() {
+        XCTAssertTrue(ExecService.executableMatchesCommandIdentity(
+            command0: "sh",
+            candidate: URL(fileURLWithPath: "/bin/sh"),
+            workingDirectory: nil,
+            trustedBareCommand: nil
+        )
+        )
     }
 
     func testDiscoveryRejectsCandidateForDifferentPathCommandIdentity() {
