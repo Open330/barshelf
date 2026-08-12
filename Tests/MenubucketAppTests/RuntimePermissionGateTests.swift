@@ -31,6 +31,205 @@ final class RuntimePermissionGateTests: XCTestCase {
         XCTAssertFalse(WidgetRuntime.execCommandAllowed(["/bin/sh"], manifest: widget))
     }
 
+    func testExecEnvironmentIncludesOnlyManifestAndMatchedCommandDeclarations() throws {
+        let direct = Manifest.ExecPermission(
+            command: "/bin/date", allowedArgs: [[]], env: ["DIRECT_VALUE", "DIRECT_SECRET"]
+        )
+        let other = Manifest.ExecPermission(
+            command: "/usr/bin/env", allowedArgs: [[]], env: ["OTHER_VALUE", "OTHER_SECRET"]
+        )
+        let widget = Manifest(
+            schemaVersion: 1,
+            id: "dev.test.runtime-permission",
+            name: "Runtime Permission",
+            entry: .init(kind: "exec"),
+            permissions: .init(
+                exec: [direct, other], env: ["SHARED_VALUE", "SHARED_SECRET"], keychain: true
+            )
+        )
+        let permission = try XCTUnwrap(ExecAllowlist.match(
+            command: ["/bin/date"], permissions: widget.permissions?.exec
+        ))
+        let values = WidgetRuntime.secretEnvironment(
+            for: widget,
+            permission: permission,
+            hostEnvironment: [
+                "SHARED_VALUE": "shared-host",
+                "DIRECT_VALUE": "direct-host",
+                "OTHER_VALUE": "other-host",
+            ],
+            readSecret: { account in
+                [
+                    "shared-secret": "shared-keychain",
+                    "direct-secret": "direct-keychain",
+                    "other-secret": "other-keychain",
+                ][account]
+            }
+        )
+
+        XCTAssertEqual(values, [
+            "SHARED_VALUE": "shared-host",
+            "SHARED_SECRET": "shared-keychain",
+            "DIRECT_VALUE": "direct-host",
+            "DIRECT_SECRET": "direct-keychain",
+        ])
+        XCTAssertNil(values?["OTHER_VALUE"])
+        XCTAssertNil(values?["OTHER_SECRET"])
+    }
+
+    private func dispatchFixture() throws -> (
+        widget: LoadedWidget,
+        source: Manifest.Source,
+        permission: Manifest.ExecPermission,
+        allowedName: String,
+        forbiddenName: String
+    ) {
+        let suffix = UUID().uuidString.replacingOccurrences(of: "-", with: "")
+        let allowedName = "BARSHELF_RPF004_ALLOWED_\(suffix)"
+        let forbiddenName = "BARSHELF_RPF004_OTHER_\(suffix)"
+        let source = Manifest.Source(command: ["/usr/bin/env"], timeoutMs: 2_000)
+        let manifest = Manifest(
+            schemaVersion: 1,
+            id: "dev.test.runtime-permission",
+            name: "Runtime Permission",
+            entry: .init(kind: "exec"),
+            source: source,
+            permissions: .init(exec: [
+                .init(command: "/usr/bin/env", allowedArgs: [[]], env: [allowedName]),
+                .init(command: "/bin/date", allowedArgs: [[]], env: [forbiddenName]),
+            ])
+        )
+        let permission = try XCTUnwrap(ExecAllowlist.match(
+            command: source.command ?? [], permissions: manifest.permissions?.exec
+        ))
+        return (
+            LoadedWidget(manifest: manifest, directory: FileManager.default.temporaryDirectory),
+            source,
+            permission,
+            allowedName,
+            forbiddenName
+        )
+    }
+
+    private func assertScopedDispatchOutput(
+        _ result: Result<Data, ExecService.ExecError>,
+        allowedName: String,
+        forbiddenName: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        let output = String(decoding: try result.get(), as: UTF8.self)
+        XCTAssertTrue(output.contains("\(allowedName)=allowed-visible"), file: file, line: line)
+        XCTAssertFalse(output.contains(forbiddenName), file: file, line: line)
+        XCTAssertFalse(output.contains("other-must-not-leak"), file: file, line: line)
+    }
+
+    func testDirectExecDispatchDoesNotReceiveAnotherCommandsEnvironment() async throws {
+        let fixture = try dispatchFixture()
+        setenv(fixture.allowedName, "allowed-visible", 1)
+        setenv(fixture.forbiddenName, "other-must-not-leak", 1)
+        defer {
+            unsetenv(fixture.allowedName)
+            unsetenv(fixture.forbiddenName)
+        }
+
+        let result = await WidgetRuntime.dispatchDirectExec(
+            execService: ExecService(),
+            widget: fixture.widget,
+            source: fixture.source,
+            command: ["/usr/bin/env"],
+            permission: fixture.permission
+        )
+        try assertScopedDispatchOutput(
+            result, allowedName: fixture.allowedName, forbiddenName: fixture.forbiddenName
+        )
+    }
+
+    func testWorkflowExecDispatchDoesNotReceiveAnotherCommandsEnvironment() async throws {
+        let fixture = try dispatchFixture()
+        setenv(fixture.allowedName, "allowed-visible", 1)
+        setenv(fixture.forbiddenName, "other-must-not-leak", 1)
+        defer {
+            unsetenv(fixture.allowedName)
+            unsetenv(fixture.forbiddenName)
+        }
+
+        let result = await WidgetRuntime.dispatchWorkflowExec(
+            execService: ExecService(),
+            widget: fixture.widget,
+            command: ["/usr/bin/env"],
+            discover: nil,
+            timeoutMs: 2_000,
+            permission: fixture.permission
+        )
+        try assertScopedDispatchOutput(
+            result, allowedName: fixture.allowedName, forbiddenName: fixture.forbiddenName
+        )
+    }
+
+    func testRunActionDispatchDoesNotReceiveAnotherCommandsEnvironment() async throws {
+        let fixture = try dispatchFixture()
+        setenv(fixture.allowedName, "allowed-visible", 1)
+        setenv(fixture.forbiddenName, "other-must-not-leak", 1)
+        defer {
+            unsetenv(fixture.allowedName)
+            unsetenv(fixture.forbiddenName)
+        }
+
+        let result = await WidgetRuntime.dispatchRunActionExec(
+            execService: ExecService(),
+            widget: fixture.widget,
+            command: ["/usr/bin/env"],
+            permission: fixture.permission
+        )
+        try assertScopedDispatchOutput(
+            result, allowedName: fixture.allowedName, forbiddenName: fixture.forbiddenName
+        )
+    }
+
+    func testAdapterExecResolvesEnvironmentForItsOwnMatchedCommand() async throws {
+        let sourceOnly = "BARSHELF_RPF004_SOURCE_\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))"
+        let adapterOnly = "BARSHELF_RPF004_ADAPTER_\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))"
+        let shared = "BARSHELF_RPF004_SHARED_\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))"
+        setenv(sourceOnly, "source-must-not-leak", 1)
+        setenv(adapterOnly, "adapter-visible", 1)
+        setenv(shared, "shared-visible", 1)
+        defer {
+            unsetenv(sourceOnly)
+            unsetenv(adapterOnly)
+            unsetenv(shared)
+        }
+
+        let widget = Manifest(
+            schemaVersion: 1,
+            id: "dev.test.runtime-permission",
+            name: "Runtime Permission",
+            entry: .init(kind: "exec"),
+            source: .init(command: ["/bin/date"]),
+            permissions: .init(
+                exec: [
+                    .init(command: "/bin/date", allowedArgs: [[]], env: [sourceOnly]),
+                    .init(command: "/usr/bin/env", allowedArgs: [[]], env: [adapterOnly]),
+                ],
+                env: [shared]
+            )
+        )
+        let context = HostAdapterContext(
+            widget: LoadedWidget(
+                manifest: widget, directory: FileManager.default.temporaryDirectory
+            ),
+            execService: ExecService(),
+            defaultTimeoutMs: 2_000,
+            settings: [:]
+        )
+
+        let output = String(decoding: try await context.runAllowed(command: ["/usr/bin/env"]), as: UTF8.self)
+        XCTAssertTrue(output.contains("\(adapterOnly)=adapter-visible"))
+        XCTAssertTrue(output.contains("\(shared)=shared-visible"))
+        XCTAssertFalse(output.contains(sourceOnly))
+        XCTAssertFalse(output.contains("source-must-not-leak"))
+    }
+
     func testFilePathAllowsChildrenButNotPrefixSiblings() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("barshelf-read-root-\(UUID().uuidString)", isDirectory: true)

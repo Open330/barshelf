@@ -1149,7 +1149,9 @@ final class WidgetRuntime: ObservableObject {
         }
         // Runtime allowlist enforcement is fail-closed: missing/empty exec
         // permissions authorize nothing.
-        if !Self.execCommandAllowed(command, manifest: widget.manifest) {
+        guard let permission = ExecAllowlist.match(
+            command: command, permissions: widget.manifest.permissions?.exec
+        ) else {
             auditLog.record("exec.blocked", widgetId: id, detail: [
                 "command": .string(command.joined(separator: " ")),
                 "reason": .string("source.command not in permissions.exec allowlist"),
@@ -1168,7 +1170,9 @@ final class WidgetRuntime: ObservableObject {
 
         Task { @MainActor [weak self] in
             guard let self else { return }
-            let outcome = await self.performRefresh(widget: widget, source: source, command: command)
+            let outcome = await self.performRefresh(
+                widget: widget, source: source, command: command, permission: permission
+            )
             self.finishRefresh(widget: widget, outcome: outcome, startedAt: startedAt)
         }
     }
@@ -1220,26 +1224,22 @@ final class WidgetRuntime: ObservableObject {
     private func performRefresh(
         widget: LoadedWidget,
         source: Manifest.Source,
-        command: [String]
+        command: [String],
+        permission: Manifest.ExecPermission
     ) async -> Result<RefreshSuccess, Error> {
-        let extraEnvironment = Self.secretEnvironment(for: widget.manifest)
-        let permission = ExecAllowlist.match(
-            command: command, permissions: widget.manifest.permissions?.exec
-        )
         auditLog.record("exec.run", widgetId: widget.id, detail: [
             "command": .string(
-                permission?.sensitiveOutput == true
+                permission.sensitiveOutput == true
                     ? (command.first ?? "") : command.joined(separator: " ")
             ),
             "trigger": .string("refresh"),
         ])
-        let execResult = await execService.run(
+        let execResult = await Self.dispatchDirectExec(
+            execService: execService,
+            widget: widget,
+            source: source,
             command: command,
-            discover: source.discover,
-            timeoutMs: source.timeoutMs ?? Self.defaultTimeoutMs,
-            workingDirectory: widget.directory,
-            extraEnvironment: extraEnvironment,
-            stdoutLimit: permission?.maxOutputBytes ?? ExecService.maxStdoutBytes
+            permission: permission
         )
 
         switch execResult {
@@ -1257,7 +1257,6 @@ final class WidgetRuntime: ObservableObject {
                     let context = HostAdapterContext(
                         widget: widget,
                         execService: execService,
-                        extraEnvironment: extraEnvironment,
                         defaultTimeoutMs: source.timeoutMs ?? Self.defaultTimeoutMs,
                         settings: prefs.effectiveSettings(
                             for: widget.manifest, widgetID: widget.id
@@ -1276,6 +1275,27 @@ final class WidgetRuntime: ObservableObject {
                 return .failure(error)
             }
         }
+    }
+
+    /// Direct-source launch seam. Keeping environment selection inside the
+    /// dispatch used by production makes its command scope executable in tests.
+    static func dispatchDirectExec(
+        execService: ExecService,
+        widget: LoadedWidget,
+        source: Manifest.Source,
+        command: [String],
+        permission: Manifest.ExecPermission
+    ) async -> Result<Data, ExecService.ExecError> {
+        await execService.run(
+            command: command,
+            discover: source.discover,
+            timeoutMs: source.timeoutMs ?? Self.defaultTimeoutMs,
+            workingDirectory: widget.directory,
+            extraEnvironment: secretEnvironment(
+                for: widget.manifest, permission: permission
+            ),
+            stdoutLimit: permission.maxOutputBytes ?? ExecService.maxStdoutBytes
+        )
     }
 
     // MARK: - Workflow refresh (entry.kind == "workflow")
@@ -1441,13 +1461,13 @@ final class WidgetRuntime: ObservableObject {
 
         let discover = params.objectValue?["discover"]?.arrayValue?.compactMap(\.stringValue)
         let timeoutMs = params.objectValue?["timeoutMs"]?.numberValue.map(Int.init)
-        let data = try await execService.run(
+        let data = try await Self.dispatchWorkflowExec(
+            execService: execService,
+            widget: widget,
             command: command,
             discover: discover,
             timeoutMs: timeoutMs ?? Self.defaultTimeoutMs,
-            workingDirectory: widget.directory,
-            extraEnvironment: Self.secretEnvironment(for: widget.manifest),
-            stdoutLimit: permission.maxOutputBytes ?? ExecService.maxStdoutBytes
+            permission: permission
         ).get()
 
         if params.objectValue?["parse"]?.stringValue == "text" {
@@ -1455,6 +1475,28 @@ final class WidgetRuntime: ObservableObject {
         }
         // Default: JSON (the DSL transforms/templates need structured data).
         return try JSONDecoder().decode(JSONValue.self, from: data)
+    }
+
+    /// Workflow-source launch seam; the caller's matched permission is the
+    /// sole command-level environment authority.
+    static func dispatchWorkflowExec(
+        execService: ExecService,
+        widget: LoadedWidget,
+        command: [String],
+        discover: [String]?,
+        timeoutMs: Int,
+        permission: Manifest.ExecPermission
+    ) async -> Result<Data, ExecService.ExecError> {
+        await execService.run(
+            command: command,
+            discover: discover,
+            timeoutMs: timeoutMs,
+            workingDirectory: widget.directory,
+            extraEnvironment: secretEnvironment(
+                for: widget.manifest, permission: permission
+            ),
+            stdoutLimit: permission.maxOutputBytes ?? ExecService.maxStdoutBytes
+        )
     }
 
     /// `http` workflow source — gated behind the `network` manifest
@@ -1756,15 +1798,20 @@ final class WidgetRuntime: ObservableObject {
 
     /// Builds the only widget-specific environment values an exec may receive:
     /// explicitly declared host variables, with an optional Keychain fallback.
-    static func secretEnvironment(for manifest: Manifest) -> [String: String]? {
+    static func secretEnvironment(
+        for manifest: Manifest,
+        permission: Manifest.ExecPermission,
+        hostEnvironment: [String: String] = ProcessInfo.processInfo.environment,
+        readSecret: (String) -> String? = { KeychainStore.readPassword(account: $0) }
+    ) -> [String: String]? {
         var extra: [String: String] = [:]
-        let hostEnvironment = ProcessInfo.processInfo.environment
-        for name in declaredEnvironmentVariables(for: manifest) {
+        let declaredNames = (manifest.permissions?.env ?? []) + (permission.env ?? [])
+        for name in Set(declaredNames) {
             if let value = hostEnvironment[name] {
                 extra[name] = value
             } else if manifest.permissions?.keychain == true {
                 let account = KeychainStore.account(forEnvironmentVariable: name)
-                if let value = KeychainStore.readPassword(account: account) {
+                if let value = readSecret(account) {
                     extra[name] = value
                 }
             }
@@ -1805,17 +1852,13 @@ final class WidgetRuntime: ObservableObject {
         ])
 
         let thenRefresh = action.thenRefresh ?? false
-        let source = widget.manifest.source
-        let discover = (command.first == source?.command?.first) ? source?.discover : nil
         Task { @MainActor [weak self] in
             guard let self else { return }
-            let result = await self.execService.run(
+            let result = await Self.dispatchRunActionExec(
+                execService: self.execService,
+                widget: widget,
                 command: command,
-                discover: discover,
-                timeoutMs: source?.timeoutMs ?? Self.defaultTimeoutMs,
-                workingDirectory: widget.directory,
-                extraEnvironment: Self.secretEnvironment(for: widget.manifest),
-                stdoutLimit: permission.maxOutputBytes ?? ExecService.maxStdoutBytes
+                permission: permission
             )
             switch result {
             case .success:
@@ -1828,6 +1871,28 @@ final class WidgetRuntime: ObservableObject {
                 }
             }
         }
+    }
+
+    /// Declarative run-action launch seam, also used by the production action
+    /// task so tests can observe the exact child environment it supplies.
+    static func dispatchRunActionExec(
+        execService: ExecService,
+        widget: LoadedWidget,
+        command: [String],
+        permission: Manifest.ExecPermission
+    ) async -> Result<Data, ExecService.ExecError> {
+        let source = widget.manifest.source
+        let discover = (command.first == source?.command?.first) ? source?.discover : nil
+        return await execService.run(
+            command: command,
+            discover: discover,
+            timeoutMs: source?.timeoutMs ?? Self.defaultTimeoutMs,
+            workingDirectory: widget.directory,
+            extraEnvironment: secretEnvironment(
+                for: widget.manifest, permission: permission
+            ),
+            stdoutLimit: permission.maxOutputBytes ?? ExecService.maxStdoutBytes
+        )
     }
 
     enum RuntimeError: Error, LocalizedError {
@@ -1959,11 +2024,11 @@ final class WidgetRuntime: ObservableObject {
 
 /// `AdapterContext` backed by the host's ExecService + manifest allowlist.
 /// Extra execs reuse the source's discover chain when they target the same
-/// binary, and inherit the widget's secret environment.
+/// binary. Environment values are resolved for the adapter command's own
+/// matched permission rather than inherited from the source command.
 struct HostAdapterContext: AdapterContext, @unchecked Sendable {
     let widget: LoadedWidget
     let execService: ExecService
-    let extraEnvironment: [String: String]?
     let defaultTimeoutMs: Int
     let settings: [String: JSONValue]
 
@@ -1985,7 +2050,9 @@ struct HostAdapterContext: AdapterContext, @unchecked Sendable {
             discover: discover,
             timeoutMs: defaultTimeoutMs,
             workingDirectory: widget.directory,
-            extraEnvironment: extraEnvironment,
+            extraEnvironment: WidgetRuntime.secretEnvironment(
+                for: widget.manifest, permission: permission
+            ),
             stdoutLimit: permission.maxOutputBytes ?? ExecService.maxStdoutBytes
         )
         switch result {
