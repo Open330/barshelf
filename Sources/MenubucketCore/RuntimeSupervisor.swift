@@ -121,15 +121,20 @@ public struct RuntimeSupervisorConfiguration: @unchecked Sendable {
 /// Host-side callbacks (delivered off the main thread — hop as needed).
 public struct RuntimeSupervisorEvents: Sendable {
     public var onRender: @Sendable (_ widgetId: String, _ params: RenderParams, _ revision: Int) -> Void
+    public var onLoadComplete: @Sendable (
+        _ widgetId: String, _ generation: String, _ error: String?
+    ) -> Void
     public var onStateChange: @Sendable (_ widgetId: String, _ state: ScriptWidgetState) -> Void
     public var onWidgetLog: @Sendable (_ widgetId: String, _ level: String, _ message: String) -> Void
 
     public init(
         onRender: @escaping @Sendable (String, RenderParams, Int) -> Void = { _, _, _ in },
+        onLoadComplete: @escaping @Sendable (String, String, String?) -> Void = { _, _, _ in },
         onStateChange: @escaping @Sendable (String, ScriptWidgetState) -> Void = { _, _ in },
         onWidgetLog: @escaping @Sendable (String, String, String) -> Void = { _, _, _ in }
     ) {
         self.onRender = onRender
+        self.onLoadComplete = onLoadComplete
         self.onStateChange = onStateChange
         self.onWidgetLog = onWidgetLog
     }
@@ -244,7 +249,8 @@ public actor RuntimeSupervisor {
     public func load(
         _ widget: ScriptWidgetDescriptor,
         reason: String,
-        settings: JSONValue? = nil
+        settings: JSONValue? = nil,
+        loadGeneration: String? = nil
     ) async throws {
         if let previous = descriptors[widget.id],
            previous.revision != widget.revision
@@ -264,7 +270,8 @@ public actor RuntimeSupervisor {
             locale: configuration.locale(),
             appearance: configuration.appearance(),
             settings: settings ?? widget.manifest.settingsDefaults(),
-            lastRenderRevision: revisions[widget.id]
+            lastRenderRevision: revisions[widget.id],
+            loadGeneration: loadGeneration
         )
         try send(method: ScriptMethod.widgetLoad, params: JSONValue.bridged(params), to: instance)
     }
@@ -481,11 +488,17 @@ public actor RuntimeSupervisor {
     private func processTerminated(widgetId: String, instance: ScriptInstance, status: Int32) {
         // Only evict the registry entry if it is still *this* instance — a
         // dead process may already have been replaced by a respawn.
-        if instances[widgetId] === instance {
+        let wasCurrentInstance = instances[widgetId] === instance
+        if wasCurrentInstance {
             instances.removeValue(forKey: widgetId)
         }
         instance.readTask?.cancel()
         try? instance.stdinHandle.close()
+
+        // A package reload can replace a process before its termination
+        // callback arrives. Its late state must not fail/clear the replacement
+        // generation now running under the same widget id.
+        guard wasCurrentInstance else { return }
 
         if instance.stopping {
             events.onStateChange(widgetId, .stopped)
@@ -537,6 +550,7 @@ public actor RuntimeSupervisor {
         let dispatcher = JsonRpcDispatcher()
         let methods: [String: @Sendable (RuntimeSupervisor, String, JSONValue?) async throws -> JSONValue] = [
             ScriptMethod.hostRender: { supervisor, id, params in try await supervisor.handleRender(widgetId: id, params: params) },
+            ScriptMethod.hostLoadComplete: { supervisor, id, params in try await supervisor.handleLoadComplete(widgetId: id, params: params) },
             ScriptMethod.hostExecRun: { supervisor, id, params in try await supervisor.handleExecRun(widgetId: id, params: params) },
             ScriptMethod.hostStorageGet: { supervisor, id, params in try await supervisor.handleStorageGet(widgetId: id, params: params) },
             ScriptMethod.hostStorageSet: { supervisor, id, params in try await supervisor.handleStorageSet(widgetId: id, params: params) },
@@ -593,6 +607,14 @@ public actor RuntimeSupervisor {
         revisions[widgetId] = revision
         events.onRender(widgetId, render, revision)
         return try JSONValue.bridged(RenderResult(revision: revision))
+    }
+
+    // MARK: host.load.complete
+
+    private func handleLoadComplete(widgetId: String, params: JSONValue?) async throws -> JSONValue {
+        let completion = try decodeParams(LoadCompleteParams.self, from: params)
+        events.onLoadComplete(widgetId, completion.generation, completion.error)
+        return .null
     }
 
     // MARK: host.exec.run

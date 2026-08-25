@@ -6,12 +6,15 @@ import Foundation
 //
 // Host → Script (notifications):
 //   widget.load   {widgetId, reason: "install"|"open"|"manual"|"timer"|"interval",
-//                  now, locale, appearance: "light"|"dark", settings, lastRenderRevision}
+//                  now, locale, appearance: "light"|"dark", settings,
+//                  lastRenderRevision, loadGeneration?}
 //   widget.action {actionId, payload, now}
 //   widget.timer  {id, now}
 //
 // Script → Host (requests, id required; host answers with result or error):
-//   host.render        {root, status?, nextRefreshAt?, cacheTtlMs?, sensitive?} → {revision}
+//   host.render        {root, status?, nextRefreshAt?, cacheTtlMs?, sensitive?,
+//                       loadGeneration?} → {revision}
+//   host.load.complete {generation, error?} → null (SDK lifecycle acknowledgement)
 //   host.exec.run      {command, args, parse?, timeoutMs?, sensitive?, env?}
 //                      → {exitCode, stdout, stderr, json?, durationMs}
 //   host.storage.get/set/delete/list  {key, value?, prefix?} → value / key list
@@ -31,6 +34,7 @@ public enum ScriptMethod {
 
     // Script → Host requests
     public static let hostRender = "host.render"
+    public static let hostLoadComplete = "host.load.complete"
     public static let hostExecRun = "host.exec.run"
     public static let hostStorageGet = "host.storage.get"
     public static let hostStorageSet = "host.storage.set"
@@ -59,6 +63,9 @@ public struct WidgetLoadParams: Codable, Equatable, Sendable {
     public var appearance: String
     public var settings: JSONValue?
     public var lastRenderRevision: Int?
+    /// Opaque host token. The SDK echoes it from renders and acknowledges it
+    /// after the load handler returns so refresh coalescing can clear safely.
+    public var loadGeneration: String?
 
     public init(
         widgetId: String,
@@ -67,7 +74,8 @@ public struct WidgetLoadParams: Codable, Equatable, Sendable {
         locale: String,
         appearance: String,
         settings: JSONValue? = nil,
-        lastRenderRevision: Int? = nil
+        lastRenderRevision: Int? = nil,
+        loadGeneration: String? = nil
     ) {
         self.widgetId = widgetId
         self.reason = reason
@@ -76,6 +84,7 @@ public struct WidgetLoadParams: Codable, Equatable, Sendable {
         self.appearance = appearance
         self.settings = settings
         self.lastRenderRevision = lastRenderRevision
+        self.loadGeneration = loadGeneration
     }
 }
 
@@ -122,6 +131,9 @@ public struct RenderParams: Codable, Equatable, Sendable {
     public var nextRefreshAt: Double?
     public var cacheTtlMs: Double?
     public var sensitive: Bool?
+    /// SDK-internal echo of the `widget.load` generation that produced this
+    /// render. Action/timer renders omit it.
+    public var loadGeneration: String?
 
     public init(
         root: UINode,
@@ -129,7 +141,8 @@ public struct RenderParams: Codable, Equatable, Sendable {
         status: RenderStatus? = nil,
         nextRefreshAt: Double? = nil,
         cacheTtlMs: Double? = nil,
-        sensitive: Bool? = nil
+        sensitive: Bool? = nil,
+        loadGeneration: String? = nil
     ) {
         self.root = root
         self.cacheRoot = cacheRoot
@@ -137,6 +150,19 @@ public struct RenderParams: Codable, Equatable, Sendable {
         self.nextRefreshAt = nextRefreshAt
         self.cacheTtlMs = cacheTtlMs
         self.sensitive = sensitive
+        self.loadGeneration = loadGeneration
+    }
+}
+
+/// Sent by the SDK after a `widget.load` handler returns, including handlers
+/// that intentionally keep the last-good render and produce no new tree.
+public struct LoadCompleteParams: Codable, Equatable, Sendable {
+    public var generation: String
+    public var error: String?
+
+    public init(generation: String, error: String? = nil) {
+        self.generation = generation
+        self.error = error
     }
 }
 

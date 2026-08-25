@@ -24,6 +24,8 @@
 
 scenario="${1:-render}"
 next_id=1
+load_generation=""
+load_error=""
 
 send() { printf '%s\n' "$1"; }
 
@@ -34,8 +36,23 @@ request() {
 }
 
 render() { # $1 = text to render
-  request "{\"jsonrpc\":\"2.0\",\"id\":$next_id,\"method\":\"host.render\",\"params\":{\"root\":{\"type\":\"text\",\"text\":\"$1\"}}}"
+  generation_param=""
+  if [ -n "$load_generation" ]; then
+    generation_param=",\"loadGeneration\":\"$load_generation\""
+  fi
+  request "{\"jsonrpc\":\"2.0\",\"id\":$next_id,\"method\":\"host.render\",\"params\":{\"root\":{\"type\":\"text\",\"text\":\"$1\"}$generation_param}}"
   next_id=$((next_id + 1))
+}
+
+complete_load() {
+  if [ -n "$load_generation" ]; then
+    error_param=""
+    if [ -n "$load_error" ]; then
+      error_param=",\"error\":\"$load_error\""
+    fi
+    request "{\"jsonrpc\":\"2.0\",\"id\":$next_id,\"method\":\"host.load.complete\",\"params\":{\"generation\":\"$load_generation\"$error_param}}"
+    next_id=$((next_id + 1))
+  fi
 }
 
 if [ "$scenario" = "crash" ]; then
@@ -100,6 +117,9 @@ handle_load() {
       next_id=$((next_id + 1))
       render "logged"
       ;;
+    load-error)
+      load_error="Error: simulated load failure"
+      ;;
   esac
 }
 
@@ -109,7 +129,13 @@ handle_timer() {
 
 while IFS= read -r line; do
   case "$line" in
-    *'"method":"widget.load"'*) handle_load ;;
+    *'"method":"widget.load"'*)
+      load_generation=$(printf '%s' "$line" | sed -n 's/.*"loadGeneration":"\([^"]*\)".*/\1/p')
+      handle_load
+      complete_load
+      load_generation=""
+      load_error=""
+      ;;
     *'"method":"widget.timer"'*) handle_timer ;;
     *'"method":"widget.action"'*) render "action-received" ;;
   esac

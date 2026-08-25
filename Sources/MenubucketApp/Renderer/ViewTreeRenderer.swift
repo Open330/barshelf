@@ -21,6 +21,23 @@ extension EnvironmentValues {
     }
 }
 
+// MARK: - Popup page activity environment
+
+private struct WidgetContentIsActiveKey: EnvironmentKey {
+    /// Standalone previews and pinned cards are active unless a pager marks
+    /// their page inactive explicitly.
+    static let defaultValue = true
+}
+
+extension EnvironmentValues {
+    /// False for pages kept in the horizontal pager only for swipe layout.
+    /// Side-effectful/render-loop leaves use it to suspend offscreen work.
+    var widgetContentIsActive: Bool {
+        get { self[WidgetContentIsActiveKey.self] }
+        set { self[WidgetContentIsActiveKey.self] = newValue }
+    }
+}
+
 // MARK: - Remote image environment
 
 private struct RemoteImageHostsKey: EnvironmentKey {
@@ -516,44 +533,56 @@ struct NodeView: View {
 
 /// Renders a `progress` node with a `countdown` window. The host re-evaluates
 /// remaining time every second via `TimelineView` — no script re-run needed.
-/// Ticks stop when the view leaves the window (popup closed).
+/// Ticks stop when the page is offscreen or the popup leaves the window.
 private struct CountdownProgressView: View {
     let node: UINode
     @Environment(\.widgetAppearance) private var appearance
+    @Environment(\.widgetContentIsActive) private var contentIsActive
 
+    @ViewBuilder
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { timeline in
-            let nowMs = timeline.date.timeIntervalSince1970 * 1000
-            let fraction = node.countdownFraction(nowMs: nowMs) ?? 0
-            let remaining = node.countdownRemainingSeconds(nowMs: nowMs) ?? 0
-            let tint = nodeColor(node.countdownTint(nowMs: nowMs), accent: appearance.accentColor)
-                ?? (appearance.accentColor ?? .accentColor)
-            let remainingText = node.labelFrom == "remainingSeconds"
-                ? String(Int(remaining.rounded(.down)))
-                : nil
+        if contentIsActive {
+            TimelineView(.periodic(from: .now, by: 1)) { timeline in
+                content(at: timeline.date)
+            }
+        } else {
+            // Preserve offscreen layout without keeping a 1 Hz timeline alive.
+            content(at: Date())
+        }
+    }
 
-            if node.style == "ring" {
-                RingProgressView(
-                    fraction: fraction,
-                    tint: tint,
-                    centerText: remainingText,
-                    diameter: CGFloat(node.size ?? 26)
-                )
-            } else {
-                HStack(spacing: 6) {
-                    if let label = node.label {
-                        Text(label)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
-                    }
-                    LinearMeter(fraction: fraction, tint: tint)
-                    if let remainingText {
-                        Text(remainingText + "s")
-                            .font(.caption)
-                            .monospacedDigit()
-                            .foregroundColor(.secondary)
-                    }
+    @ViewBuilder
+    private func content(at date: Date) -> some View {
+        let nowMs = date.timeIntervalSince1970 * 1000
+        let fraction = node.countdownFraction(nowMs: nowMs) ?? 0
+        let remaining = node.countdownRemainingSeconds(nowMs: nowMs) ?? 0
+        let tint = nodeColor(node.countdownTint(nowMs: nowMs), accent: appearance.accentColor)
+            ?? (appearance.accentColor ?? .accentColor)
+        let remainingText = node.labelFrom == "remainingSeconds"
+            ? String(Int(remaining.rounded(.down)))
+            : nil
+
+        if node.style == "ring" {
+            RingProgressView(
+                fraction: fraction,
+                tint: tint,
+                centerText: remainingText,
+                diameter: CGFloat(node.size ?? 26)
+            )
+        } else {
+            HStack(spacing: 6) {
+                if let label = node.label {
+                    Text(label)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+                LinearMeter(fraction: fraction, tint: tint)
+                if let remainingText {
+                    Text(remainingText + "s")
+                        .font(.caption)
+                        .monospacedDigit()
+                        .foregroundColor(.secondary)
                 }
             }
         }
@@ -755,6 +784,7 @@ private struct FileImageView: View {
 
     @State private var thumbnail: NSImage?
     @Environment(\.localFileReadPaths) private var localFileReadPaths
+    @Environment(\.widgetContentIsActive) private var contentIsActive
 
     private var isAllowed: Bool {
         WidgetRuntime.filePathAllowed(path, allowlist: localFileReadPaths)
@@ -762,7 +792,12 @@ private struct FileImageView: View {
 
     var body: some View {
         Group {
-            if isAllowed {
+            if !contentIsActive {
+                // Offscreen pager pages keep their geometry but avoid even the
+                // synchronous NSWorkspace icon lookup until selected.
+                Image(systemName: "doc")
+                    .resizable()
+            } else if isAllowed {
                 Image(nsImage: thumbnail ?? ThumbnailService.shared.icon(forPath: path))
                     .resizable()
             } else {
@@ -779,6 +814,9 @@ private struct FileImageView: View {
                 thumbnail = nil
                 load()
             }
+            .onChange(of: contentIsActive) { active in
+                if active { load() }
+            }
     }
 
     /// Path + mtime — a re-render after a file change reloads the thumbnail.
@@ -787,7 +825,7 @@ private struct FileImageView: View {
     }
 
     private func load() {
-        guard isAllowed, source.kind == "fileThumbnail" else { return }
+        guard contentIsActive, isAllowed, source.kind == "fileThumbnail" else { return }
         let expected = cacheIdentity
         let cached = ThumbnailService.shared.thumbnail(
             path: path,
@@ -816,6 +854,7 @@ private struct RemoteImageView: View {
 
     @Environment(\.remoteImageHosts) private var allowedHosts
     @Environment(\.widgetAppearance) private var appearance
+    @Environment(\.widgetContentIsActive) private var contentIsActive
     @State private var image: NSImage?
 
     var body: some View {
@@ -840,10 +879,15 @@ private struct RemoteImageView: View {
             image = nil
             load()
         }
+        .onChange(of: contentIsActive) { active in
+            if active { load() }
+        }
     }
 
     private func load() {
-        guard WidgetRuntime.networkHostAllowed(url: url, allowlist: allowedHosts) else { return }
+        guard contentIsActive,
+              WidgetRuntime.networkHostAllowed(url: url, allowlist: allowedHosts)
+        else { return }
         let expected = url
         let cached = RemoteImageService.shared.image(forURL: url) { loaded in
             guard url == expected, let loaded else { return }

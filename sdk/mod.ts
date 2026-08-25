@@ -15,6 +15,8 @@ export interface WidgetLoadParams {
   appearance: Appearance;
   settings: Record<string, unknown>;
   lastRenderRevision?: number | null;
+  /** @internal Opaque host token acknowledged when the load handler returns. */
+  loadGeneration?: string;
 }
 
 export interface WidgetActionParams {
@@ -753,10 +755,12 @@ const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 let nextRequestId = 1;
 let writeQueue: Promise<void> = Promise.resolve();
+let notificationQueue: Promise<void> = Promise.resolve();
 const pending = new Map<string, PendingRequest>();
 
 let handlers: WidgetHandlers | undefined;
 let lastLoadParams: WidgetLoadParams | undefined;
+let activeLoadGeneration: string | undefined;
 let readLoopStarted = false;
 
 function pendingKey(id: RpcId): string {
@@ -860,7 +864,10 @@ function reportHandlerError(method: string, error: unknown): void {
 }
 
 function dispatchNotification(method: string, params: unknown): void {
-  void (async () => {
+  // Lifecycle handlers are serialized. Besides keeping widget state
+  // deterministic, this prevents an action/timer handler from racing a load
+  // and attributing its render to the wrong refresh generation.
+  notificationQueue = notificationQueue.then(async () => {
     if (!handlers) {
       writeStderr(
         `barshelf sdk: received ${method} before barshelf.widget registration`,
@@ -871,7 +878,26 @@ function dispatchNotification(method: string, params: unknown): void {
     try {
       if (method === "widget.load") {
         lastLoadParams = params as WidgetLoadParams;
-        await handlers.load?.(makeContext(lastLoadParams));
+        const generation = lastLoadParams.loadGeneration;
+        const previousGeneration = activeLoadGeneration;
+        let loadError: string | undefined;
+        activeLoadGeneration = generation;
+        try {
+          await handlers.load?.(makeContext(lastLoadParams));
+        } catch (error) {
+          loadError = error instanceof Error
+            ? `${error.name}: ${error.message}`
+            : String(error);
+          throw error;
+        } finally {
+          activeLoadGeneration = previousGeneration;
+          if (generation) {
+            await sendRequest("host.load.complete", {
+              generation,
+              error: loadError,
+            });
+          }
+        }
         return;
       }
 
@@ -891,7 +917,7 @@ function dispatchNotification(method: string, params: unknown): void {
     } catch (error) {
       reportHandlerError(method, error);
     }
-  })();
+  });
 }
 
 function handleLine(line: string): void {
@@ -992,6 +1018,7 @@ export async function render(
     nextRefreshAt: options.nextRefreshAt,
     cacheTtlMs: options.cacheTtlMs,
     sensitive: options.sensitive,
+    loadGeneration: activeLoadGeneration,
   });
 }
 

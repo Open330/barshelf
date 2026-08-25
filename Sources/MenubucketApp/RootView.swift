@@ -177,6 +177,12 @@ struct RootView: View {
         return Set(pages[safeIndex].widgets.map(\.id)).union(pinned)
     }
 
+    /// Pager pages remain mounted for swipe geometry, but only the selected
+    /// page may run timelines or initiate image/thumbnail work.
+    static func pageContentIsActive(pageID: String, selectedPageID: String) -> Bool {
+        pageID == selectedPageID
+    }
+
     /// Jumps the pager to the page holding `id`, flashes that card's border, and
     /// consumes `pendingReveal` so a repeat reveal of the same id fires again.
     private func revealAndFlash(_ id: String) {
@@ -323,6 +329,13 @@ struct RootView: View {
                         .padding(.bottom, 6)
                     }
                     .frame(width: width, height: geometry.size.height)
+                    .environment(
+                        \.widgetContentIsActive,
+                        Self.pageContentIsActive(
+                            pageID: page.id,
+                            selectedPageID: pages[index].id
+                        )
+                    )
                 }
             }
             .offset(x: offset)

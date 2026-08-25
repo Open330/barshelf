@@ -75,6 +75,15 @@ final class WidgetPagesTests: XCTestCase {
         )
     }
 
+    func testOnlySelectedPagerPageKeepsContentWorkActive() {
+        XCTAssertTrue(RootView.pageContentIsActive(
+            pageID: "Agents", selectedPageID: "Agents"
+        ))
+        XCTAssertFalse(RootView.pageContentIsActive(
+            pageID: "Files", selectedPageID: "Agents"
+        ))
+    }
+
     func testInstanceDirectorySuffixCreatesIndependentDisplayIdentity() {
         let manifest = Manifest(
             schemaVersion: 1,
@@ -168,5 +177,29 @@ final class WidgetPagesTests: XCTestCase {
         let widgets = WidgetRuntime.discoverWidgets(in: [root])
 
         XCTAssertEqual(widgets.map(\.id), ["supported"])
+    }
+}
+
+final class ScriptRefreshCoalescerTests: XCTestCase {
+    func testOverlappingGenerationIsRejectedUntilMatchingCompletion() {
+        var coalescer = ScriptRefreshCoalescer()
+
+        XCTAssertTrue(coalescer.begin(widgetID: "muxa", generation: "first"))
+        XCTAssertFalse(coalescer.begin(widgetID: "muxa", generation: "overlap"))
+        XCTAssertTrue(coalescer.markRendered(widgetID: "muxa", generation: "first"))
+        XCTAssertEqual(coalescer.finish(widgetID: "muxa", generation: "first"), true)
+        XCTAssertTrue(coalescer.begin(widgetID: "muxa", generation: "second"))
+    }
+
+    func testStaleCompletionCannotReleaseNewGeneration() {
+        var coalescer = ScriptRefreshCoalescer()
+
+        XCTAssertTrue(coalescer.begin(widgetID: "muxa", generation: "first"))
+        XCTAssertEqual(coalescer.finish(widgetID: "muxa", generation: "first"), false)
+        XCTAssertTrue(coalescer.begin(widgetID: "muxa", generation: "second"))
+
+        XCTAssertNil(coalescer.finish(widgetID: "muxa", generation: "first"))
+        XCTAssertFalse(coalescer.begin(widgetID: "muxa", generation: "third"))
+        XCTAssertEqual(coalescer.finish(widgetID: "muxa", generation: "second"), false)
     }
 }

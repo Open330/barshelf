@@ -71,6 +71,57 @@ final class WidgetCardModel: ObservableObject {
     }
 }
 
+/// Generation-aware ownership for script refreshes. A widget may have only
+/// one active load, and late completion from an older process/package cannot
+/// release the newer generation that reused the same widget id.
+struct ScriptRefreshCoalescer {
+    private struct Entry {
+        let generation: String
+        var rendered = false
+    }
+
+    private var entries: [String: Entry] = [:]
+
+    mutating func begin(widgetID: String, generation: String) -> Bool {
+        guard entries[widgetID] == nil else { return false }
+        entries[widgetID] = Entry(generation: generation)
+        return true
+    }
+
+    mutating func markRendered(widgetID: String, generation: String) -> Bool {
+        guard var entry = entries[widgetID], entry.generation == generation else {
+            return false
+        }
+        entry.rendered = true
+        entries[widgetID] = entry
+        return true
+    }
+
+    /// Returns whether this generation rendered before it completed. Nil means
+    /// the completion is stale or does not belong to an active host refresh.
+    mutating func finish(widgetID: String, generation: String) -> Bool? {
+        guard let entry = entries[widgetID], entry.generation == generation else {
+            return nil
+        }
+        entries.removeValue(forKey: widgetID)
+        return entry.rendered
+    }
+
+    mutating func cancel(widgetID: String, generation: String? = nil) -> Bool {
+        guard let entry = entries[widgetID],
+              generation == nil || entry.generation == generation
+        else { return false }
+        entries.removeValue(forKey: widgetID)
+        return true
+    }
+
+    mutating func cancelAll() -> Set<String> {
+        let widgetIDs = Set(entries.keys)
+        entries.removeAll()
+        return widgetIDs
+    }
+}
+
 /// Loads manifests, delegates trigger scheduling to `Scheduler`, and publishes
 /// per-widget snapshots.
 ///
@@ -102,6 +153,7 @@ final class WidgetRuntime: ObservableObject {
     private let refreshStatsStore: RefreshStatsStore
     private var cancellables: Set<AnyCancellable> = []
     private var inFlight: Set<String> = []
+    private var scriptRefreshes = ScriptRefreshCoalescer()
     /// Selected-page widgets plus pinned widgets. Automatic refresh and
     /// permission-triggering work is lazy outside this set.
     private(set) var visibleWidgetIDs: Set<String> = []
@@ -246,6 +298,15 @@ final class WidgetRuntime: ObservableObject {
                     )
                 }
             },
+            onLoadComplete: { widgetId, generation, error in
+                DispatchQueue.main.async {
+                    weakRuntime.value?.handleScriptLoadComplete(
+                        widgetId: widgetId,
+                        generation: generation,
+                        error: error
+                    )
+                }
+            },
             onStateChange: { widgetId, state in
                 DispatchQueue.main.async {
                     weakRuntime.value?.handleScriptStateChange(widgetId: widgetId, state: state)
@@ -264,6 +325,9 @@ final class WidgetRuntime: ObservableObject {
 
     private func handleScriptRender(widgetId: String, params: RenderParams, revision: Int) {
         guard let widget = widgets.first(where: { $0.id == widgetId }) else { return }
+        if let generation = params.loadGeneration {
+            _ = scriptRefreshes.markRendered(widgetID: widgetId, generation: generation)
+        }
         var snapshot = snapshots[widgetId] ?? WidgetSnapshot(widgetID: widgetId)
         snapshot.isLoading = false
         snapshot.viewTree = params.root
@@ -292,8 +356,32 @@ final class WidgetRuntime: ObservableObject {
             NSLog("barshelf[%@] status: %@ (rev %d)", widgetId, label, revision)
         }
         scheduler.noteRefreshSucceeded(widgetID: widgetId, nextRefreshAtMs: params.nextRefreshAt)
-        inFlight.remove(widgetId)
         recordRefreshSuccess(widgetID: widgetId)
+    }
+
+    private func handleScriptLoadComplete(
+        widgetId: String, generation: String, error: String?
+    ) {
+        guard let rendered = scriptRefreshes.finish(
+            widgetID: widgetId, generation: generation
+        ) else { return }
+        inFlight.remove(widgetId)
+        if let error {
+            updateSnapshot(widgetId) {
+                $0.isLoading = false
+                $0.error = error
+            }
+            scheduler.noteRefreshFailed(widgetID: widgetId)
+            recordRefreshFailure(widgetID: widgetId, error: error)
+            return
+        }
+        // A script may intentionally retain its last-good render. Completion
+        // still ends loading/backoff and records the successful no-change load.
+        if !rendered {
+            updateSnapshot(widgetId) { $0.isLoading = false }
+            scheduler.noteRefreshSucceeded(widgetID: widgetId, nextRefreshAtMs: nil)
+            recordRefreshSuccess(widgetID: widgetId)
+        }
     }
 
     private func handleScriptStateChange(widgetId: String, state: ScriptWidgetState) {
@@ -302,7 +390,7 @@ final class WidgetRuntime: ObservableObject {
             break
         case .stopped:
             // A crash before the first render would otherwise spin forever.
-            if snapshots[widgetId]?.isLoading == true {
+            if scriptRefreshes.cancel(widgetID: widgetId) {
                 updateSnapshot(widgetId) {
                     $0.isLoading = false
                     $0.error = "script exited unexpectedly"
@@ -320,6 +408,7 @@ final class WidgetRuntime: ObservableObject {
                 $0.isLoading = false
                 $0.error = "Widget disabled: \(reason)"
             }
+            _ = scriptRefreshes.cancel(widgetID: widgetId)
             inFlight.remove(widgetId)
             scheduler.noteRefreshFailed(widgetID: widgetId)
             recordRefreshFailure(widgetID: widgetId, error: "Widget disabled: \(reason)")
@@ -600,6 +689,15 @@ final class WidgetRuntime: ObservableObject {
     func loadWidgets() {
         let loaded = Self.discoverWidgets(in: Self.widgetSearchDirectories)
         let seenIDs = Set(loaded.map(\.id))
+
+        // A rescan replaces every script descriptor/process, even when the id
+        // stays the same. Release only those script generations here; their
+        // late SDK acknowledgements are ignored by generation matching.
+        let cancelledScriptIDs = scriptRefreshes.cancelAll()
+        inFlight.subtract(cancelledScriptIDs)
+        for id in cancelledScriptIDs where seenIDs.contains(id) {
+            updateSnapshot(id) { $0.isLoading = false }
+        }
 
         widgets = loaded
         // Remove per-widget state of widgets that disappeared (hot reload).
@@ -1181,6 +1279,9 @@ final class WidgetRuntime: ObservableObject {
     /// `widget.load`. Renders arrive asynchronously via `handleScriptRender`.
     private func refreshScript(_ widget: LoadedWidget, manual: Bool) {
         let id = widget.id
+        let generation = UUID().uuidString
+        guard scriptRefreshes.begin(widgetID: id, generation: generation) else { return }
+        inFlight.insert(id)
         markRefreshStarted(widgetID: id)
         updateSnapshot(id) { $0.isLoading = true }
         let descriptor = ScriptWidgetDescriptor(
@@ -1199,9 +1300,13 @@ final class WidgetRuntime: ObservableObject {
                     reason: reason,
                     settings: self.prefs.effectiveSettings(
                         for: widget.manifest, widgetID: widget.id
-                    )
+                    ),
+                    loadGeneration: generation
                 )
             } catch {
+                guard self.scriptRefreshes.cancel(
+                    widgetID: id, generation: generation
+                ) else { return }
                 let message = (error as? LocalizedError)?.errorDescription
                     ?? String(describing: error)
                 self.updateSnapshot(id) {

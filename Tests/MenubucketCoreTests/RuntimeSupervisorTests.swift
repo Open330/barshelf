@@ -33,6 +33,7 @@ final class RuntimeSupervisorTests: XCTestCase {
     private final class RenderCapture: @unchecked Sendable {
         private let lock = NSLock()
         private var texts: [String] = []
+        private var loadGenerations: [String?] = []
         let expectation: XCTestExpectation?
 
         init(_ expectation: XCTestExpectation? = nil) {
@@ -42,6 +43,7 @@ final class RuntimeSupervisorTests: XCTestCase {
         func record(_ params: RenderParams) {
             lock.lock()
             texts.append(params.root.text ?? "<no text>")
+            loadGenerations.append(params.loadGeneration)
             lock.unlock()
             expectation?.fulfill()
         }
@@ -49,6 +51,11 @@ final class RuntimeSupervisorTests: XCTestCase {
         var captured: [String] {
             lock.lock(); defer { lock.unlock() }
             return texts
+        }
+
+        var capturedLoadGenerations: [String?] {
+            lock.lock(); defer { lock.unlock() }
+            return loadGenerations
         }
 
         /// Polls until `count` renders arrived (the stub serializes its stdin
@@ -80,6 +87,7 @@ final class RuntimeSupervisorTests: XCTestCase {
         scenario: String,
         manifest: Manifest,
         capture: RenderCapture,
+        onLoadComplete: (@Sendable (String, String, String?) -> Void)? = nil,
         onStateChange: (@Sendable (String, ScriptWidgetState) -> Void)? = nil
     ) -> (RuntimeSupervisor, ScriptWidgetDescriptor) {
         let stub = stubURL
@@ -92,6 +100,7 @@ final class RuntimeSupervisorTests: XCTestCase {
         )
         let events = RuntimeSupervisorEvents(
             onRender: { _, params, _ in capture.record(params) },
+            onLoadComplete: onLoadComplete ?? { _, _, _ in },
             onStateChange: onStateChange ?? { _, _ in }
         )
         let supervisor = RuntimeSupervisor(configuration: configuration, events: events)
@@ -121,6 +130,52 @@ final class RuntimeSupervisorTests: XCTestCase {
         try await supervisor.load(widget, reason: "open")
         await fulfillment(of: [capture.expectation!], timeout: 15)
         XCTAssertEqual(capture.captured, ["hello from stub"])
+        await supervisor.stopAll()
+    }
+
+    func testLoadGenerationIsEchoedByRenderAndCompletion() async throws {
+        let rendered = expectation(description: "generation render")
+        let completed = expectation(description: "generation completion")
+        let capture = RenderCapture(rendered)
+        let generation = "refresh-generation-1"
+        let (supervisor, widget) = try makeSupervisor(
+            scenario: "render",
+            manifest: makeManifest(),
+            capture: capture,
+            onLoadComplete: { _, received, error in
+                if received == generation, error == nil { completed.fulfill() }
+            }
+        )
+
+        try await supervisor.load(
+            widget, reason: "open", loadGeneration: generation
+        )
+        await fulfillment(of: [rendered, completed], timeout: 15)
+        XCTAssertEqual(capture.capturedLoadGenerations, [generation])
+        await supervisor.stopAll()
+    }
+
+    func testLoadCompletionForwardsHandlerError() async throws {
+        let completed = expectation(description: "failed generation completion")
+        let capture = RenderCapture()
+        let generation = "refresh-generation-error"
+        let (supervisor, widget) = try makeSupervisor(
+            scenario: "load-error",
+            manifest: makeManifest(),
+            capture: capture,
+            onLoadComplete: { _, received, error in
+                if received == generation,
+                   error == "Error: simulated load failure" {
+                    completed.fulfill()
+                }
+            }
+        )
+
+        try await supervisor.load(
+            widget, reason: "open", loadGeneration: generation
+        )
+        await fulfillment(of: [completed], timeout: 15)
+        XCTAssertTrue(capture.captured.isEmpty)
         await supervisor.stopAll()
     }
 

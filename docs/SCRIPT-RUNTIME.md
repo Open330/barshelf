@@ -17,7 +17,7 @@
 
 | method | params |
 |---|---|
-| `widget.load` | `{widgetId, reason: "install"\|"open"\|"manual"\|"timer"\|"interval", now, locale, appearance: "light"\|"dark", settings, lastRenderRevision}` |
+| `widget.load` | `{widgetId, reason: "install"\|"open"\|"manual"\|"timer"\|"interval", now, locale, appearance: "light"\|"dark", settings, lastRenderRevision, loadGeneration?}`. `loadGeneration`은 SDK가 처리하는 내부 중복 방지 토큰이다. |
 | `widget.action` | `{actionId, payload, now}` |
 | `widget.timer` | `{id, now}` |
 
@@ -27,7 +27,8 @@ Script -> Host 방향은 `id`가 필수이며, 호스트는 `result` 또는 `err
 
 | method | params -> result |
 |---|---|
-| `host.render` | `{root: UINode, status?: {label?, tooltip?}, nextRefreshAt?, cacheTtlMs?, sensitive?}` -> `{revision}` |
+| `host.render` | `{root: UINode, status?: {label?, tooltip?}, nextRefreshAt?, cacheTtlMs?, sensitive?, loadGeneration?}` -> `{revision}`. 내부 `loadGeneration`은 SDK가 자동으로 전달한다. |
+| `host.load.complete` | `{generation, error?}` -> `null`. SDK가 `load` handler 종료 시 자동 전송하는 내부 acknowledgement이다. 위젯 코드에서 직접 호출하지 않는다. |
 | `host.exec.run` | `{command, args, parse?: "text"\|"json"\|"lines", timeoutMs?, sensitive?, env?}` -> `{exitCode, stdout, stderr, json?, durationMs}`. manifest `permissions.exec` allowlist가 강제된다. |
 | `host.storage.get/set/delete/list` | `{key, value?, prefix?}` -> 값 또는 키 목록. 위젯별 네임스페이스를 사용하며 quota는 1MB이다. |
 | `host.secret.get/set` | `{key, value?}`. Keychain service는 `dev.barshelf`, account는 `<widgetId>/<key>`이다. manifest `permissions.keychain: true`가 필요하다. |
@@ -121,6 +122,7 @@ barshelf.widget({
 - `action(ctx, event)`: `event` action 처리. `ctx.actionId`와 `ctx.payload`를 사용한다.
 - `timer(ctx, event)`: host timer 처리. `ctx.id`와 `ctx.now`를 사용한다.
 - 모든 context에는 `render`, `exec`, `storage`, `secret`, `timer`, `notify`, `log`, `ui`, `barshelf`, `bsf`, `reload()`가 포함된다.
+- SDK는 lifecycle handler를 순서대로 실행하고 각 host `widget.load`가 끝나면 내부 generation을 확인 응답한다. 따라서 위젯은 이 토큰을 읽거나 직접 완료 처리할 필요가 없다.
 
 ### 렌더
 
