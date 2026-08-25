@@ -5,41 +5,37 @@ import XCTest
 
 @MainActor
 final class StatusItemAccessibilityTests: XCTestCase {
-    func testDefaultLogoNamesStatusBarButton() throws {
-        try withStatusBarButton { button in
-            BarShelfStatusIcon.configure(
-                button,
-                symbol: AppPreferences.defaultMenuBarSymbol,
-                fallback: "tray.full"
-            )
+    func testDefaultLogoNamesStatusBarButton() {
+        let button = makeStatusBarButton()
+        BarShelfStatusIcon.configure(
+            button,
+            symbol: AppPreferences.defaultMenuBarSymbol,
+            fallback: "tray.full"
+        )
 
-            XCTAssertEqual(button.accessibilityLabel(), "BarShelf")
-            XCTAssertEqual(button.imagePosition, .imageOnly)
-            XCTAssertNotNil(button.image)
-        }
+        XCTAssertEqual(button.accessibilityLabel(), "BarShelf")
+        XCTAssertEqual(button.imagePosition, .imageOnly)
+        XCTAssertNotNil(button.image)
     }
 
-    func testSFSymbolNamesStatusBarButton() throws {
-        try withStatusBarButton { button in
-            BarShelfStatusIcon.configure(
-                button,
-                symbol: "tray.full",
-                fallback: BarShelfStatusIcon.logoSymbol
-            )
+    func testSFSymbolNamesStatusBarButton() {
+        let button = makeStatusBarButton()
+        BarShelfStatusIcon.configure(
+            button,
+            symbol: "tray.full",
+            fallback: BarShelfStatusIcon.logoSymbol
+        )
 
-            XCTAssertEqual(button.accessibilityLabel(), "BarShelf")
-            XCTAssertEqual(button.imagePosition, .imageOnly)
-            XCTAssertNotNil(button.image)
-        }
+        XCTAssertEqual(button.accessibilityLabel(), "BarShelf")
+        XCTAssertEqual(button.imagePosition, .imageOnly)
+        XCTAssertNotNil(button.image)
     }
 
-    private func withStatusBarButton(
-        _ assertions: (NSStatusBarButton) throws -> Void
-    ) throws {
-        let statusItem = NSStatusBar.system.statusItem(withLength: 28)
-        defer { NSStatusBar.system.removeStatusItem(statusItem) }
-
-        let button = try XCTUnwrap(statusItem.button)
-        try assertions(button)
+    /// `NSStatusBar.system.statusItem` requires a live WindowServer session and
+    /// aborts headless GitHub runners inside CoreGraphics. Constructing the
+    /// concrete button directly still exercises the production API and its
+    /// accessibility attributes without registering a global menu-bar item.
+    private func makeStatusBarButton() -> NSStatusBarButton {
+        NSStatusBarButton(frame: NSRect(x: 0, y: 0, width: 28, height: 22))
     }
 }
