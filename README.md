@@ -261,3 +261,6 @@ MIT © Jiun Bae — see [LICENSE](LICENSE).
 <div align="center">
 <sub>Built with <a href="https://claude.com/claude-code">Claude Code</a></sub>
 </div>
+
+---
+<p align="center"><sub>Part of <a href="https://github.com/Open330">Open330</a> · open source tools for AI-agent workflows · <a href="https://open330.github.io">open330.github.io</a></sub></p>
