@@ -23,9 +23,9 @@ behind them are read natively instead of shelling out.
   accepted if it is signed by the same Developer ID as the build asking to be
   replaced, and macOS is asked for its own verdict before anything is swapped;
   any failure leaves the installed copy untouched and falls back to the release
-  page. A copy installed with Homebrew is left to `brew upgrade --cask
-  barshelf`, and a locally built copy is never replaced, because there is no
-  signature to verify an update against.
+  page. The copy Homebrew installed is left to `brew upgrade --cask barshelf`,
+  an App Store build is left to the Store, and a locally built copy is never
+  replaced, because it carries no release identity to verify an update against.
 - **New — Sensors widget** — hardware temperatures, fans, and power draw from
   the SMC, with the Apple Silicon HID sensor plane as a fallback. Every reading
   is optional: a fanless Mac lists no fans, and a Mac that publishes nothing
