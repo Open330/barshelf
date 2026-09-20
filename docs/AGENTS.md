@@ -92,8 +92,9 @@ except `schemaVersion`, `id`, `name`, and `entry`.
     "triggers": ["wake", "popup-open", { "fs": "~/Downloads" }, "url"]  // R12, see §8
   },
 
-  "statusItem": {                     // menu-bar (XS) promotion; only "none" is active today
-    "mode": "none"                    // "none" | "icon" | "text" | "dynamic"
+  "statusItem": {                     // menu-bar promotion, see §8A
+    "mode": "none",                   // "none" | "icon" | "text" | "dynamic"
+    "icon": "cpu.fill"                // SF Symbol; falls back to manifest `icon`
   },
 
   "permissions": { /* see §9 */ },
@@ -231,6 +232,32 @@ interval polling).
 
 ---
 
+## 8A. Menu-bar promotion (`statusItem`)
+
+A promoted widget draws a live value in the menu bar, next to (or instead of
+sharing) the BarShelf mark.
+
+- `mode` — `"none"` keeps the widget out of the menu bar. `"text"` shows its
+  status label, `"icon"` its symbol, `"dynamic"` both. Anything but `"none"`
+  makes the widget *eligible*; the user's per-widget toggle (widget Settings →
+  Menu Bar) decides, and can promote a widget the author left at `"none"`.
+- The live text is the value the widget already computes: a workflow's
+  `status.label`, or a script's `host.render` status. `labelFrom` /
+  `tooltipFrom` are still accepted by the schema but unused.
+- Widgets that show a label **share one status item** with the BarShelf mark
+  (`✦ 42% · 61% · 58°`); a widget can be split into its own item from Settings
+  or its right-click menu. An `"icon"`-only widget always gets its own item,
+  since an icon cannot join a text strip.
+- At most 5 widgets are drawn. Labels are collapsed to one line and clipped to
+  14 characters.
+- A promoted widget keeps polling at its own `refresh.interval` **while the
+  popup is closed** — it is exempt from the `runInBackground` requirement and
+  from the 5 s / 60 s interval floors (its own floor is 1 s). Give it an
+  interval it can actually sustain. The app-wide "pause when closed" battery
+  saver still stops it, and the menu bar then dims the frozen value.
+
+---
+
 ## 9. Permission model
 
 Declared in `permissions`; approval is **per-widget and all-at-once**: the host
@@ -253,7 +280,8 @@ permissions invalidates approval (re-approval required).
   "readPaths": ["~/Downloads"],      // paths the widget may read (e.g. fs.directory source)
   "env": ["HOME", "PATH"],           // env vars exposed to processes
   "keychain": true,                  // allow barshelf.secret.* (Keychain)
-  "notifications": true              // allow barshelf.notify.show
+  "notifications": true,             // allow barshelf.notify.show
+  "system": ["cpu", "memory", "sensors"]  // telemetry groups the "system" source may read
 }
 ```
 
@@ -267,12 +295,17 @@ Gating specifics:
   and `watch: true` retain the same authorized directory handle, so a later
   symlink substitution cannot retarget access. The stale `permissions.files`
   draft form is rejected; migrate it to `permissions.readPaths`.
+- The workflow **`system` source requires `permissions.system`**: every metric
+  group it reads (`cpu`, `memory`, `disk`, `sensors`) must be declared, and an
+  undeclared group fails the refresh. No subprocess and no file access are
+  involved, so no `exec`/`readPaths` entry is needed.
 - `keychain` gates `barshelf.secret.*`; `notifications` gates `barshelf.notify.show`.
 - `barshelf.storage.*` needs **no** permission (per-widget sandbox).
 
 The install-confirm summary (`barshelf install`) prints one line per gated capability,
 e.g. `exec: /bin/ls`, `network: fetches from api.github.com`, `files: reads
-~/Downloads`, `keychain: …`, `notifications: …`. The gallery shows the same as chips.
+~/Downloads`, `system: reads cpu, sensors telemetry`, `keychain: …`,
+`notifications: …`. The gallery shows the same as chips.
 
 ---
 
@@ -526,14 +559,40 @@ EOF
   }
 }
 ```
-Workflow sources: `use` is `"exec"`, `"fs.directory"`, `"http"`, or `"value"`. Values flow
+Workflow sources: `use` is `"exec"`, `"fs.directory"`, `"http"`, `"system"`, or
+`"value"`. Values flow
 into `${...}` expressions in `transforms`/`view`: reference source output as
 `$.sources.<id>.<path>`, transforms as `transforms.<id>`, settings as
-`settings.<key>`. Built-in expression functions: `string`, `now`, `count`,
+`settings.<key>`. Built-in expression functions: `string`, `concat`, `now`, `count`,
 `coalesce`, `date.relative`, `file.basename`, `file.extension`, `text.truncate`.
 Built-in transforms (`use`): `assign`, `limit`, `filter`, `sort`. Repeat with
 `{ "forEach": "$.transforms.x", "as": "item", "template": { … "${item.field}" … } }`.
 Provide an `"empty"` node for the zero-items case.
+
+The **`system` source** reads native telemetry (Mach / sysctl / IOKit — no
+subprocess, so it is cheap enough for a menu-bar cadence). Declare every group
+in `permissions.system`:
+
+```json
+{ "use": "system", "with": { "metrics": ["cpu", "memory", "disk", "sensors"], "detail": false, "mount": "/" } }
+```
+
+Output (percentages 0–100, bytes as bytes, temperatures °C, **`null` for
+anything the machine does not publish**):
+
+- `cpu` — `usage`, `user`, `system`, `nice`, `idle`, `coreCount`,
+  `loadAverage.{1m,5m,15m}`, and `cores[]` with `detail: true`.
+- `memory` — `total`, `used`, `free`, `app`, `wired`, `compressed`, `cached`,
+  `usage`, `pressure` (`"normal"|"warning"|"critical"|"unknown"`),
+  `swap.{total,used,free,usage}`.
+- `disk` — `mount`, `total`, `used`, `free`, `usage` (the `mount` volume).
+- `sensors` — `available`, `cpu`, `gpu`, `battery`, `peak`, `power` (watts),
+  `fanCount`, `fans[].{index,name,rpm,min,max,usage}`, and `list[]` with
+  `detail: true`. A fanless Mac reports `fans: []`; a sandboxed build reports
+  `available: false` and every reading `null`, so branch on `available`.
+
+`detail: true` costs roughly 4× a plain sample — leave it off for a widget that
+polls in the menu bar.
 
 ### C) script — click counter (state + action handler)
 

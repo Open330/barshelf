@@ -32,6 +32,9 @@ final class WidgetPrefs: ObservableObject {
     /// Explicit panel/group display order (0-based index per group name). Empty
     /// means "no manual order" — groups fall back to member order then name.
     @Published private(set) var groupOrder: [String: Double] = [:]
+    /// Menu-bar promotion, keyed by widget id. A widget with no entry falls
+    /// back to its manifest's `statusItem.mode`.
+    @Published private(set) var menuBarPlacements: [String: MenuBarPlacement] = [:]
 
     private let fileURL: URL
 
@@ -46,6 +49,8 @@ final class WidgetPrefs: ObservableObject {
         /// Optional for backward compatibility with pre-R12 prefs files.
         var appearanceOverrides: [String: WidgetAppearance]?
         var groupOrder: [String: Double]?
+        /// Optional for backward compatibility with pre-menu-bar prefs files.
+        var menuBarPlacements: [String: MenuBarPlacement]?
     }
 
     // MARK: - Group order
@@ -137,7 +142,34 @@ final class WidgetPrefs: ObservableObject {
         if bucketOverrides.removeValue(forKey: id) != nil { changed = true }
         if disabled.remove(id) != nil { changed = true }
         if appearanceOverrides.removeValue(forKey: id) != nil { changed = true }
+        if menuBarPlacements.removeValue(forKey: id) != nil { changed = true }
         if changed { save() }
+    }
+
+    // MARK: - Menu bar promotion
+
+    /// Effective placement: the user's stored choice, else the author's
+    /// `statusItem.mode`.
+    func menuBarPlacement(
+        for manifest: Manifest,
+        widgetID: String? = nil
+    ) -> MenuBarPlacement {
+        MenuBarPolicy.resolvedPlacement(
+            stored: menuBarPlacements[widgetID ?? manifest.id],
+            statusItem: manifest.statusItem
+        )
+    }
+
+    /// Stores an explicit placement. Passing `nil` clears the override so the
+    /// widget follows its manifest again.
+    func setMenuBarPlacement(_ placement: MenuBarPlacement?, for id: String) {
+        if let placement {
+            guard menuBarPlacements[id] != placement else { return }
+            menuBarPlacements[id] = placement
+        } else {
+            guard menuBarPlacements.removeValue(forKey: id) != nil else { return }
+        }
+        save()
     }
 
     // MARK: - Appearance overrides (R12)
@@ -209,6 +241,7 @@ final class WidgetPrefs: ObservableObject {
         bucketOverrides = persisted.bucketOverrides ?? [:]
         appearanceOverrides = persisted.appearanceOverrides ?? [:]
         groupOrder = persisted.groupOrder ?? [:]
+        menuBarPlacements = persisted.menuBarPlacements ?? [:]
     }
 
     private func save() {
@@ -217,7 +250,8 @@ final class WidgetPrefs: ObservableObject {
             disabled: disabled.isEmpty ? nil : disabled.sorted(),
             bucketOverrides: bucketOverrides.isEmpty ? nil : bucketOverrides,
             appearanceOverrides: appearanceOverrides.isEmpty ? nil : appearanceOverrides,
-            groupOrder: groupOrder.isEmpty ? nil : groupOrder
+            groupOrder: groupOrder.isEmpty ? nil : groupOrder,
+            menuBarPlacements: menuBarPlacements.isEmpty ? nil : menuBarPlacements
         )
         guard let data = try? JSONEncoder().encode(persisted) else { return }
         try? FileManager.default.createDirectory(

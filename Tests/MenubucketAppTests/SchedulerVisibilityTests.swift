@@ -82,4 +82,58 @@ final class SchedulerVisibilityTests: XCTestCase {
         scheduler.popupClosed()
         XCTAssertTrue(scheduler.activeIntervalWidgetIDs.isEmpty)
     }
+
+    // MARK: - Menu-bar promotion
+
+    func testPromotedWidgetsPollWhileHiddenAndWhileThePopupIsClosed() {
+        let scheduler = Scheduler()
+        let promoted = widget("promoted", interval: 2)
+        let hidden = widget("hidden", interval: 2)
+        scheduler.configure(widgets: [promoted, hidden])
+        scheduler.setVisibleWidgetIDs([])
+        scheduler.setMenuBarWidgetIDs([promoted.id])
+
+        // Closed popup: only the promoted widget owns a timer, even though
+        // neither declares runInBackground.
+        XCTAssertEqual(scheduler.activeIntervalWidgetIDs, [promoted.id])
+
+        // Open popup on a page that shows neither: promotion keeps it polling.
+        scheduler.popupOpened()
+        XCTAssertEqual(scheduler.activeIntervalWidgetIDs, [promoted.id])
+        scheduler.popupClosed()
+    }
+
+    func testDemotingAWidgetStopsItsTimer() {
+        let scheduler = Scheduler()
+        let promoted = widget("promoted", interval: 2)
+        scheduler.configure(widgets: [promoted])
+        scheduler.setMenuBarWidgetIDs([promoted.id])
+        XCTAssertEqual(scheduler.activeIntervalWidgetIDs, [promoted.id])
+
+        scheduler.setMenuBarWidgetIDs([])
+        XCTAssertTrue(scheduler.activeIntervalWidgetIDs.isEmpty)
+    }
+
+    func testPromotionDoesNotOverridePopupOnly() {
+        let scheduler = Scheduler()
+        let restricted = widget("restricted", interval: 2, popupOnly: true)
+        scheduler.configure(widgets: [restricted])
+        scheduler.setMenuBarWidgetIDs([restricted.id])
+        XCTAssertTrue(scheduler.activeIntervalWidgetIDs.isEmpty)
+    }
+
+    func testPromotedIDsAreDroppedWhenTheWidgetDisappears() {
+        let scheduler = Scheduler()
+        let promoted = widget("promoted", interval: 2)
+        scheduler.configure(widgets: [promoted])
+        scheduler.setMenuBarWidgetIDs([promoted.id])
+        XCTAssertEqual(scheduler.activeIntervalWidgetIDs, [promoted.id])
+
+        scheduler.configure(widgets: [])
+        XCTAssertTrue(scheduler.activeIntervalWidgetIDs.isEmpty)
+        // Re-adding the widget must not silently resurrect its promotion.
+        scheduler.configure(widgets: [promoted])
+        XCTAssertTrue(scheduler.activeIntervalWidgetIDs.isEmpty)
+    }
+
 }

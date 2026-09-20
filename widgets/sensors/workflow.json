@@ -1,0 +1,158 @@
+{
+  "$schema": "https://barshelf.jiun.dev/schema/workflow-0.1.json",
+  "schemaVersion": 1,
+  "kind": "workflow",
+  "_comment": "Hardware sensors from the native `system` source: SMC temperatures and fans, with the Apple Silicon HID sensor plane as the fallback. Every reading is optional — a fanless Mac lists no fans, and a sandboxed build reports nothing at all, so the view switches on sensors.available.",
+
+  "sources": {
+    "data": {
+      "use": "system",
+      "with": { "metrics": ["sensors"] }
+    }
+  },
+
+  "transforms": {},
+
+  "view": {
+    "switch": "${string(sources.data.sensors.available)}",
+    "cases": {
+      "true": {
+        "type": "vstack",
+        "spacing": 8,
+        "children": [
+          {
+            "type": "hstack",
+            "spacing": 6,
+            "children": [
+              { "type": "image", "source": { "kind": "sfSymbol", "name": "thermometer.medium" }, "size": 14, "tint": "accent" },
+              { "type": "text", "text": "Sensors", "role": "caption", "foreground": "secondary" },
+              { "type": "spacer" },
+              {
+                "type": "text",
+                "text": "${if(eq(sources.data.sensors.power, null), '', concat(string(round(number(sources.data.sensors.power), 1)), ' W'))}",
+                "role": "caption",
+                "monospacedDigit": true,
+                "foreground": "secondary"
+              }
+            ]
+          },
+          {
+            "type": "vstack",
+            "spacing": 3,
+            "children": [
+              {
+                "type": "hstack",
+                "children": [
+                  { "type": "text", "text": "CPU", "role": "caption" },
+                  { "type": "spacer" },
+                  {
+                    "type": "text",
+                    "text": "${if(eq(sources.data.sensors.cpu, null), '—', concat(string(round(number(sources.data.sensors.cpu), 1)), ' °C'))}",
+                    "role": "caption",
+                    "monospacedDigit": true,
+                    "foreground": "${if(gt(sources.data.sensors.cpu, 90), 'danger', if(gt(sources.data.sensors.cpu, 75), 'warning', 'good'))}"
+                  }
+                ]
+              },
+              {
+                "type": "progress",
+                "style": "linear",
+                "value": "${div(coalesce(sources.data.sensors.cpu, 0), 100)}",
+                "tint": "${if(gt(sources.data.sensors.cpu, 90), 'danger', if(gt(sources.data.sensors.cpu, 75), 'warning', 'good'))}"
+              }
+            ]
+          },
+          {
+            "type": "hstack",
+            "children": [
+              { "type": "text", "text": "GPU", "role": "caption" },
+              { "type": "spacer" },
+              {
+                "type": "text",
+                "text": "${if(eq(sources.data.sensors.gpu, null), '—', concat(string(round(number(sources.data.sensors.gpu), 1)), ' °C'))}",
+                "role": "caption",
+                "monospacedDigit": true,
+                "foreground": "secondary"
+              }
+            ]
+          },
+          {
+            "type": "hstack",
+            "children": [
+              { "type": "text", "text": "Battery", "role": "caption" },
+              { "type": "spacer" },
+              {
+                "type": "text",
+                "text": "${if(eq(sources.data.sensors.battery, null), '—', concat(string(round(number(sources.data.sensors.battery), 1)), ' °C'))}",
+                "role": "caption",
+                "monospacedDigit": true,
+                "foreground": "secondary"
+              }
+            ]
+          },
+          {
+            "switch": "${string(gt(count(sources.data.sensors.fans), 0))}",
+            "cases": {
+              "true": {
+                "type": "vstack",
+                "spacing": 3,
+                "children": {
+                  "forEach": "$.sources.data.sensors.fans",
+                  "as": "fan",
+                  "template": {
+                    "type": "hstack",
+                    "id": "fan-${string(fan.index)}",
+                    "children": [
+                      { "type": "text", "text": "${fan.name}", "role": "caption" },
+                      { "type": "spacer" },
+                      {
+                        "type": "text",
+                        "text": "${concat(string(round(number(fan.rpm), 0)), ' rpm')}",
+                        "role": "caption",
+                        "monospacedDigit": true,
+                        "foreground": "secondary"
+                      }
+                    ]
+                  }
+                }
+              },
+              "false": {
+                "type": "hstack",
+                "children": [
+                  { "type": "text", "text": "Fans", "role": "caption" },
+                  { "type": "spacer" },
+                  { "type": "text", "text": "none", "role": "caption", "foreground": "secondary" }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    "default": {
+      "type": "vstack",
+      "spacing": 6,
+      "children": [
+        {
+          "type": "hstack",
+          "spacing": 6,
+          "children": [
+            { "type": "image", "source": { "kind": "sfSymbol", "name": "thermometer.medium" }, "size": 14, "tint": "secondary" },
+            { "type": "text", "text": "Sensors", "role": "caption", "foreground": "secondary" }
+          ]
+        },
+        {
+          "type": "text",
+          "text": "No hardware sensors are readable on this Mac. Sandboxed builds and virtual machines have no SMC access.",
+          "role": "caption",
+          "foreground": "secondary"
+        }
+      ]
+    }
+  },
+
+  "status": {
+    "label": "${if(sources.data.sensors.available, concat(string(round(number(coalesce(sources.data.sensors.cpu, sources.data.sensors.peak, 0)), 0)), '°'), '')}",
+    "tooltip": "${if(sources.data.sensors.available, concat('CPU ', string(round(number(coalesce(sources.data.sensors.cpu, 0)), 1)), ' °C · peak ', string(round(number(coalesce(sources.data.sensors.peak, 0)), 1)), ' °C'), 'No sensors available')}"
+  }
+}

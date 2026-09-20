@@ -188,4 +188,74 @@ final class SchedulePolicyTests: XCTestCase {
         XCTAssertTrue(snapshot.isStale(after: 50, now: now))
         XCTAssertTrue(snapshot.isStale(after: nil, now: now), "nil staleAfterSec → always stale")
     }
+
+    // MARK: - Menu-bar promotion
+
+    func testPromotedWidgetKeepsItsCadenceWhileThePopupIsClosed() {
+        // Not promoted: a closed popup silences a widget that is not
+        // background-capable, and relaxes one that is.
+        XCTAssertNil(SchedulePolicy.effectiveInterval(
+            configured: 2, popupOpen: false, runInBackground: false
+        ))
+        XCTAssertEqual(
+            SchedulePolicy.effectiveInterval(
+                configured: 2, popupOpen: false, runInBackground: true
+            ),
+            60
+        )
+        // Promoted: its value is on screen, so it polls at its own cadence in
+        // both popup states, with neither the 5 s nor the 60 s floor.
+        XCTAssertEqual(
+            SchedulePolicy.effectiveInterval(
+                configured: 2, popupOpen: false, runInBackground: false,
+                menuBarPromoted: true
+            ),
+            2
+        )
+        XCTAssertEqual(
+            SchedulePolicy.effectiveInterval(
+                configured: 2, popupOpen: true, runInBackground: false,
+                menuBarPromoted: true
+            ),
+            2
+        )
+    }
+
+    func testPromotionStillClampsToTheMenuBarFloorAndScalesWithTheMultiplier() {
+        XCTAssertEqual(
+            SchedulePolicy.effectiveInterval(
+                configured: 0.1, popupOpen: false, runInBackground: false,
+                menuBarPromoted: true
+            ),
+            SchedulePolicy.minMenuBarIntervalSec
+        )
+        XCTAssertEqual(
+            SchedulePolicy.effectiveInterval(
+                configured: 2, popupOpen: false, runInBackground: false,
+                multiplier: 4, menuBarPromoted: true
+            ),
+            8
+        )
+        // No configured interval means no polling, promoted or not.
+        XCTAssertNil(SchedulePolicy.effectiveInterval(
+            configured: nil, popupOpen: false, runInBackground: false,
+            menuBarPromoted: true
+        ))
+    }
+
+    func testBatterySaverStillPausesAPromotedWidget() {
+        XCTAssertNil(SchedulePolicy.effectiveInterval(
+            configured: 2, popupOpen: false, runInBackground: true,
+            pauseWhenClosed: true, menuBarPromoted: true
+        ))
+        // Open popup: the saver only covers the closed state.
+        XCTAssertEqual(
+            SchedulePolicy.effectiveInterval(
+                configured: 2, popupOpen: true, runInBackground: false,
+                pauseWhenClosed: true, menuBarPromoted: true
+            ),
+            2
+        )
+    }
+
 }

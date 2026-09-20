@@ -329,7 +329,8 @@
           "type": "string"
         }
       },
-      "additionalProperties": true
+      "additionalProperties": true,
+      "description": "Menu-bar promotion. `none` keeps the widget out of the menu bar; `icon`, `text` and `dynamic` make it eligible, and the user's per-widget toggle decides. The live text is the widget's own status label (a workflow's `status.label`, or a script's `host.render` status), so `labelFrom` / `tooltipFrom` are accepted but unused."
     },
     "statusIcon": {
       "type": "object",
@@ -382,6 +383,20 @@
         },
         "keychain": {
           "type": "boolean"
+        },
+        "system": {
+          "description": "System telemetry groups a `system` workflow source may read. An undeclared group fails the refresh.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "cpu",
+              "memory",
+              "disk",
+              "sensors"
+            ]
+          },
+          "uniqueItems": true
         }
       },
       "additionalProperties": true

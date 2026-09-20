@@ -13,7 +13,9 @@ public struct Manifest: Codable, Equatable {
     public var entry: Entry
     public var source: Source?
     public var refresh: Refresh?
-    /// M1: decoded, only `mode: "none"` is honored (display is M2).
+    /// Menu-bar promotion policy. `mode` other than `"none"` makes the widget
+    /// eligible for the live status strip; the user's per-widget toggle is the
+    /// final say (`WidgetPrefs.menuBarPlacement`).
     public var statusItem: StatusItem?
     public var permissions: Permissions?
     /// M1: decode-only (settings UI is M2).
@@ -182,13 +184,31 @@ public struct Manifest: Codable, Equatable {
         }
     }
 
-    /// Menu-bar (XS) promotion config. M1 decodes it; only "none" is active.
+    /// Menu-bar promotion config.
+    ///
+    /// `labelFrom` / `tooltipFrom` remain decode-only: the live text comes from
+    /// the value the widget already computes (a workflow's `status.label`, or a
+    /// script's `host.render` status), so there is nothing left for a JSON path
+    /// to select.
     public struct StatusItem: Codable, Equatable {
-        /// "none" | "icon" | "text" | "dynamic"
+        /// `"none"` keeps the widget out of the menu bar. `"icon"` shows the
+        /// icon alone, `"text"` the label alone, `"dynamic"` both.
         public var mode: String?
+        /// SF Symbol shown beside the label. Falls back to `manifest.icon`.
         public var icon: String?
         public var labelFrom: String?
         public var tooltipFrom: String?
+
+        /// Display modes that put the widget in the menu bar.
+        public static let promotableModes: Set<String> = ["icon", "text", "dynamic"]
+
+        /// True when the author opted this widget into the menu bar.
+        public var isPromotable: Bool {
+            Self.promotableModes.contains(mode ?? "none")
+        }
+
+        public var showsIcon: Bool { mode == "icon" || mode == "dynamic" }
+        public var showsLabel: Bool { mode == "text" || mode == "dynamic" }
 
         public init(
             mode: String? = nil,
@@ -213,6 +233,10 @@ public struct Manifest: Codable, Equatable {
         public var keychain: Bool?
         /// Allow `host.notify.show` (script runtime).
         public var notifications: Bool?
+        /// System telemetry groups the widget's `system` source may read
+        /// ("cpu", "memory", "disk", "sensors"). Absent or empty means the
+        /// widget reads none — an undeclared group is refused at source time.
+        public var system: [String]?
         /// Opt in to per-widget persistent storage (KV + TTL). Required for a
         /// workflow's `storage.*` reads and `store` writes, and for a script's
         /// `host.storage.*` calls to be honored beyond the default quota.
@@ -225,7 +249,8 @@ public struct Manifest: Codable, Equatable {
             env: [String]? = nil,
             keychain: Bool? = nil,
             notifications: Bool? = nil,
-            storage: StoragePermission? = nil
+            storage: StoragePermission? = nil,
+            system: [String]? = nil
         ) {
             self.exec = exec
             self.network = network
@@ -234,10 +259,11 @@ public struct Manifest: Codable, Equatable {
             self.keychain = keychain
             self.notifications = notifications
             self.storage = storage
+            self.system = system
         }
 
         private enum CodingKeys: String, CodingKey {
-            case exec, network, readPaths, env, keychain, notifications, storage
+            case exec, network, readPaths, env, keychain, notifications, storage, system
             /// A stale, never-enforced draft shape. Keep the key solely so
             /// ingestion can reject it with an actionable field-level error.
             case files
@@ -259,6 +285,7 @@ public struct Manifest: Codable, Equatable {
             keychain = try container.decodeIfPresent(Bool.self, forKey: .keychain)
             notifications = try container.decodeIfPresent(Bool.self, forKey: .notifications)
             storage = try container.decodeIfPresent(StoragePermission.self, forKey: .storage)
+            system = try container.decodeIfPresent([String].self, forKey: .system)
         }
 
         public func encode(to encoder: Encoder) throws {
@@ -270,6 +297,7 @@ public struct Manifest: Codable, Equatable {
             try container.encodeIfPresent(keychain, forKey: .keychain)
             try container.encodeIfPresent(notifications, forKey: .notifications)
             try container.encodeIfPresent(storage, forKey: .storage)
+            try container.encodeIfPresent(system, forKey: .system)
         }
     }
 

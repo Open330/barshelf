@@ -50,6 +50,27 @@ latest commit. [Setup and Git requirements](../../widgets/project-status/README.
 Bring review requests and failed GitHub checks into one actionable inbox.
 [Setup and GitHub CLI requirements](../../widgets/developer-inbox/README.md).
 
+## System
+
+### System
+
+[![System preview](../../assets/widget-previews/tile-system.png)](../../widgets/system/workflow.json)
+
+CPU, memory, and disk as health-colored meters, read straight from Mach with no
+subprocess — cheap enough to keep updating in the menu bar. Click the card to
+open Activity Monitor.
+
+### Sensors
+
+[![Sensors preview](../../assets/widget-previews/tile-sensors.png)](../../widgets/sensors/README.md)
+
+Hardware temperatures, fans, and power draw from the SMC, with the Apple
+Silicon HID sensor plane as a fallback.
+[What your Mac actually reports](../../widgets/sensors/README.md).
+
+Both widgets can show a live value in the menu bar — turn it on in the widget's
+**Settings → Menu Bar**.
+
 ## Registry presentation metadata
 
 A registry entry can attach both a compact visual preview and a long-form

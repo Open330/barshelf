@@ -1,0 +1,23 @@
+{
+  "$schema": "https://barshelf.jiun.dev/schema/widget-0.1.json",
+  "schemaVersion": 1,
+  "id": "dev.barshelf.sensors",
+  "name": "Sensors",
+  "version": "0.1.0",
+  "icon": "thermometer.medium",
+  "bucket": { "group": "System", "order": 12, "size": "M" },
+
+  "entry": { "kind": "workflow", "main": "workflow.json" },
+
+  "refresh": { "onOpen": true, "interval": 3, "staleAfterSec": 3 },
+
+  "statusItem": { "mode": "text", "icon": "thermometer.medium" },
+
+  "permissions": {
+    "system": ["sensors"]
+  },
+
+  "appearance": {
+    "accent": "orange"
+  }
+}

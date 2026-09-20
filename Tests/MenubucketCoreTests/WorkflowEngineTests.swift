@@ -867,7 +867,14 @@ final class NativeWidgetsTests: XCTestCase {
     func testSystemMetersHealthColors() throws {
         let out = try WorkflowEngine.evaluate(
             try def("system"),
-            sources: ["data": .object(["disk": .number(92), "cpu": .number(30), "mem": .number(50)])],
+            sources: ["data": .object([
+                "cpu": .object([
+                    "usage": .number(30),
+                    "loadAverage": .object(["1m": .number(1.25)]),
+                ]),
+                "memory": .object(["usage": .number(50)]),
+                "disk": .object(["usage": .number(92)]),
+            ])],
             settings: .object([:])
         )
         let bars = allNodes(ofType: "progress", in: out.viewTree)
@@ -876,6 +883,87 @@ final class NativeWidgetsTests: XCTestCase {
         XCTAssertEqual(bars[0].tint, "good")
         XCTAssertEqual(bars[2].value ?? 0, 0.92, accuracy: 0.0001)  // Disk
         XCTAssertEqual(bars[2].tint, "danger")
+        XCTAssertTrue(flat(out.viewTree).contains("1.25"))          // load average
+    }
+
+    func testSystemStatusTextFeedsTheMenuBar() throws {
+        let out = try WorkflowEngine.evaluate(
+            try def("system"),
+            sources: ["data": .object([
+                "cpu": .object([
+                    "usage": .number(42.4),
+                    "loadAverage": .object(["1m": .number(1)]),
+                ]),
+                "memory": .object(["usage": .number(61)]),
+                "disk": .object(["usage": .number(14)]),
+            ])],
+            settings: .object([:])
+        )
+        XCTAssertEqual(out.statusLabel, "42%")
+        XCTAssertEqual(out.statusTooltip, "CPU 42% · Memory 61% · Disk 14%")
+    }
+
+    func testSensorsRendersReadingsAndDashesWhatTheMacDoesNotReport() throws {
+        let out = try WorkflowEngine.evaluate(
+            try def("sensors"),
+            sources: ["data": .object(["sensors": .object([
+                "available": .bool(true),
+                "cpu": .number(45.6),
+                "gpu": .null,
+                "battery": .number(29.1),
+                "peak": .number(51.2),
+                "power": .number(17.35),
+                "fans": .array([]),
+            ])])],
+            settings: .object([:])
+        )
+        let text = flat(out.viewTree)
+        XCTAssertTrue(text.contains("45.6 °C"))
+        XCTAssertTrue(text.contains("29.1 °C"))
+        XCTAssertTrue(text.contains("17.4 W"))
+        // An absent sensor reads as a dash, never as 0 °C.
+        XCTAssertTrue(text.contains("—"))
+        XCTAssertFalse(text.contains("0 °C"))
+        // A fanless Mac says so instead of listing nothing.
+        XCTAssertTrue(text.contains("none"))
+        XCTAssertEqual(out.statusLabel, "46°")
+    }
+
+    func testSensorsFallsBackWhenNoSensorsAreReadable() throws {
+        let out = try WorkflowEngine.evaluate(
+            try def("sensors"),
+            sources: ["data": .object(["sensors": .object([
+                "available": .bool(false),
+                "cpu": .null, "gpu": .null, "battery": .null,
+                "peak": .null, "power": .null, "fans": .array([]),
+            ])])],
+            settings: .object([:])
+        )
+        XCTAssertTrue(flat(out.viewTree).contains("No hardware sensors"))
+        // An empty status label leaves no cell in the menu bar strip.
+        XCTAssertEqual(out.statusLabel, "")
+        XCTAssertEqual(out.statusTooltip, "No sensors available")
+    }
+
+    func testSensorsListsEveryFanTheMacReports() throws {
+        let out = try WorkflowEngine.evaluate(
+            try def("sensors"),
+            sources: ["data": .object(["sensors": .object([
+                "available": .bool(true),
+                "cpu": .number(60), "gpu": .null, "battery": .null,
+                "peak": .number(60), "power": .null,
+                "fans": .array([
+                    .object(["index": .number(0), "name": .string("Fan 1"), "rpm": .number(2100)]),
+                    .object(["index": .number(1), "name": .string("Fan 2"), "rpm": .number(1980)]),
+                ]),
+            ])])],
+            settings: .object([:])
+        )
+        let text = flat(out.viewTree)
+        XCTAssertTrue(text.contains("Fan 1"))
+        XCTAssertTrue(text.contains("2100 rpm"))
+        XCTAssertTrue(text.contains("Fan 2"))
+        XCTAssertTrue(text.contains("1980 rpm"))
     }
 
     func testWeatherMapsCodeToConditionAndIcon() throws {
@@ -1058,4 +1146,54 @@ final class PersistenceWidgetTests: XCTestCase {
         XCTAssertEqual(firstRun.viewTree.children?[1].text, "+0 since last check")
         XCTAssertEqual(firstRun.viewTree.children?[1].foreground, "secondary")
     }
+
+    func testConcatBuildsStringsInsideAnExpression() throws {
+        let definition = WorkflowDefinition(
+            sources: ["data": .init(use: "value", with: .object([
+                "value": .number(43.5), "missing": .null,
+            ]))],
+            view: .object([
+                "type": .string("vstack"),
+                "children": .array([
+                    .object([
+                        "type": .string("text"),
+                        // The unit has to live inside the branch: "— °C" would
+                        // be wrong for a sensor the machine does not report.
+                        "text": .string(
+                            "${if(eq(sources.data.missing, null), '—', concat(string(sources.data.missing), ' °C'))}"
+                        ),
+                    ]),
+                    .object([
+                        "type": .string("text"),
+                        "text": .string(
+                            "${if(eq(sources.data.value, null), '—', concat(string(sources.data.value), ' °C'))}"
+                        ),
+                    ]),
+                ]),
+            ])
+        )
+        let output = try WorkflowEngine.evaluate(
+            definition,
+            sources: ["data": .object(["value": .number(43.5), "missing": .null])],
+            settings: .object([:])
+        )
+        let children = try XCTUnwrap(output.viewTree.children)
+        XCTAssertEqual(children.first?.text, "—")
+        XCTAssertEqual(children.last?.text, "43.5 °C")
+    }
+
+    func testConcatCoercesEveryArgumentAndJoinsWithNothing() throws {
+        let definition = WorkflowDefinition(
+            sources: [:],
+            view: .object([
+                "type": .string("text"),
+                "text": .string("${concat('a', 1, true, null, 'b')}"),
+            ])
+        )
+        let output = try WorkflowEngine.evaluate(
+            definition, sources: [:], settings: .object([:])
+        )
+        XCTAssertEqual(output.viewTree.text, "a1trueb")
+    }
+
 }

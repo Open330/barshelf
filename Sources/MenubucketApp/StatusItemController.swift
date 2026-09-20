@@ -17,6 +17,9 @@ final class StatusItemController: NSObject {
     private let appPrefs = AppPrefs.shared
     private let pager = PagerState()
     private var popup: PopupSurface!
+    /// Draws the live strip into the main item and owns the extra status items
+    /// of widgets the user split out.
+    private var menuBar: MenuBarController!
     private var keyboardMonitor: Any?
     private var scrollMonitor: Any?
     private var cancellables: Set<AnyCancellable> = []
@@ -43,6 +46,8 @@ final class StatusItemController: NSObject {
         )
         hubItem.target = self
         menu.addItem(hubItem)
+
+        menu.addItem(menuBarSubmenuItem)
 
         menu.addItem(.separator())
 
@@ -158,6 +163,20 @@ final class StatusItemController: NSObject {
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
             button.imageScaling = .scaleProportionallyDown
         }
+        menuBar = MenuBarController(mainItem: statusItem)
+        menuBar.onSelect = { [weak self] widgetID in
+            self?.openPopupIfNeeded()
+            self?.runtime.reveal(widgetID: widgetID)
+        }
+        menuBar.onContextMenu = { [weak self] event, widgetID, button in
+            self?.showWidgetMenu(for: widgetID, with: event, anchoredTo: button)
+        }
+        runtime.menuBar.$entries
+            .receive(on: RunLoop.main)
+            .sink { [weak self] entries in
+                self?.menuBar.apply(entries)
+            }
+            .store(in: &cancellables)
         appPrefs.$preferences
             .receive(on: RunLoop.main)
             .sink { [weak self] preferences in
@@ -214,7 +233,47 @@ final class StatusItemController: NSObject {
 
     private func showStatusItemMenu(with event: NSEvent) {
         guard let button = statusItem.button else { return }
+        rebuildMenuBarSubmenu()
         NSMenu.popUpContextMenu(statusMenu, with: event, for: button)
+    }
+
+    /// "Menu Bar ▸" — lists what is currently promoted so a widget sharing the
+    /// strip (which has no status item of its own to right-click) can still be
+    /// taken off the bar from the bar.
+    private lazy var menuBarSubmenuItem: NSMenuItem = {
+        let item = NSMenuItem(title: "Menu Bar", action: nil, keyEquivalent: "")
+        item.submenu = NSMenu()
+        return item
+    }()
+
+    private func rebuildMenuBarSubmenu() {
+        guard let submenu = menuBarSubmenuItem.submenu else { return }
+        submenu.removeAllItems()
+
+        let entries = runtime.menuBar.entries
+        guard !entries.isEmpty else {
+            menuBarSubmenuItem.isHidden = true
+            return
+        }
+        menuBarSubmenuItem.isHidden = false
+
+        for entry in entries {
+            let title = entry.label.map { "\(entry.name) — \($0)" } ?? entry.name
+            let item = NSMenuItem(
+                title: title, action: #selector(demotePromotedWidget(_:)), keyEquivalent: ""
+            )
+            item.target = self
+            item.representedObject = entry.widgetID
+            item.state = .on
+            item.toolTip = "Remove \(entry.name) from the menu bar"
+            submenu.addItem(item)
+        }
+        submenu.addItem(.separator())
+        let hint = NSMenuItem(
+            title: "Click a widget to remove it", action: nil, keyEquivalent: ""
+        )
+        hint.isEnabled = false
+        submenu.addItem(hint)
     }
 
     @objc private func openHub(_ sender: Any?) {
@@ -264,12 +323,87 @@ final class StatusItemController: NSObject {
         NSApp.terminate(sender)
     }
 
+    /// The mark is applied through `MenuBarController` because the main item's
+    /// width and title depend on whether a live strip is present.
     private func applyStatusSymbol(_ symbol: String) {
-        let fallback = AppPreferences.defaultMenuBarSymbol
-        statusItem.length = Self.statusItemLength
-        if let button = statusItem.button {
-            BarShelfStatusIcon.configure(button, symbol: symbol, fallback: fallback)
-        }
+        menuBar.setMainSymbol(symbol)
+    }
+
+    // MARK: - Promoted widget menu
+
+    /// Right-click menu of a widget that has its own status item.
+    private func showWidgetMenu(
+        for widgetID: String, with event: NSEvent, anchoredTo button: NSStatusBarButton
+    ) {
+        guard let widget = runtime.widgets.first(where: { $0.id == widgetID })
+        else { return }
+        let menu = NSMenu()
+        let title = NSMenuItem(title: widget.displayName, action: nil, keyEquivalent: "")
+        title.isEnabled = false
+        menu.addItem(title)
+        menu.addItem(.separator())
+
+        let open = NSMenuItem(
+            title: "Show in BarShelf", action: #selector(showPromotedWidget(_:)), keyEquivalent: ""
+        )
+        open.target = self
+        open.representedObject = widgetID
+        menu.addItem(open)
+
+        let refresh = NSMenuItem(
+            title: "Refresh", action: #selector(refreshPromotedWidget(_:)), keyEquivalent: ""
+        )
+        refresh.target = self
+        refresh.representedObject = widgetID
+        menu.addItem(refresh)
+
+        menu.addItem(.separator())
+
+        let merge = NSMenuItem(
+            title: "Merge into BarShelf Item",
+            action: #selector(mergePromotedWidget(_:)),
+            keyEquivalent: ""
+        )
+        merge.target = self
+        merge.representedObject = widgetID
+        // Only a widget that can render a label has something to merge into
+        // the shared text strip.
+        merge.isEnabled = widget.manifest.statusItem?.showsLabel ?? true
+        menu.addItem(merge)
+
+        let remove = NSMenuItem(
+            title: "Remove from Menu Bar",
+            action: #selector(demotePromotedWidget(_:)),
+            keyEquivalent: ""
+        )
+        remove.target = self
+        remove.representedObject = widgetID
+        menu.addItem(remove)
+
+        NSMenu.popUpContextMenu(menu, with: event, for: button)
+    }
+
+    @objc private func showPromotedWidget(_ sender: NSMenuItem) {
+        guard let widgetID = sender.representedObject as? String else { return }
+        openPopupIfNeeded()
+        runtime.reveal(widgetID: widgetID)
+    }
+
+    @objc private func refreshPromotedWidget(_ sender: NSMenuItem) {
+        guard let widgetID = sender.representedObject as? String else { return }
+        runtime.refresh(widgetID: widgetID, manual: true)
+    }
+
+    @objc private func mergePromotedWidget(_ sender: NSMenuItem) {
+        guard let widgetID = sender.representedObject as? String else { return }
+        runtime.setMenuBarPlacement(
+            MenuBarPlacement(enabled: true, separate: false), for: widgetID
+        )
+    }
+
+    @objc private func demotePromotedWidget(_ sender: NSMenuItem) {
+        guard let widgetID = sender.representedObject as? String else { return }
+        runtime.setMenuBarPlacement(MenuBarPlacement(enabled: false), for: widgetID)
     }
 
     // MARK: - Global hotkey (Carbon RegisterEventHotKey — no a11y permission)

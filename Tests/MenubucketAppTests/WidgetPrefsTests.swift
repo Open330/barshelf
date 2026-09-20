@@ -162,4 +162,47 @@ final class WidgetPrefsTests: XCTestCase {
             WidgetAppearance(accent: "green", density: .compact)
         )
     }
+
+    func testMenuBarPlacementRoundTripsAndFallsBackToTheManifest() {
+        let prefs = WidgetPrefs(fileURL: fileURL)
+        let promoted = Manifest(
+            schemaVersion: 1, id: "promoted", name: "Promoted",
+            entry: .init(kind: "workflow"),
+            statusItem: .init(mode: "text")
+        )
+        let quiet = Manifest(
+            schemaVersion: 1, id: "quiet", name: "Quiet",
+            entry: .init(kind: "workflow")
+        )
+        XCTAssertTrue(prefs.menuBarPlacement(for: promoted).enabled)
+        XCTAssertFalse(prefs.menuBarPlacement(for: quiet).enabled)
+
+        prefs.setMenuBarPlacement(MenuBarPlacement(enabled: false), for: "promoted")
+        prefs.setMenuBarPlacement(
+            MenuBarPlacement(enabled: true, separate: true, order: 1), for: "quiet"
+        )
+
+        let reloaded = WidgetPrefs(fileURL: fileURL)
+        XCTAssertFalse(reloaded.menuBarPlacement(for: promoted).enabled)
+        XCTAssertEqual(
+            reloaded.menuBarPlacement(for: quiet),
+            MenuBarPlacement(enabled: true, separate: true, order: 1)
+        )
+
+        // Clearing the override restores the manifest default.
+        reloaded.setMenuBarPlacement(nil, for: "promoted")
+        XCTAssertTrue(reloaded.menuBarPlacement(for: promoted).enabled)
+    }
+
+    func testRemovingAWidgetClearsItsMenuBarPlacement() {
+        let prefs = WidgetPrefs(fileURL: fileURL)
+        prefs.setMenuBarPlacement(MenuBarPlacement(enabled: true), for: "gone")
+        prefs.removeAllState(for: "gone")
+
+        let manifest = Manifest(
+            schemaVersion: 1, id: "gone", name: "Gone", entry: .init(kind: "workflow")
+        )
+        XCTAssertFalse(WidgetPrefs(fileURL: fileURL).menuBarPlacement(for: manifest).enabled)
+    }
+
 }

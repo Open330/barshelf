@@ -175,6 +175,19 @@
             "$ref": "#/definitions/nonEmptyString"
           },
           "description": "Local file roots the widget declares for read access."
+        },
+        "system": {
+          "description": "Telemetry groups the widget declares in permissions.system.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "cpu",
+              "memory",
+              "disk",
+              "sensors"
+            ]
+          }
         }
       },
       "additionalProperties": true

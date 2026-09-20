@@ -470,6 +470,12 @@ public enum WorkflowEngine {
             case "file.extension":
                 guard let path = args.first?.stringValue else { return .string("") }
                 return .string((path as NSString).pathExtension)
+            case "concat":
+                // Joins every argument's string form. The only way to build a
+                // string *inside* an expression — a template can concatenate
+                // around `${…}`, but not within a branch of `if(…)`, which is
+                // what a conditional unit ("45 °C" vs "—") needs.
+                return .string(args.map(\.stringified).joined())
             case "text.truncate":
                 guard let text = args.first?.stringValue else { return .string("") }
                 let limit = Self.clampedInt(args.dropFirst().first?.numberValue ?? 0)

@@ -79,7 +79,7 @@
 | `entry` | 예 | 실행 엔트리 종류. |
 | `source` | exec 위젯은 예 | 실제 데이터/뷰트리 소스. Workflow와 script 위젯은 `entry.main`을 사용한다. |
 | `refresh` | 예 | 갱신 트리거와 캐시 stale 정책. |
-| `statusItem` | 아니오 | 메뉴바 status item 표시 정책. M1은 디코딩하고 `none`만 동작한다. |
+| `statusItem` | 아니오 | 메뉴바 status item 표시 정책. |
 | `permissions` | 아니오 | exec, env, 파일, storage, notifications, 네트워크, Keychain 권한 선언. |
 | `settings` | 아니오 | 설정 UI를 자동 생성하기 위한 선언. 값은 workflow의 `${settings.key}`와 script context로 전달된다. |
 
@@ -144,21 +144,35 @@ Workflow DSL 상세 계약은 [`docs/WORKFLOW.md`](WORKFLOW.md)를 따른다.
 
 ### `statusItem`
 
+메뉴바 승격 정책이다. 승격된 위젯은 BarShelf 마크 옆에 살아 있는 값을 그린다.
+
 ```json
 {
-  "mode": "none",
-  "icon": "gauge",
-  "labelFrom": "$.status.label",
-  "tooltipFrom": "$.status.tooltip"
+  "mode": "text",
+  "icon": "cpu.fill"
 }
 ```
 
 | 필드 | 설명 |
 | --- | --- |
-| `mode` | `none`, `icon`, `text`, `dynamic`. M1은 `none`만 표시 동작을 보장한다. |
-| `icon` | status item 아이콘. 현재 런타임에서는 SF Symbol 이름 문자열을 사용한다. |
-| `labelFrom` | adapter/status 결과에서 label을 읽을 JSON path. |
-| `tooltipFrom` | adapter/status 결과에서 tooltip을 읽을 JSON path. |
+| `mode` | `none`은 메뉴바에 넣지 않는다. `text`는 status label만, `icon`은 아이콘만, `dynamic`은 둘 다. `none`이 아니면 *승격 가능*해지고, 실제 표시 여부는 사용자의 위젯 설정(Settings → Menu Bar)이 정한다. |
+| `icon` | status item 아이콘(SF Symbol 이름). 없으면 manifest의 `icon`을 쓴다. |
+| `labelFrom` | 스키마 호환용. 현재 런타임은 읽지 않는다. |
+| `tooltipFrom` | 스키마 호환용. 현재 런타임은 읽지 않는다. |
+
+표시 규칙:
+
+- 메뉴바에 나오는 글자는 위젯이 이미 계산하는 값이다 — workflow의 `status.label`,
+  script의 `host.render` status. 그래서 `labelFrom`/`tooltipFrom`으로 고를 것이
+  남지 않는다.
+- label을 가진 위젯들은 BarShelf 마크와 **status item 하나를 공유**한다
+  (`✦ 42% · 61% · 58°`). 위젯 설정이나 우클릭 메뉴에서 자기 아이템으로 분리할 수
+  있다. `icon` 모드는 아이콘을 글자 줄에 섞을 수 없으므로 항상 자기 아이템을 쓴다.
+- 최대 5개까지 그린다. label은 한 줄로 합쳐 14자에서 자른다.
+- 승격된 위젯은 팝오버가 닫혀 있어도 자기 `refresh.interval`로 계속 돈다.
+  `runInBackground` 요구와 5초/60초 하한을 면제받고(고유 하한 1초), 앱 설정의
+  "닫혀 있을 때 일시정지"에는 여전히 걸린다. 그때 멈춘 값은 메뉴바에서 흐리게
+  표시된다 — 멈춘 숫자가 실시간인 척하지 않게 하기 위해서다.
 
 ### `permissions`
 
@@ -168,6 +182,7 @@ Workflow DSL 상세 계약은 [`docs/WORKFLOW.md`](WORKFLOW.md)를 따른다.
 | `network` | 예약. 네트워크 접근 선언용 배열. |
 | `readPaths` | 파일 접근의 유일한 정식 권한 선언. `fs.directory`, 파일 썸네일·드래그·열기/Finder 표시가 접근할 수 있는 루트 경로 배열이다. `fs.directory` 목록과 `watch: true` 감시는 승인된 디렉터리 핸들에 묶여 심볼릭 링크 교체로 다른 위치를 가리킬 수 없다. |
 | `storage` | script storage quota와 secret 허용 여부 선언. 스키마의 정식 형식은 `{ "maxBytes": 1048576, "secrets": false }`다. |
+| `system` | workflow `system` source가 읽을 수 있는 측정 그룹 배열: `cpu`, `memory`, `disk`, `sensors`. 선언하지 않은 그룹을 읽으면 refresh가 실패한다. 서브프로세스도 파일 접근도 없으므로 `exec`/`readPaths`는 필요 없다. |
 | `notifications` | `true`이면 script 런타임의 `host.notify.show` 요청을 허용한다. |
 | `env` | 호스트가 읽거나 source 명령 탐색에 사용할 수 있는 환경 변수 이름. |
 | `keychain` | Keychain 조회 허용 여부. otpeek vault password 주입에 사용한다. |

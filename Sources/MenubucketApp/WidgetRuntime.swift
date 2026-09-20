@@ -147,6 +147,9 @@ final class WidgetRuntime: ObservableObject {
     /// Widget id the UI should jump to and highlight (post-install reveal, R11).
     /// Consumers clear it after handling.
     @Published var pendingReveal: String?
+    /// Live menu-bar text for promoted widgets. Observed by the menu bar only,
+    /// so a 2 s status refresh never invalidates the popup's view tree.
+    let menuBar = MenuBarStatusStore()
 
     private let execService = ExecService()
     let scheduler = Scheduler()
@@ -159,6 +162,10 @@ final class WidgetRuntime: ObservableObject {
     private(set) var visibleWidgetIDs: Set<String> = []
     private var refreshStartedAt: [String: Date] = [:]
     private var hotReloadWatchers: [DirectoryWatcher] = []
+    /// Re-evaluates menu-bar staleness on a slow tick. Without it a widget that
+    /// stopped refreshing (battery saver, a crash-looping script) would keep
+    /// showing its last value at full contrast forever.
+    private var menuBarStalenessTimer: Timer?
     /// `fs.directory` sources with `watch: true`, keyed by widget id.
     private var workflowWatchers: [String: DirectoryWatcher] = [:]
 
@@ -216,6 +223,7 @@ final class WidgetRuntime: ObservableObject {
         seedStarterWidgets()
         loadWidgets()
         startHotReload()
+        startMenuBarStalenessTicker()
     }
 
     private func applyAppPreferences(_ preferences: AppPreferences) {
@@ -223,6 +231,9 @@ final class WidgetRuntime: ObservableObject {
             refreshMultiplier: preferences.refreshMultiplier,
             pauseWhenClosed: preferences.pauseWhenClosed
         )
+        // The multiplier scales the cadence a promoted widget is judged stale
+        // against, so the strip is re-evaluated with it.
+        syncMenuBar()
     }
 
     // MARK: - First-run seeding (R07 onboarding)
@@ -333,6 +344,8 @@ final class WidgetRuntime: ObservableObject {
         snapshot.viewTree = params.root
         snapshot.updatedAt = Date()
         snapshot.error = nil
+        snapshot.statusLabel = params.status?.label
+        snapshot.statusTooltip = params.status?.tooltip
         snapshot.safeForSensitiveCache = false
         setSnapshot(snapshot, for: widgetId)
         let sensitive = params.sensitive == true || widget.isSensitive
@@ -351,9 +364,6 @@ final class WidgetRuntime: ObservableObject {
             }
         } else {
             persistSnapshot(snapshot)
-        }
-        if let label = params.status?.label {
-            NSLog("barshelf[%@] status: %@ (rev %d)", widgetId, label, revision)
         }
         scheduler.noteRefreshSucceeded(widgetID: widgetId, nextRefreshAtMs: params.nextRefreshAt)
         recordRefreshSuccess(widgetID: widgetId)
@@ -751,6 +761,7 @@ final class WidgetRuntime: ObservableObject {
         visibleWidgetIDs.formIntersection(Set(enabled.map(\.id)))
         scheduler.configure(widgets: enabled)
         scheduler.setVisibleWidgetIDs(visibleWidgetIDs)
+        syncMenuBar()
     }
 
     static func discoverWidgets(in searchDirectories: [URL]) -> [LoadedWidget] {
@@ -1004,6 +1015,7 @@ final class WidgetRuntime: ObservableObject {
         prefs.setDisabled(id, flag)
         scheduler.configure(widgets: widgets.filter { !prefs.isDisabled($0.id) })
         setVisibleWidgetIDs(visibleWidgetIDs)
+        syncMenuBar()
         objectWillChange.send()
         if !flag {
             refresh(widgetID: id, manual: true)
@@ -1140,6 +1152,89 @@ final class WidgetRuntime: ObservableObject {
                 if lhsOrder != rhsOrder { return lhsOrder < rhsOrder }
                 return lhs.group < rhs.group
             }
+    }
+
+    // MARK: - Menu bar promotion
+
+    /// How often promoted entries are re-evaluated for staleness.
+    private static let menuBarStalenessTickSec: TimeInterval = 15
+
+    private func startMenuBarStalenessTicker() {
+        menuBarStalenessTimer?.invalidate()
+        let timer = Timer.scheduledTimer(
+            withTimeInterval: Self.menuBarStalenessTickSec, repeats: true
+        ) { [weak self] _ in
+            guard let self, !self.menuBar.entries.isEmpty else { return }
+            self.syncMenuBar()
+        }
+        timer.tolerance = Self.menuBarStalenessTickSec / 3
+        menuBarStalenessTimer = timer
+    }
+
+    /// Recomputes what the menu bar draws and tells the scheduler which
+    /// widgets must keep polling while the popup is closed.
+    ///
+    /// Newly promoted widgets are refreshed once so the strip fills in without
+    /// waiting a whole interval for the first tick.
+    func syncMenuBar() {
+        let previous = menuBar.promotedWidgetIDs
+        let multiplier = SchedulePolicy.normalizedRefreshMultiplier(
+            appPrefs.preferences.refreshMultiplier
+        )
+        var candidates: [(entry: MenuBarEntry, order: Double?)] = []
+
+        for widget in widgets where !prefs.isDisabled(widget.id) {
+            let placement = prefs.menuBarPlacement(
+                for: widget.manifest, widgetID: widget.id
+            )
+            guard placement.enabled else { continue }
+            // A widget the user promoted by hand may carry no author mode; it
+            // then behaves as "text", the form the shared strip can draw.
+            let statusItem = widget.manifest.statusItem?.isPromotable == true
+                ? widget.manifest.statusItem!
+                : Manifest.StatusItem(mode: "text")
+            let snapshot = snapshots[widget.id]
+            // Only a label can share the strip, so an icon-only widget always
+            // gets its own item.
+            let separate = placement.separate || !statusItem.showsLabel
+            let entry = MenuBarEntry(
+                widgetID: widget.id,
+                name: widget.displayName,
+                symbol: statusItem.showsIcon
+                    ? (statusItem.icon ?? widget.manifest.icon) : nil,
+                label: statusItem.showsLabel
+                    ? MenuBarPolicy.normalizedLabel(snapshot?.statusLabel) : nil,
+                tooltip: snapshot?.error ?? snapshot?.statusTooltip,
+                isStale: MenuBarPolicy.isStale(
+                    updatedAt: snapshot?.updatedAt,
+                    interval: (widget.manifest.refresh?.interval).map { $0 * multiplier }
+                ),
+                hasError: snapshot?.error != nil,
+                separate: separate
+            )
+            candidates.append((entry, placement.order))
+        }
+
+        menuBar.apply(MenuBarPolicy.ordered(candidates))
+        let promoted = menuBar.promotedWidgetIDs
+        guard promoted != previous else { return }
+        scheduler.setMenuBarWidgetIDs(promoted)
+        for id in promoted.subtracting(previous) {
+            let widget = widgets.first { $0.id == id }
+            let staleAfter = effectiveStaleAfter(widget?.manifest.refresh?.staleAfterSec)
+            let snapshot = snapshots[id] ?? WidgetSnapshot(widgetID: id)
+            if snapshot.isStale(after: staleAfter) {
+                refresh(widgetID: id, manual: false)
+            }
+        }
+    }
+
+    /// Promotes or demotes a widget in the menu bar (settings UI / context
+    /// menu). Passing `nil` restores the manifest default.
+    func setMenuBarPlacement(_ placement: MenuBarPlacement?, for id: String) {
+        prefs.setMenuBarPlacement(placement, for: id)
+        syncMenuBar()
+        objectWillChange.send()
     }
 
     // MARK: - Popup lifecycle
@@ -1323,7 +1418,11 @@ final class WidgetRuntime: ObservableObject {
     private struct RefreshSuccess {
         var viewTree: UINode
         var nextRefreshAtMs: Double?
-        var statusText: String?
+        /// Live menu-bar text (a workflow's `status.label`, or an adapter's
+        /// status text).
+        var statusLabel: String?
+        /// Longer form for the menu-bar tooltip (`status.tooltip`).
+        var statusTooltip: String?
     }
 
     private func performRefresh(
@@ -1371,7 +1470,7 @@ final class WidgetRuntime: ObservableObject {
                     return .success(RefreshSuccess(
                         viewTree: result.viewTree,
                         nextRefreshAtMs: result.nextRefreshAtMs,
-                        statusText: result.statusText
+                        statusLabel: result.statusText
                     ))
                 }
                 let tree = try JSONDecoder().decode(UINode.self, from: data)
@@ -1490,11 +1589,15 @@ final class WidgetRuntime: ObservableObject {
                     sourceValues[sourceID] = try await runWorkflowHTTPSource(
                         widget: widget, params: value
                     )
+                case "system":
+                    sourceValues[sourceID] = try await runWorkflowSystemSource(
+                        widget: widget, params: value
+                    )
                 case "value":
                     sourceValues[sourceID] = value
                 default:
                     throw RuntimeError.invalidWorkflow(
-                        "unknown source use \"\(source.use)\" (v1: exec, fs.directory, http, value)"
+                        "unknown source use \"\(source.use)\" (v1: exec, fs.directory, http, system, value)"
                     )
                 }
             }
@@ -1524,11 +1627,55 @@ final class WidgetRuntime: ObservableObject {
 
             return .success(RefreshSuccess(
                 viewTree: output.viewTree,
-                statusText: output.statusTooltip
+                statusLabel: output.statusLabel,
+                statusTooltip: output.statusTooltip
             ))
         } catch {
             return .failure(error)
         }
+    }
+
+    /// `system` workflow source — native CPU / memory / disk / sensor
+    /// telemetry.
+    ///
+    /// No subprocess and no file access, but still permission-gated: each
+    /// metric group must appear in `permissions.system`, and an undeclared
+    /// group fails the refresh instead of being silently dropped, so a widget
+    /// never renders a view whose data it was not allowed to read.
+    private func runWorkflowSystemSource(
+        widget: LoadedWidget,
+        params: JSONValue
+    ) async throws -> JSONValue {
+        let requested = SystemMetrics.metrics(from: params.objectValue?["metrics"])
+        guard !requested.isEmpty else {
+            throw RuntimeError.invalidWorkflow(
+                "system source \"metrics\" lists no known group"
+                    + " (cpu, memory, disk, sensors)"
+            )
+        }
+        let (allowed, denied) = SystemMetrics.authorized(
+            requested, declared: widget.manifest.permissions?.system
+        )
+        guard denied.isEmpty else {
+            let names = denied.map(\.rawValue).sorted()
+            auditLog.record("system.blocked", widgetId: widget.id, detail: [
+                "metrics": .string(names.joined(separator: ", ")),
+                "reason": .string("not declared in permissions.system"),
+            ])
+            throw RuntimeError.invalidWorkflow(
+                "system source metrics \(names.joined(separator: ", "))"
+                    + " are not covered by permissions.system"
+            )
+        }
+        let detail = params.objectValue?["detail"]?.boolValue == true
+        let mountPoint = params.objectValue?["mount"]?.stringValue ?? "/"
+        // Sampling blocks on Mach/IOKit calls (and, on a cold CPU sampler, a
+        // short baseline window), so it stays off the main thread.
+        return await Task.detached(priority: .userInitiated) {
+            SystemMetrics.sample(
+                metrics: allowed, detail: detail, mountPoint: mountPoint
+            )
+        }.value
     }
 
     /// `exec` workflow source — same allowlist/audit semantics as an exec
@@ -1808,6 +1955,8 @@ final class WidgetRuntime: ObservableObject {
             snapshot.viewTree = success.viewTree
             snapshot.updatedAt = completedAt
             snapshot.error = nil
+            snapshot.statusLabel = success.statusLabel
+            snapshot.statusTooltip = success.statusTooltip
             if !widget.isSensitive {
                 persistSnapshot(snapshot) // sensitive renders stay memory-only
             }
@@ -2044,6 +2193,7 @@ final class WidgetRuntime: ObservableObject {
         guard snapshots[id] != snapshot else { return }
         snapshots[id] = snapshot
         cardModels[id]?.snapshot = snapshot
+        if menuBar.promotedWidgetIDs.contains(id) { syncMenuBar() }
     }
 
     /// Single write path for overlay cards (`nil` removes), same suppression.

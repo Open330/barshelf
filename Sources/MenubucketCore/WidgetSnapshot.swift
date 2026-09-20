@@ -14,6 +14,13 @@ public struct WidgetSnapshot: Codable, Equatable {
     public var updatedAt: Date?
     /// Latest failure message, if the most recent refresh failed.
     public var error: String?
+    /// Live menu-bar text the widget computed with this render (a workflow's
+    /// `status.label`, or a script's `host.render` status). Cached with the
+    /// snapshot so a promoted widget has something to draw at cold start,
+    /// before its first refresh completes.
+    public var statusLabel: String?
+    /// Longer form for the menu-bar tooltip (`status.tooltip`).
+    public var statusTooltip: String?
     /// True only for a widget-supplied, explicitly redacted fallback tree.
     /// Optional so caches written before this field existed still decode.
     public var safeForSensitiveCache: Bool?
@@ -22,6 +29,7 @@ public struct WidgetSnapshot: Codable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case widgetID, viewTree, updatedAt, error, safeForSensitiveCache
+        case statusLabel, statusTooltip
     }
 
     public init(
@@ -29,6 +37,8 @@ public struct WidgetSnapshot: Codable, Equatable {
         viewTree: UINode? = nil,
         updatedAt: Date? = nil,
         error: String? = nil,
+        statusLabel: String? = nil,
+        statusTooltip: String? = nil,
         safeForSensitiveCache: Bool? = nil,
         isLoading: Bool = false
     ) {
@@ -36,6 +46,8 @@ public struct WidgetSnapshot: Codable, Equatable {
         self.viewTree = viewTree
         self.updatedAt = updatedAt
         self.error = error
+        self.statusLabel = statusLabel
+        self.statusTooltip = statusTooltip
         self.safeForSensitiveCache = safeForSensitiveCache
         self.isLoading = isLoading
     }

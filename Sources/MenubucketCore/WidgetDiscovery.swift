@@ -103,7 +103,27 @@ public enum WidgetDiscovery {
         if manifest.permissions?.storage?.granted == true {
             lines.append("storage: saves small data on this Mac")
         }
+        if let system = manifest.permissions?.system, !system.isEmpty {
+            lines.append("system: reads " + system.joined(separator: ", ") + " telemetry")
+        } else if !requestedSystemMetrics(workflow).isEmpty {
+            lines.append("system: missing required telemetry declaration")
+        }
         return lines
+    }
+
+    /// Metric groups a workflow's `system` sources ask for. Used to check a
+    /// manifest declares them, and to summarize what a widget will read.
+    public static func requestedSystemMetrics(
+        _ workflow: WorkflowDefinition?
+    ) -> Set<SystemMetrics.Metric> {
+        guard let workflow else { return [] }
+        var requested: Set<SystemMetrics.Metric> = []
+        for source in workflow.sources.values where source.use == "system" {
+            requested.formUnion(
+                SystemMetrics.metrics(from: source.with?.objectValue?["metrics"])
+            )
+        }
+        return requested
     }
 
     /// Whether this manifest can invoke a host-managed command and therefore

@@ -7,6 +7,9 @@ import MenubucketCore
 /// - `interval`: repeating timers — while the popup is open only visible-page
 ///   and pinned widgets with `refresh.interval` poll (min 5 s); while closed only
 ///   `runInBackground == true` widgets poll, at a 4× relaxed cadence (min 60 s).
+///   Widgets promoted to the menu bar are exempt from both gates: their value is
+///   on screen either way, so they poll at their configured cadence (min 1 s)
+///   until the `pauseWhenClosed` battery saver stops them.
 /// - `deadline`: when an adapter returns `nextRefreshAtMs`, re-run exactly once
 ///   at that time while its page is visible. Timers are cancelled offscreen or
 ///   while the popup is closed and re-evaluated when visibility changes.
@@ -45,6 +48,11 @@ final class Scheduler {
     private var wakeObserver: NSObjectProtocol?
     private var refreshMultiplier: Double = 1
     private var pauseWhenClosed = false
+    /// Widgets drawn in the menu bar. Their value is on screen whether or not
+    /// the popup is open, so they poll at their own cadence in both states —
+    /// the visibility and `runInBackground` gates exist to spare *hidden*
+    /// widgets, which these are not.
+    private var menuBarWidgetIDs: Set<String> = []
 
     // MARK: R12 event triggers (`refresh.triggers`)
 
@@ -98,6 +106,7 @@ final class Scheduler {
         deadlines = deadlines.filter { liveIDs.contains($0.key) }
         lastAutoRefreshAt = lastAutoRefreshAt.filter { liveIDs.contains($0.key) }
         visibleWidgetIDs.formIntersection(liveIDs)
+        menuBarWidgetIDs.formIntersection(liveIDs)
         pendingAutomaticEvents.formIntersection(liveIDs)
         rebuildIntervalTimers()
         rebuildDeadlineTimers()
@@ -127,6 +136,17 @@ final class Scheduler {
         rebuildIntervalTimers()
         rebuildDeadlineTimers()
         flushVisiblePendingEvents()
+    }
+
+    /// Updates the promoted set. Timers are re-armed because promotion changes
+    /// a widget's effective interval in both popup states.
+    func setMenuBarWidgetIDs(_ ids: Set<String>) {
+        let liveIDs = Set(widgets.map(\.id))
+        let normalized = ids.intersection(liveIDs)
+        guard normalized != menuBarWidgetIDs else { return }
+        menuBarWidgetIDs = normalized
+        rebuildIntervalTimers()
+        flushPromotedPendingEvents()
     }
 
     /// Test/diagnostic surface for verifying that offscreen widgets do not own
@@ -184,13 +204,15 @@ final class Scheduler {
 
         for widget in widgets {
             if widget.manifest.refresh?.popupOnly == true { continue }
-            if popupIsOpen, !visibleWidgetIDs.contains(widget.id) { continue }
+            let promoted = menuBarWidgetIDs.contains(widget.id)
+            if popupIsOpen, !promoted, !visibleWidgetIDs.contains(widget.id) { continue }
             guard let interval = SchedulePolicy.effectiveInterval(
                 configured: widget.manifest.refresh?.interval,
                 popupOpen: popupIsOpen,
                 runInBackground: widget.manifest.refresh?.runInBackground ?? false,
                 multiplier: refreshMultiplier,
-                pauseWhenClosed: pauseWhenClosed
+                pauseWhenClosed: pauseWhenClosed,
+                menuBarPromoted: promoted
             ) else { continue }
 
             let id = widget.id
@@ -279,6 +301,11 @@ final class Scheduler {
 
     private func automaticRefreshEligible(widgetID: String) -> Bool {
         guard let widget = widgets.first(where: { $0.id == widgetID }) else { return false }
+        if menuBarWidgetIDs.contains(widgetID) {
+            // Battery saver still wins: a paused promoted widget freezes and
+            // the menu bar dims it rather than showing a stale value as live.
+            return popupIsOpen || !pauseWhenClosed
+        }
         if popupIsOpen {
             return visibleWidgetIDs.contains(widgetID)
         }
@@ -287,6 +314,16 @@ final class Scheduler {
 
     private func flushVisiblePendingEvents() {
         let ready = pendingAutomaticEvents.intersection(visibleWidgetIDs)
+        pendingAutomaticEvents.subtract(ready)
+        for id in ready {
+            fireAutomatic(id)
+        }
+    }
+
+    /// Drains work deferred while a widget was hidden, once promotion makes it
+    /// eligible again.
+    private func flushPromotedPendingEvents() {
+        let ready = pendingAutomaticEvents.intersection(menuBarWidgetIDs)
         pendingAutomaticEvents.subtract(ready)
         for id in ready {
             fireAutomatic(id)

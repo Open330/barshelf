@@ -34,6 +34,8 @@ enum ScreenshotMode {
             ("tile-focus-timer", "Focus Timer", "timer", ShotData.focusTimerNode, "orange"),
             ("tile-clipboard-shelf", "Clipboard Shelf", "doc.on.clipboard", ShotData.clipboardShelfNode, "purple"),
             ("tile-developer-inbox", "Developer Inbox", "tray.full", ShotData.developerInboxNode, "blue"),
+            ("tile-system", "System", "cpu.fill", ShotData.systemNode, "purple"),
+            ("tile-sensors", "Sensors", "thermometer.medium", ShotData.sensorsNode, "orange"),
         ]
         for tile in tiles {
             ok = render(
@@ -423,6 +425,59 @@ private enum ShotData {
           {"type":"text","text":"80%","size":40,"role":"title","monospacedDigit":true},
           {"type":"text","text":"2:10 on battery","role":"caption","foreground":"secondary"},
           {"type":"progress","style":"linear","value":0.8,"tint":"good"}]}
+        """)
+    }
+
+    /// The `system` widget's three meters. Fixed values keep the marketing
+    /// asset deterministic — the live widget reads the running machine.
+    static var systemNode: UINode {
+        // No inner "System" caption — the card header already names the widget.
+        decode("""
+        {"type":"vstack","spacing":10,"children":[
+          {"type":"vstack","spacing":3,"children":[
+            {"type":"hstack","children":[
+              {"type":"text","text":"CPU","role":"caption"},
+              {"type":"spacer"},
+              {"type":"text","text":"21%","role":"caption","monospacedDigit":true,"foreground":"good"}]},
+            {"type":"progress","style":"linear","value":0.21,"tint":"good"}]},
+          {"type":"vstack","spacing":3,"children":[
+            {"type":"hstack","children":[
+              {"type":"text","text":"Memory","role":"caption"},
+              {"type":"spacer"},
+              {"type":"text","text":"63%","role":"caption","monospacedDigit":true,"foreground":"good"}]},
+            {"type":"progress","style":"linear","value":0.63,"tint":"good"}]},
+          {"type":"vstack","spacing":3,"children":[
+            {"type":"hstack","children":[
+              {"type":"text","text":"Disk","role":"caption"},
+              {"type":"spacer"},
+              {"type":"text","text":"14%","role":"caption","monospacedDigit":true,"foreground":"good"}]},
+            {"type":"progress","style":"linear","value":0.14,"tint":"good"}]}]}
+        """)
+    }
+
+    /// The `sensors` widget on a Mac that reports fans. A fanless Mac shows
+    /// "Fans — none" instead; the tile picks the richer case.
+    static var sensorsNode: UINode {
+        decode("""
+        {"type":"vstack","spacing":8,"children":[
+          {"type":"vstack","spacing":3,"children":[
+            {"type":"hstack","children":[
+              {"type":"text","text":"CPU","role":"caption"},
+              {"type":"spacer"},
+              {"type":"text","text":"45.8 °C","role":"caption","monospacedDigit":true,"foreground":"good"}]},
+            {"type":"progress","style":"linear","value":0.458,"tint":"good"}]},
+          {"type":"hstack","children":[
+            {"type":"text","text":"GPU","role":"caption"},
+            {"type":"spacer"},
+            {"type":"text","text":"42.8 °C","role":"caption","monospacedDigit":true,"foreground":"secondary"}]},
+          {"type":"hstack","children":[
+            {"type":"text","text":"Battery","role":"caption"},
+            {"type":"spacer"},
+            {"type":"text","text":"29.1 °C","role":"caption","monospacedDigit":true,"foreground":"secondary"}]},
+          {"type":"hstack","children":[
+            {"type":"text","text":"Fan 1","role":"caption"},
+            {"type":"spacer"},
+            {"type":"text","text":"2100 rpm","role":"caption","monospacedDigit":true,"foreground":"secondary"}]}]}
         """)
     }
 
