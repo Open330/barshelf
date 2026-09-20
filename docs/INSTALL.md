@@ -74,6 +74,30 @@ brew install --cask barshelf
 업데이트는 `brew upgrade --cask barshelf`, 제거는 `brew uninstall --cask barshelf`.
 현재 cask는 서명·공증된 v0.1.3 자산과 검증된 SHA-256을 사용한다.
 
+## 업데이트
+
+메뉴바 우클릭의 **Check for Updates…** 가 GitHub Releases를 확인한다. 새 버전이
+있으면 어떻게 설치할지는 이 복사본이 어떤 상태인지에 따라 달라진다.
+
+| 설치 형태 | 동작 |
+| --- | --- |
+| Developer ID 서명된 릴리스를 `/Applications`에 둔 경우 | **Install and Relaunch** 로 앱이 직접 받아서 교체하고 재실행한다. |
+| Homebrew cask로 설치한 경우 | 자가 업데이트하면 brew 기록과 어긋나므로 `brew upgrade --cask barshelf` 명령을 안내한다(복사 버튼 제공). |
+| 로컬에서 빌드한 ad-hoc 서명 복사본 | 검증할 서명 기준이 없으므로 교체하지 않고 릴리스 페이지를 연다. |
+| 쓰기 권한이 없는 위치 | 마찬가지로 릴리스 페이지를 연다. |
+
+자가 업데이트가 받은 빌드는 **교체 전에** 두 가지를 통과해야 한다.
+
+1. **같은 개발자의 서명** — `anchor apple generic and certificate leaf[subject.OU] = "<팀 ID>"`.
+   여기서 팀 ID는 *지금 실행 중인* 빌드의 것이다. 다른 개발자가 서명했거나
+   서명이 내용과 맞지 않으면 거부한다. 릴리스 옆에 같이 올라온 체크섬은 신뢰
+   근거가 되지 못한다 — zip을 내려주는 쪽이 해시도 내려주기 때문이다.
+2. **macOS 자체 판정** — `spctl --assess --type execute`. 공증이 철회된 빌드를
+   교체 *전에* 걸러낸다.
+
+어느 단계든 실패하면 설치된 복사본은 **손대지 않은 채로** 남고, 릴리스 페이지를
+여는 기존 동작으로 되돌아간다.
+
 ## 설치 확인 체크리스트
 
 - [ ] 메뉴바 아이콘 클릭 → 팝업에 첫 실행 위젯(Today / Recent Files / Quick Shelf) 표시

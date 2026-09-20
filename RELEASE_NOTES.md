@@ -18,6 +18,14 @@ behind them are read natively instead of shelling out.
   A promoted widget keeps refreshing while the popup is closed; **Pause When
   Closed** still stops it, and the menu bar dims a value it can no longer keep
   current rather than passing it off as live.
+- **BarShelf can update itself** — when a new release is out, *Check for
+  Updates…* can download and install it, then relaunch. The download is only
+  accepted if it is signed by the same Developer ID as the build asking to be
+  replaced, and macOS is asked for its own verdict before anything is swapped;
+  any failure leaves the installed copy untouched and falls back to the release
+  page. A copy installed with Homebrew is left to `brew upgrade --cask
+  barshelf`, and a locally built copy is never replaced, because there is no
+  signature to verify an update against.
 - **New — Sensors widget** — hardware temperatures, fans, and power draw from
   the SMC, with the Apple Silicon HID sensor plane as a fallback. Every reading
   is optional: a fanless Mac lists no fans, and a Mac that publishes nothing

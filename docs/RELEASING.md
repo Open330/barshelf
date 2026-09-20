@@ -65,6 +65,23 @@
 7. `python3 scripts/check-release-versions.py`가 통과하는지 확인한다. 통과하지
    않으면 6번이 덜 된 것이다.
 
+## 자가 업데이트가 거는 제약
+
+앱이 스스로 업데이트할 수 있으므로(`UpdateChecker` + `MenubucketCore.UpdateInstaller`)
+릴리스 절차가 지켜야 할 것이 두 가지 생겼다.
+
+- **앱 자산 이름을 바꾸지 않는다.** 업데이터는 `BarShelf-<version>-arm64.zip`을
+  정확히 그 이름으로 찾는다. 이름이 바뀌면 자가 업데이트는 오류 없이 조용히
+  수동 다운로드로 떨어진다. `UpdateCheckerTests`가 `release.sh`의 명명 규칙을
+  검사해 이 어긋남을 CI에서 잡는다.
+- **cask에 `auto_updates true`를 넣지 않는다.** BarShelf는 Homebrew로 설치된
+  복사본을 감지해 `brew upgrade --cask barshelf`로 안내하고 스스로 교체하지
+  않는다. 여기에 `auto_updates true`를 선언하면 `brew upgrade`가 그 복사본을
+  건너뛰어, 결국 아무 업데이트 경로도 남지 않는다.
+
+또한 **공증되지 않은 빌드는 자가 업데이트로 배포될 수 없다.** 서명·공증을
+건너뛴 자산은 받는 쪽의 `spctl` 검사에서 거부된다 — 의도된 동작이다.
+
 ## 릴리스 후 확인
 
 - `gh release view vX.Y.Z` — 자산 3종이 있는지.
