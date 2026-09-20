@@ -35,12 +35,24 @@
 버전 문구는 *다운로드 가능한* 빌드를 가리키므로, 자산이 실제로 올라간 뒤에
 바꾼다.
 
+0. **full Xcode가 활성화돼 있어야 한다.** SwiftUI의 `@State`는 매크로이고 그
+   플러그인은 Xcode에만 들어 있다. Command Line Tools만으로 빌드하면 SwiftUI
+   뷰 안에서 `cannot assign to property: 'self' is immutable` 같은 엉뚱한
+   에러가 난다. `build_app.sh`가 시작 전에 확인하고 막지만, 미리 맞춰두면
+   좋다: `sudo xcode-select -s /Applications/Xcode.app`.
 1. `main`이 CI 그린인지 확인한다.
 2. `RELEASE_NOTES.md`를 이번 버전 내용으로 작성한다. 이 파일은 항상 **다음
    릴리스**를 서술하며, GitHub 릴리스 본문에 그대로 붙여 넣는다.
 3. `scripts/build_app.sh`의 `APP_VERSION` 기본값이 이번 버전인지 확인한다.
    개발 빌드가 보고하는 버전이라, 기능 작업을 시작할 때 미리 올려둬도 된다.
-4. 빌드·서명·공증·패키징:
+4. **먼저 태그를 만든다.** 산출물이 그 태그에서 나왔다는 걸 보장하기 위해서고,
+   `release.sh`가 이를 강제한다 — 워킹 트리가 더럽거나 `HEAD`가 태그가 아니면
+   빌드를 거부한다(로컬 무공증 패키징은 예외).
+
+   ```bash
+   git tag -a vX.Y.Z -m "BarShelf X.Y.Z"
+   ```
+5. 빌드·서명·공증·패키징:
 
    ```bash
    VERSION=X.Y.Z \
@@ -52,18 +64,38 @@
    산출물은 `dist/release/`에 `BarShelf-X.Y.Z-arm64.zip`,
    `barshelf-cli-X.Y.Z-arm64.tar.gz`, `SHA256SUMS`. 스크립트가
    `Casks/barshelf.rb`의 `version`/`sha256`도 함께 갱신한다 — 공증된 공개
-   릴리스일 때만.
-5. 태그를 밀고 릴리스를 만든다. `release.sh`는 여기까지 하지 않는다:
+   릴리스일 때만. 번들에는 빌드한 커밋이 `BarShelfSourceCommit`으로 각인되고,
+   설정 창의 **Source** 행에 표시된다.
+6. 태그를 밀고 릴리스를 만든다. `release.sh`는 여기까지 하지 않는다.
+   **자가 업데이터가 생긴 뒤로는 `--prerelease`로 시작하는 걸 권장한다** —
+   업데이터는 GitHub의 `latest`를 보는데, pre-release는 거기 들어가지 않으므로
+   직접 검증할 시간을 벌 수 있다:
 
    ```bash
-   git tag -a vX.Y.Z -m "BarShelf X.Y.Z" && git push origin vX.Y.Z
-   gh release create vX.Y.Z dist/release/* \
+   git push origin vX.Y.Z
+   gh release create vX.Y.Z dist/release/* --prerelease \
      --title "BarShelf X.Y.Z" --notes-file RELEASE_NOTES.md
    ```
-6. 이제 문서의 버전 문구를 갱신한다 — `README.md`, `docs/INSTALL.md`,
-   `site/index.html`. 갱신된 cask와 함께 커밋한다.
-7. `python3 scripts/check-release-versions.py`가 통과하는지 확인한다. 통과하지
-   않으면 6번이 덜 된 것이다.
+7. **검증한다.** CI의 `Verify Release` 워크플로가 릴리스 게시 시 자동으로 돌고,
+   수동으로도 돌릴 수 있다:
+
+   ```bash
+   bash scripts/verify-release.sh vX.Y.Z
+   ```
+
+   체크섬, 번들 버전이 태그와 일치하는지, 더티 트리에서 빌드되지 않았는지,
+   서명·공증·Gatekeeper, 그리고 **자가 업데이터가 요구하는 Developer ID
+   요구문**까지 확인한다. 마지막 항목이 실패하면 모든 클라이언트가 그 업데이트를
+   거부한다.
+8. 이전 버전이 설치된 맥에서 **Check for Updates… → Install and Relaunch**가
+   실제로 동작하는지 확인한다. 자가 업데이터의 수락 경로는 CI 테스트에서
+   건너뛰므로(러너에 Developer ID 번들이 없다) 여기가 첫 실검증이다.
+9. 문제없으면 pre-release를 해제해 전체에 푼다:
+   `gh release edit vX.Y.Z --prerelease=false`
+10. 이제 문서의 버전 문구를 갱신한다 — `README.md`, `docs/INSTALL.md`,
+    `site/index.html`. 갱신된 cask와 함께 커밋한다.
+11. `python3 scripts/check-release-versions.py`가 통과하는지 확인한다. 통과하지
+    않으면 10번이 덜 된 것이다.
 
 ## 자가 업데이트가 거는 제약
 
@@ -84,9 +116,11 @@
 
 ## 릴리스 후 확인
 
-- `gh release view vX.Y.Z` — 자산 3종이 있는지.
-- 받은 zip에 대해 `codesign -vvv --deep --strict`, `stapler validate`,
-  `spctl -a -vv -t exec`.
-- `SHA256SUMS`가 올라간 자산과 맞는지.
+`scripts/verify-release.sh`가 자산·체크섬·서명·공증·Gatekeeper·업데이터
+요구문을 전부 검사하므로, 손으로 확인할 건 그 바깥의 것들만 남는다.
+
 - `brew upgrade --cask barshelf`가 새 버전을 집는지.
-- 이전 버전을 실행한 채로 **Check for Updates…** 가 새 버전을 알리는지.
+- 이전 버전을 실행한 채로 **Check for Updates…** → **Install and Relaunch**가
+  교체·재실행까지 끝내는지.
+- 직전 릴리스를 지우지 않는다 — 자가 업데이트가 잘못됐을 때의 유일한
+  다운그레이드 경로다.

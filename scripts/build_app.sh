@@ -15,6 +15,19 @@ OUTPUT_DIR=${OUTPUT_DIR:-"${PROJECT_ROOT}/dist"}
 BUNDLE_IDENTIFIER=${BUNDLE_IDENTIFIER:-com.barshelf.app}
 APP_VERSION=${APP_VERSION:-0.2.0}
 APP_BUILD=${APP_BUILD:-"$(date +%Y%m%d%H%M)"}
+# Provenance: which commit produced this binary. CFBundleVersion has to stay a
+# period-separated number for App Store validation, so the commit goes in its
+# own key. "-dirty" is not hidden — a build made from uncommitted changes must
+# say so.
+if [[ -z "${APP_COMMIT:-}" ]]; then
+  if APP_COMMIT=$(git -C "${PROJECT_ROOT}" rev-parse --short=12 HEAD 2>/dev/null); then
+    if ! git -C "${PROJECT_ROOT}" diff --quiet HEAD 2>/dev/null; then
+      APP_COMMIT="${APP_COMMIT}-dirty"
+    fi
+  else
+    APP_COMMIT="unknown"
+  fi
+fi
 MINIMUM_SYSTEM_VERSION=${MINIMUM_SYSTEM_VERSION:-13.0}
 APP_CATEGORY=${APP_CATEGORY:-public.app-category.utilities}
 APP_COPYRIGHT=${APP_COPYRIGHT:-"Copyright (c) $(date +%Y) BarShelf contributors."}
@@ -61,6 +74,7 @@ render_info_plist() {
     -e "s|__APP_DISPLAY_NAME__|$(sed_escape "${APP_DISPLAY_NAME}")|g" \
     -e "s|__BUNDLE_IDENTIFIER__|$(sed_escape "${BUNDLE_IDENTIFIER}")|g" \
     -e "s|__APP_BUILD__|$(sed_escape "${APP_BUILD}")|g" \
+    -e "s|__APP_COMMIT__|$(sed_escape "${APP_COMMIT}")|g" \
     -e "s|__APP_VERSION__|$(sed_escape "${APP_VERSION}")|g" \
     -e "s|__EXECUTABLE_NAME__|$(sed_escape "${EXECUTABLE_NAME}")|g" \
     -e "s|__APP_ICON_NAME__|$(sed_escape "${APP_ICON_NAME}")|g" \
@@ -70,7 +84,28 @@ render_info_plist() {
     "${INFO_PLIST_TEMPLATE}" >"${output_path}"
 }
 
-echo "Building ${PRODUCT_NAME} (${BUILD_CONFIGURATION})"
+# SwiftUI's @State and friends are macros, and the plugin that expands them
+# ships only with full Xcode. With Command Line Tools alone the build fails
+# deep inside SwiftUI views with "cannot assign to property: 'self' is
+# immutable", which says nothing about the actual cause — so check up front.
+require_full_xcode() {
+  local developer_dir plugin
+  developer_dir=$(xcode-select -p 2>/dev/null || echo "")
+  plugin="${developer_dir}/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libSwiftUIMacros.dylib"
+  if [[ -f "${plugin}" ]]; then
+    return 0
+  fi
+  echo "error: this build needs full Xcode, not just the Command Line Tools." >&2
+  echo "       active developer directory: ${developer_dir:-none}" >&2
+  echo "       SwiftUI macro plugin not found at:" >&2
+  echo "         ${plugin}" >&2
+  echo "       Install Xcode and point the toolchain at it:" >&2
+  echo "         sudo xcode-select -s /Applications/Xcode.app" >&2
+  exit 1
+}
+require_full_xcode
+
+echo "Building ${PRODUCT_NAME} (${BUILD_CONFIGURATION}) from ${APP_COMMIT}"
 swift build \
   --configuration "${BUILD_CONFIGURATION}" \
   --product "${PRODUCT_NAME}" \

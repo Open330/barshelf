@@ -16,11 +16,14 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # Pin to the Swift 6 toolchain used for release builds. The package still
-      # has Swift 5.9 language compatibility, so strict checks are explicit.
+      # Pinned, not `latest-stable`. A floating toolchain silently changes the
+      # SDK under the build: that is how a `-strict-concurrency=complete` error
+      # (an unannotated `mach_task_self_`) reached CI while passing locally on a
+      # newer SDK. When the runner image drops this version the job fails
+      # loudly, which is the point — bumping it should be a visible commit.
       - uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: latest-stable
+          xcode-version: "16.2"
 
       - name: Toolchain
         run: swift --version && xcodebuild -version

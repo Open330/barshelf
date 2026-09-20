@@ -55,6 +55,40 @@ else
   exit 1
 fi
 
+# A public release must be reproducible from a commit anyone can check out.
+# Only the notarized path is gated: `ALLOW_UNNOTARIZED=1` exists precisely for
+# local packaging, where iterating on a dirty tree is the whole point.
+if [[ "${NOTARIZE}" == "1" ]]; then
+  if ! git -C "${PROJECT_ROOT}" rev-parse --git-dir >/dev/null 2>&1; then
+    echo "error: public releases must be built from a git checkout" >&2
+    exit 1
+  fi
+  if [[ -n "$(git -C "${PROJECT_ROOT}" status --porcelain)" ]]; then
+    echo "error: the working tree has uncommitted changes." >&2
+    echo "       A published binary has to correspond to a commit; otherwise" >&2
+    echo "       nobody can reproduce or audit what was shipped." >&2
+    git -C "${PROJECT_ROOT}" status --short >&2
+    exit 1
+  fi
+  RELEASE_TAG="v${VERSION}"
+  if ! git -C "${PROJECT_ROOT}" rev-parse -q --verify "refs/tags/${RELEASE_TAG}" >/dev/null; then
+    echo "error: tag ${RELEASE_TAG} does not exist." >&2
+    echo "       Tag first, then build, so the artifact provably comes from it:" >&2
+    echo "         git tag -a ${RELEASE_TAG} -m \"BarShelf ${VERSION}\"" >&2
+    exit 1
+  fi
+  TAGGED_COMMIT=$(git -C "${PROJECT_ROOT}" rev-parse "${RELEASE_TAG}^{commit}")
+  HEAD_COMMIT=$(git -C "${PROJECT_ROOT}" rev-parse HEAD)
+  if [[ "${TAGGED_COMMIT}" != "${HEAD_COMMIT}" ]]; then
+    echo "error: HEAD is not ${RELEASE_TAG}." >&2
+    echo "       ${RELEASE_TAG} -> ${TAGGED_COMMIT}" >&2
+    echo "       HEAD      -> ${HEAD_COMMIT}" >&2
+    echo "       Check out the tag before building: git checkout ${RELEASE_TAG}" >&2
+    exit 1
+  fi
+  echo "Releasing ${RELEASE_TAG} from ${HEAD_COMMIT}"
+fi
+
 # Always rebuild from the current source tree. Reusing dist/ can silently ship
 # stale binaries, and APP_VERSION must exactly match the requested release.
 APP_VERSION="${VERSION}" SIGN_IDENTITY="${SIGN_IDENTITY}" \
