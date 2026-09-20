@@ -107,6 +107,33 @@ public enum UpdateInstaller {
     /// the same situation.
     public static let homebrewUpgradeCommand = "brew upgrade --cask barshelf"
 
+    /// The same, for a CLI installed from the `barshelf-cli` formula.
+    public static let homebrewCLIUpgradeCommand = "brew upgrade barshelf-cli"
+
+    /// Homebrew's Cellar on the Apple Silicon and Intel prefixes. A formula's
+    /// files live here, with a symlink in `<prefix>/bin` pointing at them.
+    public static let homebrewCellars = [
+        "/opt/homebrew/Cellar/",
+        "/usr/local/Cellar/",
+    ]
+
+    /// Whether a command-line tool is one Homebrew manages.
+    ///
+    /// The cask check has an app-shaped counterpart in `blocker`; this is the
+    /// formula-shaped one, and it matters more than it looks: `<prefix>/bin`
+    /// comes before `~/.local/bin` on a default PATH, so a `brew install
+    /// barshelf-cli` copy is the one that runs. Writing over it would leave
+    /// `brew` convinced it still has the version it installed, and the next
+    /// `brew upgrade` or `brew reinstall` would silently revert the update.
+    ///
+    /// Matched on the resolved path, since what is on PATH is the symlink.
+    public static func isHomebrewManaged(
+        tool: URL, cellars: [String] = homebrewCellars
+    ) -> Bool {
+        let path = tool.resolvingSymlinksInPath().standardizedFileURL.path
+        return cellars.contains { path.hasPrefix($0) }
+    }
+
     /// Whether this install can replace itself, and why not when it cannot.
     ///
     /// - Parameter hostTeam: the running build's **Developer ID** team, or nil

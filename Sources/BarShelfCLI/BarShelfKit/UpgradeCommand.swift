@@ -218,7 +218,15 @@ enum UpgradeCommand {
         }
 
         let directory = running.deletingLastPathComponent()
-        if component.team == nil {
+        // Before the signature and writability checks: a Homebrew-installed CLI
+        // is Developer ID signed and sits in a writable Cellar, so it would
+        // otherwise sail straight through and be replaced behind brew's back.
+        if component.paths.contains(where: { UpdateInstaller.isHomebrewManaged(tool: $0) }) {
+            component.blocker = "installed with Homebrew"
+            component.notes.append("The barshelf CLI was installed with Homebrew.")
+            component.notes.append("Update it the way you installed it: "
+                + UpdateInstaller.homebrewCLIUpgradeCommand)
+        } else if component.team == nil {
             component.blocker = "not a Developer ID build"
             component.notes.append(
                 "This barshelf was built locally, so an update cannot be verified"

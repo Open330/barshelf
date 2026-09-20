@@ -92,6 +92,64 @@ final class UpgradeCommandTests: XCTestCase {
         XCTAssertTrue(found.isEmpty)
     }
 
+    // MARK: - Homebrew-managed CLI
+
+    /// `<prefix>/bin` precedes `~/.local/bin` on a default PATH, so a
+    /// `brew install barshelf-cli` copy is the one that runs. Replacing it
+    /// would leave brew convinced it still has the version it installed, and
+    /// the next `brew upgrade`/`reinstall` would silently revert the update.
+    func testACLIInsideTheCellarIsRecognisedAsHomebrewManaged() {
+        for prefix in ["/opt/homebrew", "/usr/local"] {
+            XCTAssertTrue(UpdateInstaller.isHomebrewManaged(
+                tool: URL(fileURLWithPath: "\(prefix)/Cellar/barshelf-cli/0.3.0/bin/barshelf")
+            ), prefix)
+        }
+    }
+
+    func testACLIOutsideTheCellarIsLeftAlone() {
+        for path in [
+            "/Users/someone/.local/bin/barshelf",
+            "/usr/local/bin/barshelf",
+            // Prefix matching must not catch a neighbouring directory.
+            "/opt/homebrew/Cellarium/barshelf",
+        ] {
+            XCTAssertFalse(UpdateInstaller.isHomebrewManaged(
+                tool: URL(fileURLWithPath: path)
+            ), path)
+        }
+    }
+
+    /// It is the resolved path that matters: what sits on PATH is a symlink
+    /// into the Cellar, and only following it reveals who owns the file.
+    func testTheSymlinkOnPathIsFollowedBeforeJudging() throws {
+        let cellar = root.appendingPathComponent("Cellar/barshelf-cli/0.3.0/bin", isDirectory: true)
+        try FileManager.default.createDirectory(at: cellar, withIntermediateDirectories: true)
+        let real = cellar.appendingPathComponent("barshelf")
+        try Data("binary".utf8).write(to: real)
+
+        let bin = root.appendingPathComponent("bin", isDirectory: true)
+        try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+        let link = bin.appendingPathComponent("barshelf")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: real)
+
+        let cellars = [root.appendingPathComponent("Cellar").path + "/"]
+        XCTAssertTrue(UpdateInstaller.isHomebrewManaged(tool: link, cellars: cellars))
+        XCTAssertFalse(UpdateInstaller.isHomebrewManaged(
+            tool: link, cellars: ["/somewhere/else/Cellar/"]
+        ))
+    }
+
+    func testTheTwoBrewCommandsNameTheRightArtifacts() throws {
+        XCTAssertEqual(UpdateInstaller.homebrewUpgradeCommand, "brew upgrade --cask barshelf")
+        XCTAssertEqual(UpdateInstaller.homebrewCLIUpgradeCommand, "brew upgrade barshelf-cli")
+        // The cask has to still be the cask those commands name.
+        let cask = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("Casks/barshelf.rb"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(cask.contains(#"cask "barshelf" do"#))
+    }
+
     // MARK: - Finding the app
 
     func testTheAppIsLookedForWhereTheDocsSayItLives() {

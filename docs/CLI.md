@@ -138,6 +138,7 @@ latest release: 0.2.1  [Open330/barshelf]
 | --- | --- |
 | 로컬/ad-hoc 빌드 (`swift build` 산출물 등) | 거부 — 앵커할 릴리스 신원이 없다. |
 | Homebrew로 설치된 앱 | `brew upgrade --cask barshelf`를 안내. 스스로 교체하면 brew의 기록과 어긋난다. |
+| Homebrew(`barshelf-cli` formula)로 설치된 CLI | `brew upgrade barshelf-cli`를 안내. Cellar의 **파일은 읽기 전용이지만 디렉터리는 쓰기 가능**하므로 교체 자체는 성공한다 — 그래서 brew는 옛 버전을 갖고 있다고 믿는 상태가 되고, 다음 `brew upgrade`/`reinstall`이 업데이트를 조용히 되돌린다. 기본 PATH에서 `<prefix>/bin`이 `~/.local/bin`보다 앞이라 실제로 실행되는 쪽이 이 복사본이다. |
 | 설치 위치에 쓰기 권한이 없음 (`/usr/local/bin` 등) | 거부하고 sudo 또는 소유한 디렉터리를 안내. |
 | 바이너리 이름이 `barshelf`/`bsf`가 아님 | 거부 — 아카이브 멤버 이름으로 추출하므로 대응시킬 수 없다. |
 

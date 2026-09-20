@@ -9,8 +9,7 @@ cask "barshelf" do
   version "0.3.0"
   sha256 "e78a2bdce7d81938cf09dc385a5dda1850b631df78916ce04f243391dec94939"
 
-  url "https://github.com/Open330/barshelf/releases/download/v#{version}/BarShelf-#{version}-arm64.zip",
-      verified: "github.com/Open330/barshelf/"
+  url "https://github.com/Open330/barshelf/releases/download/v#{version}/BarShelf-#{version}-arm64.zip"
   name "BarShelf"
   desc "Scriptable menu bar widget platform"
   homepage "https://github.com/Open330/barshelf"
