@@ -6,8 +6,8 @@
 #
 # `version`/`sha256` are updated per release by scripts/release.sh.
 cask "barshelf" do
-  version "0.2.1"
-  sha256 "71508c2f7066885b1ec90f9e05bc560f03a53976a6e0975bbeda016d35221057"
+  version "0.3.0"
+  sha256 "e78a2bdce7d81938cf09dc385a5dda1850b631df78916ce04f243391dec94939"
 
   url "https://github.com/Open330/barshelf/releases/download/v#{version}/BarShelf-#{version}-arm64.zip",
       verified: "github.com/Open330/barshelf/"
