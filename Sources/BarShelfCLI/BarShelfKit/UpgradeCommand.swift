@@ -438,15 +438,15 @@ enum UpgradeCommand {
     /// Whether the app is running, and how to get the new build in front of the
     /// user. Replacing the bundle leaves the running process on the old code.
     private static func finishApp(_ app: URL, restart: Bool) {
-        guard isAppRunning() else { return }
+        guard isRunning(app) else { return }
         guard restart else {
             print("  BarShelf.app is still running the previous build —"
                 + " quit and reopen it, or re-run with --restart.")
             return
         }
         print("  restarting BarShelf.app…")
-        _ = shell("/usr/bin/pkill", processSelector)
-        for _ in 0..<50 where isAppRunning() {
+        _ = shell("/usr/bin/pkill", processSelector(for: app))
+        for _ in 0..<50 where isRunning(app) {
             Thread.sleep(forTimeInterval: 0.1)
         }
         if shell("/usr/bin/open", ["-a", app.path]) != 0 {
@@ -456,15 +456,21 @@ enum UpgradeCommand {
 
     static let appExecutableName = "barshelf-app"
 
-    /// Scoped to this user: on a shared Mac another login's BarShelf is not
-    /// ours to quit, and counting it would leave `--restart` waiting forever
-    /// for a process it cannot signal.
-    private static var processSelector: [String] {
-        ["-U", String(getuid()), "-x", appExecutableName]
+    /// Matches the process launched from *this* bundle, and only this user's.
+    ///
+    /// Matching the executable name alone would report the copy in
+    /// /Applications as "still running the previous build" after `--app`
+    /// updated one somewhere else — and `--restart` would then quit the wrong
+    /// app and reopen the other. Scoping to the user matters too: on a shared
+    /// Mac another login's BarShelf is not ours to signal, and counting it
+    /// would leave `--restart` waiting for a process it cannot kill.
+    static func processSelector(for app: URL) -> [String] {
+        let executable = app.appendingPathComponent("Contents/MacOS/\(appExecutableName)")
+        return ["-U", String(getuid()), "-f", executable.path]
     }
 
-    private static func isAppRunning() -> Bool {
-        shell("/usr/bin/pgrep", processSelector) == 0
+    private static func isRunning(_ app: URL) -> Bool {
+        shell("/usr/bin/pgrep", processSelector(for: app)) == 0
     }
 
     @discardableResult

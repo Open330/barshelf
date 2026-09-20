@@ -112,6 +112,25 @@ final class UpgradeCommandTests: XCTestCase {
         )
     }
 
+    /// `--app` updating a copy elsewhere must not report the one in
+    /// /Applications as "still running the previous build" — and `--restart`
+    /// must not then quit that one and reopen the other.
+    func testTheRunningAppIsMatchedByBundleNotByExecutableName() {
+        let selector = UpgradeCommand.processSelector(
+            for: URL(fileURLWithPath: "/tmp/staging/BarShelf.app")
+        )
+        XCTAssertEqual(
+            selector,
+            ["-U", String(getuid()), "-f", "/tmp/staging/BarShelf.app/Contents/MacOS/barshelf-app"]
+        )
+        XCTAssertNotEqual(
+            selector,
+            UpgradeCommand.processSelector(
+                for: URL(fileURLWithPath: "/Applications/BarShelf.app")
+            )
+        )
+    }
+
     // MARK: - Drift against the release script
 
     /// The upgrade downloads assets whose names it predicts. If `release.sh`
