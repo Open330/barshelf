@@ -14,7 +14,7 @@ Widgets can request permissions such as command execution, file access, network 
 
 ## Network Access
 
-BarShelf checks the official GitHub Releases feed for updates and may connect to the project widget registry or widget install URLs that you choose. Individual widgets may also make network requests only when their manifest declares the destination and you approve that permission.
+BarShelf checks the official GitHub Releases feed for updates and, when you ask it to install one, downloads that release's archive from GitHub. It may also connect to the project widget registry or widget install URLs that you choose. Individual widgets may also make network requests only when their manifest declares the destination and you approve that permission.
 
 BarShelf does not send analytics or a persistent advertising identifier with update or registry requests.
 

@@ -93,6 +93,10 @@ Grab `BarShelf-<version>-arm64.zip` from
 `/Applications`, then open it normally. The current v0.1.3 asset is Developer ID
 signed, Apple-notarized, and includes a stapled ticket for offline verification.
 
+BarShelf checks for updates itself and can install them in place — only when
+the download is signed by the same Developer ID as the running build. Homebrew
+installs are left to `brew upgrade --cask barshelf`.
+
 Full guide, `barshelf` CLI, and troubleshooting: **[docs/INSTALL.md](docs/INSTALL.md)**.
 
 > Requires macOS 13+ on Apple Silicon. Script widgets need [Deno](https://deno.land)

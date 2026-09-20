@@ -1,0 +1,75 @@
+import XCTest
+import MenubucketCore
+@testable import MenubucketApp
+
+@MainActor
+final class UpdateCheckerTests: XCTestCase {
+    private var repositoryRoot: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()  // MenubucketAppTests
+            .deletingLastPathComponent()  // Tests
+            .deletingLastPathComponent()  // repo root
+    }
+
+    func testVersionComparisonIsNumericNotLexicographic() {
+        XCTAssertTrue(UpdateChecker.compare("1.2.10", isNewerThan: "1.2.9"))
+        XCTAssertTrue(UpdateChecker.compare("0.2.0", isNewerThan: "0.1.4"))
+        XCTAssertFalse(UpdateChecker.compare("0.1.3", isNewerThan: "0.1.3"))
+        XCTAssertFalse(UpdateChecker.compare("0.1.3", isNewerThan: "0.2.0"))
+        // Missing components count as zero.
+        XCTAssertTrue(UpdateChecker.compare("1.1", isNewerThan: "1.0.9"))
+        XCTAssertFalse(UpdateChecker.compare("1.0", isNewerThan: "1.0.0"))
+    }
+
+    /// The updater downloads the asset whose name it can predict. If
+    /// `release.sh` ever renames it, in-app updates would quietly stop working
+    /// and every user would silently fall back to the manual download.
+    func testTheExpectedAssetNameMatchesWhatTheReleaseScriptPublishes() throws {
+        let script = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("scripts/release.sh"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(
+            script.contains(#"APP_ZIP="${RELEASE_DIR}/${APP_DISPLAY_NAME}-${VERSION}-${ARCH}.zip""#),
+            "release.sh no longer names the app archive the way UpdateChecker expects"
+        )
+        XCTAssertTrue(
+            script.contains("APP_DISPLAY_NAME=${APP_DISPLAY_NAME:-BarShelf}"),
+            "release.sh no longer defaults the display name to BarShelf"
+        )
+        // arm64 is the only architecture release.sh will build for.
+        XCTAssertTrue(script.contains(#"public BarShelf releases currently support arm64 only"#))
+
+        XCTAssertEqual(
+            UpdateChecker.appAssetName(version: "0.2.0"), "BarShelf-0.2.0-arm64.zip"
+        )
+    }
+
+    /// The cask must not claim the app updates itself: BarShelf defers to
+    /// Homebrew for Homebrew-managed copies, and `auto_updates true` would make
+    /// `brew upgrade` skip them — leaving those users with no update path.
+    func testTheCaskDoesNotClaimSelfUpdating() throws {
+        let cask = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("Casks/barshelf.rb"),
+            encoding: .utf8
+        )
+        XCTAssertFalse(cask.contains("auto_updates"))
+    }
+
+    func testHomebrewCommandIsTheOneTheCaskIsInstalledWith() throws {
+        XCTAssertEqual(UpdateChecker.homebrewUpgradeCommand, "brew upgrade --cask barshelf")
+        let cask = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("Casks/barshelf.rb"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(cask.contains(#"cask "barshelf" do"#))
+    }
+
+    func testCaskroomPathsCoverBothHomebrewPrefixes() {
+        // Apple Silicon and Intel prefixes — a user on either must be detected.
+        XCTAssertEqual(
+            Set(UpdateInstaller.homebrewCaskroots),
+            ["/opt/homebrew/Caskroom/barshelf", "/usr/local/Caskroom/barshelf"]
+        )
+    }
+}
