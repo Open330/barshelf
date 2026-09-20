@@ -52,7 +52,8 @@ enum UpdateChecker {
                         latest: latest,
                         name: release.name,
                         url: URL(string: release.html_url) ?? releasesPage,
-                        asset: appAsset(in: release, version: latest)
+                        asset: appAsset(in: release, version: latest),
+                        explicit: explicit
                     )
                 } else if explicit {
                     upToDate(current: current)
@@ -97,14 +98,20 @@ enum UpdateChecker {
 
     /// Why this copy cannot replace itself, or nil when it can.
     static func installBlocker() -> UpdateInstaller.Blocker? {
-        UpdateInstaller.blocker(
-            appURL: appURL, hostTeam: CodeSignature.hostTeamIdentifier()
-        )
+        UpdateInstaller.blocker(appURL: appURL, hostTeam: CodeSignature.hostDeveloperIDTeam())
     }
+
+    /// Guards against a second install starting while one is running: two
+    /// `replaceItemAt` calls on the same bundle would race, and the loser would
+    /// report "your installed copy was left untouched" about a copy the winner
+    /// had just replaced.
+    private static var installInFlight = false
 
     // MARK: - Presentation
 
-    private static func present(latest: String, name: String?, url: URL, asset: URL?) {
+    private static func present(
+        latest: String, name: String?, url: URL, asset: URL?, explicit: Bool
+    ) {
         let blocker = installBlocker()
         let alert = NSAlert()
         alert.messageText = "BarShelf \(latest) is available"
@@ -132,8 +139,17 @@ enum UpdateChecker {
             alert.addButton(withTitle: "Install and Relaunch")
             alert.addButton(withTitle: "Download…")
             alert.addButton(withTitle: "Later")
+            // The launch-time check is unsolicited: it appears seconds after
+            // startup, over whatever the user was doing. Replacing and
+            // relaunching the app must not be one stray Return away, so the
+            // default moves to Later unless the user asked for this check.
+            if !explicit {
+                alert.buttons[0].keyEquivalent = ""
+                alert.buttons[2].keyEquivalent = "\r"
+            }
             switch alert.runModal() {
-            case .alertFirstButtonReturn: install(asset: asset, version: latest, page: url)
+            case .alertFirstButtonReturn:
+                install(asset: asset, version: latest, page: url)
             case .alertSecondButtonReturn: NSWorkspace.shared.open(url)
             default: break
             }
@@ -164,49 +180,132 @@ enum UpdateChecker {
     // MARK: - Install
 
     private static func install(asset: URL, version: String, page: URL) {
-        guard let team = CodeSignature.hostTeamIdentifier() else {
+        guard !installInFlight else { return }
+        guard let team = CodeSignature.hostDeveloperIDTeam() else {
             presentInstallFailure(UpdateInstaller.Failure.hostNotSigned, page: page)
             return
         }
-        let progress = UpdateProgressPanel(message: "Downloading BarShelf \(version)…")
-        progress.show()
-        let target = appURL
+        installInFlight = true
 
-        Task {
+        // The same panel widget installs use: a determinate bar driven by
+        // Content-Length, and a Cancel that actually stops the work.
+        let progress = DownloadProgressPanel(
+            title: "Updating BarShelf", message: "Downloading BarShelf \(version)…"
+        )
+        let target = appURL
+        let bundleID = Bundle.main.bundleIdentifier
+
+        let work = Task {
             do {
-                let archive = try await download(asset)
+                let archive = try await download(asset) { received, expected in
+                    progress.update(received: received, expected: expected)
+                }
                 defer { try? FileManager.default.removeItem(at: archive) }
-                progress.update("Verifying and installing…")
-                try await Task.detached(priority: .userInitiated) {
+                try Task.checkCancellation()
+                progress.setMessage("Verifying and installing…")
+                let installed = try await Task.detached(priority: .userInitiated) {
                     try UpdateInstaller.install(
-                        archive: archive, replacing: target, expectedTeam: team
+                        archive: archive,
+                        replacing: target,
+                        expectedTeam: team,
+                        expectedBundleID: bundleID
                     )
                 }.value
+                installInFlight = false
                 progress.close()
+                // A build that reports a different version would have the check
+                // offering the same "update" again on every launch.
+                if let installed, installed != version {
+                    presentVersionSurprise(expected: version, installed: installed, app: target)
+                }
                 relaunch(target, page: page)
+            } catch is CancellationError {
+                installInFlight = false
+                progress.close()
             } catch {
+                installInFlight = false
                 progress.close()
                 presentInstallFailure(error, page: page)
             }
         }
+        progress.onCancel = { work.cancel() }
+        progress.show()
     }
 
-    /// Downloads to a temporary file. `URLSession.download` follows GitHub's
-    /// redirect to the asset host for us.
-    private static func download(_ asset: URL) async throws -> URL {
-        var request = URLRequest(url: asset)
-        request.timeoutInterval = 120
-        let (temporary, response) = try await URLSession.shared.download(for: request)
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            try? FileManager.default.removeItem(at: temporary)
-            throw UpdateError.badResponse
+    /// Downloads to a temporary file, with the guards every other download in
+    /// this app uses: HTTPS only, redirects confined to GitHub's own hosts, and
+    /// a hard size ceiling. Cancellable, and reports progress per chunk.
+    private static func download(
+        _ asset: URL,
+        progress: @escaping @Sendable (Int64, Int64) -> Void
+    ) async throws -> URL {
+        guard asset.scheme?.lowercased() == "https" else {
+            throw UpdateError.insecureURL(asset)
         }
-        // The temporary file is deleted when this call returns, so move it
-        // somewhere we control before handing it to the installer.
+        var request = URLRequest(url: asset)
+        request.timeoutInterval = 60
+        let redirectGuard = HeadlessInstaller.InstallRedirectGuard(origin: asset)
+        let (bytes, response) = try await URLSession.shared.bytes(
+            for: request, delegate: redirectGuard
+        )
+        guard let http = response as? HTTPURLResponse else { throw UpdateError.badResponse }
+        // A redirect could otherwise land on a non-HTTPS host.
+        guard response.url?.scheme?.lowercased() == "https" else {
+            throw UpdateError.insecureURL(response.url ?? asset)
+        }
+        guard http.statusCode == 200 else { throw UpdateError.badResponse }
+
+        let expected = response.expectedContentLength
+        let limit = HeadlessInstaller.maxDownloadBytes
+        if expected > Int64(limit) { throw UpdateError.tooLarge(limitBytes: limit) }
+
         let destination = FileManager.default.temporaryDirectory
             .appendingPathComponent("barshelf-update-\(UUID().uuidString).zip")
-        try FileManager.default.moveItem(at: temporary, to: destination)
+        FileManager.default.createFile(atPath: destination.path, contents: nil)
+        guard let handle = try? FileHandle(forWritingTo: destination) else {
+            throw UpdateError.badResponse
+        }
+        defer { try? handle.close() }
+
+        var buffer = Data()
+        buffer.reserveCapacity(1 << 20)
+        var received: Int64 = 0
+        var lastReported: Int64 = 0
+        progress(0, expected)
+        do {
+            for try await byte in bytes {
+                try Task.checkCancellation()
+                buffer.append(byte)
+                received += 1
+                if received > Int64(limit) { throw UpdateError.tooLarge(limitBytes: limit) }
+                if buffer.count >= 1 << 20 {
+                    try handle.write(contentsOf: buffer)
+                    buffer.removeAll(keepingCapacity: true)
+                }
+                if received - lastReported >= 256 * 1024 {
+                    lastReported = received
+                    progress(received, expected)
+                }
+            }
+            try handle.write(contentsOf: buffer)
+        } catch {
+            try? FileManager.default.removeItem(at: destination)
+            throw error
+        }
+        progress(received, expected)
         return destination
+    }
+
+    private static func presentVersionSurprise(
+        expected: String, installed: String, app: URL
+    ) {
+        let alert = NSAlert()
+        alert.messageText = "The update reports a different version"
+        alert.informativeText = "BarShelf \(expected) was announced, but the"
+            + " installed build reports \(installed). It is signed correctly and"
+            + " has been installed; the release asset may be mismatched."
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 
     private static func relaunch(_ app: URL, page: URL) {
@@ -269,64 +368,18 @@ enum UpdateChecker {
 
     enum UpdateError: LocalizedError {
         case badResponse
+        case insecureURL(URL)
+        case tooLarge(limitBytes: Int)
+
         var errorDescription: String? {
             switch self {
-            case .badResponse: return "GitHub returned an unexpected response."
+            case .badResponse:
+                return "GitHub returned an unexpected response."
+            case let .insecureURL(url):
+                return "The release asset is not served over HTTPS (\(url.host ?? "unknown host"))."
+            case let .tooLarge(limit):
+                return "The release asset is larger than \(limit / 1_048_576) MB."
             }
         }
-    }
-}
-
-/// A small always-on-top panel shown while an update downloads and installs.
-///
-/// A menu-bar app has no window to host progress, and `ToastCenter` only draws
-/// inside the popup — without this the app would sit silent for several seconds
-/// after the user asked it to update.
-@MainActor
-final class UpdateProgressPanel {
-    private let panel: NSPanel
-    private let label: NSTextField
-
-    init(message: String) {
-        label = NSTextField(labelWithString: message)
-        label.alignment = .center
-        label.font = .systemFont(ofSize: 12)
-
-        let spinner = NSProgressIndicator()
-        spinner.style = .bar
-        spinner.isIndeterminate = true
-        spinner.startAnimation(nil)
-
-        let stack = NSStackView(views: [label, spinner])
-        stack.orientation = .vertical
-        stack.spacing = 12
-        stack.edgeInsets = NSEdgeInsets(top: 20, left: 24, bottom: 20, right: 24)
-        spinner.widthAnchor.constraint(equalToConstant: 240).isActive = true
-
-        panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 300, height: 90),
-            styleMask: [.titled, .utilityWindow],
-            backing: .buffered,
-            defer: false
-        )
-        panel.title = "Updating BarShelf"
-        panel.contentView = stack
-        panel.isFloatingPanel = true
-        panel.level = .floating
-        panel.hidesOnDeactivate = false
-    }
-
-    func show() {
-        panel.center()
-        panel.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-    }
-
-    func update(_ message: String) {
-        label.stringValue = message
-    }
-
-    func close() {
-        panel.orderOut(nil)
     }
 }

@@ -67,6 +67,7 @@ final class UpdateInstallerTests: XCTestCase {
         let blocker = UpdateInstaller.blocker(
             appURL: URL(fileURLWithPath: "/Applications/BarShelf.app"),
             hostTeam: nil,
+            isSandboxed: false,
             isWritable: { _ in true },
             fileExists: { _ in false }
         )
@@ -78,10 +79,27 @@ final class UpdateInstallerTests: XCTestCase {
             UpdateInstaller.blocker(
                 appURL: URL(fileURLWithPath: "/Applications/BarShelf.app"),
                 hostTeam: "ABCDE12345",
+                isSandboxed: false,
                 isWritable: { _ in false },
                 fileExists: { _ in false }
             ),
             .notWritable
+        )
+    }
+
+    func testOnlyTheParentDirectoryNeedsToBeWritable() {
+        // An app installed by a package is mode 755 root:wheel inside while
+        // /Applications stays group-writable by admins. `replaceItemAt` renames
+        // into the parent and unlinks from it, so that install can be updated —
+        // refusing it would strand those users on the manual download.
+        XCTAssertNil(
+            UpdateInstaller.blocker(
+                appURL: URL(fileURLWithPath: "/Applications/BarShelf.app"),
+                hostTeam: "ABCDE12345",
+                isSandboxed: false,
+                isWritable: { $0 == "/Applications" },
+                fileExists: { _ in false }
+            )
         )
     }
 
@@ -90,6 +108,51 @@ final class UpdateInstallerTests: XCTestCase {
             UpdateInstaller.blocker(
                 appURL: URL(fileURLWithPath: "/Applications/BarShelf.app"),
                 hostTeam: "ABCDE12345",
+                isSandboxed: false,
+                isWritable: { _ in true },
+                fileExists: { _ in false }
+            )
+        )
+    }
+
+    func testAnAppStoreBuildDefersToTheStore() {
+        // A sandboxed build cannot spawn ditto or spctl, and the Store owns its
+        // updates — offering "Install and Relaunch" would fail at the first
+        // Process launch with an unactionable message.
+        XCTAssertEqual(
+            UpdateInstaller.blocker(
+                appURL: URL(fileURLWithPath: "/Applications/BarShelf.app"),
+                hostTeam: "ABCDE12345",
+                isSandboxed: true,
+                isWritable: { _ in true },
+                fileExists: { _ in false }
+            ),
+            .sandboxed
+        )
+    }
+
+    func testHomebrewOnlyClaimsTheCopyHomebrewActuallyInstalled() {
+        // Someone can have the cask installed *and* run a build from elsewhere.
+        // Telling them to `brew upgrade` would upgrade the other copy and leave
+        // this one stranded forever.
+        XCTAssertNil(
+            UpdateInstaller.blocker(
+                appURL: URL(fileURLWithPath: "/Users/someone/Builds/BarShelf.app"),
+                hostTeam: "ABCDE12345",
+                isSandboxed: false,
+                isWritable: { _ in true },
+                fileExists: { $0 == "/opt/homebrew/Caskroom/barshelf" }
+            )
+        )
+    }
+
+    func testTheCaskPathAloneIsNotEnoughWithoutACaskroom() {
+        // The standard location is also where a manual install goes.
+        XCTAssertNil(
+            UpdateInstaller.blocker(
+                appURL: URL(fileURLWithPath: UpdateInstaller.homebrewAppPath),
+                hostTeam: "ABCDE12345",
+                isSandboxed: false,
                 isWritable: { _ in true },
                 fileExists: { _ in false }
             )
@@ -156,7 +219,8 @@ final class UpdateInstallerTests: XCTestCase {
 
         XCTAssertThrowsError(
             try UpdateInstaller.install(
-                archive: archive, replacing: installed, expectedTeam: "ABCDE12345"
+                archive: archive, replacing: installed,
+                expectedTeam: "ABCDE12345", expectedBundleID: nil
             )
         ) { error in
             guard case .signatureRejected = error as? UpdateInstaller.Failure else {
@@ -171,6 +235,9 @@ final class UpdateInstallerTests: XCTestCase {
     }
 
     func testAnUnwritableDestinationFailsBeforeAnythingIsDownloadedIntoPlace() throws {
+        // access(2) reports true for uid 0 whatever the mode bits say, so as
+        // root this would silently exercise a different path and then fail.
+        try XCTSkipIf(getuid() == 0, "root bypasses the permission bits this asserts on")
         let installed = try makeApp(named: "BarShelf.app", in: root)
         let archive = root.appendingPathComponent("update.zip")
         try zip(installed, to: archive)
@@ -188,7 +255,8 @@ final class UpdateInstallerTests: XCTestCase {
 
         XCTAssertThrowsError(
             try UpdateInstaller.install(
-                archive: archive, replacing: installed, expectedTeam: "ABCDE12345"
+                archive: archive, replacing: installed,
+                expectedTeam: "ABCDE12345", expectedBundleID: nil
             )
         ) { error in
             guard case .destinationNotWritable = error as? UpdateInstaller.Failure else {
@@ -214,34 +282,65 @@ final class UpdateInstallerTests: XCTestCase {
         }
     }
 
-    // MARK: - The path that actually replaces something
-
-    /// A small Developer ID signed bundle from this machine, used to exercise
-    /// verify-then-replace for real. Nested helper apps are preferred because
-    /// they are megabytes rather than hundreds.
-    private func borrowSignedBundle() throws -> (url: URL, team: String) {
-        let fileManager = FileManager.default
-        let applications = URL(fileURLWithPath: "/Applications")
-        let tops = (try? fileManager.contentsOfDirectory(
-            at: applications, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
-        )) ?? []
-        var candidates: [URL] = []
-        for app in tops where app.pathExtension == "app" {
-            let frameworks = app.appendingPathComponent("Contents/Frameworks")
-            let nested = (try? fileManager.contentsOfDirectory(
-                at: frameworks, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
-            )) ?? []
-            candidates.append(contentsOf: nested.filter { $0.pathExtension == "app" })
-        }
-        candidates.append(contentsOf: tops.filter { $0.pathExtension == "app" })
-
-        for candidate in candidates {
-            if let team = CodeSignature.teamIdentifier(of: candidate),
-               CodeSignature.isSigned(candidate, by: team) {
-                return (candidate, team)
+    func testAnArchiveThatIsNotAZipIsRefusedBeforeDittoSeesIt() throws {
+        let archive = root.appendingPathComponent("not-a-zip.zip")
+        try Data(repeating: 0x41, count: 4096).write(to: archive)
+        XCTAssertThrowsError(try UpdateInstaller.validateArchive(archive)) { error in
+            guard case .archiveRejected = error as? UpdateInstaller.Failure else {
+                return XCTFail("expected archiveRejected, got \(error)")
             }
         }
-        throw XCTSkip("no Developer ID signed bundle available to install from")
+    }
+
+    func testAnEmptyOrMissingArchiveIsRefused() throws {
+        let empty = root.appendingPathComponent("empty.zip")
+        try Data().write(to: empty)
+        XCTAssertThrowsError(try UpdateInstaller.validateArchive(empty))
+        XCTAssertThrowsError(
+            try UpdateInstaller.validateArchive(root.appendingPathComponent("absent.zip"))
+        )
+    }
+
+    func testAValidArchivePassesPreflight() throws {
+        let source = root.appendingPathComponent("src")
+        try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+        try makeApp(named: "BarShelf.app", in: source)
+        let archive = root.appendingPathComponent("ok.zip")
+        try zip(source.appendingPathComponent("BarShelf.app"), to: archive)
+        XCTAssertNoThrow(try UpdateInstaller.validateArchive(archive))
+    }
+
+    func testABuildOfADifferentProductIsRefusedEvenWhenCorrectlySigned() throws {
+        let installed = try makeApp(named: "BarShelf.app", in: root, version: "1.0.0")
+        let staging = root.appendingPathComponent("staging")
+        try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
+        let replacement = try makeApp(named: "BarShelf.app", in: staging)
+        let archive = root.appendingPathComponent("update.zip")
+        try zip(replacement, to: archive)
+
+        // The fixture's identifier is com.barshelf.app; asking for another one
+        // stands in for a same-developer build of a different product.
+        XCTAssertThrowsError(
+            try UpdateInstaller.install(
+                archive: archive, replacing: installed,
+                expectedTeam: "ABCDE12345", expectedBundleID: "com.example.other"
+            )
+        ) { error in
+            guard case let .identityMismatch(expected, found) = error as? UpdateInstaller.Failure
+            else { return XCTFail("expected identityMismatch, got \(error)") }
+            XCTAssertEqual(expected, "com.example.other")
+            XCTAssertEqual(found, "com.barshelf.app")
+        }
+        XCTAssertEqual(UpdateInstaller.installedVersion(of: installed), "1.0.0")
+    }
+
+    // MARK: - The path that actually replaces something
+
+    private func borrowSignedBundle() throws -> (url: URL, team: String) {
+        guard let fixture = SignedBundleFixture.shared else {
+            throw XCTSkip("no small Developer ID signed bundle available to install from")
+        }
+        return fixture
     }
 
     func testAProperlySignedUpdateReplacesTheInstalledCopy() throws {
@@ -254,7 +353,7 @@ final class UpdateInstallerTests: XCTestCase {
         // ticket of its own, so assessing it standalone proves nothing.
         let version = try UpdateInstaller.install(
             archive: archive, replacing: installed,
-            expectedTeam: team, checkGatekeeper: false
+            expectedTeam: team, expectedBundleID: nil, checkGatekeeper: false
         )
 
         XCTAssertNotEqual(version, "1.0.0", "the installed copy was not replaced")
@@ -271,7 +370,7 @@ final class UpdateInstallerTests: XCTestCase {
         XCTAssertThrowsError(
             try UpdateInstaller.install(
                 archive: archive, replacing: installed,
-                expectedTeam: "XXXXXXXXXX", checkGatekeeper: false
+                expectedTeam: "XXXXXXXXXX", expectedBundleID: nil, checkGatekeeper: false
             )
         ) { error in
             guard case let .signatureRejected(detail) = error as? UpdateInstaller.Failure else {
@@ -283,21 +382,17 @@ final class UpdateInstallerTests: XCTestCase {
         XCTAssertEqual(UpdateInstaller.installedVersion(of: installed), "1.0.0")
     }
 
-    func testGatekeeperAcceptsAnInstalledNotarizedApplication() throws {
-        let applications = (try? FileManager.default.contentsOfDirectory(
-            at: URL(fileURLWithPath: "/Applications"),
-            includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
-        )) ?? []
-        guard let notarized = applications.first(where: { app in
-            app.pathExtension == "app" && CodeSignature.teamIdentifier(of: app) != nil
-                && CodeSignature.passesGatekeeper(app)
-        }) else {
-            throw XCTSkip("no notarized application available to assess")
+    func testGatekeeperAcceptsSystemCodeAndRefusesAnUnsignedBundle() throws {
+        // A fixed, small, always-present bundle: assessing a directory full of
+        // applications to find one that passes costs minutes on a CI runner.
+        let calculator = URL(fileURLWithPath: "/System/Applications/Calculator.app")
+        if FileManager.default.fileExists(atPath: calculator.path) {
+            XCTAssertTrue(CodeSignature.passesGatekeeper(calculator))
         }
-        XCTAssertTrue(CodeSignature.passesGatekeeper(notarized))
-        // An unsigned directory is not something macOS will run.
+        // The case that matters: macOS will not run this, so neither will we.
         XCTAssertFalse(CodeSignature.passesGatekeeper(try makeApp(named: "Fake.app", in: root)))
     }
+
 }
 
 final class CodeSignatureTests: XCTestCase {
@@ -322,6 +417,37 @@ final class CodeSignatureTests: XCTestCase {
         XCTAssertFalse(CodeSignature.isSigned(file, by: "ABCDE12345"))
     }
 
+    func testTheRequirementPinsDeveloperIDSpecificallyNotJustTheTeam() {
+        let requirement = CodeSignature.developerIDRequirement(team: "ABCDE12345")
+        // Without the leaf extension an Apple Development certificate from the
+        // same team satisfies the requirement — a contributor's debug identity
+        // could then sign a "release".
+        XCTAssertTrue(requirement.contains("certificate leaf[field.1.2.840.113635.100.6.1.13]"))
+        XCTAssertTrue(requirement.contains("certificate 1[field.1.2.840.113635.100.6.2.6]"))
+        XCTAssertTrue(requirement.contains(#"certificate leaf[subject.OU] = "ABCDE12345""#))
+        XCTAssertTrue(requirement.hasPrefix("anchor apple generic"))
+    }
+
+    func testTheHostDeveloperIDTeamIsNeverAWeakerClaimThanItsTeamIdentifier() {
+        // Whatever this test binary is signed with, the Developer ID answer has
+        // to be either "no" or the same team the signature records.
+        if let developerID = CodeSignature.hostDeveloperIDTeam() {
+            XCTAssertEqual(developerID, CodeSignature.hostTeamIdentifier())
+        }
+    }
+
+    func testGatekeeperTimeoutIsTreatedAsRefusal() {
+        // An assessment that cannot finish must not pass, and must not hang:
+        // spctl reaches the network, which stalls behind a captive portal.
+        let started = Date()
+        XCTAssertFalse(
+            CodeSignature.passesGatekeeper(
+                URL(fileURLWithPath: "/System/Applications/Calculator.app"), timeout: 0.001
+            )
+        )
+        XCTAssertLessThan(-started.timeIntervalSinceNow, 5)
+    }
+
     func testStatusesAreDescribedInTermsAUserCanActOn() {
         XCTAssertEqual(CodeSignature.describe(errSecSuccess), "valid")
         XCTAssertEqual(
@@ -332,20 +458,96 @@ final class CodeSignatureTests: XCTestCase {
     }
 
     /// Pinning against a real Developer ID bundle, when the machine has one.
-    /// Skipped rather than asserted away on a runner that has none.
-    func testTeamPinningAcceptsOnlyTheSameDeveloper() throws {
-        let candidates = (try? FileManager.default.contentsOfDirectory(
+    func testTeamPinningRejectsEveryOtherDeveloper() throws {
+        guard let (bundle, team) = SignedBundleFixture.shared else {
+            throw XCTSkip("no Developer ID signed bundle available to verify against")
+        }
+        XCTAssertTrue(CodeSignature.isSigned(bundle, by: team))
+        XCTAssertFalse(CodeSignature.isSigned(bundle, by: "XXXXXXXXXX"))
+    }
+
+    /// A team identifier is recorded for Apple's own apps too, but they are not
+    /// signed under a Developer ID certificate — so pinning must reject them.
+    /// Reading `teamid` and calling it verified would accept any Apple-signed
+    /// application as a BarShelf update.
+    func testATeamIdentifierAloneIsNotAcceptance() throws {
+        let applications = (try? FileManager.default.contentsOfDirectory(
+            at: URL(fileURLWithPath: "/Applications"),
+            includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+        )) ?? []
+        let appleSigned = applications.first { app in
+            guard app.pathExtension == "app",
+                  let team = CodeSignature.teamIdentifier(of: app)
+            else { return false }
+            return !CodeSignature.isSigned(app, by: team)
+        }
+        guard let appleSigned, let team = CodeSignature.teamIdentifier(of: appleSigned) else {
+            throw XCTSkip("no non-Developer-ID signed application present")
+        }
+        XCTAssertFalse(CodeSignature.isSigned(appleSigned, by: team))
+    }
+}
+
+
+/// A small Developer ID signed bundle borrowed from this machine to exercise
+/// verify-then-replace for real.
+///
+/// Resolved once per test process: locating one means code-signing checks and
+/// zipping means copying bytes, and doing either per test turned a 90-second CI
+/// job into a five-minute one. Nested helper apps are preferred because they
+/// are megabytes rather than hundreds, and anything over the cap is skipped
+/// rather than waited on.
+enum SignedBundleFixture {
+    static let maximumBytes = 25 * 1024 * 1024
+
+    static let shared: (url: URL, team: String)? = locate()
+
+    private static func locate() -> (URL, String)? {
+        for candidate in candidates() {
+            guard let size = allocatedSize(of: candidate, cap: maximumBytes),
+                  size > 0
+            else { continue }
+            // "Has a team identifier" is not the same as "Developer ID signed"
+            // — Apple's own apps have one and fail this requirement.
+            guard let team = CodeSignature.teamIdentifier(of: candidate),
+                  CodeSignature.isSigned(candidate, by: team)
+            else { continue }
+            return (candidate, team)
+        }
+        return nil
+    }
+
+    private static func candidates() -> [URL] {
+        let fileManager = FileManager.default
+        let applications = (try? fileManager.contentsOfDirectory(
             at: URL(fileURLWithPath: "/Applications"),
             includingPropertiesForKeys: nil,
             options: [.skipsHiddenFiles]
         )) ?? []
-        let signed = candidates.first { url in
-            url.pathExtension == "app" && CodeSignature.teamIdentifier(of: url) != nil
+        let tops = applications.filter { $0.pathExtension == "app" }
+        var nested: [URL] = []
+        for app in tops {
+            let frameworks = app.appendingPathComponent("Contents/Frameworks")
+            let children = (try? fileManager.contentsOfDirectory(
+                at: frameworks, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+            )) ?? []
+            nested.append(contentsOf: children.filter { $0.pathExtension == "app" })
         }
-        guard let signed, let team = CodeSignature.teamIdentifier(of: signed) else {
-            throw XCTSkip("no Developer ID signed application available to verify against")
+        return nested + tops
+    }
+
+    /// On-disk size, abandoning the walk as soon as it exceeds `cap` — sizing a
+    /// large application otherwise costs more than the test it is guarding.
+    static func allocatedSize(of url: URL, cap: Int) -> Int? {
+        guard let walker = FileManager.default.enumerator(
+            at: url, includingPropertiesForKeys: [.totalFileAllocatedSizeKey], options: []
+        ) else { return nil }
+        var total = 0
+        for case let file as URL in walker {
+            let values = try? file.resourceValues(forKeys: [.totalFileAllocatedSizeKey])
+            total += values?.totalFileAllocatedSize ?? 0
+            if total > cap { return nil }
         }
-        XCTAssertTrue(CodeSignature.isSigned(signed, by: team))
-        XCTAssertFalse(CodeSignature.isSigned(signed, by: "XXXXXXXXXX"))
+        return total
     }
 }

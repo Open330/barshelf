@@ -13,6 +13,47 @@ import Foundation
 public enum SafeZipExtractor {
     public static let defaultMaxExtractedBytes = 256 * 1024 * 1024
 
+    /// Validates an archive's central directory without writing anything:
+    /// every entry must stay inside the destination, and the uncompressed total
+    /// must fit under `maxExtractedBytes`. Returns the entry names.
+    ///
+    /// This exists for archives that cannot be expanded by `extract` because
+    /// they must keep their symlinks and extended attributes — a signed app
+    /// bundle, whose seal is computed over them. Those go to `ditto`, which
+    /// means untrusted bytes reach an extractor before anything has verified
+    /// them; checking the directory first is what bounds that.
+    public static func inspect(
+        zipData: Data,
+        maxExtractedBytes: Int = defaultMaxExtractedBytes
+    ) throws -> [String] {
+        let entries = try ZipReader(data: zipData).centralDirectoryEntries()
+        var totalBytes = 0
+        var names: [String] = []
+        for entry in entries {
+            try validatePath(entry.name)
+            guard !entry.isDirectory else { continue }
+            totalBytes += Int(entry.uncompressedSize)
+            guard totalBytes <= maxExtractedBytes else {
+                throw ZipExtractionError.extractionTooLarge(limitBytes: maxExtractedBytes)
+            }
+            names.append(entry.name)
+        }
+        return names
+    }
+
+    /// Rejects entry names that would escape the destination once joined to it.
+    static func validatePath(_ name: String) throws {
+        let components = name.split(separator: "/").map(String.init)
+        guard !name.hasPrefix("/"),
+              !name.contains("\\"),
+              !components.isEmpty,
+              !components.contains(".."),
+              !components.contains("")
+        else {
+            throw ZipExtractionError.pathTraversal(name)
+        }
+    }
+
     /// Extracts `zipData` into `destination` (created if needed).
     /// Returns the relative paths of the files written.
     @discardableResult
@@ -35,15 +76,8 @@ public enum SafeZipExtractor {
             // Symbolic links are ignored entirely (security contract).
             if entry.isSymlink { continue }
 
+            try validatePath(entry.name)
             let components = entry.name.split(separator: "/").map(String.init)
-            guard !entry.name.hasPrefix("/"),
-                  !entry.name.contains("\\"),
-                  !components.isEmpty,
-                  !components.contains(".."),
-                  !components.contains("")
-            else {
-                throw ZipExtractionError.pathTraversal(entry.name)
-            }
 
             var target = destination
             for component in components {
