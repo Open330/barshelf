@@ -22,32 +22,46 @@ final class MenuBarPromotionTests: XCTestCase {
 
     // MARK: - Placement resolution
 
-    func testPlacementFallsBackToTheAuthorMode() {
-        XCTAssertFalse(
-            MenuBarPolicy.resolvedPlacement(stored: nil, statusItem: nil).enabled
-        )
-        XCTAssertFalse(
-            MenuBarPolicy.resolvedPlacement(
-                stored: nil, statusItem: Manifest.StatusItem(mode: "none")
-            ).enabled
-        )
-        for mode in ["icon", "text", "dynamic"] {
-            XCTAssertTrue(
-                MenuBarPolicy.resolvedPlacement(
-                    stored: nil, statusItem: Manifest.StatusItem(mode: mode)
-                ).enabled,
-                "mode \(mode) should be promotable"
+    func testAuthorEligibilityDoesNotEnableTheMenuBarByItself() {
+        // An update that starts declaring `statusItem` must not take over
+        // someone's menu bar, nor start polling with the popup closed.
+        for statusItem in [nil, Manifest.StatusItem(mode: "none"),
+                           Manifest.StatusItem(mode: "icon"),
+                           Manifest.StatusItem(mode: "text"),
+                           Manifest.StatusItem(mode: "dynamic")] {
+            XCTAssertFalse(
+                MenuBarPolicy.resolvedPlacement(stored: nil, statusItem: statusItem).enabled,
+                "mode \(statusItem?.mode ?? "nil") should stay off until the user asks"
             )
         }
+        // Eligibility is still what the picker offers.
+        XCTAssertTrue(Manifest.StatusItem(mode: "text").isPromotable)
+        XCTAssertFalse(Manifest.StatusItem(mode: "none").isPromotable)
     }
 
-    func testStoredPlacementOverridesTheAuthorMode() {
+    func testEffectiveStatusItemGivesAHandPromotedWidgetALabel() {
+        // A widget the user promoted from settings has no author mode to
+        // follow; it behaves as "text" so it can join the shared strip.
+        XCTAssertTrue(MenuBarPolicy.effectiveStatusItem(nil).showsLabel)
+        XCTAssertTrue(
+            MenuBarPolicy.effectiveStatusItem(Manifest.StatusItem(mode: "none")).showsLabel
+        )
+        // A declared mode is honored as-is.
+        XCTAssertFalse(
+            MenuBarPolicy.effectiveStatusItem(Manifest.StatusItem(mode: "icon")).showsLabel
+        )
+        XCTAssertTrue(
+            MenuBarPolicy.effectiveStatusItem(Manifest.StatusItem(mode: "icon")).showsIcon
+        )
+    }
+
+    func testStoredPlacementIsAuthoritative() {
         // A user may promote a widget its author left out of the menu bar…
         XCTAssertTrue(MenuBarPolicy.resolvedPlacement(
             stored: MenuBarPlacement(enabled: true),
             statusItem: Manifest.StatusItem(mode: "none")
         ).enabled)
-        // …and demote one the author opted in.
+        // …and demote one the author marked promotable.
         XCTAssertFalse(MenuBarPolicy.resolvedPlacement(
             stored: MenuBarPlacement(enabled: false),
             statusItem: Manifest.StatusItem(mode: "text")
@@ -98,9 +112,6 @@ final class MenuBarPromotionTests: XCTestCase {
         XCTAssertEqual(MenuBarPolicy.stalenessThreshold(interval: 30), 90)
         // A fast cadence must not flicker between fresh and stale.
         XCTAssertEqual(MenuBarPolicy.stalenessThreshold(interval: 2), 30)
-        // No configured interval: one minute before the value is doubted.
-        XCTAssertEqual(MenuBarPolicy.stalenessThreshold(interval: nil), 60)
-        XCTAssertEqual(MenuBarPolicy.stalenessThreshold(interval: 0), 60)
     }
 
     func testNeverRefreshedCountsAsStale() {
@@ -112,6 +123,19 @@ final class MenuBarPromotionTests: XCTestCase {
         XCTAssertTrue(MenuBarPolicy.isStale(
             updatedAt: now.addingTimeInterval(-31), interval: 2, now: now
         ))
+    }
+
+    func testAWidgetWithNoIntervalIsNeverStale() {
+        // An event-driven or manual-refresh widget has no timer that could
+        // ever refresh it, so dimming its value would be permanent and wrong.
+        let now = Date()
+        XCTAssertNil(MenuBarPolicy.stalenessThreshold(interval: nil))
+        XCTAssertNil(MenuBarPolicy.stalenessThreshold(interval: 0))
+        XCTAssertFalse(MenuBarPolicy.isStale(
+            updatedAt: now.addingTimeInterval(-86_400), interval: nil, now: now
+        ))
+        // It is still stale before it has ever rendered.
+        XCTAssertTrue(MenuBarPolicy.isStale(updatedAt: nil, interval: nil, now: now))
     }
 
     // MARK: - Ordering and partitioning
@@ -134,12 +158,26 @@ final class MenuBarPromotionTests: XCTestCase {
         XCTAssertEqual(separate.map(\.widgetID), ["b"])
     }
 
-    func testPartitionDropsEmptyEntriesAndCapsTheTotal() {
-        var entries = (0..<8).map { entry("w\($0)") }
-        entries.insert(entry("blank", symbol: nil, label: nil), at: 0)
+    func testPromotionIsCappedBeforeAnythingIsDrawn() {
+        let entries = (0..<8).map { entry("w\($0)") }
+        // The cap is what the scheduler polls, so it must bite here and not
+        // only at draw time.
+        XCTAssertEqual(
+            MenuBarPolicy.promoted(entries).map(\.widgetID),
+            (0..<MenuBarPolicy.maxEntries).map { "w\($0)" }
+        )
         let (strip, separate) = MenuBarPolicy.partition(entries)
         XCTAssertEqual(strip.count + separate.count, MenuBarPolicy.maxEntries)
-        XCTAssertFalse(strip.contains { $0.widgetID == "blank" })
+    }
+
+    func testAnEntryWithNothingToDrawStaysPromotedButIsNotDrawn() {
+        // It has to keep its refresh to ever produce a first label — dropping
+        // it from the promoted set would strand it permanently blank.
+        let entries = [entry("blank", symbol: nil, label: nil), entry("cpu")]
+        XCTAssertEqual(MenuBarPolicy.promoted(entries).count, 2)
+        let (strip, separate) = MenuBarPolicy.partition(entries)
+        XCTAssertEqual(strip.map(\.widgetID), ["cpu"])
+        XCTAssertTrue(separate.isEmpty)
     }
 
     // MARK: - Rendered text
@@ -162,6 +200,7 @@ final class MenuBarPromotionTests: XCTestCase {
         let bare = entry("temp", name: "Sensors", label: "58°")
         var silent = entry("quiet", name: "Quiet", label: nil)
         silent.symbol = "bell"
+
 
         XCTAssertEqual(
             MenuBarPolicy.tooltip(for: [detailed, bare, silent]),

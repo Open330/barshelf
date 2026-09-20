@@ -585,8 +585,12 @@ final class HIDSensorClient {
             "PrimaryUsage": Self.sensorUsage,
         ] as CFDictionary
         _ = symbols.setMatching(client, matching)
-        guard let matched = symbols.copyServices(client)?.takeRetainedValue() as? [AnyObject]
+        guard let matched = symbols.copyServices(client)?.takeRetainedValue() as? [AnyObject],
+              !matched.isEmpty
         else { return nil }
+        // Only a non-empty match is worth keeping: the client can come back
+        // empty while IOKit is still matching at launch, and caching that
+        // would report "no sensors" for the rest of the process lifetime.
         services = matched
         return matched
     }

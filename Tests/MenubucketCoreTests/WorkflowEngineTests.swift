@@ -1196,4 +1196,35 @@ final class PersistenceWidgetTests: XCTestCase {
         XCTAssertEqual(output.viewTree.text, "a1trueb")
     }
 
+
+    func testStringLiteralsMayContainCommas() throws {
+        // `concat` exists to join literals, and a separator literal is the
+        // commonest one of all — argument splitting must not cut it in half.
+        let definition = WorkflowDefinition(
+            sources: [:],
+            view: .object([
+                "type": .string("text"),
+                "text": .string("${concat('a', ', ', 'b')}"),
+            ])
+        )
+        let output = try WorkflowEngine.evaluate(
+            definition, sources: [:], settings: .object([:])
+        )
+        XCTAssertEqual(output.viewTree.text, "a, b")
+    }
+
+    func testCommasInsideLiteralsSurviveNestedCalls() throws {
+        let definition = WorkflowDefinition(
+            sources: [:],
+            view: .object([
+                "type": .string("text"),
+                "text": .string("${concat(if(true, 'x, y', 'z'), \" · \", 'w')}"),
+            ])
+        )
+        let output = try WorkflowEngine.evaluate(
+            definition, sources: [:], settings: .object([:])
+        )
+        XCTAssertEqual(output.viewTree.text, "x, y · w")
+    }
+
 }

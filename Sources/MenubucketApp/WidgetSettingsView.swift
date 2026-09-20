@@ -92,7 +92,14 @@ struct WidgetSettingsView: View {
         runtime.prefs.setAppearanceOverride(
             appearanceDraft == base ? nil : appearanceDraft, for: widget.id
         )
-        runtime.setMenuBarPlacement(menuBarDraft, for: widget.id)
+        // Same rule as the appearance override above: storing a placement that
+        // matches the default would pin the widget away from it forever.
+        let menuBarBase = MenuBarPolicy.resolvedPlacement(
+            stored: nil, statusItem: widget.manifest.statusItem
+        )
+        runtime.setMenuBarPlacement(
+            menuBarDraft == menuBarBase ? nil : menuBarDraft, for: widget.id
+        )
         dismiss()
         runtime.refresh(widgetID: widget.id)
     }
@@ -101,8 +108,11 @@ struct WidgetSettingsView: View {
 
     /// True when the widget can contribute text to the shared strip. An
     /// icon-only widget always needs its own status item.
+    ///
+    /// Resolved through the same rule the renderer uses, so this pane cannot
+    /// promise a layout the menu bar will not produce.
     private var canShareStrip: Bool {
-        widget.manifest.statusItem?.showsLabel ?? true
+        MenuBarPolicy.effectiveStatusItem(widget.manifest.statusItem).showsLabel
     }
 
     /// The widget last rendered without any status text, so promoting it would

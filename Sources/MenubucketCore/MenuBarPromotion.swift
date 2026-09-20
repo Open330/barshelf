@@ -56,9 +56,6 @@ public struct MenuBarEntry: Equatable, Sendable {
     /// refresh cadence allows — the value on screen is no longer current, so
     /// the strip dims it rather than passing off a frozen number as live.
     public var isStale: Bool
-    /// True when the most recent refresh failed (the last-good value is still
-    /// shown, per the "UI never blanks" invariant).
-    public var hasError: Bool
     public var separate: Bool
 
     public init(
@@ -68,7 +65,6 @@ public struct MenuBarEntry: Equatable, Sendable {
         label: String? = nil,
         tooltip: String? = nil,
         isStale: Bool = false,
-        hasError: Bool = false,
         separate: Bool = false
     ) {
         self.widgetID = widgetID
@@ -77,7 +73,6 @@ public struct MenuBarEntry: Equatable, Sendable {
         self.label = label
         self.tooltip = tooltip
         self.isStale = isStale
-        self.hasError = hasError
         self.separate = separate
     }
 
@@ -106,8 +101,12 @@ public enum MenuBarPolicy {
     /// How far past its refresh cadence a value may drift before it is drawn
     /// as stale. Three missed refreshes, and never less than 30 s so a widget
     /// with a fast cadence does not flicker between fresh and stale.
-    public static func stalenessThreshold(interval: Double?) -> Double {
-        guard let interval, interval > 0 else { return 60 }
+    ///
+    /// `nil` when the widget has no interval at all: an event-driven or
+    /// manual-refresh widget is as current as it is ever going to be, so
+    /// there is no cadence to fall behind.
+    public static func stalenessThreshold(interval: Double?) -> Double? {
+        guard let interval, interval > 0 else { return nil }
         return max(interval * 3, 30)
     }
 
@@ -116,18 +115,37 @@ public enum MenuBarPolicy {
         interval: Double?,
         now: Date = Date()
     ) -> Bool {
-        guard let updatedAt else { return true }
-        return now.timeIntervalSince(updatedAt) > stalenessThreshold(interval: interval)
+        guard let updatedAt else { return true } // never rendered
+        guard let threshold = stalenessThreshold(interval: interval) else { return false }
+        return now.timeIntervalSince(updatedAt) > threshold
     }
 
-    /// The user's stored choice, falling back to what the widget's author
-    /// declared in `statusItem.mode`.
+    /// The user's stored choice.
+    ///
+    /// With nothing stored a widget stays off the menu bar, whatever its
+    /// author declared: `statusItem.mode` marks a widget *eligible*, and
+    /// turning it on is the user's call. Taking over someone's menu bar (and
+    /// its closed-popup polling) on an update is not a default worth having.
     public static func resolvedPlacement(
         stored: MenuBarPlacement?,
         statusItem: Manifest.StatusItem?
     ) -> MenuBarPlacement {
-        if let stored { return stored }
-        return MenuBarPlacement(enabled: statusItem?.isPromotable ?? false)
+        stored ?? MenuBarPlacement(enabled: false)
+    }
+
+    /// The display mode a widget is actually drawn with.
+    ///
+    /// A widget the user promoted by hand may carry no author mode, or an
+    /// explicit `"none"`; it then behaves as `"text"`, the form the shared
+    /// strip can draw. One rule, so the settings pane and the renderer cannot
+    /// disagree about what a widget will look like.
+    public static func effectiveStatusItem(
+        _ statusItem: Manifest.StatusItem?
+    ) -> Manifest.StatusItem {
+        guard let statusItem, statusItem.isPromotable else {
+            return Manifest.StatusItem(mode: "text")
+        }
+        return statusItem
     }
 
     /// Collapses whitespace and clips to `maxLabelCharacters`, since a status
@@ -170,15 +188,26 @@ public enum MenuBarPolicy {
             .map(\.element.entry)
     }
 
-    /// Splits ordered entries into the shared strip and the widgets that asked
-    /// for their own status item, applying `maxEntries` across both.
+    /// The entries that are actually promoted, capped at `maxEntries`.
+    ///
+    /// This — not the drawn set — is what keeps polling while the popup is
+    /// closed. The cap is applied before the "has something to draw" filter on
+    /// purpose: a widget that has not rendered yet still needs its refresh to
+    /// produce a first label, and a widget past the cap must not hold the
+    /// closed-popup exemption for a value nobody can see.
+    public static func promoted(_ entries: [MenuBarEntry]) -> [MenuBarEntry] {
+        Array(entries.prefix(maxEntries))
+    }
+
+    /// Splits the promoted entries into the shared strip and the widgets that
+    /// asked for their own status item, dropping those with nothing to draw.
     public static func partition(
         _ entries: [MenuBarEntry]
     ) -> (strip: [MenuBarEntry], separate: [MenuBarEntry]) {
-        let visible = entries.filter { !$0.isEmpty }.prefix(maxEntries)
+        let drawable = promoted(entries).filter { !$0.isEmpty }
         return (
-            strip: visible.filter { !$0.separate },
-            separate: visible.filter(\.separate)
+            strip: drawable.filter { !$0.separate },
+            separate: drawable.filter(\.separate)
         )
     }
 

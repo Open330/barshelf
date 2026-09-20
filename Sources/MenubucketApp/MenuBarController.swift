@@ -12,10 +12,13 @@ import MenubucketCore
 final class MenuBarStatusStore: ObservableObject {
     @Published private(set) var entries: [MenuBarEntry] = []
 
-    /// Widget ids currently drawn in the menu bar — the set the scheduler
-    /// keeps polling while the popup is closed.
+    /// Widget ids actually promoted — the set the scheduler keeps polling
+    /// while the popup is closed.
+    ///
+    /// Capped the same way the renderer caps, so a widget past `maxEntries`
+    /// never holds the closed-popup exemption for a value nobody can see.
     var promotedWidgetIDs: Set<String> {
-        Set(entries.map(\.widgetID))
+        Set(MenuBarPolicy.promoted(entries).map(\.widgetID))
     }
 
     func apply(_ entries: [MenuBarEntry]) {

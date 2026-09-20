@@ -301,6 +301,10 @@ final class Scheduler {
 
     private func automaticRefreshEligible(widgetID: String) -> Bool {
         guard let widget = widgets.first(where: { $0.id == widgetID }) else { return false }
+        // `popupOnly` disables every automatic path. Timer/watch/trigger
+        // construction already skips these widgets, so this only guards the
+        // invariant against a future caller.
+        if widget.manifest.refresh?.popupOnly == true { return false }
         if menuBarWidgetIDs.contains(widgetID) {
             // Battery saver still wins: a paused promoted widget freezes and
             // the menu bar dims it rather than showing a stale value as live.

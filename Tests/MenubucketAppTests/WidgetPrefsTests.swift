@@ -174,24 +174,26 @@ final class WidgetPrefsTests: XCTestCase {
             schemaVersion: 1, id: "quiet", name: "Quiet",
             entry: .init(kind: "workflow")
         )
-        XCTAssertTrue(prefs.menuBarPlacement(for: promoted).enabled)
+        // Author eligibility is an offer, not consent — nothing is on until
+        // the user turns it on.
+        XCTAssertFalse(prefs.menuBarPlacement(for: promoted).enabled)
         XCTAssertFalse(prefs.menuBarPlacement(for: quiet).enabled)
 
-        prefs.setMenuBarPlacement(MenuBarPlacement(enabled: false), for: "promoted")
+        prefs.setMenuBarPlacement(MenuBarPlacement(enabled: true), for: "promoted")
         prefs.setMenuBarPlacement(
             MenuBarPlacement(enabled: true, separate: true, order: 1), for: "quiet"
         )
 
         let reloaded = WidgetPrefs(fileURL: fileURL)
-        XCTAssertFalse(reloaded.menuBarPlacement(for: promoted).enabled)
+        XCTAssertTrue(reloaded.menuBarPlacement(for: promoted).enabled)
         XCTAssertEqual(
             reloaded.menuBarPlacement(for: quiet),
             MenuBarPlacement(enabled: true, separate: true, order: 1)
         )
 
-        // Clearing the override restores the manifest default.
+        // Clearing the stored choice returns the widget to off.
         reloaded.setMenuBarPlacement(nil, for: "promoted")
-        XCTAssertTrue(reloaded.menuBarPlacement(for: promoted).enabled)
+        XCTAssertFalse(reloaded.menuBarPlacement(for: promoted).enabled)
     }
 
     func testRemovingAWidgetClearsItsMenuBarPlacement() {

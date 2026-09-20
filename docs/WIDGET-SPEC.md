@@ -155,7 +155,7 @@ Workflow DSL 상세 계약은 [`docs/WORKFLOW.md`](WORKFLOW.md)를 따른다.
 
 | 필드 | 설명 |
 | --- | --- |
-| `mode` | `none`은 메뉴바에 넣지 않는다. `text`는 status label만, `icon`은 아이콘만, `dynamic`은 둘 다. `none`이 아니면 *승격 가능*해지고, 실제 표시 여부는 사용자의 위젯 설정(Settings → Menu Bar)이 정한다. |
+| `mode` | `none`은 메뉴바에 넣지 않는다. `text`는 status label만, `icon`은 아이콘만, `dynamic`은 둘 다. `none`이 아니면 *승격 가능*해져 메뉴바 선택 목록에 오르지만, **사용자가 켜기 전에는 아무것도 표시되지 않는다**. 켜는 곳은 BarShelf 아이콘 우클릭의 **Menu Bar ▸** 또는 위젯 설정의 Menu Bar 섹션이다. |
 | `icon` | status item 아이콘(SF Symbol 이름). 없으면 manifest의 `icon`을 쓴다. |
 | `labelFrom` | 스키마 호환용. 현재 런타임은 읽지 않는다. |
 | `tooltipFrom` | 스키마 호환용. 현재 런타임은 읽지 않는다. |
@@ -168,7 +168,8 @@ Workflow DSL 상세 계약은 [`docs/WORKFLOW.md`](WORKFLOW.md)를 따른다.
 - label을 가진 위젯들은 BarShelf 마크와 **status item 하나를 공유**한다
   (`✦ 42% · 61% · 58°`). 위젯 설정이나 우클릭 메뉴에서 자기 아이템으로 분리할 수
   있다. `icon` 모드는 아이콘을 글자 줄에 섞을 수 없으므로 항상 자기 아이템을 쓴다.
-- 최대 5개까지 그린다. label은 한 줄로 합쳐 14자에서 자른다.
+- 최대 5개까지 승격된다. 이 상한은 그리기 전에 적용되므로, 넘친 위젯이 보이지도 않으면서 닫힌 팝오버 폴링 면제를 들고 있는 일은 없다. label은 한 줄로 합쳐 14자에서 자른다.
+- 작성자가 `mode`를 선언해도 그것만으로 켜지지 않는다. 업데이트가 사용자의 메뉴바를 말없이 차지하고 배터리를 더 쓰게 만들지 않기 위해서다.
 - 승격된 위젯은 팝오버가 닫혀 있어도 자기 `refresh.interval`로 계속 돈다.
   `runInBackground` 요구와 5초/60초 하한을 면제받고(고유 하한 1초), 앱 설정의
   "닫혀 있을 때 일시정지"에는 여전히 걸린다. 그때 멈춘 값은 메뉴바에서 흐리게
