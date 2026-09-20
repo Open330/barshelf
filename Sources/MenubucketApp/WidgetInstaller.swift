@@ -495,7 +495,27 @@ final class DownloadProgressPanel: NSObject, @unchecked Sendable {
 
     private var panel: NSPanel?
     private let indicator = NSProgressIndicator()
-    private let label = NSTextField(labelWithString: "Downloading widget…")
+    private let label: NSTextField
+    private let title: String
+
+    /// The app update reuses this panel, so the wording is a parameter — the
+    /// determinate bar and the working Cancel are the point of sharing it.
+    init(title: String = "Installing Widget", message: String = "Downloading widget…") {
+        self.title = title
+        self.label = NSTextField(labelWithString: message)
+        super.init()
+    }
+
+    /// Switches the panel to a phase that has no byte count (verifying,
+    /// installing), returning the bar to its indeterminate state.
+    func setMessage(_ message: String) {
+        guard let panel, panel.isVisible else { return }
+        label.stringValue = message
+        if !indicator.isIndeterminate {
+            indicator.isIndeterminate = true
+        }
+        indicator.startAnimation(nil)
+    }
 
     func show() {
         let content = NSView(frame: NSRect(x: 0, y: 0, width: 340, height: 104))
@@ -524,7 +544,7 @@ final class DownloadProgressPanel: NSObject, @unchecked Sendable {
             backing: .buffered,
             defer: false
         )
-        panel.title = "Installing Widget"
+        panel.title = title
         panel.contentView = content
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false

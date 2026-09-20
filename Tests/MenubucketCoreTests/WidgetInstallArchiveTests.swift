@@ -418,4 +418,42 @@ private extension Data {
         append(UInt8((value >> 16) & 0xFF))
         append(UInt8((value >> 24) & 0xFF))
     }
+
+    func testInspectRejectsEntriesThatWouldEscapeTheDestination() {
+        for name in ["../evil", "/etc/passwd", "a/../../b", "a//b", "a\\b"] {
+            XCTAssertThrowsError(
+                try SafeZipExtractor.validatePath(name), "accepted \(name)"
+            ) { error in
+                XCTAssertEqual(error as? ZipExtractionError, .pathTraversal(name))
+            }
+        }
+        XCTAssertNoThrow(try SafeZipExtractor.validatePath("BarShelf.app/Contents/Info.plist"))
+    }
+
+    func testInspectEnforcesTheUncompressedCeilingWithoutWritingAnything() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("inspect-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try Data(repeating: 0x41, count: 64 * 1024)
+            .write(to: directory.appendingPathComponent("payload.bin"))
+
+        let archive = directory.appendingPathComponent("payload.zip")
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+        process.arguments = [
+            "-c", "-k", directory.appendingPathComponent("payload.bin").path, archive.path,
+        ]
+        try process.run()
+        process.waitUntilExit()
+
+        let data = try Data(contentsOf: archive)
+        XCTAssertNoThrow(try SafeZipExtractor.inspect(zipData: data))
+        XCTAssertThrowsError(
+            try SafeZipExtractor.inspect(zipData: data, maxExtractedBytes: 1024)
+        ) { error in
+            XCTAssertEqual(error as? ZipExtractionError, .extractionTooLarge(limitBytes: 1024))
+        }
+    }
+
 }

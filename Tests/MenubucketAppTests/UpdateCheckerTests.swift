@@ -39,6 +39,13 @@ final class UpdateCheckerTests: XCTestCase {
         )
         // arm64 is the only architecture release.sh will build for.
         XCTAssertTrue(script.contains(#"public BarShelf releases currently support arm64 only"#))
+        // `locateApp` only looks at the top level of the expanded archive, so
+        // the zip has to keep the .app as its root entry. Drop --keepParent and
+        // every in-app update fails with "contains no application".
+        XCTAssertTrue(
+            script.contains(#"ditto -c -k --keepParent "${APP_BUNDLE_PATH}" "${APP_ZIP}""#),
+            "release.sh no longer zips the app with --keepParent"
+        )
 
         XCTAssertEqual(
             UpdateChecker.appAssetName(version: "0.2.0"), "BarShelf-0.2.0-arm64.zip"
