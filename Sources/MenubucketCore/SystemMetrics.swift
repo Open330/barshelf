@@ -1,4 +1,10 @@
-import Darwin
+// `mach_task_self_` is imported from Darwin as a mutable global: libSystem
+// writes it once at process start and never again. SDKs new enough to annotate
+// it `__swift_nonisolated_unsafe` say so, older ones do not — and CI builds
+// this target with `-strict-concurrency=complete -warnings-as-errors`, where
+// the unannotated form is an error. Vouching for the module here keeps the
+// build identical across both SDKs.
+@preconcurrency import Darwin
 import Foundation
 
 /// Native system telemetry for the `system` workflow source: CPU load, memory,

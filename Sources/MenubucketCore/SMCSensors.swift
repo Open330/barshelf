@@ -1,3 +1,6 @@
+// See `SystemMetrics.swift` — `mach_task_self_` (used by `IOServiceOpen`) is a
+// mutable Darwin global that older SDKs leave unannotated.
+@preconcurrency import Darwin
 import Foundation
 import IOKit
 
