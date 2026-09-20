@@ -7,6 +7,11 @@ public enum SchedulePolicy {
     public static let minForegroundIntervalSec: Double = 5
     /// Minimum interval while the popup is closed (`runInBackground` only).
     public static let minBackgroundIntervalSec: Double = 60
+    /// Minimum interval for a widget promoted to the menu bar. A visible live
+    /// value is the whole point of promotion, so it polls at its configured
+    /// cadence whether or not the popup is open — well below the ordinary
+    /// floors, which exist to keep *hidden* widgets from burning battery.
+    public static let minMenuBarIntervalSec: Double = 1
     /// Closed-popup intervals are relaxed by this factor.
     public static let backgroundRelaxFactor: Double = 4
 
@@ -30,16 +35,25 @@ public enum SchedulePolicy {
     ///   configured interval *before* the minimum clamps, so 0.5× can never
     ///   undercut the 5 s / 60 s floors.
     /// - `pauseWhenClosed`: battery saver — while the popup is closed nothing
-    ///   polls, `runInBackground` widgets included.
+    ///   polls, `runInBackground` and menu-bar widgets included. A promoted
+    ///   widget then freezes rather than lying about being live, and the menu
+    ///   bar dims it once it goes stale.
+    /// - `menuBarPromoted`: the widget is drawn in the menu bar, so it keeps
+    ///   its own cadence in both popup states.
     public static func effectiveInterval(
         configured: Double?,
         popupOpen: Bool,
         runInBackground: Bool,
         multiplier: Double = 1,
-        pauseWhenClosed: Bool = false
+        pauseWhenClosed: Bool = false,
+        menuBarPromoted: Bool = false
     ) -> Double? {
         guard let configured, configured > 0 else { return nil }
         let scaled = configured * normalizedRefreshMultiplier(multiplier)
+        if menuBarPromoted {
+            if !popupOpen, pauseWhenClosed { return nil }
+            return max(scaled, minMenuBarIntervalSec)
+        }
         if popupOpen {
             return max(scaled, minForegroundIntervalSec)
         }

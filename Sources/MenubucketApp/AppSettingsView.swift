@@ -216,7 +216,10 @@ struct AppSettingsView: View {
                 set: { value in appPrefs.update { $0.pauseWhenClosed = value } }
             )) {
                 Text("Pause When Closed")
-                Text("Stop refreshing widgets while the popup is hidden.")
+                Text(
+                    "Stop refreshing widgets while the popup is hidden."
+                        + " Menu bar values freeze too, and are dimmed once stale."
+                )
             }
         } header: {
             Text("Refresh Policy")

@@ -10,7 +10,7 @@ BarShelf stores widget manifests, preferences, refresh state, cached registry da
 
 ## Widget Permissions
 
-Widgets can request permissions such as command execution, file access, network access, environment variables, notifications, and Keychain access. BarShelf shows permission gates for widget capabilities, but third-party widgets are responsible for what they do after you approve them.
+Widgets can request permissions such as command execution, file access, network access, system telemetry (CPU, memory, disk and hardware sensor readings, all read locally and never transmitted by BarShelf), environment variables, notifications, and Keychain access. BarShelf shows permission gates for widget capabilities, but third-party widgets are responsible for what they do after you approve them.
 
 ## Network Access
 

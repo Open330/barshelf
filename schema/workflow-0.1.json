@@ -54,7 +54,10 @@
           "type": "string",
           "enum": [
             "exec",
-            "fs.directory"
+            "fs.directory",
+            "http",
+            "system",
+            "value"
           ]
         },
         "with": {
@@ -97,6 +100,25 @@
             "properties": {
               "with": {
                 "$ref": "#/definitions/execOptions"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "use": {
+                "const": "system"
+              }
+            },
+            "required": [
+              "use"
+            ]
+          },
+          "then": {
+            "properties": {
+              "with": {
+                "$ref": "#/definitions/systemOptions"
               }
             }
           }
@@ -445,6 +467,35 @@
           "$ref": "#/definitions/templateString"
         }
       ]
+    },
+    "systemOptions": {
+      "description": "Native system telemetry. Each requested group must appear in the manifest's permissions.system. Percentages are 0-100, byte counts are bytes, temperatures are degrees Celsius, and anything the machine does not publish is null.",
+      "type": "object",
+      "properties": {
+        "metrics": {
+          "description": "Groups to sample. Omitted means every group the widget is permitted to read.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "cpu",
+              "memory",
+              "disk",
+              "sensors"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "detail": {
+          "description": "Also emit cpu.cores[] and sensors.list[]. Roughly 4x the cost of a plain sample.",
+          "type": "boolean"
+        },
+        "mount": {
+          "description": "Mount point the disk group reports on. Defaults to \"/\".",
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
     }
   }
 }

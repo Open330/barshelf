@@ -80,7 +80,7 @@ Builder의 고급 UI는 `WorkflowGraph`를 편집 모델로 사용할 수 있다
 | `transforms` | 순수 변환 단계. v1은 `assign`, `filter`, `sort`, `limit`를 지원한다. |
 | `view` | 렌더링할 UINode 템플릿. 문자열 필드에서만 `${...}` 보간을 허용한다. |
 | `empty` | 반복 결과가 비어 있을 때 사용할 UINode. |
-| `status` | status item label/tooltip 등에 쓸 값. |
+| `status` | 메뉴바 status item의 label/tooltip. [메뉴바 승격](#메뉴바-승격) 참조. |
 | `store` | 평가가 끝난 뒤 위젯 저장소에 커밋할 키/값. 자세한 내용은 [영속성](#영속성-storage) 참조. |
 
 ## 소스
@@ -92,6 +92,7 @@ Builder의 고급 UI는 `WorkflowGraph`를 편집 모델로 사용할 수 있다
 | `fs.directory` | `path`, `watch`, `skipHidden`, `sortBy`, `sortDirection`, `limit` | `{ "items": [...] }` |
 | `exec` | `command`, `timeoutMs`, `output`, `maxOutputBytes` | stdout JSON |
 | `http` | `url`, `headers` | HTTPS JSON response |
+| `system` | `metrics`, `detail`, `mount` | CPU/메모리/디스크/센서 측정값 |
 | `value` | any JSON literal | the literal JSON value |
 
 `fs.directory` item 필드는 고정이다.
@@ -170,6 +171,51 @@ Builder의 고급 UI는 `WorkflowGraph`를 편집 모델로 사용할 수 있다
 }
 ```
 
+`system` source는 Mach / sysctl / IOKit에서 시스템 측정값을 직접 읽는다.
+서브프로세스를 띄우지 않으므로 `permissions.exec`가 필요 없고, 한 번 샘플링하는
+비용이 10ms 미만이라 메뉴바 주기(1~3초)에도 쓸 수 있다. 대신 읽는 그룹을
+manifest의 `permissions.system`에 **모두 선언해야 한다**. 선언되지 않은 그룹을
+요청하면 조용히 빠지는 게 아니라 refresh가 실패한다.
+
+```json
+{
+  "sources": {
+    "data": {
+      "use": "system",
+      "with": { "metrics": ["cpu", "memory", "disk", "sensors"], "detail": false, "mount": "/" }
+    }
+  }
+}
+```
+
+| `with` 필드 | 설명 |
+| --- | --- |
+| `metrics` | 읽을 그룹 배열: `cpu`, `memory`, `disk`, `sensors`. 생략하면 위젯이 허가받은 전부. |
+| `detail` | `true`면 `cpu.cores[]`와 `sensors.list[]`까지 채운다. 기본 샘플의 약 4배 비용. |
+| `mount` | `disk` 그룹이 볼 마운트 포인트. 기본 `"/"`. |
+
+출력 규약: **퍼센트는 0~100**, 바이트는 바이트, 온도는 °C, 그리고 이 머신이
+제공하지 않는 값은 0이 아니라 `null`이다.
+
+| 경로 | 설명 |
+| --- | --- |
+| `cpu.usage` / `.user` / `.system` / `.nice` / `.idle` | 직전 샘플 이후 구간의 CPU 점유율. |
+| `cpu.coreCount`, `cpu.loadAverage.{1m,5m,15m}` | 코어 수와 load average. |
+| `cpu.cores[]` | 코어별 `usage`. `detail: true`일 때만. |
+| `memory.{total,used,free,app,wired,compressed,cached,usage}` | Activity Monitor의 "사용 중 메모리"와 같은 계산식(app + wired + compressed). |
+| `memory.pressure` | `"normal"` \| `"warning"` \| `"critical"` \| `"unknown"`. |
+| `memory.swap.{total,used,free,usage}` | 스왑. |
+| `disk.{mount,total,used,free,usage}` | `df`와 같은 기준(예약 블록은 used로 계산). |
+| `sensors.available` | 어떤 센서도 읽지 못하면 `false`. 샌드박스 빌드와 VM이 여기 해당한다. |
+| `sensors.{cpu,gpu,battery,peak}` | °C. CPU는 코어 다이 센서들의 평균, `peak`은 요약 센서 중 최고값. |
+| `sensors.power` | 시스템 총 전력(W). |
+| `sensors.fanCount`, `sensors.fans[].{index,name,rpm,min,max,usage}` | 팬. 팬이 없는 Mac은 빈 배열. |
+| `sensors.list[]` | `{key, name, kind, value, unit}`. `detail: true`일 때만. |
+
+센서는 항상 optional이다. 값 하나가 `null`일 수 있다는 전제로 뷰를 짜고,
+전체가 없을 수 있는 경우는 `sensors.available`로 분기하라 —
+`widgets/sensors/workflow.json`이 그 패턴이다.
+
 ## 변환
 
 `transforms`의 각 키는 다음 단계에서 `transforms.<id>` 또는 `$.transforms.<id>`로 참조한다.
@@ -219,6 +265,7 @@ Arbitrary JavaScript는 금지한다. 표현식은 문자열 안의 `${...}` 보
 | `date.relative(ms)` | epoch milliseconds를 상대 시간 텍스트로 변환한다. |
 | `file.basename(path)` / `file.extension(path)` | 경로의 파일명 / 확장자. |
 | `text.truncate(s,n)` | 문자열을 최대 길이로 줄인다. |
+| `concat(a,b,...)` | 인자들의 문자열 표현을 이어붙인다. `${}` **안에서** 문자열을 만드는 유일한 방법이라 `if(...)`의 각 가지에 단위를 붙일 때 쓴다. |
 | `coalesce(a,b,...)` | 첫 번째 non-null·non-empty 값을 반환한다. |
 | `default(v, fallback)` | `v`가 falsy면 `fallback`. |
 | `if(cond, a, b)` | `cond`가 truthy면 `a`, 아니면 `b`. (인자는 모두 미리 평가됨) |
@@ -229,6 +276,29 @@ Arbitrary JavaScript는 금지한다. 표현식은 문자열 안의 `${...}` 보
 | `add`, `sub`, `mul`, `div` | 사칙연산(숫자 문자열도 자동 변환). |
 | `min`, `max`, `round(v, digits?)` | 최소·최대·반올림. |
 | `number(v)` | 숫자로 변환(불가하면 `null`). |
+
+## 메뉴바 승격
+
+최상위 `status` 블록은 메뉴바에 실시간으로 띄울 값을 만든다. 나머지 필드와 같은
+컨텍스트에서 평가되는 `${...}` 템플릿이다.
+
+```json
+{
+  "status": {
+    "label": "${string(round(number(sources.data.cpu.usage), 0))}%",
+    "tooltip": "CPU ${string(round(number(sources.data.cpu.usage), 0))}% · Memory ${string(round(number(sources.data.memory.usage), 0))}%"
+  }
+}
+```
+
+- `label`이 메뉴바에 그려지는 글자다. 공백은 한 칸으로 합쳐지고 14자에서 잘린다.
+- `tooltip`은 마우스를 올렸을 때의 설명이다.
+- 실제로 메뉴바에 나올지는 manifest의 `statusItem.mode`와 사용자의 위젯 설정이
+  정한다. 자세한 규칙은 [`WIDGET-SPEC.md`의 `statusItem`](WIDGET-SPEC.md#statusitem).
+- 승격된 위젯은 팝오버가 닫혀 있어도 자기 `refresh.interval`로 계속 돈다.
+  감당할 수 있는 주기를 적어라.
+- `label`이 비면 그 칸은 그려지지 않는다. 값이 없을 때 `'0'` 대신 빈 문자열을
+  내보내면 "없음"을 "0"으로 오해시키지 않고 칸이 사라진다.
 
 ## 영속성 (storage)
 
@@ -439,4 +509,4 @@ Arbitrary JavaScript는 금지한다. 표현식은 문자열 안의 `${...}` 보
 5. `fileThumbnail`은 렌더러가 비동기로 해석하고, 실패하면 파일 아이콘 계열 렌더링으로 대체될 수 있다.
 6. `drag.filePath`가 있는 row는 Finder나 다른 앱으로 drag-out할 수 있다.
 7. `revealFile` 액션은 Finder에서 파일을 표시한다.
-8. `status.tooltip`은 status item tooltip에 사용할 수 있다.
+8. `status.tooltip`은 메뉴바 status item tooltip에 사용된다.

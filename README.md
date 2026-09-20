@@ -35,6 +35,8 @@ widgets. Any command-line tool you already have becomes a widget in minutes; no
 new SDK to learn.
 
 - **🪟 One icon, many widgets** — bucket pages, trackpad swipe, pinned row, ⌘F search.
+- **📊 Live in the menu bar** — promote a widget and its value updates right on the
+  bar (`✦ 42% · 61% · 58°`), sharing the BarShelf icon or on its own.
 - **⚡ CLI is the API** — `aas usage --json`, `otpeek`, `gh`, `kubectl`… pipe them straight in.
 - **🎨 Native, not web** — SwiftUI rendering, dark mode, SF Symbols, vibrancy. No Electron.
 - **🧩 Three ways to build** — declarative workflows, a Shortcuts-style visual builder, or full scripts.
@@ -107,7 +109,8 @@ Fit / fixed-height layout. **Today**, **Recent Files**, and the permission-free
 |---|---|---|
 | **Today** · **Calendar** · **Clock** | `/bin/date` | Big date, a month grid with today circled, a live clock — layout adapts to widget size. |
 | **Weather** · **Exchange** · **Stock** | http | Temperature, USD→KRW, and a stock quote (Stock needs a `User-Agent` header). |
-| **Battery** · **System** · **Network** | shell | Battery %, CPU/Memory/Disk meters, and the local IP. |
+| **Battery** · **Network** | shell | Battery %, and the local IP. |
+| **System** · **Sensors** | native | CPU/Memory/Disk meters and SMC temperatures, fans and power draw — read from Mach/IOKit, no subprocess. Both can show a live value in the menu bar. |
 | **Recent Files** | `fs.directory` | Stashbar-style Grid/List of recent files — QuickLook thumbnails, drag-out, click to open. |
 | **aas Usage** · **OTP Codes** | CLI | LLM usage meters from [`aas`](https://github.com/Open330/aas); TOTP codes with a countdown ring from [`otpeek`](https://github.com/jiunbae/otpeek). |
 | **muxa Watch** | CLI + script | Local and SSH-host [`muxa`](https://github.com/Open330/muxa) agents, grouped by host in compact `NAME / ST / ACT / LAST PROMPT` tables. |

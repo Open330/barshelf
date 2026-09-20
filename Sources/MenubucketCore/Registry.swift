@@ -134,19 +134,23 @@ public struct RegistryWidgetEntry: Codable, Equatable, Sendable {
         public var network: [String]?
         /// Local roots the widget declares in `permissions.readPaths`.
         public var readPaths: [String]?
+        /// Telemetry groups the widget declares in `permissions.system`.
+        public var system: [String]?
 
         public init(
             exec: [String]? = nil,
             keychain: Bool? = nil,
             notifications: Bool? = nil,
             network: [String]? = nil,
-            readPaths: [String]? = nil
+            readPaths: [String]? = nil,
+            system: [String]? = nil
         ) {
             self.exec = exec
             self.keychain = keychain
             self.notifications = notifications
             self.network = network
             self.readPaths = readPaths
+            self.system = system
         }
     }
 }

@@ -14,6 +14,8 @@ struct WidgetSettingsView: View {
     /// The theming override being edited (R12). Loaded from the effective
     /// appearance so the controls reflect the widget's current look.
     @State private var appearanceDraft = WidgetAppearance()
+    /// Menu-bar promotion being edited.
+    @State private var menuBarDraft = MenuBarPlacement(enabled: false)
 
     private var entries: [Manifest.Setting] {
         (widget.manifest.settings ?? []).filter { $0.key != nil }
@@ -44,6 +46,9 @@ struct WidgetSettingsView: View {
                     }
 
                     Divider()
+                    menuBarSection
+
+                    Divider()
                     appearanceSection
                 }
             }
@@ -66,6 +71,9 @@ struct WidgetSettingsView: View {
             appearanceDraft = runtime.prefs.effectiveAppearance(
                 for: widget.manifest, widgetID: widget.id
             )
+            menuBarDraft = runtime.prefs.menuBarPlacement(
+                for: widget.manifest, widgetID: widget.id
+            )
         }
     }
 
@@ -84,8 +92,68 @@ struct WidgetSettingsView: View {
         runtime.prefs.setAppearanceOverride(
             appearanceDraft == base ? nil : appearanceDraft, for: widget.id
         )
+        runtime.setMenuBarPlacement(menuBarDraft, for: widget.id)
         dismiss()
         runtime.refresh(widgetID: widget.id)
+    }
+
+    // MARK: - Menu bar section
+
+    /// True when the widget can contribute text to the shared strip. An
+    /// icon-only widget always needs its own status item.
+    private var canShareStrip: Bool {
+        widget.manifest.statusItem?.showsLabel ?? true
+    }
+
+    /// The widget last rendered without any status text, so promoting it would
+    /// show nothing (or the icon alone) — worth saying before the user does it.
+    private var publishesNoStatusText: Bool {
+        let snapshot = runtime.snapshots[widget.id]
+        return snapshot?.updatedAt != nil && snapshot?.statusLabel == nil
+    }
+
+    private var menuBarSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Menu Bar")
+                .font(.system(size: 12, weight: .semibold))
+
+            Toggle("Show live value in the menu bar", isOn: Binding(
+                get: { menuBarDraft.enabled },
+                set: { menuBarDraft.enabled = $0 }
+            ))
+            .toggleStyle(.checkbox)
+
+            Picker("", selection: Binding(
+                get: { canShareStrip ? menuBarDraft.separate : true },
+                set: { menuBarDraft.separate = $0 }
+            )) {
+                Text("Share the BarShelf item").tag(false)
+                Text("Use its own item").tag(true)
+            }
+            .pickerStyle(.radioGroup)
+            .labelsHidden()
+            .disabled(!menuBarDraft.enabled || !canShareStrip)
+
+            if menuBarDraft.enabled {
+                if publishesNoStatusText {
+                    Text(
+                        "This widget publishes no status text, so only its icon"
+                            + " can appear. Give its workflow a `status.label`"
+                            + " (or a script `host.render` status) to show a value."
+                    )
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                } else {
+                    Text(
+                        "A promoted widget keeps refreshing at its own interval"
+                            + " while the popup is closed. At most"
+                            + " \(MenuBarPolicy.maxEntries) widgets are shown."
+                    )
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                }
+            }
+        }
     }
 
     // MARK: - Appearance section (R12)

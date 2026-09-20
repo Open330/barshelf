@@ -864,6 +864,13 @@ struct GalleryCard: View {
                 help: "Reads files in: \(paths.joined(separator: ", "))"
             ))
         }
+        let telemetry = permissions.system ?? []
+        if !telemetry.isEmpty {
+            chips.append(Chip(
+                symbol: "gauge",
+                help: "Reads system telemetry: \(telemetry.joined(separator: ", "))"
+            ))
+        }
         return chips
     }
 }

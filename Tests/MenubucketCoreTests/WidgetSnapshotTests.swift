@@ -77,4 +77,28 @@ final class WidgetSnapshotTests: XCTestCase {
         changed.viewTree = UINode(type: "text", text: "bye", role: "body")
         XCTAssertNotEqual(base, changed, "tree changes must publish (content)")
     }
+
+    func testStatusTextSurvivesTheRenderCache() throws {
+        let snapshot = WidgetSnapshot(
+            widgetID: "dev.example.system",
+            viewTree: UINode(type: "text", text: "hi"),
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            statusLabel: "42%",
+            statusTooltip: "CPU 42% · Memory 61%"
+        )
+        let restored = try WidgetSnapshot.deserialize(snapshot.serialized())
+        // A promoted widget must have something to draw at cold start, before
+        // its first refresh of the session completes.
+        XCTAssertEqual(restored.statusLabel, "42%")
+        XCTAssertEqual(restored.statusTooltip, "CPU 42% · Memory 61%")
+    }
+
+    func testSnapshotsWrittenBeforeStatusTextStillDecode() throws {
+        let legacy = #"{"widgetID":"dev.example.old","viewTree":{"type":"text","text":"hi"}}"#
+        let restored = try WidgetSnapshot.deserialize(Data(legacy.utf8))
+        XCTAssertEqual(restored.widgetID, "dev.example.old")
+        XCTAssertNil(restored.statusLabel)
+        XCTAssertNil(restored.statusTooltip)
+    }
+
 }

@@ -1,0 +1,209 @@
+import Foundation
+
+/// Menu-bar promotion: which widgets get live text next to the BarShelf icon,
+/// and what that text says.
+///
+/// BarShelf's premise is one menu bar icon, so promoted widgets share a single
+/// status item by default — their labels are drawn as one strip. A widget can
+/// be split into its own status item when the user wants to reorder or click
+/// it independently (the shape a system monitor like Stats uses).
+///
+/// Everything here is pure and UI-free: the AppKit side owns `NSStatusItem`s
+/// and calls into these rules.
+
+// MARK: - Placement
+
+/// Where one widget sits in the menu bar. Persisted per widget.
+public struct MenuBarPlacement: Codable, Equatable, Sendable {
+    /// Whether the widget appears in the menu bar at all.
+    public var enabled: Bool
+    /// True to give the widget its own status item instead of the shared strip.
+    public var separate: Bool
+    /// Sort key within the strip (lower is further left). Nil sorts after the
+    /// explicitly ordered entries, by widget name.
+    public var order: Double?
+
+    public init(enabled: Bool, separate: Bool = false, order: Double? = nil) {
+        self.enabled = enabled
+        self.separate = separate
+        self.order = order
+    }
+
+    /// Lenient decode so a prefs file written by an older build still loads.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
+        separate = try container.decodeIfPresent(Bool.self, forKey: .separate) ?? false
+        order = try container.decodeIfPresent(Double.self, forKey: .order)
+    }
+}
+
+// MARK: - Entries
+
+/// One rendered menu-bar cell: what the AppKit layer draws for a widget.
+public struct MenuBarEntry: Equatable, Sendable {
+    public var widgetID: String
+    /// Widget display name — the tooltip's first line and the separate item's
+    /// accessibility label.
+    public var name: String
+    /// SF Symbol to draw, or nil when the widget's mode shows text only.
+    public var symbol: String?
+    /// Live text, or nil when the mode shows the icon only / nothing has been
+    /// sampled yet.
+    public var label: String?
+    public var tooltip: String?
+    /// True when the last successful sample is older than the widget's own
+    /// refresh cadence allows — the value on screen is no longer current, so
+    /// the strip dims it rather than passing off a frozen number as live.
+    public var isStale: Bool
+    /// True when the most recent refresh failed (the last-good value is still
+    /// shown, per the "UI never blanks" invariant).
+    public var hasError: Bool
+    public var separate: Bool
+
+    public init(
+        widgetID: String,
+        name: String,
+        symbol: String? = nil,
+        label: String? = nil,
+        tooltip: String? = nil,
+        isStale: Bool = false,
+        hasError: Bool = false,
+        separate: Bool = false
+    ) {
+        self.widgetID = widgetID
+        self.name = name
+        self.symbol = symbol
+        self.label = label
+        self.tooltip = tooltip
+        self.isStale = isStale
+        self.hasError = hasError
+        self.separate = separate
+    }
+
+    /// Nothing to draw — neither a symbol nor text.
+    public var isEmpty: Bool {
+        symbol == nil && (label?.isEmpty ?? true)
+    }
+}
+
+// MARK: - Policy
+
+public enum MenuBarPolicy {
+    /// Hard cap on promoted widgets. The menu bar is shared with every other
+    /// app (and, on a notched Mac, with the notch), so BarShelf refuses to
+    /// take it over no matter how many widgets declare a status item.
+    public static let maxEntries = 5
+
+    /// Longest live label drawn for one widget. A widget whose status template
+    /// produces a long string is truncated rather than pushing its neighbours
+    /// off the bar.
+    public static let maxLabelCharacters = 14
+
+    /// Separator drawn between entries sharing the strip.
+    public static let stripSeparator = " · "
+
+    /// How far past its refresh cadence a value may drift before it is drawn
+    /// as stale. Three missed refreshes, and never less than 30 s so a widget
+    /// with a fast cadence does not flicker between fresh and stale.
+    public static func stalenessThreshold(interval: Double?) -> Double {
+        guard let interval, interval > 0 else { return 60 }
+        return max(interval * 3, 30)
+    }
+
+    public static func isStale(
+        updatedAt: Date?,
+        interval: Double?,
+        now: Date = Date()
+    ) -> Bool {
+        guard let updatedAt else { return true }
+        return now.timeIntervalSince(updatedAt) > stalenessThreshold(interval: interval)
+    }
+
+    /// The user's stored choice, falling back to what the widget's author
+    /// declared in `statusItem.mode`.
+    public static func resolvedPlacement(
+        stored: MenuBarPlacement?,
+        statusItem: Manifest.StatusItem?
+    ) -> MenuBarPlacement {
+        if let stored { return stored }
+        return MenuBarPlacement(enabled: statusItem?.isPromotable ?? false)
+    }
+
+    /// Collapses whitespace and clips to `maxLabelCharacters`, since a status
+    /// label is a template that can expand to anything.
+    public static func normalizedLabel(
+        _ label: String?,
+        limit: Int = maxLabelCharacters
+    ) -> String? {
+        guard let label else { return nil }
+        let collapsed = label
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: " ")
+        guard !collapsed.isEmpty else { return nil }
+        guard collapsed.count > limit else { return collapsed }
+        return String(collapsed.prefix(max(limit - 1, 1))) + "…"
+    }
+
+    /// Orders entries by the user's explicit sort key, then by name, so the
+    /// strip does not reshuffle when a widget happens to refresh first.
+    public static func ordered(
+        _ entries: [(entry: MenuBarEntry, order: Double?)]
+    ) -> [MenuBarEntry] {
+        entries
+            .enumerated()
+            .sorted { left, right in
+                switch (left.element.order, right.element.order) {
+                case let (lhs?, rhs?) where lhs != rhs:
+                    return lhs < rhs
+                case (nil, _?):
+                    return false
+                case (_?, nil):
+                    return true
+                default:
+                    let byName = left.element.entry.name
+                        .localizedCaseInsensitiveCompare(right.element.entry.name)
+                    if byName != .orderedSame { return byName == .orderedAscending }
+                    return left.offset < right.offset
+                }
+            }
+            .map(\.element.entry)
+    }
+
+    /// Splits ordered entries into the shared strip and the widgets that asked
+    /// for their own status item, applying `maxEntries` across both.
+    public static func partition(
+        _ entries: [MenuBarEntry]
+    ) -> (strip: [MenuBarEntry], separate: [MenuBarEntry]) {
+        let visible = entries.filter { !$0.isEmpty }.prefix(maxEntries)
+        return (
+            strip: visible.filter { !$0.separate },
+            separate: visible.filter(\.separate)
+        )
+    }
+
+    /// Plain-text form of the shared strip — the accessibility label, and the
+    /// fallback title when attributed drawing is unavailable.
+    public static func stripText(_ entries: [MenuBarEntry]) -> String {
+        entries
+            .compactMap { entry in
+                let label = entry.label ?? ""
+                return label.isEmpty ? nil : label
+            }
+            .joined(separator: stripSeparator)
+    }
+
+    /// Multi-line tooltip: one line per entry, each "Name — value".
+    public static func tooltip(for entries: [MenuBarEntry]) -> String? {
+        let lines = entries.map { entry -> String in
+            if let tooltip = entry.tooltip, !tooltip.isEmpty {
+                return "\(entry.name) — \(tooltip)"
+            }
+            if let label = entry.label, !label.isEmpty {
+                return "\(entry.name) — \(label)"
+            }
+            return entry.name
+        }
+        return lines.isEmpty ? nil : lines.joined(separator: "\n")
+    }
+}

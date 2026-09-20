@@ -91,6 +91,8 @@ swift run barshelf-app screenshot assets/widget-previews
 
 ### permissions 필드는 표시용일 뿐이다
 
+요약에 쓸 수 있는 키는 `exec`, `network`, `readPaths`, `system`(`cpu`/`memory`/`disk`/`sensors` 텔레메트리 그룹), `keychain`, `notifications`이다.
+
 `permissions`는 갤러리 카드에서 사용자가 설치 전 위험도를 가늠하게 하는 **표시용 요약(신뢰 UX)** 이다. 이 필드는 아무 권한도 부여하지 않는다. 실제 권한 게이트는 설치 후 첫 실행 시 나타나는 **승인 카드**(기존 권한 프레임)이며, 게이트 기준은 위젯의 `widget.json`에 선언된 `permissions`다. 인덱스 요약과 manifest 선언이 어긋나면 manifest가 항상 우선한다.
 
 ## 레지스트리 URL 해석 순서

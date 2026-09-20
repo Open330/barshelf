@@ -215,6 +215,24 @@ public enum WidgetValidator {
             ))
         }
 
+        let requestedMetrics = WidgetDiscovery.requestedSystemMetrics(workflow)
+        if !requestedMetrics.isEmpty {
+            let declared = Set(
+                (manifest.permissions?.system ?? [])
+                    .compactMap(SystemMetrics.Metric.init(rawValue:))
+            )
+            let missing = requestedMetrics.subtracting(declared).map(\.rawValue).sorted()
+            if !missing.isEmpty {
+                report.issues.append(Issue(
+                    file: manifestFile,
+                    field: "permissions.system",
+                    message: "workflow system sources read \(missing.joined(separator: ", "))"
+                        + " but permissions.system does not declare"
+                        + " \(missing.count == 1 ? "it" : "them")"
+                ))
+            }
+        }
+
         if manifest.entry.kind == "exec",
            let command = manifest.source?.command,
            !command.isEmpty,

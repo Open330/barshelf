@@ -163,7 +163,7 @@ final class RegistryTests: XCTestCase {
             .appendingPathComponent("registry/index.json")
         let (index, warnings) = try RegistryIndex.parse(Data(contentsOf: sample))
         XCTAssertEqual(index.schemaVersion, 1)
-        XCTAssertEqual(index.widgets.count, 25)
+        XCTAssertEqual(index.widgets.count, 26)
         XCTAssertTrue(warnings.isEmpty, "\(warnings)")
         XCTAssertEqual(
             Set(index.widgets.compactMap(\.kind)),
@@ -413,4 +413,21 @@ final class RegistryTests: XCTestCase {
             value += 1
         }
     }
+
+    func testSystemTelemetrySummaryParsesForTheGalleryChip() throws {
+        let sample = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("registry/index.json")
+        let (index, _) = try RegistryIndex.parse(Data(contentsOf: sample))
+        let sensors = try XCTUnwrap(index.widgets.first { $0.id == "dev.barshelf.sensors" })
+        XCTAssertEqual(sensors.permissions?.system, ["sensors"])
+        // The native system source replaced a /bin/sh pipeline — the summary
+        // must stop claiming a command the widget no longer runs.
+        let system = try XCTUnwrap(index.widgets.first { $0.id == "dev.barshelf.system" })
+        XCTAssertEqual(system.permissions?.exec, [])
+        XCTAssertEqual(system.permissions?.system, ["cpu", "memory", "disk"])
+    }
+
 }
