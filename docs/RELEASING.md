@@ -87,15 +87,55 @@
    서명·공증·Gatekeeper, 그리고 **자가 업데이터가 요구하는 Developer ID
    요구문**까지 확인한다. 마지막 항목이 실패하면 모든 클라이언트가 그 업데이트를
    거부한다.
-8. 이전 버전이 설치된 맥에서 **Check for Updates… → Install and Relaunch**가
-   실제로 동작하는지 확인한다. 자가 업데이터의 수락 경로는 CI 테스트에서
-   건너뛰므로(러너에 Developer ID 번들이 없다) 여기가 첫 실검증이다.
+8. 자가 업데이터의 수락 경로를 확인한다. **0.2.0에서는 건너뛴다** — 0.1.3에는
+   Install and Relaunch 버튼 자체가 없어서(그 버전의 업데이터는 릴리스 페이지를
+   열 뿐이다) 아무도 0.2.0으로 자가 업데이트할 수 없고, 따라서 잘못된 자동
+   설치 위험도 없다. 0.2.1부터는 [업데이트 리허설](#업데이트-리허설)을 먼저
+   돌린다. CI 테스트는 이 경로를 건너뛰므로(러너에 Developer ID 번들이 없다)
+   리허설이 유일한 사전 검증이다.
 9. 문제없으면 pre-release를 해제해 전체에 푼다:
    `gh release edit vX.Y.Z --prerelease=false`
 10. 이제 문서의 버전 문구를 갱신한다 — `README.md`, `docs/INSTALL.md`,
     `site/index.html`. 갱신된 cask와 함께 커밋한다.
 11. `python3 scripts/check-release-versions.py`가 통과하는지 확인한다. 통과하지
     않으면 10번이 덜 된 것이다.
+
+## 업데이트 리허설
+
+0.2.1부터는 잘못된 릴리스가 **자동으로 설치**된다. 그런데 업데이터는
+`/releases/latest`를 읽고 pre-release는 거기서 빠지므로, pre-release로는
+업데이트를 테스트할 수 없다 — 테스트하려면 실제 `latest`로 올려야 하고 그 순간
+모두에게 나간다.
+
+그래서 업데이트가 읽을 저장소를 바꿀 수 있게 해뒀다. **URL이 아니라
+`owner/repo` 쌍만** 받으므로 피드는 항상 api.github.com으로만 해석되고,
+다운로드를 다른 호스트로 돌릴 수는 없다. 또한 외부 코드를 설치하는 통로도 아니다
+— 무엇을 찾아내든 **실행 중인 빌드와 같은 Developer ID 팀** 서명이어야 교체된다.
+
+```bash
+# 설치된 앱에 적용 (재시작 후 유효)
+defaults write com.barshelf.app BarShelfUpdateRepository "<owner>/<staging-repo>"
+
+# 터미널에서 띄울 때만
+BARSHELF_UPDATE_REPO="<owner>/<staging-repo>" /Applications/BarShelf.app/Contents/MacOS/barshelf-app
+```
+
+override가 걸려 있으면 설정 창의 **Update source** 행과 업데이트 알림에
+주황색으로 표시된다 — 잊고 방치해 진짜 채널에서 이탈하는 일이 없도록.
+
+리허설 절차:
+
+1. 스테이징 저장소에 다음 버전을 **정식 릴리스**로 올린다(그 저장소의
+   `latest`가 되어야 하므로 pre-release가 아니어야 한다). 자산은 진짜와 같은
+   방식으로 서명·공증한다 — 서명이 다르면 검증 단계를 통과하지 못해 리허설의
+   의미가 없다.
+2. 현재 버전이 설치된 맥에서 override를 걸고 **Check for Updates…** →
+   **Install and Relaunch**.
+3. 교체·재실행되고 버전이 올라가는지 확인한다.
+4. `defaults delete com.barshelf.app BarShelfUpdateRepository`로 되돌린다.
+
+되돌리는 걸 잊으면 그 맥은 스테이징 저장소만 따라간다. 설정 창의 주황색 행이
+그걸 알려준다.
 
 ## 자가 업데이트가 거는 제약
 

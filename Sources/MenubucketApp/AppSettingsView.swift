@@ -156,6 +156,14 @@ struct AppSettingsView: View {
                 }
             }
 
+            if UpdateChecker.isUsingOverriddenFeed {
+                LabeledContent("Update source") {
+                    Text(UpdateChecker.repository)
+                        .textSelection(.enabled)
+                        .foregroundColor(.orange)
+                }
+            }
+
             Button("Check for Updates…") {
                 UpdateChecker.check(explicit: true)
             }

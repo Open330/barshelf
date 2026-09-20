@@ -79,4 +79,68 @@ final class UpdateCheckerTests: XCTestCase {
             ["/opt/homebrew/Caskroom/barshelf", "/usr/local/Caskroom/barshelf"]
         )
     }
+
+    // MARK: - Update feed
+
+    func testTheFeedDefaultsToTheProjectRepository() {
+        // No override set in the test environment.
+        XCTAssertEqual(UpdateChecker.repository, UpdateChecker.defaultRepository)
+        XCTAssertFalse(UpdateChecker.isUsingOverriddenFeed)
+        XCTAssertEqual(
+            UpdateChecker.latestReleaseAPI.absoluteString,
+            "https://api.github.com/repos/Open330/barshelf/releases/latest"
+        )
+        XCTAssertEqual(
+            UpdateChecker.releasesPage.absoluteString,
+            "https://github.com/Open330/barshelf/releases/latest"
+        )
+    }
+
+    func testAPreferenceOverrideRedirectsTheFeedAndIsAnnounced() {
+        let defaults = UserDefaults.standard
+        let key = UpdateChecker.repositoryDefaultsKey
+        defaults.set("example/barshelf-staging", forKey: key)
+        defer { defaults.removeObject(forKey: key) }
+
+        XCTAssertEqual(UpdateChecker.repository, "example/barshelf-staging")
+        XCTAssertTrue(UpdateChecker.isUsingOverriddenFeed)
+        XCTAssertEqual(
+            UpdateChecker.latestReleaseAPI.absoluteString,
+            "https://api.github.com/repos/example/barshelf-staging/releases/latest"
+        )
+    }
+
+    func testTheOverrideCannotPointAtAnotherHost() {
+        // It names a repository, never a URL — so the feed always resolves to
+        // api.github.com and a download can never be redirected elsewhere.
+        for hostile in [
+            "https://evil.example.com/repo",
+            "../../etc/passwd",
+            "owner/repo/extra",
+            "owner",
+            "",
+            "/repo",
+            "owner/",
+            "owner/../..",
+            "own er/repo",
+            "owner/repo?x=1",
+        ] {
+            XCTAssertFalse(
+                UpdateChecker.isValidRepository(hostile), "accepted \(hostile)"
+            )
+        }
+        XCTAssertTrue(UpdateChecker.isValidRepository("Open330/barshelf"))
+        XCTAssertTrue(UpdateChecker.isValidRepository("some-owner/some.repo_1"))
+    }
+
+    func testAnInvalidOverrideFallsBackInsteadOfBreakingUpdates() {
+        let defaults = UserDefaults.standard
+        let key = UpdateChecker.repositoryDefaultsKey
+        defaults.set("https://evil.example.com/x", forKey: key)
+        defer { defaults.removeObject(forKey: key) }
+
+        XCTAssertEqual(UpdateChecker.repository, UpdateChecker.defaultRepository)
+        XCTAssertFalse(UpdateChecker.isUsingOverriddenFeed)
+    }
+
 }
