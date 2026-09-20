@@ -10,6 +10,8 @@
     <string>__BUNDLE_IDENTIFIER__</string>
     <key>CFBundleVersion</key>
     <string>__APP_BUILD__</string>
+    <key>BarShelfSourceCommit</key>
+    <string>__APP_COMMIT__</string>
     <key>CFBundleShortVersionString</key>
     <string>__APP_VERSION__</string>
     <key>CFBundleExecutable</key>

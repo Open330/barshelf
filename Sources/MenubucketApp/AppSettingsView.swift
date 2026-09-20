@@ -145,6 +145,17 @@ struct AppSettingsView: View {
                 }
             }
 
+            if let commit = AppVersionInfo.current.sourceCommit {
+                LabeledContent("Source") {
+                    Text(commit)
+                        .monospacedDigit()
+                        .textSelection(.enabled)
+                        .foregroundColor(
+                            AppVersionInfo.current.isFromDirtyTree ? .orange : .primary
+                        )
+                }
+            }
+
             Button("Check for Updates…") {
                 UpdateChecker.check(explicit: true)
             }
