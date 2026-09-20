@@ -20,6 +20,7 @@
 - [INSTALLING-WIDGETS.md — install URL contract](https://github.com/Open330/barshelf/blob/master/docs/INSTALLING-WIDGETS.md)
 - [REGISTRY.md — gallery registry entries (category, screenshot)](https://github.com/Open330/barshelf/blob/master/docs/REGISTRY.md)
 - [PUBLISHING.md](https://github.com/Open330/barshelf/blob/master/docs/PUBLISHING.md)
+- [RELEASING.md — cutting an app release (signing, notarization, version hygiene)](https://github.com/Open330/barshelf/blob/master/docs/RELEASING.md)
 
 ## Schemas
 
