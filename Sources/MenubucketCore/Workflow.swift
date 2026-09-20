@@ -419,14 +419,26 @@ public enum WorkflowEngine {
             !name.isEmpty && name.allSatisfy { $0.isLetter || $0.isNumber || $0 == "." || $0 == "_" }
         }
 
+        /// Splits a call's arguments on top-level commas.
+        ///
+        /// Commas inside nested calls *and* inside string literals are part of
+        /// the argument, not separators — `concat(a, ', ', b)` joins three
+        /// arguments, the middle one being a literal comma.
         private func splitArguments(_ inner: String) throws -> [String] {
             let trimmed = inner.trimmingCharacters(in: .whitespaces)
             guard !trimmed.isEmpty else { return [] }
             var args: [String] = []
             var depth = 0
+            var quote: Character?
             var current = ""
             for char in trimmed {
+                if let open = quote {
+                    current.append(char)
+                    if char == open { quote = nil }
+                    continue
+                }
                 switch char {
+                case "'", "\"": quote = char; current.append(char)
                 case "(": depth += 1; current.append(char)
                 case ")": depth -= 1; current.append(char)
                 case "," where depth == 0:

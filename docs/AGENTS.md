@@ -239,8 +239,11 @@ sharing) the BarShelf mark.
 
 - `mode` — `"none"` keeps the widget out of the menu bar. `"text"` shows its
   status label, `"icon"` its symbol, `"dynamic"` both. Anything but `"none"`
-  makes the widget *eligible*; the user's per-widget toggle (widget Settings →
-  Menu Bar) decides, and can promote a widget the author left at `"none"`.
+  makes the widget *eligible* and lists it in the menu bar picker; **nothing is
+  shown until the user turns it on**, from the BarShelf icon's right-click menu
+  (**Menu Bar ▸**) or the widget's Settings → Menu Bar. Declaring a mode never
+  takes over someone's menu bar on an update. The user can also promote a
+  widget the author left at `"none"`, from its settings pane.
 - The live text is the value the widget already computes: a workflow's
   `status.label`, or a script's `host.render` status. `labelFrom` /
   `tooltipFrom` are still accepted by the schema but unused.

@@ -91,4 +91,25 @@ final class MenuBarControllerTests: XCTestCase {
         XCTAssertEqual(publishes, 1)
         cancellable.cancel()
     }
+
+    func testPromotedSetIsCappedSoUndrawnWidgetsDoNotKeepPolling() {
+        let store = MenuBarStatusStore()
+        store.apply((0..<8).map { entry("w\($0)", label: "\($0)%") })
+        // The scheduler takes this set and exempts it from the closed-popup
+        // floor, so it must never exceed what the bar actually shows.
+        XCTAssertEqual(store.promotedWidgetIDs.count, MenuBarPolicy.maxEntries)
+        XCTAssertEqual(
+            store.promotedWidgetIDs,
+            Set((0..<MenuBarPolicy.maxEntries).map { "w\($0)" })
+        )
+    }
+
+    func testAWidgetWithNoLabelYetStaysInThePromotedSet() {
+        let store = MenuBarStatusStore()
+        store.apply([entry("pending", label: nil)])
+        // It needs its refresh to produce a first label.
+        XCTAssertEqual(store.promotedWidgetIDs, ["pending"])
+        XCTAssertEqual(MenuBarController.attributedStrip(store.entries).string, "")
+    }
+
 }

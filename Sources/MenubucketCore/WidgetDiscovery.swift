@@ -105,14 +105,23 @@ public enum WidgetDiscovery {
         }
         if let system = manifest.permissions?.system, !system.isEmpty {
             lines.append("system: reads " + system.joined(separator: ", ") + " telemetry")
-        } else if !requestedSystemMetrics(workflow).isEmpty {
+        } else if usesSystemSource(workflow) {
             lines.append("system: missing required telemetry declaration")
         }
         return lines
     }
 
-    /// Metric groups a workflow's `system` sources ask for. Used to check a
-    /// manifest declares them, and to summarize what a widget will read.
+    /// Whether the workflow reads system telemetry at all. A `system` source
+    /// that names no groups still needs a `permissions.system` grant — it
+    /// samples whatever that grant allows.
+    public static func usesSystemSource(_ workflow: WorkflowDefinition?) -> Bool {
+        workflow?.sources.values.contains { $0.use == "system" } == true
+    }
+
+    /// Metric groups a workflow's `system` sources name explicitly. A source
+    /// that omits `metrics` contributes nothing here — it asks for the grant
+    /// rather than for particular groups, so there is nothing to check it
+    /// against.
     public static func requestedSystemMetrics(
         _ workflow: WorkflowDefinition?
     ) -> Set<SystemMetrics.Metric> {
@@ -120,7 +129,7 @@ public enum WidgetDiscovery {
         var requested: Set<SystemMetrics.Metric> = []
         for source in workflow.sources.values where source.use == "system" {
             requested.formUnion(
-                SystemMetrics.metrics(from: source.with?.objectValue?["metrics"])
+                SystemMetrics.requestedMetrics(from: source.with?.objectValue?["metrics"]) ?? []
             )
         }
         return requested

@@ -117,9 +117,20 @@ final class SchedulerVisibilityTests: XCTestCase {
     func testPromotionDoesNotOverridePopupOnly() {
         let scheduler = Scheduler()
         let restricted = widget("restricted", interval: 2, popupOnly: true)
+        var refreshed: [String] = []
+        scheduler.requestRefresh = { id, _ in refreshed.append(id) }
         scheduler.configure(widgets: [restricted])
         scheduler.setMenuBarWidgetIDs([restricted.id])
         XCTAssertTrue(scheduler.activeIntervalWidgetIDs.isEmpty)
+
+        // `popupOnly` is the author's hard opt-out: no automatic path may run
+        // it, including the ones promotion newly exempts from other gates.
+        scheduler.popupClosed()
+        scheduler.setVisibleWidgetIDs([restricted.id])
+        scheduler.popupOpened()
+        XCTAssertTrue(scheduler.activeIntervalWidgetIDs.isEmpty)
+        XCTAssertTrue(refreshed.isEmpty)
+        scheduler.popupClosed()
     }
 
     func testPromotedIDsAreDroppedWhenTheWidgetDisappears() {

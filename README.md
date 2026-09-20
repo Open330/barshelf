@@ -35,8 +35,8 @@ widgets. Any command-line tool you already have becomes a widget in minutes; no
 new SDK to learn.
 
 - **🪟 One icon, many widgets** — bucket pages, trackpad swipe, pinned row, ⌘F search.
-- **📊 Live in the menu bar** — promote a widget and its value updates right on the
-  bar (`✦ 42% · 61% · 58°`), sharing the BarShelf icon or on its own.
+- **📊 Live in the menu bar** — opt a widget in and its value updates right on
+  the bar (`✦ 42% · 61% · 58°`), sharing the BarShelf icon or on its own.
 - **⚡ CLI is the API** — `aas usage --json`, `otpeek`, `gh`, `kubectl`… pipe them straight in.
 - **🎨 Native, not web** — SwiftUI rendering, dark mode, SF Symbols, vibrancy. No Electron.
 - **🧩 Three ways to build** — declarative workflows, a Shortcuts-style visual builder, or full scripts.

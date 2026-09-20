@@ -13,12 +13,15 @@ shows, as a BarShelf widget.
 
 Nothing to configure. Install it and it reads the machine it runs on.
 
-To put the temperature in the menu bar, open the widget's **Settings → Menu
-Bar** and turn on *Show live value in the menu bar*. It shares one status item
-with the BarShelf mark by default (`✦ 21% · 46°`), or can take an item of its
-own. The widget then keeps refreshing on its 3-second interval even while the
-popup is closed — turning on **Pause When Closed** in app settings freezes it,
-and the menu bar dims the frozen value rather than passing it off as live.
+Installing it does not put anything on the menu bar. To show the temperature
+there, right-click the BarShelf icon and tick this widget under **Menu Bar ▸**
+(or use the widget's **Settings → Menu Bar**).
+
+Once it is on, it shares one status item with the BarShelf mark
+(`✦ 21% · 46°`) or takes an item of its own, and keeps refreshing on its
+3-second interval even while the popup is closed. Turning on **Pause When
+Closed** in app settings freezes it, and the menu bar dims the frozen value
+rather than passing it off as live.
 
 ## Permissions
 

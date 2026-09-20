@@ -38,6 +38,9 @@ final class StatusItemController: NSObject {
 
     private lazy var statusMenu: NSMenu = {
         let menu = NSMenu()
+        // Explicit enablement: with automatic validation AppKit re-enables any
+        // item whose target responds to its action, overriding `isEnabled`.
+        menu.autoenablesItems = false
 
         let hubItem = NSMenuItem(
             title: "Open BarShelf…",
@@ -237,12 +240,17 @@ final class StatusItemController: NSObject {
         NSMenu.popUpContextMenu(statusMenu, with: event, for: button)
     }
 
-    /// "Menu Bar ▸" — lists what is currently promoted so a widget sharing the
-    /// strip (which has no status item of its own to right-click) can still be
-    /// taken off the bar from the bar.
+    /// "Menu Bar ▸" — the picker for which widgets show a live value.
+    ///
+    /// It lists the widgets that offer one, checked when they are on the bar.
+    /// This is both how a widget sharing the strip (which has no status item of
+    /// its own to right-click) gets taken off, and how the feature is found in
+    /// the first place, since promotion is off until the user asks for it.
     private lazy var menuBarSubmenuItem: NSMenuItem = {
         let item = NSMenuItem(title: "Menu Bar", action: nil, keyEquivalent: "")
-        item.submenu = NSMenu()
+        let submenu = NSMenu()
+        submenu.autoenablesItems = false
+        item.submenu = submenu
         return item
     }()
 
@@ -250,30 +258,40 @@ final class StatusItemController: NSObject {
         guard let submenu = menuBarSubmenuItem.submenu else { return }
         submenu.removeAllItems()
 
-        let entries = runtime.menuBar.entries
-        guard !entries.isEmpty else {
+        let candidates = runtime.menuBarCandidates
+        guard !candidates.isEmpty else {
             menuBarSubmenuItem.isHidden = true
             return
         }
         menuBarSubmenuItem.isHidden = false
 
-        for entry in entries {
-            let title = entry.label.map { "\(entry.name) — \($0)" } ?? entry.name
+        let shown = runtime.menuBar.promotedWidgetIDs
+        let labels = Dictionary(
+            runtime.menuBar.entries.map { ($0.widgetID, $0.label) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        for widget in candidates {
+            let isOn = shown.contains(widget.id)
+            let value = isOn ? (labels[widget.id] ?? nil) : nil
             let item = NSMenuItem(
-                title: title, action: #selector(demotePromotedWidget(_:)), keyEquivalent: ""
+                title: value.map { "\(widget.displayName) — \($0)" } ?? widget.displayName,
+                action: #selector(toggleMenuBarWidget(_:)),
+                keyEquivalent: ""
             )
             item.target = self
-            item.representedObject = entry.widgetID
-            item.state = .on
-            item.toolTip = "Remove \(entry.name) from the menu bar"
+            item.representedObject = widget.id
+            item.state = isOn ? .on : .off
+            item.toolTip = isOn
+                ? "Remove \(widget.displayName) from the menu bar"
+                : "Show \(widget.displayName) in the menu bar"
             submenu.addItem(item)
         }
-        submenu.addItem(.separator())
-        let hint = NSMenuItem(
-            title: "Click a widget to remove it", action: nil, keyEquivalent: ""
-        )
-        hint.isEnabled = false
-        submenu.addItem(hint)
+    }
+
+    @objc private func toggleMenuBarWidget(_ sender: NSMenuItem) {
+        guard let widgetID = sender.representedObject as? String else { return }
+        let isOn = runtime.menuBar.promotedWidgetIDs.contains(widgetID)
+        runtime.updateMenuBarPlacement(for: widgetID) { $0.enabled = !isOn }
     }
 
     @objc private func openHub(_ sender: Any?) {
@@ -338,6 +356,7 @@ final class StatusItemController: NSObject {
         guard let widget = runtime.widgets.first(where: { $0.id == widgetID })
         else { return }
         let menu = NSMenu()
+        menu.autoenablesItems = false
         let title = NSMenuItem(title: widget.displayName, action: nil, keyEquivalent: "")
         title.isEnabled = false
         menu.addItem(title)
@@ -396,14 +415,12 @@ final class StatusItemController: NSObject {
 
     @objc private func mergePromotedWidget(_ sender: NSMenuItem) {
         guard let widgetID = sender.representedObject as? String else { return }
-        runtime.setMenuBarPlacement(
-            MenuBarPlacement(enabled: true, separate: false), for: widgetID
-        )
+        runtime.updateMenuBarPlacement(for: widgetID) { $0.separate = false }
     }
 
     @objc private func demotePromotedWidget(_ sender: NSMenuItem) {
         guard let widgetID = sender.representedObject as? String else { return }
-        runtime.setMenuBarPlacement(MenuBarPlacement(enabled: false), for: widgetID)
+        runtime.updateMenuBarPlacement(for: widgetID) { $0.enabled = false }
     }
 
     // MARK: - Global hotkey (Carbon RegisterEventHotKey — no a11y permission)

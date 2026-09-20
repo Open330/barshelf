@@ -1188,11 +1188,7 @@ final class WidgetRuntime: ObservableObject {
                 for: widget.manifest, widgetID: widget.id
             )
             guard placement.enabled else { continue }
-            // A widget the user promoted by hand may carry no author mode; it
-            // then behaves as "text", the form the shared strip can draw.
-            let statusItem = widget.manifest.statusItem?.isPromotable == true
-                ? widget.manifest.statusItem!
-                : Manifest.StatusItem(mode: "text")
+            let statusItem = MenuBarPolicy.effectiveStatusItem(widget.manifest.statusItem)
             let snapshot = snapshots[widget.id]
             // Only a label can share the strip, so an icon-only widget always
             // gets its own item.
@@ -1209,7 +1205,6 @@ final class WidgetRuntime: ObservableObject {
                     updatedAt: snapshot?.updatedAt,
                     interval: (widget.manifest.refresh?.interval).map { $0 * multiplier }
                 ),
-                hasError: snapshot?.error != nil,
                 separate: separate
             )
             candidates.append((entry, placement.order))
@@ -1230,11 +1225,37 @@ final class WidgetRuntime: ObservableObject {
     }
 
     /// Promotes or demotes a widget in the menu bar (settings UI / context
-    /// menu). Passing `nil` restores the manifest default.
+    /// menu). Passing `nil` clears the stored choice.
     func setMenuBarPlacement(_ placement: MenuBarPlacement?, for id: String) {
         prefs.setMenuBarPlacement(placement, for: id)
         syncMenuBar()
         objectWillChange.send()
+    }
+
+    /// Widgets worth listing in the menu bar picker: the author marked them
+    /// promotable, or the user already promoted them. Any other widget can
+    /// still be promoted from its own settings pane.
+    var menuBarCandidates: [LoadedWidget] {
+        widgets.filter { widget in
+            guard !prefs.isDisabled(widget.id) else { return false }
+            if widget.manifest.statusItem?.isPromotable == true { return true }
+            return prefs.menuBarPlacement(
+                for: widget.manifest, widgetID: widget.id
+            ).enabled
+        }
+    }
+
+    /// Edits one field of a widget's placement, keeping the rest. A menu
+    /// command that toggles promotion must not silently drop the sort order
+    /// the user arranged.
+    func updateMenuBarPlacement(
+        for id: String,
+        _ change: (inout MenuBarPlacement) -> Void
+    ) {
+        guard let widget = widgets.first(where: { $0.id == id }) else { return }
+        var placement = prefs.menuBarPlacement(for: widget.manifest, widgetID: id)
+        change(&placement)
+        setMenuBarPlacement(placement, for: id)
     }
 
     // MARK: - Popup lifecycle
@@ -1646,8 +1667,8 @@ final class WidgetRuntime: ObservableObject {
         widget: LoadedWidget,
         params: JSONValue
     ) async throws -> JSONValue {
-        let requested = SystemMetrics.metrics(from: params.objectValue?["metrics"])
-        guard !requested.isEmpty else {
+        let requested = SystemMetrics.requestedMetrics(from: params.objectValue?["metrics"])
+        if let requested, requested.isEmpty {
             throw RuntimeError.invalidWorkflow(
                 "system source \"metrics\" lists no known group"
                     + " (cpu, memory, disk, sensors)"
@@ -1665,6 +1686,12 @@ final class WidgetRuntime: ObservableObject {
             throw RuntimeError.invalidWorkflow(
                 "system source metrics \(names.joined(separator: ", "))"
                     + " are not covered by permissions.system"
+            )
+        }
+        guard !allowed.isEmpty else {
+            throw RuntimeError.invalidWorkflow(
+                "system source needs permissions.system to declare at least one"
+                    + " group (cpu, memory, disk, sensors)"
             )
         }
         let detail = params.objectValue?["detail"]?.boolValue == true

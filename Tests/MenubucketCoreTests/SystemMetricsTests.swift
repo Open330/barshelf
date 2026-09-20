@@ -4,18 +4,35 @@ import XCTest
 /// The sampler talks to Mach / sysctl / IOKit, so these assert the contract a
 /// widget template depends on (shape, units, ranges) rather than fixed values.
 final class SystemMetricsTests: XCTestCase {
-    func testMetricsParsingDefaultsToEveryGroup() {
-        XCTAssertEqual(SystemMetrics.metrics(from: nil), Set(SystemMetrics.Metric.allCases))
-        XCTAssertEqual(SystemMetrics.metrics(from: .array([])), Set(SystemMetrics.Metric.allCases))
+    func testAbsentMetricsListReadsAsUnspecified() {
+        XCTAssertNil(SystemMetrics.requestedMetrics(from: nil))
+        XCTAssertNil(SystemMetrics.requestedMetrics(from: .array([])))
         XCTAssertEqual(
-            SystemMetrics.metrics(from: .array([.string("cpu"), .string("sensors")])),
+            SystemMetrics.requestedMetrics(from: .array([.string("cpu"), .string("sensors")])),
             [.cpu, .sensors]
         )
         // Unknown names are dropped, not treated as "everything".
         XCTAssertEqual(
-            SystemMetrics.metrics(from: .array([.string("cpu"), .string("gpu")])),
+            SystemMetrics.requestedMetrics(from: .array([.string("cpu"), .string("gpu")])),
             [.cpu]
         )
+    }
+
+    func testUnspecifiedMetricsTakeTheWholeGrantInsteadOfFailing() {
+        // `{ "use": "system" }` with `permissions.system: ["cpu"]` samples CPU
+        // — it never asked for the three groups it was not granted.
+        let (allowed, denied) = SystemMetrics.authorized(nil, declared: ["cpu"])
+        XCTAssertEqual(allowed, [.cpu])
+        XCTAssertTrue(denied.isEmpty)
+
+        // An explicit list is still checked against the grant.
+        let explicit = SystemMetrics.authorized([.cpu, .sensors], declared: ["cpu"])
+        XCTAssertEqual(explicit.allowed, [.cpu])
+        XCTAssertEqual(explicit.denied, [.sensors])
+
+        // Declaring nothing still grants nothing.
+        XCTAssertTrue(SystemMetrics.authorized(nil, declared: nil).allowed.isEmpty)
+        XCTAssertEqual(SystemMetrics.authorized([.cpu], declared: nil).denied, [.cpu])
     }
 
     func testSampleEmitsOnlyTheRequestedGroups() {
@@ -197,6 +214,43 @@ final class SystemMetricsTests: XCTestCase {
         // the window still has to measure.
         let detailed = sampler.sample(detail: true, now: start.addingTimeInterval(0.01))
         XCTAssertEqual(detailed.cores.count, detailed.coreCount)
+    }
+
+    func testAPlainCallerNeverSeesPerCoreDataFromACachedDetailSample() {
+        let sampler = SystemMetrics.CPUSampler()
+        let start = Date()
+        let detailed = sampler.sample(detail: true, now: start)
+        XCTAssertFalse(detailed.cores.isEmpty)
+        // Sharing one sampler must not leak detail-only data into a plain
+        // sample — `cores[]` is contractually detail-only.
+        let plain = sampler.sample(detail: false, now: start.addingTimeInterval(0.01))
+        XCTAssertTrue(plain.cores.isEmpty)
+        XCTAssertNil(plain.json.objectValue?["cores"])
+        XCTAssertEqual(plain.usage, detailed.usage, accuracy: 0.0001)
+    }
+
+    func testAMissingTickReadingReportsNoDataRatherThanTrapping() {
+        // `host_processor_info` can fail; the sampler must not index a
+        // baseline that does not line up with the reading.
+        let empty = SystemMetrics.CPUSampler.unavailable()
+        XCTAssertEqual(empty.coreCount, 0)
+        XCTAssertTrue(empty.cores.isEmpty)
+        XCTAssertEqual(empty.usage, 0)
+        XCTAssertEqual(empty.loadAverage.count, 3)
+        XCTAssertNil(empty.json.objectValue?["cores"])
+    }
+
+    func testPresentedStripsDetailOnlyFieldsForPlainCallers() {
+        let detailed = SystemMetrics.CPUUsage(
+            usage: 20, user: 15, system: 5, nice: 0, idle: 80,
+            coreCount: 2, cores: [10, 30], loadAverage: [1, 1, 1]
+        )
+        XCTAssertEqual(
+            SystemMetrics.CPUSampler.presented(detailed, detail: true).cores, [10, 30]
+        )
+        XCTAssertTrue(
+            SystemMetrics.CPUSampler.presented(detailed, detail: false).cores.isEmpty
+        )
     }
 
     func testResetDropsTheCachedSample() {

@@ -27,26 +27,37 @@ public enum SystemMetrics {
         case cpu, memory, disk, sensors
     }
 
-    /// Parses the `metrics` source parameter. An empty/absent list means
-    /// "everything the widget is permitted to read".
-    public static func metrics(from value: JSONValue?) -> Set<Metric> {
+    /// Parses the `metrics` source parameter. `nil` means the source named no
+    /// groups, which reads as "everything this widget is permitted to read" —
+    /// distinct from an explicit list, which is checked against the grant.
+    public static func requestedMetrics(from value: JSONValue?) -> Set<Metric>? {
         guard let names = value?.arrayValue?.compactMap(\.stringValue), !names.isEmpty else {
-            return Set(Metric.allCases)
+            return nil
         }
         return Set(names.compactMap(Metric.init(rawValue:)))
     }
 
-    /// Splits the requested groups by what `permissions.system` grants.
+    /// Groups `permissions.system` grants.
     ///
     /// Declaring nothing grants nothing: a widget that reads system telemetry
     /// says so in its manifest, the same way an `exec` source declares its
     /// command and an `http` source its host.
+    public static func granted(_ declared: [String]?) -> Set<Metric> {
+        Set((declared ?? []).compactMap(Metric.init(rawValue:)))
+    }
+
+    /// Resolves what a source may actually sample.
+    ///
+    /// An unspecified request takes the whole grant, so `{ "use": "system" }`
+    /// with `permissions.system: ["cpu"]` samples CPU rather than failing on
+    /// the three groups it never asked for.
     public static func authorized(
-        _ requested: Set<Metric>,
+        _ requested: Set<Metric>?,
         declared: [String]?
     ) -> (allowed: Set<Metric>, denied: Set<Metric>) {
-        let granted = Set((declared ?? []).compactMap(Metric.init(rawValue:)))
-        return (requested.intersection(granted), requested.subtracting(granted))
+        let grant = granted(declared)
+        guard let requested else { return (grant, []) }
+        return (requested.intersection(grant), requested.subtracting(grant))
     }
 
     /// Samples the requested groups into the shape a workflow template reads
@@ -140,14 +151,26 @@ public enum SystemMetrics {
 
             if let last, now.timeIntervalSince(last.at) < Self.minWindowSec,
                !detail || !last.usage.cores.isEmpty {
-                return last.usage
+                return Self.presented(last.usage, detail: detail)
             }
 
             var current = Self.read()
-            if previous.isEmpty || previous.count != current.count {
+            // `host_processor_info` can fail (VM, resource pressure). Without
+            // tick counters there is no load to report, and — critically — no
+            // baseline to index into further down.
+            guard !current.isEmpty else { return Self.unavailable() }
+
+            if previous.count != current.count {
                 previous = current
                 usleep(Self.baselineWindowMs * 1000)
                 current = Self.read()
+                // A re-read can come back empty or a different width (a core
+                // parked between the two reads). Either way there is no
+                // matching baseline to difference against this time round.
+                guard current.count == previous.count else {
+                    previous = current
+                    return Self.unavailable()
+                }
             }
 
             var cores: [Double] = []
@@ -165,8 +188,6 @@ public enum SystemMetrics {
 
             let delta = totals.delta(since: previousTotals)
             let total = max(delta.total, 1)
-            var loads = [Double](repeating: 0, count: 3)
-            getloadavg(&loads, 3)
 
             let usage = CPUUsage(
                 usage: Double(delta.user + delta.system + delta.nice) / Double(total) * 100,
@@ -176,10 +197,36 @@ public enum SystemMetrics {
                 idle: Double(delta.idle) / Double(total) * 100,
                 coreCount: current.count,
                 cores: cores,
-                loadAverage: loads
+                loadAverage: Self.loadAverage()
             )
             last = (usage, now)
             return usage
+        }
+
+        /// A cached sample may carry per-core data a plain caller must not see
+        /// — `cores[]` is contractually detail-only.
+        static func presented(_ usage: CPUUsage, detail: Bool) -> CPUUsage {
+            guard !detail, !usage.cores.isEmpty else { return usage }
+            var stripped = usage
+            stripped.cores = []
+            return stripped
+        }
+
+        /// No tick counters this round. Reported as zero load with
+        /// `coreCount: 0` — the signal a template can branch on — rather than
+        /// a fabricated idle machine. Deliberately not cached, so the next
+        /// sample retries immediately.
+        static func unavailable() -> CPUUsage {
+            CPUUsage(
+                usage: 0, user: 0, system: 0, nice: 0, idle: 0,
+                coreCount: 0, cores: [], loadAverage: loadAverage()
+            )
+        }
+
+        static func loadAverage() -> [Double] {
+            var loads = [Double](repeating: 0, count: 3)
+            getloadavg(&loads, 3)
+            return loads
         }
 
         /// Drops the baseline so the next sample re-seeds — used by tests and
