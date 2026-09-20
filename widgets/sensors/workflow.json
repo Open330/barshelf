@@ -2,17 +2,18 @@
   "$schema": "https://barshelf.jiun.dev/schema/workflow-0.1.json",
   "schemaVersion": 1,
   "kind": "workflow",
-  "_comment": "Hardware sensors from the native `system` source: SMC temperatures and fans, with the Apple Silicon HID sensor plane as the fallback. Every reading is optional — a fanless Mac lists no fans, and a sandboxed build reports nothing at all, so the view switches on sensors.available.",
-
+  "_comment": "Hardware sensors from the native `system` source: SMC temperatures and fans, with the Apple Silicon HID sensor plane as the fallback. Every reading is optional, so the view switches on sensors.available. Displayed temperatures are converted per `settings.unit`; the progress thresholds stay in Celsius because that is what they were calibrated against.",
   "sources": {
     "data": {
       "use": "system",
-      "with": { "metrics": ["sensors"] }
+      "with": {
+        "metrics": [
+          "sensors"
+        ]
+      }
     }
   },
-
   "transforms": {},
-
   "view": {
     "switch": "${string(sources.data.sensors.available)}",
     "cases": {
@@ -24,9 +25,24 @@
             "type": "hstack",
             "spacing": 6,
             "children": [
-              { "type": "image", "source": { "kind": "sfSymbol", "name": "thermometer.medium" }, "size": 14, "tint": "accent" },
-              { "type": "text", "text": "Sensors", "role": "caption", "foreground": "secondary" },
-              { "type": "spacer" },
+              {
+                "type": "image",
+                "source": {
+                  "kind": "sfSymbol",
+                  "name": "thermometer.medium"
+                },
+                "size": 14,
+                "tint": "accent"
+              },
+              {
+                "type": "text",
+                "text": "Sensors",
+                "role": "caption",
+                "foreground": "secondary"
+              },
+              {
+                "type": "spacer"
+              },
               {
                 "type": "text",
                 "text": "${if(eq(sources.data.sensors.power, null), '', concat(string(round(number(sources.data.sensors.power), 1)), ' W'))}",
@@ -43,11 +59,17 @@
               {
                 "type": "hstack",
                 "children": [
-                  { "type": "text", "text": "CPU", "role": "caption" },
-                  { "type": "spacer" },
                   {
                     "type": "text",
-                    "text": "${if(eq(sources.data.sensors.cpu, null), '—', concat(string(round(number(sources.data.sensors.cpu), 1)), ' °C'))}",
+                    "text": "CPU",
+                    "role": "caption"
+                  },
+                  {
+                    "type": "spacer"
+                  },
+                  {
+                    "type": "text",
+                    "text": "${if(eq(sources.data.sensors.cpu, null), '\u2014', concat(string(round(number(if(eq(settings.unit,'fahrenheit'), add(mul(sources.data.sensors.cpu,1.8),32), sources.data.sensors.cpu)), 1)), if(eq(settings.unit,'fahrenheit'), ' \u00b0F', ' \u00b0C')))}",
                     "role": "caption",
                     "monospacedDigit": true,
                     "foreground": "${if(gt(sources.data.sensors.cpu, 90), 'danger', if(gt(sources.data.sensors.cpu, 75), 'warning', 'good'))}"
@@ -65,11 +87,17 @@
           {
             "type": "hstack",
             "children": [
-              { "type": "text", "text": "GPU", "role": "caption" },
-              { "type": "spacer" },
               {
                 "type": "text",
-                "text": "${if(eq(sources.data.sensors.gpu, null), '—', concat(string(round(number(sources.data.sensors.gpu), 1)), ' °C'))}",
+                "text": "GPU",
+                "role": "caption"
+              },
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "text",
+                "text": "${if(eq(sources.data.sensors.gpu, null), '\u2014', concat(string(round(number(if(eq(settings.unit,'fahrenheit'), add(mul(sources.data.sensors.gpu,1.8),32), sources.data.sensors.gpu)), 1)), if(eq(settings.unit,'fahrenheit'), ' \u00b0F', ' \u00b0C')))}",
                 "role": "caption",
                 "monospacedDigit": true,
                 "foreground": "secondary"
@@ -79,11 +107,17 @@
           {
             "type": "hstack",
             "children": [
-              { "type": "text", "text": "Battery", "role": "caption" },
-              { "type": "spacer" },
               {
                 "type": "text",
-                "text": "${if(eq(sources.data.sensors.battery, null), '—', concat(string(round(number(sources.data.sensors.battery), 1)), ' °C'))}",
+                "text": "Battery",
+                "role": "caption"
+              },
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "text",
+                "text": "${if(eq(sources.data.sensors.battery, null), '\u2014', concat(string(round(number(if(eq(settings.unit,'fahrenheit'), add(mul(sources.data.sensors.battery,1.8),32), sources.data.sensors.battery)), 1)), if(eq(settings.unit,'fahrenheit'), ' \u00b0F', ' \u00b0C')))}",
                 "role": "caption",
                 "monospacedDigit": true,
                 "foreground": "secondary"
@@ -103,8 +137,14 @@
                     "type": "hstack",
                     "id": "fan-${string(fan.index)}",
                     "children": [
-                      { "type": "text", "text": "${fan.name}", "role": "caption" },
-                      { "type": "spacer" },
+                      {
+                        "type": "text",
+                        "text": "${fan.name}",
+                        "role": "caption"
+                      },
+                      {
+                        "type": "spacer"
+                      },
                       {
                         "type": "text",
                         "text": "${concat(string(round(number(fan.rpm), 0)), ' rpm')}",
@@ -119,9 +159,20 @@
               "false": {
                 "type": "hstack",
                 "children": [
-                  { "type": "text", "text": "Fans", "role": "caption" },
-                  { "type": "spacer" },
-                  { "type": "text", "text": "none", "role": "caption", "foreground": "secondary" }
+                  {
+                    "type": "text",
+                    "text": "Fans",
+                    "role": "caption"
+                  },
+                  {
+                    "type": "spacer"
+                  },
+                  {
+                    "type": "text",
+                    "text": "none",
+                    "role": "caption",
+                    "foreground": "secondary"
+                  }
                 ]
               }
             }
@@ -137,8 +188,21 @@
           "type": "hstack",
           "spacing": 6,
           "children": [
-            { "type": "image", "source": { "kind": "sfSymbol", "name": "thermometer.medium" }, "size": 14, "tint": "secondary" },
-            { "type": "text", "text": "Sensors", "role": "caption", "foreground": "secondary" }
+            {
+              "type": "image",
+              "source": {
+                "kind": "sfSymbol",
+                "name": "thermometer.medium"
+              },
+              "size": 14,
+              "tint": "secondary"
+            },
+            {
+              "type": "text",
+              "text": "Sensors",
+              "role": "caption",
+              "foreground": "secondary"
+            }
           ]
         },
         {
@@ -150,9 +214,8 @@
       ]
     }
   },
-
   "status": {
-    "label": "${if(sources.data.sensors.available, concat(string(round(number(coalesce(sources.data.sensors.cpu, sources.data.sensors.peak, 0)), 0)), '°'), '')}",
-    "tooltip": "${if(sources.data.sensors.available, concat('CPU ', string(round(number(coalesce(sources.data.sensors.cpu, 0)), 1)), ' °C · peak ', string(round(number(coalesce(sources.data.sensors.peak, 0)), 1)), ' °C'), 'No sensors available')}"
+    "label": "${if(sources.data.sensors.available, concat(string(round(number(if(eq(settings.unit,'fahrenheit'), add(mul(coalesce(if(eq(settings.menuBarSensor,'gpu'), sources.data.sensors.gpu, if(eq(settings.menuBarSensor,'battery'), sources.data.sensors.battery, if(eq(settings.menuBarSensor,'peak'), sources.data.sensors.peak, sources.data.sensors.cpu))), sources.data.sensors.peak, 0),1.8),32), coalesce(if(eq(settings.menuBarSensor,'gpu'), sources.data.sensors.gpu, if(eq(settings.menuBarSensor,'battery'), sources.data.sensors.battery, if(eq(settings.menuBarSensor,'peak'), sources.data.sensors.peak, sources.data.sensors.cpu))), sources.data.sensors.peak, 0))), 0)), if(eq(settings.unit,'fahrenheit'), '\u00b0F', '\u00b0')), '')}",
+    "tooltip": "${if(sources.data.sensors.available, concat('CPU ', string(round(number(if(eq(settings.unit,'fahrenheit'), add(mul(coalesce(sources.data.sensors.cpu, 0),1.8),32), coalesce(sources.data.sensors.cpu, 0))), 1)), if(eq(settings.unit,'fahrenheit'), ' \u00b0F', ' \u00b0C'), ' \u00b7 peak ', string(round(number(if(eq(settings.unit,'fahrenheit'), add(mul(coalesce(sources.data.sensors.peak, 0),1.8),32), coalesce(sources.data.sensors.peak, 0))), 1)), if(eq(settings.unit,'fahrenheit'), ' \u00b0F', ' \u00b0C')), 'No sensors available')}"
   }
 }

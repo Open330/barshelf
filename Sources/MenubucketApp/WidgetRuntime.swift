@@ -1245,6 +1245,35 @@ final class WidgetRuntime: ObservableObject {
         }
     }
 
+    /// Widget ids currently drawn in the shared strip, left to right. This is
+    /// what "move left" and "move right" operate on — the separate items are
+    /// rearranged by dragging them in the menu bar itself.
+    var menuBarStripOrder: [String] {
+        MenuBarPolicy.partition(menuBar.entries).strip.map(\.widgetID)
+    }
+
+    func canMoveInMenuBar(_ id: String, by offset: Int) -> Bool {
+        MenuBarPolicy.canMove(id, by: offset, within: menuBarStripOrder)
+    }
+
+    /// Moves a widget within the shared strip.
+    ///
+    /// Every widget in the run gets a fresh key: the stored ones may be absent
+    /// or stale (nothing set them before this existed), so re-deriving the
+    /// whole order is what makes one move predictable.
+    func moveInMenuBar(_ id: String, by offset: Int) {
+        let ids = menuBarStripOrder
+        guard MenuBarPolicy.canMove(id, by: offset, within: ids) else { return }
+        for (widgetID, order) in MenuBarPolicy.reordered(ids, moving: id, by: offset) {
+            guard let widget = widgets.first(where: { $0.id == widgetID }) else { continue }
+            var placement = prefs.menuBarPlacement(for: widget.manifest, widgetID: widgetID)
+            placement.order = order
+            prefs.setMenuBarPlacement(placement, for: widgetID)
+        }
+        syncMenuBar()
+        objectWillChange.send()
+    }
+
     /// Edits one field of a widget's placement, keeping the rest. A menu
     /// command that toggles promotion must not silently drop the sort order
     /// the user arranged.

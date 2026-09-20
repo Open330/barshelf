@@ -2,19 +2,25 @@
   "$schema": "https://barshelf.jiun.dev/schema/workflow-0.1.json",
   "schemaVersion": 1,
   "kind": "workflow",
-  "_comment": "System monitor on the native `system` source — no subprocess, so it is cheap enough to keep updating in the menu bar. Percentages are 0-100.",
-
+  "_comment": "System monitor on the native `system` source \u2014 no subprocess, so it is cheap enough to keep updating in the menu bar. Percentages are 0-100. `status.label` reads `settings.*`, which is how a user chooses what the menu bar shows without editing this file.",
   "sources": {
     "data": {
       "use": "system",
-      "with": { "metrics": ["cpu", "memory", "disk"] }
+      "with": {
+        "metrics": [
+          "cpu",
+          "memory",
+          "disk"
+        ]
+      }
     }
   },
-
   "transforms": {},
-
   "view": {
-    "action": {"type": "openApp", "value": "com.apple.ActivityMonitor"},
+    "action": {
+      "type": "openApp",
+      "value": "com.apple.ActivityMonitor"
+    },
     "type": "vstack",
     "spacing": 10,
     "children": [
@@ -22,10 +28,31 @@
         "type": "hstack",
         "spacing": 6,
         "children": [
-          { "type": "image", "source": { "kind": "sfSymbol", "name": "cpu.fill" }, "size": 14, "tint": "accent" },
-          { "type": "text", "text": "System", "role": "caption", "foreground": "secondary" },
-          { "type": "spacer" },
-          { "type": "text", "text": "${string(round(number(sources.data.cpu.loadAverage.1m), 2))}", "role": "caption", "monospacedDigit": true, "foreground": "secondary" }
+          {
+            "type": "image",
+            "source": {
+              "kind": "sfSymbol",
+              "name": "cpu.fill"
+            },
+            "size": 14,
+            "tint": "accent"
+          },
+          {
+            "type": "text",
+            "text": "System",
+            "role": "caption",
+            "foreground": "secondary"
+          },
+          {
+            "type": "spacer"
+          },
+          {
+            "type": "text",
+            "text": "${string(round(number(sources.data.cpu.loadAverage.1m), 2))}",
+            "role": "caption",
+            "monospacedDigit": true,
+            "foreground": "secondary"
+          }
         ]
       },
       {
@@ -35,12 +62,29 @@
           {
             "type": "hstack",
             "children": [
-              { "type": "text", "text": "CPU", "role": "caption" },
-              { "type": "spacer" },
-              { "type": "text", "text": "${string(round(number(sources.data.cpu.usage), 0))}%", "role": "caption", "monospacedDigit": true, "foreground": "${if(gt(sources.data.cpu.usage, 85), 'danger', if(gt(sources.data.cpu.usage, 60), 'warning', 'good'))}" }
+              {
+                "type": "text",
+                "text": "CPU",
+                "role": "caption"
+              },
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "text",
+                "text": "${string(round(number(sources.data.cpu.usage), 0))}%",
+                "role": "caption",
+                "monospacedDigit": true,
+                "foreground": "${if(gt(sources.data.cpu.usage, 85), 'danger', if(gt(sources.data.cpu.usage, 60), 'warning', 'good'))}"
+              }
             ]
           },
-          { "type": "progress", "style": "linear", "value": "${div(sources.data.cpu.usage, 100)}", "tint": "${if(gt(sources.data.cpu.usage, 85), 'danger', if(gt(sources.data.cpu.usage, 60), 'warning', 'good'))}" }
+          {
+            "type": "progress",
+            "style": "linear",
+            "value": "${div(sources.data.cpu.usage, 100)}",
+            "tint": "${if(gt(sources.data.cpu.usage, 85), 'danger', if(gt(sources.data.cpu.usage, 60), 'warning', 'good'))}"
+          }
         ]
       },
       {
@@ -50,12 +94,29 @@
           {
             "type": "hstack",
             "children": [
-              { "type": "text", "text": "Memory", "role": "caption" },
-              { "type": "spacer" },
-              { "type": "text", "text": "${string(round(number(sources.data.memory.usage), 0))}%", "role": "caption", "monospacedDigit": true, "foreground": "${if(gt(sources.data.memory.usage, 85), 'danger', if(gt(sources.data.memory.usage, 65), 'warning', 'good'))}" }
+              {
+                "type": "text",
+                "text": "Memory",
+                "role": "caption"
+              },
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "text",
+                "text": "${string(round(number(sources.data.memory.usage), 0))}%",
+                "role": "caption",
+                "monospacedDigit": true,
+                "foreground": "${if(gt(sources.data.memory.usage, 85), 'danger', if(gt(sources.data.memory.usage, 65), 'warning', 'good'))}"
+              }
             ]
           },
-          { "type": "progress", "style": "linear", "value": "${div(sources.data.memory.usage, 100)}", "tint": "${if(gt(sources.data.memory.usage, 85), 'danger', if(gt(sources.data.memory.usage, 65), 'warning', 'good'))}" }
+          {
+            "type": "progress",
+            "style": "linear",
+            "value": "${div(sources.data.memory.usage, 100)}",
+            "tint": "${if(gt(sources.data.memory.usage, 85), 'danger', if(gt(sources.data.memory.usage, 65), 'warning', 'good'))}"
+          }
         ]
       },
       {
@@ -65,19 +126,35 @@
           {
             "type": "hstack",
             "children": [
-              { "type": "text", "text": "Disk", "role": "caption" },
-              { "type": "spacer" },
-              { "type": "text", "text": "${string(round(number(sources.data.disk.usage), 0))}%", "role": "caption", "monospacedDigit": true, "foreground": "${if(gt(sources.data.disk.usage, 90), 'danger', if(gt(sources.data.disk.usage, 75), 'warning', 'good'))}" }
+              {
+                "type": "text",
+                "text": "Disk",
+                "role": "caption"
+              },
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "text",
+                "text": "${string(round(number(sources.data.disk.usage), 0))}%",
+                "role": "caption",
+                "monospacedDigit": true,
+                "foreground": "${if(gt(sources.data.disk.usage, 90), 'danger', if(gt(sources.data.disk.usage, 75), 'warning', 'good'))}"
+              }
             ]
           },
-          { "type": "progress", "style": "linear", "value": "${div(sources.data.disk.usage, 100)}", "tint": "${if(gt(sources.data.disk.usage, 90), 'danger', if(gt(sources.data.disk.usage, 75), 'warning', 'good'))}" }
+          {
+            "type": "progress",
+            "style": "linear",
+            "value": "${div(sources.data.disk.usage, 100)}",
+            "tint": "${if(gt(sources.data.disk.usage, 90), 'danger', if(gt(sources.data.disk.usage, 75), 'warning', 'good'))}"
+          }
         ]
       }
     ]
   },
-
   "status": {
-    "label": "${string(round(number(sources.data.cpu.usage), 0))}%",
-    "tooltip": "CPU ${string(round(number(sources.data.cpu.usage), 0))}% · Memory ${string(round(number(sources.data.memory.usage), 0))}% · Disk ${string(round(number(sources.data.disk.usage), 0))}%"
+    "label": "${if(eq(settings.menuBarStyle,'labeled'), concat(if(eq(settings.menuBarMetric,'memory'), 'Mem ', if(eq(settings.menuBarMetric,'disk'), 'Disk ', 'CPU ')), concat(string(round(number(if(eq(settings.menuBarMetric,'memory'), sources.data.memory.usage, if(eq(settings.menuBarMetric,'disk'), sources.data.disk.usage, sources.data.cpu.usage))), 0)), '%')), concat(string(round(number(if(eq(settings.menuBarMetric,'memory'), sources.data.memory.usage, if(eq(settings.menuBarMetric,'disk'), sources.data.disk.usage, sources.data.cpu.usage))), 0)), '%'))}",
+    "tooltip": "CPU ${string(round(number(sources.data.cpu.usage), 0))}% \u00b7 Memory ${string(round(number(sources.data.memory.usage), 0))}% \u00b7 Disk ${string(round(number(sources.data.disk.usage), 0))}%"
   }
 }

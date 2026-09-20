@@ -5,18 +5,53 @@
   "name": "Sensors",
   "version": "0.1.0",
   "icon": "thermometer.medium",
-  "bucket": { "group": "System", "order": 12, "size": "M" },
-
-  "entry": { "kind": "workflow", "main": "workflow.json" },
-
-  "refresh": { "onOpen": true, "interval": 3, "staleAfterSec": 3 },
-
-  "statusItem": { "mode": "text", "icon": "thermometer.medium" },
-
-  "permissions": {
-    "system": ["sensors"]
+  "bucket": {
+    "group": "System",
+    "order": 12,
+    "size": "M"
   },
-
+  "entry": {
+    "kind": "workflow",
+    "main": "workflow.json"
+  },
+  "refresh": {
+    "onOpen": true,
+    "interval": 3,
+    "staleAfterSec": 3
+  },
+  "statusItem": {
+    "mode": "text",
+    "icon": "thermometer.medium"
+  },
+  "permissions": {
+    "system": [
+      "sensors"
+    ]
+  },
+  "settings": [
+    {
+      "key": "menuBarSensor",
+      "title": "Menu bar shows",
+      "type": "enum",
+      "default": "cpu",
+      "options": [
+        "cpu",
+        "gpu",
+        "battery",
+        "peak"
+      ]
+    },
+    {
+      "key": "unit",
+      "title": "Temperature unit",
+      "type": "enum",
+      "default": "celsius",
+      "options": [
+        "celsius",
+        "fahrenheit"
+      ]
+    }
+  ],
   "appearance": {
     "accent": "orange"
   }

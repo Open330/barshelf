@@ -180,6 +180,53 @@ final class MenuBarPromotionTests: XCTestCase {
         XCTAssertTrue(separate.isEmpty)
     }
 
+    // MARK: - Reordering
+
+    func testMovingAWidgetRewritesTheWholeRun() {
+        let ids = ["a", "b", "c"]
+        // Every id gets a key, not just the moved one: the stored keys may be
+        // absent or stale, so one move has to re-derive the order.
+        let moved = MenuBarPolicy.reordered(ids, moving: "c", by: -1)
+        XCTAssertEqual(moved, ["a": 0, "c": 1, "b": 2])
+        XCTAssertEqual(
+            MenuBarPolicy.ordered(ids.map { (entry($0), moved[$0]) }).map(\.widgetID),
+            ["a", "c", "b"]
+        )
+    }
+
+    func testMovingClampsAtTheEdgesInsteadOfWrapping() {
+        let ids = ["a", "b", "c"]
+        XCTAssertEqual(MenuBarPolicy.reordered(ids, moving: "a", by: -1), ["a": 0, "b": 1, "c": 2])
+        XCTAssertEqual(MenuBarPolicy.reordered(ids, moving: "c", by: 1), ["a": 0, "b": 1, "c": 2])
+        XCTAssertFalse(MenuBarPolicy.canMove("a", by: -1, within: ids))
+        XCTAssertFalse(MenuBarPolicy.canMove("c", by: 1, within: ids))
+        XCTAssertTrue(MenuBarPolicy.canMove("b", by: -1, within: ids))
+        XCTAssertTrue(MenuBarPolicy.canMove("b", by: 1, within: ids))
+    }
+
+    func testReorderingAnUnknownOrUnmovedWidgetNormalisesWithoutMoving() {
+        let ids = ["a", "b", "c"]
+        let expected: [String: Double] = ["a": 0, "b": 1, "c": 2]
+        XCTAssertEqual(MenuBarPolicy.reordered(ids, moving: "zzz", by: -1), expected)
+        XCTAssertEqual(MenuBarPolicy.reordered(ids, moving: "b", by: 0), expected)
+        XCTAssertFalse(MenuBarPolicy.canMove("zzz", by: 1, within: ids))
+    }
+
+    func testAMoveSurvivesWidgetsThatHadNoOrderAtAll() {
+        // Everything promoted before ordering existed has a nil key; the run is
+        // still ordered by name, and one move must produce a stable result.
+        let ids = MenuBarPolicy.ordered([
+            (entry("beta", name: "Beta"), nil),
+            (entry("alpha", name: "Alpha"), nil),
+            (entry("gamma", name: "Gamma"), nil),
+        ]).map(\.widgetID)
+        XCTAssertEqual(ids, ["alpha", "beta", "gamma"])
+        XCTAssertEqual(
+            MenuBarPolicy.reordered(ids, moving: "gamma", by: -2),
+            ["gamma": 0, "alpha": 1, "beta": 2]
+        )
+    }
+
     // MARK: - Rendered text
 
     func testStripTextJoinsLabelsAndSkipsEmptyOnes() {

@@ -253,6 +253,12 @@ sharing) the BarShelf mark.
 - The live text is the value the widget already computes: a workflow's
   `status.label`, or a script's `host.render` status. `labelFrom` /
   `tooltipFrom` are still accepted by the schema but unused.
+- `status.label` is evaluated in the same context as the view, so it can read
+  `settings.*`. Exposing a `settings` entry the label branches on is how a
+  **user** chooses what the menu bar shows — the bundled `system` (which metric,
+  and whether to prefix it) and `sensors` (which sensor, °C or °F) widgets do
+  exactly this. Branch with `if(eq(settings.key,'x'), …, …)` so an absent or
+  unknown value falls through to a sane default.
 - Widgets that show a label **share one status item** with the BarShelf mark
   (`✦ 42% · 61% · 58°`); a widget can be split into its own item from Settings
   or its right-click menu. An `"icon"`-only widget always gets its own item,

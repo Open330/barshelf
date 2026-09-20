@@ -9,6 +9,16 @@ shows, as a BarShelf widget.
 - system total power draw in watts, when the Mac publishes it
 - a live CPU temperature in the menu bar
 
+## Settings
+
+| Setting | Choices | Effect |
+| --- | --- | --- |
+| **Menu bar shows** | CPU / GPU / Battery / Peak | Which reading the menu bar label carries. The card always shows all of them. |
+| **Temperature unit** | Celsius / Fahrenheit | Applies to the card *and* the menu bar. Fahrenheit labels say `°F`, so `123°F` is never read as a Celsius figure. |
+
+The health colouring stays calibrated in Celsius whichever unit you pick — the
+thresholds are a property of the hardware, not of how you prefer to read it.
+
 ## Setup
 
 Nothing to configure. Install it and it reads the machine it runs on.

@@ -903,6 +903,74 @@ final class NativeWidgetsTests: XCTestCase {
         XCTAssertEqual(out.statusTooltip, "CPU 42% · Memory 61% · Disk 14%")
     }
 
+    func testSystemMenuBarLabelFollowsTheUsersSettings() throws {
+        let sources: [String: JSONValue] = ["data": .object([
+            "cpu": .object([
+                "usage": .number(29.4), "loadAverage": .object(["1m": .number(2)]),
+            ]),
+            "memory": .object(["usage": .number(64.2)]),
+            "disk": .object(["usage": .number(13.8)]),
+        ])]
+        func label(_ settings: [String: JSONValue]) throws -> String? {
+            try WorkflowEngine.evaluate(
+                try def("system"), sources: sources, settings: .object(settings)
+            ).statusLabel
+        }
+        // Which metric the menu bar shows is the user's call, not the author's.
+        XCTAssertEqual(try label(["menuBarMetric": .string("cpu")]), "29%")
+        XCTAssertEqual(try label(["menuBarMetric": .string("memory")]), "64%")
+        XCTAssertEqual(try label(["menuBarMetric": .string("disk")]), "14%")
+        XCTAssertEqual(
+            try label(["menuBarMetric": .string("memory"), "menuBarStyle": .string("labeled")]),
+            "Mem 64%"
+        )
+        // No settings at all still produces something sensible.
+        XCTAssertEqual(try label([:]), "29%")
+        XCTAssertEqual(try label(["menuBarMetric": .string("nonsense")]), "29%")
+    }
+
+    func testSensorsMenuBarLabelAndUnitFollowTheUsersSettings() throws {
+        let sensors: JSONValue = .object([
+            "available": .bool(true), "cpu": .number(50.7), "gpu": .number(44),
+            "battery": .number(29.1), "peak": .number(59.7), "power": .null,
+            "fans": .array([]),
+        ])
+        func output(_ settings: [String: JSONValue]) throws -> WorkflowEngine.Output {
+            try WorkflowEngine.evaluate(
+                try def("sensors"), sources: ["data": .object(["sensors": sensors])],
+                settings: .object(settings)
+            )
+        }
+        XCTAssertEqual(try output(["menuBarSensor": .string("cpu")]).statusLabel, "51°")
+        XCTAssertEqual(try output(["menuBarSensor": .string("gpu")]).statusLabel, "44°")
+        XCTAssertEqual(try output(["menuBarSensor": .string("battery")]).statusLabel, "29°")
+        XCTAssertEqual(try output(["menuBarSensor": .string("peak")]).statusLabel, "60°")
+
+        // Fahrenheit converts, and says which scale it is so 123 is not read
+        // as a Celsius reading.
+        let f = try output(["unit": .string("fahrenheit")])
+        XCTAssertEqual(f.statusLabel, "123°F")
+        XCTAssertEqual(f.statusTooltip, "CPU 123.3 °F · peak 139.5 °F")
+        XCTAssertTrue(flat(f.viewTree).contains("123.3 °F"))
+        XCTAssertFalse(flat(f.viewTree).contains("°C"))
+    }
+
+    func testAnAbsentSensorStaysADashWhateverTheUnit() throws {
+        let partial: JSONValue = .object([
+            "available": .bool(true), "cpu": .number(50.7), "gpu": .null,
+            "battery": .null, "peak": .number(50.7), "power": .null, "fans": .array([]),
+        ])
+        let out = try WorkflowEngine.evaluate(
+            try def("sensors"), sources: ["data": .object(["sensors": partial])],
+            settings: .object(["unit": .string("fahrenheit")])
+        )
+        let text = flat(out.viewTree)
+        XCTAssertTrue(text.contains("123.3 °F"))
+        XCTAssertTrue(text.contains("—"))
+        // Converting a missing reading would turn "no sensor" into 32 °F.
+        XCTAssertFalse(text.contains("32 °F"))
+    }
+
     func testSensorsRendersReadingsAndDashesWhatTheMacDoesNotReport() throws {
         let out = try WorkflowEngine.evaluate(
             try def("sensors"),
