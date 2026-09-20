@@ -144,6 +144,19 @@ struct WidgetSettingsView: View {
             .labelsHidden()
             .disabled(!menuBarDraft.enabled || !canShareStrip)
 
+            if menuBarDraft.enabled, !menuBarDraft.separate, canShareStrip {
+                HStack(spacing: 8) {
+                    Text("Position")
+                        .font(.caption)
+                    Button("Move Left") { runtime.moveInMenuBar(widget.id, by: -1) }
+                        .disabled(!runtime.canMoveInMenuBar(widget.id, by: -1))
+                    Button("Move Right") { runtime.moveInMenuBar(widget.id, by: 1) }
+                        .disabled(!runtime.canMoveInMenuBar(widget.id, by: 1))
+                }
+                // Only the shared strip needs this: a widget with its own
+                // status item is rearranged by ⌘-dragging it in the menu bar.
+            }
+
             if menuBarDraft.enabled {
                 if publishesNoStatusText {
                     Text(

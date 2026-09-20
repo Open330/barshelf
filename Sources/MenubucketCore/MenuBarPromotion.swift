@@ -199,6 +199,40 @@ public enum MenuBarPolicy {
         Array(entries.prefix(maxEntries))
     }
 
+    /// Order keys after moving `id` `offset` places within `ids`.
+    ///
+    /// Returns an assignment for *every* id, not just the moved one: the stored
+    /// keys can be nil, duplicated or sparse (a widget promoted before ordering
+    /// existed has none), and re-deriving the whole run is the only way to get
+    /// a predictable result from any of those starting points.
+    ///
+    /// `ids` must already be in displayed order — that is what the user sees
+    /// and what "left" and "right" refer to.
+    public static func reordered(
+        _ ids: [String], moving id: String, by offset: Int
+    ) -> [String: Double] {
+        guard let from = ids.firstIndex(of: id), offset != 0 else {
+            return Dictionary(
+                uniqueKeysWithValues: ids.enumerated().map { ($1, Double($0)) }
+            )
+        }
+        var moved = ids
+        moved.remove(at: from)
+        let to = min(max(from + offset, 0), moved.count)
+        moved.insert(id, at: to)
+        return Dictionary(
+            uniqueKeysWithValues: moved.enumerated().map { ($1, Double($0)) }
+        )
+    }
+
+    /// Whether the widget can move further in that direction — the callers use
+    /// it to disable a control rather than offer a no-op.
+    public static func canMove(_ id: String, by offset: Int, within ids: [String]) -> Bool {
+        guard let index = ids.firstIndex(of: id) else { return false }
+        let target = index + offset
+        return target >= 0 && target < ids.count
+    }
+
     /// Splits the promoted entries into the shared strip and the widgets that
     /// asked for their own status item, dropping those with nothing to draw.
     public static func partition(

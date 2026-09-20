@@ -165,9 +165,15 @@ Workflow DSL 상세 계약은 [`docs/WORKFLOW.md`](WORKFLOW.md)를 따른다.
 - 메뉴바에 나오는 글자는 위젯이 이미 계산하는 값이다 — workflow의 `status.label`,
   script의 `host.render` status. 그래서 `labelFrom`/`tooltipFrom`으로 고를 것이
   남지 않는다.
+- `status.label`은 `view`와 같은 컨텍스트에서 평가되므로 **`settings.*`를 읽을 수
+  있다**. 작성자가 manifest에 `settings`를 노출하면 사용자가 메뉴바 표시 내용을
+  직접 고를 수 있다 — 번들 `system`/`sensors` 위젯이 그 예다. 자세한 패턴은
+  [`WORKFLOW.md`의 메뉴바 승격](WORKFLOW.md#메뉴바-승격).
 - label을 가진 위젯들은 BarShelf 마크와 **status item 하나를 공유**한다
   (`✦ 42% · 61% · 58°`). 위젯 설정이나 우클릭 메뉴에서 자기 아이템으로 분리할 수
   있다. `icon` 모드는 아이콘을 글자 줄에 섞을 수 없으므로 항상 자기 아이템을 쓴다.
+- 공유 스트립의 좌우 순서는 위젯 설정의 **Position → Move Left / Move Right**로
+  바꾼다. 자기 아이템을 쓰는 위젯은 macOS가 제공하는 ⌘-드래그로 옮긴다.
 - 최대 5개까지 승격된다. 이 상한은 그리기 전에 적용되므로, 넘친 위젯이 보이지도 않으면서 닫힌 팝오버 폴링 면제를 들고 있는 일은 없다. label은 한 줄로 합쳐 14자에서 자른다.
 - 작성자가 `mode`를 선언해도 그것만으로 켜지지 않는다. 업데이트가 사용자의 메뉴바를 말없이 차지하고 배터리를 더 쓰게 만들지 않기 위해서다.
 - 승격된 위젯은 팝오버가 닫혀 있어도 자기 `refresh.interval`로 계속 돈다.

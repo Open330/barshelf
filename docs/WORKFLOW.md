@@ -292,6 +292,33 @@ Arbitrary JavaScript는 금지한다. 표현식은 문자열 안의 `${...}` 보
 ```
 
 - `label`이 메뉴바에 그려지는 글자다. 공백은 한 칸으로 합쳐지고 14자에서 잘린다.
+- **`status`는 `view`와 같은 컨텍스트에서 평가된다** — `sources`, `transforms`,
+  `storage`, 그리고 `settings`를 전부 읽을 수 있다. 이게 사용자가 메뉴바에 무엇이
+  뜰지 고를 수 있게 만드는 유일한 방법이다: manifest에 `settings`를 노출하고
+  `status.label`이 그걸 읽으면, 사용자는 위젯 설정에서 고르기만 하면 된다.
+
+```json
+{
+  "status": {
+    "label": "${if(eq(settings.menuBarMetric,'memory'), concat(string(round(number(sources.data.memory.usage), 0)), '%'), concat(string(round(number(sources.data.cpu.usage), 0)), '%'))}"
+  }
+}
+```
+
+  대응하는 manifest 쪽:
+
+```json
+{
+  "settings": [
+    { "key": "menuBarMetric", "title": "Menu bar shows", "type": "enum",
+      "default": "cpu", "options": ["cpu", "memory", "disk"] }
+  ]
+}
+```
+
+  번들 위젯 `system`(어느 지표를 보일지 + 라벨 포함 여부)과 `sensors`(어느 센서 +
+  °C/°F)가 이 패턴을 그대로 쓴다. 설정이 없거나 모르는 값이면 `if`의 else 가지로
+  떨어지므로, 기본 동작이 깨지지 않는다.
 - `tooltip`은 마우스를 올렸을 때의 설명이다.
 - 실제로 메뉴바에 나올지는 manifest의 `statusItem.mode`와 사용자의 위젯 설정이
   정한다. 자세한 규칙은 [`WIDGET-SPEC.md`의 `statusItem`](WIDGET-SPEC.md#statusitem).

@@ -5,18 +5,54 @@
   "name": "System",
   "version": "0.2.0",
   "icon": "cpu.fill",
-  "bucket": { "group": "System", "order": 11, "size": "M" },
-
-  "entry": { "kind": "workflow", "main": "workflow.json" },
-
-  "refresh": { "onOpen": true, "interval": 2, "staleAfterSec": 2 },
-
-  "statusItem": { "mode": "text", "icon": "cpu.fill" },
-
-  "permissions": {
-    "system": ["cpu", "memory", "disk"]
+  "bucket": {
+    "group": "System",
+    "order": 11,
+    "size": "M"
   },
-
+  "entry": {
+    "kind": "workflow",
+    "main": "workflow.json"
+  },
+  "refresh": {
+    "onOpen": true,
+    "interval": 2,
+    "staleAfterSec": 2
+  },
+  "statusItem": {
+    "mode": "text",
+    "icon": "cpu.fill"
+  },
+  "permissions": {
+    "system": [
+      "cpu",
+      "memory",
+      "disk"
+    ]
+  },
+  "settings": [
+    {
+      "key": "menuBarMetric",
+      "title": "Menu bar shows",
+      "type": "enum",
+      "default": "cpu",
+      "options": [
+        "cpu",
+        "memory",
+        "disk"
+      ]
+    },
+    {
+      "key": "menuBarStyle",
+      "title": "Menu bar style",
+      "type": "enum",
+      "default": "value",
+      "options": [
+        "value",
+        "labeled"
+      ]
+    }
+  ],
   "appearance": {
     "accent": "purple"
   }
