@@ -32,6 +32,11 @@ barshelf --version
 > CDHash가 등록된다. 릴리스 스크립트는 최종 TAR의 CDHash까지 대조하며,
 > 미공증 산출물은 `dist/local-release/`에만 생성한다.
 
+설치한 뒤로는 `barshelf upgrade`가 CLI와 앱을 함께 최신 릴리스로 올린다
+(`--check`로 확인만). Homebrew로 설치한 앱은 `brew upgrade --cask barshelf`로
+안내하고, 로컬 빌드는 거부한다 — 자세한 규칙은
+[`docs/CLI.md`](CLI.md#자가-업데이트).
+
 사용법: [`docs/CLI.md`](CLI.md)
 
 ## 방법 B — 소스 빌드

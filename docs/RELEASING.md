@@ -146,6 +146,11 @@ override가 걸려 있으면 설정 창의 **Update source** 행과 업데이트
   정확히 그 이름으로 찾는다. 이름이 바뀌면 자가 업데이트는 오류 없이 조용히
   수동 다운로드로 떨어진다. `UpdateCheckerTests`가 `release.sh`의 명명 규칙을
   검사해 이 어긋남을 CI에서 잡는다.
+- **CLI 자산 이름과 tar 레이아웃도 바꾸지 않는다.** `barshelf upgrade`는
+  `barshelf-cli-<version>-arm64.tar.gz`를 그 이름으로 찾고, 그 안의 `barshelf`와
+  `bsf`를 **멤버 이름으로** 꺼낸다(디렉터리로 감싸면 찾지 못한다).
+  `UpgradeCommandTests`가 `release.sh`의 명명과 `tar -czf … barshelf bsf` 한 줄을
+  검사해 CI에서 잡는다.
 - **cask에 `auto_updates true`를 넣지 않는다.** BarShelf는 Homebrew로 설치된
   복사본을 감지해 `brew upgrade --cask barshelf`로 안내하고 스스로 교체하지
   않는다. 여기에 `auto_updates true`를 선언하면 `brew upgrade`가 그 복사본을
@@ -162,5 +167,9 @@ override가 걸려 있으면 설정 창의 **Update source** 행과 업데이트
 - `brew upgrade --cask barshelf`가 새 버전을 집는지.
 - 이전 버전을 실행한 채로 **Check for Updates…** → **Install and Relaunch**가
   교체·재실행까지 끝내는지.
+- 이전 버전 CLI에서 `barshelf upgrade`가 CLI와 앱을 모두 올리는지. 앱과 같은
+  검증 코드를 쓰지만 CLI 바이너리에는 Gatekeeper 판정을 쓸 수 없으므로(단독
+  Mach-O는 티켓을 스테이플할 수 없다) 공증이 실제로 통과했는지는 여기서 다시
+  확인할 수 없다 — `verify-release.sh`의 CDHash 대조가 그 역할을 한다.
 - 직전 릴리스를 지우지 않는다 — 자가 업데이트가 잘못됐을 때의 유일한
   다운그레이드 경로다.

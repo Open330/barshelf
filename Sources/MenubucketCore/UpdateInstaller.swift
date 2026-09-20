@@ -102,6 +102,11 @@ public enum UpdateInstaller {
     /// Where a `brew install --cask barshelf` puts the app (`app "BarShelf.app"`).
     public static let homebrewAppPath = "/Applications/BarShelf.app"
 
+    /// The command that upgrades a Homebrew-managed copy. Named once so the
+    /// menu item and `barshelf upgrade` cannot print different instructions for
+    /// the same situation.
+    public static let homebrewUpgradeCommand = "brew upgrade --cask barshelf"
+
     /// Whether this install can replace itself, and why not when it cannot.
     ///
     /// - Parameter hostTeam: the running build's **Developer ID** team, or nil
@@ -228,7 +233,7 @@ public enum UpdateInstaller {
         }
     }
 
-    static func bundleIdentifier(of app: URL) -> String? {
+    public static func bundleIdentifier(of app: URL) -> String? {
         infoDictionary(of: app)?["CFBundleIdentifier"] as? String
     }
 
@@ -272,7 +277,7 @@ public enum UpdateInstaller {
         }
     }
 
-    static func installedVersion(of app: URL) -> String? {
+    public static func installedVersion(of app: URL) -> String? {
         let version = infoDictionary(of: app)?["CFBundleShortVersionString"] as? String
         return (version?.isEmpty == false) ? version : nil
     }

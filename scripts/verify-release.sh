@@ -103,13 +103,23 @@ spctl --assess --type execute "${APP}" >/dev/null 2>&1 \
 ok "Gatekeeper accepts the app"
 
 # --- CLI -------------------------------------------------------------------
+# `barshelf upgrade` extracts these two by member name from the root of the
+# tarball, and pins them to the same Developer ID requirement the app uses.
+# A standalone Mach-O cannot carry a stapled ticket, so this requirement — plus
+# the CDHash cross-check release.sh does against the notarization log — is the
+# whole of what a client can verify.
 tar -xzf "${WORK}/${CLI_TAR}" -C "${WORK}" || fail "could not expand ${CLI_TAR}"
 for binary in barshelf bsf; do
-  [[ -f "${WORK}/${binary}" ]] || fail "${CLI_TAR} is missing ${binary}"
+  [[ -f "${WORK}/${binary}" ]] || fail "${CLI_TAR} is missing ${binary} at its root"
   codesign --verify --strict "${WORK}/${binary}" 2>/dev/null \
     || fail "${binary} is not validly signed"
+  codesign --verify --strict --requirements "=${REQUIREMENT}" "${WORK}/${binary}" 2>/dev/null \
+    || fail "${binary} does not satisfy the Developer ID requirement \`barshelf upgrade\` enforces"
+  CLI_VERSION=$("${WORK}/${binary}" --version | awk '{print $2}')
+  [[ "${CLI_VERSION}" == "${VERSION}" ]] \
+    || fail "${binary} reports ${CLI_VERSION}, not ${VERSION} (stale upload?)"
 done
-ok "both CLI binaries are signed"
+ok "both CLI binaries are signed, pinned, and report ${VERSION}"
 
 echo
 echo "${TAG} verified: a Mac will install this."

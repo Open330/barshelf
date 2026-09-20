@@ -19,6 +19,7 @@ barshelf validate <path>                # widget.json(+workflow.json 있으면) 
 barshelf pack <dir> [-o <name>.mbw]     # zip(.mbw) 생성 + 아카이브에 manifest.sha256 포함(widget.json의 sha256)
 barshelf list                           # 설치된 위젯 나열 (id, name, version, kind)
 barshelf agent-spec                     # 위젯 작성 스펙(docs/AGENTS.md)을 stdout으로 출력 (LLM 에이전트용)
+barshelf upgrade [--check] [--yes] [--restart] [--app <path>]   # CLI와 BarShelf.app을 최신 릴리스로 갱신
 barshelf --version / --help
 ```
 
@@ -32,6 +33,7 @@ barshelf --version / --help
 | `barshelf pack <dir>` | `-o <name>.mbw` (출력 파일명) | 위젯 디렉터리를 zip(`.mbw`)으로 패키징하고, 아카이브에 `manifest.sha256`(widget.json의 sha256)을 포함한다. |
 | `barshelf list` | — | 설치된 위젯을 id, name, version, kind로 나열한다. |
 | `barshelf agent-spec` | — | 위젯 작성 스펙([`docs/AGENTS.md`](AGENTS.md))을 stdout으로 출력한다. LLM 에이전트에게 위젯 제작 계약 전체를 한 번에 넘길 때 쓴다. 개발 체크아웃에서는 디스크의 `docs/AGENTS.md`를, 단독 배포 바이너리에서는 빌드시 내장된 사본을 출력한다(내용 동일). |
+| `barshelf upgrade` | `--check`(확인만), `--yes`(확인 프롬프트 생략), `--restart`(앱 재시작), `--app <path>` | CLI(`barshelf`·`bsf`)와 `BarShelf.app`을 최신 GitHub 릴리스로 갱신한다. 자세한 내용은 아래 [자가 업데이트](#자가-업데이트). |
 | `barshelf --version` / `barshelf --help` | — | 버전/도움말 출력. |
 
 ### new 템플릿 3종
@@ -92,6 +94,66 @@ dev.example.clock  Clock  0.1.0  exec
 ```
 
 메시지 문구는 예시이며 릴리스에 따라 달라질 수 있다. 계약으로 보장되는 것은 서브커맨드·옵션·exit 코드·stderr 오류 출력이다.
+
+## 자가 업데이트
+
+`barshelf upgrade`는 CLI와 앱을 **함께** 갱신한다. 둘은 같은 태그로 릴리스되고
+`release.sh`는 버전이 갈린 채로 패키징하기를 거부하므로, 한쪽만 올려두면 나중에
+설명하기 어려운 상태가 된다.
+
+```bash
+barshelf upgrade --check      # 무엇이 나와 있는지만 보고 아무것도 바꾸지 않는다
+barshelf upgrade              # 확인 프롬프트 후 갱신
+barshelf upgrade --yes --restart
+```
+
+```
+latest release: 0.2.1  [Open330/barshelf]
+  cli  0.2.1 up to date          /Users/june/.local/bin/barshelf, /Users/june/.local/bin/bsf
+  app  0.2.0 → 0.2.1             /Applications/BarShelf.app
+```
+
+### 무엇을 검사하고, 무엇을 거부하는가
+
+앱의 **Check for Updates…**와 **완전히 같은 코드**(`MenubucketCore`의
+`ReleaseFeed` · `CodeSignature` · `UpdateInstaller`)를 쓴다. 터미널과 메뉴가 서로
+다른 빌드를 받아들이는 일이 없도록 하기 위해서다.
+
+- 교체 대상은 각자의 **현재 서명**에 앵커된다. 새 빌드는 *교체될 복사본을 서명한
+  바로 그 Developer ID 팀*의 서명이어야 한다 — 이 명령을 실행한 `barshelf`를
+  서명한 팀이 아니다.
+- 앱은 추가로 **번들 ID 일치**와 **Gatekeeper 판정**(공증·실효 포함)까지
+  통과해야 한다.
+- CLI 바이너리는 Gatekeeper 판정을 쓸 수 없다. 단독 Mach-O는 공증 티켓을
+  스테이플할 수 없고 `spctl --assess`는 *"the code is valid but does not seem to
+  be an app"*으로 거부한다. 그래서 CLI 쪽 관문은 Developer ID 요구문까지이고,
+  공증 실효 여부는 확인하지 않는다.
+- `barshelf`와 `bsf`는 **둘 다 검증된 뒤에** 교체된다. 새 `barshelf` 옆에 옛
+  `bsf`가 남는 상태를 만들지 않는다.
+- 어느 단계에서 실패하든 설치된 복사본은 그대로 남는다.
+
+### 갱신하지 않는 경우
+
+| 상황 | 동작 |
+| --- | --- |
+| 로컬/ad-hoc 빌드 (`swift build` 산출물 등) | 거부 — 앵커할 릴리스 신원이 없다. |
+| Homebrew로 설치된 앱 | `brew upgrade --cask barshelf`를 안내. 스스로 교체하면 brew의 기록과 어긋난다. |
+| 설치 위치에 쓰기 권한이 없음 (`/usr/local/bin` 등) | 거부하고 sudo 또는 소유한 디렉터리를 안내. |
+| 바이너리 이름이 `barshelf`/`bsf`가 아님 | 거부 — 아카이브 멤버 이름으로 추출하므로 대응시킬 수 없다. |
+
+앱을 갱신해도 **실행 중인 프로세스는 옛 빌드 그대로**다. `--restart`를 주면
+종료 후 다시 연다.
+
+### 릴리스 리허설
+
+CLI가 읽을 저장소는 환경 변수로 바꿀 수 있다. `owner/repo` 쌍만 받으므로 피드는
+항상 api.github.com으로만 해석된다:
+
+```bash
+BARSHELF_UPDATE_REPO="<owner>/<staging-repo>" barshelf upgrade --check
+```
+
+앱 쪽 리허설은 [`docs/RELEASING.md`](RELEASING.md#업데이트-리허설)를 본다.
 
 ## 앱과의 관계
 
