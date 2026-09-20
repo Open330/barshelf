@@ -143,4 +143,51 @@ final class UpdateCheckerTests: XCTestCase {
         XCTAssertFalse(UpdateChecker.isUsingOverriddenFeed)
     }
 
+
+    // MARK: - Settings picker labels
+
+    func testPickerShowsTheDisplayTitleForAnOption() {
+        let entry = Manifest.Setting(
+            key: "menuBarStyle", type: "enum",
+            options: ["value", "labeled"],
+            optionTitles: ["Value only", "With label"]
+        )
+        // "value" and "labeled" mean nothing in a picker.
+        XCTAssertEqual(WidgetSettingsView.optionTitle("value", in: entry), "Value only")
+        XCTAssertEqual(WidgetSettingsView.optionTitle("labeled", in: entry), "With label")
+    }
+
+    func testAMiscountedOrMissingTitleListFallsBackToTheRawValue() {
+        let noTitles = Manifest.Setting(key: "k", type: "enum", options: ["grid", "list"])
+        XCTAssertEqual(WidgetSettingsView.optionTitle("grid", in: noTitles), "grid")
+
+        // Wrong length: labelling the wrong choice is worse than looking plain.
+        let miscounted = Manifest.Setting(
+            key: "k", type: "enum", options: ["a", "b", "c"], optionTitles: ["A", "B"]
+        )
+        XCTAssertEqual(WidgetSettingsView.optionTitle("a", in: miscounted), "a")
+
+        let blank = Manifest.Setting(
+            key: "k", type: "enum", options: ["a", "b"], optionTitles: ["A", "  "]
+        )
+        XCTAssertEqual(WidgetSettingsView.optionTitle("b", in: blank), "b")
+        XCTAssertEqual(WidgetSettingsView.optionTitle("zzz", in: blank), "zzz")
+    }
+
+    func testBundledMenuBarSettingsAreAllLabelled() throws {
+        for name in ["system", "sensors"] {
+            let manifest = try Manifest.decode(from: Data(contentsOf:
+                repositoryRoot.appendingPathComponent("widgets/\(name)/widget.json")))
+            let settings = try XCTUnwrap(manifest.settings, name)
+            XCTAssertFalse(settings.isEmpty)
+            for setting in settings where setting.type == "enum" {
+                let options = try XCTUnwrap(setting.options, "\(name).\(setting.key ?? "?")")
+                let titles = try XCTUnwrap(
+                    setting.optionTitles, "\(name).\(setting.key ?? "?") has no optionTitles"
+                )
+                XCTAssertEqual(titles.count, options.count, "\(name).\(setting.key ?? "?")")
+            }
+        }
+    }
+
 }

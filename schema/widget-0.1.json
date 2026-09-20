@@ -493,6 +493,13 @@
           "type": "array",
           "items": {}
         },
+        "optionTitles": {
+          "description": "Display labels for `options`, positionally. Ignored unless it has exactly as many entries as `options`.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "description": {
           "type": "string"
         },

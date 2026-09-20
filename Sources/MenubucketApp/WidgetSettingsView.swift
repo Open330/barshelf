@@ -77,6 +77,21 @@ struct WidgetSettingsView: View {
         }
     }
 
+    /// The label a picker shows for a stored option value.
+    ///
+    /// Falls back to the value itself, including when `optionTitles` is the
+    /// wrong length — a manifest that miscounts should look unpolished, not
+    /// put the wrong name on the wrong choice.
+    static func optionTitle(_ option: String, in entry: Manifest.Setting) -> String {
+        guard let options = entry.options,
+              let titles = entry.optionTitles,
+              titles.count == options.count,
+              let index = options.firstIndex(of: option)
+        else { return option }
+        let title = titles[index].trimmingCharacters(in: .whitespacesAndNewlines)
+        return title.isEmpty ? option : title
+    }
+
     private func save() {
         for entry in entries {
             guard let key = entry.key else { continue }
@@ -418,7 +433,7 @@ struct WidgetSettingsView: View {
                     set: { values[key] = .string($0) }
                 )) {
                     ForEach(entry.options ?? [], id: \.self) { option in
-                        Text(option).tag(option)
+                        Text(Self.optionTitle(option, in: entry)).tag(option)
                     }
                 }
                 .labelsHidden()

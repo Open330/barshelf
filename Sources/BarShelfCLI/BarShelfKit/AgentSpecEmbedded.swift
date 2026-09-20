@@ -258,7 +258,10 @@ sharing) the BarShelf mark.
   **user** chooses what the menu bar shows — the bundled `system` (which metric,
   and whether to prefix it) and `sensors` (which sensor, °C or °F) widgets do
   exactly this. Branch with `if(eq(settings.key,'x'), …, …)` so an absent or
-  unknown value falls through to a sane default.
+  unknown value falls through to a sane default. Give an `enum` setting
+  `optionTitles` (same length as `options`) so the picker shows "Value only"
+  rather than the stored `value`. Settings are per widget *instance*, so a user
+  can duplicate a widget and have each copy show a different reading.
 - Widgets that show a label **share one status item** with the BarShelf mark
   (`✦ 42% · 61% · 58°`); a widget can be split into its own item from Settings
   or its right-click menu. An `"icon"`-only widget always gets its own item,

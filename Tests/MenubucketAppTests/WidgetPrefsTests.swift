@@ -207,4 +207,36 @@ final class WidgetPrefsTests: XCTestCase {
         XCTAssertFalse(WidgetPrefs(fileURL: fileURL).menuBarPlacement(for: manifest).enabled)
     }
 
+
+    func testTwoInstancesOfOneWidgetKeepSeparateSettingsAndPlacement() {
+        // This is how a user gets CPU *and* Memory on the bar at once: duplicate
+        // the widget and point each copy at a different metric.
+        let prefs = WidgetPrefs(fileURL: fileURL)
+        let manifest = Manifest(
+            schemaVersion: 1, id: "dev.barshelf.system", name: "System",
+            entry: .init(kind: "workflow"), statusItem: .init(mode: "text"),
+            settings: [
+                .init(key: "menuBarMetric", type: "enum", defaultValue: .string("cpu")),
+            ]
+        )
+        let a = "dev.barshelf.system"
+        let b = "dev.barshelf.system--memory"
+
+        prefs.setSetting(widgetID: b, key: "menuBarMetric", value: .string("memory"))
+        prefs.setMenuBarPlacement(MenuBarPlacement(enabled: true, order: 0), for: a)
+        prefs.setMenuBarPlacement(MenuBarPlacement(enabled: true, order: 1), for: b)
+
+        let reloaded = WidgetPrefs(fileURL: fileURL)
+        XCTAssertEqual(
+            reloaded.effectiveSettings(for: manifest, widgetID: a)
+                .objectValue?["menuBarMetric"], .string("cpu")
+        )
+        XCTAssertEqual(
+            reloaded.effectiveSettings(for: manifest, widgetID: b)
+                .objectValue?["menuBarMetric"], .string("memory")
+        )
+        XCTAssertEqual(reloaded.menuBarPlacement(for: manifest, widgetID: a).order, 0)
+        XCTAssertEqual(reloaded.menuBarPlacement(for: manifest, widgetID: b).order, 1)
+    }
+
 }

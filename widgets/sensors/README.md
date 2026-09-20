@@ -16,6 +16,11 @@ shows, as a BarShelf widget.
 | **Menu bar shows** | CPU / GPU / Battery / Peak | Which reading the menu bar label carries. The card always shows all of them. |
 | **Temperature unit** | Celsius / Fahrenheit | Applies to the card *and* the menu bar. Fahrenheit labels say `°F`, so `123°F` is never read as a Celsius figure. |
 
+**Want two readings on the bar at once?** Duplicate the widget — BarShelf
+(Hub → Widgets → Duplicate) gives each copy its own settings and its own menu
+bar slot, so one can show CPU and the other the hottest sensor. Up to five
+promoted widgets are drawn.
+
 The health colouring stays calibrated in Celsius whichever unit you pick — the
 thresholds are a property of the hardware, not of how you prefer to read it.
 

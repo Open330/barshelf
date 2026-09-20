@@ -316,9 +316,16 @@ Arbitrary JavaScript는 금지한다. 표현식은 문자열 안의 `${...}` 보
 }
 ```
 
+  `options`의 값은 저장되는 값이므로, 사람이 읽을 라벨은 `optionTitles`로 따로
+  준다(같은 길이여야 하며, 아니면 무시하고 원본 값을 보여준다). `value` /
+  `labeled` 같은 값이 피커에 그대로 뜨는 걸 막는 용도다.
+
   번들 위젯 `system`(어느 지표를 보일지 + 라벨 포함 여부)과 `sensors`(어느 센서 +
   °C/°F)가 이 패턴을 그대로 쓴다. 설정이 없거나 모르는 값이면 `if`의 else 가지로
   떨어지므로, 기본 동작이 깨지지 않는다.
+- 설정은 **위젯 인스턴스별**이다. 같은 위젯을 복제하면(Hub → Widgets →
+  Duplicate) 각 복제본이 자기 설정과 자기 메뉴바 자리를 갖는다 — 하나는 CPU,
+  하나는 메모리를 동시에 띄우는 방법이 이것이다.
 - `tooltip`은 마우스를 올렸을 때의 설명이다.
 - 실제로 메뉴바에 나올지는 manifest의 `statusItem.mode`와 사용자의 위젯 설정이
   정한다. 자세한 규칙은 [`WIDGET-SPEC.md`의 `statusItem`](WIDGET-SPEC.md#statusitem).

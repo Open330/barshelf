@@ -364,19 +364,25 @@ public struct Manifest: Codable, Equatable {
         }
     }
 
-    /// Declarative widget setting (decode-only in M1; UI generated in M2).
+    /// Declarative widget setting; the settings pane is generated from these.
     public struct Setting: Codable, Equatable {
         public var key: String?
         public var type: String?
         public var label: String?
         public var title: String?
         public var options: [String]?
+        /// Human-readable labels for `options`, positionally. Without it a
+        /// picker shows the stored values themselves, which is fine for
+        /// `grid`/`list` and useless for `value`/`labeled`. Ignored unless it
+        /// has exactly as many entries as `options`, so a mismatched manifest
+        /// degrades to the raw values rather than mislabelling them.
+        public var optionTitles: [String]?
         public var min: Double?
         public var max: Double?
         public var defaultValue: JSONValue?
 
         private enum CodingKeys: String, CodingKey {
-            case key, type, label, title, options, min, max
+            case key, type, label, title, options, optionTitles, min, max
             case defaultValue = "default"
         }
 
@@ -386,6 +392,7 @@ public struct Manifest: Codable, Equatable {
             label: String? = nil,
             title: String? = nil,
             options: [String]? = nil,
+            optionTitles: [String]? = nil,
             min: Double? = nil,
             max: Double? = nil,
             defaultValue: JSONValue? = nil
@@ -395,6 +402,7 @@ public struct Manifest: Codable, Equatable {
             self.label = label
             self.title = title
             self.options = options
+            self.optionTitles = optionTitles
             self.min = min
             self.max = max
             self.defaultValue = defaultValue
