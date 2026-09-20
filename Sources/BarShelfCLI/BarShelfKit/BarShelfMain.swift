@@ -5,7 +5,10 @@ import MenubucketCore
 ///
 /// Plain-text output, errors on stderr, exit 0 on success / 1 on failure.
 public enum BarShelfMain {
-    public static let version = "0.1.4"
+    /// Must match `APP_VERSION` in `scripts/build_app.sh`: `release.sh` refuses
+    /// to package a release whose app and CLI report different versions, and
+    /// `scripts/check-release-versions.py` catches the drift in CI first.
+    public static let version = "0.2.0"
 
     public static let usage = """
         barshelf — BarShelf widget developer CLI
