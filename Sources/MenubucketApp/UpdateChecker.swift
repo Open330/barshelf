@@ -13,72 +13,23 @@ import MenubucketCore
 /// before.
 @MainActor
 enum UpdateChecker {
-    static let defaultRepository = "Open330/barshelf"
-    static let homebrewUpgradeCommand = "brew upgrade --cask barshelf"
+    static var defaultRepository: String { ReleaseFeed.defaultRepository }
+    static var repositoryEnvironmentKey: String { ReleaseFeed.repositoryEnvironmentKey }
+    static var repositoryDefaultsKey: String { ReleaseFeed.repositoryDefaultsKey }
+    static var homebrewUpgradeCommand: String { UpdateInstaller.homebrewUpgradeCommand }
 
-    /// Environment override, for a build launched from a terminal.
-    static let repositoryEnvironmentKey = "BARSHELF_UPDATE_REPO"
-    /// Preference override, for an installed app:
-    /// `defaults write com.barshelf.app BarShelfUpdateRepository owner/repo`
-    static let repositoryDefaultsKey = "BarShelfUpdateRepository"
-
-    /// The repository the update check reads.
-    ///
-    /// Overridable so a release can be rehearsed before it is the public
-    /// `latest` — otherwise the only way to test that an update installs is to
-    /// publish it to everyone, and a self-updater whose accept path has never
-    /// been run is not one to rely on. (A pre-release cannot serve: the check
-    /// reads `/releases/latest`, which excludes them.)
-    ///
-    /// Deliberately an `owner/repo` pair and never a URL, so the feed always
-    /// resolves to api.github.com and this cannot point the download at another
-    /// host. It is also not a way to install foreign code: whatever it finds
-    /// still has to be signed by the same Developer ID team as the running
-    /// build before anything is replaced.
-    static var repository: String {
-        let candidates = [
-            ProcessInfo.processInfo.environment[repositoryEnvironmentKey],
-            UserDefaults.standard.string(forKey: repositoryDefaultsKey),
-        ]
-        for candidate in candidates {
-            guard let candidate, isValidRepository(candidate) else { continue }
-            return candidate
-        }
-        return defaultRepository
-    }
-
-    static var isUsingOverriddenFeed: Bool { repository != defaultRepository }
-
-    /// `owner/repo`, nothing else — no scheme, no path traversal, no host.
+    static var repository: String { ReleaseFeed.repository }
+    static var isUsingOverriddenFeed: Bool { ReleaseFeed.isOverridden }
     static func isValidRepository(_ value: String) -> Bool {
-        let parts = value.split(separator: "/", omittingEmptySubsequences: false)
-        guard parts.count == 2 else { return false }
-        let allowed = CharacterSet(charactersIn:
-            "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-")
-        return parts.allSatisfy { part in
-            !part.isEmpty && part.rangeOfCharacter(from: allowed.inverted) == nil
-                && part != "." && part != ".."
-        }
+        ReleaseFeed.isValidRepository(value)
     }
-
-    static var latestReleaseAPI: URL {
-        URL(string: "https://api.github.com/repos/\(repository)/releases/latest")!
+    static var latestReleaseAPI: URL { ReleaseFeed.apiURL() }
+    static var releasesPage: URL { ReleaseFeed.pageURL() }
+    static func appAssetName(version: String) -> String {
+        ReleaseFeed.appAssetName(version: version)
     }
-
-    static var releasesPage: URL {
-        URL(string: "https://github.com/\(repository)/releases/latest")!
-    }
-
-    private struct Release: Decodable {
-        struct Asset: Decodable {
-            let name: String
-            let browser_download_url: String
-        }
-
-        let tag_name: String
-        let html_url: String
-        let name: String?
-        let assets: [Asset]?
+    static func compare(_ lhs: String, isNewerThan rhs: String) -> Bool {
+        ReleaseFeed.isNewer(lhs, than: rhs)
     }
 
     /// `explicit` (menu item) surfaces "you're up to date" and errors;
@@ -86,27 +37,20 @@ enum UpdateChecker {
     static func check(explicit: Bool) {
         Task {
             do {
-                var request = URLRequest(url: latestReleaseAPI)
-                request.timeoutInterval = 15
-                request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-                let (data, response) = try await URLSession.shared.data(for: request)
-                guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-                    throw UpdateError.badResponse
-                }
-                let release = try JSONDecoder().decode(Release.self, from: data)
-                let latest = release.tag_name.trimmingCharacters(in: CharacterSet(charactersIn: "v"))
-                let current = currentVersion
-
-                if compare(latest, isNewerThan: current) {
+                let release = try await ReleaseFeed.latest()
+                let latest = release.version
+                if ReleaseFeed.isNewer(latest, than: currentVersion) {
                     present(
                         latest: latest,
                         name: release.name,
-                        url: URL(string: release.html_url) ?? releasesPage,
-                        asset: appAsset(in: release, version: latest),
+                        url: release.pageURL,
+                        asset: release.asset(
+                            named: ReleaseFeed.appAssetName(version: latest)
+                        )?.url,
                         explicit: explicit
                     )
                 } else if explicit {
-                    upToDate(current: current)
+                    upToDate(current: currentVersion)
                 }
             } catch {
                 if explicit { presentError(error) }
@@ -116,30 +60,6 @@ enum UpdateChecker {
 
     static var currentVersion: String {
         AppVersionInfo.current.version ?? "0.0.0"
-    }
-
-    /// Semantic-ish numeric compare (`1.2.10` > `1.2.9`); missing components are 0.
-    static func compare(_ lhs: String, isNewerThan rhs: String) -> Bool {
-        let a = lhs.split(separator: ".").map { Int($0) ?? 0 }
-        let b = rhs.split(separator: ".").map { Int($0) ?? 0 }
-        for i in 0..<max(a.count, b.count) {
-            let x = i < a.count ? a[i] : 0
-            let y = i < b.count ? b[i] : 0
-            if x != y { return x > y }
-        }
-        return false
-    }
-
-    /// The app archive for this release, by the name `scripts/release.sh`
-    /// publishes. Matched exactly so a future asset cannot be mistaken for it.
-    static func appAssetName(version: String) -> String {
-        "BarShelf-\(version)-arm64.zip"
-    }
-
-    private static func appAsset(in release: Release, version: String) -> URL? {
-        let wanted = appAssetName(version: version)
-        guard let asset = release.assets?.first(where: { $0.name == wanted }) else { return nil }
-        return URL(string: asset.browser_download_url)
     }
 
     // MARK: - Eligibility
@@ -250,7 +170,7 @@ enum UpdateChecker {
 
         let work = Task {
             do {
-                let archive = try await download(asset) { received, expected in
+                let archive = try await ReleaseFeed.download(asset) { received, expected in
                     progress.update(received: received, expected: expected)
                 }
                 defer { try? FileManager.default.removeItem(at: archive) }
@@ -283,70 +203,6 @@ enum UpdateChecker {
         }
         progress.onCancel = { work.cancel() }
         progress.show()
-    }
-
-    /// Downloads to a temporary file, with the guards every other download in
-    /// this app uses: HTTPS only, redirects confined to GitHub's own hosts, and
-    /// a hard size ceiling. Cancellable, and reports progress per chunk.
-    private static func download(
-        _ asset: URL,
-        progress: @escaping @Sendable (Int64, Int64) -> Void
-    ) async throws -> URL {
-        guard asset.scheme?.lowercased() == "https" else {
-            throw UpdateError.insecureURL(asset)
-        }
-        var request = URLRequest(url: asset)
-        request.timeoutInterval = 60
-        let redirectGuard = HeadlessInstaller.InstallRedirectGuard(origin: asset)
-        let (bytes, response) = try await URLSession.shared.bytes(
-            for: request, delegate: redirectGuard
-        )
-        guard let http = response as? HTTPURLResponse else { throw UpdateError.badResponse }
-        // A redirect could otherwise land on a non-HTTPS host.
-        guard response.url?.scheme?.lowercased() == "https" else {
-            throw UpdateError.insecureURL(response.url ?? asset)
-        }
-        guard http.statusCode == 200 else { throw UpdateError.badResponse }
-
-        let expected = response.expectedContentLength
-        let limit = HeadlessInstaller.maxDownloadBytes
-        if expected > Int64(limit) { throw UpdateError.tooLarge(limitBytes: limit) }
-
-        let destination = FileManager.default.temporaryDirectory
-            .appendingPathComponent("barshelf-update-\(UUID().uuidString).zip")
-        FileManager.default.createFile(atPath: destination.path, contents: nil)
-        guard let handle = try? FileHandle(forWritingTo: destination) else {
-            throw UpdateError.badResponse
-        }
-        defer { try? handle.close() }
-
-        var buffer = Data()
-        buffer.reserveCapacity(1 << 20)
-        var received: Int64 = 0
-        var lastReported: Int64 = 0
-        progress(0, expected)
-        do {
-            for try await byte in bytes {
-                try Task.checkCancellation()
-                buffer.append(byte)
-                received += 1
-                if received > Int64(limit) { throw UpdateError.tooLarge(limitBytes: limit) }
-                if buffer.count >= 1 << 20 {
-                    try handle.write(contentsOf: buffer)
-                    buffer.removeAll(keepingCapacity: true)
-                }
-                if received - lastReported >= 256 * 1024 {
-                    lastReported = received
-                    progress(received, expected)
-                }
-            }
-            try handle.write(contentsOf: buffer)
-        } catch {
-            try? FileManager.default.removeItem(at: destination)
-            throw error
-        }
-        progress(received, expected)
-        return destination
     }
 
     private static func presentVersionSurprise(
@@ -417,23 +273,6 @@ enum UpdateChecker {
         alert.addButton(withTitle: "Open Releases")
         if alert.runModal() == .alertSecondButtonReturn {
             NSWorkspace.shared.open(releasesPage)
-        }
-    }
-
-    enum UpdateError: LocalizedError {
-        case badResponse
-        case insecureURL(URL)
-        case tooLarge(limitBytes: Int)
-
-        var errorDescription: String? {
-            switch self {
-            case .badResponse:
-                return "GitHub returned an unexpected response."
-            case let .insecureURL(url):
-                return "The release asset is not served over HTTPS (\(url.host ?? "unknown host"))."
-            case let .tooLarge(limit):
-                return "The release asset is larger than \(limit / 1_048_576) MB."
-            }
         }
     }
 }

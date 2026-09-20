@@ -65,6 +65,19 @@ public enum CodeSignature {
         return team
     }
 
+    /// The Developer ID team of code on disk, or nil when it is not a
+    /// Developer ID build.
+    ///
+    /// The counterpart to `hostDeveloperIDTeam()` for something other than the
+    /// running process — `barshelf upgrade` needs it to anchor an app update to
+    /// the *installed app's* identity rather than to the CLI's own.
+    public static func developerIDTeam(of url: URL) -> String? {
+        guard let team = teamIdentifier(of: url),
+              verify(url, signedBy: team) == errSecSuccess
+        else { return nil }
+        return team
+    }
+
     /// Whether the bundle is a Developer ID build from `team`, with an intact
     /// signature over every nested component.
     ///

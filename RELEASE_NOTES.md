@@ -1,6 +1,6 @@
-# BarShelf 0.2.1
+# BarShelf 0.3.0
 
-You choose what the menu bar shows.
+Updating from the terminal.
 
 > Requires macOS 13+ on Apple Silicon. Script widgets need
 > [Deno](https://deno.land) (`brew install deno`); exec and workflow widgets do
@@ -8,34 +8,42 @@ You choose what the menu bar shows.
 
 ## Highlights
 
-- **The menu bar value is yours to pick.** 0.2.0 let you put a widget on the
-  bar but not say what it showed — System was stuck on CPU, Sensors on CPU
-  temperature. Both now expose settings:
-  - **System** — show CPU, Memory or Disk, with or without a label
-    (`29%` or `Mem 64%`).
-  - **Sensors** — show CPU, GPU, Battery or the hottest sensor, in °C or °F.
-    The unit applies to the widget card too, and Fahrenheit labels say `°F` so
-    `123°F` is never misread as Celsius.
-- **Two readings at once.** Settings are per widget *instance*, so duplicating
-  System (Hub → Widgets → Duplicate) and pointing one copy at Memory puts both
-  on the bar — the arrangement a dedicated system monitor gives you.
-- **Reorder the shared strip.** Widgets sharing the BarShelf item are arranged
-  with **Move Left / Move Right** in the widget's Settings → Menu Bar. (A
-  widget with its own status item is dragged in the menu bar, as macOS
-  already allows.) The ordering was stored but had no control behind it.
+- **`barshelf upgrade`.** The app has been able to update itself since 0.2.1;
+  the CLI could not, and there was no way to update both without downloading
+  two assets by hand. One command now does it:
 
-## For widget authors
+  ```
+  $ barshelf upgrade --check
+  latest release: 0.3.0  [Open330/barshelf]
+    cli  0.2.1 → 0.3.0             /usr/local/bin/barshelf, /usr/local/bin/bsf
+    app  0.2.1 → 0.3.0             /Applications/BarShelf.app
+  ```
 
-An `enum` setting can now carry `optionTitles` — display labels parallel to
-`options` — so a picker shows "Value only" instead of the stored `value`. A
-mismatched length is ignored rather than mislabelling the choices.
+  `barshelf upgrade` then downloads, verifies and swaps both. `--check` only
+  reports, `--yes` skips the prompt, `--restart` quits and reopens the app so
+  the new build is the one actually running. `barshelf update` works too.
 
-`status.label` is evaluated in the same context as the view, so it can read
-`settings.*`. Exposing a setting the label branches on is how a *user* gets to
-choose what your widget shows in the menu bar — the two bundled widgets above
-are worked examples. Branch with `if(eq(settings.key,'x'), …, …)` so an absent
-or unknown value falls through to a sane default.
+- **The same verification the menu item uses.** The terminal and
+  **Check for Updates…** share one implementation, so they accept and refuse
+  exactly the same builds. Each component is anchored to its *own* signature:
+  a replacement has to be a Developer ID build from the team that signed the
+  copy being replaced, not from whoever signed the `barshelf` you typed.
+  `barshelf` and `bsf` are both verified before either is swapped, so you never
+  end up with a new CLI next to an old one.
 
-See [`docs/WORKFLOW.md`](https://github.com/Open330/barshelf/blob/main/docs/WORKFLOW.md).
+- **It says no for the right reasons.** A Homebrew-installed app is left to
+  `brew upgrade --cask barshelf`, a locally built copy is refused because there
+  is no release identity to pin against, and an unwritable install directory is
+  reported with what to do about it. Every refusal leaves what you have
+  installed untouched.
 
-**Full changelog:** https://github.com/Open330/barshelf/compare/v0.2.0...v0.2.1
+## Notes
+
+A standalone Mach-O cannot carry a stapled notarization ticket, and
+`spctl --assess` reports one as "not an app", so the CLI binaries are gated on
+the Developer ID requirement rather than on Gatekeeper's full verdict. The app
+bundle still gets the full Gatekeeper check, and `scripts/verify-release.sh`
+matches each published CLI binary's CDHash against the accepted notarization
+ticket before a release goes out.
+
+See [`docs/CLI.md`](docs/CLI.md#자가-업데이트) for the full rules.

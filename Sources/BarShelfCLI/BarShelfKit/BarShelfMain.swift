@@ -8,7 +8,7 @@ public enum BarShelfMain {
     /// Must match `APP_VERSION` in `scripts/build_app.sh`: `release.sh` refuses
     /// to package a release whose app and CLI report different versions, and
     /// `scripts/check-release-versions.py` catches the drift in CI first.
-    public static let version = "0.2.1"
+    public static let version = "0.3.0"
 
     public static let usage = """
         barshelf — BarShelf widget developer CLI
@@ -28,6 +28,8 @@ public enum BarShelfMain {
           barshelf list                       List installed widgets.
           barshelf agent-spec                 Print the widget-authoring spec
                                          (docs/AGENTS.md) for LLM agents.
+          barshelf upgrade [--check]          Update the barshelf CLI and
+                                         BarShelf.app to the latest release.
           barshelf --version                  Print the barshelf version.
           barshelf --help                     Show this help.
 
@@ -61,6 +63,10 @@ public enum BarShelfMain {
             return runList(arguments: rest)
         case "agent-spec":
             return runAgentSpec(arguments: rest)
+        // "update" is what people type first; accept it rather than printing
+        // "unknown command" at someone who is trying to stay current.
+        case "upgrade", "update", "self-update":
+            return UpgradeCommand.run(arguments: rest)
         default:
             printError("barshelf: unknown command \"\(command)\"")
             printError(usage)
@@ -379,7 +385,7 @@ public enum BarShelfMain {
     // MARK: - Helpers
 
     /// Bridges the async install flow into the synchronous CLI entry point.
-    private static func runBlocking(_ body: @escaping @Sendable () async -> Int32) -> Int32 {
+    static func runBlocking(_ body: @escaping @Sendable () async -> Int32) -> Int32 {
         final class ExitCodeBox: @unchecked Sendable { var value: Int32 = 1 }
         let box = ExitCodeBox()
         let semaphore = DispatchSemaphore(value: 0)
