@@ -193,6 +193,51 @@ final class UpgradeCommandTests: XCTestCase {
         )
     }
 
+    // MARK: - Proving the replacement actually started
+
+    /// A pid is not proof. An in-place update once produced a process that
+    /// existed, held its pid, and never ran — so the failure has to be
+    /// reportable, and it has to say the install itself succeeded.
+    func testThereIsAFailureForAnUpdateThatInstalledButDidNotStart() throws {
+        let error = UpgradeCommand.CLIUpgradeError.didNotStart(
+            URL(fileURLWithPath: "/Applications/BarShelf.app"), detail: nil
+        )
+        let described = try XCTUnwrap(error.errorDescription)
+        XCTAssertTrue(described.contains("/Applications/BarShelf.app"), described)
+        XCTAssertTrue(described.contains("did not start"), described)
+        XCTAssertTrue(
+            described.contains("\(Int(LaunchReceiptStore.defaultTimeout))"),
+            "the message should say how long it waited: \(described)"
+        )
+        let suggestion = try XCTUnwrap(error.recoverySuggestion)
+        XCTAssertTrue(suggestion.contains("installed"), suggestion)
+    }
+
+    /// "Nothing was replaced" would be a lie here: the swap succeeded and only
+    /// the launch did not.
+    func testAFailedLaunchIsNotReportedAsNothingHavingChanged() {
+        let described = UpgradeCommand.describeForTests(
+            UpgradeCommand.CLIUpgradeError.didNotStart(
+                URL(fileURLWithPath: "/Applications/BarShelf.app"), detail: nil
+            )
+        )
+        XCTAssertFalse(described.contains("Nothing was replaced"), described)
+    }
+
+    /// The restart path has to wait for the receipt rather than trusting that
+    /// `open` returning zero means the app is up.
+    func testTheRestartWaitsForTheLaunchReceipt() throws {
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "Sources/BarShelfCLI/BarShelfKit/UpgradeCommand.swift"
+            ),
+            encoding: .utf8
+        )
+        XCTAssertTrue(source.contains("LaunchReceiptStore.waitForRelaunch"))
+        XCTAssertTrue(source.contains("LaunchReceiptStore.read()"),
+                      "it has to read the receipt before quitting the old build")
+    }
+
     // MARK: - Drift against the release script
 
     /// The upgrade downloads assets whose names it predicts. If `release.sh`

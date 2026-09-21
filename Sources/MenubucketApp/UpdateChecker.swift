@@ -185,13 +185,19 @@ enum UpdateChecker {
                     )
                 }.value
                 installInFlight = false
-                progress.close()
                 // A build that reports a different version would have the check
                 // offering the same "update" again on every launch.
                 if let installed, installed != version {
+                    progress.close()
                     presentVersionSurprise(expected: version, installed: installed, app: target)
+                    relaunch(target, page: page, progress: nil)
+                } else {
+                    // The panel stays up through the restart: the wait below is
+                    // seconds long and briefly shows two menu bar icons, which
+                    // needs explaining while it happens.
+                    progress.setMessage("Restarting BarShelf…")
+                    relaunch(target, page: page, progress: progress)
                 }
-                relaunch(target, page: page)
             } catch is CancellationError {
                 installInFlight = false
                 progress.close()
@@ -217,22 +223,67 @@ enum UpdateChecker {
         alert.runModal()
     }
 
-    private static func relaunch(_ app: URL, page: URL) {
+    /// Starts the replacement, waits for it to prove it is running, and only
+    /// then quits.
+    ///
+    /// The order matters. Quitting as soon as `openApplication` reports success
+    /// is how an update once left a machine with no BarShelf for a day: the new
+    /// process existed and held a pid, but the kernel never let it run, and by
+    /// then the build that could have said so was gone. Waiting for the
+    /// replacement's launch receipt costs a few seconds and two menu bar icons
+    /// in the meantime; the alternative costs the app.
+    private static func relaunch(_ app: URL, page: URL, progress: DownloadProgressPanel?) {
+        let previous = LaunchReceiptStore.read()
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.createsNewApplicationInstance = true
         NSWorkspace.shared.openApplication(at: app, configuration: configuration) { _, error in
-            DispatchQueue.main.async {
-                if let error {
-                    let alert = NSAlert()
-                    alert.messageText = "BarShelf was updated but could not relaunch"
-                    alert.informativeText = error.localizedDescription
-                        + "\n\nOpen it from \(app.deletingLastPathComponent().path)."
-                    alert.addButton(withTitle: "OK")
-                    alert.runModal()
-                    return
+            if let error {
+                DispatchQueue.main.async {
+                    progress?.close()
+                    presentRelaunchFailure(
+                        app, page: page, detail: error.localizedDescription
+                    )
                 }
-                NSApp.terminate(nil)
+                return
             }
+            // Off the main thread: the wait polls, and the run loop has to keep
+            // turning for the panel to draw and for Cancel to work.
+            DispatchQueue.global(qos: .userInitiated).async {
+                let receipt = LaunchReceiptStore.waitForRelaunch(replacing: previous)
+                DispatchQueue.main.async {
+                    progress?.close()
+                    guard receipt != nil else {
+                        presentRelaunchFailure(app, page: page, detail: nil)
+                        return
+                    }
+                    NSApp.terminate(nil)
+                }
+            }
+        }
+    }
+
+    /// The replacement is installed but is not running, and this build still
+    /// is. Say exactly that, and stay alive — quitting now would leave nothing.
+    private static func presentRelaunchFailure(_ app: URL, page: URL, detail: String?) {
+        let alert = NSAlert()
+        alert.messageText = "BarShelf was updated but did not start"
+        var text = detail.map { $0 + "\n\n" } ?? ""
+        text += "The new build is installed at \(app.path), but it did not come"
+            + " up within \(Int(LaunchReceiptStore.defaultTimeout)) seconds. This"
+            + " copy is still running the previous version, so you are not left"
+            + " without BarShelf."
+        text += "\n\nTry opening it yourself. If macOS refuses to launch it,"
+            + " check Privacy & Security in System Settings."
+        alert.informativeText = text
+        alert.addButton(withTitle: "Show in Finder")
+        alert.addButton(withTitle: "Open Releases")
+        alert.addButton(withTitle: "Later")
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            NSWorkspace.shared.activateFileViewerSelecting([app])
+        case .alertSecondButtonReturn:
+            NSWorkspace.shared.open(page)
+        default: break
         }
     }
 

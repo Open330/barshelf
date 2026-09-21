@@ -1,4 +1,5 @@
 import AppKit
+import MenubucketCore
 
 /// BarShelf — menu bar host (LSUIElement / accessory).
 ///
@@ -15,6 +16,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // minimal Edit menu wires those selectors to the first responder.
         NSApp.mainMenu = Self.makeMainMenu()
         statusItemController = StatusItemController()
+        // Record that this build genuinely came up — after the status item
+        // exists, so the receipt attests to the thing a user would look for
+        // rather than to a process having been created. An updater waits for
+        // it before quitting the build it replaced; see `LaunchReceipt`.
+        LaunchReceiptStore.write(
+            version: AppVersionInfo.current.version,
+            bundlePath: Bundle.main.bundleURL.path
+        )
         // Silent update check shortly after launch — only surfaces UI when a
         // newer release exists (menu item does an explicit check).
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) {

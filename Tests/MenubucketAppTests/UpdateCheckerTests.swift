@@ -189,3 +189,49 @@ final class UpdateCheckerTests: XCTestCase {
     }
 
 }
+
+/// The updater's last step: proving the replacement runs before quitting the
+/// build it replaced.
+final class RelaunchVerificationTests: XCTestCase {
+    private var repositoryRoot: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+    }
+
+    private func source(_ path: String) throws -> String {
+        try String(
+            contentsOf: repositoryRoot.appendingPathComponent(path), encoding: .utf8
+        )
+    }
+
+    /// The receipt is the app's own word that it came up, so it has to be
+    /// written *after* the status item exists — otherwise it attests to a
+    /// process rather than to the icon the user looks for.
+    func testTheAppWritesItsReceiptAfterTheStatusItemIsUp() throws {
+        let main = try source("Sources/MenubucketApp/main.swift")
+        let statusItem = try XCTUnwrap(main.range(of: "statusItemController = StatusItemController()"))
+        let receipt = try XCTUnwrap(main.range(of: "LaunchReceiptStore.write("))
+        XCTAssertTrue(
+            statusItem.upperBound < receipt.lowerBound,
+            "the receipt must be written after the status item, not before"
+        )
+    }
+
+    /// Quitting on `openApplication` succeeding is what left a machine with no
+    /// BarShelf for a day: the process existed and the kernel never ran it.
+    func testTheUpdaterWaitsForTheReceiptBeforeTerminating() throws {
+        let updater = try source("Sources/MenubucketApp/UpdateChecker.swift")
+        let wait = try XCTUnwrap(updater.range(of: "LaunchReceiptStore.waitForRelaunch"))
+        let terminate = try XCTUnwrap(updater.range(of: "NSApp.terminate(nil)"))
+        XCTAssertTrue(
+            wait.upperBound < terminate.lowerBound,
+            "the wait has to come before the terminate"
+        )
+        XCTAssertTrue(
+            updater.contains("presentRelaunchFailure"),
+            "a replacement that never starts has to be reported"
+        )
+    }
+}
