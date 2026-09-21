@@ -199,17 +199,19 @@ fi
 
 (cd "${RELEASE_DIR}" && shasum -a 256 ./*.zip ./*.tar.gz > SHA256SUMS)
 
-# Keep the Homebrew cask in sync only with a notarized public release.
-CASK="${PROJECT_ROOT}/Casks/barshelf.rb"
-if [[ "${NOTARIZE}" == "1" && -f "${CASK}" ]]; then
-  APP_SHA=$(shasum -a 256 "${APP_ZIP}" | awk '{print $1}')
-  /usr/bin/sed -i '' \
-    -e "s/^  version \".*\"/  version \"${VERSION}\"/" \
-    -e "s/^  sha256 \".*\"/  sha256 \"${APP_SHA}\"/" \
-    "${CASK}"
-  echo "Updated ${CASK} → ${VERSION} / ${APP_SHA}"
-elif [[ "${NOTARIZE}" != "1" ]]; then
-  echo "Skipped Homebrew cask update for local unnotarized package"
+# What is genuinely downloadable, recorded only for a notarized public
+# release. `check-release-versions.py` holds the docs to it.
+#
+# This used to be a Homebrew cask kept in this repo, which turned out to be a
+# second copy of one that also lives in Open330/homebrew-tap — and the two
+# drifted three releases apart. The tap is the only cask now, and
+# .github/workflows/tap-bump.yml bumps it from the published assets.
+RELEASED="${PROJECT_ROOT}/RELEASED_VERSION"
+if [[ "${NOTARIZE}" == "1" ]]; then
+  echo "${VERSION}" > "${RELEASED}"
+  echo "Recorded ${VERSION} in ${RELEASED}"
+else
+  echo "Skipped recording the released version for a local unnotarized package"
 fi
 
 echo "Release payload at ${RELEASE_DIR}:"

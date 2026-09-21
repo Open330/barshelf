@@ -7,10 +7,16 @@ every other doc — was v0.1.3. Anyone following the README looked for an asset
 that did not exist, and anyone running that unreleased build was told forever
 that they were up to date.
 
-The Homebrew cask is the source of truth here: `scripts/release.sh` rewrites its
-`version`/`sha256` only after a notarized public release exists, so whatever it
-says is genuinely downloadable. Every `vX.Y.Z` reference in the user-facing docs
-has to match it.
+`RELEASED_VERSION` is the source of truth here: `scripts/release.sh` writes it
+only after a notarized public release exists, so whatever it says is genuinely
+downloadable. Every `vX.Y.Z` reference in the user-facing docs has to match it.
+
+It replaced a Homebrew cask that lived in this repo and served the same purpose.
+That cask turned out to be a second copy of one in Open330/homebrew-tap, and the
+two drifted three releases apart — a user who installed from the tap was told by
+the app to run `brew upgrade`, and brew told them they were already current. The
+tap is the only cask now; `.github/workflows/tap-bump.yml` keeps it in step with
+the release, and `scripts/verify-release.sh` fails if it ever falls behind again.
 
 Run directly, or via CI. Exits non-zero with the offending file:line.
 """
@@ -21,7 +27,7 @@ import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-CASK = ROOT / "Casks" / "barshelf.rb"
+RELEASED = ROOT / "RELEASED_VERSION"
 # Files that tell a user which build to download.
 CHECKED = ["README.md", "docs/INSTALL.md", "site/index.html"]
 
@@ -37,7 +43,6 @@ APP_VERSION = re.compile(r"^APP_VERSION=\$\{APP_VERSION:-([0-9][^}]*)\}", re.MUL
 CLI_VERSION = re.compile(r'public static let version = "([^"]+)"')
 NOTES_VERSION = re.compile(r"^#\s*BarShelf\s+([0-9][0-9A-Za-z.\-]*)", re.MULTILINE)
 
-CASK_VERSION = re.compile(r'^\s*version\s+"([^"]+)"', re.MULTILINE)
 # Only "vX.Y.Z" — the form used to name a release. Bare numbers are left alone
 # so macOS/Swift versions and shell examples do not trip the check.
 DOC_VERSION = re.compile(r"\bv(\d+\.\d+\.\d+)\b")
@@ -58,11 +63,13 @@ def is_external(line: str, version: str) -> bool:
 
 
 def main() -> int:
-    match = CASK_VERSION.search(CASK.read_text())
-    if not match:
-        print(f"error: no version found in {CASK.relative_to(ROOT)}", file=sys.stderr)
+    if not RELEASED.exists():
+        print(f"error: {RELEASED.name} is missing", file=sys.stderr)
         return 1
-    current = match.group(1)
+    current = RELEASED.read_text().strip()
+    if not re.fullmatch(r"\d+\.\d+\.\d+", current):
+        print(f"error: {RELEASED.name} does not hold a version: {current!r}", file=sys.stderr)
+        return 1
 
     problems: list[str] = []
     for name in CHECKED:
@@ -98,7 +105,7 @@ def main() -> int:
             )
         return 1
 
-    print(f"ok: docs advertise v{current}, matching the cask")
+    print(f"ok: docs advertise v{current}, the released build")
     return 0
 
 

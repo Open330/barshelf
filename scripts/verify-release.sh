@@ -121,5 +121,28 @@ for binary in barshelf bsf; do
 done
 ok "both CLI binaries are signed, pinned, and report ${VERSION}"
 
+# --- Homebrew tap ----------------------------------------------------------
+# The cask and the formula live in Open330/homebrew-tap, and a release that
+# does not reach them leaves Homebrew users with no update path: BarShelf
+# refuses to replace a Homebrew-installed copy (correctly — it would desync
+# brew's records) and points at `brew upgrade`, which then reports they are
+# already current. That is exactly how both files sat at 0.1.3 while the
+# project shipped 0.3.0, so it is checked rather than remembered.
+TAP_RAW="https://raw.githubusercontent.com/Open330/homebrew-tap/main"
+tap_version() {
+  curl -fsSL "${TAP_RAW}/$1" 2>/dev/null \
+    | sed -n 's/^[[:space:]]*version "\([^"]*\)".*/\1/p' | head -n 1
+}
+TAP_CASK_VERSION=$(tap_version "Casks/barshelf.rb")
+TAP_FORMULA_VERSION=$(tap_version "Formula/barshelf-cli.rb")
+for pair in "cask:${TAP_CASK_VERSION}" "formula:${TAP_FORMULA_VERSION}"; do
+  what="${pair%%:*}"
+  found="${pair#*:}"
+  [[ -n "${found}" ]] || fail "could not read the tap's ${what} version"
+  [[ "${found}" == "${VERSION}" ]] \
+    || fail "the tap's ${what} is at ${found}, not ${VERSION} — Homebrew users have no update path until it is bumped (see .github/workflows/tap-bump.yml)"
+done
+ok "the Homebrew tap's cask and formula are at ${VERSION}"
+
 echo
 echo "${TAG} verified: a Mac will install this."

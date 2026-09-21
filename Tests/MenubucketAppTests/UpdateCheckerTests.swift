@@ -55,21 +55,23 @@ final class UpdateCheckerTests: XCTestCase {
     /// The cask must not claim the app updates itself: BarShelf defers to
     /// Homebrew for Homebrew-managed copies, and `auto_updates true` would make
     /// `brew upgrade` skip them — leaving those users with no update path.
-    func testTheCaskDoesNotClaimSelfUpdating() throws {
-        let cask = try String(
-            contentsOf: repositoryRoot.appendingPathComponent("Casks/barshelf.rb"),
-            encoding: .utf8
-        )
-        XCTAssertFalse(cask.contains("auto_updates"))
+    ///
+    /// The cask lives in Open330/homebrew-tap now, so what is checked here is
+    /// the template the release workflow writes it from.
+    func testTheCaskTemplateDoesNotClaimSelfUpdating() throws {
+        XCTAssertFalse(tapBumpWorkflow().contains("auto_updates true"))
     }
 
     func testHomebrewCommandIsTheOneTheCaskIsInstalledWith() throws {
         XCTAssertEqual(UpdateChecker.homebrewUpgradeCommand, "brew upgrade --cask barshelf")
-        let cask = try String(
-            contentsOf: repositoryRoot.appendingPathComponent("Casks/barshelf.rb"),
+        XCTAssertTrue(tapBumpWorkflow().contains(#"cask "barshelf" do"#))
+    }
+
+    private func tapBumpWorkflow() -> String {
+        (try? String(
+            contentsOf: repositoryRoot.appendingPathComponent(".github/workflows/tap-bump.yml"),
             encoding: .utf8
-        )
-        XCTAssertTrue(cask.contains(#"cask "barshelf" do"#))
+        )) ?? ""
     }
 
     func testCaskroomPathsCoverBothHomebrewPrefixes() {

@@ -142,12 +142,16 @@ final class UpgradeCommandTests: XCTestCase {
     func testTheTwoBrewCommandsNameTheRightArtifacts() throws {
         XCTAssertEqual(UpdateInstaller.homebrewUpgradeCommand, "brew upgrade --cask barshelf")
         XCTAssertEqual(UpdateInstaller.homebrewCLIUpgradeCommand, "brew upgrade barshelf-cli")
-        // The cask has to still be the cask those commands name.
-        let cask = try String(
-            contentsOf: repositoryRoot.appendingPathComponent("Casks/barshelf.rb"),
+        // Both have to still name what the release workflow publishes to the
+        // tap — a renamed cask or formula would send people to a command that
+        // does nothing.
+        let workflow = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(".github/workflows/tap-bump.yml"),
             encoding: .utf8
         )
-        XCTAssertTrue(cask.contains(#"cask "barshelf" do"#))
+        XCTAssertTrue(workflow.contains(#"cask "barshelf" do"#))
+        XCTAssertTrue(workflow.contains("class BarshelfCli < Formula"))
+        XCTAssertTrue(workflow.contains("tap/Formula/barshelf-cli.rb"))
     }
 
     // MARK: - Finding the app

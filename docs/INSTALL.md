@@ -68,16 +68,30 @@ Connect 공증 환경 변수(`ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_PATH`)를 �
 
 ## 방법 C — Homebrew tap
 
-cask 정의(`Casks/barshelf.rb`)가 메인 저장소에 포함돼 있어 별도 `homebrew-barshelf` 저장소 없이
-명시적 URL tap으로 바로 설치할 수 있다:
+cask와 CLI formula는 [`open330/homebrew-tap`](https://github.com/Open330/homebrew-tap)에
+있다 — Open330의 다른 프로젝트와 같은 탭이다.
 
 ```bash
-brew tap Open330/barshelf https://github.com/Open330/barshelf
-brew install --cask barshelf
+brew tap open330/tap
+brew install --cask barshelf      # 앱
+brew install barshelf-cli         # CLI (barshelf, bsf) — 선택
 ```
+
+탭을 영구적으로 추가하지 않으려면 `brew install --cask open330/tap/barshelf`.
+
+최신 Homebrew는 서드파티 탭의 항목을 처음 쓸 때 신뢰를 요구한다. `Refusing to
+load formula ... from untrusted tap`이 나오면 안내대로
+`brew trust --formula open330/tap/barshelf-cli` (또는 `brew trust open330/tap`)를
+한 번 실행한다. 릴리스로 파일이 바뀌면 신뢰가 다시 필요할 수 있다.
 
 업데이트는 `brew upgrade --cask barshelf`, 제거는 `brew uninstall --cask barshelf`.
 현재 cask는 서명·공증된 v0.3.0 자산과 검증된 SHA-256을 사용한다.
+
+> 이 저장소에도 cask 사본이 있었지만 삭제했다. 탭의 사본과 갈라져 0.1.3에 멈춰
+> 있었고, 그 결과 탭으로 설치한 사람은 앱에게 "brew로 올려라"라는 말을 듣고
+> brew에게 "이미 최신이다"라는 답을 들었다 — 업데이트 경로가 아예 없었다. 이제
+> 탭이 유일한 사본이고, 릴리스가 `.github/workflows/tap-bump.yml`로 갱신하며
+> `scripts/verify-release.sh`가 뒤처지면 실패한다.
 
 ## 업데이트
 
