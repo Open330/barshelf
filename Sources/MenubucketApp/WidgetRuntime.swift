@@ -346,6 +346,8 @@ final class WidgetRuntime: ObservableObject {
         snapshot.error = nil
         snapshot.statusLabel = params.status?.label
         snapshot.statusPrefix = params.status?.prefix
+        snapshot.statusIcon = params.status?.icon
+        snapshot.statusTint = params.status?.tint
         snapshot.statusTooltip = params.status?.tooltip
         snapshot.safeForSensitiveCache = false
         setSnapshot(snapshot, for: widgetId)
@@ -1209,7 +1211,13 @@ final class WidgetRuntime: ObservableObject {
                 widgetID: widget.id,
                 name: widget.displayName,
                 symbol: statusItem.showsIcon
-                    ? (statusItem.icon ?? widget.manifest.icon) : nil,
+                    ? MenuBarPolicy.resolvedIcon(
+                        user: nil,
+                        live: snapshot?.statusIcon,
+                        statusItem: statusItem.icon,
+                        manifest: widget.manifest.icon
+                    )
+                    : nil,
                 iconOverride: MenuBarPolicy.normalizedIcon(placement.icon),
                 prefix: MenuBarPolicy.resolvedPrefix(
                     user: placement.label,
@@ -1217,6 +1225,7 @@ final class WidgetRuntime: ObservableObject {
                     manifest: statusItem.label
                 ),
                 style: style,
+                tint: MenuBarTint.named(snapshot?.statusTint),
                 label: statusItem.showsLabel
                     ? MenuBarPolicy.normalizedLabel(snapshot?.statusLabel) : nil,
                 tooltip: snapshot?.error ?? snapshot?.statusTooltip,
@@ -1491,6 +1500,8 @@ final class WidgetRuntime: ObservableObject {
         /// status text).
         var statusLabel: String?
         var statusPrefix: String?
+        var statusIcon: String?
+        var statusTint: String?
         /// Longer form for the menu-bar tooltip (`status.tooltip`).
         var statusTooltip: String?
     }
@@ -1699,6 +1710,8 @@ final class WidgetRuntime: ObservableObject {
                 viewTree: output.viewTree,
                 statusLabel: output.statusLabel,
                 statusPrefix: output.statusPrefix,
+                statusIcon: output.statusIcon,
+                statusTint: output.statusTint,
                 statusTooltip: output.statusTooltip
             ))
         } catch {
@@ -2034,6 +2047,8 @@ final class WidgetRuntime: ObservableObject {
             snapshot.error = nil
             snapshot.statusLabel = success.statusLabel
             snapshot.statusPrefix = success.statusPrefix
+            snapshot.statusIcon = success.statusIcon
+            snapshot.statusTint = success.statusTint
             snapshot.statusTooltip = success.statusTooltip
             if !widget.isSensitive {
                 persistSnapshot(snapshot) // sensitive renders stay memory-only

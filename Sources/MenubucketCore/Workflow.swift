@@ -68,11 +68,28 @@ public struct WorkflowDefinition: Codable, Equatable, Sendable {
         /// others, so a widget whose metric the user picks can say "CPU" or
         /// "Mem" as appropriate — something a fixed manifest field cannot.
         public var prefix: String?
+        /// SF Symbol name for this refresh, overriding `statusItem.icon`.
+        /// A manifest field cannot follow a value: this is what lets a battery
+        /// widget move between `battery.25` and `battery.100`, or a network one
+        /// between signal strengths.
+        public var icon: String?
+        /// Colour for this refresh, from the same vocabulary the view layer
+        /// uses — `accent`, `good`, `warning`, `danger`, `secondary`. Nil keeps
+        /// the menu bar's own colour, which is what most widgets should do.
+        public var tint: String?
 
-        public init(label: String? = nil, tooltip: String? = nil, prefix: String? = nil) {
+        public init(
+            label: String? = nil,
+            tooltip: String? = nil,
+            prefix: String? = nil,
+            icon: String? = nil,
+            tint: String? = nil
+        ) {
             self.label = label
             self.tooltip = tooltip
             self.prefix = prefix
+            self.icon = icon
+            self.tint = tint
         }
     }
 
@@ -137,6 +154,10 @@ public enum WorkflowEngine {
         /// Text the menu bar draws before the value, when the widget supplies
         /// one per refresh. See `StatusDef.prefix`.
         public var statusPrefix: String?
+        /// SF Symbol the menu bar draws for this refresh. See `StatusDef.icon`.
+        public var statusIcon: String?
+        /// Semantic colour for this refresh. See `StatusDef.tint`.
+        public var statusTint: String?
         /// Total items produced by every `forEach` expansion.
         public var expandedItemCount: Int
         /// True when zero items were expanded and the `empty` node was used.
@@ -148,6 +169,8 @@ public enum WorkflowEngine {
             viewTree: UINode,
             statusLabel: String? = nil,
             statusPrefix: String? = nil,
+            statusIcon: String? = nil,
+            statusTint: String? = nil,
             statusTooltip: String? = nil,
             expandedItemCount: Int = 0,
             usedEmpty: Bool = false,
@@ -156,6 +179,8 @@ public enum WorkflowEngine {
             self.viewTree = viewTree
             self.statusLabel = statusLabel
             self.statusPrefix = statusPrefix
+            self.statusIcon = statusIcon
+            self.statusTint = statusTint
             self.statusTooltip = statusTooltip
             self.expandedItemCount = expandedItemCount
             self.usedEmpty = usedEmpty
@@ -234,6 +259,8 @@ public enum WorkflowEngine {
         var statusLabel: String?
         var statusTooltip: String?
         var statusPrefix: String?
+        var statusIcon: String?
+        var statusTint: String?
         if let status = definition.status {
             if let label = status.label {
                 statusLabel = try context.interpolate(label).stringified
@@ -243,6 +270,12 @@ public enum WorkflowEngine {
             }
             if let prefix = status.prefix {
                 statusPrefix = try context.interpolate(prefix).stringified
+            }
+            if let icon = status.icon {
+                statusIcon = try context.interpolate(icon).stringified
+            }
+            if let tint = status.tint {
+                statusTint = try context.interpolate(tint).stringified
             }
         }
 
@@ -265,6 +298,8 @@ public enum WorkflowEngine {
             viewTree: viewTree,
             statusLabel: statusLabel,
             statusPrefix: statusPrefix,
+            statusIcon: statusIcon,
+            statusTint: statusTint,
             statusTooltip: statusTooltip,
             expandedItemCount: context.expandedItemCount,
             usedEmpty: usedEmpty,

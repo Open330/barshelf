@@ -32,6 +32,31 @@ public enum MenuBarStyle: String, Codable, Equatable, Sendable, CaseIterable {
     }
 }
 
+// MARK: - Tint
+
+/// The colours a widget may ask the menu bar for.
+///
+/// A closed vocabulary rather than an arbitrary colour, and the same one the
+/// view layer already uses — so a widget that paints a bar `danger` says
+/// `danger` in the menu bar too, and both follow the system's idea of red.
+/// Nil is the normal case and means the menu bar's own colour, which also
+/// keeps the item a template image: it then follows a light or dark bar and
+/// inverts while held open, neither of which a fixed colour can do.
+public enum MenuBarTint: String, Codable, Equatable, Sendable, CaseIterable {
+    case accent
+    case good
+    case warning
+    case danger
+    case secondary
+
+    /// Unknown names read as no tint rather than as an error: a widget written
+    /// against a later vocabulary should lose its colour, not its value.
+    public static func named(_ raw: String?) -> MenuBarTint? {
+        guard let raw, !raw.isEmpty else { return nil }
+        return MenuBarTint(rawValue: raw)
+    }
+}
+
 // MARK: - Placement
 
 /// Where one widget sits in the menu bar. Persisted per widget.
@@ -106,6 +131,8 @@ public struct MenuBarEntry: Equatable, Sendable {
     public var prefix: String?
     /// How the cell is laid out.
     public var style: MenuBarStyle = .default
+    /// Colour the widget asked for, or nil for the menu bar's own.
+    public var tint: MenuBarTint?
     /// Live text, or nil when the mode shows the icon only / nothing has been
     /// sampled yet.
     public var label: String?
@@ -123,6 +150,7 @@ public struct MenuBarEntry: Equatable, Sendable {
         iconOverride: String? = nil,
         prefix: String? = nil,
         style: MenuBarStyle = .default,
+        tint: MenuBarTint? = nil,
         label: String? = nil,
         tooltip: String? = nil,
         isStale: Bool = false,
@@ -134,6 +162,7 @@ public struct MenuBarEntry: Equatable, Sendable {
         self.iconOverride = iconOverride
         self.prefix = prefix
         self.style = style
+        self.tint = tint
         self.label = label
         self.tooltip = tooltip
         self.isStale = isStale
@@ -211,6 +240,22 @@ public enum MenuBarPolicy {
                 ? nil : normalizedPrefix(user)
         }
         return normalizedPrefix(live) ?? normalizedPrefix(manifest)
+    }
+
+    /// Which symbol to draw, most specific source first: the user's override,
+    /// then what this refresh asked for, then the widget's declared icon, then
+    /// its app icon.
+    ///
+    /// The user's empty string means "no icon" and stops the search, the same
+    /// way an empty label does — a choice, not an absence.
+    public static func resolvedIcon(
+        user: String?, live: String?, statusItem: String?, manifest: String?
+    ) -> String? {
+        if let user = normalizedIcon(user) { return user.isEmpty ? nil : user }
+        for candidate in [live, statusItem, manifest] {
+            if let candidate, !candidate.isEmpty { return candidate }
+        }
+        return nil
     }
 
     public static func resolvedStyle(user: MenuBarStyle?, manifest: String?) -> MenuBarStyle {

@@ -439,6 +439,21 @@
         "prefix": {
           "type": "string",
           "description": "Templated text the menu bar draws before the value. Lets a widget whose metric the user picks say \"CPU\" or \"Mem\" as appropriate."
+        },
+        "icon": {
+          "type": "string",
+          "description": "SF Symbol for this refresh, overriding `statusItem.icon`. Lets an icon follow a value \u2014 a battery moving between `battery.25` and `battery.100`, say \u2014 which a fixed manifest field cannot."
+        },
+        "tint": {
+          "type": "string",
+          "enum": [
+            "accent",
+            "good",
+            "warning",
+            "danger",
+            "secondary"
+          ],
+          "description": "Colour for this refresh, from the same vocabulary the view layer uses. Omit it for the menu bar's own colour, which also keeps the item a template image \u2014 it then follows a light or dark bar and inverts while held open, neither of which a fixed colour can do."
         }
       },
       "additionalProperties": true

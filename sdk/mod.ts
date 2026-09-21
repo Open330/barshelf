@@ -42,6 +42,23 @@ export interface RenderStatus {
    * will be showing CPU or memory. The user can still override it.
    */
   prefix?: string;
+  /**
+   * SF Symbol for this render, overriding the manifest's `statusItem.icon`.
+   *
+   * A manifest field cannot follow a value. This is what lets a battery widget
+   * move between `battery.25` and `battery.100`, or a network one between
+   * signal strengths.
+   */
+  icon?: string;
+  /**
+   * Colour for this render: `accent`, `good`, `warning`, `danger` or
+   * `secondary` — the same vocabulary the view layer uses.
+   *
+   * Leave it off for the menu bar's own colour. That also keeps the item a
+   * template image, which follows a light or dark bar and inverts while the
+   * item is held open; a fixed colour does neither.
+   */
+  tint?: "accent" | "good" | "warning" | "danger" | "secondary";
 }
 
 export interface RenderOptions {

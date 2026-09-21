@@ -111,13 +111,28 @@ final class MenuBarController {
     /// whether a symbol by that name exists — so the split happens here. A
     /// name that resolves becomes a tinted template image; anything else is
     /// drawn as text, which is how an emoji gets into the menu bar.
-    static func symbolImage(named name: String, describedAs description: String) -> NSImage? {
+    static func symbolImage(
+        named name: String, describedAs description: String, tint: NSColor? = nil
+    ) -> NSImage? {
         guard !name.isEmpty else { return nil }
         guard let image = NSImage(
             systemSymbolName: name, accessibilityDescription: description
         ) else { return nil }
-        image.isTemplate = true
-        return image
+        guard let tint else {
+            image.isTemplate = true
+            return image
+        }
+        // A coloured symbol cannot be a template, and a non-template does not
+        // invert while the item is held open. That is the cost of asking for a
+        // colour, and only the widgets that ask pay it.
+        let tinted = NSImage(size: image.size, flipped: false) { rect in
+            tint.set()
+            rect.fill()
+            image.draw(in: rect, from: .zero, operation: .destinationIn, fraction: 1)
+            return true
+        }
+        tinted.isTemplate = false
+        return tinted
     }
 
     /// The literal glyph an entry contributes, or nil when its icon is a
@@ -178,7 +193,10 @@ final class MenuBarController {
             let symbol: String? = entry.iconOverride.map { $0.isEmpty ? nil : $0 }
                 ?? entry.symbol
             button.image = symbol.flatMap {
-                Self.symbolImage(named: $0, describedAs: entry.name)
+                Self.symbolImage(
+                    named: $0, describedAs: entry.name,
+                    tint: entry.tint.map(Self.nsColor(for:))
+                )
             }
             let glyph = button.image == nil ? Self.textGlyph(for: entry) : nil
             if entry.style == .stacked {
@@ -294,13 +312,17 @@ final class MenuBarController {
         // Template images are tinted from their alpha, so the drawing colour
         // only has to carry the relative weight of the two rows.
         let dim = entry.isStale ? staleOpacity : 1
+        // Untinted art is drawn black and flagged a template, so the status
+        // item colours it for whatever bar it is on. A tint bakes the colour in
+        // and the template behaviour goes with it.
+        let ink = entry.tint.map(nsColor(for:)) ?? NSColor.black
         var labelAttributes: [NSAttributedString.Key: Any] = [
             .font: stackedLabelFont,
-            .foregroundColor: NSColor.black.withAlphaComponent(stackedLabelOpacity * dim),
+            .foregroundColor: ink.withAlphaComponent(stackedLabelOpacity * dim),
         ]
         var valueAttributes: [NSAttributedString.Key: Any] = [
             .font: stackedValueFont,
-            .foregroundColor: NSColor.black.withAlphaComponent(dim),
+            .foregroundColor: ink.withAlphaComponent(dim),
         ]
         // Preferred sizes first, then shrink to fit. Two lines at 9pt and 11pt
         // measure about 24 points together, which does not fit a 22-point bar
@@ -363,7 +385,8 @@ final class MenuBarController {
             }
             return true
         }
-        image.isTemplate = true
+        // A tinted image carries its own colour, so it is not a template.
+        image.isTemplate = entry.tint == nil
         return image
     }
 
@@ -374,6 +397,24 @@ final class MenuBarController {
     static let statusFont = NSFont.menuBarFont(ofSize: 0)
 
     static func color(for entry: MenuBarEntry) -> NSColor {
-        entry.isStale ? .tertiaryLabelColor : .labelColor
+        guard let tint = entry.tint else {
+            return entry.isStale ? .tertiaryLabelColor : .labelColor
+        }
+        // Stale is still stale: a frozen red is no more current than a frozen
+        // black, so the colour survives and the dimming applies over it.
+        let color = nsColor(for: tint)
+        return entry.isStale ? color.withAlphaComponent(staleOpacity) : color
+    }
+
+    /// The system's idea of each name, so a tinted menu bar item matches the
+    /// same widget's card and follows an accent-colour change.
+    static func nsColor(for tint: MenuBarTint) -> NSColor {
+        switch tint {
+        case .accent: return .controlAccentColor
+        case .good: return .systemGreen
+        case .warning: return .systemOrange
+        case .danger: return .systemRed
+        case .secondary: return .secondaryLabelColor
+        }
     }
 }

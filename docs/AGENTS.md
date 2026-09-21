@@ -246,7 +246,8 @@ sharing) the BarShelf mark.
   widget the author left at `"none"`, from its settings pane.
 - The live text is the value the widget already computes: a workflow's
   `status.label`, or a script's `host.render` status. `labelFrom` /
-  `tooltipFrom` are still accepted by the schema but unused.
+  `tooltipFrom` on `statusItem` are accepted by the schema and **never read** —
+  they are leftovers, and setting them does nothing.
 - `status.label` is evaluated in the same context as the view, so it can read
   `settings.*`. Exposing a `settings` entry the label branches on is how a
   **user** chooses what the menu bar shows — the bundled `system` (which metric,
@@ -262,6 +263,15 @@ sharing) the BarShelf mark.
   `RAM` or `Disk` depending on `settings.menuBarMetric`. A fixed default can go
   in `statusItem.label` instead. The user's own entry beats both, and an empty
   one means they want no label at all.
+- `status.icon` names an SF Symbol for that refresh, overriding
+  `statusItem.icon`. The manifest field cannot follow a value; this can, which
+  is how a battery icon tracks its level or a network one its signal.
+- `status.tint` colours the cell: `accent`, `good`, `warning`, `danger`,
+  `secondary` — the same words the view layer uses, so one widget says `danger`
+  in both places. **Leave it off unless the colour carries meaning.** Without a
+  tint the item is a template image, which follows a light or dark menu bar and
+  inverts while held open; a tint trades both away for the colour. An unknown
+  name loses the colour, not the value.
 - `statusItem.style` picks the layout: `"inline"` draws the label beside the
   value, `"stacked"` puts it above in smaller type, the way a system monitor
   fits two rows into the menu bar. Stacked needs the widget's own status item,
