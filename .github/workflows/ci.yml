@@ -12,24 +12,26 @@ concurrency:
 jobs:
   build-test:
     name: Build & Test
-    runs-on: macos-latest
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v5
-
-      - name: What this image has
-        run: |
-          echo "image: $ImageOS / $ImageVersion"
-          ls -d /Applications/Xcode*.app
-          sw_vers
 
       # Pinned, not `latest-stable`. A floating toolchain silently changes the
       # SDK under the build: that is how a `-strict-concurrency=complete` error
       # (an unannotated `mach_task_self_`) reached CI while passing locally on a
       # newer SDK. When the runner image drops this version the job fails
       # loudly, which is the point — bumping it should be a visible commit.
+      #
+      # Kept near the toolchain releases are actually built with, which is not
+      # the same as keeping it still. This sat at macos-14 + Xcode 16.2 while
+      # releases were cut locally on Xcode 27 / Swift 6.4 — three majors apart,
+      # so CI was proving something about a toolchain nobody ships with. Worse,
+      # 16.2 is no longer on the current image at all, so the old pin was one
+      # runner retirement away from failing outright. 26.6 is the newest the
+      # image carries; raise it when the image carries 27.
       - uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: "16.2"
+          xcode-version: "26.6.0"
 
       - name: Toolchain
         run: swift --version && xcodebuild -version
