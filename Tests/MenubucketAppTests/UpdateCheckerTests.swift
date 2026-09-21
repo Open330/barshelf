@@ -52,26 +52,22 @@ final class UpdateCheckerTests: XCTestCase {
         )
     }
 
-    /// The cask must not claim the app updates itself: BarShelf defers to
-    /// Homebrew for Homebrew-managed copies, and `auto_updates true` would make
-    /// `brew upgrade` skip them — leaving those users with no update path.
+    /// The cask lives in Open330/homebrew-tap, so the properties it has to keep
+    /// — the name, no `auto_updates`, `uninstall quit:` — are checked against
+    /// the published file by `scripts/verify-release.sh` rather than against a
+    /// copy here. A copy is what went stale in the first place.
     ///
-    /// The cask lives in Open330/homebrew-tap now, so what is checked here is
-    /// the template the release workflow writes it from.
-    func testTheCaskTemplateDoesNotClaimSelfUpdating() throws {
-        XCTAssertFalse(tapBumpWorkflow().contains("auto_updates true"))
-    }
-
+    /// What is still this repository's business is the command it tells people
+    /// to run, and the release procedure remembering to check the tap at all.
     func testHomebrewCommandIsTheOneTheCaskIsInstalledWith() throws {
         XCTAssertEqual(UpdateChecker.homebrewUpgradeCommand, "brew upgrade --cask barshelf")
-        XCTAssertTrue(tapBumpWorkflow().contains(#"cask "barshelf" do"#))
-    }
-
-    private func tapBumpWorkflow() -> String {
-        (try? String(
-            contentsOf: repositoryRoot.appendingPathComponent(".github/workflows/tap-bump.yml"),
+        let verify = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("scripts/verify-release.sh"),
             encoding: .utf8
-        )) ?? ""
+        )
+        XCTAssertTrue(verify.contains(#"cask "barshelf" do"#), "the cask name is unchecked")
+        XCTAssertTrue(verify.contains("auto_updates"), "auto_updates is unchecked")
+        XCTAssertTrue(verify.contains("uninstall quit:"), "the upgrade-time quit is unchecked")
     }
 
     func testCaskroomPathsCoverBothHomebrewPrefixes() {

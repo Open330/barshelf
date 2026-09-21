@@ -129,20 +129,38 @@ ok "both CLI binaries are signed, pinned, and report ${VERSION}"
 # already current. That is exactly how both files sat at 0.1.3 while the
 # project shipped 0.3.0, so it is checked rather than remembered.
 TAP_RAW="https://raw.githubusercontent.com/Open330/homebrew-tap/main"
-tap_version() {
-  curl -fsSL "${TAP_RAW}/$1" 2>/dev/null \
-    | sed -n 's/^[[:space:]]*version "\([^"]*\)".*/\1/p' | head -n 1
-}
-TAP_CASK_VERSION=$(tap_version "Casks/barshelf.rb")
-TAP_FORMULA_VERSION=$(tap_version "Formula/barshelf-cli.rb")
+TAP_CASK=$(curl -fsSL "${TAP_RAW}/Casks/barshelf.rb" 2>/dev/null) \
+  || fail "could not read the tap's cask"
+TAP_FORMULA=$(curl -fsSL "${TAP_RAW}/Formula/barshelf-cli.rb" 2>/dev/null) \
+  || fail "could not read the tap's formula"
+
+# The cask interpolates #{version} into its url, so its version is a stanza.
+# The formula spells the version out in the url instead — that is what
+# `brew bump-formula-pr` substitutes into, so it has no version stanza to read.
+TAP_CASK_VERSION=$(sed -n 's/^[[:space:]]*version "\([^"]*\)".*/\1/p' <<<"${TAP_CASK}" | head -n 1)
+TAP_FORMULA_VERSION=$(sed -n 's|.*/barshelf-cli-\([^-]*\)-arm64\.tar\.gz.*|\1|p' <<<"${TAP_FORMULA}" | head -n 1)
 for pair in "cask:${TAP_CASK_VERSION}" "formula:${TAP_FORMULA_VERSION}"; do
   what="${pair%%:*}"
   found="${pair#*:}"
   [[ -n "${found}" ]] || fail "could not read the tap's ${what} version"
   [[ "${found}" == "${VERSION}" ]] \
-    || fail "the tap's ${what} is at ${found}, not ${VERSION} — Homebrew users have no update path until it is bumped (see .github/workflows/tap-bump.yml)"
+    || fail "the tap's ${what} is at ${found}, not ${VERSION} — Homebrew users have no update path until it is bumped (Open330/homebrew-tap runs sync-upstream daily; dispatch it to hurry it along)"
 done
-ok "the Homebrew tap's cask and formula are at ${VERSION}"
+
+# Properties the cask has to keep, checked on the published file because that
+# is the one Homebrew serves. `auto_updates true` would make `brew upgrade`
+# skip this cask, and BarShelf refuses to self-update a Homebrew copy — the two
+# together leave no update path at all.
+grep -q 'cask "barshelf" do' <<<"${TAP_CASK}" \
+  || fail "the tap's cask is no longer named barshelf, so \`brew upgrade --cask barshelf\` is wrong"
+# Anchored: the cask's own comment explains why auto_updates is absent, and a
+# bare grep matches that explanation.
+if grep -qE '^[[:space:]]*auto_updates' <<<"${TAP_CASK}"; then
+  fail "the tap's cask declares auto_updates, which makes brew skip it"
+fi
+grep -q 'uninstall quit:' <<<"${TAP_CASK}" \
+  || fail "the tap's cask no longer quits the app on upgrade, so a live bundle is replaced under a running BarShelf"
+ok "the Homebrew tap's cask and formula are at ${VERSION}, and the cask still defers to brew"
 
 echo
 echo "${TAG} verified: a Mac will install this."

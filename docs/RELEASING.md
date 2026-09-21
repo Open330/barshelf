@@ -96,10 +96,10 @@
 9. 문제없으면 pre-release를 해제해 전체에 푼다:
    `gh release edit vX.Y.Z --prerelease=false --latest`
 
-   이때 `tap-bump` 워크플로가 `open330/homebrew-tap`의 cask와
-   `barshelf-cli` formula를 갱신한다. `TAP_GITHUB_TOKEN` 시크릿이 없으면
-   notice만 남기고 건너뛰므로, 그때는 손으로 올린다 — 7번의
-   `verify-release.sh`가 뒤처진 탭을 실패로 잡는다.
+   `open330/homebrew-tap`의 `sync-upstream` 워크플로가 하루 한 번 돌며
+   cask와 `barshelf-cli` formula를 여기에 맞춘다. 즉시 반영하려면
+   `gh workflow run sync-upstream.yml --repo Open330/homebrew-tap`.
+   7번의 `verify-release.sh`가 뒤처진 탭을 실패로 잡는다.
 10. 이제 문서의 버전 문구를 갱신한다 — `README.md`, `docs/INSTALL.md`,
     `site/index.html`. 갱신된 cask와 함께 커밋한다.
 11. `python3 scripts/check-release-versions.py`가 통과하는지 확인한다. 통과하지
@@ -156,10 +156,13 @@ override가 걸려 있으면 설정 창의 **Update source** 행과 업데이트
   `bsf`를 **멤버 이름으로** 꺼낸다(디렉터리로 감싸면 찾지 못한다).
   `UpgradeCommandTests`가 `release.sh`의 명명과 `tar -czf … barshelf bsf` 한 줄을
   검사해 CI에서 잡는다.
-- **탭을 릴리스와 함께 올린다.** cask와 formula는
-  `open330/homebrew-tap`에 있다. 뒤처지면 Homebrew 사용자에게 업데이트 경로가
-  **사라진다** — 앱은 brew로 올리라 하고, brew는 이미 최신이라고 답한다.
-  실제로 0.1.3에서 세 릴리스 동안 그랬다.
+- **탭이 따라왔는지 확인한다.** cask와 formula는 `open330/homebrew-tap`에
+  있고 `sync-upstream`이 하루 한 번 당겨온다. 뒤처지면 Homebrew 사용자에게
+  업데이트 경로가 **사라진다** — 앱은 brew로 올리라 하고, brew는 이미
+  최신이라고 답한다. 실제로 0.1.3에서 세 릴리스 동안 그랬다.
+- **formula의 URL에 버전을 그대로 적는다.** `#{version}` 보간으로 바꾸면
+  `brew bump-formula-pr`가 치환할 자리를 찾지 못해 sync가 조용히 실패한다
+  (cask는 반대로 보간이 정상이다).
 - **cask에 `auto_updates true`를 넣지 않는다.** BarShelf는 Homebrew로 설치된
   복사본을 감지해 `brew upgrade --cask barshelf`로 안내하고 스스로 교체하지
   않는다. 여기에 `auto_updates true`를 선언하면 `brew upgrade`가 그 복사본을
