@@ -374,3 +374,73 @@ final class MenuBarCustomisationTests: XCTestCase {
         XCTAssertNil(placement.label)
     }
 }
+
+/// Where the menu bar label comes from, and how the two-row layout is chosen.
+final class MenuBarStyleAndPrefixTests: XCTestCase {
+    /// Most specific wins: what the user typed, then what this refresh
+    /// produced, then what the author declared.
+    func testThePrefixPrefersTheUserThenTheWidgetThenTheManifest() {
+        XCTAssertEqual(
+            MenuBarPolicy.resolvedPrefix(user: "Mine", live: "Live", manifest: "Author"),
+            "Mine"
+        )
+        XCTAssertEqual(
+            MenuBarPolicy.resolvedPrefix(user: nil, live: "Live", manifest: "Author"), "Live"
+        )
+        XCTAssertEqual(
+            MenuBarPolicy.resolvedPrefix(user: nil, live: nil, manifest: "Author"), "Author"
+        )
+        XCTAssertNil(MenuBarPolicy.resolvedPrefix(user: nil, live: nil, manifest: nil))
+    }
+
+    /// An empty override is the user saying "no label", which is a decision —
+    /// it must not fall through to the widget's suggestion.
+    func testAnEmptyUserPrefixSilencesTheWidgetsOwn() {
+        XCTAssertNil(MenuBarPolicy.resolvedPrefix(user: "", live: "Live", manifest: "Author"))
+        XCTAssertNil(MenuBarPolicy.resolvedPrefix(user: "   ", live: "Live", manifest: "Author"))
+    }
+
+    func testTheStyleFallsBackFromUserToManifestToInline() {
+        XCTAssertEqual(
+            MenuBarPolicy.resolvedStyle(user: .stacked, manifest: "inline"), .stacked
+        )
+        XCTAssertEqual(MenuBarPolicy.resolvedStyle(user: nil, manifest: "stacked"), .stacked)
+        XCTAssertEqual(MenuBarPolicy.resolvedStyle(user: nil, manifest: nil), .inline)
+        // A style from a newer build is not a reason to draw nothing.
+        XCTAssertEqual(MenuBarPolicy.resolvedStyle(user: nil, manifest: "hexagonal"), .inline)
+    }
+
+    func testEveryStyleHasSomethingToShowInAPicker() {
+        for style in MenuBarStyle.allCases {
+            XCTAssertFalse(style.title.isEmpty, "\(style) has no title")
+        }
+        XCTAssertEqual(MenuBarStyle.allCases.count, 2)
+    }
+
+    /// A prefs file from before the style existed must still load, and an
+    /// unknown one must not take the rest of the file down with it.
+    func testPlacementStyleDecodesLenientlyOrNotAtAll() throws {
+        let missing = try JSONDecoder().decode(
+            MenuBarPlacement.self, from: Data(#"{"enabled":true}"#.utf8)
+        )
+        XCTAssertNil(missing.style)
+
+        let unknown = try JSONDecoder().decode(
+            MenuBarPlacement.self, from: Data(#"{"enabled":true,"style":"spiral"}"#.utf8)
+        )
+        XCTAssertTrue(unknown.enabled)
+        XCTAssertNil(unknown.style)
+
+        let stacked = try JSONDecoder().decode(
+            MenuBarPlacement.self, from: Data(#"{"enabled":true,"style":"stacked"}"#.utf8)
+        )
+        XCTAssertEqual(stacked.style, .stacked)
+    }
+
+    /// The author-facing shorthand the manifest exposes.
+    func testAManifestCanDeclareTheStackedLayout() {
+        XCTAssertTrue(Manifest.StatusItem(mode: "text", style: "stacked").isStacked)
+        XCTAssertFalse(Manifest.StatusItem(mode: "text", style: "inline").isStacked)
+        XCTAssertFalse(Manifest.StatusItem(mode: "text").isStacked)
+    }
+}

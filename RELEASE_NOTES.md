@@ -41,6 +41,18 @@
   entirely. Both live in Settings ▸ Menu Bar, next to the existing choice
   between sharing the BarShelf item and taking one of your own.
 
+- **Two-row menu bar items.** A widget can put its label *above* the value in
+  smaller type — the layout a system monitor uses to fit `CPU` over `23%` into
+  the menu bar's 22 points. It needs the widget's own status item, so choosing
+  it takes one. Each of those items already had its own right-click menu
+  (show, refresh, merge back, remove); that has not changed.
+
+- **Widgets can name their own readout.** A workflow's `status.prefix` is
+  templated like its label, so `System` reports `RAM` or `Disk` depending on
+  what you picked rather than being stuck with whatever the author typed.
+  Script widgets get the same through `host.render`'s status, and an author can
+  set a fixed default with `statusItem.label`. Yours still wins over both.
+
 - **Sensors reads far more of the machine.** The menu bar can now show power
   draw, fan speed and fan load alongside the four temperatures, and the card
   lists every sensor the Mac exposes — 118 readings on the MacBook Air this was

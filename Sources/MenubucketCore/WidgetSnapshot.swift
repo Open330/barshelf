@@ -19,6 +19,8 @@ public struct WidgetSnapshot: Codable, Equatable {
     /// snapshot so a promoted widget has something to draw at cold start,
     /// before its first refresh completes.
     public var statusLabel: String?
+    /// Menu-bar text drawn before `statusLabel`, when the widget emits one.
+    public var statusPrefix: String?
     /// Longer form for the menu-bar tooltip (`status.tooltip`).
     public var statusTooltip: String?
     /// True only for a widget-supplied, explicitly redacted fallback tree.
@@ -29,7 +31,7 @@ public struct WidgetSnapshot: Codable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case widgetID, viewTree, updatedAt, error, safeForSensitiveCache
-        case statusLabel, statusTooltip
+        case statusLabel, statusTooltip, statusPrefix
     }
 
     public init(
@@ -39,6 +41,7 @@ public struct WidgetSnapshot: Codable, Equatable {
         error: String? = nil,
         statusLabel: String? = nil,
         statusTooltip: String? = nil,
+        statusPrefix: String? = nil,
         safeForSensitiveCache: Bool? = nil,
         isLoading: Bool = false
     ) {
@@ -48,6 +51,7 @@ public struct WidgetSnapshot: Codable, Equatable {
         self.error = error
         self.statusLabel = statusLabel
         self.statusTooltip = statusTooltip
+        self.statusPrefix = statusPrefix
         self.safeForSensitiveCache = safeForSensitiveCache
         self.isLoading = isLoading
     }

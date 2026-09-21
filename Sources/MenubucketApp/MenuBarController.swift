@@ -180,19 +180,26 @@ final class MenuBarController {
             button.image = symbol.flatMap {
                 Self.symbolImage(named: $0, describedAs: entry.name)
             }
-            let label = MenuBarPolicy.stripCell(
-                entry, glyph: button.image == nil ? Self.textGlyph(for: entry) : nil
-            )
-            button.attributedTitle = NSAttributedString(
-                string: label,
-                attributes: [.font: Self.statusFont, .foregroundColor: Self.color(for: entry)]
-            )
+            let glyph = button.image == nil ? Self.textGlyph(for: entry) : nil
+            let title = entry.style == .stacked
+                ? Self.stackedTitle(entry, glyph: glyph)
+                : NSAttributedString(
+                    string: MenuBarPolicy.stripCell(entry, glyph: glyph),
+                    attributes: [
+                        .font: Self.statusFont,
+                        .foregroundColor: Self.color(for: entry),
+                    ]
+                )
+            button.attributedTitle = title
             button.imagePosition = Self.imagePosition(
-                hasImage: button.image != nil, hasLabel: !label.isEmpty
+                hasImage: button.image != nil, hasLabel: title.length > 0
             )
             button.toolTip = MenuBarPolicy.tooltip(for: [entry])
+            // VoiceOver reads one line, so the stacked layout is flattened
+            // back to "name, CPU 23%" rather than announced as two rows.
+            let spoken = MenuBarPolicy.entryText(entry)
             button.setAccessibilityLabel(
-                label.isEmpty ? entry.name : "\(entry.name), \(label)"
+                spoken.isEmpty ? entry.name : "\(entry.name), \(spoken)"
             )
         }
     }
@@ -231,6 +238,48 @@ final class MenuBarController {
         } else {
             onSelect?(widgetID)
         }
+    }
+
+    /// Two rows inside the menu bar's 22 points: the label small on top, the
+    /// value beneath it.
+    ///
+    /// The sizes are not arbitrary. A menu bar item is about 22 points tall and
+    /// the system font at its default size is ~13 — two of those do not fit, so
+    /// the pair is shrunk and the leading pulled in until they do. Centering
+    /// keeps a short label from looking detached from a wider value.
+    static let stackedValueFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+    static let stackedLabelFont = NSFont.systemFont(ofSize: 8, weight: .medium)
+
+    static func stackedTitle(_ entry: MenuBarEntry, glyph: String?) -> NSAttributedString {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        // Negative spacing: the two fonts' natural line heights add up to more
+        // than the bar is tall.
+        paragraph.lineSpacing = -3
+        paragraph.maximumLineHeight = 11
+
+        let color = color(for: entry)
+        let value = entry.label ?? ""
+        var top = MenuBarPolicy.normalizedPrefix(entry.prefix) ?? entry.name
+        if let glyph, !glyph.isEmpty { top = "\(glyph) \(top)" }
+
+        let result = NSMutableAttributedString(
+            string: top + "\n",
+            attributes: [
+                .font: stackedLabelFont,
+                .foregroundColor: color.withAlphaComponent(entry.isStale ? 0.4 : 0.7),
+                .paragraphStyle: paragraph,
+            ]
+        )
+        result.append(NSAttributedString(
+            string: value,
+            attributes: [
+                .font: stackedValueFont,
+                .foregroundColor: color,
+                .paragraphStyle: paragraph,
+            ]
+        ))
+        return result
     }
 
     // MARK: - Drawing helpers

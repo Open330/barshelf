@@ -11,6 +11,27 @@ import Foundation
 /// Everything here is pure and UI-free: the AppKit side owns `NSStatusItem`s
 /// and calls into these rules.
 
+// MARK: - Style
+
+/// How one widget's cell is laid out in the menu bar.
+public enum MenuBarStyle: String, Codable, Equatable, Sendable, CaseIterable {
+    /// Label and value on one line: `CPU 23%`.
+    case inline
+    /// Label above the value, the way a system monitor fits two rows into the
+    /// menu bar's 22 points. Needs the widget's own status item — the shared
+    /// strip is a single run of text — so choosing it implies one.
+    case stacked
+
+    public static let `default` = MenuBarStyle.inline
+
+    public var title: String {
+        switch self {
+        case .inline: return "Label beside the value"
+        case .stacked: return "Label above the value"
+        }
+    }
+}
+
 // MARK: - Placement
 
 /// Where one widget sits in the menu bar. Persisted per widget.
@@ -31,21 +52,26 @@ public struct MenuBarPlacement: Codable, Equatable, Sendable {
     /// layer, not here.
     public var icon: String?
     /// Short text shown before the value, the way a system monitor labels its
-    /// readouts ("CPU 23%"). Nil or empty shows the value alone.
+    /// readouts ("CPU 23%"). Nil falls back to whatever the widget supplies;
+    /// empty means the user asked for no label at all.
     public var label: String?
+    /// Overrides the widget's own layout. Nil keeps it.
+    public var style: MenuBarStyle?
 
     public init(
         enabled: Bool,
         separate: Bool = false,
         order: Double? = nil,
         icon: String? = nil,
-        label: String? = nil
+        label: String? = nil,
+        style: MenuBarStyle? = nil
     ) {
         self.enabled = enabled
         self.separate = separate
         self.order = order
         self.icon = icon
         self.label = label
+        self.style = style
     }
 
     /// Lenient decode so a prefs file written by an older build still loads.
@@ -56,6 +82,9 @@ public struct MenuBarPlacement: Codable, Equatable, Sendable {
         order = try container.decodeIfPresent(Double.self, forKey: .order)
         icon = try container.decodeIfPresent(String.self, forKey: .icon)
         label = try container.decodeIfPresent(String.self, forKey: .label)
+        // An unknown style from a newer build reads as "no override" rather
+        // than failing the whole prefs file.
+        style = try? container.decodeIfPresent(MenuBarStyle.self, forKey: .style)
     }
 }
 
@@ -72,8 +101,11 @@ public struct MenuBarEntry: Equatable, Sendable {
     /// The user's replacement for `symbol`, verbatim. Empty means they asked
     /// for no icon. See `MenuBarPlacement.icon`.
     public var iconOverride: String?
-    /// Short text drawn before `label`, from `MenuBarPlacement.label`.
+    /// Short text drawn before `label`, resolved from the user's override,
+    /// the widget's own per-refresh prefix, or its manifest default.
     public var prefix: String?
+    /// How the cell is laid out.
+    public var style: MenuBarStyle = .default
     /// Live text, or nil when the mode shows the icon only / nothing has been
     /// sampled yet.
     public var label: String?
@@ -90,6 +122,7 @@ public struct MenuBarEntry: Equatable, Sendable {
         symbol: String? = nil,
         iconOverride: String? = nil,
         prefix: String? = nil,
+        style: MenuBarStyle = .default,
         label: String? = nil,
         tooltip: String? = nil,
         isStale: Bool = false,
@@ -100,6 +133,7 @@ public struct MenuBarEntry: Equatable, Sendable {
         self.symbol = symbol
         self.iconOverride = iconOverride
         self.prefix = prefix
+        self.style = style
         self.label = label
         self.tooltip = tooltip
         self.isStale = isStale
@@ -162,6 +196,25 @@ public enum MenuBarPolicy {
             return String(trimmed.prefix(maxIconCharacters))
         }
         return trimmed
+    }
+
+    /// The label to draw, most specific source first: what the user typed,
+    /// then what this refresh produced, then what the author declared.
+    ///
+    /// An empty user override is not "nothing set" — it is the user saying no
+    /// label — so it stops the search rather than falling through.
+    public static func resolvedPrefix(
+        user: String?, live: String?, manifest: String?
+    ) -> String? {
+        if let user {
+            return user.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? nil : normalizedPrefix(user)
+        }
+        return normalizedPrefix(live) ?? normalizedPrefix(manifest)
+    }
+
+    public static func resolvedStyle(user: MenuBarStyle?, manifest: String?) -> MenuBarStyle {
+        user ?? manifest.flatMap(MenuBarStyle.init(rawValue:)) ?? .default
     }
 
     /// What one entry contributes as text: the prefix and the value, or

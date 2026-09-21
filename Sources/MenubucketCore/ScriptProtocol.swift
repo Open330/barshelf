@@ -115,10 +115,15 @@ public struct WidgetTimerParams: Codable, Equatable, Sendable {
 public struct RenderStatus: Codable, Equatable, Sendable {
     public var label: String?
     public var tooltip: String?
+    /// Menu-bar text drawn before `label`, or above it when the widget's
+    /// status item is stacked. See `MenuBarPlacement.label` for how the user's
+    /// own choice overrides it.
+    public var prefix: String?
 
-    public init(label: String? = nil, tooltip: String? = nil) {
+    public init(label: String? = nil, tooltip: String? = nil, prefix: String? = nil) {
         self.label = label
         self.tooltip = tooltip
+        self.prefix = prefix
     }
 }
 

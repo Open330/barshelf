@@ -156,7 +156,9 @@ Workflow DSL 상세 계약은 [`docs/WORKFLOW.md`](WORKFLOW.md)를 따른다.
 | 필드 | 설명 |
 | --- | --- |
 | `mode` | `none`은 메뉴바에 넣지 않는다. `text`는 status label만, `icon`은 아이콘만, `dynamic`은 둘 다. `none`이 아니면 *승격 가능*해져 메뉴바 선택 목록에 오르지만, **사용자가 켜기 전에는 아무것도 표시되지 않는다**. 켜는 곳은 BarShelf 아이콘 우클릭의 **Menu Bar ▸** 또는 위젯 설정의 Menu Bar 섹션이다. |
-| `icon` | status item 아이콘(SF Symbol 이름). 없으면 manifest의 `icon`을 쓴다. |
+| `icon` | status item 아이콘(SF Symbol 이름). 없으면 manifest의 `icon`을 쓴다. 사용자가 SF Symbol 이름이나 **이모지**로 덮어쓰거나 아예 끌 수 있다. |
+| `label` | 값 앞에 그릴 기본 텍스트(`CPU 23%`의 `CPU`). 워크플로의 `status.prefix`가 이보다 우선하고, 사용자 설정이 둘 다 이긴다. |
+| `style` | `inline`은 값 옆에, `stacked`는 값 **위에** 작게 라벨을 둔다(시스템 모니터가 메뉴바 높이에 두 줄을 넣는 방식). `stacked`는 위젯 전용 status item을 필요로 하므로 자동으로 분리된다. |
 | `labelFrom` | 스키마 호환용. 현재 런타임은 읽지 않는다. |
 | `tooltipFrom` | 스키마 호환용. 현재 런타임은 읽지 않는다. |
 
