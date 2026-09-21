@@ -12,9 +12,15 @@ concurrency:
 jobs:
   build-test:
     name: Build & Test
-    runs-on: macos-14
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v5
+
+      - name: What this image has
+        run: |
+          echo "image: $ImageOS / $ImageVersion"
+          ls -d /Applications/Xcode*.app
+          sw_vers
 
       # Pinned, not `latest-stable`. A floating toolchain silently changes the
       # SDK under the build: that is how a `-strict-concurrency=complete` error
