@@ -9,8 +9,9 @@ public enum SchedulePolicy {
     public static let minBackgroundIntervalSec: Double = 60
     /// Minimum interval for a widget promoted to the menu bar. A visible live
     /// value is the whole point of promotion, so it polls at its configured
-    /// cadence whether or not the popup is open — well below the ordinary
-    /// floors, which exist to keep *hidden* widgets from burning battery.
+    /// cadence whether or not the popup is open, and whether or not the user
+    /// asked for everything else to pause — well below the ordinary floors,
+    /// which exist to keep *hidden* widgets from burning battery.
     public static let minMenuBarIntervalSec: Double = 1
     /// Closed-popup intervals are relaxed by this factor.
     public static let backgroundRelaxFactor: Double = 4
@@ -35,11 +36,12 @@ public enum SchedulePolicy {
     ///   configured interval *before* the minimum clamps, so 0.5× can never
     ///   undercut the 5 s / 60 s floors.
     /// - `pauseWhenClosed`: battery saver — while the popup is closed nothing
-    ///   polls, `runInBackground` and menu-bar widgets included. A promoted
-    ///   widget then freezes rather than lying about being live, and the menu
-    ///   bar dims it once it goes stale.
+    ///   polls, `runInBackground` widgets included. Menu-bar widgets are the
+    ///   exception: see below.
     /// - `menuBarPromoted`: the widget is drawn in the menu bar, so it keeps
-    ///   its own cadence in both popup states.
+    ///   its own cadence in both popup states and regardless of the battery
+    ///   saver. It used to freeze with everything else, which left a number on
+    ///   screen that had quietly stopped being true.
     public static func effectiveInterval(
         configured: Double?,
         popupOpen: Bool,
@@ -51,7 +53,12 @@ public enum SchedulePolicy {
         guard let configured, configured > 0 else { return nil }
         let scaled = configured * normalizedRefreshMultiplier(multiplier)
         if menuBarPromoted {
-            if !popupOpen, pauseWhenClosed { return nil }
+            // Deliberately not gated on `pauseWhenClosed`. That setting exists
+            // to stop *hidden* widgets burning battery, and a promoted widget
+            // is the one thing on screen whether the popup is open or not —
+            // pausing it leaves a number in the menu bar that quietly stops
+            // being true, which is worse than not showing one. Someone who
+            // wants nothing polling takes the widget out of the menu bar.
             return max(scaled, minMenuBarIntervalSec)
         }
         if popupOpen {

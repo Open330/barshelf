@@ -9,7 +9,8 @@ import MenubucketCore
 ///   `runInBackground == true` widgets poll, at a 4× relaxed cadence (min 60 s).
 ///   Widgets promoted to the menu bar are exempt from both gates: their value is
 ///   on screen either way, so they poll at their configured cadence (min 1 s)
-///   until the `pauseWhenClosed` battery saver stops them.
+///   regardless of the `pauseWhenClosed` battery saver, which is about work
+///   nobody can see.
 /// - `deadline`: when an adapter returns `nextRefreshAtMs`, re-run exactly once
 ///   at that time while its page is visible. Timers are cancelled offscreen or
 ///   while the popup is closed and re-evaluated when visibility changes.
@@ -53,6 +54,13 @@ final class Scheduler {
     /// the visibility and `runInBackground` gates exist to spare *hidden*
     /// widgets, which these are not.
     private var menuBarWidgetIDs: Set<String> = []
+    /// Whether App Nap is currently being held off. Test surface: the
+    /// assertion itself is opaque, and "does a promoted widget keep polling"
+    /// is not something a unit test can observe.
+    var holdsActivityAssertion: Bool { activityAssertion != nil }
+
+    /// Non-nil while a widget is in the menu bar; see `updateActivityAssertion`.
+    private var activityAssertion: NSObjectProtocol?
 
     // MARK: R12 event triggers (`refresh.triggers`)
 
@@ -90,6 +98,9 @@ final class Scheduler {
     deinit {
         if let wakeObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
+        }
+        if let activityAssertion {
+            ProcessInfo.processInfo.endActivity(activityAssertion)
         }
         for timer in intervalTimers.values { timer.invalidate() }
         for timer in deadlineTimers.values { timer.invalidate() }
@@ -145,8 +156,34 @@ final class Scheduler {
         let normalized = ids.intersection(liveIDs)
         guard normalized != menuBarWidgetIDs else { return }
         menuBarWidgetIDs = normalized
+        updateActivityAssertion()
         rebuildIntervalTimers()
         flushPromotedPendingEvents()
+    }
+
+    /// Holds App Nap off while anything is drawn in the menu bar.
+    ///
+    /// An accessory app with no windows is exactly what App Nap is for, and it
+    /// took this one: the process ran at low priority (`ps` shows `SN`) and a
+    /// two-second repeating timer fired about once every eight seconds. The
+    /// menu bar reading then sat at whatever it last managed to compute, which
+    /// is worse than showing nothing.
+    ///
+    /// Scoped to promotion rather than taken for the whole process life: with
+    /// an empty menu bar there is nothing on screen to keep current, and the
+    /// app should nap like any other. `allowingIdleSystemSleep` because this
+    /// is about not being throttled, not about keeping the Mac awake.
+    private func updateActivityAssertion() {
+        let wanted = !menuBarWidgetIDs.isEmpty
+        if wanted, activityAssertion == nil {
+            activityAssertion = ProcessInfo.processInfo.beginActivity(
+                options: [.userInitiatedAllowingIdleSystemSleep],
+                reason: "Showing live widget values in the menu bar"
+            )
+        } else if !wanted, let assertion = activityAssertion {
+            ProcessInfo.processInfo.endActivity(assertion)
+            activityAssertion = nil
+        }
     }
 
     /// Test/diagnostic surface for verifying that offscreen widgets do not own
@@ -306,9 +343,10 @@ final class Scheduler {
         // invariant against a future caller.
         if widget.manifest.refresh?.popupOnly == true { return false }
         if menuBarWidgetIDs.contains(widgetID) {
-            // Battery saver still wins: a paused promoted widget freezes and
-            // the menu bar dims it rather than showing a stale value as live.
-            return popupIsOpen || !pauseWhenClosed
+            // Promoted widgets are on screen in both popup states, and the
+            // battery saver is about work nobody can see. Pausing one left a
+            // menu bar reading frozen at whatever it happened to say.
+            return true
         }
         if popupIsOpen {
             return visibleWidgetIDs.contains(widgetID)

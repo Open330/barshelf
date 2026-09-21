@@ -243,19 +243,43 @@ final class SchedulePolicyTests: XCTestCase {
         ))
     }
 
-    func testBatterySaverStillPausesAPromotedWidget() {
+    /// The battery saver used to stop promoted widgets too, which left a
+    /// reading in the menu bar frozen at whatever it happened to say — on this
+    /// project's own machines, for a day. The saver is about work nobody can
+    /// see, and a promoted widget is the one thing that is always visible.
+    func testTheBatterySaverDoesNotPauseAPromotedWidget() {
+        for popupOpen in [true, false] {
+            XCTAssertEqual(
+                SchedulePolicy.effectiveInterval(
+                    configured: 2, popupOpen: popupOpen, runInBackground: false,
+                    pauseWhenClosed: true, menuBarPromoted: true
+                ),
+                2,
+                "promoted widget paused with popupOpen=\(popupOpen)"
+            )
+        }
+    }
+
+    /// The saver still does its job for everything else, which is the point of
+    /// carving out only the visible case.
+    func testTheBatterySaverStillPausesWidgetsNobodyCanSee() {
         XCTAssertNil(SchedulePolicy.effectiveInterval(
             configured: 2, popupOpen: false, runInBackground: true,
+            pauseWhenClosed: true, menuBarPromoted: false
+        ))
+    }
+
+    /// Taking the widget out of the menu bar is how someone stops it polling —
+    /// so that has to actually stop it.
+    func testDemotingAWidgetPutsItBackUnderTheSaver() {
+        XCTAssertNotNil(SchedulePolicy.effectiveInterval(
+            configured: 2, popupOpen: false, runInBackground: false,
             pauseWhenClosed: true, menuBarPromoted: true
         ))
-        // Open popup: the saver only covers the closed state.
-        XCTAssertEqual(
-            SchedulePolicy.effectiveInterval(
-                configured: 2, popupOpen: true, runInBackground: false,
-                pauseWhenClosed: true, menuBarPromoted: true
-            ),
-            2
-        )
+        XCTAssertNil(SchedulePolicy.effectiveInterval(
+            configured: 2, popupOpen: false, runInBackground: false,
+            pauseWhenClosed: true, menuBarPromoted: false
+        ))
     }
 
 }
