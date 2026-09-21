@@ -324,6 +324,7 @@
   },
   "status": {
     "label": "${if(or(not(sources.data.sensors.available), eq(transforms.raw, null)), '', concat(string(round(transforms.shown, transforms.decimals)), transforms.suffix))}",
-    "tooltip": "${if(sources.data.sensors.available, concat('CPU ', string(round(number(if(eq(settings.unit,'fahrenheit'), add(mul(coalesce(sources.data.sensors.cpu, 0),1.8),32), coalesce(sources.data.sensors.cpu, 0))), 1)), if(eq(settings.unit,'fahrenheit'), ' °F', ' °C'), ' · peak ', string(round(number(if(eq(settings.unit,'fahrenheit'), add(mul(coalesce(sources.data.sensors.peak, 0),1.8),32), coalesce(sources.data.sensors.peak, 0))), 1)), if(eq(settings.unit,'fahrenheit'), ' °F', ' °C')), 'No sensors available')}"
+    "tooltip": "${if(sources.data.sensors.available, concat('CPU ', string(round(number(if(eq(settings.unit,'fahrenheit'), add(mul(coalesce(sources.data.sensors.cpu, 0),1.8),32), coalesce(sources.data.sensors.cpu, 0))), 1)), if(eq(settings.unit,'fahrenheit'), ' °F', ' °C'), ' · peak ', string(round(number(if(eq(settings.unit,'fahrenheit'), add(mul(coalesce(sources.data.sensors.peak, 0),1.8),32), coalesce(sources.data.sensors.peak, 0))), 1)), if(eq(settings.unit,'fahrenheit'), ' °F', ' °C')), 'No sensors available')}",
+    "prefix": "${if(eq(settings.menuBarSensor,'power'), 'Power', if(eq(settings.menuBarSensor,'fan'), 'Fan', if(eq(settings.menuBarSensor,'fanUsage'), 'Fan', if(eq(settings.menuBarSensor,'gpu'), 'GPU', if(eq(settings.menuBarSensor,'battery'), 'Batt', if(eq(settings.menuBarSensor,'peak'), 'Peak', 'CPU'))))))}"
   }
 }

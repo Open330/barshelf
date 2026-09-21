@@ -182,6 +182,22 @@ struct WidgetSettingsView: View {
                 // "" is how the model says *no* icon, which is a different
                 // thing from nil — keep the widget's own. A text field cannot
                 // express that difference, so the toggle does.
+                Picker("", selection: Binding(
+                    get: {
+                        MenuBarPolicy.resolvedStyle(
+                            user: menuBarDraft.style,
+                            manifest: widget.manifest.statusItem?.style
+                        )
+                    },
+                    set: { menuBarDraft.style = $0 }
+                )) {
+                    ForEach(MenuBarStyle.allCases, id: \.self) { style in
+                        Text(style.title).tag(style)
+                    }
+                }
+                .pickerStyle(.radioGroup)
+                .labelsHidden()
+
                 Toggle("Show an icon", isOn: Binding(
                     get: { menuBarDraft.icon != "" },
                     set: { menuBarDraft.icon = $0 ? nil : "" }
@@ -189,9 +205,10 @@ struct WidgetSettingsView: View {
                 .toggleStyle(.checkbox)
 
                 Text(
-                    "Label is drawn before the value (\"CPU 23%\"). Icon takes an"
-                        + " SF Symbol name or an emoji; leave it empty for the"
-                        + " widget's own."
+                    "Label is drawn before the value (\"CPU 23%\"), or above it"
+                        + " when stacked — which needs the widget's own item."
+                        + " Icon takes an SF Symbol name or an emoji; leave it"
+                        + " empty for the widget's own."
                 )
                 .font(.caption2)
                 .foregroundStyle(.secondary)

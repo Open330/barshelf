@@ -435,6 +435,10 @@
         },
         "tooltip": {
           "$ref": "#/definitions/templateString"
+        },
+        "prefix": {
+          "type": "string",
+          "description": "Templated text the menu bar draws before the value. Lets a widget whose metric the user picks say \"CPU\" or \"Mem\" as appropriate."
         }
       },
       "additionalProperties": true

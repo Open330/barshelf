@@ -33,6 +33,15 @@ export interface WidgetTimerParams {
 export interface RenderStatus {
   label?: string;
   tooltip?: string;
+  /**
+   * Text the menu bar draws before `label` — "CPU" in "CPU 23%", or the top
+   * row when the widget's status item is stacked.
+   *
+   * Supplied per render rather than fixed in the manifest, because a widget
+   * whose metric the user chooses cannot know at authoring time whether it
+   * will be showing CPU or memory. The user can still override it.
+   */
+  prefix?: string;
 }
 
 export interface RenderOptions {

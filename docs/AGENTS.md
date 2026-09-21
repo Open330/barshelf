@@ -256,10 +256,25 @@ sharing) the BarShelf mark.
   `optionTitles` (same length as `options`) so the picker shows "Value only"
   rather than the stored `value`. Settings are per widget *instance*, so a user
   can duplicate a widget and have each copy show a different reading.
+- `status.prefix` is the short word drawn **before** the value — `CPU` in
+  `CPU 23%`. Templated like `status.label`, which is the point: a widget whose
+  metric the user picks cannot name itself in the manifest, so `system` emits
+  `RAM` or `Disk` depending on `settings.menuBarMetric`. A fixed default can go
+  in `statusItem.label` instead. The user's own entry beats both, and an empty
+  one means they want no label at all.
+- `statusItem.style` picks the layout: `"inline"` draws the label beside the
+  value, `"stacked"` puts it above in smaller type, the way a system monitor
+  fits two rows into the menu bar. Stacked needs the widget's own status item,
+  so choosing it takes one.
 - Widgets that show a label **share one status item** with the BarShelf mark
   (`✦ 42% · 61% · 58°`); a widget can be split into its own item from Settings
-  or its right-click menu. An `"icon"`-only widget always gets its own item,
-  since an icon cannot join a text strip.
+  or its right-click menu, and each separate item carries its own right-click
+  menu (show, refresh, merge back, remove). An `"icon"`-only widget always gets
+  its own item, since an icon cannot join a text strip — but a user who sets an
+  **emoji** as the icon can share the strip, because an emoji is text.
+- The user can override the icon per widget with an SF Symbol name or an emoji,
+  and turn it off entirely. An author cannot set that; it is presentation the
+  person running BarShelf owns.
 - At most 5 widgets are drawn. Labels are collapsed to one line and clipped to
   14 characters.
 - A promoted widget keeps polling at its own `refresh.interval` **while the

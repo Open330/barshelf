@@ -198,6 +198,17 @@ public struct Manifest: Codable, Equatable {
         public var icon: String?
         public var labelFrom: String?
         public var tooltipFrom: String?
+        /// Default text drawn before the value ("CPU 23%"). The user can
+        /// override it, and a workflow can supply one per refresh — which is
+        /// what a widget whose metric is user-selectable needs, since the
+        /// author cannot know at authoring time whether it will be showing
+        /// CPU or memory.
+        public var label: String?
+        /// `"inline"` draws label and value side by side; `"stacked"` puts the
+        /// label above the value, the way a system monitor packs two rows into
+        /// the menu bar's height. Stacked needs the widget's own status item,
+        /// so it implies one.
+        public var style: String?
 
         /// Display modes that put the widget in the menu bar.
         public static let promotableModes: Set<String> = ["icon", "text", "dynamic"]
@@ -210,16 +221,22 @@ public struct Manifest: Codable, Equatable {
         public var showsIcon: Bool { mode == "icon" || mode == "dynamic" }
         public var showsLabel: Bool { mode == "text" || mode == "dynamic" }
 
+        public var isStacked: Bool { style == MenuBarStyle.stacked.rawValue }
+
         public init(
             mode: String? = nil,
             icon: String? = nil,
             labelFrom: String? = nil,
-            tooltipFrom: String? = nil
+            tooltipFrom: String? = nil,
+            label: String? = nil,
+            style: String? = nil
         ) {
             self.mode = mode
             self.icon = icon
             self.labelFrom = labelFrom
             self.tooltipFrom = tooltipFrom
+            self.label = label
+            self.style = style
         }
     }
 

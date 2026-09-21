@@ -327,6 +327,18 @@
         },
         "tooltipFrom": {
           "type": "string"
+        },
+        "label": {
+          "type": "string",
+          "description": "Default text drawn before the value in the menu bar (\"CPU\"). The user can override it, and a workflow's `status.prefix` takes precedence over it for widgets whose metric the user selects."
+        },
+        "style": {
+          "type": "string",
+          "enum": [
+            "inline",
+            "stacked"
+          ],
+          "description": "`inline` draws the label beside the value; `stacked` puts it above, the way a system monitor packs two rows into the menu bar. Stacked implies the widget's own status item."
         }
       },
       "additionalProperties": true,

@@ -64,10 +64,15 @@ public struct WorkflowDefinition: Codable, Equatable, Sendable {
     public struct StatusDef: Codable, Equatable, Sendable {
         public var label: String?
         public var tooltip: String?
+        /// Text drawn before the value in the menu bar. Templated like the
+        /// others, so a widget whose metric the user picks can say "CPU" or
+        /// "Mem" as appropriate — something a fixed manifest field cannot.
+        public var prefix: String?
 
-        public init(label: String? = nil, tooltip: String? = nil) {
+        public init(label: String? = nil, tooltip: String? = nil, prefix: String? = nil) {
             self.label = label
             self.tooltip = tooltip
+            self.prefix = prefix
         }
     }
 
@@ -129,6 +134,9 @@ public enum WorkflowEngine {
         public var viewTree: UINode
         public var statusLabel: String?
         public var statusTooltip: String?
+        /// Text the menu bar draws before the value, when the widget supplies
+        /// one per refresh. See `StatusDef.prefix`.
+        public var statusPrefix: String?
         /// Total items produced by every `forEach` expansion.
         public var expandedItemCount: Int
         /// True when zero items were expanded and the `empty` node was used.
@@ -139,6 +147,7 @@ public enum WorkflowEngine {
         public init(
             viewTree: UINode,
             statusLabel: String? = nil,
+            statusPrefix: String? = nil,
             statusTooltip: String? = nil,
             expandedItemCount: Int = 0,
             usedEmpty: Bool = false,
@@ -146,6 +155,7 @@ public enum WorkflowEngine {
         ) {
             self.viewTree = viewTree
             self.statusLabel = statusLabel
+            self.statusPrefix = statusPrefix
             self.statusTooltip = statusTooltip
             self.expandedItemCount = expandedItemCount
             self.usedEmpty = usedEmpty
@@ -223,12 +233,16 @@ public enum WorkflowEngine {
 
         var statusLabel: String?
         var statusTooltip: String?
+        var statusPrefix: String?
         if let status = definition.status {
             if let label = status.label {
                 statusLabel = try context.interpolate(label).stringified
             }
             if let tooltip = status.tooltip {
                 statusTooltip = try context.interpolate(tooltip).stringified
+            }
+            if let prefix = status.prefix {
+                statusPrefix = try context.interpolate(prefix).stringified
             }
         }
 
@@ -250,6 +264,7 @@ public enum WorkflowEngine {
         return Output(
             viewTree: viewTree,
             statusLabel: statusLabel,
+            statusPrefix: statusPrefix,
             statusTooltip: statusTooltip,
             expandedItemCount: context.expandedItemCount,
             usedEmpty: usedEmpty,

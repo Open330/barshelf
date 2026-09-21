@@ -345,6 +345,7 @@ final class WidgetRuntime: ObservableObject {
         snapshot.updatedAt = Date()
         snapshot.error = nil
         snapshot.statusLabel = params.status?.label
+        snapshot.statusPrefix = params.status?.prefix
         snapshot.statusTooltip = params.status?.tooltip
         snapshot.safeForSensitiveCache = false
         setSnapshot(snapshot, for: widgetId)
@@ -1196,14 +1197,26 @@ final class WidgetRuntime: ObservableObject {
             let hasTextIcon = MenuBarPolicy.normalizedIcon(placement.icon)
                 .map { !$0.isEmpty && NSImage(systemSymbolName: $0, accessibilityDescription: nil) == nil }
                 ?? false
-            let separate = placement.separate || !(statusItem.showsLabel || hasTextIcon)
+            // Two rows cannot be drawn into a shared run of text, so the
+            // stacked style takes its own item the way an icon-only widget does.
+            let style = MenuBarPolicy.resolvedStyle(
+                user: placement.style, manifest: statusItem.style
+            )
+            let separate = placement.separate
+                || style == .stacked
+                || !(statusItem.showsLabel || hasTextIcon)
             let entry = MenuBarEntry(
                 widgetID: widget.id,
                 name: widget.displayName,
                 symbol: statusItem.showsIcon
                     ? (statusItem.icon ?? widget.manifest.icon) : nil,
                 iconOverride: MenuBarPolicy.normalizedIcon(placement.icon),
-                prefix: MenuBarPolicy.normalizedPrefix(placement.label),
+                prefix: MenuBarPolicy.resolvedPrefix(
+                    user: placement.label,
+                    live: snapshot?.statusPrefix,
+                    manifest: statusItem.label
+                ),
+                style: style,
                 label: statusItem.showsLabel
                     ? MenuBarPolicy.normalizedLabel(snapshot?.statusLabel) : nil,
                 tooltip: snapshot?.error ?? snapshot?.statusTooltip,
@@ -1477,6 +1490,7 @@ final class WidgetRuntime: ObservableObject {
         /// Live menu-bar text (a workflow's `status.label`, or an adapter's
         /// status text).
         var statusLabel: String?
+        var statusPrefix: String?
         /// Longer form for the menu-bar tooltip (`status.tooltip`).
         var statusTooltip: String?
     }
@@ -1684,6 +1698,7 @@ final class WidgetRuntime: ObservableObject {
             return .success(RefreshSuccess(
                 viewTree: output.viewTree,
                 statusLabel: output.statusLabel,
+                statusPrefix: output.statusPrefix,
                 statusTooltip: output.statusTooltip
             ))
         } catch {
@@ -2018,6 +2033,7 @@ final class WidgetRuntime: ObservableObject {
             snapshot.updatedAt = completedAt
             snapshot.error = nil
             snapshot.statusLabel = success.statusLabel
+            snapshot.statusPrefix = success.statusPrefix
             snapshot.statusTooltip = success.statusTooltip
             if !widget.isSensitive {
                 persistSnapshot(snapshot) // sensitive renders stay memory-only
