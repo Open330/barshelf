@@ -45,7 +45,13 @@ NOTES_VERSION = re.compile(r"^#\s*BarShelf\s+([0-9][0-9A-Za-z.\-]*)", re.MULTILI
 
 # Only "vX.Y.Z" — the form used to name a release. Bare numbers are left alone
 # so macOS/Swift versions and shell examples do not trip the check.
-DOC_VERSION = re.compile(r"\bv(\d+\.\d+\.\d+)\b")
+#
+# Deliberately not `\bv...\b`. A trailing `\b` needs a non-word character
+# after the version, and Korean is word characters to `re`: "v0.2.1은" has no
+# boundary after the 1, so every version carrying a Korean particle was
+# invisible to this check. Most of this project's docs are Korean, and one such
+# line had been advertising a superseded release on the live site.
+DOC_VERSION = re.compile(r"(?<![\w.])v(\d+\.\d+\.\d+)(?!\d)")
 
 # Other projects' versions that legitimately appear in these docs. Adding to
 # this list should be a deliberate edit, not something that quietly passes —

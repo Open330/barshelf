@@ -9,7 +9,7 @@ BarShelf은 macOS **메뉴바 앱**(`BarShelf.app`)과 선택 설치하는 개�
 
 1. [Releases](https://github.com/Open330/barshelf/releases)에서 `BarShelf-<버전>-arm64.zip` 다운로드
 2. 압축 해제 후 `BarShelf.app`을 `/Applications`로 이동
-3. 현재 **v0.2.1은 Developer ID 서명·Apple 공증·티켓 스테이플을 통과한 빌드**이므로 일반 더블클릭으로 실행한다.
+3. 현재 **v0.3.0은 Developer ID 서명·Apple 공증·티켓 스테이플을 통과한 빌드**이므로 일반 더블클릭으로 실행한다.
 4. 메뉴바에 아이콘이 나타나면 클릭 → 온보딩 시작. 로그인 시 자동 실행은 시스템 설정 → 일반 → 로그인 항목에서 추가
 
 > 릴리스 설명과 `SHA256SUMS`를 함께 확인한다. v0.3.0 앱은 최종 ZIP을 다시 풀어 `codesign`, `stapler`, `spctl`, `syspolicy_check` 배포 검사를 통과했다.
