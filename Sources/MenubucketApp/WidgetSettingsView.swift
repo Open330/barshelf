@@ -159,6 +159,45 @@ struct WidgetSettingsView: View {
             .labelsHidden()
             .disabled(!menuBarDraft.enabled || !canShareStrip)
 
+            if menuBarDraft.enabled {
+                Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 6) {
+                    GridRow {
+                        Text("Label").font(.caption)
+                        TextField("none", text: Binding(
+                            get: { menuBarDraft.label ?? "" },
+                            set: { menuBarDraft.label = $0.isEmpty ? nil : $0 }
+                        ))
+                        .frame(width: 120)
+                    }
+                    GridRow {
+                        Text("Icon").font(.caption)
+                        TextField(widget.manifest.statusItem?.icon ?? "default", text: Binding(
+                            get: { menuBarDraft.icon == "" ? "" : (menuBarDraft.icon ?? "") },
+                            set: { menuBarDraft.icon = $0.isEmpty ? nil : $0 }
+                        ))
+                        .frame(width: 120)
+                        .disabled(menuBarDraft.icon == "")
+                    }
+                }
+                // "" is how the model says *no* icon, which is a different
+                // thing from nil — keep the widget's own. A text field cannot
+                // express that difference, so the toggle does.
+                Toggle("Show an icon", isOn: Binding(
+                    get: { menuBarDraft.icon != "" },
+                    set: { menuBarDraft.icon = $0 ? nil : "" }
+                ))
+                .toggleStyle(.checkbox)
+
+                Text(
+                    "Label is drawn before the value (\"CPU 23%\"). Icon takes an"
+                        + " SF Symbol name or an emoji; leave it empty for the"
+                        + " widget's own."
+                )
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+
             if menuBarDraft.enabled, !menuBarDraft.separate, canShareStrip {
                 HStack(spacing: 8) {
                     Text("Position")

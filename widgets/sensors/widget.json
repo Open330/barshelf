@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.sensors",
   "name": "Sensors",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "icon": "thermometer.medium",
   "bucket": {
     "group": "System",
@@ -38,13 +38,19 @@
         "cpu",
         "gpu",
         "battery",
-        "peak"
+        "peak",
+        "power",
+        "fan",
+        "fanUsage"
       ],
       "optionTitles": [
         "CPU",
         "GPU",
         "Battery",
-        "Hottest sensor"
+        "Hottest sensor",
+        "Power draw",
+        "Fan speed",
+        "Fan load"
       ]
     },
     {
@@ -57,8 +63,8 @@
         "fahrenheit"
       ],
       "optionTitles": [
-        "Celsius (\u00b0C)",
-        "Fahrenheit (\u00b0F)"
+        "Celsius (°C)",
+        "Fahrenheit (°F)"
       ]
     }
   ],

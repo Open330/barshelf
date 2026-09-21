@@ -282,3 +282,95 @@ final class MenuBarPromotionTests: XCTestCase {
         XCTAssertEqual(try JSONDecoder().decode(MenuBarPlacement.self, from: data), placement)
     }
 }
+
+/// Per-widget presentation the user controls: the text before the value and
+/// the glyph in front of it.
+final class MenuBarCustomisationTests: XCTestCase {
+    func testAPrefixIsTrimmedAndCapped() {
+        XCTAssertEqual(MenuBarPolicy.normalizedPrefix("  CPU  "), "CPU")
+        XCTAssertNil(MenuBarPolicy.normalizedPrefix(nil))
+        XCTAssertNil(MenuBarPolicy.normalizedPrefix(""))
+        XCTAssertNil(MenuBarPolicy.normalizedPrefix("   "))
+        // One widget must not crowd its neighbours off a shared strip.
+        XCTAssertEqual(
+            MenuBarPolicy.normalizedPrefix("Temperature")?.count,
+            MenuBarPolicy.maxPrefixCharacters
+        )
+    }
+
+    /// "" and nil mean different things — no icon at all, versus the widget's
+    /// own — so normalization must not collapse one into the other.
+    func testAnEmptyIconMeansNoIconAndNilMeansTheWidgetsOwn() {
+        XCTAssertNil(MenuBarPolicy.normalizedIcon(nil))
+        XCTAssertEqual(MenuBarPolicy.normalizedIcon(""), "")
+        XCTAssertEqual(MenuBarPolicy.normalizedIcon("   "), "")
+    }
+
+    /// SF Symbol names are long and hyphenated, so they pass through whole;
+    /// only free text is capped, to stop a pasted sentence reaching the bar.
+    func testASymbolNameSurvivesWhileFreeTextIsCapped() {
+        XCTAssertEqual(
+            MenuBarPolicy.normalizedIcon("thermometer.medium"), "thermometer.medium"
+        )
+        XCTAssertEqual(MenuBarPolicy.normalizedIcon("🌡️"), "🌡️")
+        XCTAssertEqual(
+            MenuBarPolicy.normalizedIcon("a very long sentence")?.count,
+            MenuBarPolicy.maxIconCharacters
+        )
+    }
+
+    func testTheEntryTextJoinsThePrefixToTheValue() {
+        let entry = MenuBarEntry(widgetID: "w", name: "System", prefix: "CPU", label: "23%")
+        XCTAssertEqual(MenuBarPolicy.entryText(entry), "CPU 23%")
+
+        var valueOnly = entry
+        valueOnly.prefix = nil
+        XCTAssertEqual(MenuBarPolicy.entryText(valueOnly), "23%")
+
+        // A prefix with nothing to prefix still says which widget it is.
+        var noValue = entry
+        noValue.label = nil
+        XCTAssertEqual(MenuBarPolicy.entryText(noValue), "CPU")
+    }
+
+    /// The strip can only draw text, so an emoji joins it and a symbol does
+    /// not — the status item layer decides which kind it has.
+    func testTheStripTakesAGlyphOnlyWhenItIsText() {
+        let entry = MenuBarEntry(widgetID: "w", name: "Sensors", prefix: "Temp", label: "39°")
+        XCTAssertEqual(MenuBarPolicy.stripCell(entry, glyph: "🌡️"), "🌡️ Temp 39°")
+        XCTAssertEqual(MenuBarPolicy.stripCell(entry, glyph: nil), "Temp 39°")
+        XCTAssertEqual(MenuBarPolicy.stripCell(entry, glyph: ""), "Temp 39°")
+    }
+
+    func testAnEntryIsEmptyOnlyWhenItWouldDrawNothing() {
+        let blank = MenuBarEntry(widgetID: "w", name: "W")
+        XCTAssertTrue(blank.isEmpty)
+
+        // An icon the user asked for is something to draw.
+        var withGlyph = blank
+        withGlyph.iconOverride = "🌡️"
+        XCTAssertFalse(withGlyph.isEmpty)
+
+        // Turning the icon off with nothing else leaves nothing.
+        var iconOff = MenuBarEntry(widgetID: "w", name: "W", symbol: "cpu.fill")
+        XCTAssertFalse(iconOff.isEmpty)
+        iconOff.iconOverride = ""
+        XCTAssertTrue(iconOff.isEmpty)
+
+        // A prefix alone is still worth drawing.
+        var prefixOnly = blank
+        prefixOnly.prefix = "CPU"
+        XCTAssertFalse(prefixOnly.isEmpty)
+    }
+
+    /// A prefs file written before these existed must still load.
+    func testPlacementsWithoutTheNewKeysStillDecode() throws {
+        let json = Data(#"{"enabled":true,"separate":true,"order":2}"#.utf8)
+        let placement = try JSONDecoder().decode(MenuBarPlacement.self, from: json)
+        XCTAssertTrue(placement.enabled)
+        XCTAssertTrue(placement.separate)
+        XCTAssertEqual(placement.order, 2)
+        XCTAssertNil(placement.icon)
+        XCTAssertNil(placement.label)
+    }
+}

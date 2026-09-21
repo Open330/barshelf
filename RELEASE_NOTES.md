@@ -31,3 +31,17 @@
 
   This protects updates *from* 0.3.2 onward; moving off 0.3.1 still uses the
   old path.
+
+## Menu bar
+
+- **Label and icon are yours to set, on any widget.** A short label is drawn
+  before the value the way a system monitor writes `CPU 23%`, and the icon
+  takes an SF Symbol name *or an emoji* — 🌡️ works, because the menu bar draws
+  it as text. Leave the icon empty for the widget's own, or turn it off
+  entirely. Both live in Settings ▸ Menu Bar, next to the existing choice
+  between sharing the BarShelf item and taking one of your own.
+
+- **Sensors reads far more of the machine.** The menu bar can now show power
+  draw, fan speed and fan load alongside the four temperatures, and the card
+  lists every sensor the Mac exposes — 118 readings on the MacBook Air this was
+  built on — hottest first.

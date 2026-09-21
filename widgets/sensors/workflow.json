@@ -9,11 +9,52 @@
       "with": {
         "metrics": [
           "sensors"
-        ]
+        ],
+        "detail": true
       }
     }
   },
-  "transforms": {},
+  "transforms": {
+    "isTemp": {
+      "use": "assign",
+      "from": "not(or(eq(settings.menuBarSensor,'power'), or(eq(settings.menuBarSensor,'fan'), eq(settings.menuBarSensor,'fanUsage'))))"
+    },
+    "fahrenheit": {
+      "use": "assign",
+      "from": "eq(settings.unit,'fahrenheit')"
+    },
+    "raw": {
+      "use": "assign",
+      "from": "if(eq(settings.menuBarSensor,'power'), sources.data.sensors.power, if(eq(settings.menuBarSensor,'fan'), sources.data.sensors.fans.0.rpm, if(eq(settings.menuBarSensor,'fanUsage'), sources.data.sensors.fans.0.usage, if(eq(settings.menuBarSensor,'gpu'), sources.data.sensors.gpu, if(eq(settings.menuBarSensor,'battery'), sources.data.sensors.battery, if(eq(settings.menuBarSensor,'peak'), sources.data.sensors.peak, sources.data.sensors.cpu))))))"
+    },
+    "shown": {
+      "use": "assign",
+      "from": "if(and(transforms.isTemp, transforms.fahrenheit), add(mul(number(transforms.raw), 1.8), 32), number(transforms.raw))"
+    },
+    "suffix": {
+      "use": "assign",
+      "from": "if(eq(settings.menuBarSensor,'power'), ' W', if(eq(settings.menuBarSensor,'fan'), ' rpm', if(eq(settings.menuBarSensor,'fanUsage'), '%', if(transforms.fahrenheit, '°F', '°'))))"
+    },
+    "decimals": {
+      "use": "assign",
+      "from": "if(eq(settings.menuBarSensor,'power'), 1, 0)"
+    },
+    "hottest": {
+      "use": "sort",
+      "from": "$.sources.data.sensors.list",
+      "with": {
+        "by": "value",
+        "direction": "descending"
+      }
+    },
+    "topSensors": {
+      "use": "limit",
+      "from": "$.transforms.hottest",
+      "with": {
+        "count": 8
+      }
+    }
+  },
   "view": {
     "switch": "${string(sources.data.sensors.available)}",
     "cases": {
@@ -69,7 +110,7 @@
                   },
                   {
                     "type": "text",
-                    "text": "${if(eq(sources.data.sensors.cpu, null), '\u2014', concat(string(round(number(if(eq(settings.unit,'fahrenheit'), add(mul(sources.data.sensors.cpu,1.8),32), sources.data.sensors.cpu)), 1)), if(eq(settings.unit,'fahrenheit'), ' \u00b0F', ' \u00b0C')))}",
+                    "text": "${if(eq(sources.data.sensors.cpu, null), '—', concat(string(round(number(if(eq(settings.unit,'fahrenheit'), add(mul(sources.data.sensors.cpu,1.8),32), sources.data.sensors.cpu)), 1)), if(eq(settings.unit,'fahrenheit'), ' °F', ' °C')))}",
                     "role": "caption",
                     "monospacedDigit": true,
                     "foreground": "${if(gt(sources.data.sensors.cpu, 90), 'danger', if(gt(sources.data.sensors.cpu, 75), 'warning', 'good'))}"
@@ -97,7 +138,7 @@
               },
               {
                 "type": "text",
-                "text": "${if(eq(sources.data.sensors.gpu, null), '\u2014', concat(string(round(number(if(eq(settings.unit,'fahrenheit'), add(mul(sources.data.sensors.gpu,1.8),32), sources.data.sensors.gpu)), 1)), if(eq(settings.unit,'fahrenheit'), ' \u00b0F', ' \u00b0C')))}",
+                "text": "${if(eq(sources.data.sensors.gpu, null), '—', concat(string(round(number(if(eq(settings.unit,'fahrenheit'), add(mul(sources.data.sensors.gpu,1.8),32), sources.data.sensors.gpu)), 1)), if(eq(settings.unit,'fahrenheit'), ' °F', ' °C')))}",
                 "role": "caption",
                 "monospacedDigit": true,
                 "foreground": "secondary"
@@ -117,7 +158,7 @@
               },
               {
                 "type": "text",
-                "text": "${if(eq(sources.data.sensors.battery, null), '\u2014', concat(string(round(number(if(eq(settings.unit,'fahrenheit'), add(mul(sources.data.sensors.battery,1.8),32), sources.data.sensors.battery)), 1)), if(eq(settings.unit,'fahrenheit'), ' \u00b0F', ' \u00b0C')))}",
+                "text": "${if(eq(sources.data.sensors.battery, null), '—', concat(string(round(number(if(eq(settings.unit,'fahrenheit'), add(mul(sources.data.sensors.battery,1.8),32), sources.data.sensors.battery)), 1)), if(eq(settings.unit,'fahrenheit'), ' °F', ' °C')))}",
                 "role": "caption",
                 "monospacedDigit": true,
                 "foreground": "secondary"
@@ -176,6 +217,73 @@
                 ]
               }
             }
+          },
+          {
+            "switch": "${string(gt(count(sources.data.sensors.list), 0))}",
+            "cases": {
+              "true": {
+                "type": "vstack",
+                "spacing": 3,
+                "children": [
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "hstack",
+                    "children": [
+                      {
+                        "type": "text",
+                        "text": "All sensors",
+                        "role": "caption",
+                        "foreground": "secondary"
+                      },
+                      {
+                        "type": "spacer"
+                      },
+                      {
+                        "type": "text",
+                        "role": "caption",
+                        "foreground": "secondary",
+                        "monospacedDigit": true,
+                        "text": "${concat(string(count(sources.data.sensors.list)), ' readings')}"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "vstack",
+                    "spacing": 2,
+                    "children": {
+                      "forEach": "$.transforms.topSensors",
+                      "as": "reading",
+                      "template": {
+                        "type": "hstack",
+                        "id": "sensor-${reading.key}",
+                        "children": [
+                          {
+                            "type": "text",
+                            "text": "${reading.name}",
+                            "role": "caption"
+                          },
+                          {
+                            "type": "spacer"
+                          },
+                          {
+                            "type": "text",
+                            "role": "caption",
+                            "monospacedDigit": true,
+                            "foreground": "secondary",
+                            "text": "${concat(string(round(number(if(and(eq(reading.kind,'temperature'), transforms.fahrenheit), add(mul(reading.value,1.8),32), reading.value)), 1)), if(and(eq(reading.kind,'temperature'), transforms.fahrenheit), ' °F', concat(' ', reading.unit)))}"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              "false": {
+                "type": "spacer"
+              }
+            }
           }
         ]
       }
@@ -215,7 +323,7 @@
     }
   },
   "status": {
-    "label": "${if(sources.data.sensors.available, concat(string(round(number(if(eq(settings.unit,'fahrenheit'), add(mul(coalesce(if(eq(settings.menuBarSensor,'gpu'), sources.data.sensors.gpu, if(eq(settings.menuBarSensor,'battery'), sources.data.sensors.battery, if(eq(settings.menuBarSensor,'peak'), sources.data.sensors.peak, sources.data.sensors.cpu))), sources.data.sensors.peak, 0),1.8),32), coalesce(if(eq(settings.menuBarSensor,'gpu'), sources.data.sensors.gpu, if(eq(settings.menuBarSensor,'battery'), sources.data.sensors.battery, if(eq(settings.menuBarSensor,'peak'), sources.data.sensors.peak, sources.data.sensors.cpu))), sources.data.sensors.peak, 0))), 0)), if(eq(settings.unit,'fahrenheit'), '\u00b0F', '\u00b0')), '')}",
-    "tooltip": "${if(sources.data.sensors.available, concat('CPU ', string(round(number(if(eq(settings.unit,'fahrenheit'), add(mul(coalesce(sources.data.sensors.cpu, 0),1.8),32), coalesce(sources.data.sensors.cpu, 0))), 1)), if(eq(settings.unit,'fahrenheit'), ' \u00b0F', ' \u00b0C'), ' \u00b7 peak ', string(round(number(if(eq(settings.unit,'fahrenheit'), add(mul(coalesce(sources.data.sensors.peak, 0),1.8),32), coalesce(sources.data.sensors.peak, 0))), 1)), if(eq(settings.unit,'fahrenheit'), ' \u00b0F', ' \u00b0C')), 'No sensors available')}"
+    "label": "${if(or(not(sources.data.sensors.available), eq(transforms.raw, null)), '', concat(string(round(transforms.shown, transforms.decimals)), transforms.suffix))}",
+    "tooltip": "${if(sources.data.sensors.available, concat('CPU ', string(round(number(if(eq(settings.unit,'fahrenheit'), add(mul(coalesce(sources.data.sensors.cpu, 0),1.8),32), coalesce(sources.data.sensors.cpu, 0))), 1)), if(eq(settings.unit,'fahrenheit'), ' °F', ' °C'), ' · peak ', string(round(number(if(eq(settings.unit,'fahrenheit'), add(mul(coalesce(sources.data.sensors.peak, 0),1.8),32), coalesce(sources.data.sensors.peak, 0))), 1)), if(eq(settings.unit,'fahrenheit'), ' °F', ' °C')), 'No sensors available')}"
   }
 }
