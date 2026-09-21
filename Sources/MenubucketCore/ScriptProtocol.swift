@@ -119,11 +119,25 @@ public struct RenderStatus: Codable, Equatable, Sendable {
     /// status item is stacked. See `MenuBarPlacement.label` for how the user's
     /// own choice overrides it.
     public var prefix: String?
+    /// SF Symbol for this render, overriding the manifest's. See
+    /// `WorkflowDefinition.StatusDef.icon`.
+    public var icon: String?
+    /// Semantic colour for this render: `accent`, `good`, `warning`,
+    /// `danger`, `secondary`.
+    public var tint: String?
 
-    public init(label: String? = nil, tooltip: String? = nil, prefix: String? = nil) {
+    public init(
+        label: String? = nil,
+        tooltip: String? = nil,
+        prefix: String? = nil,
+        icon: String? = nil,
+        tint: String? = nil
+    ) {
         self.label = label
         self.tooltip = tooltip
         self.prefix = prefix
+        self.icon = icon
+        self.tint = tint
     }
 }
 

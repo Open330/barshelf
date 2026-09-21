@@ -8,12 +8,60 @@ import MenubucketCore
 @MainActor
 final class StackedRenderTests: XCTestCase {
     private func entry(
-        prefix: String?, value: String?, stale: Bool = false
+        prefix: String?, value: String?, stale: Bool = false, tint: MenuBarTint? = nil
     ) -> MenuBarEntry {
         MenuBarEntry(
             widgetID: "w", name: "System", prefix: prefix,
-            style: .stacked, label: value, isStale: stale
+            style: .stacked, tint: tint, label: value, isStale: stale
         )
+    }
+
+    /// Without a tint the art is a template and the status item colours it for
+    /// the bar; with one the colour is baked in, so it must stop being a
+    /// template or the system would paint over it.
+    func testATintGivesUpTemplateBehaviourAndAnUntintedOneKeepsIt() {
+        XCTAssertTrue(
+            MenuBarController.stackedImage(entry(prefix: "CPU", value: "23%")).isTemplate
+        )
+        XCTAssertFalse(
+            MenuBarController.stackedImage(
+                entry(prefix: "CPU", value: "99%", tint: .danger)
+            ).isTemplate
+        )
+    }
+
+    func testATintedItemIsActuallyDrawnInThatColour() throws {
+        let image = MenuBarController.stackedImage(
+            entry(prefix: "CPU", value: "99%", tint: .danger), height: 22
+        )
+        let bitmap = try XCTUnwrap(NSBitmapImageRep(data: image.tiffRepresentation ?? Data()))
+        var reddest: NSColor?
+        for x in 0..<bitmap.pixelsWide {
+            for y in 0..<bitmap.pixelsHigh {
+                guard let px = bitmap.colorAt(x: x, y: y), px.alphaComponent > 0.8 else { continue }
+                let converted = px.usingColorSpace(.deviceRGB)
+                if converted?.redComponent ?? 0 > (reddest?.redComponent ?? 0) {
+                    reddest = converted
+                }
+            }
+        }
+        let ink = try XCTUnwrap(reddest, "nothing was drawn opaquely")
+        XCTAssertGreaterThan(ink.redComponent, ink.blueComponent + 0.2, "not drawn red")
+    }
+
+    /// A tinted symbol has the same trade: colour instead of template.
+    func testATintedSymbolIsColouredAndNotATemplate() throws {
+        let plain = try XCTUnwrap(
+            MenuBarController.symbolImage(named: "cpu.fill", describedAs: "cpu")
+        )
+        XCTAssertTrue(plain.isTemplate)
+        let tinted = try XCTUnwrap(
+            MenuBarController.symbolImage(
+                named: "cpu.fill", describedAs: "cpu", tint: .systemRed
+            )
+        )
+        XCTAssertFalse(tinted.isTemplate)
+        XCTAssertEqual(tinted.size, plain.size)
     }
 
     /// Nothing may touch the top or bottom edge: that is what "the top of
