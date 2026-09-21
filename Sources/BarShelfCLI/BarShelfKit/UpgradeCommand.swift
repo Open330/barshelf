@@ -411,14 +411,21 @@ enum UpgradeCommand {
             expectedTeam: team,
             expectedBundleID: component.bundleID
         )
-        print("  installed → \(target.path) (\(installed ?? version))")
-        if let installed, installed != version {
+        print("  installed → \(target.path) (\(installed.version ?? version))")
+        if let reported = installed.version, reported != version {
             BarShelfMain.printError(
                 "  warning: the release announced \(version) but the installed"
-                    + " build reports \(installed)"
+                    + " build reports \(reported)"
             )
         }
-        try finishApp(target, restart: restart)
+        do {
+            try finishApp(target, restart: restart)
+        } catch {
+            // The replacement is in place but does not run. Put back the build
+            // that did rather than leave the user with neither.
+            throw restored(installed, after: error)
+        }
+        installed.confirm()
     }
 
     private static func updateCLI(
@@ -522,18 +529,34 @@ enum UpgradeCommand {
         return url
     }
 
+    /// Rolls the app back and turns the launch failure into one that says so.
+    private static func restored(
+        _ installed: UpdateInstaller.Installed, after error: Error
+    ) -> Error {
+        guard case let .didNotStart(app, detail, _) = error as? CLIUpgradeError else {
+            return error
+        }
+        return CLIUpgradeError.didNotStart(
+            app, detail: detail, rolledBack: installed.rollBack()
+        )
+    }
+
     enum CLIUpgradeError: Error, LocalizedError {
         case assetMissing(String)
-        case didNotStart(URL, detail: String?)
+        case didNotStart(URL, detail: String?, rolledBack: Bool = false)
 
         var errorDescription: String? {
             switch self {
             case let .assetMissing(name):
                 return "This release publishes no \(name)."
-            case let .didNotStart(app, detail):
+            case let .didNotStart(app, detail, rolledBack):
                 let why = detail.map { " (\($0))" } ?? ""
+                let outcome = rolledBack
+                    ? " The previous version has been put back."
+                    : " The previous version could NOT be put back."
                 return "\(app.path) was updated but did not start within"
                     + " \(Int(LaunchReceiptStore.defaultTimeout)) seconds\(why)."
+                    + outcome
             }
         }
 
@@ -541,9 +564,13 @@ enum UpgradeCommand {
             switch self {
             case .assetMissing:
                 return nil
-            case .didNotStart:
-                return "The new build is installed. Try opening it yourself; if"
-                    + " macOS refuses, check Privacy & Security in System Settings."
+            case let .didNotStart(app, _, rolledBack):
+                return rolledBack
+                    ? "Nothing to do — you are on the version you had. If this"
+                        + " keeps happening, download the release manually."
+                    : "Reinstall from the release, or with"
+                        + " `\(UpdateInstaller.homebrewUpgradeCommand)` if"
+                        + " \(app.path) came from Homebrew."
             }
         }
     }

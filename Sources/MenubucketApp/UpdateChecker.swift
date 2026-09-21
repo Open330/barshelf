@@ -187,16 +187,16 @@ enum UpdateChecker {
                 installInFlight = false
                 // A build that reports a different version would have the check
                 // offering the same "update" again on every launch.
-                if let installed, installed != version {
+                if let reported = installed.version, reported != version {
                     progress.close()
-                    presentVersionSurprise(expected: version, installed: installed, app: target)
-                    relaunch(target, page: page, progress: nil)
+                    presentVersionSurprise(expected: version, installed: reported, app: target)
+                    relaunch(installed, page: page, progress: nil)
                 } else {
                     // The panel stays up through the restart: the wait below is
                     // seconds long and briefly shows two menu bar icons, which
                     // needs explaining while it happens.
                     progress.setMessage("Restarting BarShelf…")
-                    relaunch(target, page: page, progress: progress)
+                    relaunch(installed, page: page, progress: progress)
                 }
             } catch is CancellationError {
                 installInFlight = false
@@ -232,7 +232,12 @@ enum UpdateChecker {
     /// then the build that could have said so was gone. Waiting for the
     /// replacement's launch receipt costs a few seconds and two menu bar icons
     /// in the meantime; the alternative costs the app.
-    private static func relaunch(_ app: URL, page: URL, progress: DownloadProgressPanel?) {
+    private static func relaunch(
+        _ installed: UpdateInstaller.Installed,
+        page: URL,
+        progress: DownloadProgressPanel?
+    ) {
+        let app = installed.app
         let previous = LaunchReceiptStore.read()
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.createsNewApplicationInstance = true
@@ -241,7 +246,7 @@ enum UpdateChecker {
                 DispatchQueue.main.async {
                     progress?.close()
                     presentRelaunchFailure(
-                        app, page: page, detail: error.localizedDescription
+                        installed, page: page, detail: error.localizedDescription
                     )
                 }
                 return
@@ -253,36 +258,44 @@ enum UpdateChecker {
                 DispatchQueue.main.async {
                     progress?.close()
                     guard receipt != nil else {
-                        presentRelaunchFailure(app, page: page, detail: nil)
+                        presentRelaunchFailure(installed, page: page, detail: nil)
                         return
                     }
+                    installed.confirm()
                     NSApp.terminate(nil)
                 }
             }
         }
     }
 
-    /// The replacement is installed but is not running, and this build still
-    /// is. Say exactly that, and stay alive — quitting now would leave nothing.
-    private static func presentRelaunchFailure(_ app: URL, page: URL, detail: String?) {
+    /// The replacement is in place but is not running, and this build still
+    /// is. Put the working one back on disk, say exactly what happened, and
+    /// stay alive — quitting now would leave nothing.
+    private static func presentRelaunchFailure(
+        _ installed: UpdateInstaller.Installed, page: URL, detail: String?
+    ) {
+        let rolledBack = installed.rollBack()
         let alert = NSAlert()
         alert.messageText = "BarShelf was updated but did not start"
         var text = detail.map { $0 + "\n\n" } ?? ""
-        text += "The new build is installed at \(app.path), but it did not come"
-            + " up within \(Int(LaunchReceiptStore.defaultTimeout)) seconds. This"
-            + " copy is still running the previous version, so you are not left"
-            + " without BarShelf."
-        text += "\n\nTry opening it yourself. If macOS refuses to launch it,"
-            + " check Privacy & Security in System Settings."
+        text += "The new build was installed at \(installed.app.path) but did not"
+            + " come up within \(Int(LaunchReceiptStore.defaultTimeout)) seconds."
+        text += rolledBack
+            ? "\n\nThe version you were running has been put back, and this copy"
+                + " is still it — nothing was lost. Updating again will try the"
+                + " same thing, so it is worth reporting."
+            : "\n\nThe previous version could not be restored. This copy keeps"
+                + " running for now, but do not quit it before reinstalling"
+                + " BarShelf from the release page."
         alert.informativeText = text
-        alert.addButton(withTitle: "Show in Finder")
         alert.addButton(withTitle: "Open Releases")
+        alert.addButton(withTitle: "Show in Finder")
         alert.addButton(withTitle: "Later")
         switch alert.runModal() {
         case .alertFirstButtonReturn:
-            NSWorkspace.shared.activateFileViewerSelecting([app])
-        case .alertSecondButtonReturn:
             NSWorkspace.shared.open(page)
+        case .alertSecondButtonReturn:
+            NSWorkspace.shared.activateFileViewerSelecting([installed.app])
         default: break
         }
     }
