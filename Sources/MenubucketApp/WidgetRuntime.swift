@@ -1190,14 +1190,20 @@ final class WidgetRuntime: ObservableObject {
             guard placement.enabled else { continue }
             let statusItem = MenuBarPolicy.effectiveStatusItem(widget.manifest.statusItem)
             let snapshot = snapshots[widget.id]
-            // Only a label can share the strip, so an icon-only widget always
-            // gets its own item.
-            let separate = placement.separate || !statusItem.showsLabel
+            // Only text can share the strip, so a widget that shows no label
+            // gets its own item — unless the user gave it an emoji, which is
+            // text and so can sit in the strip like any other.
+            let hasTextIcon = MenuBarPolicy.normalizedIcon(placement.icon)
+                .map { !$0.isEmpty && NSImage(systemSymbolName: $0, accessibilityDescription: nil) == nil }
+                ?? false
+            let separate = placement.separate || !(statusItem.showsLabel || hasTextIcon)
             let entry = MenuBarEntry(
                 widgetID: widget.id,
                 name: widget.displayName,
                 symbol: statusItem.showsIcon
                     ? (statusItem.icon ?? widget.manifest.icon) : nil,
+                iconOverride: MenuBarPolicy.normalizedIcon(placement.icon),
+                prefix: MenuBarPolicy.normalizedPrefix(placement.label),
                 label: statusItem.showsLabel
                     ? MenuBarPolicy.normalizedLabel(snapshot?.statusLabel) : nil,
                 tooltip: snapshot?.error ?? snapshot?.statusTooltip,

@@ -105,10 +105,32 @@ final class MenuBarController {
         )
     }
 
-    /// The shared strip is text only — one label per widget, separated by a
-    /// middle dot. Per-widget icons belong to the separate items, where AppKit
-    /// tints a template image for free; a widget whose mode is icon-only is
-    /// therefore never routed into the strip.
+    /// Whether an icon override names an SF Symbol or is literal text.
+    ///
+    /// This is the one question Core cannot answer — it needs AppKit to know
+    /// whether a symbol by that name exists — so the split happens here. A
+    /// name that resolves becomes a tinted template image; anything else is
+    /// drawn as text, which is how an emoji gets into the menu bar.
+    static func symbolImage(named name: String, describedAs description: String) -> NSImage? {
+        guard !name.isEmpty else { return nil }
+        guard let image = NSImage(
+            systemSymbolName: name, accessibilityDescription: description
+        ) else { return nil }
+        image.isTemplate = true
+        return image
+    }
+
+    /// The literal glyph an entry contributes, or nil when its icon is a
+    /// symbol (or absent).
+    static func textGlyph(for entry: MenuBarEntry) -> String? {
+        guard let override = entry.iconOverride, !override.isEmpty else { return nil }
+        return symbolImage(named: override, describedAs: entry.name) == nil ? override : nil
+    }
+
+    /// The shared strip is text only — one cell per widget, separated by a
+    /// middle dot. SF Symbol icons belong to the separate items, where AppKit
+    /// tints a template image for free; an emoji is text, so it is drawn here
+    /// like any other characters.
     ///
     /// Colors stay dynamic (`labelColor` and friends) so the menu bar resolves
     /// them for its own appearance at draw time. Stale entries drop to the
@@ -116,7 +138,8 @@ final class MenuBarController {
     static func attributedStrip(_ entries: [MenuBarEntry]) -> NSAttributedString {
         let result = NSMutableAttributedString()
         for entry in entries {
-            guard let label = entry.label, !label.isEmpty else { continue }
+            let cell = MenuBarPolicy.stripCell(entry, glyph: textGlyph(for: entry))
+            guard !cell.isEmpty else { continue }
             if result.length > 0 {
                 result.append(NSAttributedString(
                     string: MenuBarPolicy.stripSeparator,
@@ -127,7 +150,7 @@ final class MenuBarController {
                 ))
             }
             result.append(NSAttributedString(
-                string: label,
+                string: cell,
                 attributes: [
                     .font: statusFont,
                     .foregroundColor: color(for: entry),
@@ -150,16 +173,16 @@ final class MenuBarController {
             separateItems[entry.widgetID] = item
             guard let button = item.button else { continue }
             item.length = NSStatusItem.variableLength
-            if let symbol = entry.symbol,
-               let image = NSImage(
-                   systemSymbolName: symbol, accessibilityDescription: entry.name
-               ) {
-                image.isTemplate = true
-                button.image = image
-            } else {
-                button.image = nil
+            // The override wins over the widget's own symbol, and an empty
+            // override means the user asked for no icon at all.
+            let symbol: String? = entry.iconOverride.map { $0.isEmpty ? nil : $0 }
+                ?? entry.symbol
+            button.image = symbol.flatMap {
+                Self.symbolImage(named: $0, describedAs: entry.name)
             }
-            let label = entry.label ?? ""
+            let label = MenuBarPolicy.stripCell(
+                entry, glyph: button.image == nil ? Self.textGlyph(for: entry) : nil
+            )
             button.attributedTitle = NSAttributedString(
                 string: label,
                 attributes: [.font: Self.statusFont, .foregroundColor: Self.color(for: entry)]

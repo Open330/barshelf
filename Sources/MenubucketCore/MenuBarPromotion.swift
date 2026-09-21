@@ -22,11 +22,30 @@ public struct MenuBarPlacement: Codable, Equatable, Sendable {
     /// Sort key within the strip (lower is further left). Nil sorts after the
     /// explicitly ordered entries, by widget name.
     public var order: Double?
+    /// What to draw instead of the widget's own icon.
+    ///
+    /// Nil keeps the widget's. An empty string means no icon at all. Anything
+    /// else is used verbatim: an SF Symbol name when one exists by that name,
+    /// and otherwise literal text — which is how an emoji gets in. Resolving
+    /// which of the two it is needs AppKit, so it happens in the status item
+    /// layer, not here.
+    public var icon: String?
+    /// Short text shown before the value, the way a system monitor labels its
+    /// readouts ("CPU 23%"). Nil or empty shows the value alone.
+    public var label: String?
 
-    public init(enabled: Bool, separate: Bool = false, order: Double? = nil) {
+    public init(
+        enabled: Bool,
+        separate: Bool = false,
+        order: Double? = nil,
+        icon: String? = nil,
+        label: String? = nil
+    ) {
         self.enabled = enabled
         self.separate = separate
         self.order = order
+        self.icon = icon
+        self.label = label
     }
 
     /// Lenient decode so a prefs file written by an older build still loads.
@@ -35,6 +54,8 @@ public struct MenuBarPlacement: Codable, Equatable, Sendable {
         enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
         separate = try container.decodeIfPresent(Bool.self, forKey: .separate) ?? false
         order = try container.decodeIfPresent(Double.self, forKey: .order)
+        icon = try container.decodeIfPresent(String.self, forKey: .icon)
+        label = try container.decodeIfPresent(String.self, forKey: .label)
     }
 }
 
@@ -48,6 +69,11 @@ public struct MenuBarEntry: Equatable, Sendable {
     public var name: String
     /// SF Symbol to draw, or nil when the widget's mode shows text only.
     public var symbol: String?
+    /// The user's replacement for `symbol`, verbatim. Empty means they asked
+    /// for no icon. See `MenuBarPlacement.icon`.
+    public var iconOverride: String?
+    /// Short text drawn before `label`, from `MenuBarPlacement.label`.
+    public var prefix: String?
     /// Live text, or nil when the mode shows the icon only / nothing has been
     /// sampled yet.
     public var label: String?
@@ -62,6 +88,8 @@ public struct MenuBarEntry: Equatable, Sendable {
         widgetID: String,
         name: String,
         symbol: String? = nil,
+        iconOverride: String? = nil,
+        prefix: String? = nil,
         label: String? = nil,
         tooltip: String? = nil,
         isStale: Bool = false,
@@ -70,15 +98,18 @@ public struct MenuBarEntry: Equatable, Sendable {
         self.widgetID = widgetID
         self.name = name
         self.symbol = symbol
+        self.iconOverride = iconOverride
+        self.prefix = prefix
         self.label = label
         self.tooltip = tooltip
         self.isStale = isStale
         self.separate = separate
     }
 
-    /// Nothing to draw — neither a symbol nor text.
+    /// Nothing to draw — no icon of any kind and no text.
     public var isEmpty: Bool {
-        symbol == nil && (label?.isEmpty ?? true)
+        let hasIcon = (iconOverride?.isEmpty == false) || (iconOverride == nil && symbol != nil)
+        return !hasIcon && MenuBarPolicy.entryText(self).isEmpty
     }
 }
 
@@ -97,6 +128,49 @@ public enum MenuBarPolicy {
 
     /// Separator drawn between entries sharing the strip.
     public static let stripSeparator = " · "
+
+    /// Longest label a user may put before a value. Eight characters fits
+    /// "Battery" with room to spare, and stops one widget from crowding out
+    /// its neighbours on a shared strip.
+    public static let maxPrefixCharacters = 8
+
+    /// Longest icon override. An SF Symbol name is longer than this, so it is
+    /// exempt — the cap exists to keep someone from pasting a sentence where a
+    /// glyph goes.
+    public static let maxIconCharacters = 4
+
+    /// A user-supplied prefix, trimmed and capped. Nil when there is none to
+    /// draw, so callers do not have to distinguish nil from "".
+    public static func normalizedPrefix(_ text: String?) -> String? {
+        guard let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty
+        else { return nil }
+        return String(trimmed.prefix(maxPrefixCharacters))
+    }
+
+    /// A user-supplied icon, trimmed. An empty string survives as an empty
+    /// string: it means "no icon", which is different from "use the widget's".
+    ///
+    /// Anything without a space is passed through whole, because SF Symbol
+    /// names are long and hyphenated; only free text is capped.
+    public static func normalizedIcon(_ text: String?) -> String? {
+        guard let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines) else {
+            return nil
+        }
+        if trimmed.isEmpty { return "" }
+        if trimmed.contains(" ") {
+            return String(trimmed.prefix(maxIconCharacters))
+        }
+        return trimmed
+    }
+
+    /// What one entry contributes as text: the prefix and the value, or
+    /// whichever of them exists.
+    public static func entryText(_ entry: MenuBarEntry) -> String {
+        let value = entry.label ?? ""
+        guard let prefix = normalizedPrefix(entry.prefix) else { return value }
+        return value.isEmpty ? prefix : "\(prefix) \(value)"
+    }
 
     /// How far past its refresh cadence a value may drift before it is drawn
     /// as stale. Three missed refreshes, and never less than 30 s so a widget
@@ -249,11 +323,21 @@ public enum MenuBarPolicy {
     /// fallback title when attributed drawing is unavailable.
     public static func stripText(_ entries: [MenuBarEntry]) -> String {
         entries
-            .compactMap { entry in
-                let label = entry.label ?? ""
-                return label.isEmpty ? nil : label
-            }
+            .map { stripCell($0) }
+            .filter { !$0.isEmpty }
             .joined(separator: stripSeparator)
+    }
+
+    /// One entry as it appears in the shared strip.
+    ///
+    /// An icon override that is literal text — an emoji — is drawn here,
+    /// because text is all the strip can draw. An SF Symbol needs an image and
+    /// belongs to a separate item, so it is left out; the status item layer
+    /// decides which kind it has and passes only the text kind through.
+    public static func stripCell(_ entry: MenuBarEntry, glyph: String? = nil) -> String {
+        let text = entryText(entry)
+        guard let glyph, !glyph.isEmpty else { return text }
+        return text.isEmpty ? glyph : "\(glyph) \(text)"
     }
 
     /// Multi-line tooltip: one line per entry, each "Name — value".
