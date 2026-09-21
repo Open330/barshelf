@@ -334,6 +334,92 @@ final class UpdateInstallerTests: XCTestCase {
         XCTAssertEqual(UpdateInstaller.installedVersion(of: installed), "1.0.0")
     }
 
+    // MARK: - Undoing an install that does not run
+
+    /// The whole point of keeping the old bundle: an update the kernel refuses
+    /// to launch must not be the only thing left on disk.
+    func testRollingBackPutsThePreviousBundleBack() throws {
+        let app = try makeApp(named: "BarShelf.app", in: root, version: "2.0.0")
+        let previous = try makeApp(named: ".BarShelf.app.barshelf-previous", in: root, version: "1.0.0")
+        let installed = UpdateInstaller.Installed(app: app, version: "2.0.0", previous: previous)
+
+        XCTAssertTrue(installed.rollBack())
+        XCTAssertEqual(UpdateInstaller.installedVersion(of: app), "1.0.0")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: previous.path))
+    }
+
+    func testConfirmingDiscardsThePreviousBundleAndKeepsTheNewOne() throws {
+        let app = try makeApp(named: "BarShelf.app", in: root, version: "2.0.0")
+        let previous = try makeApp(named: ".BarShelf.app.barshelf-previous", in: root, version: "1.0.0")
+        let installed = UpdateInstaller.Installed(app: app, version: "2.0.0", previous: previous)
+
+        installed.confirm()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: previous.path))
+        XCTAssertEqual(UpdateInstaller.installedVersion(of: app), "2.0.0")
+    }
+
+    /// A first install has nothing to go back to, and saying otherwise would
+    /// have the caller report a recovery that did not happen.
+    func testRollingBackReportsFailureWhenThereIsNothingToRestore() throws {
+        let app = try makeApp(named: "BarShelf.app", in: root, version: "2.0.0")
+        XCTAssertFalse(
+            UpdateInstaller.Installed(app: app, version: "2.0.0", previous: nil).rollBack()
+        )
+        let missing = root.appendingPathComponent("gone.app")
+        XCTAssertFalse(
+            UpdateInstaller.Installed(app: app, version: "2.0.0", previous: missing).rollBack()
+        )
+        XCTAssertEqual(UpdateInstaller.installedVersion(of: app), "2.0.0")
+    }
+
+    /// Hidden, so Launch Services does not briefly offer two BarShelfs while
+    /// the replacement is being proved.
+    func testTheKeptBundleIsHiddenAndNamedForThisProject() {
+        let name = UpdateInstaller.backupName(
+            for: URL(fileURLWithPath: "/Applications/BarShelf.app")
+        )
+        XCTAssertTrue(name.hasPrefix("."), name)
+        XCTAssertTrue(name.contains("BarShelf.app"), name)
+        XCTAssertTrue(name.contains("barshelf-previous"), name)
+    }
+
+    /// Rehearses the keep-and-restore cycle in a real installation directory,
+    /// where permissions and Launch Services are not simulated:
+    ///
+    ///     BARSHELF_ROLLBACK_DIR=/Applications swift test --filter Rollback
+    ///
+    /// Skipped otherwise — a test suite should not write to /Applications
+    /// because someone ran it.
+    func testRollbackWorksInARealApplicationsDirectory() throws {
+        guard let directory = ProcessInfo.processInfo.environment["BARSHELF_ROLLBACK_DIR"] else {
+            throw XCTSkip("set BARSHELF_ROLLBACK_DIR to rehearse this for real")
+        }
+        let base = URL(fileURLWithPath: directory)
+        let target = base.appendingPathComponent("BarShelfRollbackRehearsal.app")
+        let backup = base.appendingPathComponent(UpdateInstaller.backupName(for: target))
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: target)
+            try? FileManager.default.removeItem(at: backup)
+        }
+
+        let (source, team) = try borrowSignedBundle()
+        let archive = root.appendingPathComponent("update.zip")
+        try zip(source, to: archive)
+        _ = try makeApp(named: target.lastPathComponent, in: base, version: "1.0.0")
+
+        let installed = try UpdateInstaller.install(
+            archive: archive, replacing: target,
+            expectedTeam: team, expectedBundleID: nil, checkGatekeeper: false
+        )
+        XCTAssertNotEqual(UpdateInstaller.installedVersion(of: target), "1.0.0")
+        XCTAssertEqual(installed.previous?.path, backup.path)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: backup.path))
+
+        XCTAssertTrue(installed.rollBack())
+        XCTAssertEqual(UpdateInstaller.installedVersion(of: target), "1.0.0")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: backup.path))
+    }
+
     // MARK: - The path that actually replaces something
 
     private func borrowSignedBundle() throws -> (url: URL, team: String) {
@@ -351,14 +437,22 @@ final class UpdateInstallerTests: XCTestCase {
         let installed = try makeApp(named: source.lastPathComponent, in: root, version: "1.0.0")
         // Gatekeeper is checked separately: a nested helper has no stapled
         // ticket of its own, so assessing it standalone proves nothing.
-        let version = try UpdateInstaller.install(
+        let result = try UpdateInstaller.install(
             archive: archive, replacing: installed,
             expectedTeam: team, expectedBundleID: nil, checkGatekeeper: false
         )
 
-        XCTAssertNotEqual(version, "1.0.0", "the installed copy was not replaced")
+        XCTAssertNotEqual(result.version, "1.0.0", "the installed copy was not replaced")
         XCTAssertEqual(CodeSignature.teamIdentifier(of: installed), team)
         XCTAssertTrue(CodeSignature.isSigned(installed, by: team))
+
+        // The bundle it displaced is kept until someone says the replacement
+        // runs — that is what makes a rollback possible at all.
+        let previous = try XCTUnwrap(result.previous, "no rollback point was kept")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: previous.path))
+        XCTAssertEqual(UpdateInstaller.installedVersion(of: previous), "1.0.0")
+        result.confirm()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: previous.path))
     }
 
     func testTheSameArchiveIsRefusedForADifferentDeveloper() throws {

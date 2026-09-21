@@ -197,20 +197,43 @@ final class UpgradeCommandTests: XCTestCase {
 
     /// A pid is not proof. An in-place update once produced a process that
     /// existed, held its pid, and never ran — so the failure has to be
-    /// reportable, and it has to say the install itself succeeded.
+    /// reportable, and it has to say how long it waited.
     func testThereIsAFailureForAnUpdateThatInstalledButDidNotStart() throws {
-        let error = UpgradeCommand.CLIUpgradeError.didNotStart(
-            URL(fileURLWithPath: "/Applications/BarShelf.app"), detail: nil
+        let app = URL(fileURLWithPath: "/Applications/BarShelf.app")
+        let described = try XCTUnwrap(
+            UpgradeCommand.CLIUpgradeError
+                .didNotStart(app, detail: nil, rolledBack: true).errorDescription
         )
-        let described = try XCTUnwrap(error.errorDescription)
         XCTAssertTrue(described.contains("/Applications/BarShelf.app"), described)
         XCTAssertTrue(described.contains("did not start"), described)
         XCTAssertTrue(
             described.contains("\(Int(LaunchReceiptStore.defaultTimeout))"),
             "the message should say how long it waited: \(described)"
         )
-        let suggestion = try XCTUnwrap(error.recoverySuggestion)
-        XCTAssertTrue(suggestion.contains("installed"), suggestion)
+    }
+
+    /// Whether the previous build came back changes what the user has to do,
+    /// so the two outcomes must not read the same.
+    func testARollbackAndAFailedRollbackAreSaidDifferently() throws {
+        let app = URL(fileURLWithPath: "/Applications/BarShelf.app")
+        let recovered = UpgradeCommand.CLIUpgradeError
+            .didNotStart(app, detail: nil, rolledBack: true)
+        let stranded = UpgradeCommand.CLIUpgradeError
+            .didNotStart(app, detail: nil, rolledBack: false)
+
+        let recoveredText = try XCTUnwrap(recovered.errorDescription)
+        XCTAssertTrue(recoveredText.contains("put back"), recoveredText)
+        XCTAssertTrue(
+            try XCTUnwrap(recovered.recoverySuggestion).contains("Nothing to do"),
+            "a restored install asks nothing of the user"
+        )
+
+        let strandedText = try XCTUnwrap(stranded.errorDescription)
+        XCTAssertTrue(strandedText.contains("NOT be put back"), strandedText)
+        XCTAssertTrue(
+            try XCTUnwrap(stranded.recoverySuggestion).contains("Reinstall"),
+            "a broken install has to tell the user to reinstall"
+        )
     }
 
     /// "Nothing was replaced" would be a lie here: the swap succeeded and only

@@ -169,6 +169,53 @@ public enum UpdateInstaller {
         return nil
     }
 
+    /// An update that is in place but not yet trusted to work.
+    ///
+    /// The previous bundle is kept alongside it until a caller says which way
+    /// it went. Verifying *before* the swap cannot stand in for this: the
+    /// failure that made it necessary was refused by the kernel for the
+    /// destination path specifically, so the same bundle launched from a
+    /// staging directory came up perfectly.
+    public struct Installed {
+        public let app: URL
+        public let version: String?
+        /// The previous bundle, parked next to `app`. Nil when there was
+        /// nothing to replace.
+        public let previous: URL?
+
+        /// Discard the previous bundle. Call once the replacement has proved
+        /// it runs.
+        public func confirm() {
+            guard let previous else { return }
+            try? FileManager.default.removeItem(at: previous)
+        }
+
+        /// Put the previous bundle back, because the replacement does not run.
+        ///
+        /// Returns false when there is nothing to restore or the restore
+        /// itself failed — the caller is then holding a broken install and has
+        /// to say so rather than imply it recovered.
+        @discardableResult
+        public func rollBack() -> Bool {
+            guard let previous,
+                  FileManager.default.fileExists(atPath: previous.path)
+            else { return false }
+            do {
+                _ = try FileManager.default.replaceItemAt(app, withItemAt: previous)
+                return true
+            } catch {
+                return false
+            }
+        }
+    }
+
+    /// What the superseded bundle is called while it waits to be confirmed or
+    /// restored. Hidden, so Launch Services does not briefly offer two copies
+    /// of the same application.
+    static func backupName(for target: URL) -> String {
+        ".\(target.lastPathComponent).barshelf-previous"
+    }
+
     /// Expands `archive`, verifies the app inside it, and swaps it for `target`.
     ///
     /// - Parameter expectedTeam: the Developer ID team the replacement must be
@@ -177,8 +224,8 @@ public enum UpdateInstaller {
     /// - Parameter expectedBundleID: the bundle identifier the replacement must
     ///   carry. A correctly signed build of a *different* product from the same
     ///   developer is not an update to this one.
-    /// - Returns: the version string of the installed build, when its
-    ///   `Info.plist` carries one.
+    /// - Returns: the installed build, with the bundle it displaced kept until
+    ///   the caller confirms or rolls back.
     @discardableResult
     public static func install(
         archive: URL,
@@ -186,7 +233,7 @@ public enum UpdateInstaller {
         expectedTeam: String,
         expectedBundleID: String?,
         checkGatekeeper: Bool = true
-    ) throws -> String? {
+    ) throws -> Installed {
         let fileManager = FileManager.default
         guard fileManager.isWritableFile(atPath: target.deletingLastPathComponent().path) else {
             throw Failure.destinationNotWritable(target.deletingLastPathComponent().path)
@@ -228,12 +275,25 @@ public enum UpdateInstaller {
         }
 
         let version = installedVersion(of: app)
+        // A backup from a run that died before confirming would otherwise be
+        // restored later as if it were this update's predecessor.
+        let backup = target.deletingLastPathComponent()
+            .appendingPathComponent(backupName(for: target))
+        try? fileManager.removeItem(at: backup)
+
+        let hadPrevious = fileManager.fileExists(atPath: target.path)
         do {
-            _ = try fileManager.replaceItemAt(target, withItemAt: app)
+            _ = try fileManager.replaceItemAt(
+                target,
+                withItemAt: app,
+                backupItemName: hadPrevious ? backupName(for: target) : nil,
+                options: hadPrevious ? [.withoutDeletingBackupItem] : []
+            )
         } catch {
             throw Failure.replaceFailed(error.localizedDescription)
         }
-        return version
+        let kept = hadPrevious && fileManager.fileExists(atPath: backup.path)
+        return Installed(app: target, version: version, previous: kept ? backup : nil)
     }
 
     /// Largest update archive that will be opened at all.
