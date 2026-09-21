@@ -181,19 +181,28 @@ final class MenuBarController {
                 Self.symbolImage(named: $0, describedAs: entry.name)
             }
             let glyph = button.image == nil ? Self.textGlyph(for: entry) : nil
-            let title = entry.style == .stacked
-                ? Self.stackedTitle(entry, glyph: glyph)
-                : NSAttributedString(
+            if entry.style == .stacked {
+                // One image carries both rows *and* the symbol, because a
+                // button has room for only one image and the rows have to sit
+                // beside it rather than under it.
+                button.image = Self.stackedImage(
+                    entry, symbol: button.image, glyph: glyph
+                )
+                button.attributedTitle = NSAttributedString(string: "")
+                button.imagePosition = .imageOnly
+            } else {
+                let title = NSAttributedString(
                     string: MenuBarPolicy.stripCell(entry, glyph: glyph),
                     attributes: [
                         .font: Self.statusFont,
                         .foregroundColor: Self.color(for: entry),
                     ]
                 )
-            button.attributedTitle = title
-            button.imagePosition = Self.imagePosition(
-                hasImage: button.image != nil, hasLabel: title.length > 0
-            )
+                button.attributedTitle = title
+                button.imagePosition = Self.imagePosition(
+                    hasImage: button.image != nil, hasLabel: title.length > 0
+                )
+            }
             button.toolTip = MenuBarPolicy.tooltip(for: [entry])
             // VoiceOver reads one line, so the stacked layout is flattened
             // back to "name, CPU 23%" rather than announced as two rows.
@@ -240,46 +249,122 @@ final class MenuBarController {
         }
     }
 
-    /// Two rows inside the menu bar's 22 points: the label small on top, the
-    /// value beneath it.
+    /// Two rows drawn into a template image: the label small on top, the value
+    /// beneath it.
     ///
-    /// The sizes are not arbitrary. A menu bar item is about 22 points tall and
-    /// the system font at its default size is ~13 — two of those do not fit, so
-    /// the pair is shrunk and the leading pulled in until they do. Centering
-    /// keeps a short label from looking detached from a wider value.
+    /// An image rather than an `attributedTitle`, for three reasons that were
+    /// all visible on screen when it was text. A status item tints a *template*
+    /// image for itself, so it follows a light or dark menu bar and inverts
+    /// while the item is held open; an attributed string carries the colour it
+    /// was given and stayed black. Clamping two differently-sized lines into
+    /// the bar's height with `maximumLineHeight` cropped the ascenders off the
+    /// smaller one — "Power" lost its top. And a paragraph style aligns lines
+    /// against the layout width, which is not the same as aligning them to the
+    /// item's left edge.
+    ///
+    /// Drawing places each row at a measured origin instead, so nothing is
+    /// clipped and both rows start at the same x.
     static let stackedValueFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
-    static let stackedLabelFont = NSFont.systemFont(ofSize: 8, weight: .medium)
+    static let stackedLabelFont = NSFont.systemFont(ofSize: 9, weight: .medium)
+    /// How much dimmer the label is than the value it belongs to.
+    static let stackedLabelOpacity: CGFloat = 0.72
+    static let staleOpacity: CGFloat = 0.4
+    /// Clearance kept above and below the rows, so neither meets the edge of
+    /// the bar.
+    static let stackedVerticalPadding: CGFloat = 1
+    /// Breathing room either side of the rows.
+    static let stackedHorizontalPadding: CGFloat = 3
+    /// Gap between the symbol and the rows beside it.
+    static let stackedSymbolGap: CGFloat = 3
 
-    static func stackedTitle(_ entry: MenuBarEntry, glyph: String?) -> NSAttributedString {
-        let paragraph = NSMutableParagraphStyle()
-        paragraph.alignment = .center
-        // Negative spacing: the two fonts' natural line heights add up to more
-        // than the bar is tall.
-        paragraph.lineSpacing = -3
-        paragraph.maximumLineHeight = 11
-
-        let color = color(for: entry)
-        let value = entry.label ?? ""
+    /// The two lines an entry draws when stacked: the label, then the value.
+    static func stackedLines(_ entry: MenuBarEntry, glyph: String?) -> (top: String, bottom: String) {
         var top = MenuBarPolicy.normalizedPrefix(entry.prefix) ?? entry.name
         if let glyph, !glyph.isEmpty { top = "\(glyph) \(top)" }
+        return (top, entry.label ?? "")
+    }
 
-        let result = NSMutableAttributedString(
-            string: top + "\n",
-            attributes: [
-                .font: stackedLabelFont,
-                .foregroundColor: color.withAlphaComponent(entry.isStale ? 0.4 : 0.7),
-                .paragraphStyle: paragraph,
-            ]
-        )
-        result.append(NSAttributedString(
-            string: value,
-            attributes: [
-                .font: stackedValueFont,
-                .foregroundColor: color,
-                .paragraphStyle: paragraph,
-            ]
-        ))
-        return result
+    static func stackedImage(
+        _ entry: MenuBarEntry,
+        symbol: NSImage? = nil,
+        glyph: String? = nil,
+        height: CGFloat = NSStatusBar.system.thickness
+    ) -> NSImage {
+        let (top, bottom) = stackedLines(entry, glyph: glyph)
+        // Template images are tinted from their alpha, so the drawing colour
+        // only has to carry the relative weight of the two rows.
+        let dim = entry.isStale ? staleOpacity : 1
+        var labelAttributes: [NSAttributedString.Key: Any] = [
+            .font: stackedLabelFont,
+            .foregroundColor: NSColor.black.withAlphaComponent(stackedLabelOpacity * dim),
+        ]
+        var valueAttributes: [NSAttributedString.Key: Any] = [
+            .font: stackedValueFont,
+            .foregroundColor: NSColor.black.withAlphaComponent(dim),
+        ]
+        // Preferred sizes first, then shrink to fit. Two lines at 9pt and 11pt
+        // measure about 24 points together, which does not fit a 22-point bar
+        // — and the previous attempt at forcing them in cropped the label's
+        // ascenders instead of making them smaller. Scaling is measured rather
+        // than assumed because the bar is not always 22, and a font's line
+        // height is not its point size.
+        let available = height - stackedVerticalPadding * 2
+        var label = NSAttributedString(string: top, attributes: labelAttributes)
+        var value = NSAttributedString(string: bottom, attributes: valueAttributes)
+        var labelSize = top.isEmpty ? .zero : label.size()
+        var valueSize = bottom.isEmpty ? .zero : value.size()
+
+        let natural = labelSize.height + valueSize.height
+        if natural > available, natural > 0 {
+            let scale = available / natural
+            labelAttributes[.font] = NSFont.systemFont(
+                ofSize: max(stackedLabelFont.pointSize * scale, 6), weight: .medium
+            )
+            valueAttributes[.font] = NSFont.monospacedDigitSystemFont(
+                ofSize: max(stackedValueFont.pointSize * scale, 7), weight: .regular
+            )
+            label = NSAttributedString(string: top, attributes: labelAttributes)
+            value = NSAttributedString(string: bottom, attributes: valueAttributes)
+            labelSize = top.isEmpty ? .zero : label.size()
+            valueSize = bottom.isEmpty ? .zero : value.size()
+        }
+        // Squared off and scaled to sit beside the rows rather than tower over
+        // them.
+        let side = min(height - 4, 16)
+        let symbolSize: NSSize = symbol == nil ? .zero : NSSize(width: side, height: side)
+        let textWidth = max(labelSize.width, valueSize.width)
+        let width = stackedHorizontalPadding * 2 + symbolSize.width
+            + (symbolSize.width > 0 && textWidth > 0 ? stackedSymbolGap : 0) + textWidth
+
+        let image = NSImage(
+            size: NSSize(width: max(width, 1), height: height), flipped: true
+        ) { _ in
+            var x = stackedHorizontalPadding
+            if let symbol {
+                symbol.draw(
+                    in: NSRect(
+                        x: x, y: (height - symbolSize.height) / 2,
+                        width: symbolSize.width, height: symbolSize.height
+                    )
+                )
+                x += symbolSize.width + (textWidth > 0 ? stackedSymbolGap : 0)
+            }
+            // Both rows share one origin so they line up on the left, and the
+            // block is centred in whatever height the bar actually has rather
+            // than in an assumed 22.
+            let block = labelSize.height + valueSize.height
+            var y = ((height - block) / 2).rounded(.down)
+            if !top.isEmpty {
+                label.draw(at: NSPoint(x: x, y: y))
+                y += labelSize.height
+            }
+            if !bottom.isEmpty {
+                value.draw(at: NSPoint(x: x, y: y))
+            }
+            return true
+        }
+        image.isTemplate = true
+        return image
     }
 
     // MARK: - Drawing helpers
