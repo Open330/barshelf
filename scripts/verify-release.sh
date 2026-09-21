@@ -128,11 +128,16 @@ ok "both CLI binaries are signed, pinned, and report ${VERSION}"
 # brew's records) and points at `brew upgrade`, which then reports they are
 # already current. That is exactly how both files sat at 0.1.3 while the
 # project shipped 0.3.0, so it is checked rather than remembered.
-TAP_RAW="https://raw.githubusercontent.com/Open330/homebrew-tap/main"
-TAP_CASK=$(curl -fsSL "${TAP_RAW}/Casks/barshelf.rb" 2>/dev/null) \
-  || fail "could not read the tap's cask"
-TAP_FORMULA=$(curl -fsSL "${TAP_RAW}/Formula/barshelf-cli.rb" 2>/dev/null) \
-  || fail "could not read the tap's formula"
+# Through the API, not raw.githubusercontent.com: that CDN caches for minutes,
+# and this check runs seconds after the tap is bumped. It reported 0.3.0 while
+# the tap already held 0.3.1 — a verifier that cries wolf right when it is used
+# is worse than none.
+tap_file() {
+  gh api "repos/Open330/homebrew-tap/contents/$1" -q .content 2>/dev/null | base64 -d
+}
+TAP_CASK=$(tap_file "Casks/barshelf.rb") || fail "could not read the tap's cask"
+TAP_FORMULA=$(tap_file "Formula/barshelf-cli.rb") || fail "could not read the tap's formula"
+[[ -n "${TAP_CASK}" && -n "${TAP_FORMULA}" ]] || fail "the tap returned empty files"
 
 # The cask interpolates #{version} into its url, so its version is a stanza.
 # The formula spells the version out in the url instead — that is what
