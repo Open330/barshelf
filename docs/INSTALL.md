@@ -85,6 +85,11 @@ load formula ... from untrusted tap`이 나오면 안내대로
 한 번 실행한다. 릴리스로 파일이 바뀌면 신뢰가 다시 필요할 수 있다.
 
 업데이트는 `brew upgrade --cask barshelf`, 제거는 `brew uninstall --cask barshelf`.
+
+> `brew upgrade`는 번들만 교체하므로 **실행 중이던 앱은 옛 빌드 그대로**다. cask에
+> `uninstall quit:`가 있지만 Homebrew가 앱을 종료하려면 Automation 권한이 필요하고,
+> 없으면 조용히 넘어간다(이 맥에서 실제로 그랬다). 업그레이드 후 메뉴바 아이콘을
+> 종료했다가 다시 열어라.
 현재 cask는 서명·공증된 v0.3.1 자산과 검증된 SHA-256을 사용한다.
 
 > 이 저장소에도 cask 사본이 있었지만 삭제했다. 탭의 사본과 갈라져 0.1.3에 멈춰
