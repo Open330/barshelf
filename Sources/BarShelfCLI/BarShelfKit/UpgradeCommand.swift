@@ -418,7 +418,7 @@ enum UpgradeCommand {
                     + " build reports \(installed)"
             )
         }
-        finishApp(target, restart: restart)
+        try finishApp(target, restart: restart)
     }
 
     private static func updateCLI(
@@ -445,7 +445,11 @@ enum UpgradeCommand {
 
     /// Whether the app is running, and how to get the new build in front of the
     /// user. Replacing the bundle leaves the running process on the old code.
-    private static func finishApp(_ app: URL, restart: Bool) {
+    ///
+    /// Throws when a restart was asked for and the replacement did not come up,
+    /// so the command reports a failure rather than a success that left the
+    /// machine without BarShelf.
+    private static func finishApp(_ app: URL, restart: Bool) throws {
         guard isRunning(app) else { return }
         guard restart else {
             print("  BarShelf.app is still running the previous build —"
@@ -453,13 +457,24 @@ enum UpgradeCommand {
             return
         }
         print("  restarting BarShelf.app…")
+        // Read before quitting: the wait below compares against this, not
+        // against a wall-clock instant.
+        let previous = LaunchReceiptStore.read()
         _ = shell("/usr/bin/pkill", processSelector(for: app))
         for _ in 0..<50 where isRunning(app) {
             Thread.sleep(forTimeInterval: 0.1)
         }
-        if shell("/usr/bin/open", ["-a", app.path]) != 0 {
-            BarShelfMain.printError("  warning: could not reopen \(app.path)")
+        guard shell("/usr/bin/open", ["-a", app.path]) == 0 else {
+            throw CLIUpgradeError.didNotStart(app, detail: "`open` refused to launch it")
         }
+        // A pid is not proof. An in-place update once produced a process that
+        // existed and never ran — the kernel refused it — and nothing noticed
+        // for a day. The app writes a receipt once its menu bar item is up.
+        print("  waiting for it to come up…")
+        guard LaunchReceiptStore.waitForRelaunch(replacing: previous) != nil else {
+            throw CLIUpgradeError.didNotStart(app, detail: nil)
+        }
+        print("  running")
     }
 
     static let appExecutableName = "barshelf-app"
@@ -509,14 +524,33 @@ enum UpgradeCommand {
 
     enum CLIUpgradeError: Error, LocalizedError {
         case assetMissing(String)
+        case didNotStart(URL, detail: String?)
 
         var errorDescription: String? {
             switch self {
             case let .assetMissing(name):
                 return "This release publishes no \(name)."
+            case let .didNotStart(app, detail):
+                let why = detail.map { " (\($0))" } ?? ""
+                return "\(app.path) was updated but did not start within"
+                    + " \(Int(LaunchReceiptStore.defaultTimeout)) seconds\(why)."
+            }
+        }
+
+        var recoverySuggestion: String? {
+            switch self {
+            case .assetMissing:
+                return nil
+            case .didNotStart:
+                return "The new build is installed. Try opening it yourself; if"
+                    + " macOS refuses, check Privacy & Security in System Settings."
             }
         }
     }
+
+    /// Exposed so a test can hold the wording to its promise without shelling
+    /// out a whole upgrade.
+    static func describeForTests(_ error: Error) -> String { describe(error) }
 
     private static func describe(_ error: Error) -> String {
         var text = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
@@ -532,6 +566,8 @@ enum UpgradeCommand {
     private static func midSwap(_ error: Error) -> Bool {
         if case .replaceFailed = error as? UpdateInstaller.Failure { return true }
         if case .replaceFailed = error as? CommandLineToolInstaller.Failure { return true }
+        // The swap succeeded here; it is the launch that did not.
+        if case .didNotStart = error as? CLIUpgradeError { return true }
         return false
     }
 }
