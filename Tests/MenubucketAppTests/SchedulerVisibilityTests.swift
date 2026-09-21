@@ -83,6 +83,57 @@ final class SchedulerVisibilityTests: XCTestCase {
         XCTAssertTrue(scheduler.activeIntervalWidgetIDs.isEmpty)
     }
 
+    // MARK: - Keeping a visible value current
+
+    /// The battery saver used to stop promoted widgets along with everything
+    /// else, which left a menu bar reading frozen at whatever it last managed
+    /// to compute. It is about work nobody can see; a promoted widget is the
+    /// one thing that is always on screen.
+    func testTheBatterySaverDoesNotStopAPromotedWidget() {
+        let scheduler = Scheduler()
+        let promoted = widget("promoted", interval: 2)
+        let hidden = widget("hidden", interval: 2)
+        scheduler.configure(widgets: [promoted, hidden])
+        scheduler.setVisibleWidgetIDs([])
+        scheduler.setMenuBarWidgetIDs([promoted.id])
+        scheduler.configurePolicy(refreshMultiplier: 1, pauseWhenClosed: true)
+
+        XCTAssertEqual(scheduler.activeIntervalWidgetIDs, [promoted.id])
+        XCTAssertTrue(scheduler.allowsAutomaticRefresh(widgetID: promoted.id))
+    }
+
+    /// Taking it out of the menu bar is how someone stops it — so that has to
+    /// put it back under the saver.
+    func testDemotingPutsTheWidgetBackUnderTheSaver() {
+        let scheduler = Scheduler()
+        let promoted = widget("promoted", interval: 2)
+        scheduler.configure(widgets: [promoted])
+        scheduler.setVisibleWidgetIDs([])
+        scheduler.configurePolicy(refreshMultiplier: 1, pauseWhenClosed: true)
+
+        scheduler.setMenuBarWidgetIDs([promoted.id])
+        XCTAssertEqual(scheduler.activeIntervalWidgetIDs, [promoted.id])
+        scheduler.setMenuBarWidgetIDs([])
+        XCTAssertTrue(scheduler.activeIntervalWidgetIDs.isEmpty)
+    }
+
+    /// An accessory app with no windows is what App Nap is for, and it took
+    /// this one: a two-second timer fired about once every eight seconds and
+    /// the menu bar stopped moving. The assertion is held only while something
+    /// is actually drawn there — with an empty menu bar the app should nap.
+    func testAppNapIsHeldOffOnlyWhileSomethingIsInTheMenuBar() {
+        let scheduler = Scheduler()
+        let promoted = widget("promoted", interval: 2)
+        scheduler.configure(widgets: [promoted])
+        XCTAssertFalse(scheduler.holdsActivityAssertion)
+
+        scheduler.setMenuBarWidgetIDs([promoted.id])
+        XCTAssertTrue(scheduler.holdsActivityAssertion)
+
+        scheduler.setMenuBarWidgetIDs([])
+        XCTAssertFalse(scheduler.holdsActivityAssertion)
+    }
+
     // MARK: - Menu-bar promotion
 
     func testPromotedWidgetsPollWhileHiddenAndWhileThePopupIsClosed() {

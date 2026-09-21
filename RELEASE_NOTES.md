@@ -36,3 +36,21 @@
   The bundled **System** and **Sensors** widgets use it — their menu bar
   readings turn orange past 75% and red past 90%, matching the thresholds their
   cards already drew.
+
+## The menu bar actually keeps up now
+
+Two things were stopping a promoted widget from staying current, and between
+them a live reading could sit unchanged for as long as the app was left alone.
+
+- **The battery saver paused it.** "Pause when closed" is about work nobody can
+  see, and a widget in the menu bar is the one thing that is always visible.
+  Promoted widgets are now exempt; everything else still pauses, and taking a
+  widget out of the menu bar still stops it.
+- **App Nap throttled the whole app.** An accessory app with no windows is
+  exactly what App Nap is for, and it took this one: the process ran at low
+  priority and a two-second timer fired about once every eight seconds.
+  BarShelf now holds that off — but only while something is drawn in the menu
+  bar, so an empty menu bar naps like any other app.
+
+Measured with the battery saver left on: idle `19%` with no colour, then `99%`
+in red under load, then `4%` again.
