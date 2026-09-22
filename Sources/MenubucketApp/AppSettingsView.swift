@@ -22,6 +22,15 @@ final class AppSettingsWindowController {
 struct AppSettingsView: View {
     @ObservedObject var appPrefs: AppPrefs
     @ObservedObject var runtime: WidgetRuntime
+    /// Observed separately: refresh stats deliberately do not fire the
+    /// runtime's `objectWillChange` (see `RefreshStatsModel`).
+    @ObservedObject private var refreshStats: RefreshStatsModel
+
+    init(appPrefs: AppPrefs, runtime: WidgetRuntime) {
+        self.appPrefs = appPrefs
+        self.runtime = runtime
+        _refreshStats = ObservedObject(wrappedValue: runtime.refreshStats)
+    }
 
     private enum Section: String, CaseIterable, Identifiable {
         case general = "General"
@@ -250,7 +259,7 @@ struct AppSettingsView: View {
             HStack(spacing: 10) {
                 statTile("\(runtime.widgets.count)", "widgets")
                 statTile("\(runtime.pages.count)", "panels")
-                statTile("\(runtime.refreshStatsSnapshot.count)", "tracked")
+                statTile("\(refreshStats.stats.count)", "tracked")
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 2)
@@ -333,7 +342,7 @@ struct AppSettingsView: View {
 
     private var monitoringRows: [MonitoringRow] {
         runtime.widgets.map { widget in
-            MonitoringRow(widget: widget, stats: runtime.refreshStatsSnapshot[widget.id])
+            MonitoringRow(widget: widget, stats: refreshStats.stats[widget.id])
         }
     }
 

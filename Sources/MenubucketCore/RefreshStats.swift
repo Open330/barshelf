@@ -59,8 +59,8 @@ public struct WidgetRefreshStats: Codable, Equatable, Sendable {
 }
 
 /// In-memory stats keyed by widget id, with a lightweight JSON persistence
-/// ("메모리 + 간단 JSON 지속"): every record schedules a debounced best-effort
-/// write, so stats survive relaunches without a write per refresh tick.
+/// ("메모리 + 간단 JSON 지속"): records are written on a throttle, so stats
+/// survive relaunches without a write per refresh tick.
 /// Thread-safe (`record*` may be called from any queue).
 public final class RefreshStatsStore: @unchecked Sendable {
     public static let defaultFileName = "refresh-stats.json"
@@ -72,10 +72,16 @@ public final class RefreshStatsStore: @unchecked Sendable {
         label: "dev.barshelf.refresh-stats", qos: .utility
     )
     private var pendingPersist: DispatchWorkItem?
-    /// Debounce for disk writes; 0 (tests) persists synchronously.
+    /// Window for disk writes; 0 (tests) persists synchronously.
+    ///
+    /// A throttle, not a debounce. It used to cancel and reschedule on every
+    /// record with a 2 s delay, and a widget refreshing every 2 s landed right
+    /// on that edge — one encode and atomic write per refresh. Now the first
+    /// record opens the window and the write at its end reads the latest
+    /// stats (`persistNow` snapshots them under the lock when it runs).
     private let persistDebounce: TimeInterval
 
-    public init(fileURL: URL? = nil, persistDebounce: TimeInterval = 2) {
+    public init(fileURL: URL? = nil, persistDebounce: TimeInterval = 30) {
         self.fileURL = fileURL
         self.persistDebounce = persistDebounce
         if let fileURL,
@@ -145,18 +151,37 @@ public final class RefreshStatsStore: @unchecked Sendable {
 
     private func schedulePersist() {
         guard fileURL != nil else { return }
+        if persistDebounce <= 0 {
+            persistQueue.sync { persistNow() }
+            return
+        }
         lock.lock()
-        pendingPersist?.cancel()
-        let item = DispatchWorkItem { [weak self] in self?.persistNow() }
+        // Already scheduled: that write will pick up this record too.
+        guard pendingPersist == nil else {
+            lock.unlock()
+            return
+        }
+        let item = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.lock.lock()
+            self.pendingPersist = nil
+            self.lock.unlock()
+            self.persistNow()
+        }
         pendingPersist = item
         lock.unlock()
-        if persistDebounce <= 0 {
-            persistQueue.sync(execute: item)
-        } else {
-            persistQueue.asyncAfter(
-                deadline: .now() + persistDebounce, execute: item
-            )
-        }
+        persistQueue.asyncAfter(deadline: .now() + persistDebounce, execute: item)
+    }
+
+    /// Writes now if anything is waiting on the throttle (app quit).
+    public func flush() {
+        lock.lock()
+        let pending = pendingPersist
+        pendingPersist = nil
+        lock.unlock()
+        guard let pending else { return }
+        pending.cancel()
+        persistQueue.sync { persistNow() }
     }
 
     /// Best-effort snapshot write (a lost trailing write only costs stats).

@@ -71,6 +71,24 @@ final class WidgetCardModel: ObservableObject {
     }
 }
 
+/// Per-widget refresh statistics for the Monitoring pane.
+///
+/// Its own small store for the same reason as `WidgetCardModel` and
+/// `MenuBarStatusStore`: stats change on *every* refresh, and while they were
+/// a `@Published` property of `WidgetRuntime` each change fired the runtime's
+/// `objectWillChange`. `RootView` observes the runtime and lives for the whole
+/// session inside the popover's hosting controller, so a closed shelf
+/// recomputed its pages and re-evaluated its body one and a half times a
+/// second — for numbers only the Monitoring pane shows.
+final class RefreshStatsModel: ObservableObject {
+    @Published fileprivate(set) var stats: [String: WidgetRefreshStats] = [:]
+
+    fileprivate func apply(_ stats: [String: WidgetRefreshStats]) {
+        guard self.stats != stats else { return }
+        self.stats = stats
+    }
+}
+
 /// Generation-aware ownership for script refreshes. A widget may have only
 /// one active load, and late completion from an older process/package cannot
 /// release the newer generation that reused the same widget id.
@@ -143,7 +161,8 @@ final class WidgetRuntime: ObservableObject {
     /// Pinned widgets + per-widget settings overrides (user preferences).
     let prefs = WidgetPrefs()
     let appPrefs: AppPrefs
-    @Published private(set) var refreshStatsSnapshot: [String: WidgetRefreshStats] = [:]
+    /// Observed by the Monitoring pane only — see `RefreshStatsModel`.
+    let refreshStats = RefreshStatsModel()
     /// Widget id the UI should jump to and highlight (post-install reveal, R11).
     /// Consumers clear it after handling.
     @Published var pendingReveal: String?
@@ -181,6 +200,8 @@ final class WidgetRuntime: ObservableObject {
     /// and the value it saw. Only these need re-running when a card appears.
     private var visibilityAwareWidgetIDs: Set<String> = []
     private var lastRefreshVisibility: [String: Bool] = [:]
+    /// Decoded `workflow.json` files, reused while unchanged on disk.
+    private let workflowDefinitions = WorkflowDefinitionCache()
 
     // MARK: Script runtime + permission enforcement (M2)
 
@@ -219,7 +240,7 @@ final class WidgetRuntime: ObservableObject {
             fileURL: Self.applicationSupportDirectory
                 .appendingPathComponent(RefreshStatsStore.defaultFileName)
         )
-        self.refreshStatsSnapshot = self.refreshStatsStore.all
+        self.refreshStats.apply(self.refreshStatsStore.all)
         scheduler.requestRefresh = { [weak self] widgetID, manual in
             self?.refresh(widgetID: widgetID, manual: manual)
         }
@@ -231,6 +252,15 @@ final class WidgetRuntime: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] preferences in
                 self?.applyAppPreferences(preferences)
+            }
+            .store(in: &cancellables)
+        // Snapshot cache and refresh stats are written on a throttle; a normal
+        // quit writes whatever they are still holding.
+        NotificationCenter.default
+            .publisher(for: NSApplication.willTerminateNotification)
+            .sink { [weak self] _ in
+                self?.flushPendingPersists()
+                self?.refreshStatsStore.flush()
             }
             .store(in: &cancellables)
         seedStarterWidgets()
@@ -400,7 +430,7 @@ final class WidgetRuntime: ObservableObject {
         setSnapshot(snapshot, for: widgetId)
         let sensitive = params.sensitive == true || widget.isSensitive
         if sensitive {
-            pendingPersists[widgetId]?.cancel()
+            cancelPendingPersist(widgetId)
             if let cacheRoot = params.cacheRoot {
                 // Keep the live tree memory-only. Persist only the separate
                 // widget-supplied tree whose contract requires sensitive
@@ -915,8 +945,7 @@ final class WidgetRuntime: ObservableObject {
             }
         }
         try FileManager.default.removeItem(at: widget.directory)
-        pendingPersists[id]?.cancel() // no queued write may re-create the cache
-        pendingPersists.removeValue(forKey: id)
+        cancelPendingPersist(id) // no queued write may re-create the cache
         Self.removeCachedSnapshot(widgetID: id)
         permissionStore.reset(widgetId: id)
         prefs.removeAllState(for: id)
@@ -1670,6 +1699,18 @@ final class WidgetRuntime: ObservableObject {
             return
         }
         let settings = prefs.effectiveSettings(for: widget.manifest, widgetID: widget.id)
+        // Read here, on the main actor, where visibility and size live. The
+        // refresh itself runs off the main actor, and three promoted widgets
+        // refresh at nearly the same moment — reading this state there, and
+        // recording which workflows use it, raced.
+        let visible = isCardVisible(id)
+        let widgetContext: JSONValue = .object([
+            // `size` lets a workflow switch layout per bucket size; `visible`
+            // lets it do less while nothing is on screen (the sensors widget
+            // reads 46 SMC keys instead of 129 with its card closed).
+            "size": .string(effectiveSize(for: id)),
+            "visible": .bool(visible),
+        ])
 
         let startedAt = markRefreshStarted(widgetID: id)
         inFlight.insert(id)
@@ -1678,19 +1719,63 @@ final class WidgetRuntime: ObservableObject {
         Task { @MainActor [weak self] in
             guard let self else { return }
             let outcome = await self.performWorkflowRefresh(
-                widget: widget, workflowURL: workflowURL, settings: settings
+                widget: widget, workflowURL: workflowURL,
+                settings: settings, widgetContext: widgetContext
             )
-            self.finishRefresh(widget: widget, outcome: outcome, startedAt: startedAt)
+            // Before `finishRefresh`, whose catch-up reads this.
+            if let reads = outcome.readsWidgetVisibility {
+                self.recordVisibilityUse(widgetID: id, reads: reads, visible: visible)
+            }
+            self.finishRefresh(widget: widget, outcome: outcome.result, startedAt: startedAt)
+        }
+    }
+
+    /// What one workflow refresh produced, plus whether the workflow reads
+    /// `widget.visible` (nil when it never got as far as decoding).
+    private struct WorkflowRefreshOutcome {
+        var result: Result<RefreshSuccess, Error>
+        var readsWidgetVisibility: Bool?
+    }
+
+    /// Main actor only — see `refreshWidgetsAwaitingVisibility`.
+    private func recordVisibilityUse(widgetID: String, reads: Bool, visible: Bool) {
+        if reads {
+            visibilityAwareWidgetIDs.insert(widgetID)
+            lastRefreshVisibility[widgetID] = visible
+        } else {
+            visibilityAwareWidgetIDs.remove(widgetID)
+            lastRefreshVisibility[widgetID] = nil
         }
     }
 
     private func performWorkflowRefresh(
         widget: LoadedWidget,
         workflowURL: URL,
-        settings: JSONValue
+        settings: JSONValue,
+        widgetContext: JSONValue
+    ) async -> WorkflowRefreshOutcome {
+        let cached: WorkflowDefinitionCache.Entry
+        do {
+            cached = try workflowDefinitions.load(workflowURL)
+        } catch {
+            return WorkflowRefreshOutcome(result: .failure(error), readsWidgetVisibility: nil)
+        }
+        let result = await evaluateWorkflow(
+            widget: widget, definition: cached.definition,
+            settings: settings, widgetContext: widgetContext
+        )
+        return WorkflowRefreshOutcome(
+            result: result, readsWidgetVisibility: cached.readsWidgetVisibility
+        )
+    }
+
+    private func evaluateWorkflow(
+        widget: LoadedWidget,
+        definition: WorkflowDefinition,
+        settings: JSONValue,
+        widgetContext: JSONValue
     ) async -> Result<RefreshSuccess, Error> {
         do {
-            let definition = try WorkflowDefinition.decode(from: try Data(contentsOf: workflowURL))
             // Storage is opt-in: only widgets that declare `permissions.storage`
             // (as `true` or an object) can read `storage.*` or commit a `store`
             // block. An explicit `false` declines.
@@ -1698,23 +1783,6 @@ final class WidgetRuntime: ObservableObject {
             let storageSnapshot: JSONValue = storageAllowed
                 ? .object(storage.snapshot(widgetId: widget.id))
                 : .object([:])
-            // Expose the widget's effective size so a workflow can switch its
-            // layout per size (native small/medium/large), e.g. via a `switch`.
-            // `visible` lets a workflow do less while nothing is on screen —
-            // the sensors widget reads 46 SMC keys instead of 129 with its
-            // card closed. `size` lets it switch layout per bucket size.
-            let visible = isCardVisible(widget.id)
-            let widgetContext: JSONValue = .object([
-                "size": .string(effectiveSize(for: widget.id)),
-                "visible": .bool(visible),
-            ])
-            if definition.readsWidgetVisibility {
-                visibilityAwareWidgetIDs.insert(widget.id)
-                lastRefreshVisibility[widget.id] = visible
-            } else {
-                visibilityAwareWidgetIDs.remove(widget.id)
-                lastRefreshVisibility[widget.id] = nil
-            }
             let params = try WorkflowEngine.resolvedSourceParams(
                 definition, settings: settings, storage: storageSnapshot, widget: widgetContext
             )
@@ -2230,7 +2298,7 @@ final class WidgetRuntime: ObservableObject {
     }
 
     private func publishRefreshStats() {
-        refreshStatsSnapshot = refreshStatsStore.all
+        refreshStats.apply(refreshStatsStore.all)
     }
 
     /// Human-readable error; appends Keychain setup guidance when a
@@ -2427,14 +2495,16 @@ final class WidgetRuntime: ObservableObject {
 
     // MARK: - Render snapshot cache
 
-    private static var cacheDirectory: URL? {
+    /// Resolved once: `FileManager.urls(for:in:)` is not free, and it was being
+    /// asked on every snapshot write.
+    private static let cacheDirectory: URL? = {
         guard let appSupport = FileManager.default.urls(
             for: .applicationSupportDirectory, in: .userDomainMask
         ).first else { return nil }
         return appSupport
             .appendingPathComponent("barshelf", isDirectory: true)
             .appendingPathComponent("cache", isDirectory: true)
-    }
+    }()
 
     private static func cacheURL(for widgetID: String) -> URL? {
         let sanitized = widgetID.map { character -> Character in
@@ -2444,35 +2514,78 @@ final class WidgetRuntime: ObservableObject {
         return cacheDirectory?.appendingPathComponent(String(sanitized) + ".json")
     }
 
-    /// Snapshot cache writes are debounced per widget and performed off the
-    /// main thread (R05 perf): a 1 Hz-refreshing widget previously did a
-    /// synchronous JSON encode + disk write on the main queue every tick.
-    /// Losing the trailing write on quit only costs one cached render.
+    /// Snapshot cache writes are throttled per widget and performed off the
+    /// main thread (R05 perf).
+    ///
+    /// The cache exists so a relaunched popup shows the last render at once;
+    /// a render half a minute old serves that just as well as one two seconds
+    /// old. It used to be a 0.5 s *debounce* — cancel and reschedule on every
+    /// snapshot — which for a widget refreshing every two seconds meant a
+    /// JSON encode, an atomic write and a rename on every single refresh:
+    /// ~11% of a promoted widget's CPU, profiled. A debounce is the wrong
+    /// shape for a periodic stream (it either fires every tick or, if the
+    /// period is shorter than the delay, never). This is a throttle: the first
+    /// unwritten change opens a window, and when it closes the *latest*
+    /// snapshot is written once. Quitting flushes whatever is still held.
     private static let persistQueue = DispatchQueue(
         label: "dev.barshelf.snapshot-cache", qos: .utility
     )
-    static let persistDebounceSec: TimeInterval = 0.5
+    static let persistIntervalSec: TimeInterval = 30
+    /// A scheduled write per widget (on the main queue), and the snapshot it
+    /// will write — replaced by every newer snapshot until it fires.
     private var pendingPersists: [String: DispatchWorkItem] = [:]
+    private var unpersistedSnapshots: [String: WidgetSnapshot] = [:]
 
     private func persistSnapshot(_ snapshot: WidgetSnapshot) {
-        guard let directory = Self.cacheDirectory,
-              let url = Self.cacheURL(for: snapshot.widgetID)
-        else { return }
-        pendingPersists[snapshot.widgetID]?.cancel()
-        let item = DispatchWorkItem {
-            do {
-                try FileManager.default.createDirectory(
-                    at: directory, withIntermediateDirectories: true
-                )
-                try snapshot.serialized().write(to: url, options: .atomic)
-            } catch {
-                NSLog("barshelf: failed to cache snapshot for \(snapshot.widgetID): \(error)")
-            }
+        let id = snapshot.widgetID
+        unpersistedSnapshots[id] = snapshot
+        guard pendingPersists[id] == nil else { return }
+        let item = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.pendingPersists[id] = nil
+            guard let latest = self.unpersistedSnapshots.removeValue(forKey: id)
+            else { return }
+            Self.persistQueue.async { Self.writeCachedSnapshot(latest) }
         }
-        pendingPersists[snapshot.widgetID] = item
-        Self.persistQueue.asyncAfter(
-            deadline: .now() + Self.persistDebounceSec, execute: item
+        pendingPersists[id] = item
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + Self.persistIntervalSec, execute: item
         )
+    }
+
+    /// Drops a scheduled write *and* the snapshot it held. The sensitive
+    /// path depends on the second half: a live tree that must stay in memory
+    /// can never be written by a throttle that fires after it arrived.
+    private func cancelPendingPersist(_ id: String) {
+        pendingPersists.removeValue(forKey: id)?.cancel()
+        unpersistedSnapshots.removeValue(forKey: id)
+    }
+
+    /// Writes every snapshot the throttle is still holding. Called on quit, so
+    /// a normal exit loses nothing to the longer window.
+    func flushPendingPersists() {
+        for item in pendingPersists.values { item.cancel() }
+        pendingPersists.removeAll()
+        let held = Array(unpersistedSnapshots.values)
+        unpersistedSnapshots.removeAll()
+        guard !held.isEmpty else { return }
+        Self.persistQueue.sync {
+            for snapshot in held { Self.writeCachedSnapshot(snapshot) }
+        }
+    }
+
+    private static func writeCachedSnapshot(_ snapshot: WidgetSnapshot) {
+        guard let directory = cacheDirectory,
+              let url = cacheURL(for: snapshot.widgetID)
+        else { return }
+        do {
+            try FileManager.default.createDirectory(
+                at: directory, withIntermediateDirectories: true
+            )
+            try snapshot.serialized().write(to: url, options: .atomic)
+        } catch {
+            NSLog("barshelf: failed to cache snapshot for \(snapshot.widgetID): \(error)")
+        }
     }
 
     private func loadCachedSnapshot(widgetID: String) -> WidgetSnapshot? {
