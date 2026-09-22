@@ -57,6 +57,19 @@ final class MenuBarController {
     /// on every 2 s strip redraw.
     private var appliedSymbol: String?
     private var currentEntries: [MenuBarEntry] = []
+    /// What each separate item last drew, keyed by widget id, and what the
+    /// main item's strip last drew (nil until it is first drawn).
+    ///
+    /// A status item is not cheap to touch. Since macOS 26 each one is drawn
+    /// by the menu bar host through a scene "replicant", and every property
+    /// set — image, title, length, tooltip — is a round trip that redraws the
+    /// replicant and commits a Core Animation transaction. `redraw()` used to
+    /// re-set every property of every item whenever *any* promoted widget
+    /// changed, so a CPU reading ticking every two seconds also redrew the
+    /// memory and temperature items and the (empty) strip. Profiled, that was
+    /// the single largest cost of a promoted widget: ~35% of its CPU.
+    private var appliedSeparate: [String: MenuBarEntry] = [:]
+    private var appliedStrip: [MenuBarEntry]?
 
     init(mainItem: NSStatusItem) {
         self.mainItem = mainItem
@@ -89,7 +102,12 @@ final class MenuBarController {
                 button, symbol: mainSymbol, fallback: AppPreferences.defaultMenuBarSymbol
             )
             appliedSymbol = mainSymbol
+            // `configure` resets the image position, so the strip has to be
+            // laid out again even if its entries did not change.
+            appliedStrip = nil
         }
+        guard appliedStrip != entries else { return }
+        appliedStrip = entries
         guard !entries.isEmpty else {
             mainItem.length = Self.iconOnlyLength
             button.attributedTitle = NSAttributedString(string: "")
@@ -184,12 +202,19 @@ final class MenuBarController {
         for (id, item) in separateItems where !live.contains(id) {
             NSStatusBar.system.removeStatusItem(item)
             separateItems.removeValue(forKey: id)
+            appliedSeparate.removeValue(forKey: id)
         }
         for entry in entries {
             let item = separateItems[entry.widgetID] ?? makeSeparateItem(for: entry.widgetID)
             separateItems[entry.widgetID] = item
+            // Only the widget whose reading moved is redrawn. Images are drawn
+            // through a handler, so an unchanged item still follows a light /
+            // dark menu bar switch without being touched here.
+            guard appliedSeparate[entry.widgetID] != entry else { continue }
+            appliedSeparate[entry.widgetID] = entry
             guard let button = item.button else { continue }
-            item.length = NSStatusItem.variableLength
+            // No `length` here: the item is created variable-length, and every
+            // assignment — even of the same value — re-measures the replicant.
             // The override wins over the widget's own symbol, and an empty
             // override means the user asked for no icon at all.
             let symbol: String? = entry.iconOverride.map { $0.isEmpty ? nil : $0 }
