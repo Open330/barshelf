@@ -7,11 +7,25 @@ import SwiftUI
 /// `NSPanel` implementation behind the same protocol (spec D5).
 protocol PopupSurface: AnyObject {
     var isShown: Bool { get }
+    /// The window that owns popup-scoped input. Local event monitors receive
+    /// events for every BarShelf window, so callers must use this to avoid
+    /// stealing navigation keys from the hub or another panel.
+    var eventWindow: NSWindow? { get }
     var onShow: (() -> Void)? { get set }
     var onHide: (() -> Void)? { get set }
 
     func show(relativeTo button: NSStatusBarButton)
     func hide()
+}
+
+/// Keeps input handling tied to the popup that is actually key. This stays
+/// independent of AppKit event construction so routing can be tested without
+/// a WindowServer session.
+enum PopupEventRouting {
+    static func belongsToPopup(eventWindow: AnyObject?, popupWindow: AnyObject?) -> Bool {
+        guard let eventWindow, let popupWindow else { return false }
+        return eventWindow === popupWindow
+    }
 }
 
 /// NSPopover-backed popup surface (behavior `.transient`).
@@ -43,6 +57,10 @@ final class PopoverSurface: NSObject, PopupSurface, NSPopoverDelegate {
 
     var isShown: Bool {
         popover.isShown
+    }
+
+    var eventWindow: NSWindow? {
+        popover.contentViewController?.view.window
     }
 
     func show(relativeTo button: NSStatusBarButton) {

@@ -98,7 +98,8 @@ public struct WidgetInstallSource: Equatable, Sendable {
         guard scheme == "https" else {
             throw WidgetInstallSourceError.unsupportedScheme(scheme)
         }
-        guard let url = components.url else {
+        guard let host = components.host, !host.isEmpty,
+              let url = components.url else {
             throw WidgetInstallSourceError.notAURL(trimmed)
         }
 

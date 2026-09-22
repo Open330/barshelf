@@ -27,6 +27,7 @@ final class StatusItemController: NSObject {
     /// Carbon global hotkey (toggles the popup; no accessibility permission).
     private var hotKeyRef: EventHotKeyRef?
     private var hotKeyEventHandler: EventHandlerRef?
+    private var registeredHotkey: HotkeyGrammar.Combination?
 
     /// Two-finger swipe tracking (scroll-wheel phases).
     private enum SwipeAxis {
@@ -186,6 +187,9 @@ final class StatusItemController: NSObject {
                 self?.updateHotkey(preferences)
             }
             .store(in: &cancellables)
+        HotkeyRegistrationCoordinator.shared.register = { [weak self] combination in
+            self?.replaceHotkey(with: combination) ?? false
+        }
         applyStatusSymbol(appPrefs.preferences.menuBarSymbol)
         updateHotkey(appPrefs.preferences)
     }
@@ -194,6 +198,7 @@ final class StatusItemController: NSObject {
         removeKeyboardMonitor()
         removeScrollMonitor()
         unregisterHotkey()
+        HotkeyRegistrationCoordinator.shared.register = nil
         if let handler = hotKeyEventHandler {
             RemoveEventHandler(handler)
         }
@@ -467,29 +472,63 @@ final class StatusItemController: NSObject {
 
     // MARK: - Global hotkey (Carbon RegisterEventHotKey — no a11y permission)
 
-    /// Re-registers the popup hotkey from the current preferences. Called on
-    /// every prefs change: unregisters first, then registers only when enabled
-    /// and the string parses. Invalid strings fail silently (no hotkey).
+    /// Synchronizes externally loaded preferences. Interactive edits go
+    /// through `replaceHotkey(with:)`, which keeps the existing registration
+    /// alive until Carbon accepts the replacement.
     private func updateHotkey(_ preferences: AppPreferences) {
-        unregisterHotkey()
-        guard preferences.popupHotkeyEnabled,
-              let combo = Self.parseHotkey(preferences.popupHotkey)
-        else { return }
-        registerHotkey(keyCode: combo.keyCode, modifiers: combo.modifiers)
+        guard preferences.popupHotkeyEnabled else {
+            unregisterHotkey()
+            registeredHotkey = nil
+            HotkeyRegistrationCoordinator.shared.registrationDidChange(isRegistered: false)
+            return
+        }
+        switch HotkeyGrammar.parse(preferences.popupHotkey) {
+        case .failure(let error):
+            disableUnregisteredHotkey(message: error.localizedDescription)
+        case .success(let combo):
+            guard combo != registeredHotkey else {
+                HotkeyRegistrationCoordinator.shared.registrationDidChange(isRegistered: true)
+                return
+            }
+            guard replaceHotkey(with: combo) else {
+                disableUnregisteredHotkey(message:
+                    "BarShelf could not register \(combo.canonicalText). It may already be used by another app."
+                )
+                return
+            }
+            HotkeyRegistrationCoordinator.shared.registrationDidChange(isRegistered: true)
+        }
     }
 
-    private func registerHotkey(keyCode: UInt32, modifiers: UInt32) {
+    /// A persisted shortcut can become unavailable while BarShelf is not
+    /// running. Do not leave Settings checked when no matching Carbon event
+    /// exists; persisting disabled also removes any older registration that we
+    /// deliberately kept alive while trying a replacement.
+    private func disableUnregisteredHotkey(message: String) {
+        HotkeyRegistrationCoordinator.shared.registrationDidChange(isRegistered: false)
+        HotkeyRegistrationCoordinator.shared.report(message)
+        guard appPrefs.preferences.popupHotkeyEnabled else { return }
+        appPrefs.update { $0.popupHotkeyEnabled = false }
+    }
+
+    /// Carbon has no safe replace operation. Register the candidate first so a
+    /// failed request never removes the shortcut the user already relies on.
+    private func replaceHotkey(with combo: HotkeyGrammar.Combination) -> Bool {
+        if combo == registeredHotkey { return true }
         installHotkeyHandlerIfNeeded()
         let hotKeyID = EventHotKeyID(
             signature: OSType(0x4253_5246 /* 'BSRF' */), id: 1
         )
-        var ref: EventHotKeyRef?
+        var newRef: EventHotKeyRef?
         let status = RegisterEventHotKey(
-            keyCode, modifiers, hotKeyID, GetApplicationEventTarget(), 0, &ref
+            combo.keyCode, combo.modifiers, hotKeyID,
+            GetApplicationEventTarget(), 0, &newRef
         )
-        if status == noErr {
-            hotKeyRef = ref
-        }
+        guard status == noErr, let newRef else { return false }
+        if let oldRef = hotKeyRef { UnregisterEventHotKey(oldRef) }
+        hotKeyRef = newRef
+        registeredHotkey = combo
+        return true
     }
 
     private func unregisterHotkey() {
@@ -525,72 +564,37 @@ final class StatusItemController: NSObject {
         togglePopup()
     }
 
-    /// Parses "cmd+shift+b"-style strings: lowercase modifiers (cmd/command,
-    /// shift, opt/option/alt, ctrl/control) plus exactly one final key, joined
-    /// by "+". Requires at least one modifier and a known key; returns nil on
-    /// anything unrecognized (caller then registers no hotkey).
-    private static func parseHotkey(_ string: String) -> (keyCode: UInt32, modifiers: UInt32)? {
-        let tokens = string.lowercased()
-            .split(separator: "+")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
-        guard !tokens.isEmpty else { return nil }
-
-        var modifiers: UInt32 = 0
-        var keyToken: String?
-        for token in tokens {
-            switch token {
-            case "cmd", "command": modifiers |= UInt32(cmdKey)
-            case "shift": modifiers |= UInt32(shiftKey)
-            case "opt", "option", "alt": modifiers |= UInt32(optionKey)
-            case "ctrl", "control": modifiers |= UInt32(controlKey)
-            default:
-                if keyToken != nil { return nil } // more than one non-modifier
-                keyToken = token
-            }
-        }
-        guard let keyToken, modifiers != 0,
-              let keyCode = keyCodes[keyToken]
-        else { return nil }
-        return (keyCode, modifiers)
-    }
-
-    /// ANSI virtual key codes for the keys we accept as a hotkey's final key.
-    private static let keyCodes: [String: UInt32] = [
-        "a": 0, "s": 1, "d": 2, "f": 3, "h": 4, "g": 5, "z": 6, "x": 7,
-        "c": 8, "v": 9, "b": 11, "q": 12, "w": 13, "e": 14, "r": 15, "y": 16,
-        "t": 17, "1": 18, "2": 19, "3": 20, "4": 21, "6": 22, "5": 23,
-        "9": 25, "7": 26, "8": 28, "0": 29, "o": 31, "u": 32, "i": 34,
-        "p": 35, "l": 37, "j": 38, "k": 40, "n": 45, "m": 46,
-        "space": 49, "return": 36, "tab": 48,
-    ]
-
     // MARK: - Keyboard (popup-scoped): ←/→ page switch, ⌘1..9 jump, Esc close
 
     private func installKeyboardMonitor() {
         removeKeyboardMonitor()
         keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
-            guard let self, self.popup.isShown else { return event }
+            guard let self, self.popup.isShown,
+                  PopupEventRouting.belongsToPopup(
+                    eventWindow: event.window, popupWindow: self.popup.eventWindow
+                  ),
+                  !self.pager.searchIsPresented else { return event }
             // Search fields and settings editors own arrows, Escape, and
             // Command-number shortcuts while they are being edited.
             if Self.isTextEditing(event.window?.firstResponder) { return event }
             let pageCount = self.runtime.pages.count
+            let modifiers = event.modifierFlags.intersection(Self.navigationModifiers)
 
             switch event.keyCode {
-            case 123: // ←
+            case 123 where modifiers.isEmpty: // ←
                 self.pager.step(-1, pageCount: pageCount)
                 return nil
-            case 124: // →
+            case 124 where modifiers.isEmpty: // →
                 self.pager.step(1, pageCount: pageCount)
                 return nil
-            case 53: // Esc
+            case 53 where modifiers.isEmpty: // Esc
                 self.popup.hide()
                 return nil
             default:
                 break
             }
 
-            if event.modifierFlags.contains(.command),
+            if modifiers == .command,
                let characters = event.charactersIgnoringModifiers,
                let digit = Int(characters), (1...9).contains(digit) {
                 self.pager.jump(to: digit - 1, pageCount: pageCount)
@@ -600,6 +604,12 @@ final class StatusItemController: NSObject {
             return event
         }
     }
+
+    /// Caps Lock, numeric-pad and function bits often accompany ordinary
+    /// arrows. Only shortcuts that change navigation semantics matter here.
+    private static let navigationModifiers: NSEvent.ModifierFlags = [
+        .command, .control, .option, .shift,
+    ]
 
     private static func isTextEditing(_ responder: NSResponder?) -> Bool {
         if let textView = responder as? NSTextView {
@@ -627,7 +637,17 @@ final class StatusItemController: NSObject {
     private func installScrollMonitor() {
         removeScrollMonitor()
         scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: [.scrollWheel]) { [weak self] event in
-            guard let self, self.popup.isShown else { return event }
+            guard let self, self.popup.isShown,
+                  PopupEventRouting.belongsToPopup(
+                    eventWindow: event.window, popupWindow: self.popup.eventWindow
+                  ) else { return event }
+            guard !self.pager.searchIsPresented else {
+                self.pager.cancelSwipe()
+                self.swipeAxis = .undecided
+                self.swipeAccumulatedX = 0
+                self.consumeMomentum = false
+                return event
+            }
             return self.handleScrollEvent(event)
         }
     }

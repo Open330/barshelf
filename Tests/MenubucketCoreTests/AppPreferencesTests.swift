@@ -22,7 +22,8 @@ final class AppPreferencesTests: XCTestCase {
             menuBarSymbol: "gauge",
             refreshMultiplier: 2,
             pauseWhenClosed: true,
-            launchAtLogin: true
+            launchAtLogin: true,
+            copySoundEnabled: true
         )
 
         try prefs.save(to: fileURL)
@@ -45,6 +46,7 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertEqual(decoded.refreshMultiplier, 1)
         XCTAssertFalse(decoded.pauseWhenClosed)
         XCTAssertFalse(decoded.launchAtLogin)
+        XCTAssertFalse(decoded.copySoundEnabled)
     }
 
     func testInitializerNormalizesMultiplierAndSymbol() {

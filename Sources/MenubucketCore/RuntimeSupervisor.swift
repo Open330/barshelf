@@ -208,12 +208,17 @@ public actor RuntimeSupervisor {
         let widgetId: String
         let timerId: String
         let repeats: Bool
+        let epoch: UInt
 
-        init(supervisor: RuntimeSupervisor, widgetId: String, timerId: String, repeats: Bool) {
+        init(
+            supervisor: RuntimeSupervisor, widgetId: String, timerId: String,
+            repeats: Bool, epoch: UInt
+        ) {
             self.supervisor = supervisor
             self.widgetId = widgetId
             self.timerId = timerId
             self.repeats = repeats
+            self.epoch = epoch
         }
 
         func fire() {
@@ -222,7 +227,8 @@ public actor RuntimeSupervisor {
                 await supervisor.timerFired(
                     widgetId: widgetId,
                     timerId: timerId,
-                    repeats: repeats
+                    repeats: repeats,
+                    epoch: epoch
                 )
             }
         }
@@ -237,6 +243,10 @@ public actor RuntimeSupervisor {
     private var crashTimes: [String: [Date]] = [:]
     private var disabledReasons: [String: String] = [:]
     private var timers: [String: [String: DispatchSourceTimer]] = [:]
+    /// Invalidates callbacks already queued by a cancelled timer. A callback
+    /// may reach the actor after `DispatchSourceTimer.cancel()`; it must not
+    /// deliver to a freshly reloaded descriptor with the same widget id.
+    private var timerEpochs: [String: UInt] = [:]
 
     public init(configuration: RuntimeSupervisorConfiguration, events: RuntimeSupervisorEvents) {
         self.configuration = configuration
@@ -291,8 +301,17 @@ public actor RuntimeSupervisor {
 
     /// Graceful shutdown: SIGTERM, escalating to SIGKILL after 2 s.
     public func stop(widgetId: String) {
-        guard let instance = instances[widgetId] else { return }
+        // Discard before signalling the process.  A disable can be followed
+        // immediately by an enable/load; keeping this instance registered
+        // would let that new load reuse a process that is about to die.
+        guard let instance = instances.removeValue(forKey: widgetId) else {
+            cancelTimers(widgetId: widgetId)
+            descriptors.removeValue(forKey: widgetId)
+            return
+        }
         instance.stopping = true
+        instance.readTask?.cancel()
+        try? instance.stdinHandle.close()
         let process = instance.process
         if process.isRunning {
             process.terminate()
@@ -302,14 +321,18 @@ public actor RuntimeSupervisor {
             }
         }
         cancelTimers(widgetId: widgetId)
+        descriptors.removeValue(forKey: widgetId)
     }
 
     /// Stops every widget not in `keeping` (hot-reload cleanup).
     public func retain(widgetIds keeping: Set<String>) {
-        for id in instances.keys where !keeping.contains(id) {
+        let staleDescriptorIDs = Set(descriptors.keys).subtracting(keeping)
+        for id in Array(instances.keys) where !keeping.contains(id) {
             stop(widgetId: id)
         }
-        for id in descriptors.keys where !keeping.contains(id) {
+        // `stop` discards descriptors to keep late timer callbacks from
+        // respawning a disabled process, so capture this set before stopping.
+        for id in staleDescriptorIDs {
             descriptors.removeValue(forKey: id)
             disabledReasons.removeValue(forKey: id)
             crashTimes.removeValue(forKey: id)
@@ -318,7 +341,7 @@ public actor RuntimeSupervisor {
     }
 
     public func stopAll() {
-        for id in instances.keys { stop(widgetId: id) }
+        for id in Array(instances.keys) { stop(widgetId: id) }
     }
 
     private func terminateAndDiscard(widgetId: String) {
@@ -397,14 +420,18 @@ public actor RuntimeSupervisor {
         }
 
         startStderrDrain(widgetId: widgetId, handle: stderrPipe.fileHandleForReading)
-        instance.readTask = startStdoutReader(widgetId: widgetId, handle: stdoutPipe.fileHandleForReading)
+        instance.readTask = startStdoutReader(
+            widgetId: widgetId, instance: instance, handle: stdoutPipe.fileHandleForReading
+        )
         instances[widgetId] = instance
         events.onStateChange(widgetId, .running)
         return instance
     }
 
     /// stdout: newline-delimited JSON-RPC, 1 MB per-line limit.
-    private func startStdoutReader(widgetId: String, handle: FileHandle) -> Task<Void, Never> {
+    private func startStdoutReader(
+        widgetId: String, instance: ScriptInstance, handle: FileHandle
+    ) -> Task<Void, Never> {
         let maxLineBytes = configuration.maxStdoutLineBytes
         let stream = AsyncStream<StdoutEvent> { continuation in
             let buffer = LineBuffer()
@@ -425,9 +452,9 @@ public actor RuntimeSupervisor {
                 guard let self else { break }
                 switch event {
                 case let .line(data):
-                    await self.handleLine(widgetId: widgetId, line: data)
+                    await self.handleLine(widgetId: widgetId, instance: instance, line: data)
                 case .overflow:
-                    await self.handleLineOverflow(widgetId: widgetId)
+                    await self.handleLineOverflow(widgetId: widgetId, instance: instance)
                 }
             }
         }
@@ -459,8 +486,10 @@ public actor RuntimeSupervisor {
         }
     }
 
-    private func handleLine(widgetId: String, line: Data) async {
-        guard let instance = instances[widgetId] else { return }
+    private func handleLine(widgetId: String, instance: ScriptInstance, line: Data) async {
+        // Reader tasks outlive pipe cancellation briefly.  Never route an old
+        // process's request through a replacement process with the same id.
+        guard instances[widgetId] === instance, !instance.stopping else { return }
         do {
             let message = try JsonRpcCodec.decode(line: line)
             guard case let .request(request) = message else {
@@ -477,7 +506,8 @@ public actor RuntimeSupervisor {
         }
     }
 
-    private func handleLineOverflow(widgetId: String) {
+    private func handleLineOverflow(widgetId: String, instance: ScriptInstance) {
+        guard instances[widgetId] === instance, !instance.stopping else { return }
         widgetLog(
             widgetId, "error",
             "stdout line exceeded \(configuration.maxStdoutLineBytes) bytes — terminating script"
@@ -857,7 +887,8 @@ public actor RuntimeSupervisor {
             supervisor: self,
             widgetId: widgetId,
             timerId: timerId,
-            repeats: repeats
+            repeats: repeats,
+            epoch: timerEpochs[widgetId, default: 0]
         )
         source.setEventHandler {
             callback.fire()
@@ -868,7 +899,10 @@ public actor RuntimeSupervisor {
 
     /// Timer metadata lives host-side: firing respawns a dead script process
     /// before delivering `widget.timer` (unless the widget is disabled).
-    private func timerFired(widgetId: String, timerId: String, repeats: Bool) async {
+    private func timerFired(
+        widgetId: String, timerId: String, repeats: Bool, epoch: UInt
+    ) async {
+        guard timerEpochs[widgetId, default: 0] == epoch else { return }
         if !repeats {
             timers[widgetId]?.removeValue(forKey: timerId)?.cancel()
         }
@@ -883,6 +917,7 @@ public actor RuntimeSupervisor {
     }
 
     private func cancelTimers(widgetId: String) {
+        timerEpochs[widgetId, default: 0] &+= 1
         if let widgetTimers = timers[widgetId] {
             for timer in widgetTimers.values { timer.cancel() }
         }

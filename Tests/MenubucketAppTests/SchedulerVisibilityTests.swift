@@ -193,6 +193,7 @@ final class SchedulerVisibilityTests: XCTestCase {
 
         scheduler.configure(widgets: [])
         XCTAssertTrue(scheduler.activeIntervalWidgetIDs.isEmpty)
+        XCTAssertFalse(scheduler.holdsActivityAssertion)
         // Re-adding the widget must not silently resurrect its promotion.
         scheduler.configure(widgets: [promoted])
         XCTAssertTrue(scheduler.activeIntervalWidgetIDs.isEmpty)

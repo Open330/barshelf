@@ -140,6 +140,27 @@ struct ScriptRefreshCoalescer {
     }
 }
 
+/// Thread-safe invalidation tokens for callbacks crossing from the script
+/// supervisor to the main actor.  A queued render from a process stopped by a
+/// disable must not be applied if the widget is enabled again before the main
+/// queue drains it.
+final class ScriptCallbackGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var epochs: [String: UInt] = [:]
+
+    func token(for widgetID: String) -> UInt {
+        lock.withLock { epochs[widgetID, default: 0] }
+    }
+
+    func invalidate(widgetID: String) {
+        lock.withLock { epochs[widgetID, default: 0] &+= 1 }
+    }
+
+    func accepts(widgetID: String, token: UInt) -> Bool {
+        lock.withLock { epochs[widgetID, default: 0] == token }
+    }
+}
+
 /// Loads manifests, delegates trigger scheduling to `Scheduler`, and publishes
 /// per-widget snapshots.
 ///
@@ -176,6 +197,10 @@ final class WidgetRuntime: ObservableObject {
     private var cancellables: Set<AnyCancellable> = []
     private var inFlight: Set<String> = []
     private var scriptRefreshes = ScriptRefreshCoalescer()
+    private let scriptCallbackGate = ScriptCallbackGate()
+    /// Shutdowns started by Disable. Re-enable waits for this task so a late
+    /// stop cannot terminate the newly launched process.
+    private var scriptDisableStopTokens: [String: UInt] = [:]
     /// Selected-page widgets plus pinned widgets. Automatic refresh and
     /// permission-triggering work is lazy outside this set.
     private(set) var visibleWidgetIDs: Set<String> = []
@@ -378,26 +403,36 @@ final class WidgetRuntime: ObservableObject {
         )
         let events = RuntimeSupervisorEvents(
             onRender: { widgetId, params, revision in
+                let token = weakRuntime.value?.scriptCallbackGate.token(for: widgetId)
                 DispatchQueue.main.async {
+                    guard let token else { return }
                     weakRuntime.value?.handleScriptRender(
                         widgetId: widgetId,
                         params: params,
-                        revision: revision
+                        revision: revision,
+                        callbackToken: token
                     )
                 }
             },
             onLoadComplete: { widgetId, generation, error in
+                let token = weakRuntime.value?.scriptCallbackGate.token(for: widgetId)
                 DispatchQueue.main.async {
+                    guard let token else { return }
                     weakRuntime.value?.handleScriptLoadComplete(
                         widgetId: widgetId,
                         generation: generation,
-                        error: error
+                        error: error,
+                        callbackToken: token
                     )
                 }
             },
             onStateChange: { widgetId, state in
+                let token = weakRuntime.value?.scriptCallbackGate.token(for: widgetId)
                 DispatchQueue.main.async {
-                    weakRuntime.value?.handleScriptStateChange(widgetId: widgetId, state: state)
+                    guard let token else { return }
+                    weakRuntime.value?.handleScriptStateChange(
+                        widgetId: widgetId, state: state, callbackToken: token
+                    )
                 }
             },
             onWidgetLog: { widgetId, level, message in
@@ -411,10 +446,15 @@ final class WidgetRuntime: ObservableObject {
         return supervisor
     }
 
-    private func handleScriptRender(widgetId: String, params: RenderParams, revision: Int) {
-        guard let widget = widgets.first(where: { $0.id == widgetId }) else { return }
+    private func handleScriptRender(
+        widgetId: String, params: RenderParams, revision: Int, callbackToken: UInt
+    ) {
+        guard scriptCallbackGate.accepts(widgetID: widgetId, token: callbackToken),
+              scriptDisableStopTokens[widgetId] == nil,
+              !prefs.isDisabled(widgetId),
+              let widget = widgets.first(where: { $0.id == widgetId }) else { return }
         if let generation = params.loadGeneration {
-            _ = scriptRefreshes.markRendered(widgetID: widgetId, generation: generation)
+            guard scriptRefreshes.markRendered(widgetID: widgetId, generation: generation) else { return }
         }
         var snapshot = snapshots[widgetId] ?? WidgetSnapshot(widgetID: widgetId)
         snapshot.isLoading = false
@@ -450,8 +490,11 @@ final class WidgetRuntime: ObservableObject {
     }
 
     private func handleScriptLoadComplete(
-        widgetId: String, generation: String, error: String?
+        widgetId: String, generation: String, error: String?, callbackToken: UInt
     ) {
+        guard scriptCallbackGate.accepts(widgetID: widgetId, token: callbackToken),
+              scriptDisableStopTokens[widgetId] == nil,
+              !prefs.isDisabled(widgetId) else { return }
         guard let rendered = scriptRefreshes.finish(
             widgetID: widgetId, generation: generation
         ) else { return }
@@ -474,7 +517,12 @@ final class WidgetRuntime: ObservableObject {
         }
     }
 
-    private func handleScriptStateChange(widgetId: String, state: ScriptWidgetState) {
+    private func handleScriptStateChange(
+        widgetId: String, state: ScriptWidgetState, callbackToken: UInt
+    ) {
+        guard scriptCallbackGate.accepts(widgetID: widgetId, token: callbackToken),
+              scriptDisableStopTokens[widgetId] == nil,
+              !prefs.isDisabled(widgetId) else { return }
         switch state {
         case .running:
             break
@@ -1092,11 +1140,34 @@ final class WidgetRuntime: ObservableObject {
     func setWidgetDisabled(_ id: String, _ flag: Bool) {
         guard prefs.isDisabled(id) != flag else { return }
         prefs.setDisabled(id, flag)
+        if flag {
+            scriptCallbackGate.invalidate(widgetID: id)
+            if scriptRefreshes.cancel(widgetID: id) {
+                updateSnapshot(id) { $0.isLoading = false }
+            }
+            inFlight.remove(id)
+            if let supervisor = scriptSupervisorStorage {
+                let stopToken = scriptCallbackGate.token(for: id)
+                let stop = Task { await supervisor.stop(widgetId: id) }
+                scriptDisableStopTokens[id] = stopToken
+                Task { @MainActor [weak self] in
+                    await stop.value
+                    guard let self, self.scriptDisableStopTokens[id] == stopToken else { return }
+                    // Callbacks emitted after Disable invalidated the first
+                    // epoch but before the supervisor finished stopping used
+                    // that new epoch. Invalidate once more before allowing a
+                    // quick re-enable to start its replacement process.
+                    self.scriptCallbackGate.invalidate(widgetID: id)
+                    self.scriptDisableStopTokens.removeValue(forKey: id)
+                    if !self.prefs.isDisabled(id) { self.refresh(widgetID: id, manual: true) }
+                }
+            }
+        }
         scheduler.configure(widgets: widgets.filter { !prefs.isDisabled($0.id) })
         setVisibleWidgetIDs(visibleWidgetIDs)
         syncMenuBar()
         objectWillChange.send()
-        if !flag {
+        if !flag, scriptDisableStopTokens[id] == nil {
             refresh(widgetID: id, manual: true)
         }
     }
@@ -1486,6 +1557,8 @@ final class WidgetRuntime: ObservableObject {
     func refresh(_ widget: LoadedWidget, manual: Bool = true) {
         let id = widget.id
         guard !prefs.isDisabled(id) else { return } // disabled widgets never run
+        guard scriptDisableStopTokens[id] == nil else { return }
+        if manual { RemoteImageService.shared.retryFailedImages() }
         guard !inFlight.contains(id) else { return } // in-flight coalescing
         if !manual, !scheduler.allowsAutomaticRefresh(widgetID: id) {
             return // exponential backoff window — automatic triggers suppressed

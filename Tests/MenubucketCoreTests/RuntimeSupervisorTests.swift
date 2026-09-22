@@ -250,6 +250,28 @@ final class RuntimeSupervisorTests: XCTestCase {
         await supervisor.stopAll()
     }
 
+    func testStopCancelsHostTimersAndAllowsAFreshLoad() async throws {
+        let capture = RenderCapture()
+        let (supervisor, widget) = try makeSupervisor(
+            scenario: "timer", manifest: makeManifest(), capture: capture
+        )
+        try await supervisor.load(widget, reason: "open")
+        let armed = await capture.waitForCount(1)
+        XCTAssertTrue(armed)
+
+        await supervisor.stop(widgetId: widget.id)
+        try? await Task.sleep(nanoseconds: 250_000_000)
+        XCTAssertEqual(capture.captured, ["timer-armed"])
+        let runningAfterStop = await supervisor.isRunning(widgetId: widget.id)
+        XCTAssertFalse(runningAfterStop)
+
+        try await supervisor.load(widget, reason: "open")
+        let reloaded = await capture.waitForCount(3)
+        XCTAssertTrue(reloaded)
+        XCTAssertEqual(Array(capture.captured.suffix(2)), ["timer-armed", "timer-fired"])
+        await supervisor.stopAll()
+    }
+
     func testActionIsForwardedToScript() async throws {
         let capture = RenderCapture()
         let (supervisor, widget) = try makeSupervisor(

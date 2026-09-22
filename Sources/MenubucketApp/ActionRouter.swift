@@ -22,11 +22,12 @@ enum ActionRouter {
                     }
                 }
             }
-            // In-popup confirmation toast; the beep is kept as an audible
-            // fallback for when the popup (and thus the toast) is closed.
+            // Always confirm visually; sound is an explicit user preference.
             // Never log the copied value — it may be sensitive.
             Task { @MainActor in ToastCenter.shared.show(action.toast ?? "Copied") }
-            NSSound.beep()
+            if (runtime?.appPrefs ?? AppPrefs.shared).preferences.copySoundEnabled {
+                NSSound.beep()
+            }
             NSLog("barshelf: copied text for \(widgetID)%@",
                   action.toast.map { " (\($0))" } ?? "")
 

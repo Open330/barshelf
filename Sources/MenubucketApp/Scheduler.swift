@@ -118,6 +118,11 @@ final class Scheduler {
         lastAutoRefreshAt = lastAutoRefreshAt.filter { liveIDs.contains($0.key) }
         visibleWidgetIDs.formIntersection(liveIDs)
         menuBarWidgetIDs.formIntersection(liveIDs)
+        // `setMenuBarWidgetIDs` normally owns this transition, but a reload
+        // or disable removes ids directly during configuration.  Release the
+        // assertion here too; otherwise the now-empty promoted set can keep
+        // this accessory app out of App Nap for the rest of its lifetime.
+        updateActivityAssertion()
         pendingAutomaticEvents.formIntersection(liveIDs)
         rebuildIntervalTimers()
         rebuildDeadlineTimers()

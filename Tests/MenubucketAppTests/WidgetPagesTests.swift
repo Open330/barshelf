@@ -59,19 +59,34 @@ final class WidgetPagesTests: XCTestCase {
         XCTAssertEqual(pages.map(\.group), ["General"])
     }
 
-    func testVisibleWidgetIDsContainOnlySelectedPageAndPinnedWidgets() {
+    func testVisibleWidgetIDsContainSelectedPageAndOnlyDisplayedEnabledPins() {
         let pages = [
-            WidgetPage(group: "First", widgets: [widget("a", group: "First", order: 0)]),
-            WidgetPage(group: "Third", widgets: [widget("reminders", group: "Third", order: 0)]),
+            WidgetPage(group: "First", widgets: [
+                widget("a", group: "First", order: 0),
+                widget("pinned-1", group: "First", order: 1),
+            ]),
+            WidgetPage(group: "Third", widgets: [
+                widget("reminders", group: "Third", order: 0),
+                widget("pinned-2", group: "Third", order: 1),
+                widget("pinned-hidden", group: "Third", order: 2),
+            ]),
         ]
 
         XCTAssertEqual(
-            RootView.visibleWidgetIDs(pages: pages, index: 0, pinned: ["pinned"]),
-            ["a", "pinned"]
+            RootView.visibleWidgetIDs(
+                pages: pages, index: 0,
+                pinnedIDs: ["disabled", "pinned-1", "pinned-2", "pinned-hidden"]
+            ),
+            ["a", "pinned-1", "pinned-2"]
         )
         XCTAssertEqual(
-            RootView.visibleWidgetIDs(pages: pages, index: 1, pinned: ["pinned"]),
-            ["reminders", "pinned"]
+            RootView.visibleWidgetIDs(
+                pages: pages, index: 1,
+                pinnedIDs: ["disabled", "pinned-1", "pinned-2", "pinned-hidden"]
+            ),
+            // The overflow pin still runs while its regular card is on the
+            // selected page, even though it is absent from the pinned strip.
+            ["reminders", "pinned-1", "pinned-2", "pinned-hidden"]
         )
     }
 
@@ -82,6 +97,19 @@ final class WidgetPagesTests: XCTestCase {
         XCTAssertFalse(RootView.pageContentIsActive(
             pageID: "Files", selectedPageID: "Agents"
         ))
+    }
+
+    func testOpeningSearchCancelsAnInProgressPagerSwipe() {
+        let pager = PagerState()
+        pager.beginSwipe()
+        pager.updateSwipe(totalDeltaX: -90, pageCount: 3)
+        XCTAssertTrue(pager.isSwiping)
+        XCTAssertEqual(pager.dragOffset, -90)
+
+        pager.setSearchPresented(true)
+        XCTAssertTrue(pager.searchIsPresented)
+        XCTAssertFalse(pager.isSwiping)
+        XCTAssertEqual(pager.dragOffset, 0)
     }
 
     func testInstanceDirectorySuffixCreatesIndependentDisplayIdentity() {
@@ -201,5 +229,14 @@ final class ScriptRefreshCoalescerTests: XCTestCase {
         XCTAssertNil(coalescer.finish(widgetID: "muxa", generation: "first"))
         XCTAssertFalse(coalescer.begin(widgetID: "muxa", generation: "third"))
         XCTAssertEqual(coalescer.finish(widgetID: "muxa", generation: "second"), false)
+    }
+
+    func testCallbackGateRejectsQueuedCallbacksAfterDisableAndReenable() {
+        let gate = ScriptCallbackGate()
+        let oldToken = gate.token(for: "muxa")
+        gate.invalidate(widgetID: "muxa")
+
+        XCTAssertFalse(gate.accepts(widgetID: "muxa", token: oldToken))
+        XCTAssertTrue(gate.accepts(widgetID: "muxa", token: gate.token(for: "muxa")))
     }
 }

@@ -34,7 +34,8 @@ final class AppPrefs: ObservableObject {
             pauseWhenClosed: copy.pauseWhenClosed,
             launchAtLogin: copy.launchAtLogin,
             popupHotkeyEnabled: copy.popupHotkeyEnabled,
-            popupHotkey: copy.popupHotkey
+            popupHotkey: copy.popupHotkey,
+            copySoundEnabled: copy.copySoundEnabled
         )
         preferences = copy
     }

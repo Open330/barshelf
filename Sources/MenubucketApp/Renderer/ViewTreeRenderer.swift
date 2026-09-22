@@ -782,7 +782,7 @@ private struct FileImageView: View {
     let path: String
     let pointSize: CGFloat
 
-    @State private var thumbnail: NSImage?
+    @StateObject private var loader = WidgetImageLoader()
     @Environment(\.localFileReadPaths) private var localFileReadPaths
     @Environment(\.widgetContentIsActive) private var contentIsActive
 
@@ -798,7 +798,7 @@ private struct FileImageView: View {
                 Image(systemName: "doc")
                     .resizable()
             } else if isAllowed {
-                Image(nsImage: thumbnail ?? ThumbnailService.shared.icon(forPath: path))
+                Image(nsImage: loader.image(for: cacheIdentity) ?? ThumbnailService.shared.icon(forPath: path))
                     .resizable()
             } else {
                 Image(systemName: "lock.fill")
@@ -811,31 +811,35 @@ private struct FileImageView: View {
             .accessibilityLabel((path as NSString).lastPathComponent)
             .onAppear(perform: load)
             .onChange(of: cacheIdentity) { _ in
-                thumbnail = nil
+                loader.reset()
+                load()
+            }
+            .onChange(of: localFileReadPaths) { _ in
+                loader.reset()
                 load()
             }
             .onChange(of: contentIsActive) { active in
-                if active { load() }
+                if active { load() } else { loader.reset() }
             }
+            .onDisappear { loader.reset() }
     }
 
-    /// Path + mtime — a re-render after a file change reloads the thumbnail.
+    /// Include size and kind so resizing or switching to an icon cannot reuse
+    /// a thumbnail requested for a previous rendering of this view.
     private var cacheIdentity: String {
-        "\(path)-\(Int(source.modifiedAt ?? 0))"
+        "\(source.kind)-\(path)-\(source.modifiedAt ?? 0)-\(pointSize)"
     }
 
     private func load() {
         guard contentIsActive, isAllowed, source.kind == "fileThumbnail" else { return }
-        let expected = cacheIdentity
-        let cached = ThumbnailService.shared.thumbnail(
-            path: path,
-            modifiedAt: source.modifiedAt,
-            pointSize: pointSize
-        ) { image in
-            guard cacheIdentity == expected, let image else { return }
-            thumbnail = image
+        loader.load(identity: cacheIdentity) { completion in
+            ThumbnailService.shared.thumbnail(
+                path: path,
+                modifiedAt: source.modifiedAt,
+                pointSize: pointSize,
+                completion: completion
+            )
         }
-        if let cached { thumbnail = cached }
     }
 }
 
@@ -855,11 +859,15 @@ private struct RemoteImageView: View {
     @Environment(\.remoteImageHosts) private var allowedHosts
     @Environment(\.widgetAppearance) private var appearance
     @Environment(\.widgetContentIsActive) private var contentIsActive
-    @State private var image: NSImage?
+    @StateObject private var loader = WidgetImageLoader()
+
+    private var isAllowed: Bool {
+        WidgetRuntime.networkHostAllowed(url: url, allowlist: allowedHosts)
+    }
 
     var body: some View {
         Group {
-            if let image {
+            if isAllowed, let image = loader.image(for: url) {
                 Image(nsImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
@@ -876,24 +884,27 @@ private struct RemoteImageView: View {
         .accessibilityLabel(accessibilityLabel ?? "")
         .onAppear(perform: load)
         .onChange(of: url) { _ in
-            image = nil
+            loader.reset()
+            load()
+        }
+        .onChange(of: allowedHosts) { _ in
+            loader.reset()
             load()
         }
         .onChange(of: contentIsActive) { active in
-            if active { load() }
+            if active { load() } else { loader.reset() }
+        }
+        .onDisappear { loader.reset() }
+        .onReceive(NotificationCenter.default.publisher(for: .barshelfRemoteImageRetry)) { _ in
+            if loader.image(for: url) == nil { load() }
         }
     }
 
     private func load() {
-        guard contentIsActive,
-              WidgetRuntime.networkHostAllowed(url: url, allowlist: allowedHosts)
-        else { return }
-        let expected = url
-        let cached = RemoteImageService.shared.image(forURL: url) { loaded in
-            guard url == expected, let loaded else { return }
-            image = loaded
+        guard contentIsActive, isAllowed else { return }
+        loader.load(identity: url) { completion in
+            RemoteImageService.shared.image(forURL: url, completion: completion)
         }
-        if let cached { image = cached }
     }
 }
 
