@@ -127,3 +127,34 @@ final class MenuBarControllerTests: XCTestCase {
     }
 
 }
+
+/// A tooltip that moves while the drawn reading does not must not redraw the
+/// item — the System widget's tooltip names CPU, memory and disk, so without
+/// this the RAM item repainted every time CPU changed.
+final class MenuBarRedrawDecisionTests: XCTestCase {
+    private func entry(label: String, tooltip: String, stale: Bool = false) -> MenuBarEntry {
+        MenuBarEntry(
+            widgetID: "dev.barshelf.system--ram", name: "System",
+            symbol: "memorychip", prefix: "RAM", style: .stacked,
+            label: label, tooltip: tooltip, isStale: stale, separate: true
+        )
+    }
+
+    func testATooltipOnlyChangeDrawsTheSame() {
+        XCTAssertTrue(MenuBarController.drawsIdentically(
+            entry(label: "62%", tooltip: "CPU 12% · Memory 62%"),
+            entry(label: "62%", tooltip: "CPU 31% · Memory 62%")
+        ))
+    }
+
+    func testAnythingDrawnStillRedraws() {
+        let base = entry(label: "62%", tooltip: "t")
+        XCTAssertFalse(MenuBarController.drawsIdentically(base, entry(label: "63%", tooltip: "t")))
+        XCTAssertFalse(MenuBarController.drawsIdentically(
+            base, entry(label: "62%", tooltip: "t", stale: true)
+        ), "going stale dims the item")
+        var tinted = base
+        tinted.tint = .warning
+        XCTAssertFalse(MenuBarController.drawsIdentically(base, tinted))
+    }
+}
