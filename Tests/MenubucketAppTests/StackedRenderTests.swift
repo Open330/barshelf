@@ -110,6 +110,59 @@ final class StackedRenderTests: XCTestCase {
         )
     }
 
+    /// The rows have to *fill* the bar, not sit politely in the middle of it.
+    ///
+    /// The first version reserved each row's line box, which carries about a
+    /// quarter of its height in leading the glyphs never use — so the digits
+    /// came out visibly smaller than a system monitor's. Packing by cap height
+    /// instead is what buys that back, and this is the assertion that stops it
+    /// being given away again.
+    func testTheRowsFillMostOfTheBarHeight() throws {
+        let height: CGFloat = 22
+        let image = MenuBarController.stackedImage(
+            entry(prefix: "RAM", value: "67%"), height: height
+        )
+        let bitmap = try XCTUnwrap(NSBitmapImageRep(data: image.tiffRepresentation ?? Data()))
+
+        var top: Int?
+        var bottom: Int?
+        for y in 0..<bitmap.pixelsHigh {
+            let inked = (0..<bitmap.pixelsWide).contains {
+                (bitmap.colorAt(x: $0, y: y)?.alphaComponent ?? 0) > 0.15
+            }
+            if inked {
+                if top == nil { top = y }
+                bottom = y
+            }
+        }
+        let first = try XCTUnwrap(top)
+        let last = try XCTUnwrap(bottom)
+        let covered = CGFloat(last - first + 1) / CGFloat(bitmap.pixelsHigh)
+        XCTAssertGreaterThan(
+            covered, 0.75,
+            "the two rows only cover \(Int(covered * 100))% of the bar; they should fill it"
+        )
+    }
+
+    /// The fitted value size has to grow with the bar rather than staying at
+    /// whatever suits 22 points, and stop before it reads as another app's.
+    func testTheTypeIsFittedToTheBarAndCapped() {
+        let small = MenuBarController.stackedFonts(for: 18).value.pointSize
+        let normal = MenuBarController.stackedFonts(for: 22).value.pointSize
+        let tall = MenuBarController.stackedFonts(for: 40).value.pointSize
+        XCTAssertLessThan(small, normal)
+        XCTAssertGreaterThan(normal, 11, "the value should fill a 22pt bar, not hide in it")
+        XCTAssertLessThanOrEqual(tall, MenuBarController.stackedMaxValuePointSize)
+    }
+
+    /// Cap height plus descender, not the line box — the difference is the
+    /// leading, and reserving it is what made the type small.
+    func testARowIsMeasuredByItsInkNotItsLineBox() {
+        let font = NSFont.systemFont(ofSize: 12, weight: .medium)
+        let lineBox = NSAttributedString(string: "CPU", attributes: [.font: font]).size().height
+        XCTAssertLessThan(MenuBarController.inkHeight(of: font), lineBox * 0.85)
+    }
+
     /// A template image is tinted by the status item, which is what makes it
     /// follow a light or dark menu bar instead of staying black.
     func testTheImageIsATemplateSoTheMenuBarTintsIt() {
