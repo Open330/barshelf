@@ -368,7 +368,7 @@ public actor RuntimeSupervisor {
         process.currentDirectoryURL = plan.currentDirectory ?? widget.directory
         process.environment = ExecService.childEnvironment(extraEnvironment: plan.environment)
 
-        let stdinPipe = Pipe()
+        let stdinPipe = Self.makeStdinPipe()
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
         process.standardInput = stdinPipe
@@ -528,6 +528,24 @@ public actor RuntimeSupervisor {
     }
 
     // MARK: - Outbound writes
+
+    /// A pipe for a child's stdin that reports a dead reader as an error
+    /// instead of killing the host.
+    ///
+    /// Writing to a pipe whose reader has exited raises SIGPIPE, and its
+    /// default action terminates the *writing* process before `write` can
+    /// throw. A script widget that exits — crashes, or finishes on its own —
+    /// between the host's last check and its next message (a refresh, an
+    /// action, a timer) therefore took all of BarShelf down with it. CI saw
+    /// it as `xctest exited with unexpected signal code 13` in whichever
+    /// supervisor test lost the race. `F_SETNOSIGPIPE` is scoped to this one
+    /// descriptor, so the write fails with EPIPE, `send` throws, and the
+    /// termination handler deals with the exit as it does any other.
+    static func makeStdinPipe() -> Pipe {
+        let pipe = Pipe()
+        _ = fcntl(pipe.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1)
+        return pipe
+    }
 
     private func send(method: String, params: JSONValue?, to instance: ScriptInstance) throws {
         let request = JsonRpcRequest(id: nil, method: method, params: params)
