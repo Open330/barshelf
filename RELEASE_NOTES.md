@@ -27,3 +27,22 @@
   shared strip is a touch heavier than menu text. Menu bar readings are whole
   numbers now — a decimal in a 12-point slot buys nothing and costs width.
   The card still shows the precise figure.
+
+## Settings
+
+- **The menu bar settings were a pile.** They had grown a control at a time
+  without anyone standing back: two unlabelled radio groups in a row, so four
+  buttons with nothing saying which question either pair answered; the icon
+  field and the checkbox governing it separated by another control; and one
+  paragraph of help covering three unrelated things.
+
+  Each row now states its question — Item, Layout, Label, Icon — with its hint
+  underneath it, and a **live preview** shows the item as the menu bar will
+  actually draw it, using the menu bar's own renderer so it cannot drift into
+  describing something else.
+
+- **One control per decision.** The System widget carried its own "Value only /
+  With label" setting, which did the same job as the Label field a layer above
+  it — turn both on and the bar read `CPU CPU 23%`. The widget-specific one is
+  gone; the Label field works for every widget and can now be switched off, so
+  "just the number" is still sayable.

@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.system",
   "name": "System",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "icon": "cpu.fill",
   "bucket": {
     "group": "System",
@@ -45,20 +45,6 @@
         "CPU",
         "Memory",
         "Disk"
-      ]
-    },
-    {
-      "key": "menuBarStyle",
-      "title": "Menu bar style",
-      "type": "enum",
-      "default": "value",
-      "options": [
-        "value",
-        "labeled"
-      ],
-      "optionTitles": [
-        "Value only",
-        "With label"
       ]
     }
   ],

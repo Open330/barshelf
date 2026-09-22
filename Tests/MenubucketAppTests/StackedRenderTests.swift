@@ -201,3 +201,43 @@ final class StackedRenderTests: XCTestCase {
         }
     }
 }
+
+/// The settings pane draws its preview with the menu bar's own renderer, so a
+/// described-but-wrong preview cannot drift into existence.
+@MainActor
+final class MenuBarPreviewTests: XCTestCase {
+    private func entry(_ style: MenuBarStyle, tint: MenuBarTint? = nil) -> MenuBarEntry {
+        MenuBarEntry(
+            widgetID: "w", name: "System", symbol: "cpu.fill",
+            prefix: "CPU", style: style, tint: tint, label: "23%"
+        )
+    }
+
+    func testBothLayoutsPreviewAsSomethingVisible() {
+        for style in MenuBarStyle.allCases {
+            let image = MenuBarController.previewImage(for: entry(style), height: 22)
+            XCTAssertEqual(image.size.height, 22, "\(style)")
+            XCTAssertGreaterThan(image.size.width, 12, "\(style) previewed as a sliver")
+        }
+    }
+
+    /// The preview has to carry the same template/tint trade the real item
+    /// makes, or a coloured item would preview in the pane's own colour.
+    func testThePreviewKeepsTheTemplateRule() {
+        XCTAssertTrue(MenuBarController.previewImage(for: entry(.inline)).isTemplate)
+        XCTAssertFalse(
+            MenuBarController.previewImage(for: entry(.inline, tint: .danger)).isTemplate
+        )
+    }
+
+    /// The stacked preview is the stacked renderer, not a lookalike.
+    func testTheStackedPreviewIsTheStackedRenderer() {
+        let direct = MenuBarController.stackedImage(
+            entry(.stacked),
+            symbol: MenuBarController.symbolImage(named: "cpu.fill", describedAs: "System"),
+            height: 22
+        )
+        let preview = MenuBarController.previewImage(for: entry(.stacked), height: 22)
+        XCTAssertEqual(preview.size, direct.size)
+    }
+}
