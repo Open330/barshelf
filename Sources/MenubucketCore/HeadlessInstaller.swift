@@ -396,21 +396,39 @@ public enum HeadlessInstaller {
     public static func install(
         _ candidate: InstallCandidate, into widgetsDir: URL
     ) throws -> URL {
+        try installDirectory(
+            from: candidate.sourceDirectory,
+            to: widgetsDir.appendingPathComponent(
+                candidate.manifest.id, isDirectory: true
+            )
+        )
+    }
+
+    /// The install transaction itself: copy `source` to a hidden sibling of
+    /// `destination`, check it carries a `widget.json`, then rename it over
+    /// the live directory. A failure at any point removes the staging copy
+    /// and restores the backup, so the previous widget survives intact.
+    ///
+    /// The bundled-widget refresher reuses this to update an install whose
+    /// directory is not named after the widget id (first-run seeding copied
+    /// starters under their *folder* name), so the destination is passed in
+    /// whole rather than derived from the manifest.
+    @discardableResult
+    public static func installDirectory(from source: URL, to destination: URL) throws -> URL {
         let fm = FileManager.default
+        let widgetsDir = destination.deletingLastPathComponent()
         try fm.createDirectory(at: widgetsDir, withIntermediateDirectories: true)
 
-        let destination = widgetsDir.appendingPathComponent(
-            candidate.manifest.id, isDirectory: true
-        )
+        let name = destination.lastPathComponent
         let transactionID = UUID().uuidString
         let staging = widgetsDir.appendingPathComponent(
-            ".install-\(candidate.manifest.id)-\(transactionID)", isDirectory: true
+            ".install-\(name)-\(transactionID)", isDirectory: true
         )
-        let backupName = ".backup-\(candidate.manifest.id)-\(transactionID)"
+        let backupName = ".backup-\(name)-\(transactionID)"
         let backup = widgetsDir.appendingPathComponent(backupName, isDirectory: true)
 
         do {
-            try fm.copyItem(at: candidate.sourceDirectory, to: staging)
+            try fm.copyItem(at: source, to: staging)
             guard fm.fileExists(
                 atPath: staging.appendingPathComponent("widget.json").path
             ) else {

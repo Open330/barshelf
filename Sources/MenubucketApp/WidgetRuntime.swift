@@ -221,6 +221,7 @@ final class WidgetRuntime: ObservableObject {
             }
             .store(in: &cancellables)
         seedStarterWidgets()
+        refreshBundledWidgets()
         loadWidgets()
         startHotReload()
         startMenuBarStalenessTicker()
@@ -259,6 +260,39 @@ final class WidgetRuntime: ObservableObject {
                 outcome.seededNames.joined(separator: ", ")
             )
             prefs.markWelcomePending()
+        }
+    }
+
+    /// Widget behaviour is data (`widget.json` / `workflow.json`), and until
+    /// now that data only ever reached a Mac through a manual
+    /// `barshelf install`: seeding is one-time, so an already-installed
+    /// widget stayed frozen at whatever version first landed. Every launch
+    /// now swaps in the bundled copy of an installed widget when the app
+    /// ships a newer version of it, leaving deleted and locally edited
+    /// widgets alone. Runs before `loadWidgets()` so the fresh files are what
+    /// gets loaded.
+    private func refreshBundledWidgets() {
+        let outcome = BundledWidgetRefresher.refreshIfNeeded(
+            bundledWidgetsDirectory: Bundle.main.resourceURL?
+                .appendingPathComponent("widgets", isDirectory: true),
+            userWidgetsDirectory: Self.applicationSupportDirectory
+                .appendingPathComponent("widgets", isDirectory: true),
+            developmentWidgetsDirectory: URL(
+                fileURLWithPath: FileManager.default.currentDirectoryPath
+            ).appendingPathComponent("widgets", isDirectory: true)
+        )
+        if outcome.didRefresh {
+            NSLog(
+                "barshelf: refreshed bundled widgets: %@",
+                outcome.refreshed.map(\.summary).joined(separator: ", ")
+            )
+        }
+        if !outcome.skippedLocallyModified.isEmpty {
+            NSLog(
+                "barshelf: kept locally modified widgets at their current "
+                    + "version: %@",
+                outcome.skippedLocallyModified.joined(separator: ", ")
+            )
         }
     }
 
