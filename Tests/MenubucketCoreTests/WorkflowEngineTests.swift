@@ -920,10 +920,22 @@ final class NativeWidgetsTests: XCTestCase {
         XCTAssertEqual(try label(["menuBarMetric": .string("cpu")]), "29%")
         XCTAssertEqual(try label(["menuBarMetric": .string("memory")]), "64%")
         XCTAssertEqual(try label(["menuBarMetric": .string("disk")]), "14%")
-        XCTAssertEqual(
-            try label(["menuBarMetric": .string("memory"), "menuBarStyle": .string("labeled")]),
-            "Mem 64%"
-        )
+        // The word beside the number is no longer the widget's business: it
+        // comes from `status.prefix`, which every widget has and the user can
+        // override or switch off. The widget used to carry its own
+        // "Value only / With label" setting, which duplicated that control and
+        // read "CPU CPU 23%" with both on.
+        func prefix(_ settings: [String: JSONValue]) throws -> String? {
+            try WorkflowEngine.evaluate(
+                try def("system"), sources: sources, settings: .object(settings)
+            ).statusPrefix
+        }
+        XCTAssertEqual(try prefix(["menuBarMetric": .string("memory")]), "RAM")
+        XCTAssertEqual(try prefix(["menuBarMetric": .string("disk")]), "Disk")
+        XCTAssertEqual(try prefix(["menuBarMetric": .string("cpu")]), "CPU")
+        // The label stays the bare reading whatever the metric.
+        XCTAssertEqual(try label(["menuBarMetric": .string("memory")]), "64%")
+
         // No settings at all still produces something sensible.
         XCTAssertEqual(try label([:]), "29%")
         XCTAssertEqual(try label(["menuBarMetric": .string("nonsense")]), "29%")

@@ -428,6 +428,59 @@ final class MenuBarController {
         return image
     }
 
+    /// What this entry will look like in the bar, drawn the same way the bar
+    /// draws it.
+    ///
+    /// The settings pane shows this rather than describing it. "Label above
+    /// the value" and "an SF Symbol name or an emoji" are hard to picture and
+    /// easy to see, and a preview drawn by anything other than the real
+    /// renderer would eventually start lying.
+    static func previewImage(
+        for entry: MenuBarEntry, height: CGFloat = NSStatusBar.system.thickness
+    ) -> NSImage {
+        let symbolName: String? = entry.iconOverride.map { $0.isEmpty ? nil : $0 }
+            ?? entry.symbol
+        let symbol = symbolName.flatMap {
+            symbolImage(
+                named: $0, describedAs: entry.name,
+                tint: entry.tint.map(nsColor(for:))
+            )
+        }
+        let glyph = symbol == nil ? textGlyph(for: entry) : nil
+        if entry.style == .stacked {
+            return stackedImage(entry, symbol: symbol, glyph: glyph, height: height)
+        }
+
+        let text = NSAttributedString(
+            string: MenuBarPolicy.stripCell(entry, glyph: glyph),
+            attributes: [
+                .font: stripFont,
+                .foregroundColor: (entry.tint.map(nsColor(for:)) ?? .black)
+                    .withAlphaComponent(entry.isStale ? staleOpacity : 1),
+            ]
+        )
+        let textSize = text.size()
+        let side = min(height - 4, 16)
+        let symbolSize: NSSize = symbol == nil ? .zero : NSSize(width: side, height: side)
+        let gap = (symbolSize.width > 0 && textSize.width > 0) ? stackedSymbolGap : 0
+        let width = stackedHorizontalPadding * 2 + symbolSize.width + gap + textSize.width
+
+        let image = NSImage(size: NSSize(width: max(width, 1), height: height), flipped: true) { _ in
+            var x = stackedHorizontalPadding
+            if let symbol {
+                symbol.draw(in: NSRect(
+                    x: x, y: (height - symbolSize.height) / 2,
+                    width: symbolSize.width, height: symbolSize.height
+                ))
+                x += symbolSize.width + gap
+            }
+            text.draw(at: NSPoint(x: x, y: (height - textSize.height) / 2))
+            return true
+        }
+        image.isTemplate = entry.tint == nil
+        return image
+    }
+
     // MARK: - Drawing helpers
 
     /// The menu bar's own text size — matching it keeps a promoted widget from

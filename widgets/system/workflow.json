@@ -154,7 +154,7 @@
     ]
   },
   "status": {
-    "label": "${if(eq(settings.menuBarStyle,'labeled'), concat(if(eq(settings.menuBarMetric,'memory'), 'Mem ', if(eq(settings.menuBarMetric,'disk'), 'Disk ', 'CPU ')), concat(string(round(number(if(eq(settings.menuBarMetric,'memory'), sources.data.memory.usage, if(eq(settings.menuBarMetric,'disk'), sources.data.disk.usage, sources.data.cpu.usage))), 0)), '%')), concat(string(round(number(if(eq(settings.menuBarMetric,'memory'), sources.data.memory.usage, if(eq(settings.menuBarMetric,'disk'), sources.data.disk.usage, sources.data.cpu.usage))), 0)), '%'))}",
+    "label": "${concat(string(round(number(if(eq(settings.menuBarMetric,'memory'), sources.data.memory.usage, if(eq(settings.menuBarMetric,'disk'), sources.data.disk.usage, sources.data.cpu.usage))), 0)), '%')}",
     "tooltip": "CPU ${string(round(number(sources.data.cpu.usage), 0))}% · Memory ${string(round(number(sources.data.memory.usage), 0))}% · Disk ${string(round(number(sources.data.disk.usage), 0))}%",
     "prefix": "${if(eq(settings.menuBarMetric,'memory'), 'RAM', if(eq(settings.menuBarMetric,'disk'), 'Disk', 'CPU'))}",
     "tint": "${if(gt(if(eq(settings.menuBarMetric,'memory'), sources.data.memory.usage, if(eq(settings.menuBarMetric,'disk'), sources.data.disk.usage, sources.data.cpu.usage)), 90), 'danger', if(gt(if(eq(settings.menuBarMetric,'memory'), sources.data.memory.usage, if(eq(settings.menuBarMetric,'disk'), sources.data.disk.usage, sources.data.cpu.usage)), 75), 'warning', ''))}"

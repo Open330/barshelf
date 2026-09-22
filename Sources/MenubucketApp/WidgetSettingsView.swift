@@ -137,58 +137,143 @@ struct WidgetSettingsView: View {
         return snapshot?.updatedAt != nil && snapshot?.statusLabel == nil
     }
 
+    /// What the menu bar will draw for the settings as they stand.
+    ///
+    /// Built from the draft rather than from what is currently on the bar, so
+    /// the preview moves as the controls do — including before Save.
+    private var previewEntry: MenuBarEntry {
+        let statusItem = MenuBarPolicy.effectiveStatusItem(widget.manifest.statusItem)
+        let snapshot = runtime.snapshots[widget.id]
+        return MenuBarEntry(
+            widgetID: widget.id,
+            name: widget.displayName,
+            symbol: statusItem.showsIcon
+                ? MenuBarPolicy.resolvedIcon(
+                    user: nil, live: snapshot?.statusIcon,
+                    statusItem: statusItem.icon, manifest: widget.manifest.icon
+                )
+                : nil,
+            iconOverride: MenuBarPolicy.normalizedIcon(menuBarDraft.icon),
+            prefix: MenuBarPolicy.resolvedPrefix(
+                user: menuBarDraft.label,
+                live: snapshot?.statusPrefix,
+                manifest: statusItem.label
+            ),
+            style: effectiveStyle,
+            tint: MenuBarTint.named(snapshot?.statusTint),
+            // A widget that has never run has nothing to show, so the preview
+            // stands in rather than rendering an empty box.
+            label: statusItem.showsLabel
+                ? (MenuBarPolicy.normalizedLabel(snapshot?.statusLabel) ?? "42%") : nil
+        )
+    }
+
+    private var effectiveStyle: MenuBarStyle {
+        MenuBarPolicy.resolvedStyle(
+            user: menuBarDraft.style, manifest: widget.manifest.statusItem?.style
+        )
+    }
+
+    /// Two rows cannot be drawn into the shared strip, so choosing the stacked
+    /// layout takes the widget's own item whether or not the user picked that.
+    private var stackedForcesOwnItem: Bool {
+        effectiveStyle == .stacked && canShareStrip
+    }
+
+    private var usesOwnItem: Bool {
+        !canShareStrip || stackedForcesOwnItem || menuBarDraft.separate
+    }
+
     private var menuBarSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             Text("Menu Bar")
                 .font(.system(size: 12, weight: .semibold))
 
-            Toggle("Show live value in the menu bar", isOn: Binding(
+            Toggle("Show in the menu bar", isOn: Binding(
                 get: { menuBarDraft.enabled },
                 set: { menuBarDraft.enabled = $0 }
             ))
             .toggleStyle(.checkbox)
 
-            Picker("", selection: Binding(
-                get: { canShareStrip ? menuBarDraft.separate : true },
-                set: { menuBarDraft.separate = $0 }
-            )) {
-                Text("Share the BarShelf item").tag(false)
-                Text("Use its own item").tag(true)
-            }
-            .pickerStyle(.radioGroup)
-            .labelsHidden()
-            .disabled(!menuBarDraft.enabled || !canShareStrip)
-
             if menuBarDraft.enabled {
-                Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 6) {
-                    GridRow {
-                        Text("Label").font(.caption)
-                        TextField("none", text: Binding(
-                            get: { menuBarDraft.label ?? "" },
-                            set: { menuBarDraft.label = $0.isEmpty ? nil : $0 }
-                        ))
-                        .frame(width: 120)
+                menuBarPreview
+                menuBarControls
+                // The one thing worth saying at the bottom rather than beside
+                // a control, because it is about the widget, not a setting.
+                if publishesNoStatusText {
+                    settingsHint(
+                        "This widget publishes no value, so only its icon can"
+                            + " appear. Give its workflow a `status.label` (or a"
+                            + " script `host.render` status) to show one."
+                    )
+                } else {
+                    settingsHint(
+                        "It keeps refreshing while the popup is closed."
+                            + " At most \(MenuBarPolicy.maxEntries) widgets are shown."
+                    )
+                }
+            }
+        }
+    }
+
+    /// The item as it will appear, drawn by the menu bar's own renderer.
+    private var menuBarPreview: some View {
+        HStack(spacing: 8) {
+            Text("Preview").font(.caption).foregroundStyle(.secondary)
+                .frame(width: 52, alignment: .leading)
+            Image(nsImage: MenuBarController.previewImage(for: previewEntry))
+                .renderingMode(previewEntry.tint == nil ? .template : .original)
+                .padding(.horizontal, 6)
+                .frame(height: 24)
+                .background(
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(Color.primary.opacity(0.07))
+                )
+            Spacer(minLength: 0)
+        }
+    }
+
+    /// One row per question, each with its own heading — the controls used to
+    /// be two unlabelled radio groups in a row, which gave four buttons and no
+    /// way to tell which question either pair answered.
+    private var menuBarControls: some View {
+        Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 8, verticalSpacing: 10) {
+            GridRow {
+                settingsRowLabel("Item")
+                VStack(alignment: .leading, spacing: 4) {
+                    Picker("", selection: Binding(
+                        get: { usesOwnItem },
+                        set: { menuBarDraft.separate = $0 }
+                    )) {
+                        Text("Share the BarShelf icon").tag(false)
+                        Text("Its own menu bar item").tag(true)
                     }
-                    GridRow {
-                        Text("Icon").font(.caption)
-                        TextField(widget.manifest.statusItem?.icon ?? "default", text: Binding(
-                            get: { menuBarDraft.icon == "" ? "" : (menuBarDraft.icon ?? "") },
-                            set: { menuBarDraft.icon = $0.isEmpty ? nil : $0 }
-                        ))
-                        .frame(width: 120)
-                        .disabled(menuBarDraft.icon == "")
+                    .pickerStyle(.radioGroup)
+                    .labelsHidden()
+                    .disabled(!canShareStrip || stackedForcesOwnItem)
+
+                    if !canShareStrip {
+                        settingsHint("This widget shows no text, and an icon cannot join the shared strip.")
+                    } else if stackedForcesOwnItem {
+                        settingsHint("Two rows need their own item.")
+                    } else if !menuBarDraft.separate {
+                        HStack(spacing: 6) {
+                            Button("Move Left") { runtime.moveInMenuBar(widget.id, by: -1) }
+                                .disabled(!runtime.canMoveInMenuBar(widget.id, by: -1))
+                            Button("Move Right") { runtime.moveInMenuBar(widget.id, by: 1) }
+                                .disabled(!runtime.canMoveInMenuBar(widget.id, by: 1))
+                        }
+                        .controlSize(.small)
+                    } else {
+                        settingsHint("Drag it in the menu bar with ⌘ to reorder.")
                     }
                 }
-                // "" is how the model says *no* icon, which is a different
-                // thing from nil — keep the widget's own. A text field cannot
-                // express that difference, so the toggle does.
+            }
+
+            GridRow {
+                settingsRowLabel("Layout")
                 Picker("", selection: Binding(
-                    get: {
-                        MenuBarPolicy.resolvedStyle(
-                            user: menuBarDraft.style,
-                            manifest: widget.manifest.statusItem?.style
-                        )
-                    },
+                    get: { effectiveStyle },
                     set: { menuBarDraft.style = $0 }
                 )) {
                     ForEach(MenuBarStyle.allCases, id: \.self) { style in
@@ -197,58 +282,79 @@ struct WidgetSettingsView: View {
                 }
                 .pickerStyle(.radioGroup)
                 .labelsHidden()
-
-                Toggle("Show an icon", isOn: Binding(
-                    get: { menuBarDraft.icon != "" },
-                    set: { menuBarDraft.icon = $0 ? nil : "" }
-                ))
-                .toggleStyle(.checkbox)
-
-                Text(
-                    "Label is drawn before the value (\"CPU 23%\"), or above it"
-                        + " when stacked — which needs the widget's own item."
-                        + " Icon takes an SF Symbol name or an emoji; leave it"
-                        + " empty for the widget's own."
-                )
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
             }
 
-            if menuBarDraft.enabled, !menuBarDraft.separate, canShareStrip {
-                HStack(spacing: 8) {
-                    Text("Position")
-                        .font(.caption)
-                    Button("Move Left") { runtime.moveInMenuBar(widget.id, by: -1) }
-                        .disabled(!runtime.canMoveInMenuBar(widget.id, by: -1))
-                    Button("Move Right") { runtime.moveInMenuBar(widget.id, by: 1) }
-                        .disabled(!runtime.canMoveInMenuBar(widget.id, by: 1))
+            GridRow {
+                settingsRowLabel("Label")
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        // Same three-state problem the icon has: "" is no
+                        // label, nil is the widget's own, and a text field
+                        // cannot say which an empty box means.
+                        Toggle("", isOn: Binding(
+                            get: { menuBarDraft.label != "" },
+                            set: { menuBarDraft.label = $0 ? nil : "" }
+                        ))
+                        .toggleStyle(.checkbox)
+                        .labelsHidden()
+                        TextField("the widget's own", text: Binding(
+                            get: { menuBarDraft.label == "" ? "" : (menuBarDraft.label ?? "") },
+                            set: { menuBarDraft.label = $0.isEmpty ? nil : $0 }
+                        ))
+                        .frame(width: 150)
+                        .disabled(menuBarDraft.label == "")
+                    }
+                    settingsHint(
+                        effectiveStyle == .stacked
+                            ? "Drawn above the value. Uncheck for the value alone."
+                            : "Drawn before the value. Uncheck for the value alone."
+                    )
                 }
-                // Only the shared strip needs this: a widget with its own
-                // status item is rearranged by ⌘-dragging it in the menu bar.
             }
 
-            if menuBarDraft.enabled {
-                if publishesNoStatusText {
-                    Text(
-                        "This widget publishes no status text, so only its icon"
-                            + " can appear. Give its workflow a `status.label`"
-                            + " (or a script `host.render` status) to show a value."
-                    )
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                } else {
-                    Text(
-                        "A promoted widget keeps refreshing at its own interval"
-                            + " while the popup is closed. At most"
-                            + " \(MenuBarPolicy.maxEntries) widgets are shown."
-                    )
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+            GridRow {
+                settingsRowLabel("Icon")
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        // "" means no icon, nil means the widget's own. A text
+                        // field cannot say the difference, so the checkbox does
+                        // — and it sits beside the field it governs.
+                        Toggle("", isOn: Binding(
+                            get: { menuBarDraft.icon != "" },
+                            set: { menuBarDraft.icon = $0 ? nil : "" }
+                        ))
+                        .toggleStyle(.checkbox)
+                        .labelsHidden()
+                        TextField(
+                            widget.manifest.statusItem?.icon ?? "the widget's own",
+                            text: Binding(
+                                get: { menuBarDraft.icon == "" ? "" : (menuBarDraft.icon ?? "") },
+                                set: { menuBarDraft.icon = $0.isEmpty ? nil : $0 }
+                            )
+                        )
+                        .frame(width: 150)
+                        .disabled(menuBarDraft.icon == "")
+                    }
+                    settingsHint("An SF Symbol name or an emoji. Uncheck for no icon.")
                 }
             }
         }
     }
+
+    private func settingsRowLabel(_ text: String) -> some View {
+        Text(text)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .frame(width: 52, alignment: .leading)
+    }
+
+    private func settingsHint(_ text: String) -> some View {
+        Text(text)
+            .font(.caption2)
+            .foregroundStyle(.tertiary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
 
     // MARK: - Appearance section (R12)
 
