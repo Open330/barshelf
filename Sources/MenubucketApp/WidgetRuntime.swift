@@ -168,6 +168,19 @@ final class WidgetRuntime: ObservableObject {
     private var menuBarStalenessTimer: Timer?
     /// `fs.directory` sources with `watch: true`, keyed by widget id.
     private var workflowWatchers: [String: DirectoryWatcher] = [:]
+    /// The widget whose card is open in its own menu bar popover, if any.
+    /// Set by the status item controller; a widget shown this way is visible
+    /// even though the shelf is closed.
+    var menuBarPopoverWidgetID: String? {
+        didSet {
+            guard menuBarPopoverWidgetID != oldValue else { return }
+            refreshWidgetsAwaitingVisibility()
+        }
+    }
+    /// Widgets whose last refresh ran a workflow that reads `widget.visible`,
+    /// and the value it saw. Only these need re-running when a card appears.
+    private var visibilityAwareWidgetIDs: Set<String> = []
+    private var lastRefreshVisibility: [String: Bool] = [:]
 
     // MARK: Script runtime + permission enforcement (M2)
 
@@ -1362,11 +1375,34 @@ final class WidgetRuntime: ObservableObject {
         scheduler.setVisibleWidgetIDs(normalized)
         guard changed, scheduler.popupIsOpen else { return }
         refreshVisibleWidgetsIfNeeded()
+        refreshWidgetsAwaitingVisibility()
     }
 
     func popupOpened() {
         scheduler.popupOpened()
         refreshVisibleWidgetsIfNeeded()
+        refreshWidgetsAwaitingVisibility()
+    }
+
+    /// Whether this widget's card is on screen: the shelf is open on its page,
+    /// or it is showing in its own menu bar popover. Workflows read it as
+    /// `widget.visible` and use it to skip work nobody can see.
+    func isCardVisible(_ widgetID: String) -> Bool {
+        if menuBarPopoverWidgetID == widgetID { return true }
+        return scheduler.popupIsOpen && visibleWidgetIDs.contains(widgetID)
+    }
+
+    /// A workflow that reads `widget.visible` rendered its cheap variant while
+    /// the card was closed, so opening the card has to re-run it rather than
+    /// wait for the next tick — otherwise the sensor list would stay empty for
+    /// up to a full refresh interval. Only widgets that actually read the flag
+    /// and last ran with it off are refreshed.
+    private func refreshWidgetsAwaitingVisibility() {
+        for widget in widgets where visibilityAwareWidgetIDs.contains(widget.id) {
+            guard isCardVisible(widget.id), lastRefreshVisibility[widget.id] == false
+            else { continue }
+            refresh(widget, manual: false)
+        }
     }
 
     private func refreshVisibleWidgetsIfNeeded() {
@@ -1664,9 +1700,21 @@ final class WidgetRuntime: ObservableObject {
                 : .object([:])
             // Expose the widget's effective size so a workflow can switch its
             // layout per size (native small/medium/large), e.g. via a `switch`.
+            // `visible` lets a workflow do less while nothing is on screen —
+            // the sensors widget reads 46 SMC keys instead of 129 with its
+            // card closed. `size` lets it switch layout per bucket size.
+            let visible = isCardVisible(widget.id)
             let widgetContext: JSONValue = .object([
                 "size": .string(effectiveSize(for: widget.id)),
+                "visible": .bool(visible),
             ])
+            if definition.readsWidgetVisibility {
+                visibilityAwareWidgetIDs.insert(widget.id)
+                lastRefreshVisibility[widget.id] = visible
+            } else {
+                visibilityAwareWidgetIDs.remove(widget.id)
+                lastRefreshVisibility[widget.id] = nil
+            }
             let params = try WorkflowEngine.resolvedSourceParams(
                 definition, settings: settings, storage: storageSnapshot, widget: widgetContext
             )
@@ -1793,13 +1841,42 @@ final class WidgetRuntime: ObservableObject {
         }
         let detail = params.objectValue?["detail"]?.boolValue == true
         let mountPoint = params.objectValue?["mount"]?.stringValue ?? "/"
+        let sensorGroups = Self.sensorGroups(from: params.objectValue?["sensors"])
         // Sampling blocks on Mach/IOKit calls (and, on a cold CPU sampler, a
         // short baseline window), so it stays off the main thread.
         return await Task.detached(priority: .userInitiated) {
             SystemMetrics.sample(
-                metrics: allowed, detail: detail, mountPoint: mountPoint
+                metrics: allowed,
+                detail: detail,
+                sensorGroups: sensorGroups,
+                mountPoint: mountPoint
             )
         }.value
+    }
+
+    /// `"sensors"` on a system source: which sensor readings the widget
+    /// actually shows, so the sampler can skip the IOKit round trips behind
+    /// the rest. Accepts one name or a list of them; `nil` (absent, `"all"`,
+    /// or anything unrecognized) reads every sensor, because a narrowing hint
+    /// the host does not understand must never blank a reading.
+    ///
+    ///     "with": { "metrics": ["sensors"], "sensors": "cpu" }
+    static func sensorGroups(from value: JSONValue?) -> Set<SensorSampler.SensorGroup>? {
+        switch value {
+        case let .string(name):
+            return SensorSampler.groups(forReading: name)
+        case let .array(items):
+            var union: Set<SensorSampler.SensorGroup> = []
+            for item in items {
+                guard let name = item.stringValue,
+                      let groups = SensorSampler.groups(forReading: name)
+                else { return nil }
+                union.formUnion(groups)
+            }
+            return union
+        default:
+            return nil
+        }
     }
 
     /// `exec` workflow source — same allowlist/audit semantics as an exec
@@ -2102,6 +2179,15 @@ final class WidgetRuntime: ObservableObject {
             )
         }
         setSnapshot(snapshot, for: id)
+        // A card that opened while this refresh was already running had its
+        // forced re-run dropped by the in-flight guard. Now that the guard is
+        // clear, the widget catches up rather than showing its cheap render
+        // until the next tick. Only after a success: a workflow that fails
+        // before it records its visibility would otherwise be re-run here
+        // forever.
+        if case .success = outcome {
+            refreshWidgetsAwaitingVisibility()
+        }
     }
 
     @discardableResult

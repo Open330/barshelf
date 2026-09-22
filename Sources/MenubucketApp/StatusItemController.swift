@@ -250,9 +250,18 @@ final class StatusItemController: NSObject {
             fitsContent: true
         )
         surface.onHide = { [weak self] in
-            if self?.widgetPopover?.widgetID == widgetID { self?.widgetPopover = nil }
+            guard self?.widgetPopover?.widgetID == widgetID else { return }
+            self?.widgetPopover = nil
+            // A workflow that reads `widget.visible` can go back to its cheap
+            // sample on the next tick.
+            if self?.runtime.menuBarPopoverWidgetID == widgetID {
+                self?.runtime.menuBarPopoverWidgetID = nil
+            }
         }
         widgetPopover = (widgetID: widgetID, surface: surface)
+        // The card is on screen from here on, so the workflow's `widget.visible`
+        // is true for the refresh below — set it before showing, not after.
+        runtime.menuBarPopoverWidgetID = widgetID
         // The shelf and a single card should not be open at once.
         if popup.isShown { popup.hide() }
         surface.show(relativeTo: button)

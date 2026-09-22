@@ -92,7 +92,7 @@ Builder의 고급 UI는 `WorkflowGraph`를 편집 모델로 사용할 수 있다
 | `fs.directory` | `path`, `watch`, `skipHidden`, `sortBy`, `sortDirection`, `limit` | `{ "items": [...] }` |
 | `exec` | `command`, `timeoutMs`, `output`, `maxOutputBytes` | stdout JSON |
 | `http` | `url`, `headers` | HTTPS JSON response |
-| `system` | `metrics`, `detail`, `mount` | CPU/메모리/디스크/센서 측정값 |
+| `system` | `metrics`, `detail`, `sensors`, `mount` | CPU/메모리/디스크/센서 측정값 |
 | `value` | any JSON literal | the literal JSON value |
 
 `fs.directory` item 필드는 고정이다.
@@ -191,8 +191,48 @@ manifest의 `permissions.system`에 **모두 선언해야 한다**. 선언되지
 | `with` 필드 | 설명 |
 | --- | --- |
 | `metrics` | 읽을 그룹 배열: `cpu`, `memory`, `disk`, `sensors`. 생략하면 위젯이 허가받은 전부. |
-| `detail` | `true`면 `cpu.cores[]`와 `sensors.list[]`까지 채운다. 기본 샘플의 약 4배 비용. |
+| `detail` | `true`면 `cpu.cores[]`와 `sensors.list[]`까지 채운다. 기본 샘플의 약 3배 비용. |
+| `sensors` | 이 위젯이 실제로 보여주는 센서 판독값. 읽을 온도 키를 그만큼만 좁힌다. |
 | `mount` | `disk` 그룹이 볼 마운트 포인트. 기본 `"/"`. |
+
+### 센서 샘플 좁히기
+
+SMC 키는 하나하나가 별도의 IOKit 왕복(약 0.16 ms)이고, Mac이 공개하는 키는
+위젯 하나가 보여주는 것보다 훨씬 많다. Apple Silicon 노트북 기준 요약 대상만
+46개이고 그중 23개가 GPU다. 메뉴바에 CPU 온도 하나를 띄우는 위젯에게 나머지
+28개는 쓸모가 없다.
+
+`sensors`에 실제로 표시하는 판독값 이름을 적으면 그만큼만 읽는다. 값 하나
+또는 배열을 받는다.
+
+| 값 | 읽는 것 |
+| --- | --- |
+| `cpu` / `gpu` / `battery` | 해당 컴포넌트의 온도 키만. |
+| `power` / `fan` / `fanUsage` / `none` | 온도는 전혀 읽지 않는다(팬·전력은 자기 키에서 온다). |
+| `peak` / `all` / `list` / 생략 / **모르는 이름** | 전부. |
+
+모르는 이름이 전부로 떨어지는 것은 의도된 설계다. 호스트가 해석하지 못한
+힌트 때문에 판독값이 조용히 비는 일은 없어야 한다 — 느려질 수는 있어도
+틀려서는 안 된다.
+
+`peak`은 *그 샘플이 실제로 읽은* 센서 중 최고값이다. 그룹을 좁힌 위젯은
+자기가 요청한 범위의 최고값을 받는다. `detail: true`는 카드의 전체 목록이
+목적이므로 `sensors`보다 우선해 모든 그룹을 읽는다.
+
+번들 Sensors 위젯이 이 패턴을 쓴다.
+
+```json
+"with": {
+  "metrics": ["sensors"],
+  "detail": "${coalesce(widget.visible, true)}",
+  "sensors": "${if(coalesce(widget.visible, true), 'all', settings.menuBarSensor)}"
+}
+```
+
+카드가 닫혀 있으면 메뉴바가 보여주는 판독값 하나만 읽고, 열리면 전부 읽는다.
+이 한 쌍이 리프레시 한 번을 약 27 ms에서 약 4 ms로 줄인다. `coalesce` 기본값은
+`widget.visible`을 모르는 구버전 호스트에서도 위젯이 정상 동작하게 한다 —
+거기서는 늘 그랬듯 전부 샘플링한다.
 
 출력 규약: **퍼센트는 0~100**, 바이트는 바이트, 온도는 °C, 그리고 이 머신이
 제공하지 않는 값은 0이 아니라 `null`이다.
@@ -250,11 +290,32 @@ Arbitrary JavaScript는 금지한다. 표현식은 문자열 안의 `${...}` 보
 | sources | `${sources.files.items}` |
 | transforms | `${count(transforms.visible)}` |
 | storage | `${storage.count}` (이전 스냅샷; [영속성](#영속성-storage) 참조) |
-| widget | `${widget.size}` (현재 카드 크기 `XS`/`S`/`M`/`L` — 크기별 뷰 분기용) |
+| widget | `${widget.size}` (현재 카드 크기 `XS`/`S`/`M`/`L` — 크기별 뷰 분기용), `${widget.visible}` (아래) |
 | forEach 변수 | `${file.path}`, `${file.name}` |
 
 표현식의 리터럴은 숫자(`42`, `-1`), 문자열(`'ok'` 또는 `"ok"`), `true`/`false`/`null`을 지원한다.
 문자열 리터럴 덕분에 `eq(status, 'success')`처럼 상수와 비교할 수 있다.
+
+### `widget.visible` — 아무도 안 볼 때는 덜 하기
+
+`${widget.visible}`은 **지금 이 위젯의 카드가 화면에 있는지**를 알려준다.
+셸프가 열려 있고 이 위젯의 페이지가 보이거나, 이 위젯이 자기 메뉴바 항목의
+팝오버로 떠 있으면 `true`다.
+
+메뉴바에 올린 위젯은 셸프가 닫혀 있어도 계속 리프레시한다. 그동안 카드에만
+쓰이는 데이터를 모으는 것은 전부 낭비다. 소스 파라미터에서 읽으면 애초에
+가져오지 않을 수 있다.
+
+```json
+"with": { "metrics": ["sensors"], "detail": "${widget.visible}" }
+```
+
+호스트는 워크플로가 이 값을 읽는지 보고 있다가, 카드가 열리는 순간 다시
+평가한다. 다음 tick까지 싼 결과를 보여주고 있지 않는다.
+
+구버전 호스트에는 `widget.visible`이 아예 없다(`null`). 위젯을 레지스트리로
+배포한다면 `coalesce(widget.visible, true)`로 감싸라 — 거기서는 늘 그랬듯
+전부 하는 쪽으로 떨어진다.
 
 지원 내장 함수는 다음과 같다.
 
