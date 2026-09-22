@@ -211,6 +211,13 @@ if [[ "${NOTARIZE}" == "1" ]]; then
   echo "${VERSION}" > "${RELEASED}"
   echo "Recorded ${VERSION} in ${RELEASED}"
 
+  # Keep a copy of the notes for the version just built, *before* the heading
+  # is moved on. `gh release create --notes-file RELEASE_NOTES.md` would
+  # otherwise publish the next version's heading against this release — which
+  # it did once, caught only by reading the output.
+  cp "${PROJECT_ROOT}/RELEASE_NOTES.md" "${RELEASE_DIR}/RELEASE_NOTES.md"
+  echo "Kept this release's notes at ${RELEASE_DIR}/RELEASE_NOTES.md"
+
   # Move the tree onto the next patch straight away.
   #
   # Leaving it on the version just published means every following commit

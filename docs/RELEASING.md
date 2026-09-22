@@ -63,7 +63,11 @@
 
    산출물은 `dist/release/`에 `BarShelf-X.Y.Z-arm64.zip`,
    `barshelf-cli-X.Y.Z-arm64.tar.gz`, `SHA256SUMS`. 스크립트가
-   `RELEASED_VERSION`도 함께 갱신한다 — 공증된 공개 릴리스일 때만. 번들에는
+   `RELEASED_VERSION`도 함께 갱신한다 — 공증된 공개 릴리스일 때만. 이어서
+   트리를 **다음 패치로 올리고**(`build_app.sh`·`BarShelfMain.swift`·노트
+   제목), 이번 릴리스의 노트는 `dist/release/RELEASE_NOTES.md`에 남긴다 —
+   6번에서 게시할 때 그 파일을 쓴다. 저장소의 `RELEASE_NOTES.md`는 이미 다음
+   버전을 가리키고 있다. 번들에는
    빌드한 커밋이 `BarShelfSourceCommit`으로 각인되고, 설정 창의 **Source** 행에
    표시된다.
 6. 태그를 밀고 릴리스를 만든다. `release.sh`는 여기까지 하지 않는다.
@@ -73,8 +77,9 @@
 
    ```bash
    git push origin vX.Y.Z
-   gh release create vX.Y.Z dist/release/* --prerelease \
-     --title "BarShelf X.Y.Z" --notes-file RELEASE_NOTES.md
+   gh release create vX.Y.Z dist/release/*.zip dist/release/*.tar.gz \
+     dist/release/SHA256SUMS --prerelease \
+     --title "BarShelf X.Y.Z" --notes-file dist/release/RELEASE_NOTES.md
    ```
 7. **검증한다.** CI의 `Verify Release` 워크플로가 릴리스 게시 시 자동으로 돌고,
    수동으로도 돌릴 수 있다:
