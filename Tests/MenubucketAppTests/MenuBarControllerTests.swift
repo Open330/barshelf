@@ -52,10 +52,24 @@ final class MenuBarControllerTests: XCTestCase {
         XCTAssertNotEqual(fresh, frozen)
     }
 
-    func testStripUsesTheMenuBarFont() {
+    /// The strip sits at the menu bar's own size so it does not look like
+    /// another app's item, but heavier than menu text and with figures that
+    /// do not jitter — it is a reading, not a title.
+    func testStripMatchesTheMenuBarSizeButNotItsWeight() throws {
         let strip = MenuBarController.attributedStrip([entry("cpu", label: "42%")])
-        let font = strip.attribute(.font, at: 0, effectiveRange: nil) as? NSFont
-        XCTAssertEqual(font, MenuBarController.statusFont)
+        let font = try XCTUnwrap(strip.attribute(.font, at: 0, effectiveRange: nil) as? NSFont)
+        XCTAssertEqual(font, MenuBarController.stripFont)
+        XCTAssertEqual(font.pointSize, MenuBarController.statusFont.pointSize)
+        XCTAssertNotEqual(font, MenuBarController.statusFont, "the weight should differ")
+    }
+
+    /// Digits must not shift sideways as a value changes, which is what a
+    /// proportional font does to a number that ticks.
+    func testTheStripUsesMonospacedFigures() {
+        let font = MenuBarController.stripFont
+        let one = NSAttributedString(string: "1", attributes: [.font: font]).size().width
+        let eight = NSAttributedString(string: "8", attributes: [.font: font]).size().width
+        XCTAssertEqual(one, eight, accuracy: 0.01)
     }
 
     func testEmptyStripRendersNothing() {

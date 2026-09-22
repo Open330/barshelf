@@ -167,9 +167,8 @@ final class StatusItemController: NSObject {
             button.imageScaling = .scaleProportionallyDown
         }
         menuBar = MenuBarController(mainItem: statusItem)
-        menuBar.onSelect = { [weak self] widgetID in
-            self?.openPopupIfNeeded()
-            self?.runtime.reveal(widgetID: widgetID)
+        menuBar.onSelect = { [weak self] widgetID, button in
+            self?.toggleWidgetPopover(for: widgetID, anchoredTo: button)
         }
         menuBar.onContextMenu = { [weak self] event, widgetID, button in
             self?.showWidgetMenu(for: widgetID, with: event, anchoredTo: button)
@@ -229,6 +228,37 @@ final class StatusItemController: NSObject {
     }
 
     /// Shows the popup if it is not already visible (post-install reveal).
+    /// The card for one promoted widget, hanging off its own status item.
+    ///
+    /// Clicking a menu bar reading used to open the whole shelf and scroll to
+    /// the widget, which is a long way round from "what is this number?". A
+    /// status item that shows one widget's value should answer for that widget
+    /// when clicked, the way a system monitor's modules each do.
+    ///
+    /// Clicking the same item again closes it, so the item behaves like a
+    /// toggle rather than reopening what is already open.
+    private func toggleWidgetPopover(for widgetID: String, anchoredTo button: NSStatusBarButton) {
+        if let current = widgetPopover, current.widgetID == widgetID, current.surface.isShown {
+            current.surface.hide()
+            return
+        }
+        widgetPopover?.surface.hide()
+        guard let widget = runtime.widgets.first(where: { $0.id == widgetID }) else { return }
+
+        let surface = PopoverSurface(
+            rootView: MenuBarWidgetPopover(widget: widget, runtime: runtime),
+            fitsContent: true
+        )
+        surface.onHide = { [weak self] in
+            if self?.widgetPopover?.widgetID == widgetID { self?.widgetPopover = nil }
+        }
+        widgetPopover = (widgetID: widgetID, surface: surface)
+        // The shelf and a single card should not be open at once.
+        if popup.isShown { popup.hide() }
+        surface.show(relativeTo: button)
+        runtime.refresh(widgetID: widgetID, manual: true)
+    }
+
     private func openPopupIfNeeded() {
         guard !popup.isShown, let button = statusItem.button else { return }
         popup.show(relativeTo: button)
@@ -246,6 +276,9 @@ final class StatusItemController: NSObject {
     /// This is both how a widget sharing the strip (which has no status item of
     /// its own to right-click) gets taken off, and how the feature is found in
     /// the first place, since promotion is off until the user asks for it.
+    /// The card currently hanging off a menu bar item, if any.
+    private var widgetPopover: (widgetID: String, surface: PopoverSurface)?
+
     private lazy var menuBarSubmenuItem: NSMenuItem = {
         let item = NSMenuItem(title: "Menu Bar", action: nil, keyEquivalent: "")
         let submenu = NSMenu()

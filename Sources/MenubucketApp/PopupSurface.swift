@@ -21,12 +21,23 @@ final class PopoverSurface: NSObject, PopupSurface, NSPopoverDelegate {
     var onShow: (() -> Void)?
     var onHide: (() -> Void)?
 
-    init<Content: View>(rootView: Content, contentSize: CGSize = RootView.defaultSize) {
+    /// - Parameter fitsContent: sizes the popover to what the view asks for
+    ///   instead of to `contentSize`. A single widget card has no business
+    ///   being as tall as the whole shelf.
+    init<Content: View>(
+        rootView: Content,
+        contentSize: CGSize = RootView.defaultSize,
+        fitsContent: Bool = false
+    ) {
         super.init()
         popover.behavior = .transient
         popover.animates = true
         popover.contentSize = contentSize
-        popover.contentViewController = NSHostingController(rootView: rootView)
+        let controller = NSHostingController(rootView: rootView)
+        if fitsContent {
+            controller.sizingOptions = [.preferredContentSize]
+        }
+        popover.contentViewController = controller
         popover.delegate = self
     }
 
