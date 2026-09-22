@@ -41,7 +41,9 @@ final class MenuBarController {
     static let iconOnlyLength: CGFloat = 28
 
     /// A promoted widget's own item was clicked — reveal it in the popup.
-    var onSelect: ((String) -> Void)?
+    /// Left click on a separate item. The button comes with it so the caller
+    /// can hang a popover off that item rather than off the BarShelf one.
+    var onSelect: ((String, NSStatusBarButton) -> Void)?
     /// Right-click on one of the separate items. The button is passed so the
     /// caller can anchor a context menu to the item that was clicked.
     var onContextMenu: ((NSEvent, String, NSStatusBarButton) -> Void)?
@@ -159,7 +161,7 @@ final class MenuBarController {
                 result.append(NSAttributedString(
                     string: MenuBarPolicy.stripSeparator,
                     attributes: [
-                        .font: statusFont,
+                        .font: stripFont,
                         .foregroundColor: NSColor.tertiaryLabelColor,
                     ]
                 ))
@@ -167,7 +169,7 @@ final class MenuBarController {
             result.append(NSAttributedString(
                 string: cell,
                 attributes: [
-                    .font: statusFont,
+                    .font: stripFont,
                     .foregroundColor: color(for: entry),
                 ]
             ))
@@ -212,7 +214,7 @@ final class MenuBarController {
                 let title = NSAttributedString(
                     string: MenuBarPolicy.stripCell(entry, glyph: glyph),
                     attributes: [
-                        .font: Self.statusFont,
+                        .font: Self.stripFont,
                         .foregroundColor: Self.color(for: entry),
                     ]
                 )
@@ -263,7 +265,7 @@ final class MenuBarController {
         if isRightClick, let event {
             onContextMenu?(event, widgetID, button)
         } else {
-            onSelect?(widgetID)
+            onSelect?(widgetID, button)
         }
     }
 
@@ -284,8 +286,12 @@ final class MenuBarController {
     /// clipped and both rows start at the same x.
     /// Type sizes before fitting. The pair is scaled together so the two rows
     /// fill the bar, so these set the *ratio* more than the size.
-    static let stackedValueFont = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular)
-    static let stackedLabelFont = NSFont.systemFont(ofSize: 9, weight: .medium)
+    ///
+    /// Semibold rather than regular: at menu bar sizes a regular weight reads
+    /// thin against the bar's own chrome, and the value is the thing being
+    /// looked at.
+    static let stackedValueFont = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
+    static let stackedLabelFont = NSFont.systemFont(ofSize: 9, weight: .semibold)
     /// How much dimmer the label is than the value it belongs to.
     static let stackedLabelOpacity: CGFloat = 0.72
     static let staleOpacity: CGFloat = 0.4
@@ -338,9 +344,9 @@ final class MenuBarController {
             stackedMaxValuePointSize / stackedValueFont.pointSize
         )
         return (
-            NSFont.systemFont(ofSize: stackedLabelFont.pointSize * scale, weight: .medium),
+            NSFont.systemFont(ofSize: stackedLabelFont.pointSize * scale, weight: .semibold),
             NSFont.monospacedDigitSystemFont(
-                ofSize: stackedValueFont.pointSize * scale, weight: .regular
+                ofSize: stackedValueFont.pointSize * scale, weight: .semibold
             )
         )
     }
@@ -427,6 +433,11 @@ final class MenuBarController {
     /// The menu bar's own text size — matching it keeps a promoted widget from
     /// looking like a different app's status item.
     static let statusFont = NSFont.menuBarFont(ofSize: 0)
+    /// The strip's own weight. Heavier than the menu bar's default text for
+    /// the same reason the stacked value is: it is a reading, not a menu title.
+    static let stripFont = NSFont.monospacedDigitSystemFont(
+        ofSize: NSFont.menuBarFont(ofSize: 0).pointSize, weight: .medium
+    )
 
     static func color(for entry: MenuBarEntry) -> NSColor {
         guard let tint = entry.tint else {

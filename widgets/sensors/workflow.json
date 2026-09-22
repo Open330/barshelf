@@ -37,7 +37,7 @@
     },
     "decimals": {
       "use": "assign",
-      "from": "if(eq(settings.menuBarSensor,'power'), 1, 0)"
+      "from": "0"
     },
     "hottest": {
       "use": "sort",
