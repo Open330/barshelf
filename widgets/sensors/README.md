@@ -13,7 +13,7 @@ shows, as a BarShelf widget.
 
 | Setting | Choices | Effect |
 | --- | --- | --- |
-| **Menu bar shows** | CPU / GPU / Battery / Peak | Which reading the menu bar label carries. The card always shows all of them. |
+| **Menu bar shows** | CPU / GPU / Battery / Hottest sensor / Power draw / Fan speed / Fan load | Which reading the menu bar label carries. The card always shows all of them. |
 | **Temperature unit** | Celsius / Fahrenheit | Applies to the card *and* the menu bar. Fahrenheit labels say `°F`, so `123°F` is never read as a Celsius figure. |
 
 **Want two readings on the bar at once?** Duplicate the widget — BarShelf
@@ -37,6 +37,12 @@ Once it is on, it shares one status item with the BarShelf mark
 3-second interval even while the popup is closed. Turning on **Pause When
 Closed** in app settings freezes it, and the menu bar dims the frozen value
 rather than passing it off as live.
+
+While the card is closed the widget reads only the sensor the menu bar is
+showing. Every SMC key is its own trip to the hardware, and a Mac publishes
+far more of them than this card displays — narrowing the sample takes a
+refresh from about 27 ms to about 4 ms, which matters at a 3-second cadence.
+Open the card and it reads everything again, including the full sensor list.
 
 ## Permissions
 

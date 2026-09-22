@@ -277,21 +277,8 @@ final class WidgetInstaller {
     /// Menu entry point: "Install Widget from URL…".
     func promptForURL() {
         NSApp.activate(ignoringOtherApps: true)
-
-        let alert = NSAlert()
-        alert.messageText = "Install Widget from URL"
-        alert.informativeText =
-            "Enter a GitHub repository URL or a direct .zip/.mbw archive URL."
-        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 340, height: 24))
-        field.placeholderString = "https://github.com/user/widget-repo"
-        alert.accessoryView = field
-        alert.addButton(withTitle: "Install")
-        alert.addButton(withTitle: "Cancel")
-        alert.window.initialFirstResponder = field
-
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-        let input = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !input.isEmpty else { return }
+        let prompt = WidgetInstallURLPrompt()
+        guard let input = prompt.run() else { return }
         install(input: input)
     }
 

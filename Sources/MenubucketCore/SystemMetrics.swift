@@ -64,10 +64,15 @@ public enum SystemMetrics {
     /// as `sources.<id>.cpu.usage`, `…memory.usage`, `…sensors.cpu`, etc.
     ///
     /// - Parameter detail: also emits `cpu.cores[]` and `sensors.list[]`. Off
-    ///   by default because the sensor list costs roughly 4× a plain sample.
+    ///   by default because the sensor list costs roughly 3× a plain sample.
+    /// - Parameter sensorGroups: narrows the temperature sensors read to the
+    ///   components the caller displays (`nil` reads all of them). Each key is
+    ///   its own IOKit round trip, so a widget showing one CPU reading saves
+    ///   about two thirds of the sample by saying so.
     public static func sample(
         metrics: Set<Metric> = Set(Metric.allCases),
         detail: Bool = false,
+        sensorGroups: Set<SensorSampler.SensorGroup>? = nil,
         mountPoint: String = "/"
     ) -> JSONValue {
         var object: [String: JSONValue] = [:]
@@ -81,7 +86,10 @@ public enum SystemMetrics {
             object["disk"] = disk(mountPoint: mountPoint)?.json ?? .null
         }
         if metrics.contains(.sensors) {
-            object["sensors"] = json(for: SensorSampler.shared.sample(detail: detail), detail: detail)
+            object["sensors"] = json(
+                for: SensorSampler.shared.sample(detail: detail, groups: sensorGroups),
+                detail: detail
+            )
         }
         object["sampledAt"] = .number(Date().timeIntervalSince1970 * 1000)
         return .object(object)

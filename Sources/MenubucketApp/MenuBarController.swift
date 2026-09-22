@@ -57,6 +57,19 @@ final class MenuBarController {
     /// on every 2 s strip redraw.
     private var appliedSymbol: String?
     private var currentEntries: [MenuBarEntry] = []
+    /// What each separate item last drew, keyed by widget id, and what the
+    /// main item's strip last drew (nil until it is first drawn).
+    ///
+    /// A status item is not cheap to touch. Since macOS 26 each one is drawn
+    /// by the menu bar host through a scene "replicant", and every property
+    /// set — image, title, length, tooltip — is a round trip that redraws the
+    /// replicant and commits a Core Animation transaction. `redraw()` used to
+    /// re-set every property of every item whenever *any* promoted widget
+    /// changed, so a CPU reading ticking every two seconds also redrew the
+    /// memory and temperature items and the (empty) strip. Profiled, that was
+    /// the single largest cost of a promoted widget: ~35% of its CPU.
+    private var appliedSeparate: [String: MenuBarEntry] = [:]
+    private var appliedStrip: [MenuBarEntry]?
 
     init(mainItem: NSStatusItem) {
         self.mainItem = mainItem
@@ -89,7 +102,12 @@ final class MenuBarController {
                 button, symbol: mainSymbol, fallback: AppPreferences.defaultMenuBarSymbol
             )
             appliedSymbol = mainSymbol
+            // `configure` resets the image position, so the strip has to be
+            // laid out again even if its entries did not change.
+            appliedStrip = nil
         }
+        guard appliedStrip != entries else { return }
+        appliedStrip = entries
         guard !entries.isEmpty else {
             mainItem.length = Self.iconOnlyLength
             button.attributedTitle = NSAttributedString(string: "")
@@ -184,33 +202,51 @@ final class MenuBarController {
         for (id, item) in separateItems where !live.contains(id) {
             NSStatusBar.system.removeStatusItem(item)
             separateItems.removeValue(forKey: id)
+            appliedSeparate.removeValue(forKey: id)
         }
         for entry in entries {
             let item = separateItems[entry.widgetID] ?? makeSeparateItem(for: entry.widgetID)
             separateItems[entry.widgetID] = item
+            // Only the widget whose reading moved is redrawn. Images are drawn
+            // through a handler, so an unchanged item still follows a light /
+            // dark menu bar switch without being touched here.
+            let previous = appliedSeparate[entry.widgetID]
+            guard previous != entry else { continue }
+            appliedSeparate[entry.widgetID] = entry
             guard let button = item.button else { continue }
-            item.length = NSStatusItem.variableLength
+            let tooltip = MenuBarPolicy.tooltip(for: [entry])
+            if button.toolTip != tooltip { button.toolTip = tooltip }
+            // Tooltips say more than the item shows — the System widget's
+            // names CPU, memory *and* disk, the Sensors one carries a decimal —
+            // so they change on refreshes where the drawn reading does not. A
+            // tooltip-only change must not redraw: that was most of the redraws
+            // left, e.g. the RAM item repainting every time CPU moved.
+            if let previous, Self.drawsIdentically(previous, entry) { continue }
+            // No `length` here: the item is created variable-length, and every
+            // assignment — even of the same value — re-measures the replicant.
             // The override wins over the widget's own symbol, and an empty
             // override means the user asked for no icon at all.
-            let symbol: String? = entry.iconOverride.map { $0.isEmpty ? nil : $0 }
+            let symbolName: String? = entry.iconOverride.map { $0.isEmpty ? nil : $0 }
                 ?? entry.symbol
-            button.image = symbol.flatMap {
+            let symbolImage = symbolName.flatMap {
                 Self.symbolImage(
                     named: $0, describedAs: entry.name,
                     tint: entry.tint.map(Self.nsColor(for:))
                 )
             }
-            let glyph = button.image == nil ? Self.textGlyph(for: entry) : nil
+            let glyph = symbolImage == nil ? Self.textGlyph(for: entry) : nil
             if entry.style == .stacked {
                 // One image carries both rows *and* the symbol, because a
                 // button has room for only one image and the rows have to sit
-                // beside it rather than under it.
-                button.image = Self.stackedImage(
-                    entry, symbol: button.image, glyph: glyph
-                )
-                button.attributedTitle = NSAttributedString(string: "")
-                button.imagePosition = .imageOnly
+                // beside it rather than under it. Assigned once: each image
+                // set is a replicant redraw and a re-measure.
+                button.image = Self.stackedImage(entry, symbol: symbolImage, glyph: glyph)
+                if button.attributedTitle.length > 0 {
+                    button.attributedTitle = NSAttributedString(string: "")
+                }
+                if button.imagePosition != .imageOnly { button.imagePosition = .imageOnly }
             } else {
+                button.image = symbolImage
                 let title = NSAttributedString(
                     string: MenuBarPolicy.stripCell(entry, glyph: glyph),
                     attributes: [
@@ -220,10 +256,9 @@ final class MenuBarController {
                 )
                 button.attributedTitle = title
                 button.imagePosition = Self.imagePosition(
-                    hasImage: button.image != nil, hasLabel: title.length > 0
+                    hasImage: symbolImage != nil, hasLabel: title.length > 0
                 )
             }
-            button.toolTip = MenuBarPolicy.tooltip(for: [entry])
             // VoiceOver reads one line, so the stacked layout is flattened
             // back to "name, CPU 23%" rather than announced as two rows.
             let spoken = MenuBarPolicy.entryText(entry)
@@ -231,6 +266,16 @@ final class MenuBarController {
                 spoken.isEmpty ? entry.name : "\(entry.name), \(spoken)"
             )
         }
+    }
+
+    /// Whether two entries draw the same item — everything but the tooltip,
+    /// which is not drawn.
+    static func drawsIdentically(_ lhs: MenuBarEntry, _ rhs: MenuBarEntry) -> Bool {
+        var lhs = lhs
+        var rhs = rhs
+        lhs.tooltip = nil
+        rhs.tooltip = nil
+        return lhs == rhs
     }
 
     static func imagePosition(hasImage: Bool, hasLabel: Bool) -> NSControl.ImagePosition {

@@ -52,7 +52,7 @@ BarShelf 레지스트리는 URL 설치 계약 위에 얹힌 **큐레이션 레�
 | `id` | string | 예 | 위젯 식별자. 설치된 `widget.json`의 `manifest.id`와 일치해야 하며, **설치 후 검증**된다. |
 | `name` | string | 예 | 갤러리에 표시되는 이름. |
 | `description` | string | 아니오 | 갤러리 카드에 표시되는 한 줄 설명. |
-| `version` | string | 아니오 | 최신 배포 버전(표시용). |
+| `version` | string | 아니오 | 최신 배포 버전. 표시용이 아니라 **갤러리의 "Update" 판단 기준**이다 — 설치된 `widget.json`보다 높을 때만 업데이트를 제안한다. 번들 위젯이면 `widgets/<dir>/widget.json`과 같아야 하고, `scripts/check-release-versions.py`가 그걸 강제한다. |
 | `author` | string | 아니오 | 제작자/배포자 이름. |
 | `icon` | string | 아니오 | SF Symbol 이름. |
 | `kind` | string | 아니오 | `exec` \| `workflow` \| `script`. |

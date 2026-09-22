@@ -22,6 +22,16 @@ final class AppSettingsWindowController {
 struct AppSettingsView: View {
     @ObservedObject var appPrefs: AppPrefs
     @ObservedObject var runtime: WidgetRuntime
+    /// Observed separately: refresh stats deliberately do not fire the
+    /// runtime's `objectWillChange` (see `RefreshStatsModel`).
+    @ObservedObject private var refreshStats: RefreshStatsModel
+    @ObservedObject private var hotkeyRegistration = HotkeyRegistrationCoordinator.shared
+
+    init(appPrefs: AppPrefs, runtime: WidgetRuntime) {
+        self.appPrefs = appPrefs
+        self.runtime = runtime
+        _refreshStats = ObservedObject(wrappedValue: runtime.refreshStats)
+    }
 
     private enum Section: String, CaseIterable, Identifiable {
         case general = "General"
@@ -32,6 +42,7 @@ struct AppSettingsView: View {
 
     @State private var section: Section = .general
     @State private var launchError: String?
+    @State private var hotkeyDraft = ""
 
     private let symbolPresets = [
         BarShelfStatusIcon.logoSymbol, "tray.full", "square.grid.2x2",
@@ -64,7 +75,10 @@ struct AppSettingsView: View {
             .formStyle(.grouped)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .onAppear(perform: syncLaunchAtLoginStatus)
+        .onAppear {
+            syncLaunchAtLoginStatus()
+            hotkeyDraft = appPrefs.preferences.popupHotkey
+        }
     }
 
     // MARK: - General
@@ -108,23 +122,48 @@ struct AppSettingsView: View {
             }
 
             Toggle(isOn: Binding(
+                get: { appPrefs.preferences.copySoundEnabled },
+                set: { value in appPrefs.update { $0.copySoundEnabled = value } }
+            )) {
+                Text("Copy Sound")
+                Text("Play a sound when a widget copies text. A confirmation is always shown.")
+            }
+
+            Toggle(isOn: Binding(
                 get: { appPrefs.preferences.popupHotkeyEnabled },
-                set: { value in appPrefs.update { $0.popupHotkeyEnabled = value } }
+                set: { enabled in
+                    if enabled {
+                        hotkeyRegistration.enable(draft: hotkeyDraft, appPrefs: appPrefs)
+                    } else {
+                        hotkeyRegistration.disable(appPrefs: appPrefs)
+                    }
+                }
             )) {
                 Text("Global Shortcut")
                 Text("Toggle the popup from anywhere with a keyboard shortcut.")
             }
 
-            if appPrefs.preferences.popupHotkeyEnabled {
-                LabeledContent("Shortcut") {
-                    TextField("cmd+shift+b", text: Binding(
-                        get: { appPrefs.preferences.popupHotkey },
-                        set: { value in appPrefs.update { $0.popupHotkey = value } }
-                    ))
-                    .textFieldStyle(.roundedBorder)
-                    .multilineTextAlignment(.trailing)
-                    .frame(maxWidth: 180)
+            LabeledContent("Shortcut") {
+                HStack(spacing: 8) {
+                    TextField("cmd+shift+b", text: $hotkeyDraft)
+                        .textFieldStyle(.roundedBorder)
+                        .multilineTextAlignment(.trailing)
+                        .onSubmit { hotkeyRegistration.enable(draft: hotkeyDraft, appPrefs: appPrefs) }
+                    Button(appPrefs.preferences.popupHotkeyEnabled ? "Apply" : "Enable") {
+                        hotkeyRegistration.enable(draft: hotkeyDraft, appPrefs: appPrefs)
+                    }
+                    .disabled(hotkeyRegistration.validate(hotkeyDraft) != nil)
                 }
+                .frame(maxWidth: 260)
+            }
+            if let error = hotkeyRegistration.validate(hotkeyDraft) ?? hotkeyRegistration.message {
+                Label(error, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            } else {
+                Text("Use cmd, shift, opt, or ctrl plus one key. Changes apply after registration succeeds.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         } header: {
             Text("General")
@@ -250,7 +289,7 @@ struct AppSettingsView: View {
             HStack(spacing: 10) {
                 statTile("\(runtime.widgets.count)", "widgets")
                 statTile("\(runtime.pages.count)", "panels")
-                statTile("\(runtime.refreshStatsSnapshot.count)", "tracked")
+                statTile("\(refreshStats.stats.count)", "tracked")
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 2)
@@ -333,7 +372,7 @@ struct AppSettingsView: View {
 
     private var monitoringRows: [MonitoringRow] {
         runtime.widgets.map { widget in
-            MonitoringRow(widget: widget, stats: runtime.refreshStatsSnapshot[widget.id])
+            MonitoringRow(widget: widget, stats: refreshStats.stats[widget.id])
         }
     }
 

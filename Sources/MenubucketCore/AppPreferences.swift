@@ -17,6 +17,8 @@ public struct AppPreferences: Codable, Equatable, Sendable {
     public var pauseWhenClosed: Bool
     /// `SMAppService.mainApp` registration mirror.
     public var launchAtLogin: Bool
+    /// Optional audible confirmation after copying; visual feedback is always shown.
+    public var copySoundEnabled: Bool
     /// When true a global hotkey toggles the popup (R11). The hotkey itself is
     /// registered app-side; this model only persists the preference.
     public var popupHotkeyEnabled: Bool
@@ -33,13 +35,15 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         pauseWhenClosed: Bool = false,
         launchAtLogin: Bool = false,
         popupHotkeyEnabled: Bool = false,
-        popupHotkey: String = AppPreferences.defaultPopupHotkey
+        popupHotkey: String = AppPreferences.defaultPopupHotkey,
+        copySoundEnabled: Bool = false
     ) {
         let symbol = menuBarSymbol.trimmingCharacters(in: .whitespacesAndNewlines)
         self.menuBarSymbol = symbol.isEmpty ? Self.defaultMenuBarSymbol : symbol
         self.refreshMultiplier = SchedulePolicy.normalizedRefreshMultiplier(refreshMultiplier)
         self.pauseWhenClosed = pauseWhenClosed
         self.launchAtLogin = launchAtLogin
+        self.copySoundEnabled = copySoundEnabled
         self.popupHotkeyEnabled = popupHotkeyEnabled
         let hotkey = popupHotkey.trimmingCharacters(in: .whitespacesAndNewlines)
         self.popupHotkey = hotkey.isEmpty ? Self.defaultPopupHotkey : hotkey
@@ -63,6 +67,9 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         ) ?? false
         launchAtLogin = try container.decodeIfPresent(
             Bool.self, forKey: .launchAtLogin
+        ) ?? false
+        copySoundEnabled = try container.decodeIfPresent(
+            Bool.self, forKey: .copySoundEnabled
         ) ?? false
         popupHotkeyEnabled = try container.decodeIfPresent(
             Bool.self, forKey: .popupHotkeyEnabled

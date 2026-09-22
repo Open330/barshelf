@@ -53,14 +53,35 @@ final class GalleryModel: ObservableObject {
     @Published private(set) var warnings: [String] = []
     @Published private(set) var sourceDescription: String?
     @Published private(set) var registryName: String?
+    /// A short, user-facing explanation for a fallback or partial registry.
+    /// Detailed source errors stay in diagnostics rather than appearing in the
+    /// gallery as noisy transport or parser text.
+    @Published private(set) var registryNotice: String?
 
     private let client: RegistryClient
+    private let widgetsDirectory: URL
+    private let requirementChecker: RequirementChecker
     private var loadTask: Task<Void, Never>?
     private var requirementTask: Task<Void, Never>?
+    private var installedStateTask: Task<Void, Never>?
+    private var installedWatcher: DirectoryWatcher?
+    private var installedWatcherMode: InstalledWatcherMode?
+    private var loadGeneration = 0
+    private var installedStateGeneration = 0
+    private var requirementGeneration = 0
+    private var isGalleryVisible = false
     private var hasLoadedOnce = false
 
-    init(client: RegistryClient = GalleryModel.makeDefaultClient()) {
+    init(
+        client: RegistryClient = GalleryModel.makeDefaultClient(),
+        widgetsDirectory: URL? = nil,
+        requirementChecker: RequirementChecker = .shared
+    ) {
         self.client = client
+        self.requirementChecker = requirementChecker
+        self.widgetsDirectory = widgetsDirectory
+            ?? WidgetRuntime.applicationSupportDirectory
+                .appendingPathComponent("widgets", isDirectory: true)
     }
 
     /// Default client: env override → project remote URL → bundled fallback.
@@ -92,6 +113,17 @@ final class GalleryModel: ObservableObject {
         return entries.filter { entry in
             matchesKind(entry) && matchesCategory(entry) && matchesQuery(entry, query)
         }
+    }
+
+    var filtersAreActive: Bool {
+        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || kindFilter != .all || selectedCategory != nil
+    }
+
+    func clearFilters() {
+        searchText = ""
+        kindFilter = .all
+        selectedCategory = nil
     }
 
     struct GallerySection: Identifiable {
@@ -184,10 +216,44 @@ final class GalleryModel: ObservableObject {
     }
 
     func onWindowShown() {
+        isGalleryVisible = true
+        startWatchingInstalledWidgets()
         refreshInstalledStates()
+        // A CLI may have been installed while BarShelf was running. Recheck
+        // only when the gallery becomes visible (and on manual refresh), not
+        // continuously while cards render.
+        requirementChecker.invalidateCache()
+        recomputeRequirements()
         if !hasLoadedOnce {
             refresh(force: false)
         }
+    }
+
+    /// Called when the Gallery section leaves the view hierarchy, including
+    /// when its containing hub window closes. Keeping an FSEvents stream alive
+    /// while the gallery is hidden would otherwise wake the app for unrelated
+    /// filesystem activity.
+    func onWindowHidden() {
+        isGalleryVisible = false
+        loadTask?.cancel()
+        loadTask = nil
+        // A cancelled load returns before its normal cleanup. Clearing this
+        // here keeps a later appearance from inheriting a stuck spinner and a
+        // disabled refresh button.
+        loadGeneration += 1
+        isLoading = false
+        requirementTask?.cancel()
+        requirementTask = nil
+        // A requirement probe is deliberately detached from the main actor.
+        // Invalidate its result as well as cancelling it, because a blocking
+        // PATH probe can complete after cancellation.
+        requirementGeneration += 1
+        installedStateTask?.cancel()
+        installedStateTask = nil
+        installedStateGeneration += 1
+        installedWatcher?.cancel()
+        installedWatcher = nil
+        installedWatcherMode = nil
     }
 
     /// Screenshot/preview support: inject entries directly (no registry
@@ -199,31 +265,61 @@ final class GalleryModel: ObservableObject {
 
     func refresh(force: Bool) {
         loadTask?.cancel()
+        loadGeneration += 1
+        let generation = loadGeneration
         isLoading = true
         loadError = nil
-        loadTask = Task { [client] in
+        if force {
+            requirementChecker.invalidateCache()
+            // Do not make CLI availability wait on the registry request. A
+            // forced refresh may fail or fall back to stale data, while the
+            // already visible cards can still reflect a newly installed tool.
+            recomputeRequirements()
+        }
+        loadTask = Task { [weak self, client] in
             do {
                 let result = try await client.load(forceRefresh: force)
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled, let self,
+                      self.loadGeneration == generation
+                else { return }
                 self.entries = result.index.widgets
                 self.warnings = result.warnings
                 self.sourceDescription = result.source.displayName
                 self.registryName = result.index.name
+                self.registryNotice = Self.notice(for: result)
                 self.hasLoadedOnce = true
                 self.recomputeRequirements()
-                for warning in result.warnings {
-                    FileHandle.standardError.write(
-                        Data("registry warning: \(warning)\n".utf8)
-                    )
-                }
             } catch {
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled, let self,
+                      self.loadGeneration == generation
+                else { return }
                 self.loadError = (error as? LocalizedError)?.errorDescription
                     ?? error.localizedDescription
             }
+            guard !Task.isCancelled, let self,
+                  self.loadGeneration == generation
+            else { return }
             self.isLoading = false
+            self.loadTask = nil
             self.refreshInstalledStates()
         }
+    }
+
+    private nonisolated static func notice(
+        for result: RegistryClient.LoadResult
+    ) -> String? {
+        let warningText = result.warnings.joined(separator: " ").lowercased()
+        if warningText.contains("refresh failed"), case .cache = result.source {
+            return "Couldn’t refresh the registry. Showing cached widgets."
+        }
+        if case .bundled = result.source,
+           warningText.contains("unavailable") || warningText.contains("failed") {
+            return "Using the bundled widget registry while the online registry is unavailable."
+        }
+        if !result.warnings.isEmpty {
+            return "Some registry details could not be loaded."
+        }
+        return nil
     }
 
     /// Kicks off the existing GUI install flow (per-widget confirmation
@@ -235,25 +331,119 @@ final class GalleryModel: ObservableObject {
     }
 
     /// Installed = the widget's install directory exists (same rule as the
-    /// installer's update detection). Also reads each installed widget's
-    /// `widget.json` version so the card can flip to "Update" when the registry
-    /// advertises a newer release. Both are cheap directory/file reads.
+    /// installer's update detection). File access runs at utility priority, so
+    /// a registry with many entries never blocks the gallery's main actor.
+    /// A generation check drops late results when another filesystem event or
+    /// registry refresh supersedes the scan.
     func refreshInstalledStates() {
-        let widgetsDir = WidgetRuntime.applicationSupportDirectory
-            .appendingPathComponent("widgets", isDirectory: true)
+        guard isGalleryVisible else { return }
+        installedStateTask?.cancel()
+        installedStateGeneration += 1
+        let generation = installedStateGeneration
+        let entries = entries
+        let widgetsDirectory = widgetsDirectory
+        installedStateTask = Task { @MainActor [weak self] in
+            let scanTask = Task.detached(priority: .utility) {
+                Self.readInstalledState(
+                    for: entries, widgetsDirectory: widgetsDirectory
+                )
+            }
+            let state = await withTaskCancellationHandler(operation: {
+                await scanTask.value
+            }, onCancel: {
+                scanTask.cancel()
+            })
+            guard !Task.isCancelled,
+                  let self,
+                  self.installedStateGeneration == generation
+            else { return }
+            if self.installedIDs != state.ids {
+                self.installedIDs = state.ids
+            }
+            if self.installedVersions != state.versions {
+                self.installedVersions = state.versions
+            }
+        }
+    }
+
+    /// Keeps cards in sync with installs performed by another process while
+    /// the gallery is visible. Watching both the directory and its parent also
+    /// covers the first CLI install, which creates `widgets/` itself.
+    private func startWatchingInstalledWidgets() {
+        guard installedWatcher == nil else { return }
+        installWatcher(mode: desiredInstalledWatcherMode)
+    }
+
+    private enum InstalledWatcherMode: Equatable {
+        case widgetsDirectory
+        case parentDirectory
+    }
+
+    private var desiredInstalledWatcherMode: InstalledWatcherMode {
+        FileManager.default.fileExists(atPath: widgetsDirectory.path)
+            ? .widgetsDirectory
+            : .parentDirectory
+    }
+
+    private func installWatcher(mode: InstalledWatcherMode) {
+        do {
+            let paths: [String]
+            switch mode {
+            case .widgetsDirectory:
+                paths = [widgetsDirectory.path]
+            case .parentDirectory:
+                paths = [widgetsDirectory.deletingLastPathComponent().path]
+            }
+            installedWatcher = try DirectoryWatcher(
+                paths: paths,
+                debounce: 0.25
+            ) { [weak self] in
+                self?.handleInstalledWidgetDirectoryChange()
+            }
+            installedWatcherMode = mode
+        } catch {
+            // A failed watcher must not break the gallery. The installer
+            // completion callback still refreshes its own cards.
+            installedWatcher = nil
+            installedWatcherMode = nil
+        }
+    }
+
+    private func handleInstalledWidgetDirectoryChange() {
+        guard isGalleryVisible else { return }
+        let desiredMode = desiredInstalledWatcherMode
+        if installedWatcherMode != desiredMode {
+            installedWatcher?.cancel()
+            installedWatcher = nil
+            installedWatcherMode = nil
+            installWatcher(mode: desiredMode)
+        }
+        refreshInstalledStates()
+    }
+
+    private struct InstalledState: Sendable {
+        let ids: Set<String>
+        let versions: [String: String]
+    }
+
+    private nonisolated static func readInstalledState(
+        for entries: [RegistryWidgetEntry], widgetsDirectory: URL
+    ) -> InstalledState {
         let fm = FileManager.default
         var installed: Set<String> = []
         var versions: [String: String] = [:]
         for entry in entries {
-            let dir = widgetsDir.appendingPathComponent(entry.id)
-            guard fm.fileExists(atPath: dir.path) else { continue }
+            guard !Task.isCancelled else {
+                return InstalledState(ids: installed, versions: versions)
+            }
+            let directory = widgetsDirectory.appendingPathComponent(entry.id)
+            guard fm.fileExists(atPath: directory.path) else { continue }
             installed.insert(entry.id)
-            if let version = Self.installedVersion(inWidgetDirectory: dir) {
+            if let version = installedVersion(inWidgetDirectory: directory) {
                 versions[entry.id] = version
             }
         }
-        installedIDs = installed
-        installedVersions = versions
+        return InstalledState(ids: installed, versions: versions)
     }
 
     /// Reads the top-level `version` string from an installed widget's
@@ -272,11 +462,21 @@ final class GalleryModel: ObservableObject {
         let version: String?
     }
 
+    deinit {
+        loadTask?.cancel()
+        requirementTask?.cancel()
+        installedStateTask?.cancel()
+        installedWatcher?.cancel()
+    }
+
     /// Resolves `requires` PATH status for every entry off the main thread
     /// (RequirementChecker caches, so this is a one-time cost per binary), then
     /// publishes the map back on the main actor.
     func recomputeRequirements() {
+        guard isGalleryVisible else { return }
         requirementTask?.cancel()
+        requirementGeneration += 1
+        let generation = requirementGeneration
         let pending: [(id: String, requires: String)] = entries.compactMap { entry in
             guard let requires = entry.requires?
                 .trimmingCharacters(in: .whitespaces), !requires.isEmpty
@@ -287,16 +487,18 @@ final class GalleryModel: ObservableObject {
             requirementStatus = [:]
             return
         }
+        let checker = requirementChecker
         requirementTask = Task.detached(priority: .utility) {
             var resolved: [String: RequirementChecker.Status] = [:]
             for item in pending {
                 if Task.isCancelled { return }
-                resolved[item.id] = RequirementChecker.shared
-                    .status(forRequires: item.requires)
+                resolved[item.id] = checker.status(forRequires: item.requires)
             }
             let result = resolved
             await MainActor.run { [weak self] in
-                guard let self, !Task.isCancelled else { return }
+                guard let self, !Task.isCancelled,
+                      self.requirementGeneration == generation
+                else { return }
                 self.requirementStatus = result
             }
         }
@@ -308,12 +510,6 @@ final class GalleryModel: ObservableObject {
 struct GalleryView: View {
     @ObservedObject var model: GalleryModel
 
-    /// Cheap periodic re-check so cards flip to "Installed" after the
-    /// installer dialogs finish (the flow runs outside this view).
-    private let installedPoll = Timer.publish(
-        every: 2, on: .main, in: .common
-    ).autoconnect()
-
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -322,8 +518,8 @@ struct GalleryView: View {
             content
         }
         .frame(minWidth: 420, minHeight: 320)
-        .onReceive(installedPoll) { _ in
-            model.refreshInstalledStates()
+        .onDisappear {
+            model.onWindowHidden()
         }
         .onChange(of: model.kindFilter) { _ in
             // A category chip may no longer exist for the new kind segment;
@@ -414,6 +610,14 @@ struct GalleryView: View {
                     .controlSize(.small)
                     .accessibilityLabel("Loading registry")
             }
+            if model.filtersAreActive {
+                Button("Clear Filters") {
+                    model.clearFilters()
+                }
+                .controlSize(.small)
+                .help("Show all widgets")
+                .accessibilityLabel("Clear all gallery filters")
+            }
             Button {
                 model.refresh(force: true)
             } label: {
@@ -429,10 +633,7 @@ struct GalleryView: View {
     /// Distinguishes "the registry is empty" from "your filters excluded
     /// everything" so an active kind/category/search filter is discoverable.
     private var emptyStateMessage: String {
-        let filtersActive = !model.searchText.isEmpty
-            || model.kindFilter != .all
-            || model.selectedCategory != nil
-        if filtersActive {
+        if model.filtersAreActive {
             if !model.searchText.isEmpty {
                 return "No widgets match \"\(model.searchText)\""
             }
@@ -443,7 +644,7 @@ struct GalleryView: View {
 
     @ViewBuilder
     private var content: some View {
-        if let error = model.loadError, model.filteredEntries.isEmpty {
+        if let error = model.loadError, model.entries.isEmpty {
             VStack(spacing: 8) {
                 Image(systemName: "wifi.exclamationmark")
                     .font(.largeTitle)
@@ -476,11 +677,29 @@ struct GalleryView: View {
                 Text(emptyStateMessage)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
+                if model.filtersAreActive {
+                    Button("Clear Filters") { model.clearFilters() }
+                        .accessibilityLabel("Clear all gallery filters")
+                }
+                if let notice = model.registryNotice {
+                    registryNotice(notice)
+                        .padding(.top, 8)
+                }
+                if model.loadError != nil {
+                    refreshFailureNotice()
+                        .padding(.top, 8)
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 18) {
+                    if let notice = model.registryNotice {
+                        registryNotice(notice)
+                    }
+                    if model.loadError != nil {
+                        refreshFailureNotice()
+                    }
                     ForEach(model.sections) { section in
                         sectionView(section)
                     }
@@ -489,6 +708,45 @@ struct GalleryView: View {
                 .padding(12)
             }
         }
+    }
+
+    private func registryNotice(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+                .accessibilityHidden(true)
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+            Button("Retry") { model.refresh(force: true) }
+                .controlSize(.small)
+                .disabled(model.isLoading)
+        }
+        .padding(10)
+        .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Registry status: \(text)")
+    }
+
+    private func refreshFailureNotice() -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "wifi.exclamationmark")
+                .foregroundStyle(.orange)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Couldn’t refresh the registry. Showing the widgets already loaded.")
+                    .font(.caption)
+            }
+            Spacer(minLength: 0)
+            Button("Retry") { model.refresh(force: true) }
+                .controlSize(.small)
+                .disabled(model.isLoading)
+        }
+        .padding(10)
+        .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Registry refresh failed. Showing widgets already loaded.")
     }
 
     /// One shelf: title + count, a one-line subtitle, and an adaptive grid of

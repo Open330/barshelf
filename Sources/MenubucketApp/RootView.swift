@@ -8,6 +8,9 @@ import UniformTypeIdentifiers
 /// the SwiftUI pager.
 final class PagerState: ObservableObject {
     @Published var index: Int = 0
+    /// Shared with the AppKit event monitor so page-navigation shortcuts do
+    /// not escape through the modal search surface.
+    @Published var searchIsPresented = false
     /// Live horizontal offset while a two-finger swipe is in progress.
     @Published var dragOffset: CGFloat = 0
     /// True during an active swipe — disables the snap animation so content
@@ -80,6 +83,14 @@ final class PagerState: ObservableObject {
         isSwiping = false
         dragOffset = 0
     }
+
+    /// Opening the modal interrupts a horizontal gesture. The AppKit scroll
+    /// monitor deliberately stops handling events during search, so waiting for
+    /// a later scroll-end event would leave the pager offset in mid-swipe.
+    func setSearchPresented(_ presented: Bool) {
+        searchIsPresented = presented
+        if presented { cancelSwipe() }
+    }
 }
 
 /// Popup root: one page per panel group, vertical scroll inside a page,
@@ -91,9 +102,14 @@ struct RootView: View {
     @ObservedObject var pager: PagerState
     @ObservedObject private var toast = ToastCenter.shared
     @State private var searchPresented = false
+    @FocusState private var searchButtonFocused: Bool
+    @AccessibilityFocusState private var searchButtonAccessibilityFocused: Bool
     /// Widget id whose card border is flashing after a `reveal` request; cleared
     /// ~1.5s later so the accent highlight fades on its own.
     @State private var highlightedID: String?
+    /// Changes for every reveal request, including a second request for the
+    /// same widget while its highlight is still visible.
+    @State private var revealToken = UUID()
 
     static let defaultSize = CGSize(width: 360, height: 480)
 
@@ -113,6 +129,11 @@ struct RootView: View {
                 footer(pages: pages, index: index)
             }
         }
+        // The overlay is a real modal surface: keep the shelf behind it out of
+        // both VoiceOver traversal and the keyboard focus chain.
+        .accessibilityHidden(searchPresented)
+        .disabled(searchPresented)
+        .allowsHitTesting(!searchPresented)
         .frame(width: Self.defaultSize.width, height: Self.defaultSize.height)
         // Solid, opaque popup surface — no popover translucency bleeding through.
         .background(Color(nsColor: .controlBackgroundColor))
@@ -137,11 +158,29 @@ struct RootView: View {
         .overlay(alignment: .bottom) { toastOverlay }
         .animation(.easeInOut(duration: 0.2), value: toast.message)
         .background( // ⌘F without stealing layout space
-            Button("") { searchPresented.toggle() }
+            Button("") { searchPresented = true }
                 .keyboardShortcut("f", modifiers: .command)
                 .opacity(0)
+                .accessibilityHidden(true)
         )
-        .onAppear { publishVisibleWidgets(pages: pages) }
+        .onAppear {
+            pager.setSearchPresented(searchPresented)
+            publishVisibleWidgets(pages: pages)
+        }
+        .onDisappear { pager.setSearchPresented(false) }
+        .onChange(of: searchPresented) { presented in
+            pager.setSearchPresented(presented)
+            if !presented {
+                // Return keyboard users to the control that opened the modal.
+                DispatchQueue.main.async {
+                    // Ignore a queued restoration if the user already opened a
+                    // fresh search modal (for example by pressing ⌘F twice).
+                    guard !searchPresented else { return }
+                    searchButtonFocused = true
+                    searchButtonAccessibilityFocused = true
+                }
+            }
+        }
         .onChange(of: pager.index) { _ in publishVisibleWidgets(pages: runtime.pages) }
         .onReceive(runtime.objectWillChange) { _ in
             DispatchQueue.main.async {
@@ -163,18 +202,22 @@ struct RootView: View {
         runtime.setVisibleWidgetIDs(Self.visibleWidgetIDs(
             pages: pages,
             index: pager.index,
-            pinned: Set(runtime.prefs.pinned)
+            pinnedIDs: runtime.prefs.pinned
         ))
     }
 
     static func visibleWidgetIDs(
         pages: [WidgetPage],
         index: Int,
-        pinned: Set<String>
+        pinnedIDs: [String]
     ) -> Set<String> {
         guard !pages.isEmpty else { return [] }
         let safeIndex = min(max(index, 0), pages.count - 1)
-        return Set(pages[safeIndex].widgets.map(\.id)).union(pinned)
+        // A disabled widget is absent from `pages`, so it cannot keep doing
+        // visible-only work merely because it remains in the pin preference.
+        let enabledIDs = Set(pages.flatMap(\.widgets).map(\.id))
+        let displayedPinned = pinnedIDs.filter(enabledIDs.contains).prefix(2)
+        return Set(pages[safeIndex].widgets.map(\.id)).union(displayedPinned)
     }
 
     /// Pager pages remain mounted for swipe geometry, but only the selected
@@ -191,9 +234,12 @@ struct RootView: View {
             pager.jump(to: target, pageCount: pages.count)
         }
         highlightedID = id
+        let token = UUID()
+        revealToken = token
         runtime.pendingReveal = nil
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            if highlightedID == id { highlightedID = nil }
+            // A later reveal of the same card gets its own full flash.
+            if highlightedID == id, revealToken == token { highlightedID = nil }
         }
     }
 
@@ -218,13 +264,12 @@ struct RootView: View {
     @ViewBuilder
     private var pinnedRow: some View {
         let pinnedWidgets = runtime.prefs.pinned.compactMap { id in
-            runtime.widgets.first { $0.id == id }
+            runtime.widgets.first { $0.id == id && !runtime.prefs.isDisabled(id) }
         }
         if !pinnedWidgets.isEmpty {
             VStack(spacing: 0) {
                 ForEach(pinnedWidgets.prefix(2)) { widget in
-                    WidgetCardView(widget: widget, runtime: runtime)
-                        .frame(maxHeight: 120)
+                    WidgetCardView(widget: widget, runtime: runtime, compactHeight: 120)
                 }
                 if pinnedWidgets.count > 2 {
                     pinnedOverflow(pinnedWidgets: pinnedWidgets)
@@ -244,10 +289,8 @@ struct RootView: View {
             let pages = runtime.pages
             if let target = pinnedWidgets.dropFirst(2).first(where: { widget in
                 pages.contains { $0.widgets.contains { $0.id == widget.id } }
-            }), let index = pages.firstIndex(where: {
-                $0.widgets.contains { $0.id == target.id }
             }) {
-                pager.jump(to: index, pageCount: pages.count)
+                runtime.reveal(widgetID: target.id)
             }
         } label: {
             Text("+\(hidden) pinned hidden")
@@ -300,35 +343,55 @@ struct RootView: View {
 
             HStack(spacing: 0) {
                 ForEach(pages) { page in
-                    ScrollView {
-                        VStack(spacing: 0) {
-                            if runtime.prefs.welcomePending,
-                               page.id == Self.welcomePageID(pages: pages) {
-                                WelcomeCardView {
-                                    runtime.prefs.dismissWelcome()
-                                    runtime.objectWillChange.send()
-                                }
-                                rowSeparator
-                            }
-                            let rows = cardRows(page.widgets)
-                            ForEach(Array(rows.enumerated()), id: \.element.id) { rowIndex, row in
-                                HStack(alignment: .top, spacing: 0) {
-                                    ForEach(Array(row.widgets.enumerated()), id: \.element.id) { widgetIndex, widget in
-                                        if widgetIndex > 0 { Divider() }
-                                        WidgetCardView(
-                                            widget: widget,
-                                            runtime: runtime,
-                                            isHighlighted: widget.id == highlightedID
-                                        )
-                                        .frame(maxWidth: .infinity)
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            VStack(spacing: 0) {
+                                if runtime.prefs.welcomePending,
+                                   page.id == Self.welcomePageID(pages: pages) {
+                                    WelcomeCardView {
+                                        runtime.prefs.dismissWelcome()
+                                        runtime.objectWillChange.send()
                                     }
+                                    rowSeparator
                                 }
-                                if rowIndex < rows.count - 1 { rowSeparator }
+                                let rows = cardRows(page.widgets)
+                                ForEach(Array(rows.enumerated()), id: \.element.id) { rowIndex, row in
+                                    HStack(alignment: .top, spacing: 0) {
+                                        ForEach(Array(row.widgets.enumerated()), id: \.element.id) { widgetIndex, widget in
+                                            if widgetIndex > 0 { Divider() }
+                                            WidgetCardView(
+                                                widget: widget,
+                                                runtime: runtime,
+                                                isHighlighted: widget.id == highlightedID
+                                            )
+                                            .frame(maxWidth: .infinity)
+                                            .id(widget.id)
+                                        }
+                                    }
+                                    if rowIndex < rows.count - 1 { rowSeparator }
+                                }
+                            }
+                            .padding(.bottom, 6)
+                        }
+                        .onChange(of: revealToken) { _ in
+                            guard let id = highlightedID,
+                                  page.widgets.contains(where: { $0.id == id }) else { return }
+                            // The pager first moves this page onscreen. Deferring one
+                            // run-loop lets ScrollViewReader resolve its card anchor.
+                            DispatchQueue.main.async {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    proxy.scrollTo(id, anchor: .center)
+                                }
                             }
                         }
-                        .padding(.bottom, 6)
                     }
                     .frame(width: width, height: geometry.size.height)
+                    // Pages remain laid out for the horizontal swipe, but an
+                    // offscreen page must not be reachable by VoiceOver, Tab,
+                    // or controls embedded in a widget tree.
+                    .accessibilityHidden(page.id != pages[index].id)
+                    .disabled(page.id != pages[index].id)
+                    .allowsHitTesting(page.id == pages[index].id)
                     .environment(
                         \.widgetContentIsActive,
                         Self.pageContentIsActive(
@@ -371,11 +434,13 @@ struct RootView: View {
             }
             Spacer()
             Button {
-                searchPresented.toggle()
+                searchPresented = true
             } label: {
                 Image(systemName: "magnifyingglass")
             }
             .buttonStyle(.borderless)
+            .focused($searchButtonFocused)
+            .accessibilityFocused($searchButtonAccessibilityFocused)
             .help("Search (⌘F)")
             .accessibilityLabel("Search")
             Button {
@@ -408,21 +473,35 @@ struct RootView: View {
 
             Spacer()
 
-            HStack(spacing: 6) {
-                ForEach(Array(pages.enumerated()), id: \.element.id) { pageIndex, page in
-                    // Size + fill cue (not hue alone) marks the current page.
-                    Button {
-                            pager.jump(to: pageIndex, pageCount: pages.count)
-                    } label: {
-                        Circle()
-                            .fill(pageIndex == index ? Color.primary : Color.secondary.opacity(0.35))
-                            .frame(width: pageIndex == index ? 7 : 6,
-                                   height: pageIndex == index ? 7 : 6)
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 0) {
+                        ForEach(Array(pages.enumerated()), id: \.element.id) { pageIndex, page in
+                            // Size + fill cue (not hue alone) marks the current page.
+                            Button {
+                                pager.jump(to: pageIndex, pageCount: pages.count)
+                            } label: {
+                                Circle()
+                                    .fill(pageIndex == index ? Color.primary : Color.secondary.opacity(0.35))
+                                    .frame(width: pageIndex == index ? 7 : 6,
+                                           height: pageIndex == index ? 7 : 6)
+                                    .frame(width: 24, height: 24)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .id(page.id)
+                            .help(page.group)
+                            .accessibilityLabel(page.group)
+                            .accessibilityAddTraits(pageIndex == index ? [.isSelected] : [])
                         }
-                        .buttonStyle(.plain)
-                        .help(page.group)
-                        .accessibilityLabel(page.group)
-                        .accessibilityAddTraits(pageIndex == index ? [.isSelected] : [])
+                    }
+                }
+                .frame(maxWidth: 130, maxHeight: 24)
+                .onChange(of: index) { newIndex in
+                    guard pages.indices.contains(newIndex) else { return }
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        proxy.scrollTo(pages[newIndex].id, anchor: .center)
+                    }
                 }
             }
             .accessibilityElement(children: .contain)
@@ -632,6 +711,10 @@ struct WelcomeCardView: View {
 struct WidgetCardView: View {
     let widget: LoadedWidget
     let runtime: WidgetRuntime
+    /// The pinned strip deliberately uses a compact, fixed footprint. This is
+    /// separate from a widget's chosen card height, which remains unchanged in
+    /// its regular panel.
+    let compactHeight: CGFloat?
     /// When true the card border flashes accent (driven by `pendingReveal`).
     let isHighlighted: Bool
     @ObservedObject private var model: WidgetCardModel
@@ -643,6 +726,7 @@ struct WidgetCardView: View {
     /// Hovering reveals the per-card refresh button (hidden at rest to reduce
     /// visual noise). The button stays in the accessibility tree either way.
     @State private var isHovering = false
+    @FocusState private var controlsFocused: Bool
     @State private var isDropTarget = false
     @Environment(\.colorScheme) private var colorScheme
 
@@ -671,10 +755,20 @@ struct WidgetCardView: View {
         appearance.fixedHeight.map { CGFloat($0) }
     }
 
-    init(widget: LoadedWidget, runtime: WidgetRuntime, isHighlighted: Bool = false) {
+    private var displayedFixedHeight: CGFloat? {
+        compactHeight ?? effectiveFixedHeight
+    }
+
+    init(
+        widget: LoadedWidget,
+        runtime: WidgetRuntime,
+        isHighlighted: Bool = false,
+        compactHeight: CGFloat? = nil
+    ) {
         self.widget = widget
         self.runtime = runtime
         self.isHighlighted = isHighlighted
+        self.compactHeight = compactHeight
         _model = ObservedObject(wrappedValue: runtime.cardModel(for: widget.id))
     }
 
@@ -684,7 +778,7 @@ struct WidgetCardView: View {
             .padding(.horizontal, contentInset + 2)
             .padding(.vertical, 10)
             .frame(maxWidth: .infinity, alignment: .topLeading)
-            .modifier(OptionalHeight(height: effectiveFixedHeight))
+            .modifier(OptionalHeight(height: displayedFixedHeight))
             .environment(\.widgetAppearance, appearance)
             .environment(\.remoteImageHosts, widget.manifest.permissions?.network ?? [])
             .environment(\.localFileReadPaths, runtime.effectiveReadPaths(for: widget))
@@ -708,6 +802,18 @@ struct WidgetCardView: View {
         .animation(.easeInOut(duration: 0.4), value: isHighlighted)
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) { isHovering = hovering }
+        }
+        .accessibilityAction(named: Text("Refresh")) {
+            runtime.refresh(widgetID: widget.id)
+        }
+        .accessibilityAction(named: Text("Open settings")) {
+            showSettings = true
+        }
+        .accessibilityAction(named: Text("Move up")) { moveWithinPanel(by: -1) }
+        .accessibilityAction(named: Text("Move down")) { moveWithinPanel(by: 1) }
+        .accessibilityAction(named: Text(runtime.prefs.isPinned(widget.id) ? "Unpin" : "Pin")) {
+            runtime.prefs.togglePin(widget.id)
+            runtime.objectWillChange.send()
         }
         .contextMenu { cardContextMenu }
         .sheet(isPresented: $showSettings) {
@@ -748,13 +854,31 @@ struct WidgetCardView: View {
 
     @ViewBuilder
     private func cardStack(snapshot: WidgetSnapshot) -> some View {
+        if compactHeight != nil {
+            // Pinned cards cannot grow the popup. Scroll the whole card body so
+            // the update caption and long widget content remain reachable.
+            ScrollView(.vertical, showsIndicators: true) {
+                cardContents(snapshot: snapshot, scrollFixedContent: false)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        } else {
+            cardContents(
+                snapshot: snapshot,
+                scrollFixedContent: effectiveFixedHeight != nil
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func cardContents(snapshot: WidgetSnapshot, scrollFixedContent: Bool) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             if showsHeader {
                 cardHeader(snapshot: snapshot)
             }
-            if effectiveFixedHeight != nil {
+            if scrollFixedContent {
                 // Fixed footprint: content taller than the card scrolls inside.
-                ScrollView(.vertical, showsIndicators: false) {
+                ScrollView(.vertical, showsIndicators: true) {
                     VStack(alignment: .leading, spacing: 8) { cardContent(snapshot: snapshot) }
                         .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
@@ -808,6 +932,11 @@ struct WidgetCardView: View {
         Button("Settings…") { showSettings = true }
         Button("Refresh") { runtime.refresh(widgetID: widget.id) }
 
+        Button("Move Up") { moveWithinPanel(by: -1) }
+            .disabled(adjacentWidget(by: -1) == nil)
+        Button("Move Down") { moveWithinPanel(by: 1) }
+            .disabled(adjacentWidget(by: 1) == nil)
+
         Divider()
 
         Button(runtime.prefs.isDisabled(widget.id) ? "Enable" : "Disable") {
@@ -829,6 +958,23 @@ struct WidgetCardView: View {
         Divider()
 
         Button("Remove Widget…", role: .destructive) { showRemoveConfirm = true }
+    }
+
+    private func adjacentWidget(by offset: Int) -> LoadedWidget? {
+        guard let page = runtime.pages.first(where: { $0.widgets.contains { $0.id == widget.id } }),
+              let index = page.widgets.firstIndex(where: { $0.id == widget.id }),
+              page.widgets.indices.contains(index + offset) else { return nil }
+        return page.widgets[index + offset]
+    }
+
+    private func moveWithinPanel(by offset: Int) {
+        guard let adjacent = adjacentWidget(by: offset) else { return }
+        if offset < 0 {
+            runtime.reorderWidget(id: widget.id, before: adjacent.id)
+        } else {
+            runtime.reorderWidget(id: adjacent.id, before: widget.id)
+        }
+        runtime.reveal(widgetID: widget.id)
     }
 
     private var actionContext: ActionContext {
@@ -876,44 +1022,47 @@ struct WidgetCardView: View {
     /// move/reorder, and settings — grouped in one glass capsule.
     @ViewBuilder
     private var cardControls: some View {
-        if isHovering {
-            HStack(spacing: 2) {
-                Button { runtime.refresh(widgetID: widget.id) } label: {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 22, height: 20)
-                }
-                .buttonStyle(.plain)
-                .help("Refresh \(widget.displayName)")
-                .accessibilityLabel("Refresh \(widget.displayName)")
-                Image(systemName: "line.3.horizontal")
+        HStack(spacing: 2) {
+            Button { runtime.refresh(widgetID: widget.id) } label: {
+                Image(systemName: "arrow.clockwise")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.secondary)
                     .frame(width: 22, height: 20)
-                    .onDrag {
-                        NSItemProvider(object: widget.id as NSString)
-                    } preview: {
-                        dragPreview
-                    }
-                    .help("Drag to move")
-                    .accessibilityLabel("Move \(widget.displayName)")
-                Button { showSettings = true } label: {
-                    Image(systemName: "slider.horizontal.3")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 22, height: 20)
-                }
-                .buttonStyle(.plain)
-                .help("Widget settings")
-                .accessibilityLabel("Settings for \(widget.displayName)")
             }
-            .padding(.horizontal, 3)
-            .padding(.vertical, 2)
-            .modifier(ControlCapsule())
-            .padding(6)
-            .transition(.opacity)
+            .buttonStyle(.plain)
+            .focused($controlsFocused)
+            .help("Refresh \(widget.displayName)")
+            .accessibilityLabel("Refresh \(widget.displayName)")
+            Image(systemName: "line.3.horizontal")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 22, height: 20)
+                .onDrag {
+                    NSItemProvider(object: widget.id as NSString)
+                } preview: {
+                    dragPreview
+                }
+                .help("Drag to move")
+                .accessibilityLabel("Move \(widget.displayName)")
+            Button { showSettings = true } label: {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 22, height: 20)
+            }
+            .buttonStyle(.plain)
+            .focused($controlsFocused)
+            .help("Widget settings")
+            .accessibilityLabel("Settings for \(widget.displayName)")
         }
+        .padding(.horizontal, 3)
+        .padding(.vertical, 2)
+        .modifier(ControlCapsule())
+        .padding(6)
+        // Keep the controls in the focus order even while visually quiet; a
+        // keyboard focus immediately reveals them without making the whole
+        // card (and its embedded text fields) a separate focus target.
+        .opacity(isHovering || controlsFocused ? 1 : 0)
     }
 
     /// The card's drag proxy — a labeled chip so you can see what you're moving.

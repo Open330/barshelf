@@ -87,6 +87,11 @@ final class WidgetInstallSourceTests: XCTestCase {
 
     // MARK: Direct archives
 
+    func testArchiveRequiresAHost() {
+        XCTAssertThrowsError(try WidgetInstallSource.parse("https:///widget.zip"))
+        XCTAssertThrowsError(try WidgetInstallSource.parse("https:widget.zip"))
+    }
+
     func testDirectZipAndMbwArchiveURLs() throws {
         let zip = try WidgetInstallSource.parse("https://example.com/downloads/widget.zip")
         XCTAssertEqual(zip.kind, .archive)

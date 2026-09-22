@@ -39,6 +39,48 @@ public struct WorkflowDefinition: Codable, Equatable, Sendable {
         self.store = store
     }
 
+    /// The `widget.*` context key a workflow reads to find out whether its
+    /// card is on screen right now.
+    public static let visibilityPath = "widget.visible"
+
+    /// True when any template in this workflow reads `widget.visible`.
+    ///
+    /// A workflow that samples less while nothing is displayed — the sensors
+    /// widget reads 46 SMC keys instead of 129 with its card closed — would
+    /// otherwise keep showing the cheap result until its next scheduled tick.
+    /// The host watches this flag so it can refresh the instant the card opens.
+    public var readsWidgetVisibility: Bool {
+        for source in sources.values where Self.mentionsVisibility(source.with) {
+            return true
+        }
+        for transform in (transforms ?? [:]).values {
+            if Self.mentionsVisibility(transform.with) { return true }
+            if transform.from?.contains(Self.visibilityPath) == true { return true }
+        }
+        if Self.mentionsVisibility(view) { return true }
+        if Self.mentionsVisibility(empty) { return true }
+        if let status {
+            let templates = [status.label, status.tooltip, status.prefix, status.icon, status.tint]
+            if templates.contains(where: { $0?.contains(Self.visibilityPath) == true }) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private static func mentionsVisibility(_ value: JSONValue?) -> Bool {
+        switch value {
+        case let .string(text):
+            return text.contains(visibilityPath)
+        case let .array(items):
+            return items.contains { mentionsVisibility($0) }
+        case let .object(object):
+            return object.values.contains { mentionsVisibility($0) }
+        default:
+            return false
+        }
+    }
+
     public struct SourceDef: Codable, Equatable, Sendable {
         public var use: String
         public var with: JSONValue?

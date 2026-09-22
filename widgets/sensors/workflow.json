@@ -2,7 +2,7 @@
   "$schema": "https://barshelf.jiun.dev/schema/workflow-0.1.json",
   "schemaVersion": 1,
   "kind": "workflow",
-  "_comment": "Hardware sensors from the native `system` source: SMC temperatures and fans, with the Apple Silicon HID sensor plane as the fallback. Every reading is optional, so the view switches on sensors.available. Displayed temperatures are converted per `settings.unit`; the progress thresholds stay in Celsius because that is what they were calibrated against.",
+  "_comment": "Hardware sensors from the native `system` source: SMC temperatures and fans, with the Apple Silicon HID sensor plane as the fallback. Every reading is optional, so the view switches on sensors.available. Displayed temperatures are converted per `settings.unit`; the progress thresholds stay in Celsius because that is what they were calibrated against. With the card closed the source is told what the menu bar shows: every SMC key is its own IOKit round trip, so reading one component instead of all of them - and skipping `detail`, which is only the card's sensor list - takes a refresh from ~27 ms to ~4 ms. Opening the card sets widget.visible and the host re-runs the workflow at full breadth. The coalesce defaults keep the widget correct on a host that predates widget.visible: there it simply samples everything, as it always did.",
   "sources": {
     "data": {
       "use": "system",
@@ -10,7 +10,8 @@
         "metrics": [
           "sensors"
         ],
-        "detail": true
+        "detail": "${coalesce(widget.visible, true)}",
+        "sensors": "${if(coalesce(widget.visible, true), 'all', settings.menuBarSensor)}"
       }
     }
   },

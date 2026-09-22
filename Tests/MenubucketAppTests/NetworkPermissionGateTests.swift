@@ -1,4 +1,5 @@
 import XCTest
+import AppKit
 @testable import MenubucketApp
 import MenubucketCore
 
@@ -66,6 +67,49 @@ final class NetworkPermissionGateTests: XCTestCase {
         XCTAssertFalse(RemoteImageService.redirectAllowed(
             from: origin, to: URL(string: "http://images.example.test/b.png")!
         ))
+    }
+
+    func testRemoteImageFailureBackoffIsBounded() {
+        XCTAssertEqual(RemoteImageService.failureDelay(attempt: 1), 15)
+        XCTAssertEqual(RemoteImageService.failureDelay(attempt: 2), 30)
+        XCTAssertEqual(RemoteImageService.failureDelay(attempt: 10), 300)
+    }
+
+    func testRemoteImageMemoryCostUsesDecodedPixels() {
+        let image = NSImage(size: CGSize(width: 100, height: 40))
+        XCTAssertGreaterThanOrEqual(RemoteImageService.cacheCost(of: image), 16_000)
+    }
+
+    func testRemoteImageResponseCapRejectsAdvertisedAndStreamedOverflow() {
+        let cap = RemoteImageService.maxResponseBytes
+        XCTAssertFalse(RemoteImageService.responseFits(limit: cap, expectedContentLength: Int64(cap + 1)))
+        XCTAssertTrue(RemoteImageService.responseFits(limit: cap, expectedContentLength: -1))
+        XCTAssertTrue(RemoteImageService.responseFits(limit: cap, receivedBytes: cap - 8, nextChunkBytes: 8))
+        XCTAssertFalse(RemoteImageService.responseFits(limit: cap, receivedBytes: cap - 8, nextChunkBytes: 9))
+    }
+
+    func testRemoteImageDownsamplesLargeRasterBeforeCaching() {
+        let source = NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: 2_048, pixelsHigh: 1_024,
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
+            isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
+        )!
+        let data = source.representation(using: .png, properties: [:])!
+        let image = RemoteImageService.downsampledImage(data)!
+        XCTAssertLessThanOrEqual(image.representations.map(\.pixelsWide).max()!, RemoteImageService.maxPixelDimension)
+        XCTAssertLessThanOrEqual(image.representations.map(\.pixelsHigh).max()!, RemoteImageService.maxPixelDimension)
+        XCTAssertLessThanOrEqual(RemoteImageService.cacheCost(of: image), 512 * 512 * 4)
+    }
+
+    func testRemoteImageDiskEvictionRemovesOldestFilesOnlyUntilWithinBudget() {
+        let oldest = URL(fileURLWithPath: "/tmp/oldest")
+        let newer = URL(fileURLWithPath: "/tmp/newer")
+        let newest = URL(fileURLWithPath: "/tmp/newest")
+        let epoch = Date(timeIntervalSince1970: 0)
+        let removed = RemoteImageService.evictionURLs(entries: [
+            (oldest, 8, epoch), (newer, 8, epoch.addingTimeInterval(1)), (newest, 8, epoch.addingTimeInterval(2))
+        ], limit: 16)
+        XCTAssertEqual(removed, [oldest])
     }
 
     // MARK: - Deep-link routing (barshelf://refresh)

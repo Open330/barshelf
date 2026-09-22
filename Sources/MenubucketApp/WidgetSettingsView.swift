@@ -680,8 +680,8 @@ struct SearchHit: Identifiable {
 }
 
 /// Unified search over widget names and the text nodes of each widget's
-/// current snapshot. Selecting a hit jumps to its page; hits carrying a node
-/// action execute it directly.
+/// current snapshot. Selecting a hit reveals its card on the correct page and
+/// scrolls it into view; hits carrying a node action execute it directly.
 struct SearchOverlay: View {
     @ObservedObject var runtime: WidgetRuntime
     @ObservedObject var pager: PagerState
@@ -701,7 +701,8 @@ struct SearchOverlay: View {
                             placeholder: "Search widgets and items…",
                             autofocus: true,
                             onSubmit: { execute(hits: hits) },
-                            onCancel: { isPresented = false })
+                            onCancel: { isPresented = false },
+                            onMoveSelection: { moveSelection($0, hits: hits) })
                     .frame(height: 22)
                     .accessibilityLabel("Search widgets and items")
                 Button {
@@ -743,6 +744,11 @@ struct SearchOverlay: View {
             }
         }
         .background(Color(nsColor: .windowBackgroundColor))
+        // RootView hides and disables the shelf under this overlay. Keeping the
+        // search surface as one contained accessibility region prevents its
+        // result rows from being interleaved with background controls.
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Widget search")
         .onChange(of: query) { _ in selection = 0 }
         // ↑/↓ move the highlighted result while the search field keeps focus;
         // hidden zero-size buttons capture the arrow keys on macOS 13 (no
@@ -837,7 +843,10 @@ struct SearchOverlay: View {
     private func execute(hits: [SearchHit]) {
         guard hits.indices.contains(selection) else { return }
         let hit = hits[selection]
-        pager.jump(to: hit.pageIndex, pageCount: runtime.pages.count)
+        // Go through the runtime so RootView can both select the page and
+        // scroll/flash the card. This also makes repeated selections of the
+        // same result observable as separate reveal requests.
+        runtime.reveal(widgetID: hit.widgetID)
         if let action = hit.action {
             ActionRouter.perform(action, widgetID: hit.widgetID, runtime: runtime)
         }
@@ -849,6 +858,13 @@ struct SearchOverlay: View {
 /// popover isn't the key window and the (`.accessory`) app has no Edit menu —
 /// the usual reason ⌘A/⌘C/⌘V do nothing in a menu-bar app's text fields.
 final class KeyEquivSearchField: NSSearchField {
+    var onWindowAvailable: ((KeyEquivSearchField) -> Void)?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window != nil { onWindowAvailable?(self) }
+    }
+
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         guard mods == .command, let ch = event.charactersIgnoringModifiers,
@@ -873,34 +889,57 @@ struct SearchField: NSViewRepresentable {
     var autofocus: Bool = false
     var onSubmit: () -> Void = {}
     var onCancel: () -> Void = {}
+    var onMoveSelection: ((Int) -> Void)?
 
     func makeNSView(context: Context) -> NSSearchField {
         let field = KeyEquivSearchField()
         field.delegate = context.coordinator
+        field.onWindowAvailable = { [weak coordinator = context.coordinator] field in
+            coordinator?.focusIfNeeded(field)
+        }
         field.placeholderString = placeholder
-        field.focusRingType = .none
+        // Preserve AppKit's standard focus ring. Search is opened by ⌘F, so a
+        // clear keyboard-focus cue is more useful than blending into the
+        // popover chrome.
+        field.focusRingType = .default
         field.sendsWholeSearchString = false
         field.font = .systemFont(ofSize: 13)
+        field.isEnabled = context.environment.isEnabled
         return field
     }
 
     func updateNSView(_ field: NSSearchField, context: Context) {
+        // SwiftUI retains coordinators between updates. Refresh the callbacks
+        // so Enter/arrow keys use the current query, results, and selection.
+        context.coordinator.parent = self
         if field.stringValue != text { field.stringValue = text }
         if field.placeholderString != placeholder { field.placeholderString = placeholder }
-        // Autofocus once the field is in a window (nil during makeNSView). Off by
-        // default so widget-card search fields don't steal focus on render.
-        if autofocus, !context.coordinator.didFocus, let window = field.window {
-            context.coordinator.didFocus = true
-            DispatchQueue.main.async { window.makeFirstResponder(field) }
-        }
+        // SwiftUI's disabled environment does not automatically disable an
+        // AppKit-backed field. Mirror it so an offscreen/blocked widget search
+        // cannot stay in the native keyboard focus chain.
+        field.isEnabled = context.environment.isEnabled
+        context.coordinator.focusIfNeeded(field)
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     final class Coordinator: NSObject, NSSearchFieldDelegate {
-        let parent: SearchField
+        var parent: SearchField
         var didFocus = false
         init(_ parent: SearchField) { self.parent = parent }
+
+        func focusIfNeeded(_ field: NSSearchField) {
+            guard parent.autofocus, !didFocus, field.isEnabled,
+                  let window = field.window else { return }
+            // Attachment can happen after updateNSView; retry on attachment,
+            // and re-check before a queued focus request touches a new modal.
+            DispatchQueue.main.async { [weak self, weak field, weak window] in
+                guard let self, let field, let window,
+                      self.parent.autofocus, !self.didFocus, field.isEnabled,
+                      field.window === window else { return }
+                self.didFocus = window.makeFirstResponder(field)
+            }
+        }
 
         func controlTextDidChange(_ note: Notification) {
             if let f = note.object as? NSSearchField { parent.text = f.stringValue }
@@ -911,6 +950,14 @@ struct SearchField: NSViewRepresentable {
             switch selector {
             case #selector(NSResponder.insertNewline(_:)): parent.onSubmit(); return true
             case #selector(NSResponder.cancelOperation(_:)): parent.onCancel(); return true
+            case #selector(NSResponder.moveUp(_:)):
+                guard let move = parent.onMoveSelection else { return false }
+                move(-1)
+                return true
+            case #selector(NSResponder.moveDown(_:)):
+                guard let move = parent.onMoveSelection else { return false }
+                move(1)
+                return true
             default: return false
             }
         }

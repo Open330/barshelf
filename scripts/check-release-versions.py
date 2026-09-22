@@ -22,8 +22,10 @@ Run directly, or via CI. Exits non-zero with the offending file:line.
 """
 from __future__ import annotations
 
+import json
 import pathlib
 import re
+import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -92,10 +94,11 @@ def main() -> int:
                     )
 
     development_problems = check_development_version()
+    widget_problems = check_widget_versions(current) + check_registry_versions()
 
-    if problems or development_problems:
+    if problems or development_problems or widget_problems:
         print("error: version references are out of sync", file=sys.stderr)
-        for problem in problems + development_problems:
+        for problem in problems + development_problems + widget_problems:
             print(f"  {problem}", file=sys.stderr)
         if problems:
             print(
@@ -107,6 +110,16 @@ def main() -> int:
             print(
                 "\nThe app, the CLI and the release notes have to agree on the"
                 "\nversion this tree builds, or release.sh refuses to package it.",
+                file=sys.stderr,
+            )
+        if widget_problems:
+            print(
+                "\nA widget whose version does not move with its files is a"
+                "\nchange that reaches nobody: the app replaces an installed"
+                "\nwidget only when the bundled copy declares a newer version,"
+                "\nand the gallery offers an update only when the registry"
+                "\ndoes. Bump `version` in the widget's widget.json and copy it"
+                "\ninto registry/index.json.",
                 file=sys.stderr,
             )
         return 1
@@ -140,6 +153,105 @@ def check_development_version() -> list[str]:
     return ["in-development version disagrees:"] + [
         f"  {label}: {value}" for label, value in found.items()
     ]
+
+
+def check_registry_versions() -> list[str]:
+    """A bundled widget's registry entry has to declare the version it ships.
+
+    The gallery offers an update when the *registry* is newer than what is
+    installed, so a registry stuck behind the widget can never offer one. Both
+    bundled entries had drifted — the registry said Sensors 0.1.0 against a
+    widget at 0.3.0, so the card's Update button could not appear at all.
+    """
+    index = ROOT / "registry" / "index.json"
+    if not index.exists():
+        return ["registry/index.json: missing"]
+    entries = json.loads(index.read_text()).get("widgets", [])
+
+    problems: list[str] = []
+    checked = 0
+    for entry in entries:
+        bundled = (entry.get("install") or {}).get("bundled")
+        if not bundled:
+            continue  # installed from a URL — the archive carries its version
+        manifest = ROOT / "widgets" / bundled / "widget.json"
+        if not manifest.exists():
+            problems.append(
+                f"registry/index.json: {entry.get('id')} installs bundled "
+                f"\"{bundled}\", which is not in widgets/"
+            )
+            continue
+        checked += 1
+        shipped = json.loads(manifest.read_text()).get("version")
+        if entry.get("version") != shipped:
+            problems.append(
+                f"registry/index.json: {entry.get('id')} says "
+                f"{entry.get('version')}, widgets/{bundled} ships {shipped}"
+            )
+    if not problems:
+        print(f"ok: {checked} bundled registry entries match their widgets")
+    return problems
+
+
+def check_widget_versions(released: str) -> list[str]:
+    """A changed widget has to declare a new version, or the change is inert.
+
+    Widget behaviour is data. The app refreshes an installed widget from its
+    own bundle only when the bundled copy declares a *newer* version, so a
+    fix to `workflow.json` that forgets `version` ships in the release and
+    then reaches nobody — which is exactly how the Sensors widget spent a day
+    showing a decimal on one Mac that had been "updated" twice.
+    """
+    tag = f"v{released}"
+    if subprocess.run(
+        ["git", "rev-parse", "--verify", "--quiet", f"{tag}^{{commit}}"],
+        cwd=ROOT, capture_output=True,
+    ).returncode != 0:
+        # Shallow clone or a tree without tags: nothing to compare against.
+        print(f"skip: no {tag} tag to compare widget versions against")
+        return []
+
+    # Against the working tree, not HEAD: the version lives in a file this
+    # check reads from disk, so comparing commits would pass a tree whose
+    # widget.json was edited back down after the commit.
+    changed = subprocess.run(
+        ["git", "diff", "--name-only", tag, "--", "widgets/"],
+        cwd=ROOT, capture_output=True, text=True, check=True,
+    ).stdout.split()
+    names = sorted({
+        pathlib.PurePosixPath(path).parts[1]
+        for path in changed
+        if len(pathlib.PurePosixPath(path).parts) > 2
+    })
+    if not names:
+        print("ok: no widget changed since the last release")
+        return []
+
+    problems: list[str] = []
+    checked = 0
+    for name in names:
+        manifest = ROOT / "widgets" / name / "widget.json"
+        if not manifest.exists():
+            continue  # removed widget
+        released_manifest = subprocess.run(
+            ["git", "show", f"{tag}:widgets/{name}/widget.json"],
+            cwd=ROOT, capture_output=True, text=True,
+        )
+        if released_manifest.returncode != 0:
+            continue  # new widget — any version is a first version
+        checked += 1
+        before = json.loads(released_manifest.stdout).get("version")
+        after = json.loads(manifest.read_text()).get("version")
+        if after is None:
+            problems.append(f"widgets/{name}/widget.json: no version declared")
+        elif before == after:
+            problems.append(
+                f"widgets/{name}: files changed since {tag} but version is "
+                f"still {after}"
+            )
+    if not problems and checked:
+        print(f"ok: {checked} changed widget(s) declare a new version")
+    return problems
 
 
 if __name__ == "__main__":

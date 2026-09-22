@@ -125,6 +125,56 @@ extension Double {
 public final class SensorSampler: @unchecked Sendable {
     public static let shared = SensorSampler()
 
+    /// Which families of temperature sensor a sample reads.
+    ///
+    /// Every key costs its own IOKit round trip (~0.16 ms), and a Mac
+    /// publishes far more of them than any one widget shows: on an M-series
+    /// laptop the summarized set is 46 keys, 23 of them GPU. A menu bar
+    /// showing one CPU reading has no use for the other 28.
+    public enum SensorGroup: String, CaseIterable, Sendable {
+        case cpu, gpu, battery
+        /// Keys that belong to no summarized component but still count
+        /// towards `peak` (package and enclosure sensors).
+        case other
+    }
+
+    /// Maps the snapshot field a widget says it displays onto the sensor
+    /// groups that have to be read for it.
+    ///
+    /// `nil` means "everything", which is both the default and what an
+    /// unrecognized name falls back to — a narrowing hint that the host does
+    /// not understand must never silently blank a reading.
+    public static func groups(forReading reading: String) -> Set<SensorGroup>? {
+        switch reading.trimmingCharacters(in: .whitespaces).lowercased() {
+        case "", "all", "peak", "list":
+            return nil
+        case "cpu":
+            return [.cpu]
+        case "gpu":
+            return [.gpu]
+        case "battery":
+            return [.battery]
+        // Fans and wattage come from their own keys, which are always read.
+        case "none", "power", "fan", "fanusage", "fancount", "fans":
+            return []
+        default:
+            return nil
+        }
+    }
+
+    /// The group a key belongs to, decided by the same predicates that
+    /// summarize a reading, so a filtered sample can never disagree with the
+    /// averages computed from it.
+    static func group(forSMCKey key: String) -> SensorGroup {
+        let probe = SensorReading(
+            key: key, name: label(forSMCKey: key), kind: .temperature, value: 0
+        )
+        if isCPUSensor(probe) { return .cpu }
+        if isGPUSensor(probe) { return .gpu }
+        if isBatterySensor(probe) { return .battery }
+        return .other
+    }
+
     private let lock = NSLock()
     private let smc: SMCClient?
     private lazy var hid = HIDSensorClient()
@@ -133,7 +183,9 @@ public final class SensorSampler: @unchecked Sendable {
     /// summarizes (CPU / GPU / battery / package). A plain sample reads only
     /// these — reading every `T*` key the SMC publishes costs roughly 4× as
     /// much, which a 2 s menu-bar cadence does not need.
-    private var primaryTemperatureKeys: [SMCClient.KeyMeta] = []
+    /// The summarized temperature keys, split by component so a sample that
+    /// only needs one reading reads only that component's keys.
+    private var primaryKeysByGroup: [SensorGroup: [SMCClient.KeyMeta]] = [:]
     /// The remaining temperature keys, read only for a `detail` sample.
     private var extraTemperatureKeys: [SMCClient.KeyMeta] = []
     private var fanKeys: [Int: (actual: SMCClient.KeyMeta, min: SMCClient.KeyMeta?, max: SMCClient.KeyMeta?)] = [:]
@@ -146,18 +198,28 @@ public final class SensorSampler: @unchecked Sendable {
 
     /// Samples every backend. `detail` additionally reads every temperature
     /// key the machine publishes and returns them as `list` (~25 ms on an
-    /// Apple Silicon laptop, against ~6 ms for a plain sample).
+    /// Apple Silicon laptop, against ~9 ms for a plain sample).
     ///
-    /// `peak` is the hottest of the *summarized* sensors either way, so it
-    /// does not jump when a widget switches detail on.
-    public func sample(detail: Bool = false) -> SensorSnapshot {
+    /// `groups` narrows the summarized temperatures to the components the
+    /// caller actually displays; `nil` reads all of them, which is what a
+    /// widget showing `peak` or the full list needs. Reading one component
+    /// instead of all four takes a plain sample from ~9 ms to ~3 ms, which is
+    /// what a 3 s menu-bar cadence spends its time on. `detail` implies every
+    /// group — the list is the whole point of it.
+    ///
+    /// `peak` is the hottest of the sensors this sample actually read, so a
+    /// widget that narrows the groups gets the peak of what it asked for.
+    public func sample(
+        detail: Bool = false, groups: Set<SensorGroup>? = nil
+    ) -> SensorSnapshot {
         lock.lock()
         defer { lock.unlock() }
 
         loadCatalogIfNeeded()
 
+        let wanted = detail ? nil : groups
         var readings: [SensorReading] = []
-        for meta in primaryTemperatureKeys {
+        for meta in Self.keys(primaryKeysByGroup, limitedTo: wanted) {
             guard let value = smc?.value(meta), Self.isPlausibleTemperature(value) else { continue }
             readings.append(SensorReading(
                 key: meta.key,
@@ -169,7 +231,8 @@ public final class SensorSampler: @unchecked Sendable {
 
         // Apple Silicon Macs that publish no SMC temperatures still answer
         // through the HID sensor plane (same source Stats falls back to).
-        if readings.isEmpty {
+        // A caller that asked for no temperatures at all is not missing data.
+        if readings.isEmpty, wanted.map({ !$0.isEmpty }) ?? true {
             readings = hid.temperatures()
         }
         let summarized = readings
@@ -235,7 +298,8 @@ public final class SensorSampler: @unchecked Sendable {
         for meta in smc.catalog() {
             if meta.key.hasPrefix("T"), meta.isFloatingPoint {
                 if Self.summarizedPrefixes.contains(meta.key.prefix(2)) {
-                    primaryTemperatureKeys.append(meta)
+                    primaryKeysByGroup[Self.group(forSMCKey: meta.key), default: []]
+                        .append(meta)
                 } else {
                     extraTemperatureKeys.append(meta)
                 }
@@ -258,6 +322,16 @@ public final class SensorSampler: @unchecked Sendable {
         }
         // Drop indices that only had bounds and never an "actual speed" key.
         fanKeys = fanKeys.filter { $0.value.actual.key.hasSuffix("Ac") }
+    }
+
+    /// The keys for `groups`, in catalog order. `nil` means every group.
+    private static func keys(
+        _ buckets: [SensorGroup: [SMCClient.KeyMeta]], limitedTo groups: Set<SensorGroup>?
+    ) -> [SMCClient.KeyMeta] {
+        guard let groups else { return SensorGroup.allCases.flatMap { buckets[$0] ?? [] } }
+        return SensorGroup.allCases
+            .filter(groups.contains)
+            .flatMap { buckets[$0] ?? [] }
     }
 
     // MARK: Classification

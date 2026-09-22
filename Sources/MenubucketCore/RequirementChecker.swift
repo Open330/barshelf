@@ -28,7 +28,7 @@ public final class RequirementChecker: @unchecked Sendable {
 
     /// PATH directories searched, mirroring `ExecService`'s discovery order so
     /// the badge matches what a widget's exec command would actually resolve.
-    private static var searchDirectories: [String] {
+    private static var defaultSearchDirectories: [String] {
         var directories: [String] = []
         if let envPath = ProcessInfo.processInfo.environment["PATH"] {
             directories.append(
@@ -46,10 +46,24 @@ public final class RequirementChecker: @unchecked Sendable {
     ]
 
     private let lock = NSLock()
+    private let searchDirectories: @Sendable () -> [String]
     /// binary name (lowercased) → found on PATH.
     private var cache: [String: Bool] = [:]
+    /// Prevents a probe that began before invalidation from restoring an old
+    /// result after a user explicitly asks the gallery to recheck.
+    private var cacheGeneration = 0
 
-    public init() {}
+    /// `searchDirectories` is injectable for deterministic callers and tests.
+    /// The default deliberately resolves PATH when a probe runs, rather than
+    /// once at app launch, so an explicit gallery recheck sees a newly
+    /// installed command.
+    public convenience init() {
+        self.init(searchDirectories: { RequirementChecker.defaultSearchDirectories })
+    }
+
+    public init(searchDirectories: @escaping @Sendable () -> [String]) {
+        self.searchDirectories = searchDirectories
+    }
 
     /// Extracts candidate binary names from a free-text requirement.
     ///
@@ -125,12 +139,15 @@ public final class RequirementChecker: @unchecked Sendable {
             lock.unlock()
             return cached
         }
+        let generation = cacheGeneration
         lock.unlock()
 
-        let found = Self.resolveOnPath(name)
+        let found = Self.resolveOnPath(name, directories: searchDirectories())
 
         lock.lock()
-        cache[key] = found
+        if cacheGeneration == generation {
+            cache[key] = found
+        }
         lock.unlock()
         return found
     }
@@ -140,12 +157,13 @@ public final class RequirementChecker: @unchecked Sendable {
     public func invalidateCache() {
         lock.lock()
         cache.removeAll()
+        cacheGeneration &+= 1
         lock.unlock()
     }
 
-    private static func resolveOnPath(_ name: String) -> Bool {
+    private static func resolveOnPath(_ name: String, directories: [String]) -> Bool {
         let fm = FileManager.default
-        for directory in searchDirectories {
+        for directory in directories {
             let path = (directory as NSString).appendingPathComponent(name)
             var isDirectory: ObjCBool = false
             if fm.fileExists(atPath: path, isDirectory: &isDirectory),
