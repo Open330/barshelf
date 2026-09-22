@@ -94,7 +94,7 @@ def main() -> int:
                     )
 
     development_problems = check_development_version()
-    widget_problems = check_widget_versions(current)
+    widget_problems = check_widget_versions(current) + check_registry_versions()
 
     if problems or development_problems or widget_problems:
         print("error: version references are out of sync", file=sys.stderr)
@@ -114,10 +114,12 @@ def main() -> int:
             )
         if widget_problems:
             print(
-                "\nA widget whose files changed but whose version did not is a"
-                "\nchange that reaches nobody: the app only replaces an installed"
-                "\nwidget when the bundled copy declares a newer version."
-                "\nBump `version` in the widget's widget.json.",
+                "\nA widget whose version does not move with its files is a"
+                "\nchange that reaches nobody: the app replaces an installed"
+                "\nwidget only when the bundled copy declares a newer version,"
+                "\nand the gallery offers an update only when the registry"
+                "\ndoes. Bump `version` in the widget's widget.json and copy it"
+                "\ninto registry/index.json.",
                 file=sys.stderr,
             )
         return 1
@@ -151,6 +153,44 @@ def check_development_version() -> list[str]:
     return ["in-development version disagrees:"] + [
         f"  {label}: {value}" for label, value in found.items()
     ]
+
+
+def check_registry_versions() -> list[str]:
+    """A bundled widget's registry entry has to declare the version it ships.
+
+    The gallery offers an update when the *registry* is newer than what is
+    installed, so a registry stuck behind the widget can never offer one. Both
+    bundled entries had drifted — the registry said Sensors 0.1.0 against a
+    widget at 0.3.0, so the card's Update button could not appear at all.
+    """
+    index = ROOT / "registry" / "index.json"
+    if not index.exists():
+        return ["registry/index.json: missing"]
+    entries = json.loads(index.read_text()).get("widgets", [])
+
+    problems: list[str] = []
+    checked = 0
+    for entry in entries:
+        bundled = (entry.get("install") or {}).get("bundled")
+        if not bundled:
+            continue  # installed from a URL — the archive carries its version
+        manifest = ROOT / "widgets" / bundled / "widget.json"
+        if not manifest.exists():
+            problems.append(
+                f"registry/index.json: {entry.get('id')} installs bundled "
+                f"\"{bundled}\", which is not in widgets/"
+            )
+            continue
+        checked += 1
+        shipped = json.loads(manifest.read_text()).get("version")
+        if entry.get("version") != shipped:
+            problems.append(
+                f"registry/index.json: {entry.get('id')} says "
+                f"{entry.get('version')}, widgets/{bundled} ships {shipped}"
+            )
+    if not problems:
+        print(f"ok: {checked} bundled registry entries match their widgets")
+    return problems
 
 
 def check_widget_versions(released: str) -> list[str]:
