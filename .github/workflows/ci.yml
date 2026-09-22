@@ -14,7 +14,13 @@ jobs:
     name: Build & Test
     runs-on: macos-26
     steps:
+      # Tags, not just the tip: `check-release-versions.py` compares each
+      # changed widget against the one in the last release tag, and a shallow
+      # checkout has no tags to compare against — the check would pass by
+      # skipping rather than by being satisfied.
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       # Pinned, not `latest-stable`. A floating toolchain silently changes the
       # SDK under the build: that is how a `-strict-concurrency=complete` error
