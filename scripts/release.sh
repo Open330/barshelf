@@ -210,6 +210,25 @@ RELEASED="${PROJECT_ROOT}/RELEASED_VERSION"
 if [[ "${NOTARIZE}" == "1" ]]; then
   echo "${VERSION}" > "${RELEASED}"
   echo "Recorded ${VERSION} in ${RELEASED}"
+
+  # Move the tree onto the next patch straight away.
+  #
+  # Leaving it on the version just published means every following commit
+  # builds something that calls itself a release it is not, and `barshelf
+  # upgrade` answers "up to date" to anyone running it. That happened three
+  # times in one afternoon — each caught by CI, which is the wrong place to
+  # catch a thing a script can simply do.
+  NEXT_VERSION="${VERSION%.*}.$(( ${VERSION##*.} + 1 ))"
+  /usr/bin/sed -i '' \
+    -e "s/^APP_VERSION=\${APP_VERSION:-.*}$/APP_VERSION=\${APP_VERSION:-${NEXT_VERSION}}/" \
+    "${PROJECT_ROOT}/scripts/build_app.sh"
+  /usr/bin/sed -i '' \
+    -e "s/^    public static let version = \".*\"$/    public static let version = \"${NEXT_VERSION}\"/" \
+    "${PROJECT_ROOT}/Sources/BarShelfCLI/BarShelfKit/BarShelfMain.swift"
+  /usr/bin/sed -i '' \
+    -e "1s/^# BarShelf .*$/# BarShelf ${NEXT_VERSION}/" \
+    "${PROJECT_ROOT}/RELEASE_NOTES.md"
+  echo "Opened ${NEXT_VERSION} in build_app.sh, BarShelfMain.swift and RELEASE_NOTES.md"
 else
   echo "Skipped recording the released version for a local unnotarized package"
 fi

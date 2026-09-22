@@ -8,7 +8,7 @@ public enum BarShelfMain {
     /// Must match `APP_VERSION` in `scripts/build_app.sh`: `release.sh` refuses
     /// to package a release whose app and CLI report different versions, and
     /// `scripts/check-release-versions.py` catches the drift in CI first.
-    public static let version = "0.3.4"
+    public static let version = "0.3.5"
 
     public static let usage = """
         barshelf — BarShelf widget developer CLI
