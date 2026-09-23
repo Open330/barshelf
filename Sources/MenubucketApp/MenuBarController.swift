@@ -77,7 +77,40 @@ final class MenuBarController {
     /// has needed a width it keeps it, so the one unusual reading moves the bar
     /// once instead of on every tick that crosses the boundary. A change to
     /// anything but the values (style, label, icon, presentation) starts over.
-    private var widthFloors: [String: (layout: MenuBarEntry, width: CGFloat)] = [:]
+    private var widthFloors: [String: WidthFloor] = [:]
+
+    /// A width an item has needed, and when a reading last needed it.
+    struct WidthFloor: Equatable {
+        var layout: MenuBarEntry
+        var width: CGFloat
+        var neededAt: Date
+    }
+
+    /// How long an item keeps a width a reading no longer needs. Holding it
+    /// forever made one 100% CPU spike leave the item three digits wide all
+    /// day; not holding it at all would let a reading hovering at 99/100
+    /// shove the bar every tick. A minute bounds that to once a minute.
+    static let widthFloorHold: TimeInterval = 60
+
+    /// The floor to draw with right now: the kept width while it is still
+    /// held and the layout has not changed, otherwise none.
+    static func activeFloor(_ floor: WidthFloor?, layout: MenuBarEntry, now: Date) -> CGFloat {
+        guard let floor, floor.layout == layout,
+              now.timeIntervalSince(floor.neededAt) <= widthFloorHold
+        else { return 0 }
+        return floor.width
+    }
+
+    /// The floor to keep after drawing a reading whose own width is `natural`.
+    static func nextFloor(
+        _ floor: WidthFloor?, layout: MenuBarEntry, natural: CGFloat, now: Date
+    ) -> WidthFloor {
+        let held = activeFloor(floor, layout: layout, now: now)
+        // This reading needs at least what is held: it renews the hold.
+        if natural >= held { return WidthFloor(layout: layout, width: natural, neededAt: now) }
+        // Narrower, and the hold is still running: keep it as it was.
+        return floor ?? WidthFloor(layout: layout, width: natural, neededAt: now)
+    }
 
     init(mainItem: NSStatusItem) {
         self.mainItem = mainItem
@@ -259,16 +292,23 @@ final class MenuBarController {
             let glyph = symbolImage == nil ? Self.textGlyph(for: entry) : nil
             let mode = entry.presentation.effectiveWidth
             let layout = Self.layoutSignature(entry)
+            let now = Date()
             let floor = mode == .fit ? 0
-                : (widthFloors[entry.widgetID].flatMap { $0.layout == layout ? $0.width : nil } ?? 0)
+                : Self.activeFloor(widthFloors[entry.widgetID], layout: layout, now: now)
             if entry.style == .stacked || entry.style == .metrics {
                 // One image carries both rows *and* the symbol, because a
                 // button has room for only one image and the rows have to sit
                 // beside it rather than under it. Assigned once: each image
                 // set is a replicant redraw and a re-measure.
-                let image = entry.style == .metrics
-                    ? Self.metricsImage(entry, symbol: symbolImage, glyph: glyph, minimumWidth: floor)
-                    : Self.stackedImage(entry, symbol: symbolImage, glyph: glyph, minimumWidth: floor)
+                let draw = { (minimum: CGFloat) -> NSImage in
+                    entry.style == .metrics
+                        ? Self.metricsImage(entry, symbol: symbolImage, glyph: glyph, minimumWidth: minimum)
+                        : Self.stackedImage(entry, symbol: symbolImage, glyph: glyph, minimumWidth: minimum)
+                }
+                // Images are drawn lazily, so asking one for its size costs
+                // only the text measurement: this is the reading's own width.
+                let natural = draw(0).size.width
+                let image = floor > natural ? draw(floor) : draw(0)
                 button.image = image
                 if button.attributedTitle.length > 0 {
                     button.attributedTitle = NSAttributedString(string: "")
@@ -278,8 +318,16 @@ final class MenuBarController {
                 // button adds its own margins around it, and remembering the
                 // item length instead would feed those margins back into the
                 // next image and widen it on every redraw.
-                if mode != .fit { widthFloors[entry.widgetID] = (layout, image.size.width) }
-                Self.applyLength(to: item, button: button, mode: mode, floor: 0)
+                if mode != .fit {
+                    widthFloors[entry.widgetID] = Self.nextFloor(
+                        widthFloors[entry.widgetID], layout: layout, natural: natural, now: now
+                    )
+                }
+                // Exactly the image's width. The button would otherwise add
+                // its own inset on both sides, on top of the image's padding
+                // and the system's spacing between items.
+                Self.applyLength(to: item, button: button, mode: mode, floor: 0,
+                                 exact: ceil(image.size.width))
             } else {
                 button.image = symbolImage
                 let title = NSAttributedString(
@@ -300,8 +348,13 @@ final class MenuBarController {
                     let shortfall = CGFloat(entry.presentation.effectiveFixedWidth) - title.size().width
                     textFloor = max(textFloor, ceil(button.fittingSize.width + max(shortfall, 0)))
                 }
-                let length = Self.applyLength(to: item, button: button, mode: mode, floor: textFloor)
-                if mode != .fit { widthFloors[entry.widgetID] = (layout, length) }
+                let natural = Self.applyLength(to: item, button: button, mode: mode, floor: 0, measureOnly: true)
+                _ = Self.applyLength(to: item, button: button, mode: mode, floor: textFloor)
+                if mode != .fit {
+                    widthFloors[entry.widgetID] = Self.nextFloor(
+                        widthFloors[entry.widgetID], layout: layout, natural: natural, now: now
+                    )
+                }
             }
             if mode == .fit { widthFloors.removeValue(forKey: entry.widgetID) }
 
@@ -315,17 +368,22 @@ final class MenuBarController {
     /// profile — even when the width came out the same. With the width held
     /// steady, the item gets an explicit length and is left alone until that
     /// length actually moves. `fit` keeps the old variable length.
+    /// `exact` sets the length outright (drawn items: the image's width);
+    /// otherwise it is the button's fitting width, at least `floor`.
+    /// `measureOnly` returns that width without touching the item.
     @discardableResult
     private static func applyLength(
-        to item: NSStatusItem, button: NSStatusBarButton, mode: MenuBarWidthMode, floor: CGFloat
+        to item: NSStatusItem, button: NSStatusBarButton, mode: MenuBarWidthMode,
+        floor: CGFloat, exact: CGFloat? = nil, measureOnly: Bool = false
     ) -> CGFloat {
+        let length = exact ?? max(ceil(button.fittingSize.width), floor)
+        if measureOnly { return length }
         guard mode != .fit else {
             if item.length != NSStatusItem.variableLength {
                 item.length = NSStatusItem.variableLength
             }
             return item.length
         }
-        let length = max(ceil(button.fittingSize.width), floor)
         if abs(item.length - length) > 0.5 { item.length = length }
         return length
     }
@@ -449,8 +507,10 @@ final class MenuBarController {
     /// How much dimmer the label is than the value it belongs to.
     static let stackedLabelOpacity: CGFloat = 0.72
     static let staleOpacity: CGFloat = 0.4
-    /// Breathing room either side of the rows.
-    static let stackedHorizontalPadding: CGFloat = 3
+    /// Breathing room either side of the rows. One point: the status item
+    /// takes exactly the image's width, and macOS already spaces items apart,
+    /// so anything more read as a gap between neighbours.
+    static let stackedHorizontalPadding: CGFloat = 1
     /// Gap between the symbol and the rows beside it.
     static let stackedSymbolGap: CGFloat = 3
     /// Clearance kept above and below the rows.

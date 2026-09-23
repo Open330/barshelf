@@ -173,6 +173,55 @@ final class MenuBarSteadyWidthTests: XCTestCase {
         XCTAssertEqual(ceil(cpu), ceil(ram))
     }
 
+    // MARK: Kept widths expire
+
+    /// One 100% CPU reading used to leave the item three digits wide for the
+    /// rest of the session. It keeps that width for a minute — so a reading
+    /// hovering at 99/100 does not shove the bar every tick — then lets go.
+    func testAKeptWidthIsHeldForAMinuteThenReleased() {
+        let layout = MenuBarController.layoutSignature(entry("12%"))
+        let t0 = Date(timeIntervalSinceReferenceDate: 1000)
+        // A spike to 100% needs 44 pt.
+        let spiked = MenuBarController.nextFloor(nil, layout: layout, natural: 44, now: t0)
+        XCTAssertEqual(MenuBarController.activeFloor(spiked, layout: layout, now: t0), 44)
+
+        // Back to 12% (36 pt) within the minute: still held at 44.
+        let t30 = t0.addingTimeInterval(30)
+        XCTAssertEqual(MenuBarController.activeFloor(spiked, layout: layout, now: t30), 44)
+        let stillHeld = MenuBarController.nextFloor(spiked, layout: layout, natural: 36, now: t30)
+        XCTAssertEqual(stillHeld.width, 44)
+        XCTAssertEqual(stillHeld.neededAt, t0, "a narrower reading does not renew the hold")
+
+        // A minute after it was last needed: released.
+        let t61 = t0.addingTimeInterval(61)
+        XCTAssertEqual(MenuBarController.activeFloor(stillHeld, layout: layout, now: t61), 0)
+        let released = MenuBarController.nextFloor(stillHeld, layout: layout, natural: 36, now: t61)
+        XCTAssertEqual(released.width, 36)
+
+        // Needing the wide width again renews it.
+        let renewed = MenuBarController.nextFloor(spiked, layout: layout, natural: 44, now: t30)
+        XCTAssertEqual(renewed.neededAt, t30)
+    }
+
+    func testAKeptWidthDoesNotOutliveALayoutChange() {
+        let layout = MenuBarController.layoutSignature(entry("12%"))
+        let other = MenuBarController.layoutSignature(entry("12%", MenuBarPresentation(alignment: .trailing)))
+        let floor = MenuBarController.nextFloor(nil, layout: layout, natural: 44, now: Date())
+        XCTAssertEqual(MenuBarController.activeFloor(floor, layout: other, now: Date()), 0)
+    }
+
+    func testTheImageCarriesOnlyOnePointEitherSide() {
+        let value = MenuBarPolicy.applyingPresentation(
+            MenuBarPresentation(width: .fit),
+            to: MenuBarEntry(widgetID: "x", name: "x", prefix: "C", style: .stacked, label: "23%")
+        )
+        let (labelFont, valueFont) = MenuBarController.stackedFonts(for: NSStatusBar.system.thickness)
+        _ = labelFont
+        let text = ("23%" as NSString).size(withAttributes: [.font: valueFont]).width
+        let image = MenuBarController.stackedImage(value, symbol: nil, glyph: nil).size.width
+        XCTAssertEqual(image - text, 2, accuracy: 0.01)
+    }
+
     // MARK: Redraw decisions
 
     func testLayoutSignatureIgnoresReadingsButNotLayout() {
