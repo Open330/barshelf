@@ -156,6 +156,34 @@ public enum MenuBarTextSize: String, Codable, Equatable, Sendable, CaseIterable 
     case small, regular, large
 }
 
+/// A small graph an item draws beside its reading, from the history the host
+/// keeps of it.
+public enum MenuBarChart: String, Codable, Equatable, Sendable, CaseIterable {
+    case none
+    /// A sparkline of recent readings.
+    case line
+    /// Recent readings as bars.
+    case bars
+    /// The current reading as a ring, against its scale.
+    case gauge
+}
+
+/// Recent values of one reading, for an item's chart.
+public struct MenuBarChartHistory: Equatable, Sendable {
+    /// The metric key the values came from.
+    public var series: String
+    /// 100 for a percentage, nil for a reading scaled to its own peak.
+    public var scale: Double?
+    /// Oldest first, at most `MenuBarPolicy.chartHistoryLimit`.
+    public var values: [Double]
+
+    public init(series: String, scale: Double?, values: [Double]) {
+        self.series = series
+        self.scale = scale
+        self.values = values
+    }
+}
+
 /// Which way a reading gets worse: a temperature going up, a battery or free
 /// space going down.
 public enum MenuBarThresholdDirection: String, Codable, Equatable, Sendable, CaseIterable {
@@ -197,6 +225,10 @@ public struct MenuBarPresentation: Codable, Equatable, Sendable {
     /// The item only appears while a reading is at or past this. It keeps
     /// refreshing while hidden, so it comes back on its own.
     public var showWhen: Double?
+    /// A graph beside the reading. Drawn only by an item with its own place
+    /// in the menu bar; the shared strip is text.
+    public var chart: MenuBarChart?
+    public var effectiveChart: MenuBarChart { chart ?? .none }
 
     public init(showValues: Bool? = nil, showUnits: Bool? = nil, precision: Int? = nil,
                 color: String? = nil, valueWidth: Double? = nil,
@@ -206,7 +238,9 @@ public struct MenuBarPresentation: Codable, Equatable, Sendable {
                 alignment: MenuBarAlignment? = nil, weight: MenuBarWeight? = nil,
                 size: MenuBarTextSize? = nil, numberAlignment: MenuBarNumberAlignment? = nil,
                 warningAt: Double? = nil, dangerAt: Double? = nil,
-                thresholdDirection: MenuBarThresholdDirection? = nil, showWhen: Double? = nil) {
+                thresholdDirection: MenuBarThresholdDirection? = nil, showWhen: Double? = nil,
+                chart: MenuBarChart? = nil) {
+        self.chart = chart
         self.showValues = showValues
         self.showUnits = showUnits
         self.precision = StatusMetric.validPrecision(precision)
@@ -250,13 +284,14 @@ public struct MenuBarPresentation: Codable, Equatable, Sendable {
                   warningAt: (try? c.decodeIfPresent(Double.self, forKey: .warningAt)) ?? nil,
                   dangerAt: (try? c.decodeIfPresent(Double.self, forKey: .dangerAt)) ?? nil,
                   thresholdDirection: Self.lenient(c, .thresholdDirection),
-                  showWhen: (try? c.decodeIfPresent(Double.self, forKey: .showWhen)) ?? nil)
+                  showWhen: (try? c.decodeIfPresent(Double.self, forKey: .showWhen)) ?? nil,
+                  chart: Self.lenient(c, .chart))
     }
 
     private enum CodingKeys: String, CodingKey {
         case showValues, showUnits, precision, color, valueWidth, metricOrder,
              metricOverrides, width, digits, alignment, weight, size, numberAlignment,
-             warningAt, dangerAt, thresholdDirection, showWhen
+             warningAt, dangerAt, thresholdDirection, showWhen, chart
     }
 
     private static func lenient<T: RawRepresentable>(
@@ -442,6 +477,13 @@ public struct MenuBarEntry: Equatable, Sendable {
     public var separate: Bool
     /// Fully resolved display configuration used by the renderer.
     public var presentation: MenuBarPresentation
+    /// Recent values of the item's first numeric reading, oldest first, for
+    /// its chart. Empty unless the item draws one — history on an item that
+    /// does not would make every refresh look like a change.
+    public var history: [Double] = []
+    /// What a chart scales against: 0–100 for a percentage, else nil (the
+    /// history's own peak).
+    public var chartScale: Double?
 
     public init(
         widgetID: String,
@@ -611,7 +653,8 @@ public enum MenuBarPolicy {
                                    // that shipped its own could never be
                                    // cleared from a field showing blank.
                                    warningAt: user?.warningAt, dangerAt: user?.dangerAt,
-                                   thresholdDirection: user?.thresholdDirection, showWhen: user?.showWhen)
+                                   thresholdDirection: user?.thresholdDirection, showWhen: user?.showWhen,
+                                   chart: pick(\.chart))
     }
 
     /// The fields an app-wide style may set: how an item is laid out and
@@ -851,6 +894,48 @@ public enum MenuBarPolicy {
         if entry.metrics.isEmpty, !original.isEmpty, entry.label?.isEmpty != false, entry.symbol == nil, entry.iconOverride?.isEmpty != false {
             entry.label = entry.name
         }
+        return entry
+    }
+
+    // MARK: Charts
+
+    /// How many past readings an item's chart keeps.
+    public static let chartHistoryLimit = 40
+
+    /// The reading an item's chart follows — its first numeric one, as shown
+    /// — with the key it is known by and the scale to draw it against: 0–100
+    /// for a percentage, nil for anything else.
+    public static func chartSample(_ entry: MenuBarEntry) -> (key: String, value: Double, scale: Double?)? {
+        let keys = metricKeys(entry.metrics)
+        guard let index = entry.metrics.firstIndex(where: { thresholdValue($0) != nil }),
+              let value = thresholdValue(entry.metrics[index])
+        else { return nil }
+        let metric = entry.metrics[index]
+        let percent = metric.format == "percent" || metric.unit == "%"
+        return (keys[index], value, percent ? 100 : nil)
+    }
+
+    /// `history` with `sample` added. A sample from another reading (the
+    /// rows were reordered or one hidden) or on another kind of scale starts
+    /// a new series: joining memory onto CPU, or rpm onto °C, draws a line
+    /// that means nothing.
+    public static func recordingChart(
+        _ history: MenuBarChartHistory?, _ sample: (key: String, value: Double, scale: Double?)
+    ) -> MenuBarChartHistory {
+        guard var history, history.series == sample.key, history.scale == sample.scale else {
+            return MenuBarChartHistory(series: sample.key, scale: sample.scale, values: [sample.value])
+        }
+        history.values = Array((history.values + [sample.value]).suffix(chartHistoryLimit))
+        return history
+    }
+
+    /// The entry carrying `history` for its renderer. The scale is the
+    /// history's own, so one refresh without a reading does not rescale the
+    /// points already drawn.
+    public static func applyingChart(_ entry: MenuBarEntry, history: MenuBarChartHistory?) -> MenuBarEntry {
+        var entry = entry
+        entry.history = history?.values ?? []
+        entry.chartScale = history?.scale
         return entry
     }
 

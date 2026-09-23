@@ -312,9 +312,7 @@ final class MenuBarController {
                 // beside it rather than under it. Assigned once: each image
                 // set is a replicant redraw and a re-measure.
                 let draw = { (minimum: CGFloat) -> NSImage in
-                    entry.style == .metrics
-                        ? Self.metricsImage(entry, symbol: symbolImage, glyph: glyph, minimumWidth: minimum)
-                        : Self.stackedImage(entry, symbol: symbolImage, glyph: glyph, minimumWidth: minimum)
+                    Self.drawnImage(entry, symbol: symbolImage, glyph: glyph, minimumWidth: minimum)
                 }
                 // Images are drawn lazily, so asking one for its size costs
                 // only the text measurement: this is the reading's own width.
@@ -340,7 +338,9 @@ final class MenuBarController {
                 Self.applyLength(to: item, button: button, mode: mode, floor: 0,
                                  exact: ceil(image.size.width))
             } else {
-                button.image = symbolImage
+                // A chart takes the icon's place in front of the text, beside
+                // the icon when there is one.
+                button.image = Self.leadingImage(entry, symbol: symbolImage, height: NSStatusBar.system.thickness)
                 let title = NSAttributedString(
                     string: MenuBarPolicy.stripCell(entry, glyph: glyph),
                     attributes: [
@@ -350,7 +350,7 @@ final class MenuBarController {
                 )
                 button.attributedTitle = title
                 button.imagePosition = Self.imagePosition(
-                    hasImage: symbolImage != nil, hasLabel: title.length > 0
+                    hasImage: button.image != nil, hasLabel: title.length > 0
                 )
                 // Text has no image to widen, so its floor is the item length.
                 // Fixed adds whatever the title is short of its column.
@@ -407,6 +407,9 @@ final class MenuBarController {
         layout.tooltip = nil
         layout.tint = nil
         layout.isStale = false
+        // A chart's width is fixed; its points are readings, not layout.
+        layout.history = []
+        layout.chartScale = nil
         layout.metrics = entry.metrics.map { metric in
             var metric = metric
             metric.value = ""
@@ -448,7 +451,7 @@ final class MenuBarController {
         MenuBarPresentation(
             valueWidth: p.valueWidth, width: p.width, digits: p.digits,
             alignment: p.alignment, weight: p.weight, size: p.size,
-            numberAlignment: p.numberAlignment
+            numberAlignment: p.numberAlignment, chart: p.chart
         )
     }
 
@@ -733,12 +736,11 @@ final class MenuBarController {
             )
         }
         let glyph = symbol == nil ? textGlyph(for: entry) : nil
-        if entry.style == .metrics {
-            return metricsImage(entry, symbol: symbol, glyph: glyph, height: height)
+        if entry.style == .metrics || entry.style == .stacked {
+            return drawnImage(entry, symbol: symbol, glyph: glyph, height: height)
         }
-        if entry.style == .stacked {
-            return stackedImage(entry, symbol: symbol, glyph: glyph, height: height)
-        }
+        let leading = leadingImage(entry, symbol: symbol, height: height)
+        let chart = leading === symbol ? nil : leading
 
         let text = NSAttributedString(
             string: MenuBarPolicy.stripCell(entry, glyph: glyph),
@@ -750,14 +752,17 @@ final class MenuBarController {
         )
         let textSize = text.size()
         let side = min(height - 4, 16)
-        let symbolSize: NSSize = symbol == nil ? .zero : NSSize(width: side, height: side)
+        // A composed chart keeps its own width; a lone symbol is drawn square.
+        let symbolSize: NSSize = leading == nil ? .zero
+            : chart == nil ? NSSize(width: side, height: side)
+            : NSSize(width: leading!.size.width, height: min(leading!.size.height, height))
         let gap = (symbolSize.width > 0 && textSize.width > 0) ? stackedSymbolGap : 0
         let width = stackedHorizontalPadding * 2 + symbolSize.width + gap + textSize.width
 
         let image = NSImage(size: NSSize(width: max(width, 1), height: height), flipped: true) { _ in
             var x = stackedHorizontalPadding
-            if let symbol {
-                symbol.draw(in: NSRect(
+            if let leading {
+                leading.draw(in: NSRect(
                     x: x, y: (height - symbolSize.height) / 2,
                     width: symbolSize.width, height: symbolSize.height
                 ))

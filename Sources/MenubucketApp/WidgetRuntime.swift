@@ -1342,6 +1342,7 @@ final class WidgetRuntime: ObservableObject {
         )
         var candidates: [(entry: MenuBarEntry, order: Double?)] = []
         var intervalOverrides: [String: Double] = [:]
+        var charting = Set<String>()
 
         for widget in widgets where !prefs.isDisabled(widget.id) {
             let placement = prefs.menuBarPlacement(
@@ -1406,8 +1407,26 @@ final class WidgetRuntime: ObservableObject {
                 presentation: presentation
             )
             if let interval = placement.interval { intervalOverrides[widget.id] = interval }
-            candidates.append((MenuBarPolicy.applyingPresentation(presentation, to: entry), placement.order))
+            var applied = MenuBarPolicy.applyingPresentation(presentation, to: entry)
+            // Only an item with its own place draws a chart; the strip is
+            // text, and history there would only make it redraw.
+            if presentation.effectiveChart != .none, separate {
+                // A new snapshot adds a point; a sync for any other reason
+                // (a settings change, the staleness tick) must not repeat it.
+                if chartPending.remove(widget.id) != nil, let sample = MenuBarPolicy.chartSample(applied) {
+                    menuBarHistory[widget.id] = MenuBarPolicy.recordingChart(menuBarHistory[widget.id], sample)
+                }
+                applied = MenuBarPolicy.applyingChart(applied, history: menuBarHistory[widget.id])
+                charting.insert(widget.id)
+            }
+            candidates.append((applied, placement.order))
         }
+
+        // A chart turned off, an item taken out of the bar, a widget
+        // disabled or removed: its points go, so coming back starts afresh
+        // instead of joining an hour-old line onto a new one.
+        menuBarHistory = menuBarHistory.filter { charting.contains($0.key) }
+        chartPending.formIntersection(charting)
 
         // "Show only when" items are ordered and capped like any other, then
         // left out of what is drawn: they keep their place in the strip and
@@ -1450,6 +1469,11 @@ final class WidgetRuntime: ObservableObject {
             }
         }
     }
+
+    /// Recent readings of each charting item, oldest first.
+    private(set) var menuBarHistory: [String: MenuBarChartHistory] = [:]
+    /// Widgets with a snapshot the chart has not taken a point from yet.
+    private var chartPending: Set<String> = []
 
     /// Every entry the menu bar owns, in order and capped: drawn now, or
     /// hidden by its "show only when" threshold.
@@ -2669,7 +2693,10 @@ final class WidgetRuntime: ObservableObject {
         guard snapshots[id] != snapshot else { return }
         snapshots[id] = snapshot
         cardModels[id]?.snapshot = snapshot
-        if menuBarWidgetIDs.contains(id) { syncMenuBar() }
+        if menuBarWidgetIDs.contains(id) {
+            chartPending.insert(id)
+            syncMenuBar()
+        }
     }
 
     /// Single write path for overlay cards (`nil` removes), same suppression.

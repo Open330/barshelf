@@ -23,6 +23,11 @@
 
 ## Menu bar
 
+- **Graphs.** An item with its own place in the menu bar can draw a
+  sparkline, bars or a gauge of its reading beside the number (Settings →
+  Menu Bar → Graph). Percentages are drawn against 0–100; anything else
+  against its recent peak. The item keeps one width as the graph fills.
+
 - **Your own warning colours.** Each item's settings gain an Alerts row:
   a warning and a danger threshold, in the unit the item shows (%, °C, GB,
   MB/s…), and whether higher or lower is worse. They replace the widget's

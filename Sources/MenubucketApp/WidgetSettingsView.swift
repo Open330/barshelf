@@ -214,7 +214,20 @@ struct WidgetSettingsView: View {
             live: snapshot?.statusPresentation,
             manifest: statusItem.presentation
         )
-        return MenuBarPolicy.applyingPresentation(presentation, to: entry)
+        var applied = MenuBarPolicy.applyingPresentation(presentation, to: entry)
+        // Only what the bar will draw: an item of its own with a numeric
+        // reading. Its own history when it has some; otherwise an example
+        // shape, so choosing a chart shows what it looks like at once.
+        if presentation.effectiveChart != .none, usesOwnItem, let sample = MenuBarPolicy.chartSample(applied) {
+            let own = runtime.menuBarHistory[widget.id]
+            let history = own.map { $0.values.count >= 2 && $0.series == sample.key ? $0 : nil } ?? nil
+            let scale = sample.scale ?? max(sample.value * 1.5, 1)
+            applied = MenuBarPolicy.applyingChart(applied, history: history ?? MenuBarChartHistory(
+                series: sample.key, scale: sample.scale,
+                values: Self.exampleChart.map { $0 * scale } + [sample.value]
+            ))
+        }
+        return applied
     }
 
     private var effectiveStyle: MenuBarStyle {
@@ -399,6 +412,30 @@ struct WidgetSettingsView: View {
             GridRow {
                 settingsRowLabel("Text")
                 styleControls.text
+            }
+
+            GridRow {
+                settingsRowLabel("Graph")
+                VStack(alignment: .leading, spacing: 4) {
+                    Picker("", selection: Binding(
+                        get: { shownPresentation.effectiveChart },
+                        set: { value in
+                            let inherited = inheritedPresentation.effectiveChart
+                            setPresentation { $0.chart = value == inherited ? nil : value }
+                        }
+                    )) {
+                        Text("None").tag(MenuBarChart.none)
+                        Text("Line").tag(MenuBarChart.line)
+                        Text("Bars").tag(MenuBarChart.bars)
+                        Text("Gauge").tag(MenuBarChart.gauge)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .frame(width: 240)
+                    settingsHint(usesOwnItem
+                        ? "Drawn from the item's first reading as it refreshes. Percentages use 0–100; anything else scales to its recent peak."
+                        : "A graph needs the item's own place in the menu bar; sharing the BarShelf icon, it shows text only.")
+                }
             }
 
             GridRow {
@@ -1089,6 +1126,12 @@ struct WidgetSettingsView: View {
         }
         return options
     }
+
+    /// A made-up recent history, as fractions of the scale, for the preview.
+    static let exampleChart: [Double] = [
+        0.22, 0.25, 0.31, 0.28, 0.34, 0.47, 0.52, 0.44, 0.38, 0.41, 0.36, 0.33,
+        0.39, 0.58, 0.66, 0.61, 0.49, 0.42, 0.37, 0.35, 0.40, 0.45, 0.43, 0.38,
+    ]
 
     static func sensorOptionTitle(_ reading: SensorReading) -> String {
         // Spelled out as °C: the widget may show °F, and a bare "71°" beside
