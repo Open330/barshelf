@@ -356,7 +356,12 @@
         "showUnits": { "type": "boolean" },
         "precision": { "type": "integer", "minimum": 0, "maximum": 3 },
         "color": { "type": "string", "enum": ["automatic", "monochrome", "accent", "good", "warning", "danger", "secondary"] },
-        "valueWidth": { "type": "number", "minimum": 32, "maximum": 120 },
+        "valueWidth": { "type": "number", "minimum": 32, "maximum": 120, "description": "Text column width in points for width: fixed." },
+        "width": { "type": "string", "enum": ["auto", "fixed", "fit"], "description": "auto (default) reserves room for `digits` integer digits so a reading does not change the item's width; fixed uses valueWidth; fit follows the text." },
+        "digits": { "type": "integer", "minimum": 1, "maximum": 6, "description": "Integer digits width: auto reserves (default 2)." },
+        "alignment": { "type": "string", "enum": ["leading", "center", "trailing"], "description": "Block alignment of the label and value rows. Numbers are always right-aligned within their reserved digits." },
+        "weight": { "type": "string", "enum": ["regular", "medium", "semibold", "bold"] },
+        "size": { "type": "string", "enum": ["small", "regular", "large"] },
         "metricOrder": {
           "type": "array",
           "items": { "$ref": "#/definitions/stableMetricId" },

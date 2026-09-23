@@ -164,7 +164,7 @@
         "label": "${if(eq(settings.menuBarMetric,'memory'), 'RAM', if(eq(settings.menuBarMetric,'disk'), 'Disk', 'CPU'))}",
         "number": "${if(eq(settings.menuBarMetric,'memory'), if(eq(settings.menuBarMemoryDisplay,'used'), sources.data.memory.used, if(eq(settings.menuBarMemoryDisplay,'available'), sources.data.memory.free, sources.data.memory.usage)), if(eq(settings.menuBarMetric,'disk'), sources.data.disk.usage, sources.data.cpu.usage))}",
         "format": "${if(and(eq(settings.menuBarMetric,'memory'), or(eq(settings.menuBarMemoryDisplay,'used'), eq(settings.menuBarMemoryDisplay,'available'))), 'bytes', 'percent')}",
-        "precision": 0
+        "precision": "${if(and(eq(settings.menuBarMetric,'memory'), or(eq(settings.menuBarMemoryDisplay,'used'), eq(settings.menuBarMemoryDisplay,'available'))), 1, 0)}"
       }
     ]
   }

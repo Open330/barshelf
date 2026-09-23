@@ -509,6 +509,11 @@
         "precision": { "$ref": "#/definitions/metricPrecision" },
         "color": { "$ref": "#/definitions/templateString" },
         "valueWidth": { "$ref": "#/definitions/templateNumber" },
+        "width": { "$ref": "#/definitions/templateString" },
+        "digits": { "$ref": "#/definitions/templateNumber" },
+        "alignment": { "$ref": "#/definitions/templateString" },
+        "weight": { "$ref": "#/definitions/templateString" },
+        "size": { "$ref": "#/definitions/templateString" },
         "metricOrder": {
           "type": "array",
           "items": { "$ref": "#/definitions/stableMetricId" },

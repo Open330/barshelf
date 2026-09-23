@@ -68,11 +68,15 @@ public struct WorkflowDefinition: Codable, Equatable, Sendable {
                 [metric.id, metric.label, metric.value, metric.format, metric.unit, metric.tint, metric.accessibilityLabel]
                     .contains(where: { $0?.contains(Self.visibilityPath) == true })
                     || Self.mentionsVisibility(metric.active) || Self.mentionsVisibility(metric.number)
+                    || Self.mentionsVisibility(metric.precision)
             }) == true { return true }
             if let presentation = status.presentation,
                Self.mentionsVisibility(presentation.showValues) || Self.mentionsVisibility(presentation.showUnits)
                 || Self.mentionsVisibility(presentation.precision) || Self.mentionsVisibility(presentation.valueWidth)
-                || presentation.color?.contains(Self.visibilityPath) == true { return true }
+                || Self.mentionsVisibility(presentation.digits)
+                || [presentation.color, presentation.width, presentation.alignment,
+                    presentation.weight, presentation.size]
+                    .contains(where: { $0?.contains(Self.visibilityPath) == true }) { return true }
         }
         return false
     }
@@ -161,11 +165,22 @@ public struct WorkflowDefinition: Codable, Equatable, Sendable {
         public var valueWidth: JSONValue?
         public var metricOrder: [String]?
         public var metricOverrides: [String: MenuBarMetricOverride]?
+        /// `auto` / `fixed` / `fit`, `left`… — templated strings, resolved and
+        /// validated like `color`: an unknown value reads as unset.
+        public var width: String?
+        public var digits: JSONValue?
+        public var alignment: String?
+        public var weight: String?
+        public var size: String?
         public init(showValues: JSONValue? = nil, showUnits: JSONValue? = nil, precision: JSONValue? = nil,
                     color: String? = nil, valueWidth: JSONValue? = nil, metricOrder: [String]? = nil,
-                    metricOverrides: [String: MenuBarMetricOverride]? = nil) {
+                    metricOverrides: [String: MenuBarMetricOverride]? = nil,
+                    width: String? = nil, digits: JSONValue? = nil, alignment: String? = nil,
+                    weight: String? = nil, size: String? = nil) {
             self.showValues = showValues; self.showUnits = showUnits; self.precision = precision
             self.color = color; self.valueWidth = valueWidth; self.metricOrder = metricOrder; self.metricOverrides = metricOverrides
+            self.width = width; self.digits = digits; self.alignment = alignment
+            self.weight = weight; self.size = size
         }
     }
 
@@ -419,7 +434,20 @@ public enum WorkflowEngine {
                     color: try presentation.color.map { try context.interpolate($0).stringified },
                     valueWidth: try number(presentation.valueWidth),
                     metricOrder: presentation.metricOrder,
-                    metricOverrides: presentation.metricOverrides
+                    metricOverrides: presentation.metricOverrides,
+                    width: try presentation.width.flatMap {
+                        MenuBarWidthMode(rawValue: try context.interpolate($0).stringified)
+                    },
+                    digits: try number(presentation.digits).map { Int($0) },
+                    alignment: try presentation.alignment.flatMap {
+                        MenuBarAlignment(rawValue: try context.interpolate($0).stringified)
+                    },
+                    weight: try presentation.weight.flatMap {
+                        MenuBarWeight(rawValue: try context.interpolate($0).stringified)
+                    },
+                    size: try presentation.size.flatMap {
+                        MenuBarTextSize(rawValue: try context.interpolate($0).stringified)
+                    }
                 )
             }
             if let metrics = status.metrics {
@@ -682,6 +710,13 @@ public enum WorkflowEngine {
         /// the argument, not separators — `concat(a, ', ', b)` joins three
         /// arguments, the middle one being a literal comma.
         private func splitArguments(_ inner: String) throws -> [String] {
+            if let cached = ArgumentSplitCache.shared.lookup(inner) { return cached }
+            let split = Self.split(inner)
+            ArgumentSplitCache.shared.store(split, for: inner)
+            return split
+        }
+
+        private static func split(_ inner: String) -> [String] {
             let trimmed = inner.trimmingCharacters(in: .whitespaces)
             guard !trimmed.isEmpty else { return [] }
             var args: [String] = []
@@ -1119,5 +1154,47 @@ extension JSONValue {
             guard let data = try? JsonRpcCodec.makeEncoder().encode(self) else { return "" }
             return String(data: data, encoding: .utf8) ?? ""
         }
+    }
+}
+
+
+// MARK: - Argument split cache
+
+/// Argument lists already split, keyed by the text inside a call's parentheses.
+///
+/// Splitting walks the text character by character and rebuilds each argument
+/// as a new string, and it runs for every call in every expression on every
+/// refresh. A menu bar widget evaluates the same expressions every couple of
+/// seconds all day — profiled, this split was the largest single cost of
+/// evaluation. The result depends on nothing but the text, and the texts come
+/// from workflow files, so the set is small and repeats exactly.
+///
+/// Bounded anyway: a runaway set of distinct expressions (a template that
+/// interpolates into its own expression text) empties the cache instead of
+/// growing it. Thread-safe — widgets evaluate concurrently off the main actor.
+final class ArgumentSplitCache: @unchecked Sendable {
+    static let shared = ArgumentSplitCache()
+    static let limit = 4096
+
+    private let lock = NSLock()
+    private var entries: [String: [String]] = [:]
+
+    func lookup(_ key: String) -> [String]? {
+        lock.lock()
+        defer { lock.unlock() }
+        return entries[key]
+    }
+
+    func store(_ value: [String], for key: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        if entries.count >= Self.limit { entries.removeAll(keepingCapacity: true) }
+        entries[key] = value
+    }
+
+    var count: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return entries.count
     }
 }

@@ -21,11 +21,14 @@ final class SettingsShotTests: XCTestCase {
             ?? runtime.widgets.first
         else { throw XCTSkip("no widget installed to render settings for") }
 
+        // The whole pane, not its first screen.
+        WidgetSettingsView.scrollMaxHeight = 2000
+        defer { WidgetSettingsView.scrollMaxHeight = 420 }
         let view = WidgetSettingsView(widget: widget, runtime: runtime)
             .frame(width: 420)
             .background(Color(nsColor: .windowBackgroundColor))
         let hosting = NSHostingView(rootView: view)
-        hosting.frame = NSRect(x: 0, y: 0, width: 420, height: 760)
+        hosting.frame = NSRect(x: 0, y: 0, width: 420, height: 1500)
         hosting.layoutSubtreeIfNeeded()
 
         let rep = try XCTUnwrap(hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds))

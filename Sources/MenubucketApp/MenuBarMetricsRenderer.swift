@@ -9,38 +9,58 @@ extension MenuBarController {
         _ entry: MenuBarEntry,
         symbol: NSImage? = nil,
         glyph: String? = nil,
-        height: CGFloat = NSStatusBar.system.thickness
+        height: CGFloat = NSStatusBar.system.thickness,
+        minimumWidth: CGFloat = 0
     ) -> NSImage {
         let metrics = MenuBarPolicy.normalizedMetrics(entry.metrics)
         guard !metrics.isEmpty else {
-            return stackedImage(entry, symbol: symbol, glyph: glyph, height: height)
+            return stackedImage(
+                entry, symbol: symbol, glyph: glyph, height: height, minimumWidth: minimumWidth
+            )
         }
+        let presentation = entry.presentation
         let height = max(height.isFinite ? height : 22, 12)
         let rowHeight = (height - 3) / CGFloat(metrics.count)
-        let font = NSFont.monospacedDigitSystemFont(ofSize: min(10, rowHeight * 0.87), weight: .medium)
+        // Two rows leave no height to trade, so size is a small nudge that
+        // still stays inside the row.
+        let sizeFactor: CGFloat = presentation.size == .small ? 0.9 : presentation.size == .large ? 1.08 : 1
+        let font = NSFont.monospacedDigitSystemFont(
+            ofSize: min(10 * sizeFactor, rowHeight * 0.9),
+            weight: nsWeight(presentation.weight, default: .medium)
+        )
         let dotSize: CGFloat = min(6, rowHeight - 2)
         let hasDots = metrics.contains { $0.active != nil }
         let hasValues = metrics.contains { !$0.value.isEmpty }
         let labelWidth = metrics.map { ($0.label as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0
-        // A fixed minimum value column keeps ordinary rate/unit changes from
-        // shifting neighbouring menu items. Larger values can still fit.
-        let requestedWidth = entry.presentation.valueWidth ?? 56
-        let minimumWidth = CGFloat(requestedWidth.isFinite ? min(max(requestedWidth, 32), 120) : 56)
-        let valueWidth = hasValues ? max(minimumWidth, metrics.map {
+        // The value column. Rates change units as well as digits ("999 KB/s"
+        // → "1.2 MB/s"), which digit padding alone cannot hold still, so auto
+        // keeps a floor wide enough for an ordinary rate. Fixed is the user's
+        // own column; fit is the measured text. Wider content always fits.
+        let measuredValues = metrics.map {
             ($0.value as NSString).size(withAttributes: [.font: font]).width
-        }.max() ?? 0) : 0
+        }.max() ?? 0
+        let columnFloor: CGFloat
+        switch presentation.effectiveWidth {
+        case .auto: columnFloor = 56
+        case .fixed: columnFloor = CGFloat(presentation.valueWidth ?? 56)
+        case .fit: columnFloor = 0
+        }
+        let valueWidth = hasValues ? max(columnFloor, measuredValues) : 0
         let side = symbol == nil ? 0 : min(16, height - 4)
         let glyphWidth = ((glyph ?? "") as NSString).size(withAttributes: [.font: font]).width
         let leadingWidth = side > 0 ? side + 3 : (glyphWidth > 0 ? glyphWidth + 3 : 0)
         let dotColumn = hasDots ? dotSize + (labelWidth + valueWidth > 0 ? 3 : 0) : 0
         let columnGap: CGFloat = labelWidth > 0 && hasValues ? 4 : 0
         let contentWidth = dotColumn + labelWidth + columnGap + valueWidth
-        let width = max(18, ceil(6 + leadingWidth + contentWidth))
+        let width = max(18, ceil(6 + leadingWidth + contentWidth), ceil(minimumWidth))
         let template = entry.tint == nil && metrics.allSatisfy { MenuBarTint.named($0.tint) == nil }
         let image = NSImage(size: NSSize(width: width, height: height), flipped: true) { _ in
             let dim: CGFloat = entry.isStale ? staleOpacity : 1
             let defaultInk = entry.tint.map(nsColor(for:)) ?? (template ? NSColor.black : .labelColor)
-            let startX = (width - leadingWidth - contentWidth) / 2
+            // The block sits by the item's alignment when the item is wider
+            // than it (a kept floor); centred is how this layout has looked.
+            let block = leadingWidth + contentWidth
+            let startX = 3 + alignedOffset(block, in: width - 6, presentation.alignment ?? .center)
             if let symbol {
                 symbol.draw(in: NSRect(x: startX, y: (height - side) / 2, width: side, height: side),
                             from: .zero, operation: .sourceOver, fraction: dim)

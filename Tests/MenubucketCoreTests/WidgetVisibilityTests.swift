@@ -54,6 +54,16 @@ final class WidgetVisibilityTests: XCTestCase {
         XCTAssertTrue(inStatus.readsWidgetVisibility)
     }
 
+    func testAMetricPrecisionTemplateCountsAsReadingVisibility() throws {
+        let definition = try definition("""
+        {"schemaVersion":1,"sources":{},
+         "status":{"label":"x","metrics":[{"label":"CPU","value":"1",
+           "precision":"${if(widget.visible, 2, 0)}"}]},
+         "view":{"type":"text","text":"hi"}}
+        """)
+        XCTAssertTrue(definition.readsWidgetVisibility)
+    }
+
     func testReadsWidgetVisibilityIsFalseForAWorkflowThatIgnoresIt() throws {
         let plain = try definition("""
         {"schemaVersion":1,"sources":{"d":{"use":"system",

@@ -511,7 +511,8 @@ final class MenuBarStyleAndPrefixTests: XCTestCase {
         let applied = MenuBarPolicy.applyingPresentation(.init(metricOrder: ["ram", "cpu"]), to: entry)
         XCTAssertEqual(applied.metrics.map(\.id), ["ram", "cpu"])
         XCTAssertEqual(applied.metrics.last?.value, "—")
-        XCTAssertEqual(applied.metrics.first?.value, "2 kB")
+        // Drawn with room for two digits (the steady-width default).
+        XCTAssertEqual(applied.metrics.first?.value, "\u{2007}2 kB")
     }
 
     func testPresentationKeepsUnrankedRowsInOriginalOrderAndMergesOverrideFields() {

@@ -96,9 +96,22 @@ export interface MenuBarPresentation {
   showUnits?: boolean;
   precision?: MetricPrecision;
   color?: MenuBarColor;
+  /** Text column width in points (32–120) for `width: "fixed"`. */
   valueWidth?: number;
   metricOrder?: string[];
   metricOverrides?: Record<string, MenuBarMetricOverride>;
+  /**
+   * `auto` (default) reserves room for `digits` integer digits so a reading
+   * going from 9 to 10 does not change the item's width; `fixed` uses
+   * `valueWidth`; `fit` follows the text.
+   */
+  width?: "auto" | "fixed" | "fit";
+  /** Integer digits `width: "auto"` reserves, 1–6 (default 2). */
+  digits?: number;
+  /** Block alignment of the rows; numbers are always right-aligned. */
+  alignment?: "leading" | "center" | "trailing";
+  weight?: "regular" | "medium" | "semibold" | "bold";
+  size?: "small" | "regular" | "large";
 }
 
 export interface StatusMetric {
@@ -894,6 +907,21 @@ function validatePresentation(presentation: MenuBarPresentation): void {
   if (presentation.color !== undefined && !menuBarColors.includes(presentation.color)) {
     menuBarError("color must be automatic, monochrome, or a semantic tint");
   }
+  if (
+    presentation.digits !== undefined &&
+    (!Number.isInteger(presentation.digits) || presentation.digits < 1 || presentation.digits > 6)
+  ) {
+    menuBarError("digits must be an integer from 1 through 6");
+  }
+  const oneOf = (value: unknown, allowed: string[], name: string) => {
+    if (value !== undefined && !allowed.includes(value as string)) {
+      menuBarError(`${name} must be one of ${allowed.join(", ")}`);
+    }
+  };
+  oneOf(presentation.width, ["auto", "fixed", "fit"], "width");
+  oneOf(presentation.alignment, ["leading", "center", "trailing"], "alignment");
+  oneOf(presentation.weight, ["regular", "medium", "semibold", "bold"], "weight");
+  oneOf(presentation.size, ["small", "regular", "large"], "size");
 
   const order = presentation.metricOrder;
   if (order !== undefined) {

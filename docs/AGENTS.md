@@ -287,9 +287,15 @@ sharing) the BarShelf mark.
 - `statusItem.presentation`, workflow `status.presentation`, and a script
   render's `status.presentation` accept sparse defaults: `showValues`,
   `showUnits`, `precision`, `color` (`automatic`, `monochrome`, or a semantic
-  tint), `valueWidth` (32–120 pt), `metricOrder`, and `metricOverrides` keyed
-  by metric id (`label`, `hidden`, `tint`). The host resolves each field as
-  **user preference → render → manifest**, so authors should only set defaults.
+  tint), `width` (`auto` reserves room for `digits` integer digits so a
+  reading going from 9 to 10 does not move the bar — the default; `fixed` uses
+  `valueWidth`, 32–120 pt; `fit` follows the text), `digits` (1–6, default 2),
+  `alignment` (`leading`/`center`/`trailing` for the rows; numbers are always
+  right-aligned), `weight`, `size` (`small`/`regular`/`large`), `metricOrder`,
+  and `metricOverrides` keyed by metric id (`label`, `hidden`, `tint`). The
+  host resolves each field as **user preference → render → manifest**, so
+  authors should only set defaults. People also pick a refresh interval per
+  menu bar item; that is theirs alone, not a presentation field.
 - Scripts can import `menuBar` from `barshelf`: use
   `menuBar.metric('cpu', 23.4, { label: 'CPU', format: 'percent' })`,
   `menuBar.metric('ram', 12_800_000_000, { label: 'RAM', format: 'bytes' })`,

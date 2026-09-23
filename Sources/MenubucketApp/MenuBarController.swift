@@ -70,6 +70,14 @@ final class MenuBarController {
     /// the single largest cost of a promoted widget: ~35% of its CPU.
     private var appliedSeparate: [String: MenuBarEntry] = [:]
     private var appliedStrip: [MenuBarEntry]?
+    /// The widest each separate item has drawn since its layout last changed.
+    ///
+    /// Digit padding holds a reading's width still across its normal range;
+    /// this covers the rest — a `100%`, a rate that changes units. Once an item
+    /// has needed a width it keeps it, so the one unusual reading moves the bar
+    /// once instead of on every tick that crosses the boundary. A change to
+    /// anything but the values (style, label, icon, presentation) starts over.
+    private var widthFloors: [String: (layout: MenuBarEntry, width: CGFloat)] = [:]
 
     init(mainItem: NSStatusItem) {
         self.mainItem = mainItem
@@ -194,7 +202,7 @@ final class MenuBarController {
             result.append(NSAttributedString(
                 string: cell,
                 attributes: [
-                    .font: stripFont,
+                    .font: stripFont(for: entry.presentation),
                     .foregroundColor: color(for: entry),
                 ]
             ))
@@ -210,6 +218,7 @@ final class MenuBarController {
             NSStatusBar.system.removeStatusItem(item)
             separateItems.removeValue(forKey: id)
             appliedSeparate.removeValue(forKey: id)
+            widthFloors.removeValue(forKey: id)
         }
         for entry in entries {
             let item = separateItems[entry.widgetID] ?? makeSeparateItem(for: entry.widgetID)
@@ -248,24 +257,35 @@ final class MenuBarController {
                 )
             }
             let glyph = symbolImage == nil ? Self.textGlyph(for: entry) : nil
+            let mode = entry.presentation.effectiveWidth
+            let layout = Self.layoutSignature(entry)
+            let floor = mode == .fit ? 0
+                : (widthFloors[entry.widgetID].flatMap { $0.layout == layout ? $0.width : nil } ?? 0)
             if entry.style == .stacked || entry.style == .metrics {
                 // One image carries both rows *and* the symbol, because a
                 // button has room for only one image and the rows have to sit
                 // beside it rather than under it. Assigned once: each image
                 // set is a replicant redraw and a re-measure.
-                button.image = entry.style == .metrics
-                    ? Self.metricsImage(entry, symbol: symbolImage, glyph: glyph)
-                    : Self.stackedImage(entry, symbol: symbolImage, glyph: glyph)
+                let image = entry.style == .metrics
+                    ? Self.metricsImage(entry, symbol: symbolImage, glyph: glyph, minimumWidth: floor)
+                    : Self.stackedImage(entry, symbol: symbolImage, glyph: glyph, minimumWidth: floor)
+                button.image = image
                 if button.attributedTitle.length > 0 {
                     button.attributedTitle = NSAttributedString(string: "")
                 }
                 if button.imagePosition != .imageOnly { button.imagePosition = .imageOnly }
+                // The floor for a drawn item is the *image* width — the
+                // button adds its own margins around it, and remembering the
+                // item length instead would feed those margins back into the
+                // next image and widen it on every redraw.
+                if mode != .fit { widthFloors[entry.widgetID] = (layout, image.size.width) }
+                Self.applyLength(to: item, button: button, mode: mode, floor: 0)
             } else {
                 button.image = symbolImage
                 let title = NSAttributedString(
                     string: MenuBarPolicy.stripCell(entry, glyph: glyph),
                     attributes: [
-                        .font: Self.stripFont,
+                        .font: Self.stripFont(for: entry.presentation),
                         .foregroundColor: Self.color(for: entry),
                     ]
                 )
@@ -273,9 +293,55 @@ final class MenuBarController {
                 button.imagePosition = Self.imagePosition(
                     hasImage: symbolImage != nil, hasLabel: title.length > 0
                 )
+                // Text has no image to widen, so its floor is the item length.
+                let length = Self.applyLength(to: item, button: button, mode: mode, floor: floor)
+                if mode != .fit { widthFloors[entry.widgetID] = (layout, length) }
             }
+            if mode == .fit { widthFloors.removeValue(forKey: entry.widgetID) }
 
         }
+    }
+
+    /// Sets an item's length only when it changes.
+    ///
+    /// A variable-length item is re-measured by AppKit on every image or
+    /// title change — `_adjustLength`, ~11% of a promoted widget's CPU in a
+    /// profile — even when the width came out the same. With the width held
+    /// steady, the item gets an explicit length and is left alone until that
+    /// length actually moves. `fit` keeps the old variable length.
+    @discardableResult
+    private static func applyLength(
+        to item: NSStatusItem, button: NSStatusBarButton, mode: MenuBarWidthMode, floor: CGFloat
+    ) -> CGFloat {
+        guard mode != .fit else {
+            if item.length != NSStatusItem.variableLength {
+                item.length = NSStatusItem.variableLength
+            }
+            return item.length
+        }
+        let length = max(ceil(button.fittingSize.width), floor)
+        if abs(item.length - length) > 0.5 { item.length = length }
+        return length
+    }
+
+    /// An entry with its values blanked: what decides an item's layout, as
+    /// opposed to what it currently reads.
+    static func layoutSignature(_ entry: MenuBarEntry) -> MenuBarEntry {
+        var layout = entry
+        layout.label = nil
+        layout.tooltip = nil
+        layout.tint = nil
+        layout.isStale = false
+        layout.metrics = entry.metrics.map { metric in
+            var metric = metric
+            metric.value = ""
+            metric.number = nil
+            metric.tint = nil
+            metric.active = nil
+            metric.accessibilityLabel = nil
+            return metric
+        }
+        return layout
     }
 
     /// Whether two entries draw the same item — everything but the tooltip,
@@ -288,9 +354,10 @@ final class MenuBarController {
         lhs.metrics = lhs.metrics.map(Self.drawnMetric)
         rhs.metrics = rhs.metrics.map(Self.drawnMetric)
         // Formatting and row overrides are already resolved into visible
-        // strings/tints/order. Only the minimum column width affects drawing.
-        lhs.presentation = MenuBarPresentation(valueWidth: lhs.presentation.valueWidth)
-        rhs.presentation = MenuBarPresentation(valueWidth: rhs.presentation.valueWidth)
+        // strings/tints/order; what is left that changes the drawing is the
+        // geometry and type.
+        lhs.presentation = Self.drawnPresentation(lhs.presentation)
+        rhs.presentation = Self.drawnPresentation(rhs.presentation)
         if lhs.style == .metrics, rhs.style == .metrics,
            !lhs.metrics.isEmpty, !rhs.metrics.isEmpty {
             // The legacy fallback is not drawn by the metric renderer.
@@ -300,6 +367,13 @@ final class MenuBarController {
             rhs.prefix = nil
         }
         return lhs == rhs
+    }
+
+    private static func drawnPresentation(_ p: MenuBarPresentation) -> MenuBarPresentation {
+        MenuBarPresentation(
+            valueWidth: p.valueWidth, width: p.width, digits: p.digits,
+            alignment: p.alignment, weight: p.weight, size: p.size
+        )
     }
 
     private static func drawnMetric(_ metric: StatusMetric) -> StatusMetric {
@@ -408,7 +482,9 @@ final class MenuBarController {
     }
 
     /// The pair of fonts that fills `height` at the base ratio.
-    static func stackedFonts(for height: CGFloat) -> (label: NSFont, value: NSFont) {
+    static func stackedFonts(
+        for height: CGFloat, presentation: MenuBarPresentation = MenuBarPresentation()
+    ) -> (label: NSFont, value: NSFont) {
         let available = height - stackedVerticalPadding * 2 - stackedRowGap
         let base = inkHeight(of: stackedLabelFont) + inkHeight(of: stackedValueFont)
         guard base > 0 else { return (stackedLabelFont, stackedValueFont) }
@@ -418,12 +494,52 @@ final class MenuBarController {
             available / base,
             stackedMaxValuePointSize / stackedValueFont.pointSize
         )
-        return (
-            NSFont.systemFont(ofSize: stackedLabelFont.pointSize * scale, weight: .semibold),
-            NSFont.monospacedDigitSystemFont(
-                ofSize: stackedValueFont.pointSize * scale, weight: .semibold
-            )
+        var labelSize = stackedLabelFont.pointSize * scale
+        var valueSize = stackedValueFont.pointSize * scale
+        // Size trades height between the rows rather than adding any: the pair
+        // already fills the bar, so a larger value takes it from the label.
+        switch presentation.size {
+        case .small?:
+            valueSize *= 0.88
+        case .large?:
+            labelSize *= 0.85
+            valueSize *= 1.12
+        case .regular?, nil:
+            break
+        }
+        let label = NSFont.systemFont(ofSize: labelSize, weight: .semibold)
+        var value = NSFont.monospacedDigitSystemFont(
+            ofSize: valueSize, weight: nsWeight(presentation.weight, default: .semibold)
         )
+        // Never taller than the bar, whatever the choice.
+        let ink = inkHeight(of: label) + inkHeight(of: value)
+        if ink > available, inkHeight(of: value) > 0 {
+            let shrink = max(available - inkHeight(of: label), 1) / inkHeight(of: value)
+            value = NSFont.monospacedDigitSystemFont(
+                ofSize: value.pointSize * shrink,
+                weight: nsWeight(presentation.weight, default: .semibold)
+            )
+        }
+        return (label, value)
+    }
+
+    static func nsWeight(_ weight: MenuBarWeight?, default fallback: NSFont.Weight) -> NSFont.Weight {
+        switch weight {
+        case .regular?: return .regular
+        case .medium?: return .medium
+        case .semibold?: return .semibold
+        case .bold?: return .bold
+        case nil: return fallback
+        }
+    }
+
+    /// Where a run `width` wide starts inside a column `column` wide.
+    static func alignedOffset(_ width: CGFloat, in column: CGFloat, _ alignment: MenuBarAlignment) -> CGFloat {
+        switch alignment {
+        case .leading: return 0
+        case .center: return ((column - width) / 2).rounded(.down)
+        case .trailing: return column - width
+        }
     }
 
     /// Two rows packed into the menu bar: the label small on top, the value
@@ -441,10 +557,12 @@ final class MenuBarController {
         _ entry: MenuBarEntry,
         symbol: NSImage? = nil,
         glyph: String? = nil,
-        height: CGFloat = NSStatusBar.system.thickness
+        height: CGFloat = NSStatusBar.system.thickness,
+        minimumWidth: CGFloat = 0
     ) -> NSImage {
         let (top, bottom) = stackedLines(entry, glyph: glyph)
-        let (labelFont, valueFont) = stackedFonts(for: height)
+        let presentation = entry.presentation
+        let (labelFont, valueFont) = stackedFonts(for: height, presentation: presentation)
 
         // Template images are tinted from their alpha, so an untinted drawing
         // colour only has to carry the relative weight of the two rows.
@@ -467,9 +585,20 @@ final class MenuBarController {
 
         let side = min(height - 4, 16)
         let symbolSize: NSSize = symbol == nil ? .zero : NSSize(width: side, height: side)
-        let textWidth = max(labelWidth, valueWidth)
-        let width = stackedHorizontalPadding * 2 + symbolSize.width
-            + (symbolSize.width > 0 && textWidth > 0 ? stackedSymbolGap : 0) + textWidth
+        var textWidth = max(labelWidth, valueWidth)
+        if presentation.effectiveWidth == .fixed, let fixed = presentation.valueWidth {
+            // Content wider than the fixed column still grows it: a clipped
+            // number is worse than a moved one.
+            textWidth = max(textWidth, CGFloat(fixed))
+        }
+        let chrome = stackedHorizontalPadding * 2 + symbolSize.width
+            + (symbolSize.width > 0 && textWidth > 0 ? stackedSymbolGap : 0)
+        // The floor the controller keeps for this item: once it has needed a
+        // width, it keeps it rather than shrinking back and shoving its
+        // neighbours around again.
+        textWidth = max(textWidth, minimumWidth - chrome)
+        let width = chrome + textWidth
+        let alignment = presentation.effectiveAlignment
 
         let image = NSImage(
             size: NSSize(width: max(width, 1), height: height), flipped: true
@@ -491,11 +620,13 @@ final class MenuBarController {
             // it.
             var capTop = ((height - (labelInk + gap + valueInk)) / 2).rounded(.down)
             if !top.isEmpty {
-                label.draw(at: NSPoint(x: x, y: capTop - capInset(of: labelFont)))
+                let dx = alignedOffset(labelWidth, in: textWidth, alignment)
+                label.draw(at: NSPoint(x: x + dx, y: capTop - capInset(of: labelFont)))
                 capTop += labelInk + gap
             }
             if !bottom.isEmpty {
-                value.draw(at: NSPoint(x: x, y: capTop - capInset(of: valueFont)))
+                let dx = alignedOffset(valueWidth, in: textWidth, alignment)
+                value.draw(at: NSPoint(x: x + dx, y: capTop - capInset(of: valueFont)))
             }
             return true
         }
@@ -532,7 +663,7 @@ final class MenuBarController {
         let text = NSAttributedString(
             string: MenuBarPolicy.stripCell(entry, glyph: glyph),
             attributes: [
-                .font: stripFont,
+                .font: stripFont(for: entry.presentation),
                 .foregroundColor: (entry.tint.map(nsColor(for:)) ?? .black)
                     .withAlphaComponent(entry.isStale ? staleOpacity : 1),
             ]
@@ -569,6 +700,16 @@ final class MenuBarController {
     static let stripFont = NSFont.monospacedDigitSystemFont(
         ofSize: NSFont.menuBarFont(ofSize: 0).pointSize, weight: .medium
     )
+
+    /// The strip font with an item's own weight and size choices applied.
+    static func stripFont(for presentation: MenuBarPresentation) -> NSFont {
+        guard presentation.weight != nil || presentation.size != nil else { return stripFont }
+        let base = NSFont.menuBarFont(ofSize: 0).pointSize
+        let delta: CGFloat = presentation.size == .small ? -1 : presentation.size == .large ? 1 : 0
+        return NSFont.monospacedDigitSystemFont(
+            ofSize: base + delta, weight: nsWeight(presentation.weight, default: .medium)
+        )
+    }
 
     static func color(for entry: MenuBarEntry) -> NSColor {
         guard let tint = entry.tint else {

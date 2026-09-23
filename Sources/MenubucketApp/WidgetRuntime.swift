@@ -1341,6 +1341,7 @@ final class WidgetRuntime: ObservableObject {
             appPrefs.preferences.refreshMultiplier
         )
         var candidates: [(entry: MenuBarEntry, order: Double?)] = []
+        var intervalOverrides: [String: Double] = [:]
 
         for widget in widgets where !prefs.isDisabled(widget.id) {
             let placement = prefs.menuBarPlacement(
@@ -1393,17 +1394,24 @@ final class WidgetRuntime: ObservableObject {
                 metrics: statusItem.showsLabel
                     ? MenuBarPolicy.normalizedMetrics(snapshot?.statusMetrics ?? []) : [],
                 tooltip: snapshot?.error ?? snapshot?.statusTooltip,
+                // Judged against the cadence the item actually runs at: a user
+                // who slows it to 30 s must not see it dimmed as stale after 2.
                 isStale: MenuBarPolicy.isStale(
                     updatedAt: snapshot?.updatedAt,
-                    interval: (widget.manifest.refresh?.interval).map { $0 * multiplier }
+                    interval: (placement.interval ?? widget.manifest.refresh?.interval)
+                        .map { $0 * multiplier }
                 ),
                 separate: separate,
                 presentation: presentation
             )
             candidates.append((MenuBarPolicy.applyingPresentation(presentation, to: entry), placement.order))
+            if let interval = placement.interval { intervalOverrides[widget.id] = interval }
         }
 
         menuBar.apply(MenuBarPolicy.ordered(candidates))
+        // Before the promoted-set check: a changed cadence re-arms timers even
+        // when the set of promoted widgets is the same.
+        scheduler.setIntervalOverrides(intervalOverrides)
         let promoted = menuBar.promotedWidgetIDs
         guard promoted != previous else { return }
         scheduler.setMenuBarWidgetIDs(promoted)

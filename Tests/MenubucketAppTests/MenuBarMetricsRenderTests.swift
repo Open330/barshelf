@@ -120,6 +120,7 @@ final class MenuBarMetricsRenderTests: XCTestCase {
         var narrow = first
         narrow.style = .metrics
         narrow.presentation.valueWidth = 32
+        narrow.presentation.width = .fixed  // valueWidth is the fixed mode's column
         var wide = narrow
         wide.presentation.valueWidth = 120
         XCTAssertTrue(MenuBarController.metricsImage(narrow, height: 22).isTemplate)

@@ -113,25 +113,74 @@ public struct StatusMetric: Codable, Equatable, Sendable {
 
 /// User and author supplied presentation choices for a promoted status item.
 /// Every property is optional so values can layer user → live → manifest.
+/// How a menu bar item decides its width.
+///
+/// A reading that goes from `9°` to `10°` used to widen its item and shove
+/// every item to its left, because each redraw measured the text it had. A
+/// menu bar is a row of fixed positions people glance at, so the default now
+/// reserves room for the digits a reading normally has.
+public enum MenuBarWidthMode: String, Codable, Equatable, Sendable, CaseIterable {
+    /// Reserve room for `digits` integer digits (figure spaces pad a shorter
+    /// number); an item that ever needs more keeps the wider size for the rest
+    /// of the session rather than shrinking back.
+    case auto
+    /// The text column is `valueWidth` points. Content wider than that still
+    /// grows the item — a clipped number is worse than a moved one.
+    case fixed
+    /// Exactly as wide as the current text: the old behaviour.
+    case fit
+}
+
+/// How an item's rows sit inside the width it has — the label above the
+/// value in a stacked item, the block of rows in a metrics one.
+public enum MenuBarAlignment: String, Codable, Equatable, Sendable, CaseIterable {
+    case leading, center, trailing
+}
+
+public enum MenuBarWeight: String, Codable, Equatable, Sendable, CaseIterable {
+    case regular, medium, semibold, bold
+}
+
+public enum MenuBarTextSize: String, Codable, Equatable, Sendable, CaseIterable {
+    case small, regular, large
+}
+
 public struct MenuBarPresentation: Codable, Equatable, Sendable {
     public var showValues: Bool?
     public var showUnits: Bool?
     public var precision: Int?
     /// `automatic`, `monochrome`, or a `MenuBarTint` semantic name.
     public var color: String?
+    /// Text column width in points, used by `width: fixed`.
     public var valueWidth: Double?
     public var metricOrder: [String]?
     public var metricOverrides: [String: MenuBarMetricOverride]?
+    public var width: MenuBarWidthMode?
+    /// Integer digits `width: auto` reserves room for (1–6).
+    public var digits: Int?
+    public var alignment: MenuBarAlignment?
+    /// Weight of the value text.
+    public var weight: MenuBarWeight?
+    /// Size of the value text relative to the style's own.
+    public var size: MenuBarTextSize?
 
     public init(showValues: Bool? = nil, showUnits: Bool? = nil, precision: Int? = nil,
                 color: String? = nil, valueWidth: Double? = nil,
                 metricOrder: [String]? = nil,
-                metricOverrides: [String: MenuBarMetricOverride]? = nil) {
+                metricOverrides: [String: MenuBarMetricOverride]? = nil,
+                width: MenuBarWidthMode? = nil, digits: Int? = nil,
+                alignment: MenuBarAlignment? = nil, weight: MenuBarWeight? = nil,
+                size: MenuBarTextSize? = nil) {
         self.showValues = showValues
         self.showUnits = showUnits
         self.precision = StatusMetric.validPrecision(precision)
         self.color = Self.validColor(color)
         self.valueWidth = Self.validWidth(valueWidth)
+        self.width = width
+        self.digits = digits.flatMap { (1...6).contains($0) ? $0 : nil }
+        self.alignment = alignment
+        self.weight = weight
+        self.size = size
         self.metricOrder = metricOrder.map { order in
             var seen = Set<String>()
             return order.filter { !($0.isEmpty || !seen.insert($0).inserted) }
@@ -147,8 +196,36 @@ public struct MenuBarPresentation: Codable, Equatable, Sendable {
                   color: try c.decodeIfPresent(String.self, forKey: .color),
                   valueWidth: try c.decodeIfPresent(Double.self, forKey: .valueWidth),
                   metricOrder: try c.decodeIfPresent([String].self, forKey: .metricOrder),
-                  metricOverrides: try c.decodeIfPresent([String: MenuBarMetricOverride].self, forKey: .metricOverrides))
+                  metricOverrides: try c.decodeIfPresent([String: MenuBarMetricOverride].self, forKey: .metricOverrides),
+                  // Lenient like the rest of this type: a name from a newer
+                  // vocabulary reads as "not set", never as a decode failure
+                  // that would throw away the user's other choices.
+                  width: Self.lenient(c, .width),
+                  digits: (try? c.decodeIfPresent(Int.self, forKey: .digits)) ?? nil,
+                  alignment: Self.lenient(c, .alignment),
+                  weight: Self.lenient(c, .weight),
+                  size: Self.lenient(c, .size))
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case showValues, showUnits, precision, color, valueWidth, metricOrder,
+             metricOverrides, width, digits, alignment, weight, size
+    }
+
+    private static func lenient<T: RawRepresentable>(
+        _ c: KeyedDecodingContainer<CodingKeys>, _ key: CodingKeys
+    ) -> T? where T.RawValue == String {
+        guard let raw = (try? c.decodeIfPresent(String.self, forKey: key)) ?? nil else { return nil }
+        return T(rawValue: raw)
+    }
+
+    /// Effective values, with the defaults a user who never opened the
+    /// settings gets.
+    public var effectiveWidth: MenuBarWidthMode { width ?? .auto }
+    public var effectiveDigits: Int { digits ?? MenuBarPolicy.defaultReservedDigits }
+    /// Block alignment of the label and value rows. Leading is how items have
+    /// always looked; numbers inside the value are right-aligned regardless.
+    public var effectiveAlignment: MenuBarAlignment { alignment ?? .leading }
 
     static func validColor(_ color: String?) -> String? {
         guard let color, color == "automatic" || color == "monochrome" || MenuBarTint.named(color) != nil else { return nil }
@@ -229,6 +306,15 @@ public struct MenuBarPlacement: Codable, Equatable, Sendable {
     public var style: MenuBarStyle?
     /// User choices layered over live and manifest presentation defaults.
     public var presentation: MenuBarPresentation?
+    /// How often this item refreshes, in seconds, overriding the widget's own
+    /// `refresh.interval` while it is in the menu bar. A temperature does not
+    /// need the two seconds a CPU reading does, and an always-on menu bar item
+    /// is where that difference is paid all day.
+    public var interval: Double?
+
+    /// The choices offered in settings. Arbitrary values still decode (and
+    /// are clamped), so a hand-edited prefs file is not rejected.
+    public static let intervalChoices: [Double] = [1, 2, 3, 5, 10, 30, 60]
 
     public init(
         enabled: Bool,
@@ -237,7 +323,8 @@ public struct MenuBarPlacement: Codable, Equatable, Sendable {
         icon: String? = nil,
         label: String? = nil,
         style: MenuBarStyle? = nil,
-        presentation: MenuBarPresentation? = nil
+        presentation: MenuBarPresentation? = nil,
+        interval: Double? = nil
     ) {
         self.enabled = enabled
         self.separate = separate
@@ -246,6 +333,12 @@ public struct MenuBarPlacement: Codable, Equatable, Sendable {
         self.label = label
         self.style = style
         self.presentation = presentation
+        self.interval = Self.validInterval(interval)
+    }
+
+    static func validInterval(_ interval: Double?) -> Double? {
+        guard let interval, interval.isFinite, interval > 0 else { return nil }
+        return min(max(interval, 1), 3600)
     }
 
     /// Lenient decode so a prefs file written by an older build still loads.
@@ -260,6 +353,9 @@ public struct MenuBarPlacement: Codable, Equatable, Sendable {
         // than failing the whole prefs file.
         style = try? container.decodeIfPresent(MenuBarStyle.self, forKey: .style)
         presentation = try? container.decodeIfPresent(MenuBarPresentation.self, forKey: .presentation)
+        interval = Self.validInterval(
+            (try? container.decodeIfPresent(Double.self, forKey: .interval)) ?? nil
+        )
     }
 }
 
@@ -448,7 +544,83 @@ public enum MenuBarPolicy {
         return MenuBarPresentation(showValues: pick(\.showValues), showUnits: pick(\.showUnits),
                                    precision: pick(\.precision), color: pick(\.color),
                                    valueWidth: pick(\.valueWidth), metricOrder: pick(\.metricOrder),
-                                   metricOverrides: overrides.isEmpty ? nil : overrides)
+                                   metricOverrides: overrides.isEmpty ? nil : overrides,
+                                   width: pick(\.width), digits: pick(\.digits),
+                                   alignment: pick(\.alignment), weight: pick(\.weight),
+                                   size: pick(\.size))
+    }
+
+    // MARK: Metric rows
+
+    /// The key each metric row is known by — for ordering, hiding and
+    /// relabelling — guaranteed unique.
+    ///
+    /// A row's `id` when it has one, `row:<index>` when it does not. Nothing
+    /// stopped two rows from ending up with the same key (a render with two
+    /// equal ids, or an id that is literally `row:1` next to an id-less second
+    /// row), and the settings editor turned such a pair into a dictionary that
+    /// trapped. A repeat now gets `#2`, `#3`… so every consumer can rely on
+    /// the keys being distinct.
+    public static func metricKeys(_ metrics: [StatusMetric]) -> [String] {
+        var seen = Set<String>()
+        return metrics.enumerated().map { index, metric in
+            let base = metric.id.flatMap { $0.isEmpty ? nil : $0 } ?? "row:\(index)"
+            var key = base
+            var n = 2
+            while !seen.insert(key).inserted {
+                key = "\(base)#\(n)"
+                n += 1
+            }
+            return key
+        }
+    }
+
+    /// Position of each key in a stored order; a repeated key keeps its first
+    /// position instead of trapping.
+    public static func orderRanks(_ order: [String]) -> [String: Int] {
+        order.enumerated().reduce(into: [String: Int]()) { ranks, pair in
+            if ranks[pair.element] == nil { ranks[pair.element] = pair.offset }
+        }
+    }
+
+    // MARK: Width
+
+    /// Integer digits reserved when nobody said otherwise. Two covers the
+    /// normal range of what menu bars show — CPU and memory percentages,
+    /// temperatures, watts — and the rare `100%` grows the item once and keeps
+    /// it, instead of every reading paying for a digit it never uses.
+    public static let defaultReservedDigits = 2
+
+    /// U+2007 FIGURE SPACE: exactly as wide as a digit in any font with
+    /// tabular figures, which is every font the menu bar draws values in.
+    public static let figureSpace: Character = "\u{2007}"
+
+    /// Pads the integer part of the first number in `text` with figure spaces,
+    /// in front of it, so it occupies `digits` digit widths.
+    ///
+    /// This is what keeps `9°` and `10°` the same width. The padding always
+    /// goes before the number — numbers are right-aligned, so the ones digit
+    /// stays where it was when `8%` becomes `23%` — whatever block alignment
+    /// the item uses. It is text rather than layout, so the shared strip (one
+    /// attributed string for several widgets) gets stable cells the same way
+    /// a separate item does. Text with no digits, or a number already that
+    /// long, is returned unchanged.
+    public static func reservingDigits(_ text: String, digits: Int) -> String {
+        guard digits > 0, let start = text.firstIndex(where: \.isASCIIDigit) else {
+            return text
+        }
+        let run = text[start...].prefix(while: \.isASCIIDigit)
+        let missing = digits - run.count
+        guard missing > 0 else { return text }
+        var padded = text
+        padded.insert(contentsOf: String(repeating: figureSpace, count: missing), at: start)
+        return padded
+    }
+
+    /// The value text as the menu bar should draw it under `presentation`.
+    public static func reservedValue(_ text: String, presentation: MenuBarPresentation) -> String {
+        guard presentation.effectiveWidth != .fit, !text.isEmpty else { return text }
+        return reservingDigits(text, digits: presentation.effectiveDigits)
     }
 
     /// Formats a numeric metric according to the public SDK vocabulary.
@@ -494,12 +666,8 @@ public enum MenuBarPolicy {
     public static func applyingPresentation(_ presentation: MenuBarPresentation, to entry: MenuBarEntry) -> MenuBarEntry {
         var entry = entry
         entry.presentation = presentation
-        let original = entry.metrics.enumerated().map { (index, metric) -> (String, StatusMetric) in
-            (metric.id?.isEmpty == false ? metric.id! : "row:\(index)", metric)
-        }
-        let rank = (presentation.metricOrder ?? []).enumerated().reduce(into: [String: Int]()) {
-            if $0[$1.element] == nil { $0[$1.element] = $1.offset }
-        }
+        let original = Array(zip(metricKeys(entry.metrics), entry.metrics))
+        let rank = orderRanks(presentation.metricOrder ?? [])
         let metrics = original.enumerated().sorted { left, right in
             let lhs = rank[left.element.0]
             let rhs = rank[right.element.0]
@@ -525,6 +693,9 @@ public enum MenuBarPolicy {
                 }
                 metric.value = ""
             }
+            // Padded last: the spoken description above is built from the
+            // value as read, not as laid out.
+            metric.value = reservedValue(metric.value, presentation: presentation)
             return metric
         }
         // Do not produce a blank cell when all configured rows are hidden.
@@ -534,6 +705,9 @@ public enum MenuBarPolicy {
         // so `CPU` + one `23%` metric never becomes `CPU CPU 23%`.
         if entry.metrics.count == 1 {
             entry.label = entry.metrics[0].value
+        } else if entry.metrics.isEmpty {
+            // A text-only widget's label (`status.label`) gets the same room.
+            entry.label = entry.label.map { reservedValue($0, presentation: presentation) }
         }
         if presentation.color == "monochrome" {
             entry.tint = nil
@@ -579,6 +753,18 @@ public enum MenuBarPolicy {
     /// accessibility descriptions even when compact visible arrows or values
     /// are present; an unlabeled dot still announces its state.
     public static func accessibilityText(_ entry: MenuBarEntry) -> String {
+        spoken(unpaddedAccessibilityText(entry))
+    }
+
+    /// Layout padding is not speech: figure spaces go, and the gaps they
+    /// leave collapse.
+    static func spoken(_ text: String) -> String {
+        text.replacingOccurrences(of: String(figureSpace), with: "")
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: " ")
+    }
+
+    private static func unpaddedAccessibilityText(_ entry: MenuBarEntry) -> String {
         guard !entry.metrics.isEmpty else { return entryText(entry) }
         return entry.metrics.compactMap { metric in
             if let label = normalizedLabel(metric.accessibilityLabel, limit: maxLabelCharacters * 3) {
@@ -656,8 +842,11 @@ public enum MenuBarPolicy {
         limit: Int = maxLabelCharacters
     ) -> String? {
         guard let label else { return nil }
+        // Figure spaces are layout, not whitespace: they are the padding that
+        // holds a reading's width still, and collapsing them here — this runs
+        // again inside the renderers — would undo it.
         let collapsed = label
-            .split(whereSeparator: \.isWhitespace)
+            .split(whereSeparator: { $0.isWhitespace && $0 != figureSpace })
             .joined(separator: " ")
         guard !collapsed.isEmpty else { return nil }
         guard collapsed.count > limit else { return collapsed }
@@ -823,4 +1012,10 @@ public enum MenuBarPolicy {
         }
         return lines.isEmpty ? nil : lines.joined(separator: "\n")
     }
+}
+
+private extension Character {
+    /// `0`–`9` only. `isNumber` would also match superscripts and other
+    /// scripts' numerals, which are not tabular and must not be padded.
+    var isASCIIDigit: Bool { ("0"..."9").contains(self) }
 }
