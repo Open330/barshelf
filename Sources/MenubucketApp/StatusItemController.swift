@@ -169,7 +169,7 @@ final class StatusItemController: NSObject {
         }
         menuBar = MenuBarController(mainItem: statusItem)
         menuBar.onSelect = { [weak self] widgetID, button in
-            self?.toggleWidgetPopover(for: widgetID, anchoredTo: button)
+            self?.itemClicked(widgetID, button: button)
         }
         menuBar.onContextMenu = { [weak self] event, widgetID, button in
             self?.showWidgetMenu(for: widgetID, with: event, anchoredTo: button)
@@ -242,6 +242,43 @@ final class StatusItemController: NSObject {
     ///
     /// Clicking the same item again closes it, so the item behaves like a
     /// toggle rather than reopening what is already open.
+    /// A click on a widget's own item does what its settings say; anything
+    /// that cannot be done (no target, an app that is gone) shows the card,
+    /// so a click never does nothing.
+    private func itemClicked(_ widgetID: String, button: NSStatusBarButton) {
+        guard let widget = runtime.widgets.first(where: { $0.id == widgetID }) else { return }
+        let placement = runtime.prefs.menuBarPlacement(for: widget.manifest, widgetID: widgetID)
+        switch placement.effectiveClickAction {
+        case .card:
+            toggleWidgetPopover(for: widgetID, anchoredTo: button)
+        case .refresh:
+            runtime.refresh(widgetID: widgetID, manual: true)
+        case .hub:
+            openHub(nil)
+        case .open:
+            guard let url = placement.clickTarget.flatMap(Self.clickTargetURL) else {
+                toggleWidgetPopover(for: widgetID, anchoredTo: button)
+                return
+            }
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    /// Where a click target points: a URL as written, a path to an app or
+    /// file, or an app's bundle identifier. nil when none of these resolve.
+    static func clickTargetURL(_ target: String) -> URL? {
+        let target = target.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !target.isEmpty else { return nil }
+        if target.contains("://") || target.hasPrefix("mailto:") {
+            return URL(string: target)
+        }
+        if target.hasPrefix("/") || target.hasPrefix("~") {
+            let path = (target as NSString).expandingTildeInPath
+            return FileManager.default.fileExists(atPath: path) ? URL(fileURLWithPath: path) : nil
+        }
+        return NSWorkspace.shared.urlForApplication(withBundleIdentifier: target)
+    }
+
     private func toggleWidgetPopover(for widgetID: String, anchoredTo button: NSStatusBarButton) {
         if let current = widgetPopover, current.widgetID == widgetID, current.surface.isShown {
             current.surface.hide()
@@ -412,6 +449,16 @@ final class StatusItemController: NSObject {
         menu.addItem(title)
         menu.addItem(.separator())
 
+        // A click that does something else still leaves the card one step
+        // away.
+        let placement = runtime.prefs.menuBarPlacement(for: widget.manifest, widgetID: widgetID)
+        if placement.effectiveClickAction != .card {
+            let card = NSMenuItem(title: "Show Card", action: #selector(showPromotedCard(_:)), keyEquivalent: "")
+            card.target = self
+            card.representedObject = (widgetID, button)
+            menu.addItem(card)
+        }
+
         let open = NSMenuItem(
             title: "Show in BarShelf", action: #selector(showPromotedWidget(_:)), keyEquivalent: ""
         )
@@ -456,6 +503,11 @@ final class StatusItemController: NSObject {
         guard let widgetID = sender.representedObject as? String else { return }
         openPopupIfNeeded()
         runtime.reveal(widgetID: widgetID)
+    }
+
+    @objc private func showPromotedCard(_ sender: NSMenuItem) {
+        guard let (widgetID, button) = sender.representedObject as? (String, NSStatusBarButton) else { return }
+        toggleWidgetPopover(for: widgetID, anchoredTo: button)
     }
 
     @objc private func refreshPromotedWidget(_ sender: NSMenuItem) {

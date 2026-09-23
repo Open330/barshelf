@@ -1,6 +1,7 @@
 import AppKit
 import MenubucketCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Auto-generated settings form from the manifest's `settings[]` entries
 /// (string / integer / boolean / enum / directory). Saving stores overrides
@@ -449,6 +450,16 @@ struct WidgetSettingsView: View {
                     settingsRowLabel("Alerts")
                     thresholdControls
                 }
+            }
+
+            GridRow {
+                settingsRowLabel("Click")
+                clickControls
+            }
+
+            GridRow {
+                settingsRowLabel("Style")
+                styleShortcuts
             }
 
             GridRow {
@@ -1184,6 +1195,83 @@ struct WidgetSettingsView: View {
         case let (min?, nil): return "Min \(Int(min))"
         case let (nil, max?): return "Max \(Int(max))"
         default: return nil
+        }
+    }
+
+    @ViewBuilder
+    private var clickControls: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Picker("", selection: Binding(
+                get: { menuBarDraft.effectiveClickAction },
+                set: { menuBarDraft.clickAction = $0 == .card ? nil : $0 }
+            )) {
+                Text("Show the card").tag(MenuBarClickAction.card)
+                Text("Refresh").tag(MenuBarClickAction.refresh)
+                Text("Open an app or link").tag(MenuBarClickAction.open)
+                Text("Open BarShelf").tag(MenuBarClickAction.hub)
+            }
+            .labelsHidden()
+            .frame(width: 180)
+            if menuBarDraft.effectiveClickAction == .open {
+                HStack(spacing: 6) {
+                    TextField("com.apple.ActivityMonitor or https://…", text: Binding(
+                        get: { menuBarDraft.clickTarget ?? "" },
+                        set: { menuBarDraft.clickTarget = $0.isEmpty ? nil : $0 }
+                    ))
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 190)
+                    Button("Choose App…") { chooseClickApp() }
+                        .controlSize(.small)
+                }
+                if let target = menuBarDraft.clickTarget, StatusItemController.clickTargetURL(target) == nil {
+                    settingsHint("Nothing on this Mac answers to that; a click will show the card instead.")
+                }
+            }
+            settingsHint(usesOwnItem
+                ? "A right click always opens the item's menu, which can still show the card."
+                : "Clicks belong to items with their own place in the menu bar.")
+        }
+    }
+
+    /// Presets and "copy from" — whole looks in one step, over what is set.
+    @ViewBuilder
+    private var styleShortcuts: some View {
+        let others = runtime.menuBarCandidates.filter { other in
+            other.id != widget.id && runtime.prefs.menuBarPlacements[other.id] != nil
+        }
+        HStack(spacing: 8) {
+            Menu("Apply Preset") {
+                ForEach(MenuBarPresentation.presets, id: \.name) { preset in
+                    Button(preset.name) {
+                        setPresentation { $0 = $0.applying(preset: preset.presentation) }
+                    }
+                }
+            }
+            .fixedSize()
+            Menu("Copy From") {
+                ForEach(others, id: \.id) { other in
+                    Button(other.displayName) {
+                        let source = runtime.prefs.menuBarPlacement(for: other.manifest, widgetID: other.id)
+                        menuBarDraft = menuBarDraft.copyingStyle(from: source)
+                    }
+                }
+            }
+            .fixedSize()
+            .disabled(others.isEmpty)
+        }
+        .controlSize(.small)
+    }
+
+    private func chooseClickApp() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.allowedContentTypes = [.application]
+        panel.directoryURL = URL(fileURLWithPath: "/Applications")
+        if panel.runModal() == .OK, let url = panel.url {
+            // The bundle id survives the app moving or updating; a path is
+            // the fallback for an app without one.
+            menuBarDraft.clickTarget = Bundle(url: url)?.bundleIdentifier ?? url.path
         }
     }
 

@@ -311,6 +311,31 @@ public struct MenuBarPresentation: Codable, Equatable, Sendable {
     public var effectiveNumberAlignment: MenuBarNumberAlignment { numberAlignment ?? .right }
     public var hasThresholds: Bool { warningAt != nil || dangerAt != nil }
 
+    /// Ready-made looks, applied over whatever is already chosen.
+    public static let presets: [(name: String, presentation: MenuBarPresentation)] = [
+        ("Compact", MenuBarPresentation(width: .fit, size: .small)),
+        ("Steady", MenuBarPresentation(width: .auto, digits: 3, numberAlignment: .right)),
+        ("Bold", MenuBarPresentation(weight: .bold, size: .large)),
+        ("Minimal", MenuBarPresentation(showUnits: false, color: "monochrome", weight: .regular)),
+        ("Graph", MenuBarPresentation(width: .auto, digits: 3, chart: .line)),
+    ]
+
+    /// This presentation with every style field `preset` sets taken from it.
+    public func applying(preset: MenuBarPresentation) -> MenuBarPresentation {
+        var result = self
+        if let v = preset.showUnits { result.showUnits = v }
+        if let v = preset.color { result.color = v }
+        if let v = preset.valueWidth { result.valueWidth = v }
+        if let v = preset.width { result.width = v }
+        if let v = preset.digits { result.digits = v }
+        if let v = preset.alignment { result.alignment = v }
+        if let v = preset.weight { result.weight = v }
+        if let v = preset.size { result.size = v }
+        if let v = preset.numberAlignment { result.numberAlignment = v }
+        if let v = preset.chart { result.chart = v }
+        return result
+    }
+
     static func validColor(_ color: String?) -> String? {
         guard let color, color == "automatic" || color == "monochrome" || MenuBarTint.named(color) != nil else { return nil }
         return color
@@ -366,6 +391,19 @@ public enum MenuBarTint: String, Codable, Equatable, Sendable, CaseIterable {
 // MARK: - Placement
 
 /// Where one widget sits in the menu bar. Persisted per widget.
+/// What clicking an item with its own place in the menu bar does. A right
+/// click (or control-click) always opens the item's menu.
+public enum MenuBarClickAction: String, Codable, Equatable, Sendable, CaseIterable {
+    /// Show the widget's card under the item — what a click always did.
+    case card
+    /// Refresh the reading now.
+    case refresh
+    /// Open `clickTarget`: an app (bundle id or path) or a URL.
+    case open
+    /// Open the BarShelf hub.
+    case hub
+}
+
 public struct MenuBarPlacement: Codable, Equatable, Sendable {
     /// Whether the widget appears in the menu bar at all.
     public var enabled: Bool
@@ -395,6 +433,11 @@ public struct MenuBarPlacement: Codable, Equatable, Sendable {
     /// need the two seconds a CPU reading does, and an always-on menu bar item
     /// is where that difference is paid all day.
     public var interval: Double?
+    /// What a click does; nil shows the card.
+    public var clickAction: MenuBarClickAction?
+    /// The app or link `clickAction: open` opens.
+    public var clickTarget: String?
+    public var effectiveClickAction: MenuBarClickAction { clickAction ?? .card }
 
     /// The choices offered in settings. Arbitrary values still decode (and
     /// are clamped), so a hand-edited prefs file is not rejected.
@@ -408,8 +451,12 @@ public struct MenuBarPlacement: Codable, Equatable, Sendable {
         label: String? = nil,
         style: MenuBarStyle? = nil,
         presentation: MenuBarPresentation? = nil,
-        interval: Double? = nil
+        interval: Double? = nil,
+        clickAction: MenuBarClickAction? = nil,
+        clickTarget: String? = nil
     ) {
+        self.clickAction = clickAction
+        self.clickTarget = Self.validTarget(clickTarget)
         self.enabled = enabled
         self.separate = separate
         self.order = order
@@ -418,6 +465,11 @@ public struct MenuBarPlacement: Codable, Equatable, Sendable {
         self.style = style
         self.presentation = presentation
         self.interval = Self.validInterval(interval)
+    }
+
+    static func validTarget(_ target: String?) -> String? {
+        let trimmed = target?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     static func validInterval(_ interval: Double?) -> Double? {
@@ -440,6 +492,28 @@ public struct MenuBarPlacement: Codable, Equatable, Sendable {
         interval = Self.validInterval(
             (try? container.decodeIfPresent(Double.self, forKey: .interval)) ?? nil
         )
+        clickAction = ((try? container.decodeIfPresent(String.self, forKey: .clickAction)) ?? nil)
+            .flatMap(MenuBarClickAction.init(rawValue:))
+        clickTarget = Self.validTarget((try? container.decodeIfPresent(String.self, forKey: .clickTarget)) ?? nil)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case enabled, separate, order, icon, label, style, presentation, interval, clickAction, clickTarget
+    }
+
+    /// What "Copy style from…" takes from another item: its layout and every
+    /// presentation choice that is not about that widget's own rows. Row
+    /// order, per-row labels and precision name another widget's readings,
+    /// and mean nothing — or the wrong thing — here.
+    public func copyingStyle(from source: MenuBarPlacement) -> MenuBarPlacement {
+        var copy = self
+        copy.style = source.style
+        var presentation = source.presentation ?? MenuBarPresentation()
+        presentation.metricOrder = self.presentation?.metricOrder
+        presentation.metricOverrides = self.presentation?.metricOverrides
+        presentation.precision = self.presentation?.precision
+        copy.presentation = presentation == MenuBarPresentation() ? nil : presentation
+        return copy
     }
 }
 
