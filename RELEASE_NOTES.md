@@ -4,6 +4,15 @@
 
 ## Menu bar
 
+- **Your own warning colours.** Each item's settings gain an Alerts row:
+  a warning and a danger threshold, in the unit the item shows (%, °C, GB,
+  MB/s…), and whether higher or lower is worse. They replace the widget's
+  built-in 75/90 colours for that item.
+- **Show an item only when it matters.** "Show only at or above" keeps an
+  item out of the menu bar until a reading gets there — a fan that appears
+  when it spins up, a battery that appears when it runs low. It keeps
+  refreshing while hidden, so it comes back on its own.
+
 - **One style for every item.** Settings › Menu Bar sets width, digits,
   alignment, text size and weight, number alignment and colour for all menu
   bar items at once. An item's own settings still win; the app-wide style

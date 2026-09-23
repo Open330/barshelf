@@ -312,7 +312,7 @@ final class StatusItemController: NSObject {
         }
         menuBarSubmenuItem.isHidden = false
 
-        let shown = runtime.menuBar.promotedWidgetIDs
+        let shown = runtime.menuBarWidgetIDs
         let labels = Dictionary(
             runtime.menuBar.entries.map { ($0.widgetID, $0.label) },
             uniquingKeysWith: { first, _ in first }
@@ -337,7 +337,7 @@ final class StatusItemController: NSObject {
 
     @objc private func toggleMenuBarWidget(_ sender: NSMenuItem) {
         guard let widgetID = sender.representedObject as? String else { return }
-        let isOn = runtime.menuBar.promotedWidgetIDs.contains(widgetID)
+        let isOn = runtime.menuBarWidgetIDs.contains(widgetID)
         runtime.updateMenuBarPlacement(for: widgetID) { $0.enabled = !isOn }
     }
 

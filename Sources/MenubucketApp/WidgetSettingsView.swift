@@ -392,6 +392,13 @@ struct WidgetSettingsView: View {
                 styleControls.color
             }
 
+            if !thresholdMetrics.isEmpty {
+                GridRow {
+                    settingsRowLabel("Alerts")
+                    thresholdControls
+                }
+            }
+
             GridRow {
                 settingsRowLabel("Update")
                 VStack(alignment: .leading, spacing: 4) {
@@ -589,6 +596,57 @@ struct WidgetSettingsView: View {
             usesOwnItem: usesOwnItem,
             change: { setPresentation($0) }
         )
+    }
+
+    /// Readings a threshold can be judged against.
+    private var thresholdMetrics: [StatusMetric] {
+        (runtime.snapshots[widget.id]?.statusMetrics ?? []).filter { MenuBarPolicy.thresholdValue($0) != nil }
+    }
+
+    @ViewBuilder
+    private var thresholdControls: some View {
+        let presentation = shownPresentation
+        let unit = MenuBarPolicy.thresholdUnit(thresholdMetrics)
+        let below = presentation.thresholdDirection == .below
+        VStack(alignment: .leading, spacing: 6) {
+            Picker("", selection: Binding(
+                get: { presentation.thresholdDirection ?? .above },
+                set: { value in setPresentation { $0.thresholdDirection = value == .above ? nil : value } }
+            )) {
+                Text("Higher is worse").tag(MenuBarThresholdDirection.above)
+                Text("Lower is worse").tag(MenuBarThresholdDirection.below)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(width: 210)
+            HStack(spacing: 6) {
+                thresholdField("Warning", \.warningAt, unit: unit)
+                thresholdField("Danger", \.dangerAt, unit: unit)
+            }
+            thresholdField(below ? "Show only at or below" : "Show only at or above", \.showWhen, unit: unit)
+            settingsHint(presentation.hasThresholds
+                ? "Readings past a threshold turn warning or danger; the widget's own colors no longer apply. Blank turns one off."
+                : "Blank uses the widget's own colors. A \"show only\" value hides the item until a reading gets there.")
+        }
+    }
+
+    private func thresholdField(
+        _ title: String, _ keyPath: WritableKeyPath<MenuBarPresentation, Double?>, unit: String
+    ) -> some View {
+        HStack(spacing: 4) {
+            Text(title).font(.caption).foregroundStyle(.secondary)
+            // Commits on Return or focus loss, so typing "8" on the way to
+            // "85" never colours the bar.
+            TextField("", value: Binding(
+                get: { menuBarDraft.presentation?[keyPath: keyPath] },
+                set: { value in setPresentation { $0[keyPath: keyPath] = value.flatMap { $0.isFinite ? $0 : nil } } }
+            ), format: .number)
+            .textFieldStyle(.roundedBorder)
+            .frame(width: 52)
+            if !unit.isEmpty {
+                Text(unit).font(.caption).foregroundStyle(.secondary)
+            }
+        }
     }
 
     private var livePresentation: MenuBarPresentation? {

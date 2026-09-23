@@ -1336,12 +1336,13 @@ final class WidgetRuntime: ObservableObject {
     /// Newly promoted widgets are refreshed once so the strip fills in without
     /// waiting a whole interval for the first tick.
     func syncMenuBar() {
-        let previous = menuBar.promotedWidgetIDs
+        let previous = menuBarWidgetIDs
         let multiplier = SchedulePolicy.normalizedRefreshMultiplier(
             appPrefs.preferences.refreshMultiplier
         )
         var candidates: [(entry: MenuBarEntry, order: Double?)] = []
         var intervalOverrides: [String: Double] = [:]
+        var dormant = Set<String>()
 
         for widget in widgets where !prefs.isDisabled(widget.id) {
             let placement = prefs.menuBarPlacement(
@@ -1405,15 +1406,23 @@ final class WidgetRuntime: ObservableObject {
                 separate: separate,
                 presentation: presentation
             )
-            candidates.append((MenuBarPolicy.applyingPresentation(presentation, to: entry), placement.order))
             if let interval = placement.interval { intervalOverrides[widget.id] = interval }
+            let applied = MenuBarPolicy.applyingPresentation(presentation, to: entry)
+            // "Show only when": out of the bar, but still promoted as far as
+            // polling goes, or it could never notice it should come back.
+            if MenuBarPolicy.isDormant(applied) {
+                dormant.insert(widget.id)
+                continue
+            }
+            candidates.append((applied, placement.order))
         }
 
+        dormantMenuBarWidgetIDs = dormant
         menuBar.apply(MenuBarPolicy.ordered(candidates))
         // Before the promoted-set check: a changed cadence re-arms timers even
         // when the set of promoted widgets is the same.
         scheduler.setIntervalOverrides(intervalOverrides)
-        let promoted = menuBar.promotedWidgetIDs
+        let promoted = menuBarWidgetIDs
         guard promoted != previous else { return }
         scheduler.setMenuBarWidgetIDs(promoted)
         for id in promoted.subtracting(previous) {
@@ -1424,6 +1433,15 @@ final class WidgetRuntime: ObservableObject {
                 refresh(widgetID: id, manual: false)
             }
         }
+    }
+
+    /// Promoted widgets hidden for now by their "show only when" threshold.
+    private(set) var dormantMenuBarWidgetIDs: Set<String> = []
+
+    /// Every widget the menu bar owns: on it now, or waiting for a reading
+    /// that brings it back. These are the ones that keep polling.
+    var menuBarWidgetIDs: Set<String> {
+        menuBar.promotedWidgetIDs.union(dormantMenuBarWidgetIDs)
     }
 
     /// Promotes or demotes a widget in the menu bar (settings UI / context
@@ -2607,7 +2625,7 @@ final class WidgetRuntime: ObservableObject {
         guard snapshots[id] != snapshot else { return }
         snapshots[id] = snapshot
         cardModels[id]?.snapshot = snapshot
-        if menuBar.promotedWidgetIDs.contains(id) { syncMenuBar() }
+        if menuBarWidgetIDs.contains(id) { syncMenuBar() }
     }
 
     /// Single write path for overlay cards (`nil` removes), same suppression.
