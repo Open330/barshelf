@@ -45,12 +45,32 @@ final class MenuBarThresholdTests: XCTestCase {
         XCTAssertEqual(applied.tint, .danger)
     }
 
-    func testColourChoicesStillWin() {
-        let mono = MenuBarPolicy.applyingPresentation(
-            MenuBarPresentation(color: "monochrome", warningAt: 1), to: entry([percent(90)])
+    func testAlertsShowThroughAColourChoice() {
+        let mono = MenuBarPresentation(color: "monochrome", warningAt: 50)
+        let hot = MenuBarPolicy.applyingPresentation(mono, to: entry([percent(90)]))
+        XCTAssertEqual(hot.tint, .warning)
+        let calm = MenuBarPolicy.applyingPresentation(mono, to: entry([percent(10)]))
+        XCTAssertNil(calm.tint)
+        XCTAssertNil(calm.metrics.first?.tint)
+
+        let blue = MenuBarPolicy.applyingPresentation(
+            MenuBarPresentation(color: "accent", dangerAt: 50), to: entry([percent(10)])
         )
-        XCTAssertNil(mono.tint)
-        XCTAssertNil(mono.metrics.first?.tint)
+        XCTAssertEqual(blue.tint, .accent, "short of a threshold keeps the chosen colour")
+        XCTAssertEqual(blue.metrics.first?.tint, "accent")
+    }
+
+    func testOnlyReadingsInTheSameUnitAreJudged() {
+        let presentation = MenuBarPresentation(warningAt: 80, showWhen: 90)
+        let mixed = entry([
+            percent(40),
+            StatusMetric(id: "fan", label: "Fan", number: 1800, unit: "rpm", tint: "secondary"),
+        ])
+        let applied = MenuBarPolicy.applyingPresentation(presentation, to: mixed)
+        XCTAssertNil(applied.tint, "1800 rpm is not past 80 %")
+        XCTAssertEqual(applied.metrics.last?.tint, "secondary", "the fan row is left alone")
+        XCTAssertTrue(MenuBarPolicy.isDormant(applied))
+        XCTAssertEqual(MenuBarPolicy.thresholdUnit(mixed.metrics), "%")
     }
 
     func testTextOnlyReadingsKeepTheWidgetsColour() {
@@ -97,9 +117,13 @@ final class MenuBarThresholdTests: XCTestCase {
         let decoded = try JSONDecoder().decode(MenuBarPresentation.self, from: json)
         XCTAssertEqual(decoded, MenuBarPresentation(warningAt: 60, showWhen: 5))
         let resolved = MenuBarPolicy.resolvedPresentation(
-            user: MenuBarPresentation(dangerAt: 80), live: MenuBarPresentation(warningAt: 50, dangerAt: 70), manifest: nil
+            user: MenuBarPresentation(dangerAt: 80),
+            live: MenuBarPresentation(warningAt: 50, dangerAt: 70, thresholdDirection: .below, showWhen: 1),
+            manifest: nil
         )
-        XCTAssertEqual(resolved.warningAt, 50)
+        XCTAssertNil(resolved.warningAt, "alerts are the user's alone")
+        XCTAssertNil(resolved.thresholdDirection)
+        XCTAssertNil(resolved.showWhen)
         XCTAssertEqual(resolved.dangerAt, 80)
     }
 }

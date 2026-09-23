@@ -319,7 +319,10 @@ final class StatusItemController: NSObject {
         )
         for widget in candidates {
             let isOn = shown.contains(widget.id)
-            let value = isOn ? (labels[widget.id] ?? nil) : nil
+            // A checked item with nothing in the bar reads as broken; say why.
+            let value = runtime.dormantMenuBarWidgetIDs.contains(widget.id)
+                ? "hidden until its reading gets there"
+                : isOn ? (labels[widget.id] ?? nil) : nil
             let item = NSMenuItem(
                 title: value.map { "\(widget.displayName) — \($0)" } ?? widget.displayName,
                 action: #selector(toggleMenuBarWidget(_:)),
