@@ -557,13 +557,34 @@ struct WidgetSettingsView: View {
 
     // MARK: Width, text and cadence
 
+    /// What the item will actually use — the draft over the render's and the
+    /// manifest's defaults. Controls show this, not the draft alone: a widget
+    /// that asks for left-aligned numbers must not show the toggle as on.
+    /// Setters compare against `inheritedPresentation` and store nil only for
+    /// a choice equal to it; otherwise picking "right" over a widget's "left"
+    /// would write nil and fall straight back to "left".
+    private var shownPresentation: MenuBarPresentation {
+        MenuBarPolicy.resolvedPresentation(
+            user: menuBarDraft.presentation, live: livePresentation, manifest: manifestPresentation
+        )
+    }
+
+    private var livePresentation: MenuBarPresentation? {
+        runtime.snapshots[widget.id]?.statusPresentation
+    }
+
+    private var manifestPresentation: MenuBarPresentation? {
+        MenuBarPolicy.effectiveStatusItem(widget.manifest.statusItem).presentation
+    }
+
     @ViewBuilder
     private var widthControls: some View {
-        let presentation = menuBarDraft.presentation ?? MenuBarPresentation()
+        let presentation = shownPresentation
+        let inherited = inheritedPresentation
         VStack(alignment: .leading, spacing: 6) {
             Picker("", selection: Binding(
                 get: { presentation.effectiveWidth },
-                set: { mode in setPresentation { $0.width = mode == .auto ? nil : mode } }
+                set: { mode in setPresentation { $0.width = mode == inherited.effectiveWidth ? nil : mode } }
             )) {
                 Text("Steady").tag(MenuBarWidthMode.auto)
                 Text("Fixed").tag(MenuBarWidthMode.fixed)
@@ -579,7 +600,7 @@ struct WidgetSettingsView: View {
                     get: { presentation.effectiveDigits },
                     set: { digits in
                         setPresentation {
-                            $0.digits = digits == MenuBarPolicy.defaultReservedDigits ? nil : digits
+                            $0.digits = digits == inherited.effectiveDigits ? nil : digits
                         }
                     }
                 ), in: 1...6) {
@@ -592,7 +613,7 @@ struct WidgetSettingsView: View {
                 // every keystroke cannot be typed into ("1" became 32).
                 Stepper(value: Binding(
                     get: { presentation.effectiveFixedWidth },
-                    set: { width in setPresentation { $0.valueWidth = width } }
+                    set: { width in setPresentation { $0.valueWidth = width == inherited.effectiveFixedWidth ? nil : width } }
                 ), in: 32...120, step: 2) {
                     Text("\(Int(presentation.effectiveFixedWidth)) pt").monospacedDigit()
                 }
@@ -607,12 +628,13 @@ struct WidgetSettingsView: View {
 
     @ViewBuilder
     private var textControls: some View {
-        let presentation = menuBarDraft.presentation ?? MenuBarPresentation()
+        let presentation = shownPresentation
+        let inherited = inheritedPresentation
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 10) {
                 Picker("", selection: Binding(
                     get: { presentation.effectiveAlignment },
-                    set: { value in setPresentation { $0.alignment = value == .leading ? nil : value } }
+                    set: { value in setPresentation { $0.alignment = value == inherited.effectiveAlignment ? nil : value } }
                 )) {
                     Image(systemName: "text.alignleft").tag(MenuBarAlignment.leading)
                         .help("Align left")
@@ -627,7 +649,7 @@ struct WidgetSettingsView: View {
 
                 Picker("", selection: Binding(
                     get: { presentation.size ?? .regular },
-                    set: { value in setPresentation { $0.size = value == .regular ? nil : value } }
+                    set: { value in setPresentation { $0.size = value == (inherited.size ?? .regular) ? nil : value } }
                 )) {
                     Text("S").tag(MenuBarTextSize.small).help("Small")
                     Text("M").tag(MenuBarTextSize.regular).help("Regular")
@@ -638,7 +660,7 @@ struct WidgetSettingsView: View {
                 .frame(width: 90)
 
                 Picker("", selection: Binding(
-                    get: { presentation.weight?.rawValue ?? "default" },
+                    get: { menuBarDraft.presentation?.weight?.rawValue ?? "default" },
                     set: { value in setPresentation { $0.weight = MenuBarWeight(rawValue: value) } }
                 )) {
                     Text("Default weight").tag("default")
@@ -653,7 +675,12 @@ struct WidgetSettingsView: View {
             }
             Toggle("Right-align numbers", isOn: Binding(
                 get: { presentation.effectiveNumberAlignment == .right },
-                set: { on in setPresentation { $0.numberAlignment = on ? nil : .left } }
+                set: { on in
+                    let value: MenuBarNumberAlignment = on ? .right : .left
+                    setPresentation {
+                        $0.numberAlignment = value == inherited.effectiveNumberAlignment ? nil : value
+                    }
+                }
             ))
             settingsHint(presentation.effectiveNumberAlignment == .right
                 ? "Alignment places the label and value rows. Right-aligned numbers keep the last digit and the unit still as 9 becomes 10."

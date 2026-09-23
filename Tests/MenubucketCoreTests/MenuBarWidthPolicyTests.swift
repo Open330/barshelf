@@ -60,6 +60,21 @@ final class MenuBarWidthPolicyTests: XCTestCase {
         XCTAssertEqual(MenuBarPresentation().effectiveNumberAlignment, .right, "the default keeps the last digit still")
     }
 
+    /// The settings bug behind storing explicit choices: a widget that asks
+    /// for left-aligned numbers is overridden only by an explicit `.right` —
+    /// a stored nil falls straight back to the widget's "left".
+    func testAnExplicitChoiceBeatsTheWidgetsDefaultButNilDoesNot() {
+        let widgetWants = MenuBarPresentation(numberAlignment: .left)
+        let explicit = MenuBarPolicy.resolvedPresentation(
+            user: MenuBarPresentation(numberAlignment: .right), live: nil, manifest: widgetWants
+        )
+        XCTAssertEqual(explicit.effectiveNumberAlignment, .right)
+        let unset = MenuBarPolicy.resolvedPresentation(
+            user: MenuBarPresentation(), live: nil, manifest: widgetWants
+        )
+        XCTAssertEqual(unset.effectiveNumberAlignment, .left)
+    }
+
     func testTheMinusSignStaysAgainstItsDigits() {
         XCTAssertEqual(MenuBarPolicy.reservingDigits("-5°", digits: 2), fs + "-5°")
         XCTAssertEqual(MenuBarPolicy.reservingDigits("\u{2212}5°", digits: 2), fs + "\u{2212}5°")
