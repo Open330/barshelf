@@ -585,7 +585,7 @@ public enum MenuBarPolicy {
     /// order and per-row overrides stay with each widget — a precision of 1
     /// suits a gigabyte reading and not a temperature. One list, so what
     /// `globalStyle` keeps and what `clearingGlobalStyle` drops cannot drift.
-    private static let globalStyleFields: [(inout MenuBarPresentation, MenuBarPresentation) -> Void] = [
+    private static let globalStyleFields: [@Sendable (inout MenuBarPresentation, MenuBarPresentation) -> Void] = [
         { $0.color = $1.color },
         { $0.valueWidth = $1.valueWidth },
         { $0.width = $1.width },
