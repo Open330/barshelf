@@ -104,10 +104,20 @@ public enum BundledWidgetRefresher {
 
         for entry in installed {
             guard let replacement = bundled[entry.id] else { continue }
+            // A record describes the files BarShelf wrote for *that* version.
+            // When the installed version differs, something else installed it
+            // since — the gallery's Update, `barshelf install` — and those
+            // files are the new baseline, not an edit. Keeping the old record
+            // would flag the fresh install as modified and block every later
+            // bundled update for good.
+            var record = ledger.record(for: entry.id)
+            if let stale = record, stale.version != entry.version {
+                record = nil
+            }
             guard isNewer(replacement.version, than: entry.version) else {
-                // Already current. Record what is on disk the first time we
-                // see it so a later hand-edit is detectable.
-                if ledger.record(for: entry.id) == nil, let version = entry.version {
+                // Already current. Record what is on disk when there is no
+                // valid record, so a later hand-edit is detectable.
+                if record == nil, let version = entry.version {
                     ledger.set(
                         id: entry.id,
                         version: version,
@@ -120,8 +130,7 @@ public enum BundledWidgetRefresher {
             // A recorded digest that no longer matches means the user edited
             // the widget in place. Leave it alone — the gallery's explicit
             // "Update" still overwrites it on request.
-            if let record = ledger.record(for: entry.id),
-               record.digest != digest(of: entry.directory) {
+            if let record, record.digest != digest(of: entry.directory) {
                 outcome.skippedLocallyModified.append(entry.id)
                 continue
             }
