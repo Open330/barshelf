@@ -79,11 +79,19 @@ final class MenuBarController {
     /// anything but the values (style, label, icon, presentation) starts over.
     private var widthFloors: [String: WidthFloor] = [:]
 
-    /// A width an item has needed, and when a reading last needed it.
+    /// A width an item has needed, and when readings stopped needing it.
     struct WidthFloor: Equatable {
         var layout: MenuBarEntry
         var width: CGFloat
-        var neededAt: Date
+        /// When the first narrower reading was drawn after the wide one; nil
+        /// while the current reading still needs `width`.
+        ///
+        /// The countdown starts at the drop, not at the last wide draw. An
+        /// unchanged reading is never redrawn, so a CPU pinned at 100% for
+        /// minutes produces no draws to renew a timestamp — counting from the
+        /// last wide draw let the item snap narrow the moment it came off
+        /// 100%, which is exactly the jolt the hold exists to prevent.
+        var releasedAt: Date?
     }
 
     /// How long an item keeps a width a reading no longer needs. Holding it
@@ -95,9 +103,10 @@ final class MenuBarController {
     /// The floor to draw with right now: the kept width while it is still
     /// held and the layout has not changed, otherwise none.
     static func activeFloor(_ floor: WidthFloor?, layout: MenuBarEntry, now: Date) -> CGFloat {
-        guard let floor, floor.layout == layout,
-              now.timeIntervalSince(floor.neededAt) <= widthFloorHold
-        else { return 0 }
+        guard let floor, floor.layout == layout else { return 0 }
+        if let released = floor.releasedAt, now.timeIntervalSince(released) > widthFloorHold {
+            return 0
+        }
         return floor.width
     }
 
@@ -106,10 +115,12 @@ final class MenuBarController {
         _ floor: WidthFloor?, layout: MenuBarEntry, natural: CGFloat, now: Date
     ) -> WidthFloor {
         let held = activeFloor(floor, layout: layout, now: now)
-        // This reading needs at least what is held: it renews the hold.
-        if natural >= held { return WidthFloor(layout: layout, width: natural, neededAt: now) }
-        // Narrower, and the hold is still running: keep it as it was.
-        return floor ?? WidthFloor(layout: layout, width: natural, neededAt: now)
+        // This reading needs at least what is held: hold it, no countdown.
+        if natural >= held { return WidthFloor(layout: layout, width: natural, releasedAt: nil) }
+        // Narrower while held: the countdown starts on the first such reading.
+        guard var kept = floor else { return WidthFloor(layout: layout, width: natural, releasedAt: nil) }
+        if kept.releasedAt == nil { kept.releasedAt = now }
+        return kept
     }
 
     init(mainItem: NSStatusItem) {

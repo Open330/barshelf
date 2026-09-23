@@ -176,31 +176,47 @@ final class MenuBarSteadyWidthTests: XCTestCase {
     // MARK: Kept widths expire
 
     /// One 100% CPU reading used to leave the item three digits wide for the
-    /// rest of the session. It keeps that width for a minute — so a reading
-    /// hovering at 99/100 does not shove the bar every tick — then lets go.
-    func testAKeptWidthIsHeldForAMinuteThenReleased() {
+    /// rest of the session. It keeps that width for a minute after readings
+    /// come back down — so one hovering at 99/100 does not shove the bar every
+    /// tick — then lets go.
+    func testAKeptWidthIsHeldForAMinuteAfterTheDropThenReleased() {
         let layout = MenuBarController.layoutSignature(entry("12%"))
         let t0 = Date(timeIntervalSinceReferenceDate: 1000)
-        // A spike to 100% needs 44 pt.
         let spiked = MenuBarController.nextFloor(nil, layout: layout, natural: 44, now: t0)
         XCTAssertEqual(MenuBarController.activeFloor(spiked, layout: layout, now: t0), 44)
 
-        // Back to 12% (36 pt) within the minute: still held at 44.
+        // Back down at t0+30: held, and the minute starts now.
         let t30 = t0.addingTimeInterval(30)
-        XCTAssertEqual(MenuBarController.activeFloor(spiked, layout: layout, now: t30), 44)
-        let stillHeld = MenuBarController.nextFloor(spiked, layout: layout, natural: 36, now: t30)
-        XCTAssertEqual(stillHeld.width, 44)
-        XCTAssertEqual(stillHeld.neededAt, t0, "a narrower reading does not renew the hold")
+        let dropped = MenuBarController.nextFloor(spiked, layout: layout, natural: 36, now: t30)
+        XCTAssertEqual(dropped.width, 44)
+        XCTAssertEqual(dropped.releasedAt, t30)
+        XCTAssertEqual(MenuBarController.activeFloor(dropped, layout: layout, now: t30), 44)
 
-        // A minute after it was last needed: released.
-        let t61 = t0.addingTimeInterval(61)
-        XCTAssertEqual(MenuBarController.activeFloor(stillHeld, layout: layout, now: t61), 0)
-        let released = MenuBarController.nextFloor(stillHeld, layout: layout, natural: 36, now: t61)
-        XCTAssertEqual(released.width, 36)
+        // Further narrow readings do not restart the minute.
+        let t50 = t0.addingTimeInterval(50)
+        XCTAssertEqual(MenuBarController.nextFloor(dropped, layout: layout, natural: 36, now: t50).releasedAt, t30)
 
-        // Needing the wide width again renews it.
-        let renewed = MenuBarController.nextFloor(spiked, layout: layout, natural: 44, now: t30)
-        XCTAssertEqual(renewed.neededAt, t30)
+        // Still held 59 s after the drop, released at 61.
+        XCTAssertEqual(MenuBarController.activeFloor(dropped, layout: layout, now: t30.addingTimeInterval(59)), 44)
+        XCTAssertEqual(MenuBarController.activeFloor(dropped, layout: layout, now: t30.addingTimeInterval(61)), 0)
+
+        // Needing the width again cancels the countdown.
+        let again = MenuBarController.nextFloor(dropped, layout: layout, natural: 44, now: t50)
+        XCTAssertNil(again.releasedAt)
+    }
+
+    /// The live bug: CPU pinned at 100% for minutes is never redrawn (the
+    /// entry does not change), so nothing renews a timestamp. The hold must
+    /// still apply when it finally comes down.
+    func testALongPlateauStillHoldsWhenTheReadingComesDown() {
+        let layout = MenuBarController.layoutSignature(entry("12%"))
+        let t0 = Date(timeIntervalSinceReferenceDate: 1000)
+        let spiked = MenuBarController.nextFloor(nil, layout: layout, natural: 44, now: t0)
+        // Five minutes at 100% with no draws, then 97%.
+        let later = t0.addingTimeInterval(300)
+        XCTAssertEqual(MenuBarController.activeFloor(spiked, layout: layout, now: later), 44)
+        let dropped = MenuBarController.nextFloor(spiked, layout: layout, natural: 36, now: later)
+        XCTAssertEqual(MenuBarController.activeFloor(dropped, layout: layout, now: later), 44)
     }
 
     func testAKeptWidthDoesNotOutliveALayoutChange() {
