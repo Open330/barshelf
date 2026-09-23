@@ -13,6 +13,14 @@
 - **Average or hottest.** CPU, GPU and battery can show the hottest of their
   sensors instead of the average.
 
+## System
+
+- **More to put in the menu bar.** Besides CPU, memory and disk, the System
+  widget can show CPU user or system time, the busiest core, memory
+  pressure, swap used, disk free, and disk read or write speed.
+- **Two readings in one item**, like Sensors: "Also show" adds a second.
+- Disk speed is only measured while an item shows it.
+
 ## Menu bar
 
 - **Your own warning colours.** Each item's settings gain an Alerts row:

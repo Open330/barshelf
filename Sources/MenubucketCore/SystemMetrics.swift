@@ -74,6 +74,7 @@ public enum SystemMetrics {
         detail: Bool = false,
         sensorGroups: Set<SensorSampler.SensorGroup>? = nil,
         sensorKeys: [String] = [],
+        diskIO: Bool = false,
         mountPoint: String = "/",
         networkInterface: String? = nil
     ) -> JSONValue {
@@ -85,7 +86,15 @@ public enum SystemMetrics {
             object["memory"] = memory().json
         }
         if metrics.contains(.disk) {
-            object["disk"] = disk(mountPoint: mountPoint)?.json ?? .null
+            var diskObject = disk(mountPoint: mountPoint)?.json ?? .null
+            // Throughput only when asked: it is a registry walk per sample.
+            if diskIO, case var .object(fields) = diskObject {
+                let rates = DiskIOMetrics.Sampler.shared.sample()
+                fields["read"] = rates.read.map(JSONValue.number) ?? .null
+                fields["write"] = rates.write.map(JSONValue.number) ?? .null
+                diskObject = .object(fields)
+            }
+            object["disk"] = diskObject
         }
         if metrics.contains(.network) {
             object["network"] = NetworkMetrics.shared.sample(interface: networkInterface).json
@@ -114,6 +123,9 @@ public enum SystemMetrics {
         public var coreCount: Int
         /// Per-core `usage`, only when sampled with `detail`.
         public var cores: [Double]
+        /// The busiest core's `usage` — one core pegged by a single-threaded
+        /// job hides in the machine-wide figure. nil without tick counters.
+        public var coreMax: Double?
         public var loadAverage: [Double]
 
         var json: JSONValue {
@@ -130,6 +142,7 @@ public enum SystemMetrics {
                     "15m": .number(loadAverage.count > 2 ? loadAverage[2] : 0),
                 ]),
             ]
+            object["coreMax"] = coreMax.map(JSONValue.number) ?? .null
             if !cores.isEmpty {
                 object["cores"] = .array(cores.map(JSONValue.number))
             }
@@ -187,14 +200,17 @@ public enum SystemMetrics {
             }
 
             var cores: [Double] = []
+            var coreMax: Double?
             var totals = CPUTicks()
             var previousTotals = CPUTicks()
             for (index, ticks) in current.enumerated() {
                 let before = previous[index]
                 totals.add(ticks)
                 previousTotals.add(before)
+                let core = ticks.usage(since: before)
+                coreMax = max(coreMax ?? core, core)
                 if detail {
-                    cores.append(ticks.usage(since: before))
+                    cores.append(core)
                 }
             }
             previous = current
@@ -210,6 +226,7 @@ public enum SystemMetrics {
                 idle: Double(delta.idle) / Double(total) * 100,
                 coreCount: current.count,
                 cores: cores,
+                coreMax: coreMax,
                 loadAverage: Self.loadAverage()
             )
             last = (usage, now)

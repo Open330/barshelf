@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.system",
   "name": "System",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "icon": "cpu.fill",
   "bucket": {
     "group": "System",
@@ -38,13 +38,63 @@
       "default": "cpu",
       "options": [
         "cpu",
+        "cpuUser",
+        "cpuSystem",
+        "cpuCore",
         "memory",
-        "disk"
+        "pressure",
+        "swap",
+        "disk",
+        "diskFree",
+        "diskRead",
+        "diskWrite"
       ],
       "optionTitles": [
         "CPU",
+        "CPU user",
+        "CPU system",
+        "Busiest core",
         "Memory",
-        "Disk"
+        "Memory pressure",
+        "Swap used",
+        "Disk used",
+        "Disk free",
+        "Disk read",
+        "Disk write"
+      ]
+    },
+    {
+      "key": "menuBarSecondary",
+      "title": "Also show",
+      "type": "enum",
+      "default": "none",
+      "options": [
+        "none",
+        "cpu",
+        "cpuUser",
+        "cpuSystem",
+        "cpuCore",
+        "memory",
+        "pressure",
+        "swap",
+        "disk",
+        "diskFree",
+        "diskRead",
+        "diskWrite"
+      ],
+      "optionTitles": [
+        "Nothing",
+        "CPU",
+        "CPU user",
+        "CPU system",
+        "Busiest core",
+        "Memory",
+        "Memory pressure",
+        "Swap used",
+        "Disk used",
+        "Disk free",
+        "Disk read",
+        "Disk write"
       ]
     },
     {

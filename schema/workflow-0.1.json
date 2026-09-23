@@ -606,8 +606,15 @@
           "$ref": "#/definitions/templateBoolean"
         },
         "sensors": {
-          "description": "A sensor key or `all`; may be a template so a menu-bar setting can narrow the sample.",
-          "$ref": "#/definitions/templateString"
+          "description": "The sensor readings shown (`cpu`, `gpu`, `battery`, `power`, `fan`, `peak`, `all`…) or `key:<KEY>` for one specific sensor, returned as sensors.picked / sensors.pickedList. One value or a list; each may be a template so a menu-bar setting can narrow the sample.",
+          "oneOf": [
+            { "$ref": "#/definitions/templateString" },
+            { "type": "array", "items": { "$ref": "#/definitions/templateString" } }
+          ]
+        },
+        "io": {
+          "description": "Also emit disk.read and disk.write (bytes/s). An IOKit registry walk per sample, so ask only while a rate is shown.",
+          "$ref": "#/definitions/templateBoolean"
         },
         "mount": {
           "description": "Mount point the disk group reports on. Defaults to \"/\".",

@@ -2084,6 +2084,7 @@ final class WidgetRuntime: ObservableObject {
         let networkInterface = params.objectValue?["interface"]?.stringValue
         let sensorGroups = Self.sensorGroups(from: params.objectValue?["sensors"])
         let sensorKeys = Self.sensorKeys(from: params.objectValue?["sensors"])
+        let diskIO = params.objectValue?["io"]?.boolValue == true
         // Sampling blocks on Mach/IOKit calls (and, on a cold CPU sampler, a
         // short baseline window), so it stays off the main thread.
         return await Task.detached(priority: .userInitiated) {
@@ -2092,6 +2093,7 @@ final class WidgetRuntime: ObservableObject {
                 detail: detail,
                 sensorGroups: sensorGroups,
                 sensorKeys: sensorKeys,
+                diskIO: diskIO,
                 mountPoint: mountPoint,
                 networkInterface: networkInterface
             )
