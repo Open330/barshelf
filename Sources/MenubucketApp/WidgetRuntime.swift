@@ -1406,7 +1406,22 @@ final class WidgetRuntime: ObservableObject {
                 presentation: presentation
             )
             if let interval = placement.interval { intervalOverrides[widget.id] = interval }
-            candidates.append((MenuBarPolicy.applyingPresentation(presentation, to: entry), placement.order))
+            var applied = MenuBarPolicy.applyingPresentation(presentation, to: entry)
+            if presentation.effectiveChart != .none {
+                let sample = MenuBarPolicy.chartSample(applied)
+                // A new snapshot adds a point; a sync for any other reason
+                // (a settings change, the staleness tick) must not repeat it.
+                if chartPending.remove(widget.id) != nil, let sample {
+                    menuBarHistory[widget.id] = MenuBarPolicy.appendingHistory(
+                        menuBarHistory[widget.id] ?? [], sample.value
+                    )
+                }
+                applied.history = menuBarHistory[widget.id] ?? []
+                applied.chartScale = sample?.scale
+            } else {
+                menuBarHistory.removeValue(forKey: widget.id)
+            }
+            candidates.append((applied, placement.order))
         }
 
         // "Show only when" items are ordered and capped like any other, then
@@ -1450,6 +1465,11 @@ final class WidgetRuntime: ObservableObject {
             }
         }
     }
+
+    /// Recent readings of each charting item, oldest first.
+    private(set) var menuBarHistory: [String: [Double]] = [:]
+    /// Widgets with a snapshot the chart has not taken a point from yet.
+    private var chartPending: Set<String> = []
 
     /// Every entry the menu bar owns, in order and capped: drawn now, or
     /// hidden by its "show only when" threshold.
@@ -2669,7 +2689,10 @@ final class WidgetRuntime: ObservableObject {
         guard snapshots[id] != snapshot else { return }
         snapshots[id] = snapshot
         cardModels[id]?.snapshot = snapshot
-        if menuBarWidgetIDs.contains(id) { syncMenuBar() }
+        if menuBarWidgetIDs.contains(id) {
+            chartPending.insert(id)
+            syncMenuBar()
+        }
     }
 
     /// Single write path for overlay cards (`nil` removes), same suppression.
