@@ -114,6 +114,8 @@ public struct WidgetTimerParams: Codable, Equatable, Sendable {
 
 public struct RenderStatus: Codable, Equatable, Sendable {
     public var label: String?
+    /// Structured menu-bar readings. Nil preserves a script's legacy label.
+    public var metrics: [StatusMetric]?
     public var tooltip: String?
     /// Menu-bar text drawn before `label`, or above it when the widget's
     /// status item is stacked. See `MenuBarPlacement.label` for how the user's
@@ -125,19 +127,25 @@ public struct RenderStatus: Codable, Equatable, Sendable {
     /// Semantic colour for this render: `accent`, `good`, `warning`,
     /// `danger`, `secondary`.
     public var tint: String?
+    /// Per-render display preferences, layered below user preferences.
+    public var presentation: MenuBarPresentation?
 
     public init(
         label: String? = nil,
+        metrics: [StatusMetric]? = nil,
         tooltip: String? = nil,
         prefix: String? = nil,
         icon: String? = nil,
-        tint: String? = nil
+        tint: String? = nil,
+        presentation: MenuBarPresentation? = nil
     ) {
         self.label = label
+        self.metrics = metrics
         self.tooltip = tooltip
         self.prefix = prefix
         self.icon = icon
         self.tint = tint
+        self.presentation = presentation
     }
 }
 

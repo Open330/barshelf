@@ -156,6 +156,31 @@ final class Scheduler {
 
     /// Updates the promoted set. Timers are re-armed because promotion changes
     /// a widget's effective interval in both popup states.
+    /// Per-widget refresh intervals the user chose for menu bar items.
+    private(set) var intervalOverrides: [String: Double] = [:]
+
+    /// Applies only while a widget is promoted: the override is a menu bar
+    /// setting, so an unpromoted widget on an open shelf keeps its own cadence.
+    func setIntervalOverrides(_ overrides: [String: Double]) {
+        guard overrides != intervalOverrides else { return }
+        intervalOverrides = overrides
+        rebuildIntervalTimers()
+    }
+
+    /// The first fire of a repeating timer, on a whole multiple of its interval
+    /// since the reference date.
+    ///
+    /// Timers armed at arbitrary moments wake the process at arbitrary moments:
+    /// a 2 s and a 3 s item started 0.4 s apart never fire together. Put on a
+    /// shared clock they coincide every 6 s, and items with the same interval
+    /// always do — one wakeup instead of several for an app that is awake all
+    /// day. The first tick may come early, never late.
+    static func alignedFireDate(interval: TimeInterval, now: Date = Date()) -> Date {
+        let t = now.timeIntervalSinceReferenceDate
+        let next = (floor(t / interval) + 1) * interval
+        return Date(timeIntervalSinceReferenceDate: next)
+    }
+
     func setMenuBarWidgetIDs(_ ids: Set<String>) {
         let liveIDs = Set(widgets.map(\.id))
         let normalized = ids.intersection(liveIDs)
@@ -248,8 +273,11 @@ final class Scheduler {
             if widget.manifest.refresh?.popupOnly == true { continue }
             let promoted = menuBarWidgetIDs.contains(widget.id)
             if popupIsOpen, !promoted, !visibleWidgetIDs.contains(widget.id) { continue }
+            let configured = promoted
+                ? (intervalOverrides[widget.id] ?? widget.manifest.refresh?.interval)
+                : widget.manifest.refresh?.interval
             guard let interval = SchedulePolicy.effectiveInterval(
-                configured: widget.manifest.refresh?.interval,
+                configured: configured,
                 popupOpen: popupIsOpen,
                 runInBackground: widget.manifest.refresh?.runInBackground ?? false,
                 multiplier: refreshMultiplier,
@@ -261,6 +289,7 @@ final class Scheduler {
             let timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
                 self?.fireAutomatic(id)
             }
+            timer.fireDate = Self.alignedFireDate(interval: interval)
             timer.tolerance = interval * 0.1
             intervalTimers[id] = timer
         }

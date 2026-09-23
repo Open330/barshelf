@@ -92,7 +92,7 @@ Builder의 고급 UI는 `WorkflowGraph`를 편집 모델로 사용할 수 있다
 | `fs.directory` | `path`, `watch`, `skipHidden`, `sortBy`, `sortDirection`, `limit` | `{ "items": [...] }` |
 | `exec` | `command`, `timeoutMs`, `output`, `maxOutputBytes` | stdout JSON |
 | `http` | `url`, `headers` | HTTPS JSON response |
-| `system` | `metrics`, `detail`, `sensors`, `mount` | CPU/메모리/디스크/센서 측정값 |
+| `system` | `metrics`, `detail`, `sensors`, `mount`, `interface` | CPU/메모리/디스크/센서/네트워크 측정값 |
 | `value` | any JSON literal | the literal JSON value |
 
 `fs.directory` item 필드는 고정이다.
@@ -182,7 +182,7 @@ manifest의 `permissions.system`에 **모두 선언해야 한다**. 선언되지
   "sources": {
     "data": {
       "use": "system",
-      "with": { "metrics": ["cpu", "memory", "disk", "sensors"], "detail": false, "mount": "/" }
+      "with": { "metrics": ["cpu", "memory", "disk", "sensors", "network"], "detail": false, "mount": "/" }
     }
   }
 }
@@ -190,10 +190,11 @@ manifest의 `permissions.system`에 **모두 선언해야 한다**. 선언되지
 
 | `with` 필드 | 설명 |
 | --- | --- |
-| `metrics` | 읽을 그룹 배열: `cpu`, `memory`, `disk`, `sensors`. 생략하면 위젯이 허가받은 전부. |
+| `metrics` | 읽을 그룹 배열: `cpu`, `memory`, `disk`, `sensors`, `network`. 생략하면 위젯이 허가받은 전부. |
 | `detail` | `true`면 `cpu.cores[]`와 `sensors.list[]`까지 채운다. 기본 샘플의 약 3배 비용. |
 | `sensors` | 이 위젯이 실제로 보여주는 센서 판독값. 읽을 온도 키를 그만큼만 좁힌다. |
 | `mount` | `disk` 그룹이 볼 마운트 포인트. 기본 `"/"`. |
+| `interface` | `network` 그룹이 볼 인터페이스. 생략하거나 `all`이면 물리 인터페이스를 합산한다. |
 
 ### 센서 샘플 좁히기
 
@@ -246,6 +247,7 @@ SMC 키는 하나하나가 별도의 IOKit 왕복(약 0.16 ms)이고, Mac이 공
 | `memory.pressure` | `"normal"` \| `"warning"` \| `"critical"` \| `"unknown"`. |
 | `memory.swap.{total,used,free,usage}` | 스왑. |
 | `disk.{mount,total,used,free,usage}` | `df`와 같은 기준(예약 블록은 used로 계산). |
+| `network.{available,interface,download,upload,received,sent,address}` | 네트워크 카운터. `download`/`upload`은 bytes/s이고 첫 샘플은 이전 카운터가 없어 `null`이다. `received`/`sent`는 누적 bytes, `address`는 로컬 주소다. |
 | `sensors.available` | 어떤 센서도 읽지 못하면 `false`. 샌드박스 빌드와 VM이 여기 해당한다. |
 | `sensors.{cpu,gpu,battery,peak}` | °C. CPU는 코어 다이 센서들의 평균, `peak`은 요약 센서 중 최고값. |
 | `sensors.power` | 시스템 총 전력(W). |
@@ -394,6 +396,48 @@ Arbitrary JavaScript는 금지한다. 표현식은 문자열 안의 `${...}` 보
   감당할 수 있는 주기를 적어라.
 - `label`이 비면 그 칸은 그려지지 않는다. 값이 없을 때 `'0'` 대신 빈 문자열을
   내보내면 "없음"을 "0"으로 오해시키지 않고 칸이 사라진다.
+
+`status.metrics`는 관련 있는 두 측정값을 하나의 메뉴바 항목에 담는 일반 형식이다.
+각 항목은 `{ "label", "value", "tint"?, "active"?, "accessibilityLabel"? }`이며,
+문자열과 `active`는 같은 템플릿 컨텍스트에서 평가된다. label/value는 생략하면 빈
+문자열이고, 빈 값이라도 `active: true`면 활동 점으로 남는다. 디스크 read/write처럼
+어느 한 위젯에 묶이지 않는 두 값을 나타낼 때 쓴다.
+
+```json
+"status": {
+  "metrics": [
+    { "label": "Read", "value": "${sources.disk.readRate}", "tint": "accent",
+      "active": "${gt(number(sources.disk.readRate), 0)}", "accessibilityLabel": "Disk read ${sources.disk.readRate}" },
+    { "label": "Write", "value": "${sources.disk.writeRate}", "tint": "warning",
+      "active": "${gt(number(sources.disk.writeRate), 0)}", "accessibilityLabel": "Disk write ${sources.disk.writeRate}" }
+  ]
+}
+```
+
+`statusItem.style: "metrics"`로 이 두 metric을 전용 menu-bar item에 표시한다.
+시각적으로 값을 숨길 때도 `accessibilityLabel`에는 충분한 설명을 제공해야 한다.
+
+숫자를 문자열로 미리 조립할 필요는 없다. metric에 안정적인 `id`, `number`,
+`format`, `unit`, `precision`을 주면 host가 같은 규칙으로 포맷한다. `percent`는
+0–100, `bytes`/`bytesPerSecond`는 SI 1000 단위이며 `number: null`은 알 수 없는
+값으로 표시한다. CPU/RAM/Power는 다음처럼 같은 일반 형식을 쓴다.
+
+```json
+"status": {
+  "metrics": [
+    { "id": "cpu", "label": "CPU", "number": "${sources.data.cpu.usage}", "format": "percent", "precision": 0 },
+    { "id": "ram", "label": "RAM", "number": "${sources.data.memory.used}", "format": "bytes", "precision": 1 }
+  ],
+  "presentation": { "showValues": true, "showUnits": true, "metricOrder": ["cpu", "ram"] }
+}
+```
+
+Power uses `{"id":"power","number":"${sources.data.sensors.power}","unit":"W","precision":1}`.
+`presentation` may make `showValues`, `showUnits`, `precision`, `valueWidth` and
+`digits` dynamic templates; `color`, `width`, `alignment`, `weight` and `size` may be
+templates too (an unknown value reads as unset). `metricOrder` and `metricOverrides`
+are literal stable-id settings. User choices override render values, which override
+the manifest's `statusItem.presentation` defaults.
 
 ## 영속성 (storage)
 

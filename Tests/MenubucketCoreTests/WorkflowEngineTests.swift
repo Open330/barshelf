@@ -8,6 +8,40 @@ final class WorkflowEngineTests: XCTestCase {
 
     private let nowMs: Double = 1_783_442_400_000
 
+    func testStatusMetricsResolveTemplatesIncludingBooleanActivity() throws {
+        let def = try definition("""
+        { "schemaVersion": 1, "sources": {},
+          "view": { "type": "text", "text": "network" },
+          "status": { "metrics": [
+            { "label": "↓", "value": "${settings.down}",
+              "active": "${gt(settings.down, 0)}",
+              "accessibilityLabel": "Download ${settings.down}" },
+            { "label": "↑", "value": "${settings.up}",
+              "active": false, "tint": "secondary" }
+          ] } }
+        """)
+        let output = try WorkflowEngine.evaluate(
+            def, sources: [:], settings: .object([
+                "down": .number(12), "up": .number(0)
+            ]), nowMs: nowMs
+        )
+        XCTAssertEqual(output.statusMetrics, [
+            StatusMetric(label: "↓", value: "12", active: true, accessibilityLabel: "Download 12"),
+            StatusMetric(label: "↑", value: "0", tint: "secondary", active: false)
+        ])
+
+        let unsafePrecision = try definition("""
+        { "schemaVersion": 1, "sources": {}, "view": { "type": "text", "text": "ok" },
+          "status": { "metrics": [
+            { "precision": 1.5 }, { "precision": 1e100 },
+            { "precision": "nan" }, { "precision": "2" }
+          ], "presentation": { "precision": "infinity" } } }
+        """)
+        let guarded = try WorkflowEngine.evaluate(unsafePrecision, sources: [:], settings: .object([:]))
+        XCTAssertEqual(guarded.statusMetrics?.map(\.precision), [nil, nil, nil, 2])
+        XCTAssertNil(guarded.statusPresentation?.precision)
+    }
+
     func testSourceParamsInterpolateSettingsWithTypes() throws {
         let def = try definition("""
         { "schemaVersion": 1,
@@ -962,7 +996,7 @@ final class NativeWidgetsTests: XCTestCase {
         // as a Celsius reading.
         let f = try output(["unit": .string("fahrenheit")])
         XCTAssertEqual(f.statusLabel, "123°F")
-        XCTAssertEqual(f.statusTooltip, "CPU 123.3 °F · peak 139.5 °F")
+        XCTAssertEqual(f.statusTooltip, "CPU temperature 123°F")
         XCTAssertTrue(flat(f.viewTree).contains("123.3 °F"))
         XCTAssertFalse(flat(f.viewTree).contains("°C"))
     }
@@ -1106,7 +1140,9 @@ final class NativeWidgetsTests: XCTestCase {
     func testNetworkShowsIP() throws {
         let out = try WorkflowEngine.evaluate(
             try def("network"),
-            sources: ["data": .object(["ip": .string("172.30.0.5")])],
+            sources: ["data": .object(["network": .object([
+                "address": .string("172.30.0.5"),
+            ])])],
             settings: .object([:])
         )
         XCTAssertTrue(flat(out.viewTree).contains("172.30.0.5"))
@@ -1305,6 +1341,27 @@ final class PersistenceWidgetTests: XCTestCase {
             definition, sources: [:], settings: .object([:])
         )
         XCTAssertEqual(output.viewTree.text, "x, y · w")
+    }
+
+    func testWorkflowPrecisionRejectsFractionalHugeAndNonFiniteValues() throws {
+        let definition = WorkflowDefinition(
+            sources: [:],
+            view: .object(["type": .string("text"), "text": .string("ok")]),
+            status: .init(
+                metrics: [
+                    .init(precision: .number(1.5)),
+                    .init(precision: .number(1e100)),
+                    .init(precision: .string("nan")),
+                    .init(precision: .string("2")),
+                ],
+                presentation: .init(precision: .string("infinity"))
+            )
+        )
+        let output = try WorkflowEngine.evaluate(
+            definition, sources: [:], settings: .object([:])
+        )
+        XCTAssertEqual(output.statusMetrics?.map(\.precision), [nil, nil, nil, 2])
+        XCTAssertNil(output.statusPresentation?.precision)
     }
 
 }

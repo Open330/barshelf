@@ -245,7 +245,7 @@ sharing) the BarShelf mark.
   takes over someone's menu bar on an update. The user can also promote a
   widget the author left at `"none"`, from its settings pane.
 - The live text is the value the widget already computes: a workflow's
-  `status.label`, or a script's `host.render` status. `labelFrom` /
+  `status.label`/`status.metrics`, or a script's `host.render` status. `labelFrom` /
   `tooltipFrom` on `statusItem` are accepted by the schema and **never read** —
   they are leftovers, and setting them does nothing.
 - `status.label` is evaluated in the same context as the view, so it can read
@@ -272,10 +272,39 @@ sharing) the BarShelf mark.
   tint the item is a template image, which follows a light or dark menu bar and
   inverts while held open; a tint trades both away for the colour. An unknown
   name loses the colour, not the value.
+- `status.metrics` is a reusable two-reading form: each at-most-two entry has
+  `label`, `value`, optional semantic `tint`, optional boolean `active`, and
+  optional `accessibilityLabel`. Fields are templated like the view. Empty
+  label/value default to empty; an active metric still draws an activity dot.
+  Use it for any pair such as disk read/write, not a special network renderer,
+  and use `accessibilityLabel` to describe values hidden from view.
+- A metric can instead carry a stable `id` plus `number` (`null` means
+  unknown), `format` (`decimal`, `percent`, `bytes`, `bytesPerSecond`),
+  `unit`, and `precision` (0–3). Numeric bytes use SI base 1000 and percent is
+  0–100. `value` remains useful for nonnumeric text. Stable ids let a person
+  reorder, hide, relabel, or tint the same reading without coupling a setting
+  to its current row position.
+- `statusItem.presentation`, workflow `status.presentation`, and a script
+  render's `status.presentation` accept sparse defaults: `showValues`,
+  `showUnits`, `precision`, `color` (`automatic`, `monochrome`, or a semantic
+  tint), `width` (`auto` reserves room for `digits` integer digits so a
+  reading going from 9 to 10 does not move the bar — the default; `fixed` uses
+  `valueWidth`, 32–120 pt; `fit` follows the text), `digits` (1–6, default 2),
+  `alignment` (`leading`/`center`/`trailing` for the rows; numbers are always
+  right-aligned), `weight`, `size` (`small`/`regular`/`large`), `metricOrder`,
+  and `metricOverrides` keyed by metric id (`label`, `hidden`, `tint`). The
+  host resolves each field as **user preference → render → manifest**, so
+  authors should only set defaults. People also pick a refresh interval per
+  menu bar item; that is theirs alone, not a presentation field.
+- Scripts can import `menuBar` from `barshelf`: use
+  `menuBar.metric('cpu', 23.4, { label: 'CPU', format: 'percent' })`,
+  `menuBar.metric('ram', 12_800_000_000, { label: 'RAM', format: 'bytes' })`,
+  or `menuBar.metric('power', 18.6, { label: 'Power', unit: 'W', precision: 1 })`.
+  Pass at most two readings through `menuBar.status([...], { presentation: { showUnits: true } })`.
 - `statusItem.style` picks the layout: `"inline"` draws the label beside the
-  value, `"stacked"` puts it above in smaller type, the way a system monitor
-  fits two rows into the menu bar. Stacked needs the widget's own status item,
-  so choosing it takes one.
+  value, `"stacked"` puts it above in smaller type, and `"metrics"` draws up
+  to two independent metrics in its own status item. Stacked and metrics both
+  take their own item.
 - Widgets that show a label **share one status item** with the BarShelf mark
   (`✦ 42% · 61% · 58°`); a widget can be split into its own item from Settings
   or its right-click menu, and each separate item carries its own right-click
@@ -318,7 +347,7 @@ permissions invalidates approval (re-approval required).
   "env": ["HOME", "PATH"],           // env vars exposed to processes
   "keychain": true,                  // allow barshelf.secret.* (Keychain)
   "notifications": true,             // allow barshelf.notify.show
-  "system": ["cpu", "memory", "sensors"]  // telemetry groups the "system" source may read
+  "system": ["cpu", "memory", "sensors", "network"]  // telemetry groups the "system" source may read
 }
 ```
 
@@ -333,7 +362,7 @@ Gating specifics:
   symlink substitution cannot retarget access. The stale `permissions.files`
   draft form is rejected; migrate it to `permissions.readPaths`.
 - The workflow **`system` source requires `permissions.system`**: every metric
-  group it reads (`cpu`, `memory`, `disk`, `sensors`) must be declared, and an
+  group it reads (`cpu`, `memory`, `disk`, `sensors`, `network`) must be declared, and an
   undeclared group fails the refresh. No subprocess and no file access are
   involved, so no `exec`/`readPaths` entry is needed.
 - `keychain` gates `barshelf.secret.*`; `notifications` gates `barshelf.notify.show`.
@@ -611,7 +640,7 @@ subprocess, so it is cheap enough for a menu-bar cadence). Declare every group
 in `permissions.system`:
 
 ```json
-{ "use": "system", "with": { "metrics": ["cpu", "memory", "disk", "sensors"], "detail": false, "mount": "/" } }
+{ "use": "system", "with": { "metrics": ["cpu", "memory", "disk", "sensors", "network"], "detail": false, "mount": "/", "interface": "all" } }
 ```
 
 Output (percentages 0–100, bytes as bytes, temperatures °C, **`null` for
@@ -627,6 +656,10 @@ anything the machine does not publish**):
   `fanCount`, `fans[].{index,name,rpm,min,max,usage}`, and `list[]` with
   `detail: true`. A fanless Mac reports `fans: []`; a sandboxed build reports
   `available: false` and every reading `null`, so branch on `available`.
+- `network` — `available`, `interface`, `download`, `upload`, `received`,
+  `sent`, `address`. Rates are bytes/s and `null` on the first sample; totals
+  are bytes. `interface` selects one interface, while omitted or `all`
+  aggregates physical interfaces.
 
 `detail: true` costs roughly 4× a plain sample — leave it off for a widget that
 polls in the menu bar.

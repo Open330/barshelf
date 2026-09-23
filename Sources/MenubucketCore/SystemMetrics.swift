@@ -8,7 +8,7 @@
 import Foundation
 
 /// Native system telemetry for the `system` workflow source: CPU load, memory,
-/// disk and hardware sensors, read straight from Mach / sysctl / IOKit.
+/// disk, network and hardware sensors, read straight from Mach / sysctl / IOKit.
 ///
 /// This exists because the menu bar needs a *cheap* sample. The shell pipeline
 /// it replaces (`top -l 1` + `memory_pressure`) costs ~1 s of CPU per reading,
@@ -24,7 +24,7 @@ public enum SystemMetrics {
     /// One requestable metric group. A widget must declare each group it reads
     /// in `permissions.system`.
     public enum Metric: String, CaseIterable, Sendable {
-        case cpu, memory, disk, sensors
+        case cpu, memory, disk, network, sensors
     }
 
     /// Parses the `metrics` source parameter. `nil` means the source named no
@@ -73,7 +73,8 @@ public enum SystemMetrics {
         metrics: Set<Metric> = Set(Metric.allCases),
         detail: Bool = false,
         sensorGroups: Set<SensorSampler.SensorGroup>? = nil,
-        mountPoint: String = "/"
+        mountPoint: String = "/",
+        networkInterface: String? = nil
     ) -> JSONValue {
         var object: [String: JSONValue] = [:]
         if metrics.contains(.cpu) {
@@ -84,6 +85,9 @@ public enum SystemMetrics {
         }
         if metrics.contains(.disk) {
             object["disk"] = disk(mountPoint: mountPoint)?.json ?? .null
+        }
+        if metrics.contains(.network) {
+            object["network"] = NetworkMetrics.shared.sample(interface: networkInterface).json
         }
         if metrics.contains(.sensors) {
             object["sensors"] = json(

@@ -44,6 +44,16 @@ final class SystemMetricsTests: XCTestCase {
         XCTAssertNotNil(object?["sampledAt"])
     }
 
+    func testNetworkIsARequestableAndGrantableMetric() {
+        XCTAssertEqual(
+            SystemMetrics.requestedMetrics(from: .array([.string("network")])),
+            [.network]
+        )
+        XCTAssertEqual(SystemMetrics.granted(["network"]), [.network])
+        XCTAssertEqual(SystemMetrics.authorized([.network], declared: ["network"]).allowed, [.network])
+        XCTAssertNotNil(SystemMetrics.sample(metrics: [.network]).objectValue?["network"])
+    }
+
     func testCPUUsagePercentagesAreInRangeAndSumToTotal() {
         let cpu = SystemMetrics.cpuSampler.sample(detail: true)
         XCTAssertGreaterThan(cpu.coreCount, 0)
