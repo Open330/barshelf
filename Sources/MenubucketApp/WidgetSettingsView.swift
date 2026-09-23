@@ -30,6 +30,9 @@ struct WidgetSettingsView: View {
     /// that was changed elsewhere (App Settings' "Use These for All") while
     /// this pane never touched it.
     @State private var menuBarLoaded = MenuBarPlacement(enabled: false)
+    @State private var warningText = ""
+    @State private var dangerText = ""
+    @State private var showWhenText = ""
     /// Height of the scrolling settings area. A variable only so the
     /// screenshot test can render the whole pane rather than its first screen.
     static var scrollMaxHeight: CGFloat = 420
@@ -92,6 +95,14 @@ struct WidgetSettingsView: View {
                 for: widget.manifest, widgetID: widget.id
             )
             menuBarLoaded = menuBarDraft
+            // Plain "." decimals, the same way the field parses them back.
+            func text(_ value: Double?) -> String {
+                guard let value else { return "" }
+                return value == value.rounded() && abs(value) < 1e15 ? String(Int(value)) : String(value)
+            }
+            warningText = text(menuBarDraft.presentation?.warningAt)
+            dangerText = text(menuBarDraft.presentation?.dangerAt)
+            showWhenText = text(menuBarDraft.presentation?.showWhen)
         }
     }
 
@@ -392,6 +403,14 @@ struct WidgetSettingsView: View {
                 styleControls.color
             }
 
+            if !thresholdMetrics.isEmpty || menuBarDraft.presentation?.hasThresholds == true
+                || menuBarDraft.presentation?.showWhen != nil {
+                GridRow {
+                    settingsRowLabel("Alerts")
+                    thresholdControls
+                }
+            }
+
             GridRow {
                 settingsRowLabel("Update")
                 VStack(alignment: .leading, spacing: 4) {
@@ -418,7 +437,10 @@ struct WidgetSettingsView: View {
             if menuBarDraft.presentation != nil {
                 GridRow {
                     settingsRowLabel("Presentation")
-                    Button("Reset menu presentation") { menuBarDraft.presentation = nil }
+                    Button("Reset menu presentation") {
+                        menuBarDraft.presentation = nil
+                        warningText = ""; dangerText = ""; showWhenText = ""
+                    }
                         .controlSize(.small)
                 }
             }
@@ -589,6 +611,68 @@ struct WidgetSettingsView: View {
             usesOwnItem: usesOwnItem,
             change: { setPresentation($0) }
         )
+    }
+
+    /// Readings a threshold can be judged against.
+    private var thresholdMetrics: [StatusMetric] {
+        let metrics = runtime.snapshots[widget.id]?.statusMetrics ?? []
+        return MenuBarPolicy.judgedMetrics(metrics).map { metrics[$0] }
+    }
+
+    @ViewBuilder
+    private var thresholdControls: some View {
+        let presentation = shownPresentation
+        let unit = MenuBarPolicy.thresholdUnit(thresholdMetrics)
+        let below = presentation.thresholdDirection == .below
+        VStack(alignment: .leading, spacing: 6) {
+            Picker("", selection: Binding(
+                get: { presentation.thresholdDirection ?? .above },
+                set: { value in setPresentation { $0.thresholdDirection = value == .above ? nil : value } }
+            )) {
+                Text("Higher is worse").tag(MenuBarThresholdDirection.above)
+                Text("Lower is worse").tag(MenuBarThresholdDirection.below)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(width: 210)
+            HStack(spacing: 6) {
+                thresholdField("Warning", $warningText, \.warningAt, unit: unit)
+                thresholdField("Danger", $dangerText, \.dangerAt, unit: unit)
+            }
+            thresholdField(below ? "Show only at or below" : "Show only at or above", $showWhenText, \.showWhen, unit: unit)
+            settingsHint(presentation.hasThresholds
+                ? "Readings past a threshold turn warning or danger; the widget's own colors no longer apply. Blank turns one off."
+                : "Blank uses the widget's own colors. A \"show only\" value hides the item until a reading gets there.")
+        }
+    }
+
+    /// Text fields that write the draft on every keystroke, so Save right
+    /// after typing keeps what was typed. The text is its own state: a field
+    /// reformatted from the stored number could not be typed "7.5" into.
+    private func thresholdField(
+        _ title: String, _ text: Binding<String>,
+        _ keyPath: WritableKeyPath<MenuBarPresentation, Double?>, unit: String
+    ) -> some View {
+        HStack(spacing: 4) {
+            Text(title).font(.caption).foregroundStyle(.secondary)
+            TextField("", text: Binding(
+                get: { text.wrappedValue },
+                set: { typed in
+                    text.wrappedValue = typed
+                    let trimmed = typed.trimmingCharacters(in: .whitespaces)
+                    if trimmed.isEmpty {
+                        setPresentation { $0[keyPath: keyPath] = nil }
+                    } else if let value = Double(trimmed), value.isFinite {
+                        setPresentation { $0[keyPath: keyPath] = value }
+                    }
+                }
+            ))
+            .textFieldStyle(.roundedBorder)
+            .frame(width: 52)
+            if !unit.isEmpty {
+                Text(unit).font(.caption).foregroundStyle(.secondary)
+            }
+        }
     }
 
     private var livePresentation: MenuBarPresentation? {

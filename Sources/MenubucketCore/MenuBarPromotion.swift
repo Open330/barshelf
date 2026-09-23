@@ -156,6 +156,12 @@ public enum MenuBarTextSize: String, Codable, Equatable, Sendable, CaseIterable 
     case small, regular, large
 }
 
+/// Which way a reading gets worse: a temperature going up, a battery or free
+/// space going down.
+public enum MenuBarThresholdDirection: String, Codable, Equatable, Sendable, CaseIterable {
+    case above, below
+}
+
 public struct MenuBarPresentation: Codable, Equatable, Sendable {
     public var showValues: Bool?
     public var showUnits: Bool?
@@ -180,6 +186,17 @@ public struct MenuBarPresentation: Codable, Equatable, Sendable {
     public var size: MenuBarTextSize?
     /// Where a short number sits in the digits reserved for it.
     public var numberAlignment: MenuBarNumberAlignment?
+    /// A reading at or past this is tinted warning, and at or past
+    /// `dangerAt` danger — in the unit the item shows (see
+    /// `MenuBarPolicy.thresholdValue`). Either set replaces the widget's own
+    /// warning colours for the item.
+    public var warningAt: Double?
+    public var dangerAt: Double?
+    /// `above` unless a lower reading is the bad one.
+    public var thresholdDirection: MenuBarThresholdDirection?
+    /// The item only appears while a reading is at or past this. It keeps
+    /// refreshing while hidden, so it comes back on its own.
+    public var showWhen: Double?
 
     public init(showValues: Bool? = nil, showUnits: Bool? = nil, precision: Int? = nil,
                 color: String? = nil, valueWidth: Double? = nil,
@@ -187,7 +204,9 @@ public struct MenuBarPresentation: Codable, Equatable, Sendable {
                 metricOverrides: [String: MenuBarMetricOverride]? = nil,
                 width: MenuBarWidthMode? = nil, digits: Int? = nil,
                 alignment: MenuBarAlignment? = nil, weight: MenuBarWeight? = nil,
-                size: MenuBarTextSize? = nil, numberAlignment: MenuBarNumberAlignment? = nil) {
+                size: MenuBarTextSize? = nil, numberAlignment: MenuBarNumberAlignment? = nil,
+                warningAt: Double? = nil, dangerAt: Double? = nil,
+                thresholdDirection: MenuBarThresholdDirection? = nil, showWhen: Double? = nil) {
         self.showValues = showValues
         self.showUnits = showUnits
         self.precision = StatusMetric.validPrecision(precision)
@@ -199,6 +218,10 @@ public struct MenuBarPresentation: Codable, Equatable, Sendable {
         self.weight = weight
         self.size = size
         self.numberAlignment = numberAlignment
+        self.warningAt = warningAt.flatMap { $0.isFinite ? $0 : nil }
+        self.dangerAt = dangerAt.flatMap { $0.isFinite ? $0 : nil }
+        self.thresholdDirection = thresholdDirection
+        self.showWhen = showWhen.flatMap { $0.isFinite ? $0 : nil }
         self.metricOrder = metricOrder.map { order in
             var seen = Set<String>()
             return order.filter { !($0.isEmpty || !seen.insert($0).inserted) }
@@ -223,12 +246,17 @@ public struct MenuBarPresentation: Codable, Equatable, Sendable {
                   alignment: Self.lenient(c, .alignment),
                   weight: Self.lenient(c, .weight),
                   size: Self.lenient(c, .size),
-                  numberAlignment: Self.lenient(c, .numberAlignment))
+                  numberAlignment: Self.lenient(c, .numberAlignment),
+                  warningAt: (try? c.decodeIfPresent(Double.self, forKey: .warningAt)) ?? nil,
+                  dangerAt: (try? c.decodeIfPresent(Double.self, forKey: .dangerAt)) ?? nil,
+                  thresholdDirection: Self.lenient(c, .thresholdDirection),
+                  showWhen: (try? c.decodeIfPresent(Double.self, forKey: .showWhen)) ?? nil)
     }
 
     private enum CodingKeys: String, CodingKey {
         case showValues, showUnits, precision, color, valueWidth, metricOrder,
-             metricOverrides, width, digits, alignment, weight, size, numberAlignment
+             metricOverrides, width, digits, alignment, weight, size, numberAlignment,
+             warningAt, dangerAt, thresholdDirection, showWhen
     }
 
     private static func lenient<T: RawRepresentable>(
@@ -246,6 +274,7 @@ public struct MenuBarPresentation: Codable, Equatable, Sendable {
     /// always looked.
     public var effectiveAlignment: MenuBarAlignment { alignment ?? .leading }
     public var effectiveNumberAlignment: MenuBarNumberAlignment { numberAlignment ?? .right }
+    public var hasThresholds: Bool { warningAt != nil || dangerAt != nil }
 
     static func validColor(_ color: String?) -> String? {
         guard let color, color == "automatic" || color == "monochrome" || MenuBarTint.named(color) != nil else { return nil }
@@ -577,7 +606,12 @@ public enum MenuBarPolicy {
                                    metricOverrides: overrides.isEmpty ? nil : overrides,
                                    width: pick(\.width), digits: pick(\.digits),
                                    alignment: pick(\.alignment), weight: pick(\.weight),
-                                   size: pick(\.size), numberAlignment: pick(\.numberAlignment))
+                                   size: pick(\.size), numberAlignment: pick(\.numberAlignment),
+                                   // Alerts are the user's alone: a widget
+                                   // that shipped its own could never be
+                                   // cleared from a field showing blank.
+                                   warningAt: user?.warningAt, dangerAt: user?.dangerAt,
+                                   thresholdDirection: user?.thresholdDirection, showWhen: user?.showWhen)
     }
 
     /// The fields an app-wide style may set: how an item is laid out and
@@ -809,10 +843,100 @@ public enum MenuBarPolicy {
             entry.tint = color
             entry.metrics = entry.metrics.map { var m = $0; m.tint = color.rawValue; return m }
         }
+        // Last, so an alert shows through any colour choice: the user asked
+        // for both, and the alert is the one that is about right now.
+        if presentation.hasThresholds {
+            entry = applyingThresholds(presentation, to: entry)
+        }
         if entry.metrics.isEmpty, !original.isEmpty, entry.label?.isEmpty != false, entry.symbol == nil, entry.iconOverride?.isEmpty != false {
             entry.label = entry.name
         }
         return entry
+    }
+
+    // MARK: Thresholds
+
+    /// A metric's number in the unit the item shows it in — what a threshold
+    /// is compared with. Percentages as 0–100, bytes in GB and rates in MB/s,
+    /// anything else as it comes. nil for a metric with no usable number.
+    public static func thresholdValue(_ metric: StatusMetric) -> Double? {
+        guard let number = metric.number, number.isFinite else { return nil }
+        switch metric.format {
+        case "bytes": return number / 1_000_000_000
+        case "bytesPerSecond": return number / 1_000_000
+        default: return number
+        }
+    }
+
+    /// The unit a threshold for these readings is typed in, for the settings.
+    public static func thresholdUnit(_ metrics: [StatusMetric]) -> String {
+        guard let index = judgedMetrics(metrics).first else { return "" }
+        let metric = metrics[index]
+        switch metric.format {
+        case "percent": return "%"
+        case "bytes": return "GB"
+        case "bytesPerSecond": return "MB/s"
+        default: return normalizedLabel(metric.unit, limit: maxPrefixCharacters) ?? ""
+        }
+    }
+
+    /// Which readings of an entry the thresholds judge: those in the same
+    /// unit as the first numeric one. A threshold typed as "80 %" means
+    /// nothing to a fan's 1800 rpm beside it.
+    public static func judgedMetrics(_ metrics: [StatusMetric]) -> [Int] {
+        func kind(_ metric: StatusMetric) -> String {
+            "\(metric.format ?? "decimal")|\(metric.format == "percent" ? "" : metric.unit ?? "")"
+        }
+        guard let first = metrics.first(where: { thresholdValue($0) != nil }) else { return [] }
+        let wanted = kind(first)
+        return metrics.indices.filter { thresholdValue(metrics[$0]) != nil && kind(metrics[$0]) == wanted }
+    }
+
+    /// Tints each judged reading warning or danger. A reading short of both
+    /// keeps the colour the user chose, or none — never the widget's own
+    /// green, which the thresholds replace. The item's tint is its worst.
+    static func applyingThresholds(_ presentation: MenuBarPresentation, to entry: MenuBarEntry) -> MenuBarEntry {
+        var entry = entry
+        let judged = judgedMetrics(entry.metrics)
+        guard !judged.isEmpty else { return entry }
+        let chosen = presentation.color == "monochrome" ? nil : MenuBarTint.named(presentation.color)
+        var worst: MenuBarTint?
+        for index in judged {
+            guard let value = thresholdValue(entry.metrics[index]) else { continue }
+            let level = thresholdLevel(value, presentation: presentation)
+            entry.metrics[index].tint = (level ?? chosen)?.rawValue
+            if level == .danger || (level == .warning && worst != .danger) { worst = level }
+        }
+        entry.tint = worst ?? chosen
+        return entry
+    }
+
+    static func isPast(_ value: Double, _ limit: Double, _ direction: MenuBarThresholdDirection) -> Bool {
+        direction == .below ? value <= limit : value >= limit
+    }
+
+    static func thresholdLevel(_ value: Double, presentation: MenuBarPresentation) -> MenuBarTint? {
+        let direction = presentation.thresholdDirection ?? .above
+        if let danger = presentation.dangerAt, isPast(value, danger, direction) { return .danger }
+        if let warning = presentation.warningAt, isPast(value, warning, direction) { return .warning }
+        return nil
+    }
+
+    /// Whether an entry's readings reach its `showWhen`: nil when there is
+    /// no limit or nothing numeric to judge yet.
+    public static func meetsShowWhen(_ entry: MenuBarEntry) -> Bool? {
+        guard let limit = entry.presentation.showWhen else { return nil }
+        let values = judgedMetrics(entry.metrics).compactMap { thresholdValue(entry.metrics[$0]) }
+        guard !values.isEmpty else { return nil }
+        let direction = entry.presentation.thresholdDirection ?? .above
+        return values.contains { isPast($0, limit, direction) }
+    }
+
+    /// Whether `showWhen` keeps this entry out of the menu bar: none of its
+    /// readings has reached it. An entry with no number to judge stays —
+    /// hiding it for good would be worse than ignoring the setting.
+    public static func isDormant(_ entry: MenuBarEntry) -> Bool {
+        meetsShowWhen(entry) == false
     }
 
     /// What one entry contributes as text: the prefix and the value, or

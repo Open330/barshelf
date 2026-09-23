@@ -1336,7 +1336,7 @@ final class WidgetRuntime: ObservableObject {
     /// Newly promoted widgets are refreshed once so the strip fills in without
     /// waiting a whole interval for the first tick.
     func syncMenuBar() {
-        let previous = menuBar.promotedWidgetIDs
+        let previous = menuBarWidgetIDs
         let multiplier = SchedulePolicy.normalizedRefreshMultiplier(
             appPrefs.preferences.refreshMultiplier
         )
@@ -1405,15 +1405,40 @@ final class WidgetRuntime: ObservableObject {
                 separate: separate,
                 presentation: presentation
             )
-            candidates.append((MenuBarPolicy.applyingPresentation(presentation, to: entry), placement.order))
             if let interval = placement.interval { intervalOverrides[widget.id] = interval }
+            candidates.append((MenuBarPolicy.applyingPresentation(presentation, to: entry), placement.order))
         }
 
-        menuBar.apply(MenuBarPolicy.ordered(candidates))
+        // "Show only when" items are ordered and capped like any other, then
+        // left out of what is drawn: they keep their place in the strip and
+        // their polling, so they notice when to come back.
+        let owned = MenuBarPolicy.promoted(MenuBarPolicy.ordered(candidates))
+        let now = Date()
+        var dormant = Set<String>()
+        for entry in owned {
+            switch MenuBarPolicy.meetsShowWhen(entry) {
+            case nil:
+                // No limit, or no reading yet: nothing to hide, and nothing
+                // that should start the hold either.
+                continue
+            case true?:
+                showWhenMetAt[entry.widgetID] = now
+            case false?:
+                // Held a while after its last qualifying reading, so a
+                // reading hovering at the limit does not blink the item.
+                let held = showWhenMetAt[entry.widgetID]
+                    .map { now.timeIntervalSince($0) < Self.showWhenHold } ?? false
+                if !held { dormant.insert(entry.widgetID) }
+            }
+        }
+        showWhenMetAt = showWhenMetAt.filter { id, _ in owned.contains { $0.widgetID == id } }
+        ownedMenuBarEntries = owned
+        dormantMenuBarWidgetIDs = dormant
+        menuBar.apply(owned.filter { !dormant.contains($0.widgetID) })
         // Before the promoted-set check: a changed cadence re-arms timers even
         // when the set of promoted widgets is the same.
         scheduler.setIntervalOverrides(intervalOverrides)
-        let promoted = menuBar.promotedWidgetIDs
+        let promoted = menuBarWidgetIDs
         guard promoted != previous else { return }
         scheduler.setMenuBarWidgetIDs(promoted)
         for id in promoted.subtracting(previous) {
@@ -1424,6 +1449,22 @@ final class WidgetRuntime: ObservableObject {
                 refresh(widgetID: id, manual: false)
             }
         }
+    }
+
+    /// Every entry the menu bar owns, in order and capped: drawn now, or
+    /// hidden by its "show only when" threshold.
+    private(set) var ownedMenuBarEntries: [MenuBarEntry] = []
+    /// The owned entries hidden for now by their "show only when" threshold.
+    private(set) var dormantMenuBarWidgetIDs: Set<String> = []
+    /// When each "show only when" item last had a reading that qualified.
+    private var showWhenMetAt: [String: Date] = [:]
+    /// How long an item stays after its last qualifying reading.
+    static let showWhenHold: TimeInterval = 60
+
+    /// Every widget the menu bar owns: on it now, or waiting for a reading
+    /// that brings it back. These are the ones that keep polling.
+    var menuBarWidgetIDs: Set<String> {
+        Set(ownedMenuBarEntries.map(\.widgetID))
     }
 
     /// Promotes or demotes a widget in the menu bar (settings UI / context
@@ -1476,7 +1517,9 @@ final class WidgetRuntime: ObservableObject {
     /// what "move left" and "move right" operate on — the separate items are
     /// rearranged by dragging them in the menu bar itself.
     var menuBarStripOrder: [String] {
-        MenuBarPolicy.partition(menuBar.entries).strip.map(\.widgetID)
+        // Owned, not drawn: a hidden item keeps its place, so a move among
+        // the others cannot renumber around it.
+        MenuBarPolicy.partition(ownedMenuBarEntries).strip.map(\.widgetID)
     }
 
     func canMoveInMenuBar(_ id: String, by offset: Int) -> Bool {
@@ -2607,7 +2650,7 @@ final class WidgetRuntime: ObservableObject {
         guard snapshots[id] != snapshot else { return }
         snapshots[id] = snapshot
         cardModels[id]?.snapshot = snapshot
-        if menuBar.promotedWidgetIDs.contains(id) { syncMenuBar() }
+        if menuBarWidgetIDs.contains(id) { syncMenuBar() }
     }
 
     /// Single write path for overlay cards (`nil` removes), same suppression.

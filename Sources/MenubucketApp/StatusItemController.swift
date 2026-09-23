@@ -312,14 +312,17 @@ final class StatusItemController: NSObject {
         }
         menuBarSubmenuItem.isHidden = false
 
-        let shown = runtime.menuBar.promotedWidgetIDs
+        let shown = runtime.menuBarWidgetIDs
         let labels = Dictionary(
             runtime.menuBar.entries.map { ($0.widgetID, $0.label) },
             uniquingKeysWith: { first, _ in first }
         )
         for widget in candidates {
             let isOn = shown.contains(widget.id)
-            let value = isOn ? (labels[widget.id] ?? nil) : nil
+            // A checked item with nothing in the bar reads as broken; say why.
+            let value = runtime.dormantMenuBarWidgetIDs.contains(widget.id)
+                ? "hidden until its reading gets there"
+                : isOn ? (labels[widget.id] ?? nil) : nil
             let item = NSMenuItem(
                 title: value.map { "\(widget.displayName) — \($0)" } ?? widget.displayName,
                 action: #selector(toggleMenuBarWidget(_:)),
@@ -337,7 +340,7 @@ final class StatusItemController: NSObject {
 
     @objc private func toggleMenuBarWidget(_ sender: NSMenuItem) {
         guard let widgetID = sender.representedObject as? String else { return }
-        let isOn = runtime.menuBar.promotedWidgetIDs.contains(widgetID)
+        let isOn = runtime.menuBarWidgetIDs.contains(widgetID)
         runtime.updateMenuBarPlacement(for: widgetID) { $0.enabled = !isOn }
     }
 
