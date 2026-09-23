@@ -65,7 +65,12 @@ public struct NetworkMetrics: Sendable {
     /// cases deterministic in tests; production uses `readInterfaces()`.
     public final class Sampler: @unchecked Sendable {
         static let minimumWindow: TimeInterval = 0.25
-        static let maximumWindow: TimeInterval = 30
+        /// Longest gap a rate is computed across. Menu bar items can refresh
+        /// as slowly as once a minute, and the refresh multiplier and timer
+        /// tolerance stretch that further; a 30 s window left such an item
+        /// showing "—" forever. Fifteen minutes still refuses to average
+        /// across a long sleep.
+        static let maximumWindow: TimeInterval = 15 * 60
 
         private let lock = NSLock()
         private var previous: [String: (counters: Counters, at: TimeInterval)] = [:]

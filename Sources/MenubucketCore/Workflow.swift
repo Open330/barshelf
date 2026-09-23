@@ -438,7 +438,11 @@ public enum WorkflowEngine {
                     width: try presentation.width.flatMap {
                         MenuBarWidthMode(rawValue: try context.interpolate($0).stringified)
                     },
-                    digits: try number(presentation.digits).map { Int($0) },
+                    // Validated before Int(): a template can yield nan, inf or
+                    // 1e300, and Int(Double) traps on all of them.
+                    digits: try number(presentation.digits).flatMap {
+                        $0.isFinite && (1...6).contains($0) ? Int($0) : nil
+                    },
                     alignment: try presentation.alignment.flatMap {
                         MenuBarAlignment(rawValue: try context.interpolate($0).stringified)
                     },

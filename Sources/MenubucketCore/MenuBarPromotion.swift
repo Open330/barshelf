@@ -153,6 +153,10 @@ public struct MenuBarPresentation: Codable, Equatable, Sendable {
     public var color: String?
     /// Text column width in points, used by `width: fixed`.
     public var valueWidth: Double?
+    /// The fixed column when none was chosen — the stepper shows it and every
+    /// renderer draws it, so "Fixed" means the same thing everywhere.
+    public static let defaultFixedWidth: Double = 48
+    public var effectiveFixedWidth: Double { valueWidth ?? Self.defaultFixedWidth }
     public var metricOrder: [String]?
     public var metricOverrides: [String: MenuBarMetricOverride]?
     public var width: MenuBarWidthMode?
@@ -494,8 +498,11 @@ public enum MenuBarPolicy {
         user: String?, live: String?, manifest: String?
     ) -> String? {
         if let user {
+            // "" is kept, not turned into nil: it is the user saying "no
+            // label", and renderers have to tell that apart from "none set",
+            // which falls back to the widget's name or its metric's label.
             return user.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                ? nil : normalizedPrefix(user)
+                ? "" : normalizedPrefix(user)
         }
         return normalizedPrefix(live) ?? normalizedPrefix(manifest)
     }
@@ -612,8 +619,15 @@ public enum MenuBarPolicy {
         let run = text[start...].prefix(while: \.isASCIIDigit)
         let missing = digits - run.count
         guard missing > 0 else { return text }
+        // The pad goes before a sign, not between it and the digits: -5° is
+        // drawn " -5°", never "- 5°".
+        var at = start
+        if at > text.startIndex {
+            let before = text.index(before: at)
+            if text[before] == "-" || text[before] == "\u{2212}" { at = before }
+        }
         var padded = text
-        padded.insert(contentsOf: String(repeating: figureSpace, count: missing), at: start)
+        padded.insert(contentsOf: String(repeating: figureSpace, count: missing), at: at)
         return padded
     }
 
@@ -726,11 +740,15 @@ public enum MenuBarPolicy {
     /// whichever of them exists.
     public static func entryText(_ entry: MenuBarEntry) -> String {
         if !entry.metrics.isEmpty {
-            if entry.metrics.count == 1, entry.style == .inline,
-               let prefix = normalizedPrefix(entry.prefix) {
+            if entry.metrics.count == 1, entry.style == .inline {
                 let metric = entry.metrics[0]
                 let value = metric.value.isEmpty ? metric.active.map { $0 ? "●" : "○" } ?? "" : metric.value
-                return value.isEmpty ? prefix : "\(prefix) \(value)"
+                // The user turned the label off: the value alone, not the
+                // metric's own label sneaking back in.
+                if entry.prefix == "" { return value }
+                if let prefix = normalizedPrefix(entry.prefix) {
+                    return value.isEmpty ? prefix : "\(prefix) \(value)"
+                }
             }
             let readings = entry.metrics.compactMap { metric -> String? in
                 let visible = [metric.label, metric.value]

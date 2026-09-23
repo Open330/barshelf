@@ -444,9 +444,11 @@ final class MenuBarStyleAndPrefixTests: XCTestCase {
 
     /// An empty override is the user saying "no label", which is a decision —
     /// it must not fall through to the widget's suggestion.
+    /// It comes back as "" rather than nil, so renderers can tell "no label"
+    /// from "none set" (which falls back to the widget's name).
     func testAnEmptyUserPrefixSilencesTheWidgetsOwn() {
-        XCTAssertNil(MenuBarPolicy.resolvedPrefix(user: "", live: "Live", manifest: "Author"))
-        XCTAssertNil(MenuBarPolicy.resolvedPrefix(user: "   ", live: "Live", manifest: "Author"))
+        XCTAssertEqual(MenuBarPolicy.resolvedPrefix(user: "", live: "Live", manifest: "Author"), "")
+        XCTAssertEqual(MenuBarPolicy.resolvedPrefix(user: "   ", live: "Live", manifest: "Author"), "")
     }
 
     func testTheStyleFallsBackFromUserToManifestToInline() {

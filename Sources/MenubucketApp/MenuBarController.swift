@@ -294,7 +294,13 @@ final class MenuBarController {
                     hasImage: symbolImage != nil, hasLabel: title.length > 0
                 )
                 // Text has no image to widen, so its floor is the item length.
-                let length = Self.applyLength(to: item, button: button, mode: mode, floor: floor)
+                // Fixed adds whatever the title is short of its column.
+                var textFloor = floor
+                if mode == .fixed {
+                    let shortfall = CGFloat(entry.presentation.effectiveFixedWidth) - title.size().width
+                    textFloor = max(textFloor, ceil(button.fittingSize.width + max(shortfall, 0)))
+                }
+                let length = Self.applyLength(to: item, button: button, mode: mode, floor: textFloor)
                 if mode != .fit { widthFloors[entry.widgetID] = (layout, length) }
             }
             if mode == .fit { widthFloors.removeValue(forKey: entry.widgetID) }
@@ -474,8 +480,10 @@ final class MenuBarController {
 
     /// The two lines an entry draws when stacked: the label, then the value.
     static func stackedLines(_ entry: MenuBarEntry, glyph: String?) -> (top: String, bottom: String) {
-        var top = MenuBarPolicy.normalizedPrefix(entry.prefix) ?? entry.name
-        if let glyph, !glyph.isEmpty { top = "\(glyph) \(top)" }
+        // "" is the user's "no label": the value alone, as the setting says.
+        // Unset falls back to the widget's name.
+        var top = entry.prefix == "" ? "" : (MenuBarPolicy.normalizedPrefix(entry.prefix) ?? entry.name)
+        if let glyph, !glyph.isEmpty { top = top.isEmpty ? glyph : "\(glyph) \(top)" }
         let bottom = entry.metrics.count == 1 ? entry.metrics[0].value : entry.metrics.isEmpty ? (entry.label ?? "")
             : (MenuBarPolicy.normalizedLabel(MenuBarPolicy.entryText(entry), limit: 28) ?? "")
         return (top, bottom)
@@ -586,10 +594,10 @@ final class MenuBarController {
         let side = min(height - 4, 16)
         let symbolSize: NSSize = symbol == nil ? .zero : NSSize(width: side, height: side)
         var textWidth = max(labelWidth, valueWidth)
-        if presentation.effectiveWidth == .fixed, let fixed = presentation.valueWidth {
+        if presentation.effectiveWidth == .fixed {
             // Content wider than the fixed column still grows it: a clipped
             // number is worse than a moved one.
-            textWidth = max(textWidth, CGFloat(fixed))
+            textWidth = max(textWidth, CGFloat(presentation.effectiveFixedWidth))
         }
         let chrome = stackedHorizontalPadding * 2 + symbolSize.width
             + (symbolSize.width > 0 && textWidth > 0 ? stackedSymbolGap : 0)

@@ -42,7 +42,7 @@ extension MenuBarController {
         let columnFloor: CGFloat
         switch presentation.effectiveWidth {
         case .auto: columnFloor = 56
-        case .fixed: columnFloor = CGFloat(presentation.valueWidth ?? 56)
+        case .fixed: columnFloor = CGFloat(presentation.effectiveFixedWidth)
         case .fit: columnFloor = 0
         }
         let valueWidth = hasValues ? max(columnFloor, measuredValues) : 0
@@ -58,9 +58,9 @@ extension MenuBarController {
             let dim: CGFloat = entry.isStale ? staleOpacity : 1
             let defaultInk = entry.tint.map(nsColor(for:)) ?? (template ? NSColor.black : .labelColor)
             // The block sits by the item's alignment when the item is wider
-            // than it (a kept floor); centred is how this layout has looked.
+            // than it (a kept floor) — the same default the settings show.
             let block = leadingWidth + contentWidth
-            let startX = 3 + alignedOffset(block, in: width - 6, presentation.alignment ?? .center)
+            let startX = 3 + alignedOffset(block, in: width - 6, presentation.effectiveAlignment)
             if let symbol {
                 symbol.draw(in: NSRect(x: startX, y: (height - side) / 2, width: side, height: side),
                             from: .zero, operation: .sourceOver, fraction: dim)

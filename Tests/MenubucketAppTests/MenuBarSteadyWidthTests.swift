@@ -116,6 +116,21 @@ final class MenuBarSteadyWidthTests: XCTestCase {
             .write(to: URL(fileURLWithPath: dir).appendingPathComponent("steady-width.png"))
     }
 
+    func testANoLabelChoiceDropsTheStackedTopRow() {
+        var noLabel = entry("42°")
+        noLabel.prefix = ""
+        XCTAssertEqual(MenuBarController.stackedLines(noLabel, glyph: nil).top, "")
+        var unset = entry("42°")
+        unset.prefix = nil
+        XCTAssertEqual(MenuBarController.stackedLines(unset, glyph: nil).top, "Sensors")
+    }
+
+    func testFixedWithoutAWidthUsesTheSameDefaultAsTheStepper() {
+        let fixed = MenuBarPresentation(width: .fixed)
+        let explicit = MenuBarPresentation(valueWidth: MenuBarPresentation.defaultFixedWidth, width: .fixed)
+        XCTAssertEqual(stackedWidth("9°", fixed), stackedWidth("9°", explicit))
+    }
+
     // MARK: Redraw decisions
 
     func testLayoutSignatureIgnoresReadingsButNotLayout() {

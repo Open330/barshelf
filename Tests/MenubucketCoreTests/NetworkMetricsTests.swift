@@ -90,8 +90,17 @@ final class NetworkMetricsTests: XCTestCase {
         XCTAssertNil(returned.download)
         XCTAssertNil(returned.upload)
 
+        // A minute apart is an ordinary slow menu bar cadence: still a rate.
+        let slow = sampler.sample(
+            interfaces: [interface("en0", received: 15_000, sent: 11_000)], now: 62
+        )
+        XCTAssertEqual(slow.download ?? -1, 100, accuracy: 0.001)
+        XCTAssertEqual(slow.upload ?? -1, 50, accuracy: 0.001)
+
+        // Past the window (a long sleep): no average across it.
         let afterSleep = sampler.sample(
-            interfaces: [interface("en0", received: 12_000, sent: 10_000)], now: 40
+            interfaces: [interface("en0", received: 20_000, sent: 12_000)],
+            now: 62 + NetworkMetrics.Sampler.maximumWindow + 1
         )
         XCTAssertNil(afterSleep.download)
         XCTAssertNil(afterSleep.upload)

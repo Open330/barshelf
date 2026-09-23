@@ -591,12 +591,14 @@ struct WidgetSettingsView: View {
                 // A stepper rather than a text field: a field that clamps on
                 // every keystroke cannot be typed into ("1" became 32).
                 Stepper(value: Binding(
-                    get: { presentation.valueWidth ?? 48 },
+                    get: { presentation.effectiveFixedWidth },
                     set: { width in setPresentation { $0.valueWidth = width } }
                 ), in: 32...120, step: 2) {
-                    Text("\(Int(presentation.valueWidth ?? 48)) pt").monospacedDigit()
+                    Text("\(Int(presentation.effectiveFixedWidth)) pt").monospacedDigit()
                 }
-                settingsHint("The text column is always this wide. Content that does not fit still widens it rather than being cut off.")
+                settingsHint(usesOwnItem
+                    ? "The text column is always this wide. Content that does not fit still widens it rather than being cut off."
+                    : "Fixed needs the item's own place in the menu bar; sharing the BarShelf icon, it keeps a steady width instead.")
             case .fit:
                 settingsHint("Exactly as wide as the current reading, so the item and its neighbours move when the digits change.")
             }

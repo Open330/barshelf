@@ -51,6 +51,45 @@ final class MenuBarWidthPolicyTests: XCTestCase {
         XCTAssertEqual(applied.label, fs + "8%")
     }
 
+    func testTheMinusSignStaysAgainstItsDigits() {
+        XCTAssertEqual(MenuBarPolicy.reservingDigits("-5°", digits: 2), fs + "-5°")
+        XCTAssertEqual(MenuBarPolicy.reservingDigits("\u{2212}5°", digits: 2), fs + "\u{2212}5°")
+    }
+
+    /// Unchecking Label means the value alone — not the metric's own label
+    /// creeping back in, and not the widget's name.
+    func testANoLabelChoiceShowsTheValueAlone() {
+        let inline = MenuBarEntry(
+            widgetID: "w", name: "System", prefix: "", style: .inline,
+            metrics: [StatusMetric(id: "cpu", label: "CPU", value: "23%")]
+        )
+        XCTAssertEqual(MenuBarPolicy.entryText(inline), "23%")
+        var unset = inline
+        unset.prefix = nil
+        XCTAssertEqual(MenuBarPolicy.entryText(unset), "CPU 23%", "unset still falls back to the metric's label")
+    }
+
+    func testFixedWidthHasOneDefault() {
+        XCTAssertEqual(MenuBarPresentation(width: .fixed).effectiveFixedWidth, MenuBarPresentation.defaultFixedWidth)
+        XCTAssertEqual(MenuBarPresentation(valueWidth: 70, width: .fixed).effectiveFixedWidth, 70)
+    }
+
+    /// A template can produce nan, inf or 1e300 for `digits`; converting any
+    /// of them to Int traps, so they must read as unset instead.
+    func testWildTemplatedDigitsDoNotCrash() throws {
+        for raw in ["nan", "inf", "1e300", "-3", "9"] {
+            let def = try WorkflowDefinition.decode(from: Data("""
+            {"schemaVersion":1,"sources":{},
+             "status":{"label":"x","presentation":{"digits":"${settings.d}"}},
+             "view":{"type":"text","text":"x"}}
+            """.utf8))
+            let output = try WorkflowEngine.evaluate(
+                def, sources: [:], settings: .object(["d": .string(raw)])
+            )
+            XCTAssertNil(output.statusPresentation?.digits, raw)
+        }
+    }
+
     // MARK: Decoding and resolution
 
     func testNewFieldsDecodeLenientlyAndResolveUserFirst() throws {
