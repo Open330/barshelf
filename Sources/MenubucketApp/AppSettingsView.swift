@@ -265,8 +265,7 @@ struct AppSettingsView: View {
         let stored = appPrefs.preferences.menuBarPresentation
         let controls = MenuBarStyleControls(
             shown: MenuBarPolicy.resolvedPresentation(user: nil, global: stored, live: nil, manifest: nil),
-            inherited: MenuBarPresentation(),
-            stored: stored,
+            inherited: nil,
             usesOwnItem: nil,
             change: { edit in
                 appPrefs.update { preferences in

@@ -172,6 +172,21 @@ final class WidgetPrefs: ObservableObject {
         save()
     }
 
+    /// Several placements in one write; nil clears one, as above.
+    func setMenuBarPlacements(_ changes: [String: MenuBarPlacement?]) {
+        var changed = false
+        for (id, placement) in changes {
+            if let placement {
+                guard menuBarPlacements[id] != placement else { continue }
+                menuBarPlacements[id] = placement
+            } else {
+                guard menuBarPlacements.removeValue(forKey: id) != nil else { continue }
+            }
+            changed = true
+        }
+        if changed { save() }
+    }
+
     // MARK: - Appearance overrides (R12)
 
     /// The user's stored theming override for a widget, if any.

@@ -1447,12 +1447,14 @@ final class WidgetRuntime: ObservableObject {
     /// style applies to all of them. Labels, icons, row order and precision
     /// are kept.
     func clearItemMenuBarStyles() {
+        var changes: [String: MenuBarPlacement?] = [:]
         for widget in widgetsOverridingMenuBarStyle {
             guard var placement = prefs.menuBarPlacements[widget.id] else { continue }
             placement.presentation = MenuBarPolicy.clearingGlobalStyle(placement.presentation)
             let base = MenuBarPolicy.resolvedPlacement(stored: nil, statusItem: widget.manifest.statusItem)
-            prefs.setMenuBarPlacement(placement == base ? nil : placement, for: widget.id)
+            changes[widget.id] = .some(placement == base ? nil : placement)
         }
+        prefs.setMenuBarPlacements(changes)
         syncMenuBar()
         objectWillChange.send()
     }

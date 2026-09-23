@@ -26,7 +26,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
     /// verbatim; parsing/registration happens app-side.
     public var popupHotkey: String
     /// How every menu bar item looks unless its own settings say otherwise:
-    /// width, digits, alignment, text size and weight, colour, units. Sits
+    /// width, digits, alignment, text size and weight, colour. Sits
     /// between an item's own choices and the widget's defaults. Only the
     /// style fields are honoured (`MenuBarPolicy.globalStyle`); precision,
     /// ordering and per-row overrides mean something only for one widget.

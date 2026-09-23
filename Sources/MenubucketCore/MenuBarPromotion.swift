@@ -580,35 +580,36 @@ public enum MenuBarPolicy {
                                    size: pick(\.size), numberAlignment: pick(\.numberAlignment))
     }
 
-    /// The part of a presentation that can apply to every item: how it is
-    /// laid out and drawn, not what it shows. Precision, value visibility,
-    /// row order and per-row overrides are dropped — a precision of 1 suits
-    /// a gigabyte reading and not a temperature. nil when nothing is left.
+    /// The fields an app-wide style may set: how an item is laid out and
+    /// drawn, not what it shows. Precision, units, value visibility, row
+    /// order and per-row overrides stay with each widget — a precision of 1
+    /// suits a gigabyte reading and not a temperature. One list, so what
+    /// `globalStyle` keeps and what `clearingGlobalStyle` drops cannot drift.
+    private static let globalStyleFields: [(inout MenuBarPresentation, MenuBarPresentation) -> Void] = [
+        { $0.color = $1.color },
+        { $0.valueWidth = $1.valueWidth },
+        { $0.width = $1.width },
+        { $0.digits = $1.digits },
+        { $0.alignment = $1.alignment },
+        { $0.weight = $1.weight },
+        { $0.size = $1.size },
+        { $0.numberAlignment = $1.numberAlignment },
+    ]
+
+    /// The part of a presentation that can apply to every item. nil when
+    /// nothing is left.
     public static func globalStyle(_ presentation: MenuBarPresentation?) -> MenuBarPresentation? {
         guard let presentation else { return nil }
-        let style = MenuBarPresentation(
-            showUnits: presentation.showUnits, color: presentation.color,
-            valueWidth: presentation.valueWidth, width: presentation.width,
-            digits: presentation.digits, alignment: presentation.alignment,
-            weight: presentation.weight, size: presentation.size,
-            numberAlignment: presentation.numberAlignment
-        )
+        var style = MenuBarPresentation()
+        for copy in globalStyleFields { copy(&style, presentation) }
         return style == MenuBarPresentation() ? nil : style
     }
 
-    /// `presentation` without the fields `globalStyle` keeps, so the
-    /// app-wide style shows through. nil when nothing else was set.
+    /// `presentation` without the fields an app-wide style sets, so that
+    /// style shows through. nil when nothing else was set.
     public static func clearingGlobalStyle(_ presentation: MenuBarPresentation?) -> MenuBarPresentation? {
         guard var presentation else { return nil }
-        presentation.showUnits = nil
-        presentation.color = nil
-        presentation.valueWidth = nil
-        presentation.width = nil
-        presentation.digits = nil
-        presentation.alignment = nil
-        presentation.weight = nil
-        presentation.size = nil
-        presentation.numberAlignment = nil
+        for copy in globalStyleFields { copy(&presentation, MenuBarPresentation()) }
         return presentation == MenuBarPresentation() ? nil : presentation
     }
 

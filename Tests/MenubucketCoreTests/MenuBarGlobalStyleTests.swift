@@ -26,7 +26,7 @@ final class MenuBarGlobalStyleTests: XCTestCase {
             metricOrder: ["a"], metricOverrides: ["a": MenuBarMetricOverride(hidden: true)],
             weight: .bold
         ))
-        XCTAssertEqual(style, MenuBarPresentation(showUnits: false, color: "monochrome", weight: .bold))
+        XCTAssertEqual(style, MenuBarPresentation(color: "monochrome", weight: .bold), "units stay with each widget")
         XCTAssertNil(MenuBarPolicy.globalStyle(MenuBarPresentation(precision: 1)),
                      "nothing left means no global layer at all")
 
@@ -38,9 +38,9 @@ final class MenuBarGlobalStyleTests: XCTestCase {
 
     func testClearingKeepsWhatIsNotStyle() {
         let cleared = MenuBarPolicy.clearingGlobalStyle(MenuBarPresentation(
-            precision: 1, color: "accent", metricOrder: ["b", "a"], width: .fixed, digits: 3
+            showUnits: false, precision: 1, color: "accent", metricOrder: ["b", "a"], width: .fixed, digits: 3
         ))
-        XCTAssertEqual(cleared, MenuBarPresentation(precision: 1, metricOrder: ["b", "a"]))
+        XCTAssertEqual(cleared, MenuBarPresentation(showUnits: false, precision: 1, metricOrder: ["b", "a"]))
         XCTAssertNil(MenuBarPolicy.clearingGlobalStyle(MenuBarPresentation(width: .fit, size: .large)))
     }
 

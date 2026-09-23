@@ -8,7 +8,17 @@ import SwiftUI
 struct WidgetSettingsView: View {
     let widget: LoadedWidget
     @ObservedObject var runtime: WidgetRuntime
+    /// Observed so an open pane follows a change to the app-wide menu bar
+    /// style: its preview and the values its setters compare against both
+    /// include it.
+    @ObservedObject private var appPrefs: AppPrefs
     @Environment(\.dismiss) private var dismiss
+
+    init(widget: LoadedWidget, runtime: WidgetRuntime) {
+        self.widget = widget
+        self.runtime = runtime
+        _appPrefs = ObservedObject(wrappedValue: runtime.appPrefs)
+    }
 
     @State private var values: [String: JSONValue] = [:]
     /// The theming override being edited (R12). Loaded from the effective
@@ -16,6 +26,10 @@ struct WidgetSettingsView: View {
     @State private var appearanceDraft = WidgetAppearance()
     /// Menu-bar promotion being edited.
     @State private var menuBarDraft = MenuBarPlacement(enabled: false)
+    /// The placement as the pane opened, so Save leaves alone a placement
+    /// that was changed elsewhere (App Settings' "Use These for All") while
+    /// this pane never touched it.
+    @State private var menuBarLoaded = MenuBarPlacement(enabled: false)
     /// Height of the scrolling settings area. A variable only so the
     /// screenshot test can render the whole pane rather than its first screen.
     static var scrollMaxHeight: CGFloat = 420
@@ -77,6 +91,7 @@ struct WidgetSettingsView: View {
             menuBarDraft = runtime.prefs.menuBarPlacement(
                 for: widget.manifest, widgetID: widget.id
             )
+            menuBarLoaded = menuBarDraft
         }
     }
 
@@ -115,9 +130,11 @@ struct WidgetSettingsView: View {
         let menuBarBase = MenuBarPolicy.resolvedPlacement(
             stored: nil, statusItem: widget.manifest.statusItem
         )
-        runtime.setMenuBarPlacement(
-            menuBarDraft == menuBarBase ? nil : menuBarDraft, for: widget.id
-        )
+        if menuBarDraft != menuBarLoaded {
+            runtime.setMenuBarPlacement(
+                menuBarDraft == menuBarBase ? nil : menuBarDraft, for: widget.id
+            )
+        }
         dismiss()
         runtime.refresh(widgetID: widget.id)
     }
@@ -179,7 +196,8 @@ struct WidgetSettingsView: View {
         // presentation questions as the status item will after Save.
         let presentation = MenuBarPolicy.resolvedPresentation(
             user: menuBarDraft.presentation,
-            global: runtime.appPrefs.preferences.menuBarPresentation,live: snapshot?.statusPresentation,
+            global: globalPresentation,
+            live: snapshot?.statusPresentation,
             manifest: statusItem.presentation
         )
         return MenuBarPolicy.applyingPresentation(presentation, to: entry)
@@ -442,7 +460,8 @@ struct WidgetSettingsView: View {
         // else the manifest's — so the editor and its arrows match the bar.
         let resolved = MenuBarPolicy.resolvedPresentation(
             user: menuBarDraft.presentation,
-            global: runtime.appPrefs.preferences.menuBarPresentation,live: snapshot?.statusPresentation,
+            global: globalPresentation,
+            live: snapshot?.statusPresentation,
             manifest: MenuBarPolicy.effectiveStatusItem(widget.manifest.statusItem).presentation
         )
         let ranks = MenuBarPolicy.orderRanks(resolved.metricOrder ?? [])
@@ -517,7 +536,8 @@ struct WidgetSettingsView: View {
         let statusItem = MenuBarPolicy.effectiveStatusItem(widget.manifest.statusItem)
         return MenuBarPolicy.resolvedPresentation(
             user: nil,
-            global: runtime.appPrefs.preferences.menuBarPresentation,live: runtime.snapshots[widget.id]?.statusPresentation,
+            global: globalPresentation,
+            live: runtime.snapshots[widget.id]?.statusPresentation,
             manifest: statusItem.presentation
         )
     }
@@ -551,15 +571,21 @@ struct WidgetSettingsView: View {
     /// would write nil and fall straight back to "left".
     private var shownPresentation: MenuBarPresentation {
         MenuBarPolicy.resolvedPresentation(
-            user: menuBarDraft.presentation, live: livePresentation, manifest: manifestPresentation
+            user: menuBarDraft.presentation, global: globalPresentation,
+            live: livePresentation, manifest: manifestPresentation
         )
+    }
+
+    /// The app-wide menu bar style, which ranks between this item's choices
+    /// and the widget's.
+    private var globalPresentation: MenuBarPresentation? {
+        appPrefs.preferences.menuBarPresentation
     }
 
     private var styleControls: MenuBarStyleControls {
         MenuBarStyleControls(
             shown: shownPresentation,
             inherited: inheritedPresentation,
-            stored: menuBarDraft.presentation,
             usesOwnItem: usesOwnItem,
             change: { setPresentation($0) }
         )
@@ -636,7 +662,8 @@ struct WidgetSettingsView: View {
         let statusItem = MenuBarPolicy.effectiveStatusItem(widget.manifest.statusItem)
         return MenuBarPolicy.resolvedPresentation(
             user: menuBarDraft.presentation,
-            global: runtime.appPrefs.preferences.menuBarPresentation,live: runtime.snapshots[widget.id]?.statusPresentation,
+            global: globalPresentation,
+            live: runtime.snapshots[widget.id]?.statusPresentation,
             manifest: statusItem.presentation
         ).metricOverrides?[key]
     }
@@ -681,10 +708,7 @@ struct WidgetSettingsView: View {
     }
 
     private func settingsHint(_ text: String) -> some View {
-        Text(text)
-            .font(.caption2)
-            .foregroundStyle(.tertiary)
-            .fixedSize(horizontal: false, vertical: true)
+        MenuBarStyleControls.hint(text)
     }
 
 
