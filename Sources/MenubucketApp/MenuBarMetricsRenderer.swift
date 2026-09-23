@@ -52,7 +52,8 @@ extension MenuBarController {
         let dotColumn = hasDots ? dotSize + (labelWidth + valueWidth > 0 ? 3 : 0) : 0
         let columnGap: CGFloat = labelWidth > 0 && hasValues ? 4 : 0
         let contentWidth = dotColumn + labelWidth + columnGap + valueWidth
-        let width = max(18, ceil(6 + leadingWidth + contentWidth), ceil(minimumWidth))
+        let pad = stackedHorizontalPadding
+        let width = max(18, ceil(pad * 2 + leadingWidth + contentWidth), ceil(minimumWidth))
         let template = entry.tint == nil && metrics.allSatisfy { MenuBarTint.named($0.tint) == nil }
         let image = NSImage(size: NSSize(width: width, height: height), flipped: true) { _ in
             let dim: CGFloat = entry.isStale ? staleOpacity : 1
@@ -60,7 +61,7 @@ extension MenuBarController {
             // The block sits by the item's alignment when the item is wider
             // than it (a kept floor) — the same default the settings show.
             let block = leadingWidth + contentWidth
-            let startX = 3 + alignedOffset(block, in: width - 6, presentation.effectiveAlignment)
+            let startX = pad + alignedOffset(block, in: width - pad * 2, presentation.effectiveAlignment)
             if let symbol {
                 symbol.draw(in: NSRect(x: startX, y: (height - side) / 2, width: side, height: side),
                             from: .zero, operation: .sourceOver, fraction: dim)
