@@ -2,7 +2,7 @@
   "$schema": "https://barshelf.jiun.dev/schema/workflow-0.1.json",
   "schemaVersion": 1,
   "kind": "workflow",
-  "_comment": "System monitor on the native `system` source — no subprocess, so it is cheap enough to keep updating in the menu bar. Percentages are 0-100. `status.label` reads `settings.*`, which is how a user chooses what the menu bar shows without editing this file.",
+  "_comment": "System monitor on the native `system` source — no subprocess, so it is cheap enough to keep updating in the menu bar. Percentages are 0-100. `status.label` reads `settings.*`, which is how a user chooses what the menu bar shows without editing this file. The menu bar reading is one of several (CPU total, user, system or busiest core; memory, pressure or swap; disk used, free, read or write rate), with an optional second reading as a second metric. Disk throughput is a registry walk, so `io` asks for it only when a rate is shown.",
   "sources": {
     "data": {
       "use": "system",
@@ -11,11 +11,89 @@
           "cpu",
           "memory",
           "disk"
-        ]
+        ],
+        "io": "${or(contains(coalesce(settings.menuBarMetric, ''), 'diskR'), or(contains(coalesce(settings.menuBarMetric, ''), 'diskW'), or(contains(coalesce(settings.menuBarSecondary, ''), 'diskR'), contains(coalesce(settings.menuBarSecondary, ''), 'diskW'))))}"
       }
     }
   },
-  "transforms": {},
+  "transforms": {
+    "sel1": {
+      "use": "assign",
+      "from": "coalesce(settings.menuBarMetric, 'cpu')"
+    },
+    "number1": {
+      "use": "assign",
+      "from": "if(eq(transforms.sel1,'cpuUser'), sources.data.cpu.user, if(eq(transforms.sel1,'cpuSystem'), sources.data.cpu.system, if(eq(transforms.sel1,'cpuCore'), sources.data.cpu.coreMax, if(eq(transforms.sel1,'memory'), if(eq(settings.menuBarMemoryDisplay,'used'), sources.data.memory.used, if(eq(settings.menuBarMemoryDisplay,'available'), sources.data.memory.free, sources.data.memory.usage)), if(eq(transforms.sel1,'pressure'), null, if(eq(transforms.sel1,'swap'), sources.data.memory.swap.used, if(eq(transforms.sel1,'disk'), sources.data.disk.usage, if(eq(transforms.sel1,'diskFree'), sources.data.disk.free, if(eq(transforms.sel1,'diskRead'), sources.data.disk.read, if(eq(transforms.sel1,'diskWrite'), sources.data.disk.write, if(eq(transforms.sel1,'none'), null, sources.data.cpu.usage)))))))))))"
+    },
+    "format1": {
+      "use": "assign",
+      "from": "if(eq(transforms.sel1,'cpuUser'), 'percent', if(eq(transforms.sel1,'cpuSystem'), 'percent', if(eq(transforms.sel1,'cpuCore'), 'percent', if(eq(transforms.sel1,'memory'), if(or(eq(settings.menuBarMemoryDisplay,'used'), eq(settings.menuBarMemoryDisplay,'available')), 'bytes', 'percent'), if(eq(transforms.sel1,'pressure'), '', if(eq(transforms.sel1,'swap'), 'bytes', if(eq(transforms.sel1,'disk'), 'percent', if(eq(transforms.sel1,'diskFree'), 'bytes', if(eq(transforms.sel1,'diskRead'), 'bytesPerSecond', if(eq(transforms.sel1,'diskWrite'), 'bytesPerSecond', if(eq(transforms.sel1,'none'), '', 'percent')))))))))))"
+    },
+    "prefix1": {
+      "use": "assign",
+      "from": "if(eq(transforms.sel1,'cpuUser'), 'User', if(eq(transforms.sel1,'cpuSystem'), 'Sys', if(eq(transforms.sel1,'cpuCore'), 'Core', if(eq(transforms.sel1,'memory'), 'RAM', if(eq(transforms.sel1,'pressure'), 'RAM', if(eq(transforms.sel1,'swap'), 'Swap', if(eq(transforms.sel1,'disk'), 'Disk', if(eq(transforms.sel1,'diskFree'), 'Free', if(eq(transforms.sel1,'diskRead'), 'Read', if(eq(transforms.sel1,'diskWrite'), 'Write', if(eq(transforms.sel1,'none'), '', 'CPU')))))))))))"
+    },
+    "label1": {
+      "use": "assign",
+      "from": "if(eq(transforms.sel1,'cpuUser'), 'CPU user', if(eq(transforms.sel1,'cpuSystem'), 'CPU system', if(eq(transforms.sel1,'cpuCore'), 'Busiest core', if(eq(transforms.sel1,'memory'), 'Memory', if(eq(transforms.sel1,'pressure'), 'Memory pressure', if(eq(transforms.sel1,'swap'), 'Swap used', if(eq(transforms.sel1,'disk'), 'Disk', if(eq(transforms.sel1,'diskFree'), 'Disk free', if(eq(transforms.sel1,'diskRead'), 'Disk read', if(eq(transforms.sel1,'diskWrite'), 'Disk write', if(eq(transforms.sel1,'none'), '', 'CPU')))))))))))"
+    },
+    "precision1": {
+      "use": "assign",
+      "from": "if(eq(transforms.sel1,'cpuUser'), 0, if(eq(transforms.sel1,'cpuSystem'), 0, if(eq(transforms.sel1,'cpuCore'), 0, if(eq(transforms.sel1,'memory'), if(eq(if(or(eq(settings.menuBarMemoryDisplay,'used'), eq(settings.menuBarMemoryDisplay,'available')), 'bytes', 'percent'), 'bytes'), 1, 0), if(eq(transforms.sel1,'pressure'), 0, if(eq(transforms.sel1,'swap'), 1, if(eq(transforms.sel1,'disk'), 0, if(eq(transforms.sel1,'diskFree'), 0, if(eq(transforms.sel1,'diskRead'), 1, if(eq(transforms.sel1,'diskWrite'), 1, if(eq(transforms.sel1,'none'), 0, 0)))))))))))"
+    },
+    "isText1": {
+      "use": "assign",
+      "from": "eq(transforms.sel1,'pressure')"
+    },
+    "text1": {
+      "use": "assign",
+      "from": "if(transforms.isText1, if(eq(sources.data.memory.pressure,'critical'), 'Critical', if(eq(sources.data.memory.pressure,'warning'), 'Warning', if(eq(sources.data.memory.pressure,'normal'), 'Normal', '—'))), if(eq(transforms.number1, null), '—', if(eq(transforms.format1,'percent'), concat(string(round(number(transforms.number1), 0)), '%'), if(eq(transforms.format1,'bytesPerSecond'), concat(string(round(div(number(transforms.number1), 1000000), 1)), ' MB/s'), concat(string(round(div(number(transforms.number1), 1000000000), transforms.precision1)), ' GB')))))"
+    },
+    "sel2": {
+      "use": "assign",
+      "from": "coalesce(settings.menuBarSecondary, 'none')"
+    },
+    "number2": {
+      "use": "assign",
+      "from": "if(eq(transforms.sel2,'cpuUser'), sources.data.cpu.user, if(eq(transforms.sel2,'cpuSystem'), sources.data.cpu.system, if(eq(transforms.sel2,'cpuCore'), sources.data.cpu.coreMax, if(eq(transforms.sel2,'memory'), if(eq(settings.menuBarMemoryDisplay,'used'), sources.data.memory.used, if(eq(settings.menuBarMemoryDisplay,'available'), sources.data.memory.free, sources.data.memory.usage)), if(eq(transforms.sel2,'pressure'), null, if(eq(transforms.sel2,'swap'), sources.data.memory.swap.used, if(eq(transforms.sel2,'disk'), sources.data.disk.usage, if(eq(transforms.sel2,'diskFree'), sources.data.disk.free, if(eq(transforms.sel2,'diskRead'), sources.data.disk.read, if(eq(transforms.sel2,'diskWrite'), sources.data.disk.write, if(eq(transforms.sel2,'none'), null, sources.data.cpu.usage)))))))))))"
+    },
+    "format2": {
+      "use": "assign",
+      "from": "if(eq(transforms.sel2,'cpuUser'), 'percent', if(eq(transforms.sel2,'cpuSystem'), 'percent', if(eq(transforms.sel2,'cpuCore'), 'percent', if(eq(transforms.sel2,'memory'), if(or(eq(settings.menuBarMemoryDisplay,'used'), eq(settings.menuBarMemoryDisplay,'available')), 'bytes', 'percent'), if(eq(transforms.sel2,'pressure'), '', if(eq(transforms.sel2,'swap'), 'bytes', if(eq(transforms.sel2,'disk'), 'percent', if(eq(transforms.sel2,'diskFree'), 'bytes', if(eq(transforms.sel2,'diskRead'), 'bytesPerSecond', if(eq(transforms.sel2,'diskWrite'), 'bytesPerSecond', if(eq(transforms.sel2,'none'), '', 'percent')))))))))))"
+    },
+    "prefix2": {
+      "use": "assign",
+      "from": "if(eq(transforms.sel2,'cpuUser'), 'User', if(eq(transforms.sel2,'cpuSystem'), 'Sys', if(eq(transforms.sel2,'cpuCore'), 'Core', if(eq(transforms.sel2,'memory'), 'RAM', if(eq(transforms.sel2,'pressure'), 'RAM', if(eq(transforms.sel2,'swap'), 'Swap', if(eq(transforms.sel2,'disk'), 'Disk', if(eq(transforms.sel2,'diskFree'), 'Free', if(eq(transforms.sel2,'diskRead'), 'Read', if(eq(transforms.sel2,'diskWrite'), 'Write', if(eq(transforms.sel2,'none'), '', 'CPU')))))))))))"
+    },
+    "label2": {
+      "use": "assign",
+      "from": "if(eq(transforms.sel2,'cpuUser'), 'CPU user', if(eq(transforms.sel2,'cpuSystem'), 'CPU system', if(eq(transforms.sel2,'cpuCore'), 'Busiest core', if(eq(transforms.sel2,'memory'), 'Memory', if(eq(transforms.sel2,'pressure'), 'Memory pressure', if(eq(transforms.sel2,'swap'), 'Swap used', if(eq(transforms.sel2,'disk'), 'Disk', if(eq(transforms.sel2,'diskFree'), 'Disk free', if(eq(transforms.sel2,'diskRead'), 'Disk read', if(eq(transforms.sel2,'diskWrite'), 'Disk write', if(eq(transforms.sel2,'none'), '', 'CPU')))))))))))"
+    },
+    "precision2": {
+      "use": "assign",
+      "from": "if(eq(transforms.sel2,'cpuUser'), 0, if(eq(transforms.sel2,'cpuSystem'), 0, if(eq(transforms.sel2,'cpuCore'), 0, if(eq(transforms.sel2,'memory'), if(eq(if(or(eq(settings.menuBarMemoryDisplay,'used'), eq(settings.menuBarMemoryDisplay,'available')), 'bytes', 'percent'), 'bytes'), 1, 0), if(eq(transforms.sel2,'pressure'), 0, if(eq(transforms.sel2,'swap'), 1, if(eq(transforms.sel2,'disk'), 0, if(eq(transforms.sel2,'diskFree'), 0, if(eq(transforms.sel2,'diskRead'), 1, if(eq(transforms.sel2,'diskWrite'), 1, if(eq(transforms.sel2,'none'), 0, 0)))))))))))"
+    },
+    "isText2": {
+      "use": "assign",
+      "from": "eq(transforms.sel2,'pressure')"
+    },
+    "text2": {
+      "use": "assign",
+      "from": "if(transforms.isText2, if(eq(sources.data.memory.pressure,'critical'), 'Critical', if(eq(sources.data.memory.pressure,'warning'), 'Warning', if(eq(sources.data.memory.pressure,'normal'), 'Normal', '—'))), if(eq(transforms.number2, null), '—', if(eq(transforms.format2,'percent'), concat(string(round(number(transforms.number2), 0)), '%'), if(eq(transforms.format2,'bytesPerSecond'), concat(string(round(div(number(transforms.number2), 1000000), 1)), ' MB/s'), concat(string(round(div(number(transforms.number2), 1000000000), transforms.precision2)), ' GB')))))"
+    },
+    "hasSecond": {
+      "use": "assign",
+      "from": "and(ne(transforms.sel2, 'none'), or(transforms.isText2, ne(transforms.number2, null)))"
+    },
+    "tint1": {
+      "use": "assign",
+      "from": "if(transforms.isText1, if(eq(sources.data.memory.pressure,'critical'), 'danger', if(eq(sources.data.memory.pressure,'warning'), 'warning', '')), if(and(and(eq(transforms.format1,'percent'), or(eq(transforms.sel1,'cpu'), or(eq(transforms.sel1,'memory'), eq(transforms.sel1,'disk')))), gt(number(transforms.number1), 90)), 'danger', if(and(and(eq(transforms.format1,'percent'), or(eq(transforms.sel1,'cpu'), or(eq(transforms.sel1,'memory'), eq(transforms.sel1,'disk')))), gt(number(transforms.number1), 75)), 'warning', '')))"
+    },
+    "tint2": {
+      "use": "assign",
+      "from": "if(transforms.isText2, if(eq(sources.data.memory.pressure,'critical'), 'danger', if(eq(sources.data.memory.pressure,'warning'), 'warning', '')), '')"
+    }
+  },
   "view": {
     "action": {
       "type": "openApp",
@@ -154,17 +232,30 @@
     ]
   },
   "status": {
-    "label": "${if(and(eq(settings.menuBarMetric,'memory'), eq(settings.menuBarMemoryDisplay,'used')), concat(string(round(div(number(sources.data.memory.used),1000000000),1)), ' GB'), if(and(eq(settings.menuBarMetric,'memory'), eq(settings.menuBarMemoryDisplay,'available')), concat(string(round(div(number(sources.data.memory.free),1000000000),1)), ' GB'), concat(string(round(number(if(eq(settings.menuBarMetric,'memory'), sources.data.memory.usage, if(eq(settings.menuBarMetric,'disk'), sources.data.disk.usage, sources.data.cpu.usage))), 0)), '%')))}",
-    "tooltip": "CPU ${string(round(number(sources.data.cpu.usage), 0))}% · Memory ${string(round(number(sources.data.memory.usage), 0))}% · Disk ${string(round(number(sources.data.disk.usage), 0))}%",
-    "prefix": "${if(eq(settings.menuBarMetric,'memory'), 'RAM', if(eq(settings.menuBarMetric,'disk'), 'Disk', 'CPU'))}",
-    "tint": "${if(gt(if(eq(settings.menuBarMetric,'memory'), sources.data.memory.usage, if(eq(settings.menuBarMetric,'disk'), sources.data.disk.usage, sources.data.cpu.usage)), 90), 'danger', if(gt(if(eq(settings.menuBarMetric,'memory'), sources.data.memory.usage, if(eq(settings.menuBarMetric,'disk'), sources.data.disk.usage, sources.data.cpu.usage)), 75), 'warning', ''))}",
+    "label": "${transforms.text1}",
+    "tooltip": "CPU ${string(round(number(sources.data.cpu.usage), 0))}% · Memory ${string(round(number(sources.data.memory.usage), 0))}% · Disk ${string(round(number(sources.data.disk.usage), 0))}%${if(transforms.hasSecond, concat(' · ', transforms.label2, ' ', transforms.text2), '')}",
+    "prefix": "${transforms.prefix1}",
+    "tint": "${transforms.tint1}",
     "metrics": [
       {
-        "id": "${if(eq(settings.menuBarMetric,'memory'), 'memory', if(eq(settings.menuBarMetric,'disk'), 'disk', 'cpu'))}",
-        "label": "${if(eq(settings.menuBarMetric,'memory'), 'RAM', if(eq(settings.menuBarMetric,'disk'), 'Disk', 'CPU'))}",
-        "number": "${if(eq(settings.menuBarMetric,'memory'), if(eq(settings.menuBarMemoryDisplay,'used'), sources.data.memory.used, if(eq(settings.menuBarMemoryDisplay,'available'), sources.data.memory.free, sources.data.memory.usage)), if(eq(settings.menuBarMetric,'disk'), sources.data.disk.usage, sources.data.cpu.usage))}",
-        "format": "${if(and(eq(settings.menuBarMetric,'memory'), or(eq(settings.menuBarMemoryDisplay,'used'), eq(settings.menuBarMemoryDisplay,'available'))), 'bytes', 'percent')}",
-        "precision": "${if(and(eq(settings.menuBarMetric,'memory'), or(eq(settings.menuBarMemoryDisplay,'used'), eq(settings.menuBarMemoryDisplay,'available'))), 1, 0)}"
+        "id": "${transforms.sel1}",
+        "label": "${transforms.prefix1}",
+        "value": "${if(transforms.isText1, transforms.text1, '')}",
+        "number": "${transforms.number1}",
+        "format": "${transforms.format1}",
+        "precision": "${transforms.precision1}",
+        "tint": "${transforms.tint1}",
+        "accessibilityLabel": "${concat(transforms.label1, ' ', transforms.text1)}"
+      },
+      {
+        "id": "${if(transforms.hasSecond, transforms.sel2, '')}",
+        "label": "${if(transforms.hasSecond, transforms.prefix2, '')}",
+        "value": "${if(transforms.hasSecond, if(transforms.isText2, transforms.text2, ''), '')}",
+        "number": "${if(transforms.hasSecond, transforms.number2, null)}",
+        "format": "${if(transforms.hasSecond, transforms.format2, '')}",
+        "precision": "${if(transforms.hasSecond, transforms.precision2, 0)}",
+        "tint": "${if(transforms.hasSecond, transforms.tint2, '')}",
+        "accessibilityLabel": "${if(transforms.hasSecond, concat(transforms.label2, ' ', transforms.text2), '')}"
       }
     ]
   }
