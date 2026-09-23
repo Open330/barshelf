@@ -268,12 +268,16 @@
     "uiNodeTemplate": {
       "description": "A UINode template. String fields may contain ${...} interpolation. children/items can be arrays or a forEach template object.",
       "type": "object",
-      "required": [
-        "type"
+      "anyOf": [
+        { "required": ["type"] },
+        { "required": ["switch"] }
       ],
       "properties": {
         "type": {
           "type": "string"
+        },
+        "switch": {
+          "$ref": "#/definitions/templateString"
         },
         "children": {
           "$ref": "#/definitions/nodeCollectionTemplate"
@@ -445,18 +449,91 @@
           "description": "SF Symbol for this refresh, overriding `statusItem.icon`. Lets an icon follow a value \u2014 a battery moving between `battery.25` and `battery.100`, say \u2014 which a fixed manifest field cannot."
         },
         "tint": {
-          "type": "string",
-          "enum": [
-            "accent",
-            "good",
-            "warning",
-            "danger",
-            "secondary"
-          ],
+          "$ref": "#/definitions/templateString",
           "description": "Colour for this refresh, from the same vocabulary the view layer uses. Omit it for the menu bar's own colour, which also keeps the item a template image \u2014 it then follows a light or dark bar and inverts while held open, neither of which a fixed colour can do."
+        },
+        "metrics": {
+          "description": "Up to two independently active menu-bar metrics. Labels and values are templates; an active metric can be rendered as an activity dot when its value is empty.",
+          "type": "array",
+          "maxItems": 2,
+          "items": {
+            "$ref": "#/definitions/statusMetric"
+          }
+        },
+        "presentation": {
+          "$ref": "#/definitions/statusPresentation"
         }
       },
       "additionalProperties": true
+    },
+    "statusMetric": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/definitions/templateString", "description": "Stable id for ordering and per-metric presentation overrides." },
+        "label": { "$ref": "#/definitions/templateString", "description": "Short visible label. Defaults to an empty string." },
+        "value": { "$ref": "#/definitions/templateString", "description": "Visible reading. Defaults to an empty string." },
+        "number": {
+          "oneOf": [
+            { "$ref": "#/definitions/templateNumber" },
+            { "type": "null" }
+          ],
+          "description": "Machine-readable finite numeric value; null is an unknown reading."
+        },
+        "format": { "$ref": "#/definitions/templateString", "description": "decimal, percent (0–100), bytes, or bytesPerSecond. Byte units use SI base 1000." },
+        "unit": { "$ref": "#/definitions/templateString", "description": "Optional unit appended to a decimal metric." },
+        "precision": { "$ref": "#/definitions/metricPrecision", "description": "0 through 3 decimal places." },
+        "tint": {
+          "$ref": "#/definitions/templateString",
+          "description": "Optional semantic tint: accent, good, warning, danger, or secondary."
+        },
+        "active": {
+          "oneOf": [
+            { "type": "boolean" },
+            { "$ref": "#/definitions/templateString" }
+          ],
+          "description": "Optional activity state. A template must resolve to a boolean."
+        },
+        "accessibilityLabel": {
+          "$ref": "#/definitions/templateString",
+          "description": "Spoken description for this metric, including a value when the visible value is intentionally hidden."
+        }
+      },
+      "additionalProperties": false
+    },
+    "statusPresentation": {
+      "description": "Sparse per-render defaults. User preferences win over these values, which win over statusItem.presentation. Boolean and numeric fields may be literal or ${...} templates.",
+      "type": "object",
+      "properties": {
+        "showValues": { "$ref": "#/definitions/templateBoolean" },
+        "showUnits": { "$ref": "#/definitions/templateBoolean" },
+        "precision": { "$ref": "#/definitions/metricPrecision" },
+        "color": { "$ref": "#/definitions/templateString" },
+        "valueWidth": { "$ref": "#/definitions/templateNumber" },
+        "metricOrder": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/stableMetricId" },
+          "uniqueItems": true
+        },
+        "metricOverrides": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/definitions/stableMetricId" },
+          "additionalProperties": { "$ref": "#/definitions/menuBarMetricOverride" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "menuBarMetricOverride": {
+      "type": "object",
+      "properties": {
+        "label": { "type": "string" },
+        "hidden": { "type": "boolean" },
+        "tint": { "type": "string", "enum": ["accent", "good", "warning", "danger", "secondary"] }
+      },
+      "additionalProperties": false
+    },
+    "stableMetricId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$"
     },
     "jsonPath": {
       "description": "JSONPath-like path such as $.sources.files.items or $.transforms.visible.",
@@ -475,6 +552,18 @@
         {
           "$ref": "#/definitions/templateString"
         }
+      ]
+    },
+    "templateBoolean": {
+      "oneOf": [
+        { "type": "boolean" },
+        { "$ref": "#/definitions/templateString" }
+      ]
+    },
+    "metricPrecision": {
+      "oneOf": [
+        { "type": "integer", "minimum": 0, "maximum": 3 },
+        { "$ref": "#/definitions/templateString" }
       ]
     },
     "templateNumber": {
@@ -500,18 +589,27 @@
               "cpu",
               "memory",
               "disk",
-              "sensors"
+              "sensors",
+              "network"
             ]
           },
           "uniqueItems": true
         },
         "detail": {
           "description": "Also emit cpu.cores[] and sensors.list[]. Roughly 4x the cost of a plain sample.",
-          "type": "boolean"
+          "$ref": "#/definitions/templateBoolean"
+        },
+        "sensors": {
+          "description": "A sensor key or `all`; may be a template so a menu-bar setting can narrow the sample.",
+          "$ref": "#/definitions/templateString"
         },
         "mount": {
           "description": "Mount point the disk group reports on. Defaults to \"/\".",
-          "type": "string"
+          "$ref": "#/definitions/templateString"
+        },
+        "interface": {
+          "description": "Network interface to sample. Omit it (or use all) to aggregate physical interfaces.",
+          "$ref": "#/definitions/templateString"
         }
       },
       "additionalProperties": true

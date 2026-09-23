@@ -144,7 +144,7 @@ struct WidgetSettingsView: View {
     private var previewEntry: MenuBarEntry {
         let statusItem = MenuBarPolicy.effectiveStatusItem(widget.manifest.statusItem)
         let snapshot = runtime.snapshots[widget.id]
-        return MenuBarEntry(
+        let entry = MenuBarEntry(
             widgetID: widget.id,
             name: widget.displayName,
             symbol: statusItem.showsIcon
@@ -164,8 +164,18 @@ struct WidgetSettingsView: View {
             // A widget that has never run has nothing to show, so the preview
             // stands in rather than rendering an empty box.
             label: statusItem.showsLabel
-                ? (MenuBarPolicy.normalizedLabel(snapshot?.statusLabel) ?? "42%") : nil
+                ? (MenuBarPolicy.normalizedLabel(snapshot?.statusLabel) ?? "42%") : nil,
+            metrics: snapshot?.statusMetrics ?? []
         )
+        // The preview intentionally goes through the production resolver. A
+        // draft is still only local state, but it must answer the same
+        // presentation questions as the status item will after Save.
+        let presentation = MenuBarPolicy.resolvedPresentation(
+            user: menuBarDraft.presentation,
+            live: snapshot?.statusPresentation,
+            manifest: statusItem.presentation
+        )
+        return MenuBarPolicy.applyingPresentation(presentation, to: entry)
     }
 
     private var effectiveStyle: MenuBarStyle {
@@ -177,7 +187,7 @@ struct WidgetSettingsView: View {
     /// Two rows cannot be drawn into the shared strip, so choosing the stacked
     /// layout takes the widget's own item whether or not the user picked that.
     private var stackedForcesOwnItem: Bool {
-        effectiveStyle == .stacked && canShareStrip
+        (effectiveStyle == .stacked || effectiveStyle == .metrics) && canShareStrip
     }
 
     private var usesOwnItem: Bool {
@@ -221,8 +231,9 @@ struct WidgetSettingsView: View {
         HStack(spacing: 8) {
             Text("Preview").font(.caption).foregroundStyle(.secondary)
                 .frame(width: 52, alignment: .leading)
-            Image(nsImage: MenuBarController.previewImage(for: previewEntry))
-                .renderingMode(previewEntry.tint == nil ? .template : .original)
+            let image = MenuBarController.previewImage(for: previewEntry)
+            Image(nsImage: image)
+                .renderingMode(image.isTemplate ? .template : .original)
                 .padding(.horizontal, 6)
                 .frame(height: 24)
                 .background(
@@ -284,9 +295,10 @@ struct WidgetSettingsView: View {
                 .labelsHidden()
             }
 
-            GridRow {
-                settingsRowLabel("Label")
-                VStack(alignment: .leading, spacing: 4) {
+            if effectiveStyle != .metrics {
+                GridRow {
+                    settingsRowLabel("Label")
+                    VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
                         // Same three-state problem the icon has: "" is no
                         // label, nil is the widget's own, and a text field
@@ -304,11 +316,12 @@ struct WidgetSettingsView: View {
                         .frame(width: 150)
                         .disabled(menuBarDraft.label == "")
                     }
-                    settingsHint(
-                        effectiveStyle == .stacked
+                        settingsHint(
+                            effectiveStyle == .stacked
                             ? "Drawn above the value. Uncheck for the value alone."
                             : "Drawn before the value. Uncheck for the value alone."
-                    )
+                        )
+                    }
                 }
             }
 
@@ -338,6 +351,272 @@ struct WidgetSettingsView: View {
                     settingsHint("An SF Symbol name or an emoji. Uncheck for no icon.")
                 }
             }
+
+            if !editableMetricRows.isEmpty {
+                GridRow {
+                    settingsRowLabel("Metrics")
+                    metricPresentationControls
+                }
+            }
+
+            if menuBarDraft.presentation != nil {
+                GridRow {
+                    settingsRowLabel("Presentation")
+                    Button("Reset menu presentation") { menuBarDraft.presentation = nil }
+                        .controlSize(.small)
+                }
+            }
+        }
+    }
+
+    /// All layouts can render structured readings. Row-specific controls only
+    /// affect the dedicated metric-row layout.
+    @ViewBuilder
+    private var metricPresentationControls: some View {
+        let rows = editableMetricRows
+        if rows.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                settingsHint("This widget has no metric rows to customize yet.")
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                metricFormatControls(rows.map(\.metric))
+                if effectiveStyle == .metrics {
+                    Divider()
+                    ForEach(Array(rows.enumerated()), id: \.element.key) { offset, row in
+                        metricRow(row.metric, key: row.key, at: offset, rows: rows)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Keep fallback `row:n` keys attached to the original payload position.
+    /// The visible editor then follows a stored order without changing what a
+    /// later refresh means by an id-less row.
+    private var editableMetricRows: [(key: String, metric: StatusMetric)] {
+        let source = MenuBarPolicy.normalizedMetrics(runtime.snapshots[widget.id]?.statusMetrics ?? [])
+        let rows = source.enumerated().map { index, metric in
+            (key: metric.id?.isEmpty == false ? metric.id! : "row:\(index)", metric: metric, sourceIndex: index)
+        }
+        let ranks = Dictionary(uniqueKeysWithValues: (menuBarDraft.presentation?.metricOrder ?? [])
+            .enumerated().map { ($1, $0) })
+        return rows.sorted { lhs, rhs in
+            let leftRank = ranks[lhs.key] ?? Int.max
+            let rightRank = ranks[rhs.key] ?? Int.max
+            return leftRank == rightRank ? lhs.sourceIndex < rhs.sourceIndex : leftRank < rightRank
+        }.map { (key: $0.key, metric: $0.metric) }
+    }
+
+    private func metricFormatControls(_ metrics: [StatusMetric]) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Toggle("Show values", isOn: presentationBoolBinding(\.showValues))
+            Toggle("Show units", isOn: presentationBoolBinding(\.showUnits))
+
+            if metrics.contains(where: { $0.number != nil || $0.format != nil }) {
+                HStack(spacing: 8) {
+                    Text("Decimals").font(.caption).foregroundStyle(.secondary)
+                    Picker("", selection: precisionBinding) {
+                        Text("Auto").tag(-1)
+                        Text("0").tag(0)
+                        Text("1").tag(1)
+                        Text("2").tag(2)
+                        Text("3").tag(3)
+                    }
+                    .labelsHidden()
+                    .frame(width: 105)
+                    if effectiveStyle == .metrics {
+                        Text("Minimum width").font(.caption).foregroundStyle(.secondary)
+                        TextField("Auto", text: valueWidthTextBinding)
+                            .frame(width: 48)
+                        Text("pt").font(.caption2).foregroundStyle(.tertiary)
+                    }
+                }
+                if effectiveStyle == .metrics {
+                    settingsHint("Minimum width is 32–120 pt. Content may exceed it; leave blank for automatic sizing.")
+                }
+            } else {
+                settingsHint("This widget supplies text readings, so decimal controls do not apply.")
+            }
+
+            HStack(spacing: 8) {
+                Text("Color").font(.caption).foregroundStyle(.secondary)
+                Picker("", selection: colorBinding) {
+                    Text("Automatic").tag("automatic")
+                    Text("Monochrome").tag("monochrome")
+                    Text("Accent").tag("accent")
+                    Text("Good").tag("good")
+                    Text("Warning").tag("warning")
+                    Text("Danger").tag("danger")
+                    Text("Secondary").tag("secondary")
+                }
+                .labelsHidden()
+                .frame(width: 130)
+            }
+            settingsHint("Automatic keeps the widget's color; monochrome follows the menu bar.")
+        }
+    }
+
+    private func metricRow(
+        _ metric: StatusMetric, key: String, at offset: Int,
+        rows: [(key: String, metric: StatusMetric)]
+    ) -> some View {
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Toggle("", isOn: metricHiddenBinding(key))
+                    .toggleStyle(.checkbox)
+                    .labelsHidden()
+                    .accessibilityLabel("Show \(metricRowTitle(metric, offset: offset))")
+                TextField(metricRowTitle(metric, offset: offset), text: metricLabelBinding(key))
+                    .frame(width: 108)
+                Picker("", selection: metricTintBinding(key)) {
+                    Text("Auto").tag("automatic")
+                    Text("Monochrome").tag("monochrome")
+                    Text("Accent").tag("accent")
+                    Text("Good").tag("good")
+                    Text("Warning").tag("warning")
+                    Text("Danger").tag("danger")
+                    Text("Secondary").tag("secondary")
+                }
+                .labelsHidden()
+                .frame(width: 104)
+                Button("↑") { moveMetric(key, by: -1, rows: rows) }
+                    .disabled(offset == 0)
+                Button("↓") { moveMetric(key, by: 1, rows: rows) }
+                    .disabled(offset == rows.count - 1)
+            }
+        }
+    }
+
+    private func metricRowTitle(_ metric: StatusMetric, offset: Int) -> String {
+        metric.label.isEmpty ? "Metric \(offset + 1)" : metric.label
+    }
+
+    private var inheritedPresentation: MenuBarPresentation {
+        let statusItem = MenuBarPolicy.effectiveStatusItem(widget.manifest.statusItem)
+        return MenuBarPolicy.resolvedPresentation(
+            user: nil,
+            live: runtime.snapshots[widget.id]?.statusPresentation,
+            manifest: statusItem.presentation
+        )
+    }
+
+    private func presentationBoolBinding(_ keyPath: WritableKeyPath<MenuBarPresentation, Bool?>) -> Binding<Bool> {
+        Binding(
+            get: { menuBarDraft.presentation?[keyPath: keyPath] ?? inheritedPresentation[keyPath: keyPath] ?? true },
+            set: { newValue in
+                setPresentation { presentation in
+                    let inherited = inheritedPresentation[keyPath: keyPath] ?? true
+                    presentation[keyPath: keyPath] = newValue == inherited ? nil : newValue
+                }
+            }
+        )
+    }
+
+    private var precisionBinding: Binding<Int> {
+        Binding(
+            get: { menuBarDraft.presentation?.precision ?? -1 },
+            set: { newValue in setPresentation { $0.precision = newValue < 0 ? nil : newValue } }
+        )
+    }
+
+    private var colorBinding: Binding<String> {
+        Binding(
+            get: { menuBarDraft.presentation?.color ?? "automatic" },
+            set: { newValue in setPresentation { $0.color = newValue == "automatic" ? nil : newValue } }
+        )
+    }
+
+    private var valueWidthTextBinding: Binding<String> {
+        Binding(
+            get: {
+                guard let width = menuBarDraft.presentation?.valueWidth else { return "" }
+                return String(Int(width.rounded()))
+            },
+            set: { text in
+                let trimmed = text.trimmingCharacters(in: .whitespaces)
+                guard !trimmed.isEmpty else {
+                    setPresentation { $0.valueWidth = nil }
+                    return
+                }
+                guard let width = Double(trimmed), width.isFinite else { return }
+                setPresentation { $0.valueWidth = min(120, max(32, width)) }
+            }
+        )
+    }
+
+    private func metricHiddenBinding(_ key: String) -> Binding<Bool> {
+        Binding(
+            get: { !(resolvedMetricOverride(key)?.hidden ?? false) },
+            set: { shown in
+                let inheritedHidden = inheritedMetricOverride(key)?.hidden ?? false
+                setMetricOverride(key) { override in
+                    // A visible row still needs an explicit `false` when an
+                    // author or live update hid it by default.
+                    override.hidden = shown ? (inheritedHidden ? false : nil) : true
+                }
+            }
+        )
+    }
+
+    private func metricLabelBinding(_ key: String) -> Binding<String> {
+        Binding(
+            get: { resolvedMetricOverride(key)?.label ?? "" },
+            set: { label in
+                let inherited = inheritedMetricOverride(key)?.label
+                setMetricOverride(key) { $0.label = label == inherited ? nil : label }
+            }
+        )
+    }
+
+    private func metricTintBinding(_ key: String) -> Binding<String> {
+        Binding(
+            get: { resolvedMetricOverride(key)?.tint ?? "automatic" },
+            set: { tint in
+                let inherited = inheritedMetricOverride(key)?.tint
+                setMetricOverride(key) { $0.tint = tint == "automatic" || tint == inherited ? nil : tint }
+            }
+        )
+    }
+
+    /// Resolve each sparse row independently. A draft that changes one row
+    /// must not make another row forget its live or author-supplied default.
+    private func resolvedMetricOverride(_ key: String) -> MenuBarMetricOverride? {
+        let statusItem = MenuBarPolicy.effectiveStatusItem(widget.manifest.statusItem)
+        return MenuBarPolicy.resolvedPresentation(
+            user: menuBarDraft.presentation,
+            live: runtime.snapshots[widget.id]?.statusPresentation,
+            manifest: statusItem.presentation
+        ).metricOverrides?[key]
+    }
+
+    private func inheritedMetricOverride(_ key: String) -> MenuBarMetricOverride? {
+        inheritedPresentation.metricOverrides?[key]
+    }
+
+    private func setPresentation(_ change: (inout MenuBarPresentation) -> Void) {
+        var presentation = menuBarDraft.presentation ?? MenuBarPresentation()
+        change(&presentation)
+        menuBarDraft.presentation = presentation
+    }
+
+    private func setMetricOverride(_ key: String, _ change: (inout MenuBarMetricOverride) -> Void) {
+        setPresentation { presentation in
+            var override = presentation.metricOverrides?[key] ?? MenuBarMetricOverride()
+            change(&override)
+            if presentation.metricOverrides == nil { presentation.metricOverrides = [:] }
+            presentation.metricOverrides?[key] = override
+        }
+    }
+
+    private func moveMetric(_ key: String, by delta: Int, rows: [(key: String, metric: StatusMetric)]) {
+        setPresentation { presentation in
+            var order = presentation.metricOrder ?? rows.map(\.key)
+            guard let index = order.firstIndex(of: key) else { return }
+            let destination = index + delta
+            guard order.indices.contains(destination) else { return }
+            order.swapAt(index, destination)
+            presentation.metricOrder = order
         }
     }
 

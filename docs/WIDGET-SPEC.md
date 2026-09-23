@@ -158,11 +158,19 @@ Workflow DSL 상세 계약은 [`docs/WORKFLOW.md`](WORKFLOW.md)를 따른다.
 | `mode` | `none`은 메뉴바에 넣지 않는다. `text`는 status label만, `icon`은 아이콘만, `dynamic`은 둘 다. `none`이 아니면 *승격 가능*해져 메뉴바 선택 목록에 오르지만, **사용자가 켜기 전에는 아무것도 표시되지 않는다**. 켜는 곳은 BarShelf 아이콘 우클릭의 **Menu Bar ▸** 또는 위젯 설정의 Menu Bar 섹션이다. |
 | `icon` | status item 아이콘(SF Symbol 이름). 없으면 manifest의 `icon`을 쓴다. 사용자가 SF Symbol 이름이나 **이모지**로 덮어쓰거나 아예 끌 수 있다. |
 | `label` | 값 앞에 그릴 기본 텍스트(`CPU 23%`의 `CPU`). 워크플로의 `status.prefix`가 이보다 우선하고, 사용자 설정이 둘 다 이긴다. |
-| `style` | `inline`은 값 옆에, `stacked`는 값 **위에** 작게 라벨을 둔다(시스템 모니터가 메뉴바 높이에 두 줄을 넣는 방식). `stacked`는 위젯 전용 status item을 필요로 하므로 자동으로 분리된다. |
+| `style` | `inline`은 값 옆에, `stacked`는 값 **위에** 작게 라벨을 둔다(시스템 모니터가 메뉴바 높이에 두 줄을 넣는 방식). `metrics`는 최대 두 개의 독립 metric을 나란히 그리는 전용 status item이다. |
+| `presentation` | 작성자 기본 표시값. `showValues`, `showUnits`, `precision`(0–3), `color`(`automatic`/`monochrome`/semantic tint), `valueWidth`(32–120pt), stable metric id의 `metricOrder`, `metricOverrides`를 둔다. 사용자 설정과 각 refresh의 status.presentation이 더 우선한다. |
 | `labelFrom` | 스키마 호환용. 현재 런타임은 읽지 않는다. |
 | `tooltipFrom` | 스키마 호환용. 현재 런타임은 읽지 않는다. |
 
 표시 규칙:
+
+- structured metric은 `id`, `number`, `format`, `unit`, `precision`을 사용할 수 있다.
+  `format`은 `decimal`, `percent`(0–100), `bytes`, `bytesPerSecond`이고 byte는 SI 1000 단위다.
+  `number: null`은 알 수 없는 값이며 0으로 바뀌지 않는다. `value`는 텍스트 상태에 쓴다.
+- 기본값 우선순위는 사용자 설정 → render/workflow `status.presentation` →
+  manifest `statusItem.presentation`이다. 따라서 CPU, RAM, Power처럼 한 위젯의
+  여러 측정값도 사용자가 숨김·순서·라벨·tint를 독립적으로 고를 수 있다.
 
 - 메뉴바에 나오는 글자는 위젯이 이미 계산하는 값이다 — workflow의 `status.label`,
   script의 `host.render` status. 그래서 `labelFrom`/`tooltipFrom`으로 고를 것이
@@ -191,7 +199,7 @@ Workflow DSL 상세 계약은 [`docs/WORKFLOW.md`](WORKFLOW.md)를 따른다.
 | `network` | 예약. 네트워크 접근 선언용 배열. |
 | `readPaths` | 파일 접근의 유일한 정식 권한 선언. `fs.directory`, 파일 썸네일·드래그·열기/Finder 표시가 접근할 수 있는 루트 경로 배열이다. `fs.directory` 목록과 `watch: true` 감시는 승인된 디렉터리 핸들에 묶여 심볼릭 링크 교체로 다른 위치를 가리킬 수 없다. |
 | `storage` | script storage quota와 secret 허용 여부 선언. 스키마의 정식 형식은 `{ "maxBytes": 1048576, "secrets": false }`다. |
-| `system` | workflow `system` source가 읽을 수 있는 측정 그룹 배열: `cpu`, `memory`, `disk`, `sensors`. 선언하지 않은 그룹을 읽으면 refresh가 실패한다. 서브프로세스도 파일 접근도 없으므로 `exec`/`readPaths`는 필요 없다. |
+| `system` | workflow `system` source가 읽을 수 있는 측정 그룹 배열: `cpu`, `memory`, `disk`, `sensors`, `network`. 선언하지 않은 그룹을 읽으면 refresh가 실패한다. 서브프로세스도 파일 접근도 없으므로 `exec`/`readPaths`는 필요 없다. |
 | `notifications` | `true`이면 script 런타임의 `host.notify.show` 요청을 허용한다. |
 | `env` | 호스트가 읽거나 source 명령 탐색에 사용할 수 있는 환경 변수 이름. |
 | `keychain` | Keychain 조회 허용 여부. otpeek vault password 주입에 사용한다. |

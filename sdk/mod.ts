@@ -59,7 +59,87 @@ export interface RenderStatus {
    * item is held open; a fixed colour does neither.
    */
   tint?: "accent" | "good" | "warning" | "danger" | "secondary";
+  /** Up to two compact, independently active menu-bar readings. */
+  metrics?: StatusMetric[];
+  /** Per-render defaults. User settings override these, then manifest defaults. */
+  presentation?: MenuBarPresentation;
 }
+
+export type StatusMetricFormat =
+  | "decimal"
+  | "percent"
+  | "bytes"
+  | "bytesPerSecond";
+export type MetricPrecision = 0 | 1 | 2 | 3;
+/** `automatic`, `monochrome`, or a semantic tint such as `warning`. */
+export type MenuBarColor = "automatic" | "monochrome" | StatusMetricTint;
+export type StatusMetricTint =
+  | "accent"
+  | "good"
+  | "warning"
+  | "danger"
+  | "secondary";
+
+export interface MenuBarMetricOverride {
+  label?: string;
+  hidden?: boolean;
+  tint?: StatusMetricTint;
+}
+
+/**
+ * Sparse menu-bar presentation defaults. The host resolves every field in
+ * user preference → render status → manifest order, so omit fields you do not
+ * own. `color` is `automatic`, `monochrome`, or a semantic tint.
+ */
+export interface MenuBarPresentation {
+  showValues?: boolean;
+  showUnits?: boolean;
+  precision?: MetricPrecision;
+  color?: MenuBarColor;
+  valueWidth?: number;
+  metricOrder?: string[];
+  metricOverrides?: Record<string, MenuBarMetricOverride>;
+}
+
+export interface StatusMetric {
+  /** Stable id for ordering and per-metric preferences. */
+  id?: string;
+  /** Short visible label, such as "↓" or "Disk". */
+  label?: string;
+  /** Visible reading. It may be empty when `active` is used as an activity dot. */
+  value?: string;
+  /** Machine-readable value. Null means the metric is currently unknown. */
+  number?: number | null;
+  /** Defaults to `decimal` for a numeric metric. */
+  format?: StatusMetricFormat;
+  /** Optional unit appended to a decimal metric. */
+  unit?: string;
+  /** Per-metric decimal places (0 through 3). */
+  precision?: MetricPrecision;
+  tint?: StatusMetricTint;
+  active?: boolean;
+  /** Spoken description when the compact presentation hides the value. */
+  accessibilityLabel?: string;
+}
+
+export interface MenuBarMetricOptions {
+  label?: string;
+  format?: StatusMetricFormat;
+  unit?: string;
+  precision?: MetricPrecision;
+  tint?: StatusMetricTint;
+  active?: boolean;
+  accessibilityLabel?: string;
+}
+
+export interface MenuBarTextMetricOptions {
+  label?: string;
+  tint?: StatusMetricTint;
+  active?: boolean;
+  accessibilityLabel?: string;
+}
+
+export type MenuBarStatusOptions = Omit<RenderStatus, "metrics">;
 
 export interface RenderOptions {
   status?: RenderStatus;
@@ -729,6 +809,176 @@ export const ui = {
   },
 };
 
+const menuBarIdPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
+const statusMetricFormats: readonly StatusMetricFormat[] = [
+  "decimal",
+  "percent",
+  "bytes",
+  "bytesPerSecond",
+];
+const statusMetricTints: readonly StatusMetricTint[] = [
+  "accent",
+  "good",
+  "warning",
+  "danger",
+  "secondary",
+];
+const menuBarColors: readonly MenuBarColor[] = [
+  "automatic",
+  "monochrome",
+  "accent",
+  "good",
+  "warning",
+  "danger",
+  "secondary",
+];
+
+function menuBarError(message: string): never {
+  throw new TypeError(`barshelf.menuBar: ${message}`);
+}
+
+function validateMenuBarId(id: string, field = "metric id"): void {
+  if (typeof id !== "string" || !menuBarIdPattern.test(id)) {
+    menuBarError(
+      `${field} must be a stable id (letters/digits followed by letters, digits, ., _, or -; max 100 characters)`,
+    );
+  }
+}
+
+function validatePrecision(precision: unknown, field = "precision"): void {
+  if (
+    precision !== undefined &&
+    (typeof precision !== "number" || !Number.isInteger(precision) ||
+      precision < 0 || precision > 3)
+  ) {
+    menuBarError(`${field} must be an integer from 0 through 3`);
+  }
+}
+
+function validateMetric(metric: StatusMetric): void {
+  if (!metric || typeof metric !== "object") {
+    menuBarError("each metric must be an object");
+  }
+  if (metric.id !== undefined) validateMenuBarId(metric.id);
+  if (metric.value !== undefined && typeof metric.value !== "string") {
+    menuBarError("text metric value must be a string");
+  }
+  if (
+    metric.number !== undefined &&
+    metric.number !== null &&
+    (typeof metric.number !== "number" || !Number.isFinite(metric.number))
+  ) {
+    menuBarError("numeric metric value must be a finite number or null");
+  }
+  if (
+    metric.format !== undefined &&
+    !statusMetricFormats.includes(metric.format)
+  ) {
+    menuBarError("format must be decimal, percent, bytes, or bytesPerSecond");
+  }
+  validatePrecision(metric.precision, "metric precision");
+  if (metric.tint !== undefined && !statusMetricTints.includes(metric.tint)) {
+    menuBarError("metric tint must be accent, good, warning, danger, or secondary");
+  }
+}
+
+function validatePresentation(presentation: MenuBarPresentation): void {
+  validatePrecision(presentation.precision);
+  if (
+    presentation.valueWidth !== undefined &&
+    (!Number.isFinite(presentation.valueWidth) || presentation.valueWidth < 32 ||
+      presentation.valueWidth > 120)
+  ) {
+    menuBarError("valueWidth must be a finite number from 32 through 120");
+  }
+  if (presentation.color !== undefined && !menuBarColors.includes(presentation.color)) {
+    menuBarError("color must be automatic, monochrome, or a semantic tint");
+  }
+
+  const order = presentation.metricOrder;
+  if (order !== undefined) {
+    if (!Array.isArray(order)) menuBarError("metricOrder must be an array of metric ids");
+    const ids = new Set<string>();
+    for (const id of order) {
+      validateMenuBarId(id, "metricOrder id");
+      if (ids.has(id)) menuBarError(`metricOrder contains duplicate id ${id}`);
+      ids.add(id);
+    }
+  }
+
+  if (presentation.metricOverrides !== undefined) {
+    for (const [id, override] of Object.entries(presentation.metricOverrides)) {
+      validateMenuBarId(id, "metricOverrides id");
+      if (!override || typeof override !== "object") {
+        menuBarError(`metricOverrides.${id} must be an object`);
+      }
+      if (override.tint !== undefined && !statusMetricTints.includes(override.tint)) {
+        menuBarError(`metricOverrides.${id}.tint must be a semantic metric tint`);
+      }
+    }
+  }
+}
+
+/**
+ * Typed builders for a script widget's compact menu-bar status.
+ * Numeric values use SI (base-1000) byte units, percentages are 0–100, and
+ * null represents an unknown reading. User menu-bar preferences override
+ * render defaults, which override manifest defaults.
+ */
+export const menuBar = {
+  metric(
+    id: string,
+    number: number | null,
+    options: MenuBarMetricOptions = {},
+  ): StatusMetric {
+    validateMenuBarId(id);
+    if (number !== null && (typeof number !== "number" || !Number.isFinite(number))) {
+      menuBarError("numeric metric value must be a finite number or null");
+    }
+    const metric: StatusMetric = {
+      id,
+      number,
+      format: options.format ?? "decimal",
+      ...options,
+    };
+    validateMetric(metric);
+    return metric;
+  },
+
+  text(
+    id: string,
+    value: string,
+    options: MenuBarTextMetricOptions = {},
+  ): StatusMetric {
+    validateMenuBarId(id);
+    if (typeof value !== "string") menuBarError("text metric value must be a string");
+    const metric: StatusMetric = { id, value, ...options };
+    validateMetric(metric);
+    return metric;
+  },
+
+  status(
+    metrics: StatusMetric[] = [],
+    options: MenuBarStatusOptions = {},
+  ): RenderStatus {
+    if (!Array.isArray(metrics) || metrics.length > 2) {
+      menuBarError("status accepts at most two metrics");
+    }
+    const ids = new Set<string>();
+    for (const metric of metrics) {
+      validateMetric(metric);
+      if (metric.id !== undefined) {
+        if (ids.has(metric.id)) menuBarError(`status contains duplicate metric id ${metric.id}`);
+        ids.add(metric.id);
+      }
+    }
+    if (options.presentation !== undefined) {
+      validatePresentation(options.presentation);
+    }
+    return { ...options, metrics: [...metrics] };
+  },
+};
+
 type Awaitable<T> = T | Promise<T>;
 
 export interface WidgetRuntimeContext {
@@ -740,6 +990,7 @@ export interface WidgetRuntimeContext {
   notify: typeof notify;
   log: typeof log;
   ui: typeof ui;
+  menuBar: typeof menuBar;
   barshelf: typeof barshelf;
   bsf: typeof bsf;
   reload: () => Promise<void>;
@@ -869,6 +1120,7 @@ function makeContext<T extends object>(params: T): T & WidgetRuntimeContext {
     notify,
     log,
     ui,
+    menuBar,
     barshelf,
     bsf,
     reload: async () => {
@@ -1126,6 +1378,7 @@ function widget(newHandlers: WidgetHandlers): WidgetRegistration {
 export const barshelf = {
   widget,
   render,
+  menuBar,
   exec,
   storage,
   secret,

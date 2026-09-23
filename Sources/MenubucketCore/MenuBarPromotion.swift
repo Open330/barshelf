@@ -21,6 +21,8 @@ public enum MenuBarStyle: String, Codable, Equatable, Sendable, CaseIterable {
     /// menu bar's 22 points. Needs the widget's own status item — the shared
     /// strip is a single run of text — so choosing it implies one.
     case stacked
+    /// Up to two compact metric rows for related live readings.
+    case metrics
 
     public static let `default` = MenuBarStyle.inline
 
@@ -28,7 +30,150 @@ public enum MenuBarStyle: String, Codable, Equatable, Sendable, CaseIterable {
         switch self {
         case .inline: return "Label beside the value"
         case .stacked: return "Label above the value"
+        case .metrics: return "Two metric rows"
         }
+    }
+}
+
+/// One independently labelled live reading in a promoted widget.
+public struct StatusMetric: Codable, Equatable, Sendable {
+    /// Stable key used by per-metric presentation preferences.
+    public var id: String?
+    public var label: String
+    public var value: String
+    /// Machine-readable value. When supplied, the menu-bar formatter owns the
+    /// visible value; `value` remains the backwards-compatible wire field.
+    public var number: Double?
+    /// `decimal`, `percent`, `bytes`, or `bytesPerSecond`.
+    public var format: String?
+    public var unit: String?
+    public var precision: Int?
+    /// Semantic colour name from the RenderStatus tint vocabulary.
+    public var tint: String?
+    /// An activity indicator: filled when true, outlined when false, absent when nil.
+    public var active: Bool?
+    /// Spoken description for a terse or activity-only metric.
+    public var accessibilityLabel: String?
+
+    public init(
+        id: String? = nil,
+        label: String = "",
+        value: String = "",
+        number: Double? = nil,
+        format: String? = nil,
+        unit: String? = nil,
+        precision: Int? = nil,
+        tint: String? = nil,
+        active: Bool? = nil,
+        accessibilityLabel: String? = nil
+    ) {
+        self.id = id
+        self.label = label
+        self.value = value
+        self.number = number?.isFinite == true ? number : nil
+        self.format = Self.knownFormat(format)
+        self.unit = unit
+        self.precision = Self.validPrecision(precision)
+        self.tint = tint
+        self.active = active
+        self.accessibilityLabel = accessibilityLabel
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, label, value, number, format, unit, precision, tint, active, accessibilityLabel
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(String.self, forKey: .id)
+        label = try container.decodeIfPresent(String.self, forKey: .label) ?? ""
+        value = try container.decodeIfPresent(String.self, forKey: .value) ?? ""
+        let decodedNumber = try container.decodeIfPresent(Double.self, forKey: .number)
+        number = decodedNumber?.isFinite == true ? decodedNumber : nil
+        format = Self.knownFormat(try container.decodeIfPresent(String.self, forKey: .format))
+        unit = try container.decodeIfPresent(String.self, forKey: .unit)
+        precision = Self.validPrecision(try container.decodeIfPresent(Int.self, forKey: .precision))
+        tint = try container.decodeIfPresent(String.self, forKey: .tint)
+        active = try container.decodeIfPresent(Bool.self, forKey: .active)
+        accessibilityLabel = try container.decodeIfPresent(String.self, forKey: .accessibilityLabel)
+    }
+
+    static func knownFormat(_ raw: String?) -> String? {
+        guard let raw, ["decimal", "percent", "bytes", "bytesPerSecond"].contains(raw) else {
+            return nil
+        }
+        return raw
+    }
+
+    static func validPrecision(_ value: Int?) -> Int? {
+        guard let value, (0...3).contains(value) else { return nil }
+        return value
+    }
+}
+
+/// User and author supplied presentation choices for a promoted status item.
+/// Every property is optional so values can layer user → live → manifest.
+public struct MenuBarPresentation: Codable, Equatable, Sendable {
+    public var showValues: Bool?
+    public var showUnits: Bool?
+    public var precision: Int?
+    /// `automatic`, `monochrome`, or a `MenuBarTint` semantic name.
+    public var color: String?
+    public var valueWidth: Double?
+    public var metricOrder: [String]?
+    public var metricOverrides: [String: MenuBarMetricOverride]?
+
+    public init(showValues: Bool? = nil, showUnits: Bool? = nil, precision: Int? = nil,
+                color: String? = nil, valueWidth: Double? = nil,
+                metricOrder: [String]? = nil,
+                metricOverrides: [String: MenuBarMetricOverride]? = nil) {
+        self.showValues = showValues
+        self.showUnits = showUnits
+        self.precision = StatusMetric.validPrecision(precision)
+        self.color = Self.validColor(color)
+        self.valueWidth = Self.validWidth(valueWidth)
+        self.metricOrder = metricOrder.map { order in
+            var seen = Set<String>()
+            return order.filter { !($0.isEmpty || !seen.insert($0).inserted) }
+        }
+        self.metricOverrides = metricOverrides
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(showValues: try c.decodeIfPresent(Bool.self, forKey: .showValues),
+                  showUnits: try c.decodeIfPresent(Bool.self, forKey: .showUnits),
+                  precision: try c.decodeIfPresent(Int.self, forKey: .precision),
+                  color: try c.decodeIfPresent(String.self, forKey: .color),
+                  valueWidth: try c.decodeIfPresent(Double.self, forKey: .valueWidth),
+                  metricOrder: try c.decodeIfPresent([String].self, forKey: .metricOrder),
+                  metricOverrides: try c.decodeIfPresent([String: MenuBarMetricOverride].self, forKey: .metricOverrides))
+    }
+
+    static func validColor(_ color: String?) -> String? {
+        guard let color, color == "automatic" || color == "monochrome" || MenuBarTint.named(color) != nil else { return nil }
+        return color
+    }
+    static func validWidth(_ width: Double?) -> Double? {
+        guard let width, width.isFinite, (32...120).contains(width) else { return nil }
+        return width
+    }
+}
+
+public struct MenuBarMetricOverride: Codable, Equatable, Sendable {
+    public var label: String?
+    public var hidden: Bool?
+    public var tint: String?
+    public init(label: String? = nil, hidden: Bool? = nil, tint: String? = nil) {
+        self.label = label
+        self.hidden = hidden
+        self.tint = tint == "monochrome" ? tint : MenuBarTint.named(tint)?.rawValue
+    }
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(label: try c.decodeIfPresent(String.self, forKey: .label),
+                  hidden: try c.decodeIfPresent(Bool.self, forKey: .hidden),
+                  tint: try c.decodeIfPresent(String.self, forKey: .tint))
     }
 }
 
@@ -82,6 +227,8 @@ public struct MenuBarPlacement: Codable, Equatable, Sendable {
     public var label: String?
     /// Overrides the widget's own layout. Nil keeps it.
     public var style: MenuBarStyle?
+    /// User choices layered over live and manifest presentation defaults.
+    public var presentation: MenuBarPresentation?
 
     public init(
         enabled: Bool,
@@ -89,7 +236,8 @@ public struct MenuBarPlacement: Codable, Equatable, Sendable {
         order: Double? = nil,
         icon: String? = nil,
         label: String? = nil,
-        style: MenuBarStyle? = nil
+        style: MenuBarStyle? = nil,
+        presentation: MenuBarPresentation? = nil
     ) {
         self.enabled = enabled
         self.separate = separate
@@ -97,6 +245,7 @@ public struct MenuBarPlacement: Codable, Equatable, Sendable {
         self.icon = icon
         self.label = label
         self.style = style
+        self.presentation = presentation
     }
 
     /// Lenient decode so a prefs file written by an older build still loads.
@@ -110,6 +259,7 @@ public struct MenuBarPlacement: Codable, Equatable, Sendable {
         // An unknown style from a newer build reads as "no override" rather
         // than failing the whole prefs file.
         style = try? container.decodeIfPresent(MenuBarStyle.self, forKey: .style)
+        presentation = try? container.decodeIfPresent(MenuBarPresentation.self, forKey: .presentation)
     }
 }
 
@@ -136,12 +286,17 @@ public struct MenuBarEntry: Equatable, Sendable {
     /// Live text, or nil when the mode shows the icon only / nothing has been
     /// sampled yet.
     public var label: String?
+    /// Structured readings for the metrics layout. An empty array preserves
+    /// the legacy inline and stacked forms.
+    public var metrics: [StatusMetric]
     public var tooltip: String?
     /// True when the last successful sample is older than the widget's own
     /// refresh cadence allows — the value on screen is no longer current, so
     /// the strip dims it rather than passing off a frozen number as live.
     public var isStale: Bool
     public var separate: Bool
+    /// Fully resolved display configuration used by the renderer.
+    public var presentation: MenuBarPresentation
 
     public init(
         widgetID: String,
@@ -152,9 +307,11 @@ public struct MenuBarEntry: Equatable, Sendable {
         style: MenuBarStyle = .default,
         tint: MenuBarTint? = nil,
         label: String? = nil,
+        metrics: [StatusMetric] = [],
         tooltip: String? = nil,
         isStale: Bool = false,
-        separate: Bool = false
+        separate: Bool = false,
+        presentation: MenuBarPresentation = .init()
     ) {
         self.widgetID = widgetID
         self.name = name
@@ -164,15 +321,17 @@ public struct MenuBarEntry: Equatable, Sendable {
         self.style = style
         self.tint = tint
         self.label = label
+        self.metrics = MenuBarPolicy.normalizedMetrics(metrics)
         self.tooltip = tooltip
         self.isStale = isStale
         self.separate = separate
+        self.presentation = presentation
     }
 
     /// Nothing to draw — no icon of any kind and no text.
     public var isEmpty: Bool {
         let hasIcon = (iconOverride?.isEmpty == false) || (iconOverride == nil && symbol != nil)
-        return !hasIcon && MenuBarPolicy.entryText(self).isEmpty
+        return !hasIcon && metrics.isEmpty && MenuBarPolicy.entryText(self).isEmpty
     }
 }
 
@@ -188,6 +347,9 @@ public enum MenuBarPolicy {
     /// produces a long string is truncated rather than pushing its neighbours
     /// off the bar.
     public static let maxLabelCharacters = 14
+
+    /// Maximum visible readings per promoted cell.
+    public static let maxMetrics = 2
 
     /// Separator drawn between entries sharing the strip.
     public static let stripSeparator = " · "
@@ -262,12 +424,179 @@ public enum MenuBarPolicy {
         user ?? manifest.flatMap(MenuBarStyle.init(rawValue:)) ?? .default
     }
 
+    /// Resolves sparse presentation layers independently. A user changing one
+    /// switch never discards a live or manifest default for another.
+    public static func resolvedPresentation(
+        user: MenuBarPresentation?, live: MenuBarPresentation?, manifest: MenuBarPresentation?
+    ) -> MenuBarPresentation {
+        func pick<T>(_ key: KeyPath<MenuBarPresentation, T?>) -> T? {
+            user?[keyPath: key] ?? live?[keyPath: key] ?? manifest?[keyPath: key]
+        }
+        let ids = Set((user?.metricOverrides ?? [:]).keys)
+            .union((live?.metricOverrides ?? [:]).keys)
+            .union((manifest?.metricOverrides ?? [:]).keys)
+        let overrides = ids.reduce(into: [String: MenuBarMetricOverride]()) { result, id in
+            let u = user?.metricOverrides?[id]
+            let l = live?.metricOverrides?[id]
+            let m = manifest?.metricOverrides?[id]
+            result[id] = MenuBarMetricOverride(
+                label: u?.label ?? l?.label ?? m?.label,
+                hidden: u?.hidden ?? l?.hidden ?? m?.hidden,
+                tint: u?.tint ?? l?.tint ?? m?.tint
+            )
+        }
+        return MenuBarPresentation(showValues: pick(\.showValues), showUnits: pick(\.showUnits),
+                                   precision: pick(\.precision), color: pick(\.color),
+                                   valueWidth: pick(\.valueWidth), metricOrder: pick(\.metricOrder),
+                                   metricOverrides: overrides.isEmpty ? nil : overrides)
+    }
+
+    /// Formats a numeric metric according to the public SDK vocabulary.
+    /// Missing/non-finite numeric values intentionally render as an em dash;
+    /// they are never coerced to zero.
+    public static func formattedMetricValue(_ metric: StatusMetric, presentation: MenuBarPresentation) -> String? {
+        guard metric.number != nil || metric.format != nil else { return nil }
+        guard let number = metric.number, number.isFinite else { return "—" }
+        let precision = presentation.precision ?? metric.precision ?? 0
+        let format = metric.format ?? "decimal"
+        let shown: String
+        switch format {
+        case "percent": shown = fixed(number, precision: precision) + "%"
+        case "bytes", "bytesPerSecond":
+            let units = ["B", "kB", "MB", "GB", "TB"]
+            var value = abs(number); var index = 0
+            while value >= 1000, index < units.count - 1 { value /= 1000; index += 1 }
+            let signed = number < 0 ? -value : value
+            shown = fixed(signed, precision: precision) + " " + units[index] + (format == "bytesPerSecond" ? "/s" : "")
+        default: shown = fixed(number, precision: precision)
+        }
+        guard presentation.showUnits != false else {
+            if format == "percent" { return fixed(number, precision: precision) }
+            if format == "bytes" || format == "bytesPerSecond" { return fixed(number < 0 ? -absByteMagnitude(number).0 : absByteMagnitude(number).0, precision: precision) }
+            return shown
+        }
+        if let unit = normalizedLabel(metric.unit, limit: maxPrefixCharacters),
+           !(format == "percent" && unit == "%") { return shown + " " + unit }
+        return shown
+    }
+
+    private static func absByteMagnitude(_ number: Double) -> (Double, Int) {
+        var value = abs(number); var index = 0
+        while value >= 1000, index < 4 { value /= 1000; index += 1 }
+        return (value, index)
+    }
+    private static func fixed(_ number: Double, precision: Int) -> String {
+        String(format: "%.*f", precision, number)
+    }
+
+    /// Applies presentation once, before UI rendering. Metric ids are stable
+    /// when supplied and otherwise use their original row index (`row:0`).
+    public static func applyingPresentation(_ presentation: MenuBarPresentation, to entry: MenuBarEntry) -> MenuBarEntry {
+        var entry = entry
+        entry.presentation = presentation
+        let original = entry.metrics.enumerated().map { (index, metric) -> (String, StatusMetric) in
+            (metric.id?.isEmpty == false ? metric.id! : "row:\(index)", metric)
+        }
+        let rank = (presentation.metricOrder ?? []).enumerated().reduce(into: [String: Int]()) {
+            if $0[$1.element] == nil { $0[$1.element] = $1.offset }
+        }
+        let metrics = original.enumerated().sorted { left, right in
+            let lhs = rank[left.element.0]
+            let rhs = rank[right.element.0]
+            switch (lhs, rhs) {
+            case let (lhs?, rhs?) where lhs != rhs: return lhs < rhs
+            case (_?, nil): return true
+            case (nil, _?): return false
+            default: return left.offset < right.offset
+            }
+        }.compactMap { _, pair -> StatusMetric? in
+            let (key, inputMetric) = pair
+            let override = presentation.metricOverrides?[key]
+            guard override?.hidden != true else { return nil }
+            var metric = inputMetric
+            if let label = override?.label { metric.label = label }
+            if let tint = override?.tint { metric.tint = tint }
+            let formatted = formattedMetricValue(metric, presentation: presentation)
+            if let formatted { metric.value = formatted }
+            if presentation.showValues == false {
+                if metric.accessibilityLabel == nil {
+                    metric.accessibilityLabel = [metric.label, metric.value]
+                        .filter { !$0.isEmpty }.joined(separator: " ")
+                }
+                metric.value = ""
+            }
+            return metric
+        }
+        // Do not produce a blank cell when all configured rows are hidden.
+        entry.metrics = normalizedMetrics(metrics)
+        // Keep the legacy inline/stacked path coherent for a widget that has
+        // graduated to one structured reading. The prefix stays independent,
+        // so `CPU` + one `23%` metric never becomes `CPU CPU 23%`.
+        if entry.metrics.count == 1 {
+            entry.label = entry.metrics[0].value
+        }
+        if presentation.color == "monochrome" {
+            entry.tint = nil
+            entry.metrics = entry.metrics.map { var m = $0; m.tint = nil; return m }
+        } else if let color = MenuBarTint.named(presentation.color) {
+            entry.tint = color
+            entry.metrics = entry.metrics.map { var m = $0; m.tint = color.rawValue; return m }
+        }
+        if entry.metrics.isEmpty, !original.isEmpty, entry.label?.isEmpty != false, entry.symbol == nil, entry.iconOverride?.isEmpty != false {
+            entry.label = entry.name
+        }
+        return entry
+    }
+
     /// What one entry contributes as text: the prefix and the value, or
     /// whichever of them exists.
     public static func entryText(_ entry: MenuBarEntry) -> String {
+        if !entry.metrics.isEmpty {
+            if entry.metrics.count == 1, entry.style == .inline,
+               let prefix = normalizedPrefix(entry.prefix) {
+                let metric = entry.metrics[0]
+                let value = metric.value.isEmpty ? metric.active.map { $0 ? "●" : "○" } ?? "" : metric.value
+                return value.isEmpty ? prefix : "\(prefix) \(value)"
+            }
+            let readings = entry.metrics.compactMap { metric -> String? in
+                let visible = [metric.label, metric.value]
+                    .filter { !$0.isEmpty }
+                    .joined(separator: " ")
+                if !visible.isEmpty { return visible }
+                return metric.active.map { $0 ? "●" : "○" }
+            }.joined(separator: " · ")
+            if entry.style == .inline, let prefix = normalizedPrefix(entry.prefix) {
+                return "\(prefix) \(readings)"
+            }
+            return readings
+        }
         let value = entry.label ?? ""
         guard let prefix = normalizedPrefix(entry.prefix) else { return value }
         return value.isEmpty ? prefix : "\(prefix) \(value)"
+    }
+
+    /// Spoken form of an entry. Structured metrics use their explicit
+    /// accessibility descriptions even when compact visible arrows or values
+    /// are present; an unlabeled dot still announces its state.
+    public static func accessibilityText(_ entry: MenuBarEntry) -> String {
+        guard !entry.metrics.isEmpty else { return entryText(entry) }
+        return entry.metrics.compactMap { metric in
+            if let label = normalizedLabel(metric.accessibilityLabel, limit: maxLabelCharacters * 3) {
+                return label
+            }
+            let spokenValue = metric.value.isEmpty
+                ? formattedMetricValue(metric, presentation: MenuBarPresentation(
+                    showValues: true, showUnits: entry.presentation.showUnits,
+                    precision: entry.presentation.precision
+                )) ?? ""
+                : metric.value
+            let visible = [metric.label, spokenValue]
+                .filter { !$0.isEmpty }
+                .joined(separator: " ")
+            if !visible.isEmpty { return visible }
+            guard let active = metric.active else { return nil }
+            return active ? "Active" : "Inactive"
+        }.joined(separator: " · ")
     }
 
     /// How far past its refresh cadence a value may drift before it is drawn
@@ -333,6 +662,37 @@ public enum MenuBarPolicy {
         guard !collapsed.isEmpty else { return nil }
         guard collapsed.count > limit else { return collapsed }
         return String(collapsed.prefix(max(limit - 1, 1))) + "…"
+    }
+
+    /// Bounds metric content before AppKit rendering. Active-only metrics stay
+    /// present so callers can render a dot with an accessibility description.
+    public static func normalizedMetrics(_ metrics: [StatusMetric]) -> [StatusMetric] {
+        metrics.compactMap { metric in
+            let label = normalizedLabel(metric.label, limit: maxPrefixCharacters) ?? ""
+            let value = normalizedLabel(metric.value) ?? ""
+            let accessibilityLabel = normalizedLabel(
+                metric.accessibilityLabel,
+                limit: maxLabelCharacters * 3
+            )
+            guard !label.isEmpty || !value.isEmpty || accessibilityLabel != nil || metric.active != nil
+                || metric.number != nil || metric.format != nil else {
+                return nil
+            }
+            return StatusMetric(
+                id: metric.id,
+                label: label,
+                value: value,
+                number: metric.number,
+                format: metric.format,
+                unit: metric.unit,
+                precision: metric.precision,
+                tint: metric.tint?.trimmingCharacters(in: .whitespacesAndNewlines),
+                active: metric.active,
+                accessibilityLabel: accessibilityLabel
+            )
+        }
+        .prefix(maxMetrics)
+        .map { $0 }
     }
 
     /// Orders entries by the user's explicit sort key, then by name, so the
@@ -443,6 +803,18 @@ public enum MenuBarPolicy {
         let lines = entries.map { entry -> String in
             if let tooltip = entry.tooltip, !tooltip.isEmpty {
                 return "\(entry.name) — \(tooltip)"
+            }
+            if !entry.metrics.isEmpty {
+                let text = entry.metrics.compactMap { metric -> String? in
+                    let visible = [metric.label, metric.value]
+                        .filter { !$0.isEmpty }
+                        .joined(separator: " ")
+                    if !visible.isEmpty { return visible }
+                    if let accessibilityLabel = metric.accessibilityLabel { return accessibilityLabel }
+                    if metric.active != nil { return metric.active == true ? "Active" : "Inactive" }
+                    return nil
+                }.joined(separator: " · ")
+                if !text.isEmpty { return "\(entry.name) — \(text)" }
             }
             if let label = entry.label, !label.isEmpty {
                 return "\(entry.name) — \(label)"

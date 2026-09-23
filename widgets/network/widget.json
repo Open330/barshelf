@@ -3,24 +3,19 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.network",
   "name": "Network",
-  "version": "0.1.0",
-  "icon": "wifi",
+  "version": "0.3.0",
+  "icon": "arrow.up.arrow.down.circle.fill",
   "bucket": { "group": "System", "order": 13, "size": "S" },
 
   "entry": { "kind": "workflow", "main": "workflow.json" },
 
-  "refresh": { "onOpen": true, "interval": 30, "staleAfterSec": 30 },
-
-  "permissions": {
-    "exec": [
-      {
-        "command": "/bin/sh",
-        "allowedArgs": [["-c", "ip=$(/usr/sbin/ipconfig getifaddr en0 2>/dev/null || /usr/sbin/ipconfig getifaddr en1 2>/dev/null); [ -z \"$ip\" ] && ip=offline; echo '{\"ip\":\"'$ip'\"}'"]],
-        "maxOutputBytes": 4096,
-        "sensitiveOutput": false
-      }
-    ]
-  },
+  "refresh": { "onOpen": true, "interval": 2, "staleAfterSec": 4 },
+  "statusItem": { "mode": "text", "style": "metrics" },
+  "permissions": { "system": ["network"] },
+  "settings": [
+    { "key": "menuBarDisplay", "title": "Menu bar shows", "type": "enum", "default": "activity", "options": ["activity", "speed"], "optionTitles": ["Activity", "Speed"] },
+    { "key": "interface", "title": "Network interface", "type": "string", "default": "all" }
+  ],
 
   "appearance": {
     "accent": "blue"

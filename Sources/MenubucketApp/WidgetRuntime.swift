@@ -462,9 +462,11 @@ final class WidgetRuntime: ObservableObject {
         snapshot.updatedAt = Date()
         snapshot.error = nil
         snapshot.statusLabel = params.status?.label
+        snapshot.statusMetrics = params.status?.metrics
         snapshot.statusPrefix = params.status?.prefix
         snapshot.statusIcon = params.status?.icon
         snapshot.statusTint = params.status?.tint
+        snapshot.statusPresentation = params.status?.presentation
         snapshot.statusTooltip = params.status?.tooltip
         snapshot.safeForSensitiveCache = false
         setSnapshot(snapshot, for: widgetId)
@@ -1360,7 +1362,13 @@ final class WidgetRuntime: ObservableObject {
             )
             let separate = placement.separate
                 || style == .stacked
+                || style == .metrics
                 || !(statusItem.showsLabel || hasTextIcon)
+            let presentation = MenuBarPolicy.resolvedPresentation(
+                user: placement.presentation,
+                live: snapshot?.statusPresentation,
+                manifest: statusItem.presentation
+            )
             let entry = MenuBarEntry(
                 widgetID: widget.id,
                 name: widget.displayName,
@@ -1382,14 +1390,17 @@ final class WidgetRuntime: ObservableObject {
                 tint: MenuBarTint.named(snapshot?.statusTint),
                 label: statusItem.showsLabel
                     ? MenuBarPolicy.normalizedLabel(snapshot?.statusLabel) : nil,
+                metrics: statusItem.showsLabel
+                    ? MenuBarPolicy.normalizedMetrics(snapshot?.statusMetrics ?? []) : [],
                 tooltip: snapshot?.error ?? snapshot?.statusTooltip,
                 isStale: MenuBarPolicy.isStale(
                     updatedAt: snapshot?.updatedAt,
                     interval: (widget.manifest.refresh?.interval).map { $0 * multiplier }
                 ),
-                separate: separate
+                separate: separate,
+                presentation: presentation
             )
-            candidates.append((entry, placement.order))
+            candidates.append((MenuBarPolicy.applyingPresentation(presentation, to: entry), placement.order))
         }
 
         menuBar.apply(MenuBarPolicy.ordered(candidates))
@@ -1678,9 +1689,11 @@ final class WidgetRuntime: ObservableObject {
         /// Live menu-bar text (a workflow's `status.label`, or an adapter's
         /// status text).
         var statusLabel: String?
+        var statusMetrics: [StatusMetric]?
         var statusPrefix: String?
         var statusIcon: String?
         var statusTint: String?
+        var statusPresentation: MenuBarPresentation?
         /// Longer form for the menu-bar tooltip (`status.tooltip`).
         var statusTooltip: String?
     }
@@ -1939,9 +1952,11 @@ final class WidgetRuntime: ObservableObject {
             return .success(RefreshSuccess(
                 viewTree: output.viewTree,
                 statusLabel: output.statusLabel,
+                statusMetrics: output.statusMetrics,
                 statusPrefix: output.statusPrefix,
                 statusIcon: output.statusIcon,
                 statusTint: output.statusTint,
+                statusPresentation: output.statusPresentation,
                 statusTooltip: output.statusTooltip
             ))
         } catch {
@@ -1964,7 +1979,7 @@ final class WidgetRuntime: ObservableObject {
         if let requested, requested.isEmpty {
             throw RuntimeError.invalidWorkflow(
                 "system source \"metrics\" lists no known group"
-                    + " (cpu, memory, disk, sensors)"
+                    + " (cpu, memory, disk, network, sensors)"
             )
         }
         let (allowed, denied) = SystemMetrics.authorized(
@@ -1984,11 +1999,12 @@ final class WidgetRuntime: ObservableObject {
         guard !allowed.isEmpty else {
             throw RuntimeError.invalidWorkflow(
                 "system source needs permissions.system to declare at least one"
-                    + " group (cpu, memory, disk, sensors)"
+                    + " group (cpu, memory, disk, network, sensors)"
             )
         }
         let detail = params.objectValue?["detail"]?.boolValue == true
         let mountPoint = params.objectValue?["mount"]?.stringValue ?? "/"
+        let networkInterface = params.objectValue?["interface"]?.stringValue
         let sensorGroups = Self.sensorGroups(from: params.objectValue?["sensors"])
         // Sampling blocks on Mach/IOKit calls (and, on a cold CPU sampler, a
         // short baseline window), so it stays off the main thread.
@@ -1997,7 +2013,8 @@ final class WidgetRuntime: ObservableObject {
                 metrics: allowed,
                 detail: detail,
                 sensorGroups: sensorGroups,
-                mountPoint: mountPoint
+                mountPoint: mountPoint,
+                networkInterface: networkInterface
             )
         }.value
     }
@@ -2305,9 +2322,11 @@ final class WidgetRuntime: ObservableObject {
             snapshot.updatedAt = completedAt
             snapshot.error = nil
             snapshot.statusLabel = success.statusLabel
+            snapshot.statusMetrics = success.statusMetrics
             snapshot.statusPrefix = success.statusPrefix
             snapshot.statusIcon = success.statusIcon
             snapshot.statusTint = success.statusTint
+            snapshot.statusPresentation = success.statusPresentation
             snapshot.statusTooltip = success.statusTooltip
             if !widget.isSensitive {
                 persistSnapshot(snapshot) // sensitive renders stay memory-only

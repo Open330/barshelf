@@ -2,6 +2,55 @@ import XCTest
 @testable import MenubucketCore
 
 final class MenuBarPromotionTests: XCTestCase {
+    func testMetricsAreBoundedAndRetainAnActivityOnlyReading() {
+        let metrics = MenuBarPolicy.normalizedMetrics([
+            StatusMetric(label: " Download ", value: "a very long status label indeed"),
+            StatusMetric(active: true, accessibilityLabel: "Network activity"),
+            StatusMetric(label: "third", value: "ignored")
+        ])
+        XCTAssertEqual(metrics.count, 2)
+        XCTAssertEqual(metrics[0].label, "Download")
+        XCTAssertEqual(metrics[0].value, "a very long s…")
+        XCTAssertEqual(metrics[1].label, "")
+        XCTAssertTrue(metrics[1].active == true)
+
+        let entry = MenuBarEntry(widgetID: "n", name: "Network", metrics: metrics)
+        XCTAssertEqual(MenuBarPolicy.entryText(entry), "Download a very long s… · ●")
+        XCTAssertEqual(MenuBarPolicy.accessibilityText(entry),
+                       "Download a very long s… · Network activity")
+        XCTAssertFalse(entry.isEmpty)
+
+        let idle = MenuBarEntry(
+            widgetID: "n", name: "Network", style: .metrics,
+            metrics: [StatusMetric(active: false)]
+        )
+        XCTAssertEqual(idle.metrics.count, 1, "the idle outlined dot remains drawable")
+        XCTAssertEqual(MenuBarPolicy.entryText(idle), "○")
+        XCTAssertEqual(MenuBarPolicy.accessibilityText(idle), "Inactive")
+        XCTAssertFalse(idle.isEmpty)
+
+        let described = MenuBarEntry(
+            widgetID: "n", name: "Network", style: .metrics,
+            metrics: [StatusMetric(label: "↑", value: "2 MB/s", active: true,
+                                   accessibilityLabel: "Upload traffic, 2 megabytes per second")]
+        )
+        XCTAssertEqual(MenuBarPolicy.entryText(described), "↑ 2 MB/s")
+        XCTAssertEqual(MenuBarPolicy.accessibilityText(described),
+                       "Upload traffic, 2 megabytes per second")
+
+        // SDK metrics may intentionally carry only a machine value; they
+        // still need to survive normalization and formatting.
+        let numericOnly = MenuBarEntry(widgetID: "cpu", name: "CPU", metrics: [
+            StatusMetric(id: "cpu", number: 23, format: "percent")
+        ])
+        let formatted = MenuBarPolicy.applyingPresentation(.init(), to: numericOnly)
+        XCTAssertEqual(formatted.metrics.first?.value, "23%")
+
+        let rowMono = MenuBarPolicy.applyingPresentation(
+            .init(metricOverrides: ["cpu": .init(tint: "monochrome")]), to: numericOnly
+        )
+        XCTAssertEqual(rowMono.metrics.first?.tint, "monochrome")
+    }
     private func entry(
         _ id: String,
         name: String? = nil,
@@ -414,7 +463,7 @@ final class MenuBarStyleAndPrefixTests: XCTestCase {
         for style in MenuBarStyle.allCases {
             XCTAssertFalse(style.title.isEmpty, "\(style) has no title")
         }
-        XCTAssertEqual(MenuBarStyle.allCases.count, 2)
+        XCTAssertEqual(MenuBarStyle.allCases.count, 3)
     }
 
     /// A prefs file from before the style existed must still load, and an
@@ -442,5 +491,69 @@ final class MenuBarStyleAndPrefixTests: XCTestCase {
         XCTAssertTrue(Manifest.StatusItem(mode: "text", style: "stacked").isStacked)
         XCTAssertFalse(Manifest.StatusItem(mode: "text", style: "inline").isStacked)
         XCTAssertFalse(Manifest.StatusItem(mode: "text").isStacked)
+    }
+
+    func testPresentationFormatsAndCanHideVisibleValue() {
+        let metric = StatusMetric(id: "cpu", label: "CPU", number: 12.345, format: "percent", precision: 2)
+        let formatted = MenuBarPolicy.formattedMetricValue(metric, presentation: .init())
+        XCTAssertEqual(formatted, "12.35%")
+        let entry = MenuBarEntry(widgetID: "w", name: "System", metrics: [metric])
+        let applied = MenuBarPolicy.applyingPresentation(.init(showValues: false), to: entry)
+        XCTAssertEqual(applied.metrics.first?.value, "")
+        XCTAssertEqual(MenuBarPolicy.accessibilityText(applied), "CPU 12.35%")
+    }
+
+    func testPresentationMissingNumericNeverBecomesZeroAndOrdersRows() {
+        let entry = MenuBarEntry(widgetID: "w", name: "System", metrics: [
+            StatusMetric(id: "cpu", label: "CPU", format: "percent"),
+            StatusMetric(id: "ram", label: "RAM", number: 2048, format: "bytes")
+        ])
+        let applied = MenuBarPolicy.applyingPresentation(.init(metricOrder: ["ram", "cpu"]), to: entry)
+        XCTAssertEqual(applied.metrics.map(\.id), ["ram", "cpu"])
+        XCTAssertEqual(applied.metrics.last?.value, "—")
+        XCTAssertEqual(applied.metrics.first?.value, "2 kB")
+    }
+
+    func testPresentationKeepsUnrankedRowsInOriginalOrderAndMergesOverrideFields() {
+        let manifest = MenuBarPresentation(metricOverrides: [
+            "cpu": .init(label: "Processor", tint: "good")
+        ])
+        let live = MenuBarPresentation(metricOverrides: [
+            "cpu": .init(hidden: true)
+        ])
+        let user = MenuBarPresentation(metricOverrides: [
+            "cpu": .init(label: "CPU")
+        ])
+        let resolved = MenuBarPolicy.resolvedPresentation(user: user, live: live, manifest: manifest)
+        XCTAssertEqual(resolved.metricOverrides?["cpu"], .init(label: "CPU", hidden: true, tint: "good"))
+
+        let entry = MenuBarEntry(widgetID: "w", name: "System", metrics: [
+            .init(id: "ram", label: "RAM", value: "1"),
+            .init(id: "cpu", label: "CPU", value: "2")
+        ])
+        let ordered = MenuBarPolicy.applyingPresentation(.init(metricOrder: ["unknown"]), to: entry)
+        XCTAssertEqual(ordered.metrics.map(\.id), ["ram", "cpu"])
+    }
+
+    func testPresentationHidesTextValuesKeepsAccessibilityAndGlobalColorWins() {
+        let entry = MenuBarEntry(widgetID: "w", name: "System", prefix: "CPU", style: .inline,
+                                 tint: .danger, metrics: [
+            .init(id: "cpu", label: "CPU", value: "23%", tint: "warning"),
+            .init(id: "ram", label: "RAM", value: "4 GB", tint: "good")
+        ])
+        let applied = MenuBarPolicy.applyingPresentation(
+            .init(showValues: false, color: "accent"), to: entry
+        )
+        XCTAssertEqual(applied.metrics.map(\.value), ["", ""])
+        XCTAssertEqual(MenuBarPolicy.accessibilityText(applied), "CPU 23% · RAM 4 GB")
+        XCTAssertEqual(applied.tint, .accent)
+        XCTAssertEqual(applied.metrics.map(\.tint), ["accent", "accent"])
+
+        let single = MenuBarEntry(widgetID: "w", name: "System", prefix: "CPU", style: .inline,
+                                   metrics: [.init(label: "CPU", value: "23%")])
+        XCTAssertEqual(MenuBarPolicy.entryText(single), "CPU 23%")
+        XCTAssertEqual(MenuBarPolicy.formattedMetricValue(
+            .init(number: 12, format: "percent", unit: "%"), presentation: .init()
+        ), "12%")
     }
 }

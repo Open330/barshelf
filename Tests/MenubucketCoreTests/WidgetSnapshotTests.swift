@@ -101,4 +101,20 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertNil(restored.statusTooltip)
     }
 
+    func testMetricStatusSurvivesCacheAndLegacyCachesStillDecode() throws {
+        let snapshot = WidgetSnapshot(
+            widgetID: "dev.example.network",
+            statusMetrics: [
+                StatusMetric(label: "↓", value: "12 MB/s", active: true,
+                             accessibilityLabel: "Download network activity"),
+                StatusMetric(label: "↑", value: "", tint: "secondary")
+            ]
+        )
+        let restored = try WidgetSnapshot.deserialize(snapshot.serialized())
+        XCTAssertEqual(restored.statusMetrics, snapshot.statusMetrics)
+
+        let legacy = #"{"widgetID":"dev.example.old","statusLabel":"42%"}"#
+        XCTAssertNil(try WidgetSnapshot.deserialize(Data(legacy.utf8)).statusMetrics)
+    }
+
 }

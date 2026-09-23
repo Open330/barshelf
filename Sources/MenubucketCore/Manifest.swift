@@ -207,8 +207,11 @@ public struct Manifest: Codable, Equatable {
         /// `"inline"` draws label and value side by side; `"stacked"` puts the
         /// label above the value, the way a system monitor packs two rows into
         /// the menu bar's height. Stacked needs the widget's own status item,
-        /// so it implies one.
+        /// so it implies one. `"metrics"` draws two independent readings from
+        /// `status.metrics` and also uses a separate item.
         public var style: String?
+        /// Author defaults for numeric/metric presentation.
+        public var presentation: MenuBarPresentation?
 
         /// Display modes that put the widget in the menu bar.
         public static let promotableModes: Set<String> = ["icon", "text", "dynamic"]
@@ -229,7 +232,8 @@ public struct Manifest: Codable, Equatable {
             labelFrom: String? = nil,
             tooltipFrom: String? = nil,
             label: String? = nil,
-            style: String? = nil
+            style: String? = nil,
+            presentation: MenuBarPresentation? = nil
         ) {
             self.mode = mode
             self.icon = icon
@@ -237,6 +241,7 @@ public struct Manifest: Codable, Equatable {
             self.tooltipFrom = tooltipFrom
             self.label = label
             self.style = style
+            self.presentation = presentation
         }
     }
 
@@ -251,7 +256,7 @@ public struct Manifest: Codable, Equatable {
         /// Allow `host.notify.show` (script runtime).
         public var notifications: Bool?
         /// System telemetry groups the widget's `system` source may read
-        /// ("cpu", "memory", "disk", "sensors"). Absent or empty means the
+        /// ("cpu", "memory", "disk", "network", "sensors"). Absent or empty means the
         /// widget reads none — an undeclared group is refused at source time.
         public var system: [String]?
         /// Opt in to per-widget persistent storage (KV + TTL). Required for a

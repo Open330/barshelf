@@ -1,36 +1,162 @@
 {
+  "$schema": "https://barshelf.jiun.dev/schema/workflow-0.1.json",
   "schemaVersion": 1,
   "kind": "workflow",
-  "_comment": "Shows the Mac's local IP address (en0/en1) via a shell source.",
-
+  "_comment": "Native network counters. The first sample has no rate until there is a counter baseline; the menu bar defaults to activity dots and can instead show speeds.",
   "sources": {
     "data": {
-      "use": "exec",
+      "use": "system",
       "with": {
-        "command": ["/bin/sh", "-c", "ip=$(/usr/sbin/ipconfig getifaddr en0 2>/dev/null || /usr/sbin/ipconfig getifaddr en1 2>/dev/null); [ -z \"$ip\" ] && ip=offline; echo '{\"ip\":\"'$ip'\"}'"]
+        "metrics": [
+          "network"
+        ],
+        "interface": "${settings.interface}"
       }
     }
   },
-
+  "transforms": {
+    "downloadText": {
+      "use": "assign",
+      "from": "if(or(not(sources.data.network.available),eq(sources.data.network.download,null)),'—',if(gte(number(sources.data.network.download),1000000000),concat(string(round(div(number(sources.data.network.download),1000000000),1)),' GB/s'),if(gte(number(sources.data.network.download),1000000),concat(string(round(div(number(sources.data.network.download),1000000),1)),' MB/s'),if(gte(number(sources.data.network.download),1000),concat(string(round(div(number(sources.data.network.download),1000),1)),' KB/s'),concat(string(round(number(sources.data.network.download),0)),' B/s')))))"
+    },
+    "downloadDescription": {
+      "use": "assign",
+      "from": "if(not(sources.data.network.available),'Download unavailable',if(eq(sources.data.network.download,null),'Download waiting for sample',concat('Download ',transforms.downloadText)))"
+    },
+    "uploadText": {
+      "use": "assign",
+      "from": "if(or(not(sources.data.network.available),eq(sources.data.network.upload,null)),'—',if(gte(number(sources.data.network.upload),1000000000),concat(string(round(div(number(sources.data.network.upload),1000000000),1)),' GB/s'),if(gte(number(sources.data.network.upload),1000000),concat(string(round(div(number(sources.data.network.upload),1000000),1)),' MB/s'),if(gte(number(sources.data.network.upload),1000),concat(string(round(div(number(sources.data.network.upload),1000),1)),' KB/s'),concat(string(round(number(sources.data.network.upload),0)),' B/s')))))"
+    },
+    "uploadDescription": {
+      "use": "assign",
+      "from": "if(not(sources.data.network.available),'Upload unavailable',if(eq(sources.data.network.upload,null),'Upload waiting for sample',concat('Upload ',transforms.uploadText)))"
+    }
+  },
   "view": {
-    "action": {"type": "openURL", "url": "x-apple.systempreferences:com.apple.Network-Settings.extension"},
+    "action": {
+      "type": "openURL",
+      "url": "x-apple.systempreferences:com.apple.Network-Settings.extension"
+    },
     "type": "vstack",
-    "spacing": 2,
+    "spacing": 8,
     "children": [
       {
         "type": "hstack",
         "spacing": 6,
         "children": [
-          { "type": "image", "source": { "kind": "sfSymbol", "name": "wifi" }, "size": 13, "tint": "accent" },
-          { "type": "text", "text": "Network", "role": "caption", "foreground": "secondary" }
+          {
+            "type": "image",
+            "source": {
+              "kind": "sfSymbol",
+              "name": "arrow.up.arrow.down.circle.fill"
+            },
+            "size": 14,
+            "tint": "accent"
+          },
+          {
+            "type": "text",
+            "text": "Network",
+            "role": "caption",
+            "foreground": "secondary"
+          },
+          {
+            "type": "spacer"
+          },
+          {
+            "type": "text",
+            "text": "${if(not(sources.data.network.available),'Offline',if(eq(sources.data.network.interface,'all'),'All interfaces',sources.data.network.interface))}",
+            "role": "caption",
+            "monospacedDigit": true,
+            "foreground": "secondary"
+          }
         ]
       },
-      { "type": "text", "text": "${sources.data.ip}", "size": 18, "role": "title", "monospacedDigit": true, "lineLimit": 1 },
-      { "type": "text", "text": "local IP", "role": "caption", "foreground": "secondary" }
+      {
+        "type": "text",
+        "text": "${coalesce(sources.data.network.address, 'No local address')}",
+        "size": 18,
+        "role": "title",
+        "monospacedDigit": true,
+        "lineLimit": 1
+      },
+      {
+        "type": "hstack",
+        "spacing": 12,
+        "children": [
+          {
+            "type": "hstack",
+            "spacing": 4,
+            "children": [
+              {
+                "type": "image",
+                "source": {
+                  "kind": "sfSymbol",
+                  "name": "arrow.down"
+                },
+                "size": 11,
+                "tint": "accent"
+              },
+              {
+                "type": "text",
+                "text": "${transforms.downloadText}",
+                "role": "caption",
+                "monospacedDigit": true
+              }
+            ]
+          },
+          {
+            "type": "hstack",
+            "spacing": 4,
+            "children": [
+              {
+                "type": "image",
+                "source": {
+                  "kind": "sfSymbol",
+                  "name": "arrow.up"
+                },
+                "size": 11,
+                "tint": "warning"
+              },
+              {
+                "type": "text",
+                "text": "${transforms.uploadText}",
+                "role": "caption",
+                "monospacedDigit": true
+              }
+            ]
+          }
+        ]
+      }
     ]
   },
-
   "status": {
-    "tooltip": "Local IP: ${sources.data.ip}"
+    "presentation": {
+      "showValues": "${eq(settings.menuBarDisplay,'speed')}"
+    },
+    "tooltip": "${transforms.downloadDescription} · ${transforms.uploadDescription} · ${coalesce(sources.data.network.address,'No local address')}",
+    "metrics": [
+      {
+        "id": "download",
+        "label": "${if(eq(settings.menuBarDisplay,'speed'),'↓','')}",
+        "value": "${if(eq(settings.menuBarDisplay,'speed'),transforms.downloadText,'')}",
+        "number": "${sources.data.network.download}",
+        "format": "bytesPerSecond",
+        "precision": 1,
+        "tint": "accent",
+        "active": "${and(sources.data.network.available,gt(coalesce(sources.data.network.download,0),0))}",
+        "accessibilityLabel": "${transforms.downloadDescription}"
+      },
+      {
+        "id": "upload",
+        "label": "${if(eq(settings.menuBarDisplay,'speed'),'↑','')}",
+        "value": "${if(eq(settings.menuBarDisplay,'speed'),transforms.uploadText,'')}",
+        "number": "${sources.data.network.upload}",
+        "format": "bytesPerSecond",
+        "precision": 1,
+        "tint": "warning",
+        "active": "${and(sources.data.network.available,gt(coalesce(sources.data.network.upload,0),0))}",
+        "accessibilityLabel": "${transforms.uploadDescription}"
+      }
+    ]
   }
 }

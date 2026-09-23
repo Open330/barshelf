@@ -64,6 +64,15 @@ public struct WorkflowDefinition: Codable, Equatable, Sendable {
             if templates.contains(where: { $0?.contains(Self.visibilityPath) == true }) {
                 return true
             }
+            if status.metrics?.contains(where: { metric in
+                [metric.id, metric.label, metric.value, metric.format, metric.unit, metric.tint, metric.accessibilityLabel]
+                    .contains(where: { $0?.contains(Self.visibilityPath) == true })
+                    || Self.mentionsVisibility(metric.active) || Self.mentionsVisibility(metric.number)
+            }) == true { return true }
+            if let presentation = status.presentation,
+               Self.mentionsVisibility(presentation.showValues) || Self.mentionsVisibility(presentation.showUnits)
+                || Self.mentionsVisibility(presentation.precision) || Self.mentionsVisibility(presentation.valueWidth)
+                || presentation.color?.contains(Self.visibilityPath) == true { return true }
         }
         return false
     }
@@ -119,19 +128,82 @@ public struct WorkflowDefinition: Codable, Equatable, Sendable {
         /// uses — `accent`, `good`, `warning`, `danger`, `secondary`. Nil keeps
         /// the menu bar's own colour, which is what most widgets should do.
         public var tint: String?
+        /// Templated structured readings. `active` is JSON rather than Bool so
+        /// a whole `${…}` expression can resolve to a boolean.
+        public var metrics: [MetricDef]?
+        /// Presentation values may be templates for refresh-dependent choices.
+        public var presentation: PresentationDef?
 
         public init(
             label: String? = nil,
             tooltip: String? = nil,
             prefix: String? = nil,
             icon: String? = nil,
-            tint: String? = nil
+            tint: String? = nil,
+            metrics: [MetricDef]? = nil,
+            presentation: PresentationDef? = nil
         ) {
             self.label = label
             self.tooltip = tooltip
             self.prefix = prefix
             self.icon = icon
             self.tint = tint
+            self.metrics = metrics
+            self.presentation = presentation
+        }
+    }
+
+    public struct PresentationDef: Codable, Equatable, Sendable {
+        public var showValues: JSONValue?
+        public var showUnits: JSONValue?
+        public var precision: JSONValue?
+        public var color: String?
+        public var valueWidth: JSONValue?
+        public var metricOrder: [String]?
+        public var metricOverrides: [String: MenuBarMetricOverride]?
+        public init(showValues: JSONValue? = nil, showUnits: JSONValue? = nil, precision: JSONValue? = nil,
+                    color: String? = nil, valueWidth: JSONValue? = nil, metricOrder: [String]? = nil,
+                    metricOverrides: [String: MenuBarMetricOverride]? = nil) {
+            self.showValues = showValues; self.showUnits = showUnits; self.precision = precision
+            self.color = color; self.valueWidth = valueWidth; self.metricOrder = metricOrder; self.metricOverrides = metricOverrides
+        }
+    }
+
+    /// Template form of `StatusMetric` used in workflow definitions.
+    public struct MetricDef: Codable, Equatable, Sendable {
+        public var id: String?
+        public var label: String?
+        public var value: String?
+        public var number: JSONValue?
+        public var format: String?
+        public var unit: String?
+        public var precision: JSONValue?
+        public var tint: String?
+        public var active: JSONValue?
+        public var accessibilityLabel: String?
+
+        public init(
+            id: String? = nil,
+            label: String? = nil,
+            value: String? = nil,
+            number: JSONValue? = nil,
+            format: String? = nil,
+            unit: String? = nil,
+            precision: JSONValue? = nil,
+            tint: String? = nil,
+            active: JSONValue? = nil,
+            accessibilityLabel: String? = nil
+        ) {
+            self.id = id
+            self.label = label
+            self.value = value
+            self.number = number
+            self.format = format
+            self.unit = unit
+            self.precision = precision
+            self.tint = tint
+            self.active = active
+            self.accessibilityLabel = accessibilityLabel
         }
     }
 
@@ -192,6 +264,7 @@ public enum WorkflowEngine {
     public struct Output: Sendable {
         public var viewTree: UINode
         public var statusLabel: String?
+        public var statusMetrics: [StatusMetric]?
         public var statusTooltip: String?
         /// Text the menu bar draws before the value, when the widget supplies
         /// one per refresh. See `StatusDef.prefix`.
@@ -200,6 +273,7 @@ public enum WorkflowEngine {
         public var statusIcon: String?
         /// Semantic colour for this refresh. See `StatusDef.tint`.
         public var statusTint: String?
+        public var statusPresentation: MenuBarPresentation?
         /// Total items produced by every `forEach` expansion.
         public var expandedItemCount: Int
         /// True when zero items were expanded and the `empty` node was used.
@@ -210,9 +284,11 @@ public enum WorkflowEngine {
         public init(
             viewTree: UINode,
             statusLabel: String? = nil,
+            statusMetrics: [StatusMetric]? = nil,
             statusPrefix: String? = nil,
             statusIcon: String? = nil,
             statusTint: String? = nil,
+            statusPresentation: MenuBarPresentation? = nil,
             statusTooltip: String? = nil,
             expandedItemCount: Int = 0,
             usedEmpty: Bool = false,
@@ -220,9 +296,11 @@ public enum WorkflowEngine {
         ) {
             self.viewTree = viewTree
             self.statusLabel = statusLabel
+            self.statusMetrics = statusMetrics
             self.statusPrefix = statusPrefix
             self.statusIcon = statusIcon
             self.statusTint = statusTint
+            self.statusPresentation = statusPresentation
             self.statusTooltip = statusTooltip
             self.expandedItemCount = expandedItemCount
             self.usedEmpty = usedEmpty
@@ -303,6 +381,8 @@ public enum WorkflowEngine {
         var statusPrefix: String?
         var statusIcon: String?
         var statusTint: String?
+        var statusPresentation: MenuBarPresentation?
+        var statusMetrics: [StatusMetric]?
         if let status = definition.status {
             if let label = status.label {
                 statusLabel = try context.interpolate(label).stringified
@@ -318,6 +398,65 @@ public enum WorkflowEngine {
             }
             if let tint = status.tint {
                 statusTint = try context.interpolate(tint).stringified
+            }
+            if let presentation = status.presentation {
+                let bool: (JSONValue?) throws -> Bool? = { value in
+                    guard let value else { return nil }
+                    return Self.metricActive(try context.expand(value))
+                }
+                let number: (JSONValue?) throws -> Double? = { value in
+                    guard let value else { return nil }
+                    switch try context.expand(value) {
+                    case let .number(number): return number
+                    case let .string(text): return Double(text)
+                    default: return nil
+                    }
+                }
+                statusPresentation = MenuBarPresentation(
+                    showValues: try bool(presentation.showValues),
+                    showUnits: try bool(presentation.showUnits),
+                    precision: Self.validMetricPrecision(try number(presentation.precision)),
+                    color: try presentation.color.map { try context.interpolate($0).stringified },
+                    valueWidth: try number(presentation.valueWidth),
+                    metricOrder: presentation.metricOrder,
+                    metricOverrides: presentation.metricOverrides
+                )
+            }
+            if let metrics = status.metrics {
+                statusMetrics = try metrics.map { metric in
+                    let active: Bool?
+                    if let template = metric.active {
+                        active = Self.metricActive(try context.expand(template))
+                    } else {
+                        active = nil
+                    }
+                    return StatusMetric(
+                        id: try metric.id.map { try context.interpolate($0).stringified },
+                        label: try metric.label.map { try context.interpolate($0).stringified } ?? "",
+                        value: try metric.value.map { try context.interpolate($0).stringified } ?? "",
+                        number: try metric.number.flatMap { value in
+                            switch try context.expand(value) {
+                            case let .number(number): return number
+                            case let .string(text): return Double(text)
+                            default: return nil
+                            }
+                        },
+                        format: try metric.format.map { try context.interpolate($0).stringified },
+                        unit: try metric.unit.map { try context.interpolate($0).stringified },
+                        precision: Self.validMetricPrecision(try metric.precision.flatMap { value in
+                            switch try context.expand(value) {
+                            case let .number(number): return number
+                            case let .string(text): return Double(text)
+                            default: return nil
+                            }
+                        }),
+                        tint: try metric.tint.map { try context.interpolate($0).stringified },
+                        active: active,
+                        accessibilityLabel: try metric.accessibilityLabel.map {
+                            try context.interpolate($0).stringified
+                        }
+                    )
+                }
             }
         }
 
@@ -339,14 +478,40 @@ public enum WorkflowEngine {
         return Output(
             viewTree: viewTree,
             statusLabel: statusLabel,
+            statusMetrics: statusMetrics,
             statusPrefix: statusPrefix,
             statusIcon: statusIcon,
             statusTint: statusTint,
+            statusPresentation: statusPresentation,
             statusTooltip: statusTooltip,
             expandedItemCount: context.expandedItemCount,
             usedEmpty: usedEmpty,
             writes: writes
         )
+    }
+
+    /// Only explicit booleans (or their string wire representation) control
+    /// activity. Numbers and arbitrary strings cannot accidentally animate a
+    /// menu-bar indicator.
+    private static func metricActive(_ value: JSONValue) -> Bool? {
+        switch value {
+        case let .bool(active): return active
+        case let .string(text):
+            switch text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+            case "true": return true
+            case "false": return false
+            default: return nil
+            }
+        default: return nil
+        }
+    }
+
+    /// Converts a workflow number only after proving it is safe to turn into
+    /// an `Int`. `Int(Double.nan)`, infinity, and enormous doubles trap.
+    private static func validMetricPrecision(_ value: Double?) -> Int? {
+        guard let value, value.isFinite, value.rounded(.towardZero) == value,
+              (0...3).contains(value) else { return nil }
+        return Int(value)
     }
 
     // MARK: - Evaluation context

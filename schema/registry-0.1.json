@@ -185,7 +185,8 @@
               "cpu",
               "memory",
               "disk",
-              "sensors"
+              "sensors",
+              "network"
             ]
           }
         }

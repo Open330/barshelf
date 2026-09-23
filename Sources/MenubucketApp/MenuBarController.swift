@@ -107,6 +107,7 @@ final class MenuBarController {
             appliedStrip = nil
         }
         guard appliedStrip != entries else { return }
+        let previous = appliedStrip
         appliedStrip = entries
         guard !entries.isEmpty else {
             mainItem.length = Self.iconOnlyLength
@@ -116,13 +117,19 @@ final class MenuBarController {
             button.setAccessibilityLabel(BarShelfStatusIcon.accessibilityName)
             return
         }
+        let tooltip = MenuBarPolicy.tooltip(for: entries)
+        if button.toolTip != tooltip { button.toolTip = tooltip }
+        let spoken = entries.map(MenuBarPolicy.accessibilityText).joined(separator: "; ")
+        if previous.map({ $0.map(MenuBarPolicy.accessibilityText).joined(separator: "; ") != spoken }) ?? true {
+            button.setAccessibilityLabel("\(BarShelfStatusIcon.accessibilityName), \(spoken)")
+        }
+        // Raw numeric samples and spoken descriptions are not necessarily a
+        // visible change after the user's precision/value settings apply.
+        if let previous, previous.count == entries.count,
+           zip(previous, entries).allSatisfy({ Self.drawsIdentically($0, $1) }) { return }
         mainItem.length = NSStatusItem.variableLength
         button.imagePosition = .imageLeading
         button.attributedTitle = Self.attributedStrip(entries)
-        button.toolTip = MenuBarPolicy.tooltip(for: entries)
-        button.setAccessibilityLabel(
-            "\(BarShelfStatusIcon.accessibilityName), \(MenuBarPolicy.stripText(entries))"
-        )
     }
 
     /// Whether an icon override names an SF Symbol or is literal text.
@@ -221,6 +228,12 @@ final class MenuBarController {
             // so they change on refreshes where the drawn reading does not. A
             // tooltip-only change must not redraw: that was most of the redraws
             // left, e.g. the RAM item repainting every time CPU moved.
+            // Spoken values can change while activity dots draw identically.
+            // Update accessibility independently of the bitmap redraw gate.
+            let spoken = MenuBarPolicy.accessibilityText(entry)
+            if previous.map({ MenuBarPolicy.accessibilityText($0) != spoken || $0.name != entry.name }) ?? true {
+                button.setAccessibilityLabel(spoken.isEmpty ? entry.name : "\(entry.name), \(spoken)")
+            }
             if let previous, Self.drawsIdentically(previous, entry) { continue }
             // No `length` here: the item is created variable-length, and every
             // assignment — even of the same value — re-measures the replicant.
@@ -235,12 +248,14 @@ final class MenuBarController {
                 )
             }
             let glyph = symbolImage == nil ? Self.textGlyph(for: entry) : nil
-            if entry.style == .stacked {
+            if entry.style == .stacked || entry.style == .metrics {
                 // One image carries both rows *and* the symbol, because a
                 // button has room for only one image and the rows have to sit
                 // beside it rather than under it. Assigned once: each image
                 // set is a replicant redraw and a re-measure.
-                button.image = Self.stackedImage(entry, symbol: symbolImage, glyph: glyph)
+                button.image = entry.style == .metrics
+                    ? Self.metricsImage(entry, symbol: symbolImage, glyph: glyph)
+                    : Self.stackedImage(entry, symbol: symbolImage, glyph: glyph)
                 if button.attributedTitle.length > 0 {
                     button.attributedTitle = NSAttributedString(string: "")
                 }
@@ -259,12 +274,7 @@ final class MenuBarController {
                     hasImage: symbolImage != nil, hasLabel: title.length > 0
                 )
             }
-            // VoiceOver reads one line, so the stacked layout is flattened
-            // back to "name, CPU 23%" rather than announced as two rows.
-            let spoken = MenuBarPolicy.entryText(entry)
-            button.setAccessibilityLabel(
-                spoken.isEmpty ? entry.name : "\(entry.name), \(spoken)"
-            )
+
         }
     }
 
@@ -275,7 +285,25 @@ final class MenuBarController {
         var rhs = rhs
         lhs.tooltip = nil
         rhs.tooltip = nil
+        lhs.metrics = lhs.metrics.map(Self.drawnMetric)
+        rhs.metrics = rhs.metrics.map(Self.drawnMetric)
+        // Formatting and row overrides are already resolved into visible
+        // strings/tints/order. Only the minimum column width affects drawing.
+        lhs.presentation = MenuBarPresentation(valueWidth: lhs.presentation.valueWidth)
+        rhs.presentation = MenuBarPresentation(valueWidth: rhs.presentation.valueWidth)
+        if lhs.style == .metrics, rhs.style == .metrics,
+           !lhs.metrics.isEmpty, !rhs.metrics.isEmpty {
+            // The legacy fallback is not drawn by the metric renderer.
+            lhs.label = nil
+            rhs.label = nil
+            lhs.prefix = nil
+            rhs.prefix = nil
+        }
         return lhs == rhs
+    }
+
+    private static func drawnMetric(_ metric: StatusMetric) -> StatusMetric {
+        StatusMetric(label: metric.label, value: metric.value, tint: metric.tint, active: metric.active)
     }
 
     static func imagePosition(hasImage: Bool, hasLabel: Bool) -> NSControl.ImagePosition {
@@ -374,7 +402,9 @@ final class MenuBarController {
     static func stackedLines(_ entry: MenuBarEntry, glyph: String?) -> (top: String, bottom: String) {
         var top = MenuBarPolicy.normalizedPrefix(entry.prefix) ?? entry.name
         if let glyph, !glyph.isEmpty { top = "\(glyph) \(top)" }
-        return (top, entry.label ?? "")
+        let bottom = entry.metrics.count == 1 ? entry.metrics[0].value : entry.metrics.isEmpty ? (entry.label ?? "")
+            : (MenuBarPolicy.normalizedLabel(MenuBarPolicy.entryText(entry), limit: 28) ?? "")
+        return (top, bottom)
     }
 
     /// The pair of fonts that fills `height` at the base ratio.
@@ -492,6 +522,9 @@ final class MenuBarController {
             )
         }
         let glyph = symbol == nil ? textGlyph(for: entry) : nil
+        if entry.style == .metrics {
+            return metricsImage(entry, symbol: symbol, glyph: glyph, height: height)
+        }
         if entry.style == .stacked {
             return stackedImage(entry, symbol: symbol, glyph: glyph, height: height)
         }

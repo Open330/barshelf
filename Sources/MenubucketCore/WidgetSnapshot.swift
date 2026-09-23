@@ -19,12 +19,17 @@ public struct WidgetSnapshot: Codable, Equatable {
     /// snapshot so a promoted widget has something to draw at cold start,
     /// before its first refresh completes.
     public var statusLabel: String?
+    /// Last structured menu-bar readings. Optional for render-cache backward
+    /// compatibility with snapshots written before metrics existed.
+    public var statusMetrics: [StatusMetric]?
     /// Menu-bar text drawn before `statusLabel`, when the widget emits one.
     public var statusPrefix: String?
     /// SF Symbol the widget asked for on its last refresh.
     public var statusIcon: String?
     /// Semantic colour the widget asked for on its last refresh.
     public var statusTint: String?
+    /// Last live display preferences, cached with the status values.
+    public var statusPresentation: MenuBarPresentation?
     /// Longer form for the menu-bar tooltip (`status.tooltip`).
     public var statusTooltip: String?
     /// True only for a widget-supplied, explicitly redacted fallback tree.
@@ -35,7 +40,7 @@ public struct WidgetSnapshot: Codable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case widgetID, viewTree, updatedAt, error, safeForSensitiveCache
-        case statusLabel, statusTooltip, statusPrefix, statusIcon, statusTint
+        case statusLabel, statusMetrics, statusTooltip, statusPrefix, statusIcon, statusTint, statusPresentation
     }
 
     public init(
@@ -44,10 +49,12 @@ public struct WidgetSnapshot: Codable, Equatable {
         updatedAt: Date? = nil,
         error: String? = nil,
         statusLabel: String? = nil,
+        statusMetrics: [StatusMetric]? = nil,
         statusTooltip: String? = nil,
         statusPrefix: String? = nil,
         statusIcon: String? = nil,
         statusTint: String? = nil,
+        statusPresentation: MenuBarPresentation? = nil,
         safeForSensitiveCache: Bool? = nil,
         isLoading: Bool = false
     ) {
@@ -56,10 +63,12 @@ public struct WidgetSnapshot: Codable, Equatable {
         self.updatedAt = updatedAt
         self.error = error
         self.statusLabel = statusLabel
+        self.statusMetrics = statusMetrics
         self.statusTooltip = statusTooltip
         self.statusPrefix = statusPrefix
         self.statusIcon = statusIcon
         self.statusTint = statusTint
+        self.statusPresentation = statusPresentation
         self.safeForSensitiveCache = safeForSensitiveCache
         self.isLoading = isLoading
     }

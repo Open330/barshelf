@@ -336,13 +336,52 @@
           "type": "string",
           "enum": [
             "inline",
-            "stacked"
+            "stacked",
+            "metrics"
           ],
-          "description": "`inline` draws the label beside the value; `stacked` puts it above, the way a system monitor packs two rows into the menu bar. Stacked implies the widget's own status item."
+          "description": "`inline` draws the label beside the value; `stacked` puts it above; `metrics` draws up to two status.metrics readings. Stacked and metrics imply the widget's own status item."
+        },
+        "presentation": {
+          "$ref": "#/definitions/menuBarPresentation"
         }
       },
       "additionalProperties": true,
       "description": "Menu-bar promotion. `none` keeps the widget out of the menu bar; `icon`, `text` and `dynamic` make it eligible, and the user's per-widget toggle decides. The live text is the widget's own status label (a workflow's `status.label`, or a script's `host.render` status), so `labelFrom` / `tooltipFrom` are accepted but unused."
+    },
+    "menuBarPresentation": {
+      "description": "Sparse author defaults for a promoted menu-bar item. User preferences override each field, then a workflow/script render can override these defaults.",
+      "type": "object",
+      "properties": {
+        "showValues": { "type": "boolean" },
+        "showUnits": { "type": "boolean" },
+        "precision": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "color": { "type": "string", "enum": ["automatic", "monochrome", "accent", "good", "warning", "danger", "secondary"] },
+        "valueWidth": { "type": "number", "minimum": 32, "maximum": 120 },
+        "metricOrder": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/stableMetricId" },
+          "uniqueItems": true
+        },
+        "metricOverrides": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/definitions/stableMetricId" },
+          "additionalProperties": { "$ref": "#/definitions/menuBarMetricOverride" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "menuBarMetricOverride": {
+      "type": "object",
+      "properties": {
+        "label": { "type": "string" },
+        "hidden": { "type": "boolean" },
+        "tint": { "type": "string", "enum": ["accent", "good", "warning", "danger", "secondary"] }
+      },
+      "additionalProperties": false
+    },
+    "stableMetricId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$"
     },
     "statusIcon": {
       "type": "object",
@@ -405,7 +444,8 @@
               "cpu",
               "memory",
               "disk",
-              "sensors"
+              "sensors",
+              "network"
             ]
           },
           "uniqueItems": true

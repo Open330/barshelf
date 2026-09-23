@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.system",
   "name": "System",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "icon": "cpu.fill",
   "bucket": {
     "group": "System",
@@ -45,6 +45,22 @@
         "CPU",
         "Memory",
         "Disk"
+      ]
+    },
+    {
+      "key": "menuBarMemoryDisplay",
+      "title": "RAM menu bar value",
+      "type": "enum",
+      "default": "percent",
+      "options": [
+        "percent",
+        "used",
+        "available"
+      ],
+      "optionTitles": [
+        "Percent used",
+        "Memory used",
+        "Memory available"
       ]
     }
   ],
