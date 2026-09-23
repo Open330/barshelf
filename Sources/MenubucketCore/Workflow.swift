@@ -75,7 +75,7 @@ public struct WorkflowDefinition: Codable, Equatable, Sendable {
                 || Self.mentionsVisibility(presentation.precision) || Self.mentionsVisibility(presentation.valueWidth)
                 || Self.mentionsVisibility(presentation.digits)
                 || [presentation.color, presentation.width, presentation.alignment,
-                    presentation.weight, presentation.size]
+                    presentation.weight, presentation.size, presentation.numberAlignment]
                     .contains(where: { $0?.contains(Self.visibilityPath) == true }) { return true }
         }
         return false
@@ -172,15 +172,16 @@ public struct WorkflowDefinition: Codable, Equatable, Sendable {
         public var alignment: String?
         public var weight: String?
         public var size: String?
+        public var numberAlignment: String?
         public init(showValues: JSONValue? = nil, showUnits: JSONValue? = nil, precision: JSONValue? = nil,
                     color: String? = nil, valueWidth: JSONValue? = nil, metricOrder: [String]? = nil,
                     metricOverrides: [String: MenuBarMetricOverride]? = nil,
                     width: String? = nil, digits: JSONValue? = nil, alignment: String? = nil,
-                    weight: String? = nil, size: String? = nil) {
+                    weight: String? = nil, size: String? = nil, numberAlignment: String? = nil) {
             self.showValues = showValues; self.showUnits = showUnits; self.precision = precision
             self.color = color; self.valueWidth = valueWidth; self.metricOrder = metricOrder; self.metricOverrides = metricOverrides
             self.width = width; self.digits = digits; self.alignment = alignment
-            self.weight = weight; self.size = size
+            self.weight = weight; self.size = size; self.numberAlignment = numberAlignment
         }
     }
 
@@ -451,6 +452,9 @@ public enum WorkflowEngine {
                     },
                     size: try presentation.size.flatMap {
                         MenuBarTextSize(rawValue: try context.interpolate($0).stringified)
+                    },
+                    numberAlignment: try presentation.numberAlignment.flatMap {
+                        MenuBarNumberAlignment(rawValue: try context.interpolate($0).stringified)
                     }
                 )
             }

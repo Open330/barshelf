@@ -131,6 +131,25 @@ final class MenuBarSteadyWidthTests: XCTestCase {
         XCTAssertEqual(stackedWidth("9°", fixed), stackedWidth("9°", explicit))
     }
 
+    /// The four looks people asked to choose between, each reachable from the
+    /// two settings, and each holding the item's width.
+    func testEveryAlignmentCombinationHoldsTheWidth() {
+        let combos: [MenuBarPresentation] = [
+            MenuBarPresentation(),                                              // A
+            MenuBarPresentation(numberAlignment: .left),                        // B
+            MenuBarPresentation(alignment: .trailing),                          // C
+            MenuBarPresentation(alignment: .center),                            // D
+        ]
+        for p in combos {
+            // To a hundredth of a point: text layout sums glyph advances and
+            // can differ in the last bit; the item's length is rounded up anyway.
+            XCTAssertEqual(stackedWidth("4 W", p), stackedWidth("15 W", p), accuracy: 0.01, "\(p)")
+        }
+        XCTAssertFalse(MenuBarController.drawsIdentically(
+            entry("4 W"), entry("4 W", MenuBarPresentation(numberAlignment: .left))
+        ))
+    }
+
     // MARK: Redraw decisions
 
     func testLayoutSignatureIgnoresReadingsButNotLayout() {

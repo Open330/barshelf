@@ -137,6 +137,17 @@ public enum MenuBarAlignment: String, Codable, Equatable, Sendable, CaseIterable
     case leading, center, trailing
 }
 
+/// Which side of a reserved number the padding goes on — where the digits
+/// sit when there are fewer of them than the room kept for them.
+public enum MenuBarNumberAlignment: String, Codable, Equatable, Sendable, CaseIterable {
+    /// Padding before the number: the ones digit and the unit never move
+    /// (`␣4 W` / `15 W`). The default.
+    case right
+    /// Padding after the whole reading: the number starts at the same place
+    /// as the label and the unit moves (`4 W␣` / `15 W`).
+    case left
+}
+
 public enum MenuBarWeight: String, Codable, Equatable, Sendable, CaseIterable {
     case regular, medium, semibold, bold
 }
@@ -167,6 +178,8 @@ public struct MenuBarPresentation: Codable, Equatable, Sendable {
     public var weight: MenuBarWeight?
     /// Size of the value text relative to the style's own.
     public var size: MenuBarTextSize?
+    /// Where a short number sits in the digits reserved for it.
+    public var numberAlignment: MenuBarNumberAlignment?
 
     public init(showValues: Bool? = nil, showUnits: Bool? = nil, precision: Int? = nil,
                 color: String? = nil, valueWidth: Double? = nil,
@@ -174,7 +187,7 @@ public struct MenuBarPresentation: Codable, Equatable, Sendable {
                 metricOverrides: [String: MenuBarMetricOverride]? = nil,
                 width: MenuBarWidthMode? = nil, digits: Int? = nil,
                 alignment: MenuBarAlignment? = nil, weight: MenuBarWeight? = nil,
-                size: MenuBarTextSize? = nil) {
+                size: MenuBarTextSize? = nil, numberAlignment: MenuBarNumberAlignment? = nil) {
         self.showValues = showValues
         self.showUnits = showUnits
         self.precision = StatusMetric.validPrecision(precision)
@@ -185,6 +198,7 @@ public struct MenuBarPresentation: Codable, Equatable, Sendable {
         self.alignment = alignment
         self.weight = weight
         self.size = size
+        self.numberAlignment = numberAlignment
         self.metricOrder = metricOrder.map { order in
             var seen = Set<String>()
             return order.filter { !($0.isEmpty || !seen.insert($0).inserted) }
@@ -208,12 +222,13 @@ public struct MenuBarPresentation: Codable, Equatable, Sendable {
                   digits: (try? c.decodeIfPresent(Int.self, forKey: .digits)) ?? nil,
                   alignment: Self.lenient(c, .alignment),
                   weight: Self.lenient(c, .weight),
-                  size: Self.lenient(c, .size))
+                  size: Self.lenient(c, .size),
+                  numberAlignment: Self.lenient(c, .numberAlignment))
     }
 
     private enum CodingKeys: String, CodingKey {
         case showValues, showUnits, precision, color, valueWidth, metricOrder,
-             metricOverrides, width, digits, alignment, weight, size
+             metricOverrides, width, digits, alignment, weight, size, numberAlignment
     }
 
     private static func lenient<T: RawRepresentable>(
@@ -228,8 +243,9 @@ public struct MenuBarPresentation: Codable, Equatable, Sendable {
     public var effectiveWidth: MenuBarWidthMode { width ?? .auto }
     public var effectiveDigits: Int { digits ?? MenuBarPolicy.defaultReservedDigits }
     /// Block alignment of the label and value rows. Leading is how items have
-    /// always looked; numbers inside the value are right-aligned regardless.
+    /// always looked.
     public var effectiveAlignment: MenuBarAlignment { alignment ?? .leading }
+    public var effectiveNumberAlignment: MenuBarNumberAlignment { numberAlignment ?? .right }
 
     static func validColor(_ color: String?) -> String? {
         guard let color, color == "automatic" || color == "monochrome" || MenuBarTint.named(color) != nil else { return nil }
@@ -554,7 +570,7 @@ public enum MenuBarPolicy {
                                    metricOverrides: overrides.isEmpty ? nil : overrides,
                                    width: pick(\.width), digits: pick(\.digits),
                                    alignment: pick(\.alignment), weight: pick(\.weight),
-                                   size: pick(\.size))
+                                   size: pick(\.size), numberAlignment: pick(\.numberAlignment))
     }
 
     // MARK: Metric rows
@@ -605,20 +621,27 @@ public enum MenuBarPolicy {
     /// Pads the integer part of the first number in `text` with figure spaces,
     /// in front of it, so it occupies `digits` digit widths.
     ///
-    /// This is what keeps `9°` and `10°` the same width. The padding always
-    /// goes before the number — numbers are right-aligned, so the ones digit
-    /// stays where it was when `8%` becomes `23%` — whatever block alignment
-    /// the item uses. It is text rather than layout, so the shared strip (one
+    /// This is what keeps `9°` and `10°` the same width. By default the
+    /// padding goes before the number — right-aligned, so the ones digit stays
+    /// where it was when `8%` becomes `23%`; `numbers: .left` puts it after the
+    /// reading instead, so the number starts where the label does. It is text rather than layout, so the shared strip (one
     /// attributed string for several widgets) gets stable cells the same way
     /// a separate item does. Text with no digits, or a number already that
     /// long, is returned unchanged.
-    public static func reservingDigits(_ text: String, digits: Int) -> String {
+    public static func reservingDigits(
+        _ text: String, digits: Int, numbers: MenuBarNumberAlignment = .right
+    ) -> String {
         guard digits > 0, let start = text.firstIndex(where: \.isASCIIDigit) else {
             return text
         }
         let run = text[start...].prefix(while: \.isASCIIDigit)
         let missing = digits - run.count
         guard missing > 0 else { return text }
+        if numbers == .left {
+            // After the whole reading, so the unit travels with the number
+            // and the number starts where the label does.
+            return text + String(repeating: figureSpace, count: missing)
+        }
         // The pad goes before a sign, not between it and the digits: -5° is
         // drawn " -5°", never "- 5°".
         var at = start
@@ -634,7 +657,10 @@ public enum MenuBarPolicy {
     /// The value text as the menu bar should draw it under `presentation`.
     public static func reservedValue(_ text: String, presentation: MenuBarPresentation) -> String {
         guard presentation.effectiveWidth != .fit, !text.isEmpty else { return text }
-        return reservingDigits(text, digits: presentation.effectiveDigits)
+        return reservingDigits(
+            text, digits: presentation.effectiveDigits,
+            numbers: presentation.effectiveNumberAlignment
+        )
     }
 
     /// Formats a numeric metric according to the public SDK vocabulary.

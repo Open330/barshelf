@@ -378,7 +378,8 @@ final class MenuBarController {
     private static func drawnPresentation(_ p: MenuBarPresentation) -> MenuBarPresentation {
         MenuBarPresentation(
             valueWidth: p.valueWidth, width: p.width, digits: p.digits,
-            alignment: p.alignment, weight: p.weight, size: p.size
+            alignment: p.alignment, weight: p.weight, size: p.size,
+            numberAlignment: p.numberAlignment
         )
     }
 

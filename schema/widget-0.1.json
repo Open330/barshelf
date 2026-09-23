@@ -362,6 +362,7 @@
         "alignment": { "type": "string", "enum": ["leading", "center", "trailing"], "description": "Block alignment of the label and value rows. Numbers are always right-aligned within their reserved digits." },
         "weight": { "type": "string", "enum": ["regular", "medium", "semibold", "bold"] },
         "size": { "type": "string", "enum": ["small", "regular", "large"] },
+        "numberAlignment": { "type": "string", "enum": ["right", "left"], "description": "Where a short number sits in its reserved digits: right (default) keeps the last digit and unit still; left starts it where the label does." },
         "metricOrder": {
           "type": "array",
           "items": { "$ref": "#/definitions/stableMetricId" },

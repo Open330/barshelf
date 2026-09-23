@@ -651,7 +651,13 @@ struct WidgetSettingsView: View {
                 .labelsHidden()
                 .frame(width: 130)
             }
-            settingsHint("Alignment places the label and value rows; numbers stay right-aligned so the last digit never moves.")
+            Toggle("Right-align numbers", isOn: Binding(
+                get: { presentation.effectiveNumberAlignment == .right },
+                set: { on in setPresentation { $0.numberAlignment = on ? nil : .left } }
+            ))
+            settingsHint(presentation.effectiveNumberAlignment == .right
+                ? "Alignment places the label and value rows. Right-aligned numbers keep the last digit and the unit still as 9 becomes 10."
+                : "Alignment places the label and value rows. Left-aligned numbers start where the label does; the unit moves as 9 becomes 10.")
         }
     }
 

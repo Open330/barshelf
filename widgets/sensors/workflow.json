@@ -339,7 +339,7 @@
         "number": "${if(eq(transforms.raw, null), null, transforms.shown)}",
         "format": "${if(eq(settings.menuBarSensor,'fanUsage'), 'percent', 'decimal')}",
         "unit": "${if(eq(settings.menuBarSensor,'power'), 'W', if(eq(settings.menuBarSensor,'fan'), 'rpm', if(eq(settings.menuBarSensor,'fanUsage'), '%', if(eq(settings.unit,'fahrenheit'), '°F', '°C'))))}",
-        "precision": "${if(eq(settings.menuBarSensor,'power'), 1, 0)}"
+        "precision": 0
       }
     ]
   }

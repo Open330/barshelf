@@ -514,6 +514,7 @@
         "alignment": { "$ref": "#/definitions/templateString" },
         "weight": { "$ref": "#/definitions/templateString" },
         "size": { "$ref": "#/definitions/templateString" },
+        "numberAlignment": { "$ref": "#/definitions/templateString" },
         "metricOrder": {
           "type": "array",
           "items": { "$ref": "#/definitions/stableMetricId" },
