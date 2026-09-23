@@ -259,12 +259,12 @@ SMC 온도가 없는 Mac에서는 HID 센서 이름). 접두사는 정확히 소
 | `cpu.usage` / `.user` / `.system` / `.nice` / `.idle` | 직전 샘플 이후 구간의 CPU 점유율. |
 | `cpu.coreCount`, `cpu.loadAverage.{1m,5m,15m}` | 코어 수와 load average. |
 | `cpu.cores[]` | 코어별 `usage`. `detail: true`일 때만. |
-| `cpu.coreMax` | 가장 바쁜 코어의 `usage`. 단일 스레드 작업이 전체 평균에 묻히지 않게. 항상 채운다. |
+| `cpu.coreMax` | 가장 바쁜 코어의 `usage`. 단일 스레드 작업이 전체 평균에 묻히지 않게. `detail` 없이도 채우고, 틱 카운터를 못 읽은 샘플에서만 `null`. |
 | `memory.{total,used,free,app,wired,compressed,cached,usage}` | Activity Monitor의 "사용 중 메모리"와 같은 계산식(app + wired + compressed). |
 | `memory.pressure` | `"normal"` \| `"warning"` \| `"critical"` \| `"unknown"`. |
 | `memory.swap.{total,used,free,usage}` | 스왑. |
 | `disk.{mount,total,used,free,usage}` | `df`와 같은 기준(예약 블록은 used로 계산). |
-| `disk.{read,write}` | 모든 저장장치의 읽기/쓰기 bytes/s. `io: true`일 때만, 첫 샘플은 `null`. |
+| `disk.{read,write}` | 모든 저장장치(마운트한 디스크 이미지는 제외 — 호스트 디스크와 이중 집계되므로)의 읽기/쓰기 bytes/s. `io: true`일 때만, 첫 샘플은 `null`. |
 | `network.{available,interface,download,upload,received,sent,address}` | 네트워크 카운터. `download`/`upload`은 bytes/s이고 첫 샘플은 이전 카운터가 없어 `null`이다. `received`/`sent`는 누적 bytes, `address`는 로컬 주소다. |
 | `sensors.available` | 어떤 센서도 읽지 못하면 `false`. 샌드박스 빌드와 VM이 여기 해당한다. |
 | `sensors.{cpu,gpu,battery,peak}` | °C. CPU는 코어 다이 센서들의 평균, `peak`은 요약 센서 중 최고값. |

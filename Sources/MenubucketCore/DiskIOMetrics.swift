@@ -39,11 +39,18 @@ public enum DiskIOMetrics {
         private var previous: (counters: Counters, at: TimeInterval)?
         private var last: Rates = Rates()
 
+        public static func clock() -> TimeInterval {
+            TimeInterval(clock_gettime_nsec_np(CLOCK_MONOTONIC)) / 1_000_000_000
+        }
+
         public init(read: @escaping () -> Counters? = DiskIOMetrics.readCounters) {
             self.read = read
         }
 
-        public func sample(now: TimeInterval = ProcessInfo.processInfo.systemUptime) -> Rates {
+        /// `now` counts sleep (`CLOCK_MONOTONIC` on Darwin; `systemUptime`
+        /// does not), so a night's sleep is a gap `maximumWindow` refuses
+        /// rather than a few seconds that dark-wake I/O gets divided by.
+        public func sample(now: TimeInterval = Sampler.clock()) -> Rates {
             lock.lock()
             defer { lock.unlock() }
             // Two widgets reading at once share one measurement rather than
@@ -72,8 +79,10 @@ public enum DiskIOMetrics {
         }
     }
 
-    /// The summed byte counters of every block storage driver. nil when there
-    /// is none to read (a sandbox, a VM without one).
+    /// The summed byte counters of every block storage driver but a disk
+    /// image's — an image's reads are also its host disk's, and counting both
+    /// doubled a copy out of a mounted .dmg. nil when there is none to read
+    /// (a sandbox, a VM without one).
     public static func readCounters() -> Counters? {
         var iterator: io_iterator_t = 0
         guard IOServiceGetMatchingServices(
@@ -85,6 +94,7 @@ public enum DiskIOMetrics {
         var found = false
         while case let service = IOIteratorNext(iterator), service != 0 {
             defer { IOObjectRelease(service) }
+            guard !isDiskImage(service) else { continue }
             guard let property = IORegistryEntryCreateCFProperty(
                 service, "Statistics" as CFString, kCFAllocatorDefault, 0
             )?.takeRetainedValue() as? [String: Any] else { continue }
@@ -95,5 +105,16 @@ public enum DiskIOMetrics {
             found = true
         }
         return found ? total : nil
+    }
+
+    /// Whether a storage driver sits on a mounted disk image (the
+    /// `IOHDIXHDDrive…` family `hdiutil` attaches).
+    static func isDiskImage(_ driver: io_object_t) -> Bool {
+        var parent: io_registry_entry_t = 0
+        guard IORegistryEntryGetParentEntry(driver, kIOServicePlane, &parent) == KERN_SUCCESS else { return false }
+        defer { IOObjectRelease(parent) }
+        var name = [CChar](repeating: 0, count: 128)
+        guard IOObjectGetClass(parent, &name) == KERN_SUCCESS else { return false }
+        return String(cString: name).contains("HDIX")
     }
 }

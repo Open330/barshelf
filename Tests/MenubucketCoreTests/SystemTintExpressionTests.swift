@@ -39,6 +39,10 @@ final class SystemTintExpressionTests: XCTestCase {
         XCTAssertEqual(try evaluate(["menuBarMetric": "cpuCore"]).statusTint, "",
                        "only the machine-wide percentages carry the built-in colours")
         XCTAssertEqual(try evaluate(["menuBarMetric": "pressure"], pressure: "critical").statusTint, "danger")
+        XCTAssertEqual(try evaluate(["menuBarMetric": "memory", "menuBarMemoryDisplay": "used"], memory: 95).statusTint,
+                       "danger", "shown as bytes, memory is still judged by its usage")
+        let second = try evaluate(["menuBarMetric": "cpu", "menuBarSecondary": "memory"], memory: 96)
+        XCTAssertEqual(second.statusMetrics?.last?.tint, "danger", "the second slot colours like the first")
     }
 
     func testTheNewReadings() throws {
@@ -56,6 +60,9 @@ final class SystemTintExpressionTests: XCTestCase {
         XCTAssertEqual(pressure?.value, "Normal")
         XCTAssertNil(pressure?.number)
         XCTAssertEqual(try evaluate(["menuBarMetric": "diskRead"]).statusLabel, "3.4 MB/s")
+        XCTAssertEqual(try evaluate(["menuBarMetric": "diskFree"]).statusLabel, "245 GB")
+        XCTAssertTrue(try XCTUnwrap(evaluate(["menuBarMetric": "diskRead"]).statusTooltip).hasPrefix("Disk read 3.4 MB/s"),
+                      "the tooltip names what the item shows")
     }
 
     func testASecondReading() throws {
@@ -64,6 +71,12 @@ final class SystemTintExpressionTests: XCTestCase {
         XCTAssertEqual(metrics.map(\.id), ["cpu", "memory"])
         XCTAssertEqual(metrics.map(\.label), ["CPU", "RAM"])
         XCTAssertEqual(MenuBarPolicy.normalizedMetrics(try evaluate([:]).statusMetrics ?? []).count, 1)
+        let same = try evaluate(["menuBarMetric": "cpu", "menuBarSecondary": "cpu"])
+        XCTAssertEqual(MenuBarPolicy.normalizedMetrics(same.statusMetrics ?? []).count, 1, "the same reading twice is shown once")
+        let pending = try evaluate(["menuBarMetric": "cpu", "menuBarSecondary": "diskWrite"])
+        let rows = MenuBarPolicy.normalizedMetrics(pending.statusMetrics ?? [])
+        XCTAssertEqual(rows.count, 2, "a rate with no value yet keeps its place and shows —")
+        XCTAssertEqual(MenuBarPolicy.formattedMetricValue(rows[1], presentation: .init()), "—")
     }
 
     func testDiskThroughputIsAskedForOnlyWhenShown() throws {

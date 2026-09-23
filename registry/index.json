@@ -183,7 +183,7 @@
       "id": "dev.barshelf.system",
       "accent": "purple",
       "name": "System",
-      "description": "Native system monitor — CPU, memory and disk as health-colored meters, read straight from Mach with no subprocess. Choose CPU, RAM or disk for the menu bar, including RAM used or available bytes; duplicate it to show more than one.",
+      "description": "Native system monitor — CPU, memory and disk as health-colored meters, read straight from Mach with no subprocess. Choose what the menu bar shows — CPU total, user, system or busiest core; memory, pressure or swap; disk used, free, or read and write speed — and optionally a second reading beside it.",
       "version": "0.5.0",
       "author": "barshelf",
       "icon": "cpu.fill",
