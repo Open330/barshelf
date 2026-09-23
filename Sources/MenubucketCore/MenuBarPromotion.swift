@@ -545,11 +545,18 @@ public enum MenuBarPolicy {
 
     /// Resolves sparse presentation layers independently. A user changing one
     /// switch never discards a live or manifest default for another.
+    ///
+    /// `global` is the app-wide menu bar style from App Settings. It ranks
+    /// below the item's own choices and above the widget's: a user who asks
+    /// for fit-width everywhere means the widgets too. Only its style fields
+    /// take part (see `globalStyle`).
     public static func resolvedPresentation(
-        user: MenuBarPresentation?, live: MenuBarPresentation?, manifest: MenuBarPresentation?
+        user: MenuBarPresentation?, global: MenuBarPresentation? = nil,
+        live: MenuBarPresentation?, manifest: MenuBarPresentation?
     ) -> MenuBarPresentation {
+        let global = globalStyle(global)
         func pick<T>(_ key: KeyPath<MenuBarPresentation, T?>) -> T? {
-            user?[keyPath: key] ?? live?[keyPath: key] ?? manifest?[keyPath: key]
+            user?[keyPath: key] ?? global?[keyPath: key] ?? live?[keyPath: key] ?? manifest?[keyPath: key]
         }
         let ids = Set((user?.metricOverrides ?? [:]).keys)
             .union((live?.metricOverrides ?? [:]).keys)
@@ -571,6 +578,39 @@ public enum MenuBarPolicy {
                                    width: pick(\.width), digits: pick(\.digits),
                                    alignment: pick(\.alignment), weight: pick(\.weight),
                                    size: pick(\.size), numberAlignment: pick(\.numberAlignment))
+    }
+
+    /// The fields an app-wide style may set: how an item is laid out and
+    /// drawn, not what it shows. Precision, units, value visibility, row
+    /// order and per-row overrides stay with each widget — a precision of 1
+    /// suits a gigabyte reading and not a temperature. One list, so what
+    /// `globalStyle` keeps and what `clearingGlobalStyle` drops cannot drift.
+    private static let globalStyleFields: [@Sendable (inout MenuBarPresentation, MenuBarPresentation) -> Void] = [
+        { $0.color = $1.color },
+        { $0.valueWidth = $1.valueWidth },
+        { $0.width = $1.width },
+        { $0.digits = $1.digits },
+        { $0.alignment = $1.alignment },
+        { $0.weight = $1.weight },
+        { $0.size = $1.size },
+        { $0.numberAlignment = $1.numberAlignment },
+    ]
+
+    /// The part of a presentation that can apply to every item. nil when
+    /// nothing is left.
+    public static func globalStyle(_ presentation: MenuBarPresentation?) -> MenuBarPresentation? {
+        guard let presentation else { return nil }
+        var style = MenuBarPresentation()
+        for copy in globalStyleFields { copy(&style, presentation) }
+        return style == MenuBarPresentation() ? nil : style
+    }
+
+    /// `presentation` without the fields an app-wide style sets, so that
+    /// style shows through. nil when nothing else was set.
+    public static func clearingGlobalStyle(_ presentation: MenuBarPresentation?) -> MenuBarPresentation? {
+        guard var presentation else { return nil }
+        for copy in globalStyleFields { copy(&presentation, MenuBarPresentation()) }
+        return presentation == MenuBarPresentation() ? nil : presentation
     }
 
     // MARK: Metric rows

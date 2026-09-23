@@ -1367,6 +1367,7 @@ final class WidgetRuntime: ObservableObject {
                 || !(statusItem.showsLabel || hasTextIcon)
             let presentation = MenuBarPolicy.resolvedPresentation(
                 user: placement.presentation,
+                global: appPrefs.preferences.menuBarPresentation,
                 live: snapshot?.statusPresentation,
                 manifest: statusItem.presentation
             )
@@ -1429,6 +1430,31 @@ final class WidgetRuntime: ObservableObject {
     /// menu). Passing `nil` clears the stored choice.
     func setMenuBarPlacement(_ placement: MenuBarPlacement?, for id: String) {
         prefs.setMenuBarPlacement(placement, for: id)
+        syncMenuBar()
+        objectWillChange.send()
+    }
+
+    /// Items whose own width, text or colour choices would hide the app-wide
+    /// menu bar style.
+    var widgetsOverridingMenuBarStyle: [LoadedWidget] {
+        widgets.filter { widget in
+            guard let presentation = prefs.menuBarPlacements[widget.id]?.presentation else { return false }
+            return MenuBarPolicy.clearingGlobalStyle(presentation) != presentation
+        }
+    }
+
+    /// Drops every item's own width, text and colour choices so the app-wide
+    /// style applies to all of them. Labels, icons, row order and precision
+    /// are kept.
+    func clearItemMenuBarStyles() {
+        var changes: [String: MenuBarPlacement?] = [:]
+        for widget in widgetsOverridingMenuBarStyle {
+            guard var placement = prefs.menuBarPlacements[widget.id] else { continue }
+            placement.presentation = MenuBarPolicy.clearingGlobalStyle(placement.presentation)
+            let base = MenuBarPolicy.resolvedPlacement(stored: nil, statusItem: widget.manifest.statusItem)
+            changes[widget.id] = .some(placement == base ? nil : placement)
+        }
+        prefs.setMenuBarPlacements(changes)
         syncMenuBar()
         objectWillChange.send()
     }

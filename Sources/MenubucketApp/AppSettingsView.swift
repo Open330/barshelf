@@ -27,20 +27,22 @@ struct AppSettingsView: View {
     @ObservedObject private var refreshStats: RefreshStatsModel
     @ObservedObject private var hotkeyRegistration = HotkeyRegistrationCoordinator.shared
 
-    init(appPrefs: AppPrefs, runtime: WidgetRuntime) {
+    init(appPrefs: AppPrefs, runtime: WidgetRuntime, section: Section = .general) {
         self.appPrefs = appPrefs
         self.runtime = runtime
+        _section = State(initialValue: section)
         _refreshStats = ObservedObject(wrappedValue: runtime.refreshStats)
     }
 
-    private enum Section: String, CaseIterable, Identifiable {
+    enum Section: String, CaseIterable, Identifiable {
         case general = "General"
+        case menuBar = "Menu Bar"
         case performance = "Performance"
         case monitoring = "Monitoring"
         var id: String { rawValue }
     }
 
-    @State private var section: Section = .general
+    @State private var section: Section
     @State private var launchError: String?
     @State private var hotkeyDraft = ""
 
@@ -68,6 +70,7 @@ struct AppSettingsView: View {
             Form {
                 switch section {
                 case .general: generalSection
+                case .menuBar: menuBarSection
                 case .performance: performanceSection
                 case .monitoring: monitoringSection
                 }
@@ -251,6 +254,68 @@ struct AppSettingsView: View {
                             ? Color.accentColor.opacity(0.55) : Color.clear
                     )
             )
+    }
+
+    // MARK: - Menu bar
+
+    /// The app-wide menu bar style: what every item uses unless its own
+    /// settings choose otherwise.
+    @ViewBuilder
+    private var menuBarSection: some View {
+        let stored = appPrefs.preferences.menuBarPresentation
+        let controls = MenuBarStyleControls(
+            shown: MenuBarPolicy.resolvedPresentation(user: nil, global: stored, live: nil, manifest: nil),
+            inherited: nil,
+            usesOwnItem: nil,
+            change: { edit in
+                appPrefs.update { preferences in
+                    var presentation = preferences.menuBarPresentation ?? MenuBarPresentation()
+                    edit(&presentation)
+                    preferences.menuBarPresentation = presentation
+                }
+            }
+        )
+        SwiftUI.Section {
+            // Stacked rather than LabeledContent: a grouped form pushes the
+            // control to the trailing edge, which tore the rows apart.
+            styleRow("Width") { controls.width }
+            styleRow("Text") { controls.text }
+            styleRow("Color") { controls.color }
+        } header: {
+            Text("All Items")
+        } footer: {
+            Text("Every menu bar item uses these unless its own settings say otherwise. They also win over a widget's own defaults.")
+        }
+
+        let overriding = runtime.widgetsOverridingMenuBarStyle
+        SwiftUI.Section {
+            if overriding.isEmpty {
+                Text("No item has its own width, text or color.")
+                    .foregroundStyle(.secondary)
+            } else {
+                LabeledContent {
+                    Button("Use These for All") { runtime.clearItemMenuBarStyles() }
+                } label: {
+                    Text(overriding.map(\.displayName).joined(separator: ", "))
+                    Text("Set their own width, text or color. Labels, icons and row order stay.")
+                }
+            }
+            if stored != nil {
+                Button("Restore Built-in Style") {
+                    appPrefs.update { $0.menuBarPresentation = nil }
+                }
+            }
+        } header: {
+            Text("Item Overrides")
+        }
+    }
+
+    private func styleRow<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - Performance

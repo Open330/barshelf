@@ -25,6 +25,12 @@ public struct AppPreferences: Codable, Equatable, Sendable {
     /// Lowercase modifiers + key joined by "+" (e.g. "cmd+shift+b"). Persisted
     /// verbatim; parsing/registration happens app-side.
     public var popupHotkey: String
+    /// How every menu bar item looks unless its own settings say otherwise:
+    /// width, digits, alignment, text size and weight, colour. Sits
+    /// between an item's own choices and the widget's defaults. Only the
+    /// style fields are honoured (`MenuBarPolicy.globalStyle`); precision,
+    /// ordering and per-row overrides mean something only for one widget.
+    public var menuBarPresentation: MenuBarPresentation?
 
     public static let defaultMenuBarSymbol = "barshelf.logo"
     public static let defaultPopupHotkey = "cmd+shift+b"
@@ -36,7 +42,8 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         launchAtLogin: Bool = false,
         popupHotkeyEnabled: Bool = false,
         popupHotkey: String = AppPreferences.defaultPopupHotkey,
-        copySoundEnabled: Bool = false
+        copySoundEnabled: Bool = false,
+        menuBarPresentation: MenuBarPresentation? = nil
     ) {
         let symbol = menuBarSymbol.trimmingCharacters(in: .whitespacesAndNewlines)
         self.menuBarSymbol = symbol.isEmpty ? Self.defaultMenuBarSymbol : symbol
@@ -47,6 +54,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         self.popupHotkeyEnabled = popupHotkeyEnabled
         let hotkey = popupHotkey.trimmingCharacters(in: .whitespacesAndNewlines)
         self.popupHotkey = hotkey.isEmpty ? Self.defaultPopupHotkey : hotkey
+        self.menuBarPresentation = MenuBarPolicy.globalStyle(menuBarPresentation)
     }
 
     /// Lenient decoding: absent keys fall back to defaults, the multiplier is
@@ -78,6 +86,10 @@ public struct AppPreferences: Codable, Equatable, Sendable {
             String.self, forKey: .popupHotkey
         )?.trimmingCharacters(in: .whitespacesAndNewlines)
         popupHotkey = (hotkey?.isEmpty == false) ? hotkey! : Self.defaultPopupHotkey
+        // A malformed block must not cost the user every other preference.
+        menuBarPresentation = MenuBarPolicy.globalStyle(
+            (try? container.decodeIfPresent(MenuBarPresentation.self, forKey: .menuBarPresentation)) ?? nil
+        )
     }
 
     // MARK: - File persistence
