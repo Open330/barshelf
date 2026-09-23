@@ -215,15 +215,17 @@ struct WidgetSettingsView: View {
             manifest: statusItem.presentation
         )
         var applied = MenuBarPolicy.applyingPresentation(presentation, to: entry)
-        if presentation.effectiveChart != .none {
-            // The item's own history when it has one; otherwise an example
-            // shape, so choosing a chart shows what it looks like at once.
-            let sample = MenuBarPolicy.chartSample(applied)
-            let scale = sample?.scale ?? max(sample?.value ?? 100, 1)
-            let own = runtime.menuBarHistory[widget.id] ?? []
-            applied.history = own.count >= 2 ? own
-                : Self.exampleChart.map { $0 * scale } + (sample.map { [$0.value] } ?? [])
-            applied.chartScale = sample?.scale
+        // Only what the bar will draw: an item of its own with a numeric
+        // reading. Its own history when it has some; otherwise an example
+        // shape, so choosing a chart shows what it looks like at once.
+        if presentation.effectiveChart != .none, usesOwnItem, let sample = MenuBarPolicy.chartSample(applied) {
+            let own = runtime.menuBarHistory[widget.id]
+            let history = own.map { $0.values.count >= 2 && $0.series == sample.key ? $0 : nil } ?? nil
+            let scale = sample.scale ?? max(sample.value * 1.5, 1)
+            applied = MenuBarPolicy.applyingChart(applied, history: history ?? MenuBarChartHistory(
+                series: sample.key, scale: sample.scale,
+                values: Self.exampleChart.map { $0 * scale } + [sample.value]
+            ))
         }
         return applied
     }

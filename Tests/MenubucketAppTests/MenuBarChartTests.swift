@@ -20,6 +20,7 @@ final class MenuBarChartTests: XCTestCase {
 
     func testTheChartFollowsTheFirstNumericReading() {
         let sample = MenuBarPolicy.chartSample(entry(.line, history: []))
+        XCTAssertEqual(sample?.key, "cpu")
         XCTAssertEqual(sample?.value, 42)
         XCTAssertEqual(sample?.scale, 100)
         let rpm = MenuBarEntry(widgetID: "f", name: "Fan", metrics: [
@@ -32,13 +33,29 @@ final class MenuBarChartTests: XCTestCase {
     }
 
     func testHistoryKeepsTheNewestUpToTheLimit() {
-        var history: [Double] = []
+        var history: MenuBarChartHistory?
         for value in 0..<(MenuBarPolicy.chartHistoryLimit + 5) {
-            history = MenuBarPolicy.appendingHistory(history, Double(value))
+            history = MenuBarPolicy.recordingChart(history, ("cpu", Double(value), 100))
         }
-        XCTAssertEqual(history.count, MenuBarPolicy.chartHistoryLimit)
-        XCTAssertEqual(history.first, 5)
-        XCTAssertEqual(history.last, Double(MenuBarPolicy.chartHistoryLimit + 4))
+        XCTAssertEqual(history?.values.count, MenuBarPolicy.chartHistoryLimit)
+        XCTAssertEqual(history?.values.first, 5)
+        XCTAssertEqual(history?.values.last, Double(MenuBarPolicy.chartHistoryLimit + 4))
+    }
+
+    func testAnotherReadingStartsANewSeries() {
+        var history = MenuBarPolicy.recordingChart(nil, ("cpu", 10, 100))
+        history = MenuBarPolicy.recordingChart(history, ("cpu", 20, 100))
+        XCTAssertEqual(history.values, [10, 20])
+        let moved = MenuBarPolicy.recordingChart(history, ("memory", 60, 100))
+        XCTAssertEqual(moved.values, [60], "memory is not joined onto CPU")
+        let rescaled = MenuBarPolicy.recordingChart(history, ("cpu", 1800, nil))
+        XCTAssertEqual(rescaled.values, [1800])
+        XCTAssertNil(rescaled.scale)
+
+        // A refresh without a reading keeps the scale the points were drawn on.
+        let applied = MenuBarPolicy.applyingChart(entry(.line, history: [], scale: nil), history: history)
+        XCTAssertEqual(applied.chartScale, 100)
+        XCTAssertEqual(applied.history, [10, 20])
     }
 
     func testChartIsLenientAndLayered() throws {

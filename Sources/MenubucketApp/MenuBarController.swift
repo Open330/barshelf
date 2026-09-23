@@ -340,11 +340,7 @@ final class MenuBarController {
             } else {
                 // A chart takes the icon's place in front of the text, beside
                 // the icon when there is one.
-                let chart = Self.chartImage(
-                    for: entry, template: entry.tint == nil && (symbolImage?.isTemplate ?? true),
-                    height: NSStatusBar.system.thickness
-                )
-                button.image = Self.composing(chart: chart, before: symbolImage, height: NSStatusBar.system.thickness)
+                button.image = Self.leadingImage(entry, symbol: symbolImage, height: NSStatusBar.system.thickness)
                 let title = NSAttributedString(
                     string: MenuBarPolicy.stripCell(entry, glyph: glyph),
                     attributes: [
@@ -743,10 +739,8 @@ final class MenuBarController {
         if entry.style == .metrics || entry.style == .stacked {
             return drawnImage(entry, symbol: symbol, glyph: glyph, height: height)
         }
-        let chart = chartImage(
-            for: entry, template: entry.tint == nil && (symbol?.isTemplate ?? true), height: height
-        )
-        let leading = composing(chart: chart, before: symbol, height: height)
+        let leading = leadingImage(entry, symbol: symbol, height: height)
+        let chart = leading === symbol ? nil : leading
 
         let text = NSAttributedString(
             string: MenuBarPolicy.stripCell(entry, glyph: glyph),

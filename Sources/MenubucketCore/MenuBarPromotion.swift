@@ -168,6 +168,22 @@ public enum MenuBarChart: String, Codable, Equatable, Sendable, CaseIterable {
     case gauge
 }
 
+/// Recent values of one reading, for an item's chart.
+public struct MenuBarChartHistory: Equatable, Sendable {
+    /// The metric key the values came from.
+    public var series: String
+    /// 100 for a percentage, nil for a reading scaled to its own peak.
+    public var scale: Double?
+    /// Oldest first, at most `MenuBarPolicy.chartHistoryLimit`.
+    public var values: [Double]
+
+    public init(series: String, scale: Double?, values: [Double]) {
+        self.series = series
+        self.scale = scale
+        self.values = values
+    }
+}
+
 /// Which way a reading gets worse: a temperature going up, a battery or free
 /// space going down.
 public enum MenuBarThresholdDirection: String, Codable, Equatable, Sendable, CaseIterable {
@@ -887,19 +903,40 @@ public enum MenuBarPolicy {
     public static let chartHistoryLimit = 40
 
     /// The reading an item's chart follows — its first numeric one, as shown
-    /// — and the scale to draw it against: 0–100 for a percentage, nil for
-    /// anything else (the chart scales to its own peak).
-    public static func chartSample(_ entry: MenuBarEntry) -> (value: Double, scale: Double?)? {
-        guard let metric = entry.metrics.first(where: { thresholdValue($0) != nil }),
-              let value = thresholdValue(metric)
+    /// — with the key it is known by and the scale to draw it against: 0–100
+    /// for a percentage, nil for anything else.
+    public static func chartSample(_ entry: MenuBarEntry) -> (key: String, value: Double, scale: Double?)? {
+        let keys = metricKeys(entry.metrics)
+        guard let index = entry.metrics.firstIndex(where: { thresholdValue($0) != nil }),
+              let value = thresholdValue(entry.metrics[index])
         else { return nil }
+        let metric = entry.metrics[index]
         let percent = metric.format == "percent" || metric.unit == "%"
-        return (value, percent ? 100 : nil)
+        return (keys[index], value, percent ? 100 : nil)
     }
 
-    /// `history` with `value` appended, oldest dropped past the limit.
-    public static func appendingHistory(_ history: [Double], _ value: Double) -> [Double] {
-        Array((history + [value]).suffix(chartHistoryLimit))
+    /// `history` with `sample` added. A sample from another reading (the
+    /// rows were reordered or one hidden) or on another kind of scale starts
+    /// a new series: joining memory onto CPU, or rpm onto °C, draws a line
+    /// that means nothing.
+    public static func recordingChart(
+        _ history: MenuBarChartHistory?, _ sample: (key: String, value: Double, scale: Double?)
+    ) -> MenuBarChartHistory {
+        guard var history, history.series == sample.key, history.scale == sample.scale else {
+            return MenuBarChartHistory(series: sample.key, scale: sample.scale, values: [sample.value])
+        }
+        history.values = Array((history.values + [sample.value]).suffix(chartHistoryLimit))
+        return history
+    }
+
+    /// The entry carrying `history` for its renderer. The scale is the
+    /// history's own, so one refresh without a reading does not rescale the
+    /// points already drawn.
+    public static func applyingChart(_ entry: MenuBarEntry, history: MenuBarChartHistory?) -> MenuBarEntry {
+        var entry = entry
+        entry.history = history?.values ?? []
+        entry.chartScale = history?.scale
+        return entry
     }
 
     // MARK: Thresholds

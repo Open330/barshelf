@@ -1342,6 +1342,7 @@ final class WidgetRuntime: ObservableObject {
         )
         var candidates: [(entry: MenuBarEntry, order: Double?)] = []
         var intervalOverrides: [String: Double] = [:]
+        var charting = Set<String>()
 
         for widget in widgets where !prefs.isDisabled(widget.id) {
             let placement = prefs.menuBarPlacement(
@@ -1407,22 +1408,25 @@ final class WidgetRuntime: ObservableObject {
             )
             if let interval = placement.interval { intervalOverrides[widget.id] = interval }
             var applied = MenuBarPolicy.applyingPresentation(presentation, to: entry)
-            if presentation.effectiveChart != .none {
-                let sample = MenuBarPolicy.chartSample(applied)
+            // Only an item with its own place draws a chart; the strip is
+            // text, and history there would only make it redraw.
+            if presentation.effectiveChart != .none, separate {
                 // A new snapshot adds a point; a sync for any other reason
                 // (a settings change, the staleness tick) must not repeat it.
-                if chartPending.remove(widget.id) != nil, let sample {
-                    menuBarHistory[widget.id] = MenuBarPolicy.appendingHistory(
-                        menuBarHistory[widget.id] ?? [], sample.value
-                    )
+                if chartPending.remove(widget.id) != nil, let sample = MenuBarPolicy.chartSample(applied) {
+                    menuBarHistory[widget.id] = MenuBarPolicy.recordingChart(menuBarHistory[widget.id], sample)
                 }
-                applied.history = menuBarHistory[widget.id] ?? []
-                applied.chartScale = sample?.scale
-            } else {
-                menuBarHistory.removeValue(forKey: widget.id)
+                applied = MenuBarPolicy.applyingChart(applied, history: menuBarHistory[widget.id])
+                charting.insert(widget.id)
             }
             candidates.append((applied, placement.order))
         }
+
+        // A chart turned off, an item taken out of the bar, a widget
+        // disabled or removed: its points go, so coming back starts afresh
+        // instead of joining an hour-old line onto a new one.
+        menuBarHistory = menuBarHistory.filter { charting.contains($0.key) }
+        chartPending.formIntersection(charting)
 
         // "Show only when" items are ordered and capped like any other, then
         // left out of what is drawn: they keep their place in the strip and
@@ -1467,7 +1471,7 @@ final class WidgetRuntime: ObservableObject {
     }
 
     /// Recent readings of each charting item, oldest first.
-    private(set) var menuBarHistory: [String: [Double]] = [:]
+    private(set) var menuBarHistory: [String: MenuBarChartHistory] = [:]
     /// Widgets with a snapshot the chart has not taken a point from yet.
     private var chartPending: Set<String> = []
 

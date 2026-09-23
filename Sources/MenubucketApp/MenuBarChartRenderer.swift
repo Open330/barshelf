@@ -28,9 +28,13 @@ extension MenuBarController {
         guard chart != .none, let latest = entry.history.last else { return nil }
         let size = chartSize(chart, height: height)
         let values = entry.history
-        // A percentage is drawn against 0–100; anything else against its own
+        // A percentage is drawn against 0–100. Anything else: a gauge fills
+        // against the danger threshold when there is one — against its own
+        // peak it would read full at every new high — and a trend against its
         // recent peak, so a quiet disk still shows its shape.
-        let top = entry.chartScale ?? max(values.max() ?? 0, .leastNonzeroMagnitude)
+        let peak = max(values.max() ?? 0, .leastNonzeroMagnitude)
+        let danger = entry.presentation.dangerAt.flatMap { $0 > 0 ? $0 : nil }
+        let top = entry.chartScale ?? (chart == .gauge ? danger ?? peak : peak)
         let bottom = entry.chartScale == nil ? min(values.min() ?? 0, 0) : 0
         let span = max(top - bottom, .leastNonzeroMagnitude)
         func fraction(_ value: Double) -> CGFloat {
@@ -47,10 +51,13 @@ extension MenuBarController {
                 break
             case .line:
                 let line: CGFloat = 1.25
-                let step = rect.width / CGFloat(MenuBarPolicy.chartHistoryLimit - 1)
+                // Inset by half the stroke, so the newest point — the one that
+                // matters — is not clipped against the text beside it.
+                let right = rect.maxX - line / 2
+                let step = (rect.width - line) / CGFloat(MenuBarPolicy.chartHistoryLimit - 1)
                 // Newest at the right edge, so the line grows in from the left
                 // as history fills.
-                let startX = rect.maxX - step * CGFloat(values.count - 1)
+                let startX = right - step * CGFloat(values.count - 1)
                 faint.set()
                 NSBezierPath.fill(NSRect(x: rect.minX, y: rect.minY, width: rect.width, height: 0.75))
                 let path = NSBezierPath()
@@ -66,7 +73,7 @@ extension MenuBarController {
                 }
                 ink.set()
                 if values.count == 1 {
-                    NSBezierPath(ovalIn: NSRect(x: rect.maxX - 2, y: path.currentPoint.y - 1, width: 2, height: 2)).fill()
+                    NSBezierPath(ovalIn: NSRect(x: right - 1, y: path.currentPoint.y - 1, width: 2, height: 2)).fill()
                 } else {
                     path.stroke()
                 }
@@ -126,6 +133,12 @@ extension MenuBarController {
                            minimumWidth: max(minimumWidth - chrome, 0))
         let chart = chartImage(for: entry, template: entry.tint == nil && rows.isTemplate, height: height)
         return composing(chart: chart, before: rows, height: height) ?? rows
+    }
+
+    /// An inline item's leading image: its chart, then its icon.
+    static func leadingImage(_ entry: MenuBarEntry, symbol: NSImage?, height: CGFloat) -> NSImage? {
+        let chart = chartImage(for: entry, template: entry.tint == nil && (symbol?.isTemplate ?? true), height: height)
+        return composing(chart: chart, before: symbol, height: height)
     }
 
     /// `chart` in front of `image`, vertically centred, as one image. nil
