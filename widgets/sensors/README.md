@@ -13,7 +13,9 @@ shows, as a BarShelf widget.
 
 | Setting | Choices | Effect |
 | --- | --- | --- |
-| **Menu bar shows** | CPU / GPU / Battery / Hottest sensor / Power draw / Fan speed / Fan load | Which reading the menu bar label carries. The card always shows all of them. |
+| **Menu bar shows** | CPU / GPU / Battery / Hottest sensor / Power draw / Fan speed / Fan load, or any single sensor this Mac has | Which reading the menu bar label carries. The card always shows all of them. |
+| **Also show** | Nothing, or any of the same readings | A second reading in the same item — pick **Two metric rows** in the menu bar layout to stack them. |
+| **CPU / GPU / battery reading** | Average of its sensors / Hottest sensor | Whether a component shows the mean of its sensors or its hottest one. |
 | **Temperature unit** | Celsius / Fahrenheit | Applies to the card *and* the menu bar. Fahrenheit labels say `°F`, so `123°F` is never read as a Celsius figure. |
 
 **Want two readings on the bar at once?** Duplicate the widget — BarShelf

@@ -558,6 +558,11 @@
             "type": "string"
           }
         },
+        "optionsSource": {
+          "description": "Options the host appends to an enum's own, read from this Mac. `system.sensors` lists every readable hardware sensor as `key:<KEY>`, which a `system` source's `sensors` param reads on its own.",
+          "type": "string",
+          "enum": ["system.sensors"]
+        },
         "description": {
           "type": "string"
         },

@@ -255,7 +255,11 @@ sharing) the BarShelf mark.
   exactly this. Branch with `if(eq(settings.key,'x'), …, …)` so an absent or
   unknown value falls through to a sane default. Give an `enum` setting
   `optionTitles` (same length as `options`) so the picker shows "Value only"
-  rather than the stored `value`. Settings are per widget *instance*, so a user
+  rather than the stored `value`. Add `"optionsSource": "system.sensors"` to an
+  `enum` and the host appends every sensor this Mac can read as `key:<KEY>`;
+  pass that value straight into the `system` source's `sensors` param and the
+  reading comes back as `sources.<id>.sensors.picked` (`{key,name,kind,value,unit}`).
+  Settings are per widget *instance*, so a user
   can duplicate a widget and have each copy show a different reading.
 - `status.prefix` is the short word drawn **before** the value — `CPU` in
   `CPU 23%`. Templated like `status.label`, which is the point: a widget whose

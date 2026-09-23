@@ -30,6 +30,8 @@ struct WidgetSettingsView: View {
     /// that was changed elsewhere (App Settings' "Use These for All") while
     /// this pane never touched it.
     @State private var menuBarLoaded = MenuBarPlacement(enabled: false)
+    /// This Mac's sensors, for a setting with `optionsSource: system.sensors`.
+    @State private var sensorOptions: [SensorReading] = []
     @State private var warningText = ""
     @State private var dangerText = ""
     @State private var showWhenText = ""
@@ -95,6 +97,7 @@ struct WidgetSettingsView: View {
                 for: widget.manifest, widgetID: widget.id
             )
             menuBarLoaded = menuBarDraft
+            loadDynamicOptions()
             // Plain "." decimals, the same way the field parses them back.
             func text(_ value: Double?) -> String {
                 guard let value else { return "" }
@@ -1037,9 +1040,16 @@ struct WidgetSettingsView: View {
                     ForEach(entry.options ?? [], id: \.self) { option in
                         Text(Self.optionTitle(option, in: entry)).tag(option)
                     }
+                    let extra = dynamicOptions(for: entry, selected: values[key]?.stringValue)
+                    if !extra.isEmpty {
+                        Divider()
+                        ForEach(extra, id: \.value) { option in
+                            Text(option.title).tag(option.value)
+                        }
+                    }
                 }
                 .labelsHidden()
-                .frame(width: 140)
+                .frame(width: entry.optionsSource == nil ? 140 : 190)
             }
         case "directory":
             VStack(alignment: .leading, spacing: 4) {
@@ -1057,6 +1067,42 @@ struct WidgetSettingsView: View {
                 TextField("", text: stringBinding(key))
                     .textFieldStyle(.roundedBorder)
             }
+        }
+    }
+
+    /// The options an `optionsSource` adds, plus the stored value when this
+    /// Mac does not offer it (a sensor another Mac has), so the picker never
+    /// shows a blank selection.
+    private func dynamicOptions(
+        for entry: Manifest.Setting, selected: String?
+    ) -> [(value: String, title: String)] {
+        guard entry.optionsSource == Manifest.Setting.sensorOptionsSource else { return [] }
+        var options = sensorOptions.map { reading in
+            (value: "key:\(reading.key)", title: Self.sensorOptionTitle(reading))
+        }
+        if let selected, SensorSampler.pickedKey(selected) != nil,
+           !options.contains(where: { $0.value == selected }),
+           !(entry.options ?? []).contains(selected) {
+            options.insert((selected, "\(selected.dropFirst(4)) (not on this Mac)"), at: 0)
+        }
+        return options
+    }
+
+    static func sensorOptionTitle(_ reading: SensorReading) -> String {
+        let value = reading.kind == .temperature
+            ? String(format: "%.0f°", reading.value)
+            : String(format: "%.0f %@", reading.value, reading.unit)
+        return "\(reading.name) · \(value)"
+    }
+
+    private func loadDynamicOptions() {
+        guard entries.contains(where: { $0.optionsSource == Manifest.Setting.sensorOptionsSource }) else { return }
+        Task {
+            // A detail sample reads every key (~25 ms): off the main thread.
+            let list = await Task.detached(priority: .userInitiated) {
+                SensorSampler.shared.sample(detail: true).list
+            }.value
+            sensorOptions = list
         }
     }
 

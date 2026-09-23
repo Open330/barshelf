@@ -73,6 +73,7 @@ public enum SystemMetrics {
         metrics: Set<Metric> = Set(Metric.allCases),
         detail: Bool = false,
         sensorGroups: Set<SensorSampler.SensorGroup>? = nil,
+        sensorKeys: [String] = [],
         mountPoint: String = "/",
         networkInterface: String? = nil
     ) -> JSONValue {
@@ -91,7 +92,7 @@ public enum SystemMetrics {
         }
         if metrics.contains(.sensors) {
             object["sensors"] = json(
-                for: SensorSampler.shared.sample(detail: detail, groups: sensorGroups),
+                for: SensorSampler.shared.sample(detail: detail, groups: sensorGroups, keys: sensorKeys),
                 detail: detail
             )
         }
@@ -475,6 +476,13 @@ public enum SystemMetrics {
             "gpu": snapshot.gpu.map(JSONValue.number) ?? .null,
             "battery": snapshot.battery.map(JSONValue.number) ?? .null,
             "peak": snapshot.peak.map(JSONValue.number) ?? .null,
+            "cpuMax": snapshot.cpuMax.map(JSONValue.number) ?? .null,
+            "gpuMax": snapshot.gpuMax.map(JSONValue.number) ?? .null,
+            "batteryMax": snapshot.batteryMax.map(JSONValue.number) ?? .null,
+            // The sensors asked for by key; `picked` is the first of them, for
+            // the common one-sensor case a template can read without an index.
+            "pickedList": .array(snapshot.picked.map(json(for:))),
+            "picked": snapshot.picked.first.map(json(for:)) ?? .null,
             "power": snapshot.power.map(JSONValue.number) ?? .null,
             "fanCount": .number(Double(snapshot.fans.count)),
             "fans": .array(snapshot.fans.map { fan in
@@ -489,16 +497,18 @@ public enum SystemMetrics {
             }),
         ]
         if detail {
-            object["list"] = .array(snapshot.list.map { reading in
-                .object([
-                    "key": .string(reading.key),
-                    "name": .string(reading.name),
-                    "kind": .string(reading.kind.rawValue),
-                    "value": .number(reading.value),
-                    "unit": .string(reading.unit),
-                ])
-            })
+            object["list"] = .array(snapshot.list.map(json(for:)))
         }
         return .object(object)
+    }
+
+    static func json(for reading: SensorReading) -> JSONValue {
+        .object([
+            "key": .string(reading.key),
+            "name": .string(reading.name),
+            "kind": .string(reading.kind.rawValue),
+            "value": .number(reading.value),
+            "unit": .string(reading.unit),
+        ])
     }
 }

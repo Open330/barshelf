@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.sensors",
   "name": "Sensors",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "icon": "thermometer.medium",
   "bucket": {
     "group": "System",
@@ -51,6 +51,48 @@
         "Power draw",
         "Fan speed",
         "Fan load"
+      ],
+      "optionsSource": "system.sensors"
+    },
+    {
+      "key": "menuBarSecondary",
+      "title": "Also show",
+      "type": "enum",
+      "default": "none",
+      "options": [
+        "none",
+        "cpu",
+        "gpu",
+        "battery",
+        "peak",
+        "power",
+        "fan",
+        "fanUsage"
+      ],
+      "optionTitles": [
+        "Nothing",
+        "CPU temperature",
+        "GPU",
+        "Battery",
+        "Hottest sensor",
+        "Power draw",
+        "Fan speed",
+        "Fan load"
+      ],
+      "optionsSource": "system.sensors"
+    },
+    {
+      "key": "aggregate",
+      "title": "CPU / GPU / battery reading",
+      "type": "enum",
+      "default": "average",
+      "options": [
+        "average",
+        "hottest"
+      ],
+      "optionTitles": [
+        "Average of its sensors",
+        "Hottest sensor"
       ]
     },
     {

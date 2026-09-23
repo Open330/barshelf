@@ -402,9 +402,16 @@ public struct Manifest: Codable, Equatable {
         public var min: Double?
         public var max: Double?
         public var defaultValue: JSONValue?
+        /// Options the host appends to an `enum`'s own, read from this Mac:
+        /// `system.sensors` lists every readable hardware sensor as
+        /// `key:<KEY>`, which a `system` source's `sensors` param reads on its
+        /// own. A host that does not know the name shows `options` alone.
+        public var optionsSource: String?
+
+        public static let sensorOptionsSource = "system.sensors"
 
         private enum CodingKeys: String, CodingKey {
-            case key, type, label, title, options, optionTitles, min, max
+            case key, type, label, title, options, optionTitles, min, max, optionsSource
             case defaultValue = "default"
         }
 
@@ -417,8 +424,10 @@ public struct Manifest: Codable, Equatable {
             optionTitles: [String]? = nil,
             min: Double? = nil,
             max: Double? = nil,
-            defaultValue: JSONValue? = nil
+            defaultValue: JSONValue? = nil,
+            optionsSource: String? = nil
         ) {
+            self.optionsSource = optionsSource
             self.key = key
             self.type = type
             self.label = label

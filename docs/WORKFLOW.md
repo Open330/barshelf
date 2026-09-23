@@ -208,13 +208,19 @@ SMC 키는 하나하나가 별도의 IOKit 왕복(약 0.16 ms)이고, Mac이 공
 
 | 값 | 읽는 것 |
 | --- | --- |
-| `cpu` / `gpu` / `battery` | 해당 컴포넌트의 온도 키만. |
+| `cpu` / `gpu` / `battery` (`cpuMax` 등도 같음) | 해당 컴포넌트의 온도 키만. |
+| `key:<KEY>` | 그 센서 하나만, 따로 읽어 `sensors.picked`에 담는다. 온도 그룹은 읽지 않는다. |
 | `power` / `fan` / `fanUsage` / `none` | 온도는 전혀 읽지 않는다(팬·전력은 자기 키에서 온다). |
 | `peak` / `all` / `list` / 생략 / **모르는 이름** | 전부. |
 
 모르는 이름이 전부로 떨어지는 것은 의도된 설계다. 호스트가 해석하지 못한
 힌트 때문에 판독값이 조용히 비는 일은 없어야 한다 — 느려질 수는 있어도
 틀려서는 안 된다.
+
+`key:<KEY>`의 KEY는 `sensors.list[].key`에 나오는 값 그대로다(SMC 키, 또는
+SMC 온도가 없는 Mac에서는 HID 센서 이름). 배열 안의 `key:` 항목은 순서대로
+최대 8개까지 읽어 `sensors.pickedList`에 담고, 첫 번째는 인덱스 없이
+`sensors.picked`로도 읽을 수 있다. 이 Mac에 없는 키는 조용히 빠진다.
 
 `peak`은 *그 샘플이 실제로 읽은* 센서 중 최고값이다. 그룹을 좁힌 위젯은
 자기가 요청한 범위의 최고값을 받는다. `detail: true`는 카드의 전체 목록이
@@ -226,9 +232,16 @@ SMC 키는 하나하나가 별도의 IOKit 왕복(약 0.16 ms)이고, Mac이 공
 "with": {
   "metrics": ["sensors"],
   "detail": "${coalesce(widget.visible, true)}",
-  "sensors": "${if(coalesce(widget.visible, true), 'all', settings.menuBarSensor)}"
+  "sensors": [
+    "${if(coalesce(widget.visible, true), 'all', coalesce(settings.menuBarSensor, 'cpu'))}",
+    "${coalesce(settings.menuBarSensor, 'cpu')}",
+    "${coalesce(settings.menuBarSecondary, 'none')}"
+  ]
 }
 ```
+
+첫 항목이 그룹을 정하고, 뒤의 두 항목은 사용자가 고른 판독값이 `key:`일 때
+그 센서를 읽게 한다(`all`이 섞인 배열도 `key:` 항목은 그대로 읽는다).
 
 카드가 닫혀 있으면 메뉴바가 보여주는 판독값 하나만 읽고, 열리면 전부 읽는다.
 이 한 쌍이 리프레시 한 번을 약 27 ms에서 약 4 ms로 줄인다. `coalesce` 기본값은
@@ -250,6 +263,8 @@ SMC 키는 하나하나가 별도의 IOKit 왕복(약 0.16 ms)이고, Mac이 공
 | `network.{available,interface,download,upload,received,sent,address}` | 네트워크 카운터. `download`/`upload`은 bytes/s이고 첫 샘플은 이전 카운터가 없어 `null`이다. `received`/`sent`는 누적 bytes, `address`는 로컬 주소다. |
 | `sensors.available` | 어떤 센서도 읽지 못하면 `false`. 샌드박스 빌드와 VM이 여기 해당한다. |
 | `sensors.{cpu,gpu,battery,peak}` | °C. CPU는 코어 다이 센서들의 평균, `peak`은 요약 센서 중 최고값. |
+| `sensors.{cpuMax,gpuMax,batteryMax}` | °C. 각 컴포넌트에서 가장 뜨거운 센서. 평균 대신 최악의 코어를 보여줄 때. |
+| `sensors.picked`, `sensors.pickedList[]` | `{key, name, kind, value, unit}`. `sensors`에 `key:<KEY>`로 요청한 센서들(요청 순서), `picked`는 그 첫 번째. 없으면 `null` / 빈 배열. |
 | `sensors.power` | 시스템 총 전력(W). |
 | `sensors.fanCount`, `sensors.fans[].{index,name,rpm,min,max,usage}` | 팬. 팬이 없는 Mac은 빈 배열. |
 | `sensors.list[]` | `{key, name, kind, value, unit}`. `detail: true`일 때만. |
@@ -382,6 +397,12 @@ Arbitrary JavaScript는 금지한다. 표현식은 문자열 안의 `${...}` 보
   `options`의 값은 저장되는 값이므로, 사람이 읽을 라벨은 `optionTitles`로 따로
   준다(같은 길이여야 하며, 아니면 무시하고 원본 값을 보여준다). `value` /
   `labeled` 같은 값이 피커에 그대로 뜨는 걸 막는 용도다.
+
+  `enum`에 `"optionsSource": "system.sensors"`를 주면 호스트가 이 Mac에서 읽을
+  수 있는 센서 전부를 `options` 뒤에 붙인다. 저장되는 값은 `key:<KEY>`이고,
+  이 값을 그대로 `system` 소스의 `sensors`에 넘기면 그 센서 하나만 읽는다.
+  다른 Mac에서 고른 센서가 이 Mac에 없으면 피커가 "(not on this Mac)"로 보여준다.
+  이 이름을 모르는 호스트는 `options`만 보여준다.
 
   번들 위젯 `system`(어느 지표를 보일지 + 라벨 포함 여부)과 `sensors`(어느 센서 +
   °C/°F)가 이 패턴을 그대로 쓴다. 설정이 없거나 모르는 값이면 `if`의 else 가지로
