@@ -1080,18 +1080,20 @@ struct WidgetSettingsView: View {
         var options = sensorOptions.map { reading in
             (value: "key:\(reading.key)", title: Self.sensorOptionTitle(reading))
         }
-        if let selected, SensorSampler.pickedKey(selected) != nil,
+        if let selected, let key = SensorSampler.pickedKey(selected),
            !options.contains(where: { $0.value == selected }),
            !(entry.options ?? []).contains(selected) {
-            options.insert((selected, "\(selected.dropFirst(4)) (not on this Mac)"), at: 0)
+            // Only a list that loaded and lacks it says "not on this Mac":
+            // still loading, or a build that cannot read sensors, just names it.
+            options.insert((selected, sensorOptions.isEmpty ? key : "\(key) (not on this Mac)"), at: 0)
         }
         return options
     }
 
     static func sensorOptionTitle(_ reading: SensorReading) -> String {
-        let value = reading.kind == .temperature
-            ? String(format: "%.0f°", reading.value)
-            : String(format: "%.0f %@", reading.value, reading.unit)
+        // Spelled out as °C: the widget may show °F, and a bare "71°" beside
+        // a 160°F menu bar reads as a wrong number.
+        let value = String(format: reading.kind == .temperature ? "%.0f%@" : "%.0f %@", reading.value, reading.unit)
         return "\(reading.name) · \(value)"
     }
 

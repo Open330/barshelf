@@ -208,7 +208,7 @@ SMC 키는 하나하나가 별도의 IOKit 왕복(약 0.16 ms)이고, Mac이 공
 
 | 값 | 읽는 것 |
 | --- | --- |
-| `cpu` / `gpu` / `battery` (`cpuMax` 등도 같음) | 해당 컴포넌트의 온도 키만. |
+| `cpu` / `gpu` / `battery` | 해당 컴포넌트의 온도 키만(`cpuMax` 등도 이 그룹에서 나온다). |
 | `key:<KEY>` | 그 센서 하나만, 따로 읽어 `sensors.picked`에 담는다. 온도 그룹은 읽지 않는다. |
 | `power` / `fan` / `fanUsage` / `none` | 온도는 전혀 읽지 않는다(팬·전력은 자기 키에서 온다). |
 | `peak` / `all` / `list` / 생략 / **모르는 이름** | 전부. |
@@ -218,9 +218,11 @@ SMC 키는 하나하나가 별도의 IOKit 왕복(약 0.16 ms)이고, Mac이 공
 틀려서는 안 된다.
 
 `key:<KEY>`의 KEY는 `sensors.list[].key`에 나오는 값 그대로다(SMC 키, 또는
-SMC 온도가 없는 Mac에서는 HID 센서 이름). 배열 안의 `key:` 항목은 순서대로
-최대 8개까지 읽어 `sensors.pickedList`에 담고, 첫 번째는 인덱스 없이
-`sensors.picked`로도 읽을 수 있다. 이 Mac에 없는 키는 조용히 빠진다.
+SMC 온도가 없는 Mac에서는 HID 센서 이름). 접두사는 정확히 소문자 `key:`여야
+한다. 배열 안의 `key:` 항목은 순서대로 최대 8개까지 읽어 `sensors.pickedList`에
+키마다 한 칸씩 담고, 이 Mac에 없는 키의 칸은 `null`이다 — 그래서 두 번째로
+요청한 센서는 앞의 키가 없어도 늘 `pickedList.1`이다. 첫 칸은 인덱스 없이
+`sensors.picked`로도 읽을 수 있다.
 
 `peak`은 *그 샘플이 실제로 읽은* 센서 중 최고값이다. 그룹을 좁힌 위젯은
 자기가 요청한 범위의 최고값을 받는다. `detail: true`는 카드의 전체 목록이
@@ -264,7 +266,7 @@ SMC 온도가 없는 Mac에서는 HID 센서 이름). 배열 안의 `key:` 항�
 | `sensors.available` | 어떤 센서도 읽지 못하면 `false`. 샌드박스 빌드와 VM이 여기 해당한다. |
 | `sensors.{cpu,gpu,battery,peak}` | °C. CPU는 코어 다이 센서들의 평균, `peak`은 요약 센서 중 최고값. |
 | `sensors.{cpuMax,gpuMax,batteryMax}` | °C. 각 컴포넌트에서 가장 뜨거운 센서. 평균 대신 최악의 코어를 보여줄 때. |
-| `sensors.picked`, `sensors.pickedList[]` | `{key, name, kind, value, unit}`. `sensors`에 `key:<KEY>`로 요청한 센서들(요청 순서), `picked`는 그 첫 번째. 없으면 `null` / 빈 배열. |
+| `sensors.picked`, `sensors.pickedList[]` | `{key, name, kind, value, unit}`. `sensors`에 `key:<KEY>`로 요청한 센서들(요청 순서, 키마다 한 칸, 없는 센서는 `null`), `picked`는 첫 칸. |
 | `sensors.power` | 시스템 총 전력(W). |
 | `sensors.fanCount`, `sensors.fans[].{index,name,rpm,min,max,usage}` | 팬. 팬이 없는 Mac은 빈 배열. |
 | `sensors.list[]` | `{key, name, kind, value, unit}`. `detail: true`일 때만. |

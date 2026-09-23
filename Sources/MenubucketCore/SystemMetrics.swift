@@ -479,10 +479,10 @@ public enum SystemMetrics {
             "cpuMax": snapshot.cpuMax.map(JSONValue.number) ?? .null,
             "gpuMax": snapshot.gpuMax.map(JSONValue.number) ?? .null,
             "batteryMax": snapshot.batteryMax.map(JSONValue.number) ?? .null,
-            // The sensors asked for by key; `picked` is the first of them, for
-            // the common one-sensor case a template can read without an index.
-            "pickedList": .array(snapshot.picked.map(json(for:))),
-            "picked": snapshot.picked.first.map(json(for:)) ?? .null,
+            // The sensors asked for by key, one slot per key (null where
+            // missing); `picked` is the first, for the common one-sensor case.
+            "pickedList": .array(snapshot.picked.map { $0.map(json(for:)) ?? .null }),
+            "picked": snapshot.picked.first.flatMap { $0 }.map(json(for:)) ?? .null,
             "power": snapshot.power.map(JSONValue.number) ?? .null,
             "fanCount": .number(Double(snapshot.fans.count)),
             "fans": .array(snapshot.fans.map { fan in

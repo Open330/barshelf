@@ -25,7 +25,7 @@ final class SensorPickerTests: XCTestCase {
             "battery": .number(30), "peak": .number(81), "power": .number(12.4),
             "fanCount": .number(1),
             "fans": .array([.object(["rpm": .number(2400), "usage": .number(40)])]),
-            "picked": picked.first ?? .null,
+            "picked": picked.first.flatMap { $0 == .null ? nil : $0 } ?? .null,
             "pickedList": .array(picked),
         ])])]
     }
@@ -88,6 +88,15 @@ final class SensorPickerTests: XCTestCase {
         XCTAssertEqual(secondOnly.last?.number, 2400, "with a plain first reading the key is the first picked")
     }
 
+    func testAMissingFirstKeyDoesNotShiftTheSecond() throws {
+        // Synced from another Mac: the first sensor is not here, the second is.
+        let gpu = reading("Tg0f", "GPU (Tg0f)", "temperature", 44, "°C")
+        let shown = try metrics(["menuBarSensor": "key:Tp1F", "menuBarSecondary": "key:Tg0f"], picked: [.null, gpu])
+        XCTAssertEqual(shown.first?.id, "key:Tp1F")
+        XCTAssertNil(shown.first?.number, "the missing sensor shows —, not the GPU's value")
+        XCTAssertEqual(shown.last?.number, 44)
+    }
+
     func testAMissingPickedSensorShowsNothingRatherThanFailing() throws {
         let output = try WorkflowEngine.evaluate(try shipped(), sources: source(),
                                                  settings: settings(["menuBarSensor": "key:ZZZZ"]))
@@ -107,11 +116,11 @@ final class SensorPickerTests: XCTestCase {
 
     func testSensorKeyParsing() {
         XCTAssertEqual(SensorSampler.pickedKey("key:TC0P"), "TC0P")
-        XCTAssertEqual(SensorSampler.pickedKey(" KEY: PMU tdie1 "), "PMU tdie1")
+        XCTAssertEqual(SensorSampler.pickedKey("key:PMU tdie1"), "PMU tdie1")
+        XCTAssertNil(SensorSampler.pickedKey("KEY:Tp09"), "exactly the prefix the workflow tests for")
         XCTAssertNil(SensorSampler.pickedKey("key:"))
         XCTAssertNil(SensorSampler.pickedKey("cpu"))
         XCTAssertEqual(SensorSampler.groups(forReading: "key:Tp09"), [])
-        XCTAssertEqual(SensorSampler.groups(forReading: "cpumax"), [.cpu])
         let many = JSONValue.array((0..<12).map { .string("key:K\($0)") } + [.string("key:K1")])
         XCTAssertEqual(WidgetRuntime.sensorKeys(from: many).count, 8)
     }
@@ -124,8 +133,8 @@ final class SensorSamplerPickTests: XCTestCase {
         guard list.count >= 2 else { throw XCTSkip("no readable sensors here") }
         let keys = [list[1].key, list[0].key, "ZZZZ"]
         let sample = SensorSampler.shared.sample(groups: [], keys: keys)
-        XCTAssertEqual(sample.picked.map(\.key), Array(keys.prefix(2)), "in the order asked; unknown keys drop out")
-        XCTAssertEqual(sample.picked.first?.name, list[1].name, "named the way the list names it")
+        XCTAssertEqual(sample.picked.map { $0?.key }, [keys[0], keys[1], nil], "one slot per key, in the order asked")
+        XCTAssertEqual(sample.picked.first??.name, list[1].name, "named the way the list names it")
         XCTAssertTrue(sample.available)
     }
 }

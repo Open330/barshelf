@@ -84,9 +84,10 @@ public struct SensorSnapshot: Equatable, Sendable {
     public var cpuMax: Double?
     public var gpuMax: Double?
     public var batteryMax: Double?
-    /// The specific sensors a caller asked for by key, in the order asked;
-    /// a key this Mac does not publish is simply missing.
-    public var picked: [SensorReading]
+    /// The specific sensors a caller asked for by key, one slot per key in
+    /// the order asked — nil where this Mac has no such sensor or it gave no
+    /// plausible value, so a template can find each reading by position.
+    public var picked: [SensorReading?]
     /// Hottest temperature sensor on the machine.
     public var peak: Double?
     /// System total power draw, watts (`PSTR`).
@@ -109,7 +110,7 @@ public struct SensorSnapshot: Equatable, Sendable {
         cpuMax: Double? = nil,
         gpuMax: Double? = nil,
         batteryMax: Double? = nil,
-        picked: [SensorReading] = []
+        picked: [SensorReading?] = []
     ) {
         self.cpu = cpu
         self.gpu = gpu
@@ -161,18 +162,17 @@ public final class SensorSampler: @unchecked Sendable {
     /// unrecognized name falls back to — a narrowing hint that the host does
     /// not understand must never silently blank a reading.
     public static func groups(forReading reading: String) -> Set<SensorGroup>? {
-        let reading = reading.trimmingCharacters(in: .whitespaces)
         // A specific sensor is read by key on its own (see `sample(keys:)`),
         // so it needs no group.
         if pickedKey(reading) != nil { return [] }
-        switch reading.lowercased() {
+        switch reading.trimmingCharacters(in: .whitespaces).lowercased() {
         case "", "all", "peak", "list":
             return nil
-        case "cpu", "cpumax":
+        case "cpu":
             return [.cpu]
-        case "gpu", "gpumax":
+        case "gpu":
             return [.gpu]
-        case "battery", "batterymax":
+        case "battery":
             return [.battery]
         // Fans and wattage come from their own keys, which are always read.
         case "none", "power", "fan", "fanusage", "fancount", "fans":
@@ -183,11 +183,12 @@ public final class SensorSampler: @unchecked Sendable {
     }
 
     /// The sensor key in a `key:<KEY>` reading name, which asks for that
-    /// one sensor. nil for any other name.
+    /// one sensor. nil for any other name. Exactly the lowercase prefix, as
+    /// the settings picker stores it: a workflow tests for the same prefix,
+    /// and the two must never disagree about which reading is a key.
     public static func pickedKey(_ reading: String) -> String? {
-        let trimmed = reading.trimmingCharacters(in: .whitespaces)
-        guard trimmed.lowercased().hasPrefix("key:") else { return nil }
-        let key = trimmed.dropFirst(4).trimmingCharacters(in: .whitespaces)
+        guard reading.hasPrefix("key:") else { return nil }
+        let key = String(reading.dropFirst(4))
         return key.isEmpty ? nil : key
     }
 
@@ -223,6 +224,9 @@ public final class SensorSampler: @unchecked Sendable {
     /// power.
     private var metaByKey: [String: SMCClient.KeyMeta] = [:]
     private var catalogLoaded = false
+    private var smcHasTemperatures: Bool {
+        !primaryKeysByGroup.isEmpty || !extraTemperatureKeys.isEmpty
+    }
 
     public init() {
         smc = SMCClient()
@@ -300,28 +304,35 @@ public final class SensorSampler: @unchecked Sendable {
 
         let power = powerKey.flatMap { smc?.value($0) }
 
-        var picked: [SensorReading] = []
+        var picked: [SensorReading?] = []
         var hidReadings: [SensorReading]?
         for key in keys {
-            if let meta = metaByKey[key], let value = smc?.value(meta) {
+            if let meta = metaByKey[key] {
                 let kind: SensorReading.Kind = key == "PSTR" ? .power : key.hasPrefix("F") ? .fan : .temperature
-                guard kind != .temperature || Self.isPlausibleTemperature(value) else { continue }
+                guard let value = smc?.value(meta),
+                      kind != .temperature || Self.isPlausibleTemperature(value)
+                else {
+                    picked.append(nil)
+                    continue
+                }
                 picked.append(SensorReading(
                     key: key,
                     name: kind == .power ? "System total"
                         : kind == .fan ? Self.fanName(forSMCKey: key) : Self.label(forSMCKey: key),
                     kind: kind, value: value
                 ))
-            } else if metaByKey[key] == nil {
-                // Not an SMC key: a HID sensor's name, as the list shows it.
-                // This sample may already have read it as its fallback.
-                if let reading = summarized.first(where: { $0.key == key }) {
-                    picked.append(reading)
-                    continue
-                }
+            } else if let reading = summarized.first(where: { $0.key == key }) {
+                // A HID sensor's name, already read as this sample's fallback.
+                picked.append(reading)
+            } else if !smcHasTemperatures {
+                // The HID plane is only where temperatures live on a Mac whose
+                // SMC publishes none. Elsewhere an unknown key is just absent,
+                // and must not cost a HID read on every refresh.
                 let plane = hidReadings ?? hid.temperatures()
                 hidReadings = plane
-                if let reading = plane.first(where: { $0.key == key }) { picked.append(reading) }
+                picked.append(plane.first { $0.key == key })
+            } else {
+                picked.append(nil)
             }
         }
 
@@ -346,7 +357,10 @@ public final class SensorSampler: @unchecked Sendable {
             power: power,
             fans: fans,
             list: list,
-            available: !summarized.isEmpty || !fans.isEmpty || power != nil || !picked.isEmpty,
+            // A key-only sample reads no temperature group, so it cannot judge
+            // by what it read: a Mac whose SMC has temperatures has sensors.
+            available: !summarized.isEmpty || !fans.isEmpty || power != nil
+                || picked.contains { $0 != nil } || (!keys.isEmpty && smcHasTemperatures),
             cpuMax: summarized.filter(Self.isCPUSensor).map(\.value).max(),
             gpuMax: summarized.filter(Self.isGPUSensor).map(\.value).max(),
             batteryMax: summarized.filter(Self.isBatterySensor).map(\.value).max(),
@@ -715,6 +729,17 @@ final class HIDSensorClient {
             readings.append(SensorReading(
                 key: name, name: name, kind: .temperature, value: value
             ))
+        }
+        // The product name is the key, and two services can share one (or
+        // both have none): number the repeats so every key names one sensor.
+        var seen: [String: Int] = [:]
+        for index in readings.indices {
+            let count = seen[readings[index].key, default: 0] + 1
+            seen[readings[index].key] = count
+            if count > 1 {
+                readings[index].key += " #\(count)"
+                readings[index].name += " #\(count)"
+            }
         }
         return readings
     }
