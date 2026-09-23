@@ -545,11 +545,18 @@ public enum MenuBarPolicy {
 
     /// Resolves sparse presentation layers independently. A user changing one
     /// switch never discards a live or manifest default for another.
+    ///
+    /// `global` is the app-wide menu bar style from App Settings. It ranks
+    /// below the item's own choices and above the widget's: a user who asks
+    /// for fit-width everywhere means the widgets too. Only its style fields
+    /// take part (see `globalStyle`).
     public static func resolvedPresentation(
-        user: MenuBarPresentation?, live: MenuBarPresentation?, manifest: MenuBarPresentation?
+        user: MenuBarPresentation?, global: MenuBarPresentation? = nil,
+        live: MenuBarPresentation?, manifest: MenuBarPresentation?
     ) -> MenuBarPresentation {
+        let global = globalStyle(global)
         func pick<T>(_ key: KeyPath<MenuBarPresentation, T?>) -> T? {
-            user?[keyPath: key] ?? live?[keyPath: key] ?? manifest?[keyPath: key]
+            user?[keyPath: key] ?? global?[keyPath: key] ?? live?[keyPath: key] ?? manifest?[keyPath: key]
         }
         let ids = Set((user?.metricOverrides ?? [:]).keys)
             .union((live?.metricOverrides ?? [:]).keys)
@@ -571,6 +578,38 @@ public enum MenuBarPolicy {
                                    width: pick(\.width), digits: pick(\.digits),
                                    alignment: pick(\.alignment), weight: pick(\.weight),
                                    size: pick(\.size), numberAlignment: pick(\.numberAlignment))
+    }
+
+    /// The part of a presentation that can apply to every item: how it is
+    /// laid out and drawn, not what it shows. Precision, value visibility,
+    /// row order and per-row overrides are dropped — a precision of 1 suits
+    /// a gigabyte reading and not a temperature. nil when nothing is left.
+    public static func globalStyle(_ presentation: MenuBarPresentation?) -> MenuBarPresentation? {
+        guard let presentation else { return nil }
+        let style = MenuBarPresentation(
+            showUnits: presentation.showUnits, color: presentation.color,
+            valueWidth: presentation.valueWidth, width: presentation.width,
+            digits: presentation.digits, alignment: presentation.alignment,
+            weight: presentation.weight, size: presentation.size,
+            numberAlignment: presentation.numberAlignment
+        )
+        return style == MenuBarPresentation() ? nil : style
+    }
+
+    /// `presentation` without the fields `globalStyle` keeps, so the
+    /// app-wide style shows through. nil when nothing else was set.
+    public static func clearingGlobalStyle(_ presentation: MenuBarPresentation?) -> MenuBarPresentation? {
+        guard var presentation else { return nil }
+        presentation.showUnits = nil
+        presentation.color = nil
+        presentation.valueWidth = nil
+        presentation.width = nil
+        presentation.digits = nil
+        presentation.alignment = nil
+        presentation.weight = nil
+        presentation.size = nil
+        presentation.numberAlignment = nil
+        return presentation == MenuBarPresentation() ? nil : presentation
     }
 
     // MARK: Metric rows
