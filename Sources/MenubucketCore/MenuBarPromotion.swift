@@ -311,6 +311,44 @@ public struct MenuBarPresentation: Codable, Equatable, Sendable {
     public var effectiveNumberAlignment: MenuBarNumberAlignment { numberAlignment ?? .right }
     public var hasThresholds: Bool { warningAt != nil || dangerAt != nil }
 
+    /// Ready-made looks, applied over whatever is already chosen.
+    public static let presets: [(name: String, presentation: MenuBarPresentation)] = [
+        ("Compact", MenuBarPresentation(width: .fit, size: .small)),
+        ("Steady", MenuBarPresentation(width: .auto, digits: 3, numberAlignment: .right)),
+        ("Bold", MenuBarPresentation(weight: .bold, size: .large)),
+        ("Minimal", MenuBarPresentation(showUnits: false, color: "monochrome", weight: .regular)),
+        ("Graph", MenuBarPresentation(width: .auto, digits: 3, chart: .line)),
+    ]
+
+    /// The fields a preset may set. One list, so a new style field is one
+    /// line here rather than a silent gap in `applying(preset:)`.
+    private static let presetFields: [@Sendable (inout MenuBarPresentation, MenuBarPresentation) -> Void] = [
+        { if let v = $1.showUnits { $0.showUnits = v } },
+        { if let v = $1.color { $0.color = v } },
+        { if let v = $1.valueWidth { $0.valueWidth = v } },
+        { if let v = $1.width { $0.width = v } },
+        { if let v = $1.digits { $0.digits = v } },
+        { if let v = $1.alignment { $0.alignment = v } },
+        { if let v = $1.weight { $0.weight = v } },
+        { if let v = $1.size { $0.size = v } },
+        { if let v = $1.numberAlignment { $0.numberAlignment = v } },
+        { if let v = $1.chart { $0.chart = v } },
+    ]
+
+    /// This presentation with every field `preset` sets taken from it.
+    public func applying(preset: MenuBarPresentation) -> MenuBarPresentation {
+        var result = self
+        for apply in Self.presetFields { apply(&result, preset) }
+        return result
+    }
+
+    /// The presets that mean the same app-wide: those made only of fields the
+    /// app-wide style carries. "Graph" and "Minimal" set a chart and units,
+    /// which are each widget's own, and would half-apply.
+    public static var appWidePresets: [(name: String, presentation: MenuBarPresentation)] {
+        presets.filter { MenuBarPolicy.globalStyle($0.presentation) == $0.presentation }
+    }
+
     static func validColor(_ color: String?) -> String? {
         guard let color, color == "automatic" || color == "monochrome" || MenuBarTint.named(color) != nil else { return nil }
         return color
@@ -365,6 +403,19 @@ public enum MenuBarTint: String, Codable, Equatable, Sendable, CaseIterable {
 
 // MARK: - Placement
 
+/// What clicking an item with its own place in the menu bar does. A right
+/// click (or control-click) always opens the item's menu.
+public enum MenuBarClickAction: String, Codable, Equatable, Sendable, CaseIterable {
+    /// Show the widget's card under the item — what a click always did.
+    case card
+    /// Refresh the reading now.
+    case refresh
+    /// Open `clickTarget`: an app (bundle id or path) or a URL.
+    case open
+    /// Open the BarShelf hub.
+    case hub
+}
+
 /// Where one widget sits in the menu bar. Persisted per widget.
 public struct MenuBarPlacement: Codable, Equatable, Sendable {
     /// Whether the widget appears in the menu bar at all.
@@ -395,6 +446,11 @@ public struct MenuBarPlacement: Codable, Equatable, Sendable {
     /// need the two seconds a CPU reading does, and an always-on menu bar item
     /// is where that difference is paid all day.
     public var interval: Double?
+    /// What a click does; nil shows the card.
+    public var clickAction: MenuBarClickAction?
+    /// The app or link `clickAction: open` opens.
+    public var clickTarget: String?
+    public var effectiveClickAction: MenuBarClickAction { clickAction ?? .card }
 
     /// The choices offered in settings. Arbitrary values still decode (and
     /// are clamped), so a hand-edited prefs file is not rejected.
@@ -408,8 +464,12 @@ public struct MenuBarPlacement: Codable, Equatable, Sendable {
         label: String? = nil,
         style: MenuBarStyle? = nil,
         presentation: MenuBarPresentation? = nil,
-        interval: Double? = nil
+        interval: Double? = nil,
+        clickAction: MenuBarClickAction? = nil,
+        clickTarget: String? = nil
     ) {
+        self.clickAction = clickAction
+        self.clickTarget = Self.validTarget(clickTarget)
         self.enabled = enabled
         self.separate = separate
         self.order = order
@@ -418,6 +478,11 @@ public struct MenuBarPlacement: Codable, Equatable, Sendable {
         self.style = style
         self.presentation = presentation
         self.interval = Self.validInterval(interval)
+    }
+
+    static func validTarget(_ target: String?) -> String? {
+        let trimmed = target?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     static func validInterval(_ interval: Double?) -> Double? {
@@ -440,6 +505,36 @@ public struct MenuBarPlacement: Codable, Equatable, Sendable {
         interval = Self.validInterval(
             (try? container.decodeIfPresent(Double.self, forKey: .interval)) ?? nil
         )
+        clickAction = ((try? container.decodeIfPresent(String.self, forKey: .clickAction)) ?? nil)
+            .flatMap(MenuBarClickAction.init(rawValue:))
+        clickTarget = Self.validTarget((try? container.decodeIfPresent(String.self, forKey: .clickTarget)) ?? nil)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case enabled, separate, order, icon, label, style, presentation, interval, clickAction, clickTarget
+    }
+
+    /// What "Copy From" takes from another item: the layout and look it
+    /// actually shows — `layout` and `look` resolved from its own choices and
+    /// its widget's defaults, so an item following its manifest copies as it
+    /// looks. What names that widget's own readings stays this item's: row
+    /// order and overrides, precision, and the alert thresholds, which are in
+    /// the other reading's unit (80 % means nothing to a temperature).
+    public func copyingStyle(layout: MenuBarStyle, look: MenuBarPresentation) -> MenuBarPlacement {
+        var copy = self
+        copy.style = layout
+        var presentation = look
+        let mine = self.presentation
+        presentation.metricOrder = mine?.metricOrder
+        presentation.metricOverrides = mine?.metricOverrides
+        presentation.precision = mine?.precision
+        presentation.showValues = mine?.showValues
+        presentation.warningAt = mine?.warningAt
+        presentation.dangerAt = mine?.dangerAt
+        presentation.thresholdDirection = mine?.thresholdDirection
+        presentation.showWhen = mine?.showWhen
+        copy.presentation = presentation == MenuBarPresentation() ? nil : presentation
+        return copy
     }
 }
 

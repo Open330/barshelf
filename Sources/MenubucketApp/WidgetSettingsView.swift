@@ -1,6 +1,7 @@
 import AppKit
 import MenubucketCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Auto-generated settings form from the manifest's `settings[]` entries
 /// (string / integer / boolean / enum / directory). Saving stores overrides
@@ -32,6 +33,8 @@ struct WidgetSettingsView: View {
     @State private var menuBarLoaded = MenuBarPlacement(enabled: false)
     /// This Mac's sensors, for a setting with `optionsSource: system.sensors`.
     @State private var sensorOptions: [SensorReading] = []
+    /// Whether the click target resolves; nil with no target.
+    @State private var clickTargetResolves: Bool?
     @State private var warningText = ""
     @State private var dangerText = ""
     @State private var showWhenText = ""
@@ -98,14 +101,8 @@ struct WidgetSettingsView: View {
             )
             menuBarLoaded = menuBarDraft
             loadDynamicOptions()
-            // Plain "." decimals, the same way the field parses them back.
-            func text(_ value: Double?) -> String {
-                guard let value else { return "" }
-                return value == value.rounded() && abs(value) < 1e15 ? String(Int(value)) : String(value)
-            }
-            warningText = text(menuBarDraft.presentation?.warningAt)
-            dangerText = text(menuBarDraft.presentation?.dangerAt)
-            showWhenText = text(menuBarDraft.presentation?.showWhen)
+            syncAlertTexts()
+            clickTargetResolves = menuBarDraft.clickTarget.map { StatusItemController.clickTargetURL($0) != nil }
         }
     }
 
@@ -452,6 +449,16 @@ struct WidgetSettingsView: View {
             }
 
             GridRow {
+                settingsRowLabel("Click")
+                clickControls
+            }
+
+            GridRow {
+                settingsRowLabel("Style")
+                styleShortcuts
+            }
+
+            GridRow {
                 settingsRowLabel("Update")
                 VStack(alignment: .leading, spacing: 4) {
                     Picker("", selection: intervalBinding) {
@@ -479,7 +486,7 @@ struct WidgetSettingsView: View {
                     settingsRowLabel("Presentation")
                     Button("Reset menu presentation") {
                         menuBarDraft.presentation = nil
-                        warningText = ""; dangerText = ""; showWhenText = ""
+                        syncAlertTexts()
                     }
                         .controlSize(.small)
                 }
@@ -1184,6 +1191,105 @@ struct WidgetSettingsView: View {
         case let (min?, nil): return "Min \(Int(min))"
         case let (nil, max?): return "Max \(Int(max))"
         default: return nil
+        }
+    }
+
+    @ViewBuilder
+    private var clickControls: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Picker("", selection: Binding(
+                get: { menuBarDraft.effectiveClickAction },
+                set: { menuBarDraft.clickAction = $0 == .card ? nil : $0 }
+            )) {
+                Text("Show the card").tag(MenuBarClickAction.card)
+                Text("Refresh").tag(MenuBarClickAction.refresh)
+                Text("Open an app or link").tag(MenuBarClickAction.open)
+                Text("Open BarShelf").tag(MenuBarClickAction.hub)
+            }
+            .labelsHidden()
+            .frame(width: 180)
+            if menuBarDraft.effectiveClickAction == .open {
+                HStack(spacing: 6) {
+                    TextField("com.apple.ActivityMonitor or https://…", text: Binding(
+                        get: { menuBarDraft.clickTarget ?? "" },
+                        set: {
+                            menuBarDraft.clickTarget = $0.isEmpty ? nil : $0
+                            clickTargetResolves = $0.isEmpty ? nil : StatusItemController.clickTargetURL($0) != nil
+                        }
+                    ))
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 190)
+                    Button("Choose App…") { chooseClickApp() }
+                        .controlSize(.small)
+                }
+                // Resolved when the target changes, not on every render: it is
+                // a Launch Services lookup.
+                if clickTargetResolves == false {
+                    settingsHint("Nothing on this Mac answers to that; a click will show the card instead.")
+                }
+            }
+            settingsHint(usesOwnItem
+                ? "A right click always opens the item's menu, which can still show the card."
+                : "Clicks belong to items with their own place in the menu bar.")
+        }
+    }
+
+    /// Presets and "copy from" — whole looks in one step, over what is set.
+    @ViewBuilder
+    private var styleShortcuts: some View {
+        let others = runtime.menuBarCandidates.filter { other in
+            other.id != widget.id && runtime.prefs.menuBarPlacements[other.id] != nil
+        }
+        HStack(spacing: 8) {
+            Menu("Apply Preset") {
+                ForEach(MenuBarPresentation.presets, id: \.name) { preset in
+                    Button(preset.name) {
+                        setPresentation { $0 = $0.applying(preset: preset.presentation) }
+                    }
+                }
+            }
+            .fixedSize()
+            Menu("Copy From") {
+                ForEach(others, id: \.id) { other in
+                    Button(other.displayName) {
+                        menuBarDraft = menuBarDraft.copyingStyle(
+                            layout: runtime.resolvedMenuBarStyle(for: other),
+                            look: runtime.resolvedMenuBarLook(for: other)
+                        )
+                        syncAlertTexts()
+                    }
+                }
+            }
+            .fixedSize()
+            .disabled(others.isEmpty)
+        }
+        .controlSize(.small)
+    }
+
+    /// The alert fields from the draft — on open, and whenever the draft's
+    /// alerts change other than by typing (reset, Copy From).
+    /// Plain "." decimals, the same way the fields parse them back.
+    private func syncAlertTexts() {
+        func text(_ value: Double?) -> String {
+            guard let value else { return "" }
+            return value == value.rounded() && abs(value) < 1e15 ? String(Int(value)) : String(value)
+        }
+        warningText = text(menuBarDraft.presentation?.warningAt)
+        dangerText = text(menuBarDraft.presentation?.dangerAt)
+        showWhenText = text(menuBarDraft.presentation?.showWhen)
+    }
+
+    private func chooseClickApp() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.allowedContentTypes = [.application]
+        panel.directoryURL = URL(fileURLWithPath: "/Applications")
+        if panel.runModal() == .OK, let url = panel.url {
+            // The bundle id survives the app moving or updating; a path is
+            // the fallback for an app without one.
+            menuBarDraft.clickTarget = Bundle(url: url)?.bundleIdentifier ?? url.path
+            clickTargetResolves = true
         }
     }
 

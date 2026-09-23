@@ -23,6 +23,14 @@
 
 ## Menu bar
 
+- **Choose what a click does.** An item of its own can show its card (as
+  before), refresh, open an app or link — Activity Monitor from the CPU
+  item, say — or open BarShelf. Its right-click menu keeps "Show Card".
+- **Presets and copying.** "Apply Preset" gives an item a ready-made look —
+  Compact, Steady, Bold, Minimal, Graph (Compact, Steady and Bold also for
+  every item, in Settings → Menu Bar) — and "Copy From" takes another item's
+  layout and look, keeping this item's own rows and alerts.
+
 - **Graphs.** An item with its own place in the menu bar can draw a
   sparkline, bars or a gauge of its reading beside the number (Settings →
   Menu Bar → Graph). Percentages are drawn against 0–100; anything else

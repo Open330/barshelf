@@ -281,6 +281,19 @@ struct AppSettingsView: View {
             styleRow("Width") { controls.width }
             styleRow("Text") { controls.text }
             styleRow("Color") { controls.color }
+            styleRow("Presets") {
+                HStack(spacing: 6) {
+                    ForEach(MenuBarPresentation.appWidePresets, id: \.name) { preset in
+                        Button(preset.name) {
+                            appPrefs.update { preferences in
+                                preferences.menuBarPresentation = (preferences.menuBarPresentation
+                                    ?? MenuBarPresentation()).applying(preset: preset.presentation)
+                            }
+                        }
+                    }
+                }
+                .controlSize(.small)
+            }
         } header: {
             Text("All Items")
         } footer: {
