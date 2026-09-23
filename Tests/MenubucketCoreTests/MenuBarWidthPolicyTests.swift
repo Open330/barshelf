@@ -75,6 +75,21 @@ final class MenuBarWidthPolicyTests: XCTestCase {
         XCTAssertEqual(unset.effectiveNumberAlignment, .left)
     }
 
+    func testSymbolUnitsAttachAndWordUnitsKeepTheirSpace() {
+        func shown(_ n: Double, _ format: String?, _ unit: String?) -> String? {
+            MenuBarPolicy.formattedMetricValue(
+                StatusMetric(label: "", value: "", number: n, format: format, unit: unit),
+                presentation: MenuBarPresentation()
+            )
+        }
+        XCTAssertEqual(shown(12, "decimal", "W"), "12W")
+        XCTAssertEqual(shown(48, "decimal", "°C"), "48°C")
+        XCTAssertEqual(shown(60, "decimal", "Hz"), "60Hz")
+        XCTAssertEqual(shown(1200, "decimal", "rpm"), "1200 rpm")
+        XCTAssertEqual(shown(23, "percent", nil), "23%")
+        XCTAssertEqual(shown(8_400_000_000, "bytes", nil), "8 GB", "bytes keep their SI spacing")
+    }
+
     func testTheMinusSignStaysAgainstItsDigits() {
         XCTAssertEqual(MenuBarPolicy.reservingDigits("-5°", digits: 2), fs + "-5°")
         XCTAssertEqual(MenuBarPolicy.reservingDigits("\u{2212}5°", digits: 2), fs + "\u{2212}5°")

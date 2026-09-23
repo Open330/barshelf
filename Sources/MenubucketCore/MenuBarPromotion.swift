@@ -688,8 +688,21 @@ public enum MenuBarPolicy {
             return shown
         }
         if let unit = normalizedLabel(metric.unit, limit: maxPrefixCharacters),
-           !(format == "percent" && unit == "%") { return shown + " " + unit }
+           !(format == "percent" && unit == "%") {
+            return shown + (attachesToNumber(unit) ? "" : " ") + unit
+        }
         return shown
+    }
+
+    /// Whether a unit is written against its number, the way `%` and `°`
+    /// already are: symbols (`W`, `V`, `°C`, `Hz`) yes, words (`rpm`) no.
+    ///
+    /// Menu bar space is the scarcest there is, and the space in `12 W` was
+    /// the whole difference between the power item and its neighbours — `W`
+    /// is exactly as wide as `%`, so `12W` lines up with `23%` and `12 W`
+    /// stood 3 pt wider.
+    static func attachesToNumber(_ unit: String) -> Bool {
+        unit.hasPrefix("°") || unit.count <= 2
     }
 
     private static func absByteMagnitude(_ number: Double) -> (Double, Int) {

@@ -150,6 +150,29 @@ final class MenuBarSteadyWidthTests: XCTestCase {
         ))
     }
 
+    /// The user's three items — CPU, RAM, and power relabelled PWR — come out
+    /// the same width. The space in "12 W" had made power 3 pt wider; W is
+    /// exactly as wide as %.
+    func testPowerLinesUpWithCPUAndRAM() {
+        func item(_ label: String, _ metric: StatusMetric) -> CGFloat {
+            let entry = MenuBarPolicy.applyingPresentation(
+                MenuBarPresentation(),
+                to: MenuBarEntry(widgetID: label, name: label, prefix: label, style: .stacked, metrics: [metric])
+            )
+            return MenuBarController.stackedImage(entry, symbol: nil, glyph: nil).size.width
+        }
+        let cpu = item("CPU", StatusMetric(id: "cpu", label: "CPU", value: "", number: 23, format: "percent"))
+        let ram = item("RAM", StatusMetric(id: "memory", label: "RAM", value: "", number: 70, format: "percent"))
+        for watts in [5.0, 12.0] {
+            let pwr = item("PWR", StatusMetric(id: "power", label: "Power", value: "", number: watts,
+                                               format: "decimal", unit: "W", precision: 0))
+            // Compared as the bar sizes items, in whole points: W and % differ
+            // in the third decimal place, which no length can show.
+            XCTAssertEqual(ceil(pwr), ceil(cpu), "\(watts) W")
+        }
+        XCTAssertEqual(ceil(cpu), ceil(ram))
+    }
+
     // MARK: Redraw decisions
 
     func testLayoutSignatureIgnoresReadingsButNotLayout() {
