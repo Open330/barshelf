@@ -32,27 +32,32 @@ final class MenuBarClickAndPresetTests: XCTestCase {
         XCTAssertEqual(Set(MenuBarPresentation.presets.map(\.name)).count, MenuBarPresentation.presets.count)
     }
 
-    func testCopyingStyleKeepsThisWidgetsRows() {
-        let source = MenuBarPlacement(
-            enabled: true, separate: true, label: "GPU", style: .metrics,
-            presentation: MenuBarPresentation(precision: 1, color: "warning", metricOrder: ["gpu"],
-                                              metricOverrides: ["gpu": MenuBarMetricOverride(hidden: true)],
-                                              size: .large, warningAt: 80),
-            interval: 30
-        )
+    func testCopyingStyleKeepsThisWidgetsReadings() {
+        let look = MenuBarPresentation(precision: 1, color: "warning", metricOrder: ["gpu"],
+                                       metricOverrides: ["gpu": MenuBarMetricOverride(hidden: true)],
+                                       size: .large, warningAt: 80, showWhen: 50, chart: .bars)
         let target = MenuBarPlacement(
-            enabled: true, separate: true, label: "CPU",
-            presentation: MenuBarPresentation(precision: 0, metricOrder: ["cpu"])
+            enabled: true, separate: true, label: "CPU", style: .stacked,
+            presentation: MenuBarPresentation(precision: 0, metricOrder: ["cpu"], dangerAt: 95)
         )
-        let copied = target.copyingStyle(from: source)
-        XCTAssertEqual(copied.style, .metrics)
+        let copied = target.copyingStyle(layout: .metrics, look: look)
+        XCTAssertEqual(copied.style, .metrics, "the layout the other item shows, even from its manifest")
         XCTAssertEqual(copied.presentation?.color, "warning")
         XCTAssertEqual(copied.presentation?.size, .large)
-        XCTAssertEqual(copied.presentation?.warningAt, 80)
+        XCTAssertEqual(copied.presentation?.chart, .bars)
         XCTAssertEqual(copied.presentation?.precision, 0, "precision suits this widget's readings")
         XCTAssertEqual(copied.presentation?.metricOrder, ["cpu"])
         XCTAssertNil(copied.presentation?.metricOverrides)
-        XCTAssertEqual(copied.label, "CPU", "its own label and cadence are not style")
-        XCTAssertNil(copied.interval)
+        XCTAssertNil(copied.presentation?.warningAt, "thresholds are in the other reading's unit")
+        XCTAssertNil(copied.presentation?.showWhen)
+        XCTAssertEqual(copied.presentation?.dangerAt, 95, "this item's own alerts stay")
+        XCTAssertEqual(copied.label, "CPU", "its own label is not style")
+    }
+
+    func testAppWidePresetsAreThoseThatFullyApply() {
+        let names = MenuBarPresentation.appWidePresets.map(\.name)
+        XCTAssertTrue(names.contains("Compact"))
+        XCTAssertFalse(names.contains("Graph"), "a chart is each widget's own")
+        XCTAssertFalse(names.contains("Minimal"), "so are units")
     }
 }

@@ -1499,6 +1499,27 @@ final class WidgetRuntime: ObservableObject {
         objectWillChange.send()
     }
 
+    /// The layout another item actually draws with: its own choice, else its
+    /// widget's.
+    func resolvedMenuBarStyle(for widget: LoadedWidget) -> MenuBarStyle {
+        let placement = prefs.menuBarPlacement(for: widget.manifest, widgetID: widget.id)
+        return MenuBarPolicy.resolvedStyle(
+            user: placement.style, manifest: MenuBarPolicy.effectiveStatusItem(widget.manifest.statusItem).style
+        )
+    }
+
+    /// How another item looks by its own and its widget's choices — without
+    /// the app-wide style, which applies to every item anyway and would
+    /// otherwise be pinned onto the one copying it.
+    func resolvedMenuBarLook(for widget: LoadedWidget) -> MenuBarPresentation {
+        let placement = prefs.menuBarPlacement(for: widget.manifest, widgetID: widget.id)
+        return MenuBarPolicy.resolvedPresentation(
+            user: placement.presentation,
+            live: snapshots[widget.id]?.statusPresentation,
+            manifest: MenuBarPolicy.effectiveStatusItem(widget.manifest.statusItem).presentation
+        )
+    }
+
     /// Items whose own width, text or colour choices would hide the app-wide
     /// menu bar style.
     var widgetsOverridingMenuBarStyle: [LoadedWidget] {

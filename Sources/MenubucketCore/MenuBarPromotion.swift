@@ -320,20 +320,33 @@ public struct MenuBarPresentation: Codable, Equatable, Sendable {
         ("Graph", MenuBarPresentation(width: .auto, digits: 3, chart: .line)),
     ]
 
-    /// This presentation with every style field `preset` sets taken from it.
+    /// The fields a preset may set. One list, so a new style field is one
+    /// line here rather than a silent gap in `applying(preset:)`.
+    private static let presetFields: [@Sendable (inout MenuBarPresentation, MenuBarPresentation) -> Void] = [
+        { if let v = $1.showUnits { $0.showUnits = v } },
+        { if let v = $1.color { $0.color = v } },
+        { if let v = $1.valueWidth { $0.valueWidth = v } },
+        { if let v = $1.width { $0.width = v } },
+        { if let v = $1.digits { $0.digits = v } },
+        { if let v = $1.alignment { $0.alignment = v } },
+        { if let v = $1.weight { $0.weight = v } },
+        { if let v = $1.size { $0.size = v } },
+        { if let v = $1.numberAlignment { $0.numberAlignment = v } },
+        { if let v = $1.chart { $0.chart = v } },
+    ]
+
+    /// This presentation with every field `preset` sets taken from it.
     public func applying(preset: MenuBarPresentation) -> MenuBarPresentation {
         var result = self
-        if let v = preset.showUnits { result.showUnits = v }
-        if let v = preset.color { result.color = v }
-        if let v = preset.valueWidth { result.valueWidth = v }
-        if let v = preset.width { result.width = v }
-        if let v = preset.digits { result.digits = v }
-        if let v = preset.alignment { result.alignment = v }
-        if let v = preset.weight { result.weight = v }
-        if let v = preset.size { result.size = v }
-        if let v = preset.numberAlignment { result.numberAlignment = v }
-        if let v = preset.chart { result.chart = v }
+        for apply in Self.presetFields { apply(&result, preset) }
         return result
+    }
+
+    /// The presets that mean the same app-wide: those made only of fields the
+    /// app-wide style carries. "Graph" and "Minimal" set a chart and units,
+    /// which are each widget's own, and would half-apply.
+    public static var appWidePresets: [(name: String, presentation: MenuBarPresentation)] {
+        presets.filter { MenuBarPolicy.globalStyle($0.presentation) == $0.presentation }
     }
 
     static func validColor(_ color: String?) -> String? {
@@ -390,7 +403,6 @@ public enum MenuBarTint: String, Codable, Equatable, Sendable, CaseIterable {
 
 // MARK: - Placement
 
-/// Where one widget sits in the menu bar. Persisted per widget.
 /// What clicking an item with its own place in the menu bar does. A right
 /// click (or control-click) always opens the item's menu.
 public enum MenuBarClickAction: String, Codable, Equatable, Sendable, CaseIterable {
@@ -404,6 +416,7 @@ public enum MenuBarClickAction: String, Codable, Equatable, Sendable, CaseIterab
     case hub
 }
 
+/// Where one widget sits in the menu bar. Persisted per widget.
 public struct MenuBarPlacement: Codable, Equatable, Sendable {
     /// Whether the widget appears in the menu bar at all.
     public var enabled: Bool
@@ -501,17 +514,25 @@ public struct MenuBarPlacement: Codable, Equatable, Sendable {
         case enabled, separate, order, icon, label, style, presentation, interval, clickAction, clickTarget
     }
 
-    /// What "Copy style from…" takes from another item: its layout and every
-    /// presentation choice that is not about that widget's own rows. Row
-    /// order, per-row labels and precision name another widget's readings,
-    /// and mean nothing — or the wrong thing — here.
-    public func copyingStyle(from source: MenuBarPlacement) -> MenuBarPlacement {
+    /// What "Copy From" takes from another item: the layout and look it
+    /// actually shows — `layout` and `look` resolved from its own choices and
+    /// its widget's defaults, so an item following its manifest copies as it
+    /// looks. What names that widget's own readings stays this item's: row
+    /// order and overrides, precision, and the alert thresholds, which are in
+    /// the other reading's unit (80 % means nothing to a temperature).
+    public func copyingStyle(layout: MenuBarStyle, look: MenuBarPresentation) -> MenuBarPlacement {
         var copy = self
-        copy.style = source.style
-        var presentation = source.presentation ?? MenuBarPresentation()
-        presentation.metricOrder = self.presentation?.metricOrder
-        presentation.metricOverrides = self.presentation?.metricOverrides
-        presentation.precision = self.presentation?.precision
+        copy.style = layout
+        var presentation = look
+        let mine = self.presentation
+        presentation.metricOrder = mine?.metricOrder
+        presentation.metricOverrides = mine?.metricOverrides
+        presentation.precision = mine?.precision
+        presentation.showValues = mine?.showValues
+        presentation.warningAt = mine?.warningAt
+        presentation.dangerAt = mine?.dangerAt
+        presentation.thresholdDirection = mine?.thresholdDirection
+        presentation.showWhen = mine?.showWhen
         copy.presentation = presentation == MenuBarPresentation() ? nil : presentation
         return copy
     }

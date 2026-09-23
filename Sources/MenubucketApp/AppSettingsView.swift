@@ -283,7 +283,7 @@ struct AppSettingsView: View {
             styleRow("Color") { controls.color }
             styleRow("Presets") {
                 HStack(spacing: 6) {
-                    ForEach(MenuBarPresentation.presets, id: \.name) { preset in
+                    ForEach(MenuBarPresentation.appWidePresets, id: \.name) { preset in
                         Button(preset.name) {
                             appPrefs.update { preferences in
                                 preferences.menuBarPresentation = (preferences.menuBarPresentation

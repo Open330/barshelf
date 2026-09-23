@@ -33,6 +33,8 @@ struct WidgetSettingsView: View {
     @State private var menuBarLoaded = MenuBarPlacement(enabled: false)
     /// This Mac's sensors, for a setting with `optionsSource: system.sensors`.
     @State private var sensorOptions: [SensorReading] = []
+    /// Whether the click target resolves; nil with no target.
+    @State private var clickTargetResolves: Bool?
     @State private var warningText = ""
     @State private var dangerText = ""
     @State private var showWhenText = ""
@@ -99,14 +101,8 @@ struct WidgetSettingsView: View {
             )
             menuBarLoaded = menuBarDraft
             loadDynamicOptions()
-            // Plain "." decimals, the same way the field parses them back.
-            func text(_ value: Double?) -> String {
-                guard let value else { return "" }
-                return value == value.rounded() && abs(value) < 1e15 ? String(Int(value)) : String(value)
-            }
-            warningText = text(menuBarDraft.presentation?.warningAt)
-            dangerText = text(menuBarDraft.presentation?.dangerAt)
-            showWhenText = text(menuBarDraft.presentation?.showWhen)
+            syncAlertTexts()
+            clickTargetResolves = menuBarDraft.clickTarget.map { StatusItemController.clickTargetURL($0) != nil }
         }
     }
 
@@ -490,7 +486,7 @@ struct WidgetSettingsView: View {
                     settingsRowLabel("Presentation")
                     Button("Reset menu presentation") {
                         menuBarDraft.presentation = nil
-                        warningText = ""; dangerText = ""; showWhenText = ""
+                        syncAlertTexts()
                     }
                         .controlSize(.small)
                 }
@@ -1216,14 +1212,19 @@ struct WidgetSettingsView: View {
                 HStack(spacing: 6) {
                     TextField("com.apple.ActivityMonitor or https://…", text: Binding(
                         get: { menuBarDraft.clickTarget ?? "" },
-                        set: { menuBarDraft.clickTarget = $0.isEmpty ? nil : $0 }
+                        set: {
+                            menuBarDraft.clickTarget = $0.isEmpty ? nil : $0
+                            clickTargetResolves = $0.isEmpty ? nil : StatusItemController.clickTargetURL($0) != nil
+                        }
                     ))
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 190)
                     Button("Choose App…") { chooseClickApp() }
                         .controlSize(.small)
                 }
-                if let target = menuBarDraft.clickTarget, StatusItemController.clickTargetURL(target) == nil {
+                // Resolved when the target changes, not on every render: it is
+                // a Launch Services lookup.
+                if clickTargetResolves == false {
                     settingsHint("Nothing on this Mac answers to that; a click will show the card instead.")
                 }
             }
@@ -1251,8 +1252,11 @@ struct WidgetSettingsView: View {
             Menu("Copy From") {
                 ForEach(others, id: \.id) { other in
                     Button(other.displayName) {
-                        let source = runtime.prefs.menuBarPlacement(for: other.manifest, widgetID: other.id)
-                        menuBarDraft = menuBarDraft.copyingStyle(from: source)
+                        menuBarDraft = menuBarDraft.copyingStyle(
+                            layout: runtime.resolvedMenuBarStyle(for: other),
+                            look: runtime.resolvedMenuBarLook(for: other)
+                        )
+                        syncAlertTexts()
                     }
                 }
             }
@@ -1260,6 +1264,19 @@ struct WidgetSettingsView: View {
             .disabled(others.isEmpty)
         }
         .controlSize(.small)
+    }
+
+    /// The alert fields from the draft — on open, and whenever the draft's
+    /// alerts change other than by typing (reset, Copy From).
+    /// Plain "." decimals, the same way the fields parse them back.
+    private func syncAlertTexts() {
+        func text(_ value: Double?) -> String {
+            guard let value else { return "" }
+            return value == value.rounded() && abs(value) < 1e15 ? String(Int(value)) : String(value)
+        }
+        warningText = text(menuBarDraft.presentation?.warningAt)
+        dangerText = text(menuBarDraft.presentation?.dangerAt)
+        showWhenText = text(menuBarDraft.presentation?.showWhen)
     }
 
     private func chooseClickApp() {
@@ -1272,6 +1289,7 @@ struct WidgetSettingsView: View {
             // The bundle id survives the app moving or updating; a path is
             // the fallback for an app without one.
             menuBarDraft.clickTarget = Bundle(url: url)?.bundleIdentifier ?? url.path
+            clickTargetResolves = true
         }
     }
 
