@@ -200,7 +200,7 @@
       "accent": "orange",
       "name": "Sensors",
       "description": "Hardware temperatures, fans and power draw from the SMC, with the Apple Silicon HID sensor plane as a fallback. Choose a temperature, power draw, fan speed, or fan load for the menu bar, in °C or °F where applicable.",
-      "version": "0.4.0",
+      "version": "0.4.1",
       "author": "barshelf",
       "icon": "thermometer.medium",
       "kind": "workflow",

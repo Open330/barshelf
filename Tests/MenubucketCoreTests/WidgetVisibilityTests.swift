@@ -135,6 +135,30 @@ final class WidgetVisibilityTests: XCTestCase {
         XCTAssertEqual(params?["sensors"], .string("all"))
     }
 
+    /// Menu bar readings are whole numbers — the power reading had kept a
+    /// decimal ("3.6 W") after every other reading lost it.
+    func testSensorsMenuBarReadingsHaveNoDecimal() throws {
+        let definition = try loadShippedWorkflow("sensors")
+        for sensor in ["power", "cpu", "fan"] {
+            let output = try WorkflowEngine.evaluate(
+                definition,
+                sources: ["data": .object(["sensors": .object([
+                    "available": .bool(true), "cpu": .number(48.6), "peak": .number(51.2),
+                    "power": .number(3.64), "fanCount": .number(1),
+                    "fans": .array([.object(["rpm": .number(1234.5), "usage": .number(0.42)])]),
+                ])])],
+                settings: .object(["menuBarSensor": .string(sensor), "unit": .string("celsius")])
+            )
+            let entry = MenuBarPolicy.applyingPresentation(
+                MenuBarPresentation(),
+                to: MenuBarEntry(widgetID: "s", name: "Sensors", style: .stacked,
+                                 label: output.statusLabel, metrics: output.statusMetrics ?? [])
+            )
+            let shown = entry.metrics.first?.value ?? entry.label ?? ""
+            XCTAssertFalse(shown.contains("."), "\(sensor): \(shown)")
+        }
+    }
+
     // MARK: The shipped widget still renders with the cheap sample
 
     /// With the card closed the sensor source omits `list` entirely. The

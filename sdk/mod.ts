@@ -108,8 +108,13 @@ export interface MenuBarPresentation {
   width?: "auto" | "fixed" | "fit";
   /** Integer digits `width: "auto"` reserves, 1–6 (default 2). */
   digits?: number;
-  /** Block alignment of the rows; numbers are always right-aligned. */
+  /** Block alignment of the label and value rows. */
   alignment?: "leading" | "center" | "trailing";
+  /**
+   * Where a short number sits in its reserved digits: `right` (default)
+   * keeps the last digit and unit still; `left` starts it where the label does.
+   */
+  numberAlignment?: "right" | "left";
   weight?: "regular" | "medium" | "semibold" | "bold";
   size?: "small" | "regular" | "large";
 }
@@ -922,6 +927,7 @@ function validatePresentation(presentation: MenuBarPresentation): void {
   oneOf(presentation.alignment, ["leading", "center", "trailing"], "alignment");
   oneOf(presentation.weight, ["regular", "medium", "semibold", "bold"], "weight");
   oneOf(presentation.size, ["small", "regular", "large"], "size");
+  oneOf(presentation.numberAlignment, ["right", "left"], "numberAlignment");
 
   const order = presentation.metricOrder;
   if (order !== undefined) {

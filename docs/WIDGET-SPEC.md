@@ -159,7 +159,7 @@ Workflow DSL 상세 계약은 [`docs/WORKFLOW.md`](WORKFLOW.md)를 따른다.
 | `icon` | status item 아이콘(SF Symbol 이름). 없으면 manifest의 `icon`을 쓴다. 사용자가 SF Symbol 이름이나 **이모지**로 덮어쓰거나 아예 끌 수 있다. |
 | `label` | 값 앞에 그릴 기본 텍스트(`CPU 23%`의 `CPU`). 워크플로의 `status.prefix`가 이보다 우선하고, 사용자 설정이 둘 다 이긴다. |
 | `style` | `inline`은 값 옆에, `stacked`는 값 **위에** 작게 라벨을 둔다(시스템 모니터가 메뉴바 높이에 두 줄을 넣는 방식). `metrics`는 최대 두 개의 독립 metric을 나란히 그리는 전용 status item이다. |
-| `presentation` | 작성자 기본 표시값. `showValues`, `showUnits`, `precision`(0–3), `color`(`automatic`/`monochrome`/semantic tint), `width`(`auto`=`digits`자리만큼 폭 예약, 기본 / `fixed`=`valueWidth` 32–120pt / `fit`=글자에 맞춤), `digits`(1–6, 기본 2), `alignment`(행 정렬, 숫자는 항상 오른쪽 맞춤), `weight`, `size`, stable metric id의 `metricOrder`, `metricOverrides`를 둔다. 사용자 설정과 각 refresh의 status.presentation이 더 우선한다. |
+| `presentation` | 작성자 기본 표시값. `showValues`, `showUnits`, `precision`(0–3), `color`(`automatic`/`monochrome`/semantic tint), `width`(`auto`=`digits`자리만큼 폭 예약, 기본 / `fixed`=`valueWidth` 32–120pt / `fit`=글자에 맞춤), `digits`(1–6, 기본 2), `alignment`(행 정렬), `numberAlignment`(`right` 기본: 마지막 자리·단위 고정 / `left`: 라벨과 왼쪽 맞춤), `weight`, `size`, stable metric id의 `metricOrder`, `metricOverrides`를 둔다. 사용자 설정과 각 refresh의 status.presentation이 더 우선한다. |
 | `labelFrom` | 스키마 호환용. 현재 런타임은 읽지 않는다. |
 | `tooltipFrom` | 스키마 호환용. 현재 런타임은 읽지 않는다. |
 

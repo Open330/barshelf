@@ -432,9 +432,10 @@ Arbitrary JavaScript는 금지한다. 표현식은 문자열 안의 `${...}` 보
 }
 ```
 
-Power uses `{"id":"power","number":"${sources.data.sensors.power}","unit":"W","precision":1}`.
+Power uses `{"id":"power","number":"${sources.data.sensors.power}","unit":"W","precision":0}` —
+menu bar readings are whole numbers; the person can raise Decimals per item.
 `presentation` may make `showValues`, `showUnits`, `precision`, `valueWidth` and
-`digits` dynamic templates; `color`, `width`, `alignment`, `weight` and `size` may be
+`digits` dynamic templates; `color`, `width`, `alignment`, `numberAlignment`, `weight` and `size` may be
 templates too (an unknown value reads as unset). `metricOrder` and `metricOverrides`
 are literal stable-id settings. User choices override render values, which override
 the manifest's `statusItem.presentation` defaults.

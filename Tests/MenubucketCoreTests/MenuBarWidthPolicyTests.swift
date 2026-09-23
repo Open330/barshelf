@@ -51,6 +51,30 @@ final class MenuBarWidthPolicyTests: XCTestCase {
         XCTAssertEqual(applied.label, fs + "8%")
     }
 
+    func testLeftAlignedNumbersPadAfterTheReading() {
+        XCTAssertEqual(MenuBarPolicy.reservingDigits("4 W", digits: 2, numbers: .left), "4 W" + fs)
+        XCTAssertEqual(MenuBarPolicy.reservingDigits("-5°", digits: 2, numbers: .left), "-5°" + fs)
+        XCTAssertEqual(MenuBarPolicy.reservingDigits("15 W", digits: 2, numbers: .left), "15 W")
+        let left = MenuBarPresentation(numberAlignment: .left)
+        XCTAssertEqual(MenuBarPolicy.reservedValue("4 W", presentation: left), "4 W" + fs)
+        XCTAssertEqual(MenuBarPresentation().effectiveNumberAlignment, .right, "the default keeps the last digit still")
+    }
+
+    /// The settings bug behind storing explicit choices: a widget that asks
+    /// for left-aligned numbers is overridden only by an explicit `.right` —
+    /// a stored nil falls straight back to the widget's "left".
+    func testAnExplicitChoiceBeatsTheWidgetsDefaultButNilDoesNot() {
+        let widgetWants = MenuBarPresentation(numberAlignment: .left)
+        let explicit = MenuBarPolicy.resolvedPresentation(
+            user: MenuBarPresentation(numberAlignment: .right), live: nil, manifest: widgetWants
+        )
+        XCTAssertEqual(explicit.effectiveNumberAlignment, .right)
+        let unset = MenuBarPolicy.resolvedPresentation(
+            user: MenuBarPresentation(), live: nil, manifest: widgetWants
+        )
+        XCTAssertEqual(unset.effectiveNumberAlignment, .left)
+    }
+
     func testTheMinusSignStaysAgainstItsDigits() {
         XCTAssertEqual(MenuBarPolicy.reservingDigits("-5°", digits: 2), fs + "-5°")
         XCTAssertEqual(MenuBarPolicy.reservingDigits("\u{2212}5°", digits: 2), fs + "\u{2212}5°")
@@ -93,7 +117,7 @@ final class MenuBarWidthPolicyTests: XCTestCase {
     // MARK: Decoding and resolution
 
     func testNewFieldsDecodeLenientlyAndResolveUserFirst() throws {
-        let json = #"{"width":"sideways","digits":9,"alignment":"center","weight":"bold","size":"large","showUnits":false}"#
+        let json = #"{"width":"sideways","digits":9,"alignment":"center","weight":"bold","size":"large","showUnits":false,"numberAlignment":"diagonal"}"#
         let decoded = try JSONDecoder().decode(MenuBarPresentation.self, from: Data(json.utf8))
         XCTAssertNil(decoded.width, "an unknown mode reads as unset, not as a decode failure")
         XCTAssertNil(decoded.digits, "digits outside 1–6 are dropped")
@@ -101,6 +125,7 @@ final class MenuBarWidthPolicyTests: XCTestCase {
         XCTAssertEqual(decoded.weight, .bold)
         XCTAssertEqual(decoded.size, .large)
         XCTAssertEqual(decoded.showUnits, false, "the other fields survive a bad one")
+        XCTAssertNil(decoded.numberAlignment)
 
         let resolved = MenuBarPolicy.resolvedPresentation(
             user: MenuBarPresentation(width: .fixed),
@@ -115,7 +140,8 @@ final class MenuBarWidthPolicyTests: XCTestCase {
 
     func testPresentationRoundTrips() throws {
         let original = MenuBarPresentation(
-            valueWidth: 64, width: .fixed, digits: 3, alignment: .trailing, weight: .medium, size: .small
+            valueWidth: 64, width: .fixed, digits: 3, alignment: .trailing, weight: .medium, size: .small,
+            numberAlignment: .left
         )
         let data = try JSONEncoder().encode(original)
         XCTAssertEqual(try JSONDecoder().decode(MenuBarPresentation.self, from: data), original)

@@ -290,8 +290,9 @@ sharing) the BarShelf mark.
   tint), `width` (`auto` reserves room for `digits` integer digits so a
   reading going from 9 to 10 does not move the bar — the default; `fixed` uses
   `valueWidth`, 32–120 pt; `fit` follows the text), `digits` (1–6, default 2),
-  `alignment` (`leading`/`center`/`trailing` for the rows; numbers are always
-  right-aligned), `weight`, `size` (`small`/`regular`/`large`), `metricOrder`,
+  `alignment` (`leading`/`center`/`trailing` for the rows), `numberAlignment`
+  (`right`, the default, keeps the last digit and unit still; `left` starts the
+  number where the label does), `weight`, `size` (`small`/`regular`/`large`), `metricOrder`,
   and `metricOverrides` keyed by metric id (`label`, `hidden`, `tint`). The
   host resolves each field as **user preference → render → manifest**, so
   authors should only set defaults. People also pick a refresh interval per
