@@ -247,6 +247,77 @@ final class BundledWidgetRefresherTests: XCTestCase {
         XCTAssertTrue(outcome.skippedLocallyModified.isEmpty)
     }
 
+    /// The gallery's Update is the documented way out of a local edit. It
+    /// installs a clean copy of a *different* version, and that copy has to
+    /// become the baseline — otherwise the stale fingerprint marks it as
+    /// edited and every later bundled update is skipped forever.
+    func testAnUpdateFromElsewhereResetsTheBaseline() throws {
+        try writeWidget(
+            into: bundledDir, directoryName: "system",
+            id: "dev.barshelf.system", version: "0.3.0", body: "v030"
+        )
+        try writeWidget(
+            into: userWidgetsDir, directoryName: "dev.barshelf.system",
+            id: "dev.barshelf.system", version: "0.3.0", body: "v030"
+        )
+        XCTAssertFalse(refresh().didRefresh)  // ledger: 0.3.0 as written
+
+        // Hand edit; 0.3.1 ships and is rightly held back.
+        try Data("hand edited".utf8).write(
+            to: userWidgetsDir.appendingPathComponent("dev.barshelf.system/workflow.json")
+        )
+        try writeWidget(
+            into: bundledDir, directoryName: "system",
+            id: "dev.barshelf.system", version: "0.3.1", body: "v031"
+        )
+        XCTAssertEqual(refresh().skippedLocallyModified, ["dev.barshelf.system"])
+
+        // The user clicks Update in the gallery: a clean 0.3.1 lands.
+        try writeWidget(
+            into: userWidgetsDir, directoryName: "dev.barshelf.system",
+            id: "dev.barshelf.system", version: "0.3.1", body: "v031"
+        )
+        XCTAssertFalse(refresh().didRefresh)  // current — and re-baselined
+
+        // 0.3.2 must now land.
+        try writeWidget(
+            into: bundledDir, directoryName: "system",
+            id: "dev.barshelf.system", version: "0.3.2", body: "v032"
+        )
+        let outcome = refresh()
+        XCTAssertEqual(outcome.refreshed.map(\.to), ["0.3.2"])
+        XCTAssertTrue(outcome.skippedLocallyModified.isEmpty)
+        XCTAssertEqual(try body(ofInstalled: "dev.barshelf.system"), "v032")
+    }
+
+    /// `barshelf install` of another version over a recorded widget: the
+    /// record belongs to the old version and must not veto the next update.
+    func testAnInstallOfAnotherVersionIsNotMistakenForAnEdit() throws {
+        try writeWidget(
+            into: bundledDir, directoryName: "system",
+            id: "dev.barshelf.system", version: "0.2.1", body: "v021"
+        )
+        try writeWidget(
+            into: userWidgetsDir, directoryName: "dev.barshelf.system",
+            id: "dev.barshelf.system", version: "0.2.1", body: "v021"
+        )
+        XCTAssertFalse(refresh().didRefresh)  // ledger: 0.2.1
+
+        // A checkout's 0.3.0 installed by hand, then a 0.3.1 bundle.
+        try writeWidget(
+            into: userWidgetsDir, directoryName: "dev.barshelf.system",
+            id: "dev.barshelf.system", version: "0.3.0", body: "checkout"
+        )
+        try writeWidget(
+            into: bundledDir, directoryName: "system",
+            id: "dev.barshelf.system", version: "0.3.1", body: "v031"
+        )
+
+        let outcome = refresh()
+        XCTAssertEqual(outcome.refreshed.map(\.to), ["0.3.1"])
+        XCTAssertEqual(try body(ofInstalled: "dev.barshelf.system"), "v031")
+    }
+
     func testRefreshIsIdempotent() throws {
         try writeWidget(
             into: bundledDir, directoryName: "system",

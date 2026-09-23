@@ -844,6 +844,13 @@ final class WidgetRuntime: ObservableObject {
         publishRefreshStats()
 
         for widget in loaded {
+            // A widget that is sensitive now — including one that just became
+            // so on hot reload, whose snapshot is still in memory — must not
+            // have a pre-sensitive live tree written by a cache throttle that
+            // was already holding it.
+            if widget.isSensitive {
+                cancelPendingPersist(widget.id)
+            }
             if snapshots[widget.id] == nil {
                 if widget.isSensitive {
                     // A sensitive live tree is never restored. The only cache
@@ -2559,6 +2566,12 @@ final class WidgetRuntime: ObservableObject {
 
     /// Drops per-widget state for removed widget ids (hot reload cleanup).
     private func removeWidgetState(notIn liveIDs: Set<String>) {
+        // A throttled cache write outlives the widget by up to
+        // `persistIntervalSec`; left alone it would re-create the cache file
+        // of a widget removed by hot reload, and a reinstall would show it.
+        for id in Array(pendingPersists.keys) where !liveIDs.contains(id) {
+            cancelPendingPersist(id)
+        }
         snapshots = snapshots.filter { liveIDs.contains($0.key) }
         overlayCards = overlayCards.filter { liveIDs.contains($0.key) }
         cardModels = cardModels.filter { liveIDs.contains($0.key) }
