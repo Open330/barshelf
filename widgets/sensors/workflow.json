@@ -2,7 +2,7 @@
   "$schema": "https://barshelf.jiun.dev/schema/workflow-0.1.json",
   "schemaVersion": 1,
   "kind": "workflow",
-  "_comment": "Hardware sensors from the native `system` source: SMC temperatures and fans, with the Apple Silicon HID sensor plane as the fallback. Every reading is optional, so the view switches on sensors.available. Displayed temperatures are converted per `settings.unit`; the progress thresholds stay in Celsius because that is what they were calibrated against. With the card closed the source is told what the menu bar shows: every SMC key is its own IOKit round trip, so reading one component instead of all of them - and skipping `detail`, which is only the card's sensor list - takes a refresh from ~27 ms to ~4 ms. Opening the card sets widget.visible and the host re-runs the workflow at full breadth. The coalesce defaults keep the widget correct on a host that predates widget.visible: there it simply samples everything, as it always did.",
+  "_comment": "Hardware sensors from the native `system` source: SMC temperatures and fans, with the Apple Silicon HID sensor plane as the fallback. Every reading is optional, so the view switches on sensors.available. Displayed temperatures are converted per `settings.unit`; the progress thresholds stay in Celsius because that is what they were calibrated against. With the card closed the source is told what the menu bar shows: every SMC key is its own IOKit round trip, so reading one component instead of all of them - and skipping `detail`, which is only the card's sensor list - takes a refresh from ~27 ms to ~4 ms. Opening the card sets widget.visible and the host re-runs the workflow at full breadth. The coalesce defaults keep the widget correct on a host that predates widget.visible: there it simply samples everything, as it always did. The menu bar reading can be any single sensor: the settings picker lists this Mac's sensors as `key:<KEY>`, and the same value in `sensors` asks the source for that key alone, returned as `sensors.picked` (the first) and `sensors.pickedList`. A second reading (`menuBarSecondary`) becomes a second metric; `aggregate: hottest` shows a component's hottest sensor (`cpuMax` etc.) instead of its average.",
   "sources": {
     "data": {
       "use": "system",
@@ -11,34 +11,98 @@
           "sensors"
         ],
         "detail": "${coalesce(widget.visible, true)}",
-        "sensors": "${if(coalesce(widget.visible, true), 'all', settings.menuBarSensor)}"
+        "sensors": [
+          "${if(coalesce(widget.visible, true), 'all', coalesce(settings.menuBarSensor, 'cpu'))}",
+          "${coalesce(settings.menuBarSensor, 'cpu')}",
+          "${coalesce(settings.menuBarSecondary, 'none')}"
+        ]
       }
     }
   },
   "transforms": {
-    "isTemp": {
-      "use": "assign",
-      "from": "not(or(eq(settings.menuBarSensor,'power'), or(eq(settings.menuBarSensor,'fan'), eq(settings.menuBarSensor,'fanUsage'))))"
-    },
     "fahrenheit": {
       "use": "assign",
       "from": "eq(settings.unit,'fahrenheit')"
     },
-    "raw": {
+    "sel1": {
       "use": "assign",
-      "from": "if(eq(settings.menuBarSensor,'power'), sources.data.sensors.power, if(eq(settings.menuBarSensor,'fan'), sources.data.sensors.fans.0.rpm, if(eq(settings.menuBarSensor,'fanUsage'), sources.data.sensors.fans.0.usage, if(eq(settings.menuBarSensor,'gpu'), sources.data.sensors.gpu, if(eq(settings.menuBarSensor,'battery'), sources.data.sensors.battery, if(eq(settings.menuBarSensor,'peak'), sources.data.sensors.peak, sources.data.sensors.cpu))))))"
+      "from": "coalesce(settings.menuBarSensor, 'cpu')"
     },
-    "shown": {
+    "isKey1": {
       "use": "assign",
-      "from": "if(and(transforms.isTemp, transforms.fahrenheit), add(mul(number(transforms.raw), 1.8), 32), number(transforms.raw))"
+      "from": "contains(transforms.sel1, 'key:')"
     },
-    "suffix": {
+    "picked1": {
       "use": "assign",
-      "from": "if(eq(settings.menuBarSensor,'power'), ' W', if(eq(settings.menuBarSensor,'fan'), ' rpm', if(eq(settings.menuBarSensor,'fanUsage'), '%', if(transforms.fahrenheit, '°F', '°'))))"
+      "from": "if(transforms.isKey1, sources.data.sensors.picked, null)"
     },
-    "selectedLabel": {
+    "kind1": {
       "use": "assign",
-      "from": "if(eq(settings.menuBarSensor,'power'), 'Power', if(eq(settings.menuBarSensor,'fan'), 'Fan speed', if(eq(settings.menuBarSensor,'fanUsage'), 'Fan load', if(eq(settings.menuBarSensor,'gpu'), 'GPU temperature', if(eq(settings.menuBarSensor,'battery'), 'Battery temperature', if(eq(settings.menuBarSensor,'peak'), 'Hottest sensor', 'CPU temperature'))))))"
+      "from": "if(transforms.isKey1, coalesce(transforms.picked1.kind, 'temperature'), if(eq(transforms.sel1,'power'), 'power', if(eq(transforms.sel1,'fan'), 'fan', if(eq(transforms.sel1,'fanUsage'), 'fanUsage', if(eq(transforms.sel1,'none'), 'none', 'temperature')))))"
+    },
+    "isTemp1": {
+      "use": "assign",
+      "from": "eq(transforms.kind1, 'temperature')"
+    },
+    "raw1": {
+      "use": "assign",
+      "from": "if(transforms.isKey1, transforms.picked1.value, if(eq(transforms.sel1,'power'), sources.data.sensors.power, if(eq(transforms.sel1,'fan'), sources.data.sensors.fans.0.rpm, if(eq(transforms.sel1,'fanUsage'), sources.data.sensors.fans.0.usage, if(eq(transforms.sel1,'gpu'), if(eq(settings.aggregate,'hottest'), coalesce(sources.data.sensors.gpuMax, sources.data.sensors.gpu), sources.data.sensors.gpu), if(eq(transforms.sel1,'battery'), if(eq(settings.aggregate,'hottest'), coalesce(sources.data.sensors.batteryMax, sources.data.sensors.battery), sources.data.sensors.battery), if(eq(transforms.sel1,'peak'), sources.data.sensors.peak, if(eq(transforms.sel1,'none'), null, if(eq(settings.aggregate,'hottest'), coalesce(sources.data.sensors.cpuMax, sources.data.sensors.cpu), sources.data.sensors.cpu)))))))))"
+    },
+    "shown1": {
+      "use": "assign",
+      "from": "if(eq(transforms.raw1, null), null, if(and(transforms.isTemp1, transforms.fahrenheit), add(mul(number(transforms.raw1), 1.8), 32), number(transforms.raw1)))"
+    },
+    "unit1": {
+      "use": "assign",
+      "from": "if(eq(transforms.kind1,'power'), 'W', if(eq(transforms.kind1,'fan'), 'rpm', if(eq(transforms.kind1,'fanUsage'), '%', if(transforms.fahrenheit, '°F', '°C'))))"
+    },
+    "label1": {
+      "use": "assign",
+      "from": "if(transforms.isKey1, coalesce(transforms.picked1.name, 'Sensor'), if(eq(transforms.sel1,'power'), 'Power', if(eq(transforms.sel1,'fan'), 'Fan speed', if(eq(transforms.sel1,'fanUsage'), 'Fan load', if(eq(transforms.sel1,'gpu'), if(eq(settings.aggregate,'hottest'), 'Hottest GPU', 'GPU temperature'), if(eq(transforms.sel1,'battery'), if(eq(settings.aggregate,'hottest'), 'Hottest battery', 'Battery temperature'), if(eq(transforms.sel1,'peak'), 'Hottest sensor', if(eq(transforms.sel1,'none'), '', if(eq(settings.aggregate,'hottest'), 'Hottest CPU', 'CPU temperature')))))))))"
+    },
+    "prefix1": {
+      "use": "assign",
+      "from": "if(transforms.isKey1, if(eq(transforms.kind1,'power'), 'Power', if(eq(transforms.kind1,'fan'), 'Fan', coalesce(transforms.picked1.key, 'Sensor'))), if(eq(transforms.sel1,'power'), 'Power', if(eq(transforms.sel1,'fan'), 'Fan', if(eq(transforms.sel1,'fanUsage'), 'Fan', if(eq(transforms.sel1,'gpu'), 'GPU', if(eq(transforms.sel1,'battery'), 'Batt', if(eq(transforms.sel1,'peak'), 'Peak', if(eq(transforms.sel1,'none'), '', 'CPU'))))))))"
+    },
+    "sel2": {
+      "use": "assign",
+      "from": "coalesce(settings.menuBarSecondary, 'none')"
+    },
+    "isKey2": {
+      "use": "assign",
+      "from": "contains(transforms.sel2, 'key:')"
+    },
+    "picked2": {
+      "use": "assign",
+      "from": "if(transforms.isKey2, if(and(transforms.isKey1, ne(transforms.sel1, transforms.sel2)), sources.data.sensors.pickedList.1, sources.data.sensors.pickedList.0), null)"
+    },
+    "kind2": {
+      "use": "assign",
+      "from": "if(transforms.isKey2, coalesce(transforms.picked2.kind, 'temperature'), if(eq(transforms.sel2,'power'), 'power', if(eq(transforms.sel2,'fan'), 'fan', if(eq(transforms.sel2,'fanUsage'), 'fanUsage', if(eq(transforms.sel2,'none'), 'none', 'temperature')))))"
+    },
+    "isTemp2": {
+      "use": "assign",
+      "from": "eq(transforms.kind2, 'temperature')"
+    },
+    "raw2": {
+      "use": "assign",
+      "from": "if(transforms.isKey2, transforms.picked2.value, if(eq(transforms.sel2,'power'), sources.data.sensors.power, if(eq(transforms.sel2,'fan'), sources.data.sensors.fans.0.rpm, if(eq(transforms.sel2,'fanUsage'), sources.data.sensors.fans.0.usage, if(eq(transforms.sel2,'gpu'), if(eq(settings.aggregate,'hottest'), coalesce(sources.data.sensors.gpuMax, sources.data.sensors.gpu), sources.data.sensors.gpu), if(eq(transforms.sel2,'battery'), if(eq(settings.aggregate,'hottest'), coalesce(sources.data.sensors.batteryMax, sources.data.sensors.battery), sources.data.sensors.battery), if(eq(transforms.sel2,'peak'), sources.data.sensors.peak, if(eq(transforms.sel2,'none'), null, if(eq(settings.aggregate,'hottest'), coalesce(sources.data.sensors.cpuMax, sources.data.sensors.cpu), sources.data.sensors.cpu)))))))))"
+    },
+    "shown2": {
+      "use": "assign",
+      "from": "if(eq(transforms.raw2, null), null, if(and(transforms.isTemp2, transforms.fahrenheit), add(mul(number(transforms.raw2), 1.8), 32), number(transforms.raw2)))"
+    },
+    "unit2": {
+      "use": "assign",
+      "from": "if(eq(transforms.kind2,'power'), 'W', if(eq(transforms.kind2,'fan'), 'rpm', if(eq(transforms.kind2,'fanUsage'), '%', if(transforms.fahrenheit, '°F', '°C'))))"
+    },
+    "label2": {
+      "use": "assign",
+      "from": "if(transforms.isKey2, coalesce(transforms.picked2.name, 'Sensor'), if(eq(transforms.sel2,'power'), 'Power', if(eq(transforms.sel2,'fan'), 'Fan speed', if(eq(transforms.sel2,'fanUsage'), 'Fan load', if(eq(transforms.sel2,'gpu'), if(eq(settings.aggregate,'hottest'), 'Hottest GPU', 'GPU temperature'), if(eq(transforms.sel2,'battery'), if(eq(settings.aggregate,'hottest'), 'Hottest battery', 'Battery temperature'), if(eq(transforms.sel2,'peak'), 'Hottest sensor', if(eq(transforms.sel2,'none'), '', if(eq(settings.aggregate,'hottest'), 'Hottest CPU', 'CPU temperature')))))))))"
+    },
+    "prefix2": {
+      "use": "assign",
+      "from": "if(transforms.isKey2, if(eq(transforms.kind2,'power'), 'Power', if(eq(transforms.kind2,'fan'), 'Fan', coalesce(transforms.picked2.key, 'Sensor'))), if(eq(transforms.sel2,'power'), 'Power', if(eq(transforms.sel2,'fan'), 'Fan', if(eq(transforms.sel2,'fanUsage'), 'Fan', if(eq(transforms.sel2,'gpu'), 'GPU', if(eq(transforms.sel2,'battery'), 'Batt', if(eq(transforms.sel2,'peak'), 'Peak', if(eq(transforms.sel2,'none'), '', 'CPU'))))))))"
     },
     "decimals": {
       "use": "assign",
@@ -58,6 +122,14 @@
       "with": {
         "count": 8
       }
+    },
+    "suffix1": {
+      "use": "assign",
+      "from": "if(eq(transforms.kind1,'power'), 'W', if(eq(transforms.kind1,'fan'), ' rpm', if(eq(transforms.kind1,'fanUsage'), '%', if(transforms.fahrenheit, '°F', '°'))))"
+    },
+    "hasSecond": {
+      "use": "assign",
+      "from": "and(ne(transforms.sel2, 'none'), ne(transforms.raw2, null))"
     }
   },
   "view": {
@@ -328,18 +400,27 @@
     }
   },
   "status": {
-    "label": "${if(or(not(sources.data.sensors.available), eq(transforms.raw, null)), '', concat(string(round(transforms.shown, transforms.decimals)), transforms.suffix))}",
-    "tooltip": "${if(not(sources.data.sensors.available), 'No sensors available', if(eq(transforms.raw, null), concat(transforms.selectedLabel, ' unavailable'), concat(transforms.selectedLabel, ' ', string(round(transforms.shown, transforms.decimals)), transforms.suffix)))}",
-    "prefix": "${if(eq(settings.menuBarSensor,'power'), 'Power', if(eq(settings.menuBarSensor,'fan'), 'Fan', if(eq(settings.menuBarSensor,'fanUsage'), 'Fan', if(eq(settings.menuBarSensor,'gpu'), 'GPU', if(eq(settings.menuBarSensor,'battery'), 'Batt', if(eq(settings.menuBarSensor,'peak'), 'Peak', 'CPU'))))))}",
-    "tint": "${if(and(transforms.isTemp, gt(number(transforms.raw), 90)), 'danger', if(and(transforms.isTemp, gt(number(transforms.raw), 75)), 'warning', ''))}",
+    "label": "${if(or(not(sources.data.sensors.available), eq(transforms.raw1, null)), '', concat(string(round(transforms.shown1, transforms.decimals)), transforms.suffix1))}",
+    "tooltip": "${if(not(sources.data.sensors.available), 'No sensors available', concat(if(eq(transforms.raw1, null), concat(transforms.label1, ' unavailable'), concat(transforms.label1, ' ', concat(string(round(transforms.shown1, transforms.decimals)), if(eq(transforms.kind1,'fan'), ' ', ''), transforms.unit1))), if(transforms.hasSecond, concat(' · ', transforms.label2, ' ', concat(string(round(transforms.shown2, transforms.decimals)), if(eq(transforms.kind2,'fan'), ' ', ''), transforms.unit2)), '')))}",
+    "prefix": "${transforms.prefix1}",
+    "tint": "${if(and(transforms.isTemp1, gt(number(transforms.raw1), 90)), 'danger', if(and(transforms.isTemp1, gt(number(transforms.raw1), 75)), 'warning', ''))}",
     "metrics": [
       {
-        "id": "${if(eq(settings.menuBarSensor,'power'), 'power', if(eq(settings.menuBarSensor,'fan'), 'fan', if(eq(settings.menuBarSensor,'fanUsage'), 'fanUsage', if(eq(settings.menuBarSensor,'gpu'), 'gpu', if(eq(settings.menuBarSensor,'battery'), 'battery', if(eq(settings.menuBarSensor,'peak'), 'peak', 'cpu'))))))}",
-        "label": "${transforms.selectedLabel}",
-        "number": "${if(eq(transforms.raw, null), null, transforms.shown)}",
-        "format": "${if(eq(settings.menuBarSensor,'fanUsage'), 'percent', 'decimal')}",
-        "unit": "${if(eq(settings.menuBarSensor,'power'), 'W', if(eq(settings.menuBarSensor,'fan'), 'rpm', if(eq(settings.menuBarSensor,'fanUsage'), '%', if(eq(settings.unit,'fahrenheit'), '°F', '°C'))))}",
-        "precision": 0
+        "id": "${transforms.sel1}",
+        "label": "${transforms.prefix1}",
+        "number": "${transforms.shown1}",
+        "format": "decimal",
+        "unit": "${transforms.unit1}",
+        "precision": 0,
+        "accessibilityLabel": "${if(eq(transforms.raw1, null), '', concat(transforms.label1, ' ', string(round(transforms.shown1, transforms.decimals)), ' ', transforms.unit1))}"
+      },
+      {
+        "id": "${if(transforms.hasSecond, transforms.sel2, '')}",
+        "label": "${if(transforms.hasSecond, transforms.prefix2, '')}",
+        "number": "${if(transforms.hasSecond, transforms.shown2, null)}",
+        "unit": "${if(transforms.hasSecond, transforms.unit2, '')}",
+        "precision": 0,
+        "accessibilityLabel": "${if(transforms.hasSecond, concat(transforms.label2, ' ', string(round(transforms.shown2, transforms.decimals)), ' ', transforms.unit2), '')}"
       }
     ]
   }

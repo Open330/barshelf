@@ -1085,7 +1085,7 @@ public enum MenuBarPolicy {
                 limit: maxLabelCharacters * 3
             )
             guard !label.isEmpty || !value.isEmpty || accessibilityLabel != nil || metric.active != nil
-                || metric.number != nil || metric.format != nil else {
+                || metric.number != nil || metric.format?.isEmpty == false else {
                 return nil
             }
             return StatusMetric(
@@ -1093,7 +1093,8 @@ public enum MenuBarPolicy {
                 label: label,
                 value: value,
                 number: metric.number,
-                format: metric.format,
+                // A template that rendered "" meant "no format".
+                format: metric.format?.isEmpty == false ? metric.format : nil,
                 unit: metric.unit,
                 precision: metric.precision,
                 tint: metric.tint?.trimmingCharacters(in: .whitespacesAndNewlines),

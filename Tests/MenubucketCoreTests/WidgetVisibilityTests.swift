@@ -112,11 +112,14 @@ final class WidgetVisibilityTests: XCTestCase {
             )["data"]?.objectValue?["sensors"]
         }
 
-        XCTAssertEqual(try requested(visible: false, reading: "cpu"), .string("cpu"))
-        XCTAssertEqual(try requested(visible: false, reading: "power"), .string("power"))
-        XCTAssertEqual(try requested(visible: false, reading: "peak"), .string("peak"))
+        // The reading itself, then the user's two picks (which only matter
+        // when they name a sensor by `key:`); "none" reads nothing.
+        func list(_ items: String...) -> JSONValue { .array(items.map(JSONValue.string)) }
+        XCTAssertEqual(try requested(visible: false, reading: "cpu"), list("cpu", "cpu", "none"))
+        XCTAssertEqual(try requested(visible: false, reading: "power"), list("power", "power", "none"))
+        XCTAssertEqual(try requested(visible: false, reading: "peak"), list("peak", "peak", "none"))
         // The card shows CPU, GPU and battery at once.
-        XCTAssertEqual(try requested(visible: true, reading: "cpu"), .string("all"))
+        XCTAssertEqual(try requested(visible: true, reading: "cpu"), list("all", "cpu", "none"))
     }
 
     /// A widget installed onto an older BarShelf gets no `widget.visible` at
@@ -132,7 +135,7 @@ final class WidgetVisibilityTests: XCTestCase {
         )["data"]?.objectValue
 
         XCTAssertEqual(params?["detail"], .bool(true))
-        XCTAssertEqual(params?["sensors"], .string("all"))
+        XCTAssertEqual(params?["sensors"]?.arrayValue?.first, .string("all"))
     }
 
     /// Menu bar readings are whole numbers — the power reading had kept a

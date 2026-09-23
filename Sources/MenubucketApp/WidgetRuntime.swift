@@ -2083,6 +2083,7 @@ final class WidgetRuntime: ObservableObject {
         let mountPoint = params.objectValue?["mount"]?.stringValue ?? "/"
         let networkInterface = params.objectValue?["interface"]?.stringValue
         let sensorGroups = Self.sensorGroups(from: params.objectValue?["sensors"])
+        let sensorKeys = Self.sensorKeys(from: params.objectValue?["sensors"])
         // Sampling blocks on Mach/IOKit calls (and, on a cold CPU sampler, a
         // short baseline window), so it stays off the main thread.
         return await Task.detached(priority: .userInitiated) {
@@ -2090,6 +2091,7 @@ final class WidgetRuntime: ObservableObject {
                 metrics: allowed,
                 detail: detail,
                 sensorGroups: sensorGroups,
+                sensorKeys: sensorKeys,
                 mountPoint: mountPoint,
                 networkInterface: networkInterface
             )
@@ -2119,6 +2121,21 @@ final class WidgetRuntime: ObservableObject {
         default:
             return nil
         }
+    }
+
+    /// The specific sensors a `"sensors"` value names as `key:<KEY>`, in
+    /// order, at most 8 — each is its own read.
+    ///
+    ///     "sensors": ["cpu", "key:TC0P"]
+    static func sensorKeys(from value: JSONValue?) -> [String] {
+        let names: [String]
+        switch value {
+        case let .string(name): names = [name]
+        case let .array(items): names = items.compactMap(\.stringValue)
+        default: return []
+        }
+        var seen = Set<String>()
+        return Array(names.compactMap(SensorSampler.pickedKey).filter { seen.insert($0).inserted }.prefix(8))
     }
 
     /// `exec` workflow source — same allowlist/audit semantics as an exec

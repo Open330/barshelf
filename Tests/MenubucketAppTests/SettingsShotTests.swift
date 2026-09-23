@@ -17,7 +17,8 @@ final class SettingsShotTests: XCTestCase {
         }
         let runtime = WidgetRuntime()
         runtime.loadWidgets()
-        guard let widget = runtime.widgets.first(where: { $0.id == "dev.barshelf.system" })
+        let wanted = ProcessInfo.processInfo.environment["BARSHELF_SHOT_WIDGET"] ?? "dev.barshelf.system"
+        guard let widget = runtime.widgets.first(where: { $0.id == wanted })
             ?? runtime.widgets.first
         else { throw XCTSkip("no widget installed to render settings for") }
 

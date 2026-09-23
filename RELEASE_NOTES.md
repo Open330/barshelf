@@ -2,6 +2,17 @@
 
 > Unreleased. Requires macOS 13+ on Apple Silicon.
 
+## Sensors
+
+- **Any single sensor in the menu bar.** The Sensors widget's "Menu bar
+  shows" picker now lists every sensor this Mac can read — a specific core,
+  the SSD, the ambient sensor, a fan — beside the usual CPU, GPU and battery.
+  Only that sensor is read while the card is closed.
+- **Two readings in one item.** "Also show" adds a second reading (say, CPU
+  and power); choose **Two metric rows** to stack them.
+- **Average or hottest.** CPU, GPU and battery can show the hottest of their
+  sensors instead of the average.
+
 ## Menu bar
 
 - **Your own warning colours.** Each item's settings gain an Alerts row:
