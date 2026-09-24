@@ -15,9 +15,10 @@ struct WidgetSettingsView: View {
     @ObservedObject private var appPrefs: AppPrefs
     @Environment(\.dismiss) private var dismiss
 
-    init(widget: LoadedWidget, runtime: WidgetRuntime) {
+    init(widget: LoadedWidget, runtime: WidgetRuntime, initialTab: MenuBarSettingsTab = .look) {
         self.widget = widget
         self.runtime = runtime
+        _menuBarTab = State(initialValue: initialTab)
         _appPrefs = ObservedObject(wrappedValue: runtime.appPrefs)
     }
 
@@ -31,6 +32,7 @@ struct WidgetSettingsView: View {
     /// that was changed elsewhere (App Settings' "Use These for All") while
     /// this pane never touched it.
     @State private var menuBarLoaded = MenuBarPlacement(enabled: false)
+    @State private var menuBarTab: MenuBarSettingsTab
     /// This Mac's sensors, for a setting with `optionsSource: system.sensors`.
     @State private var sensorOptions: [SensorReading] = []
     /// Whether the click target resolves; nil with no target.
@@ -297,198 +299,235 @@ struct WidgetSettingsView: View {
     /// be two unlabelled radio groups in a row, which gave four buttons and no
     /// way to tell which question either pair answered.
     private var menuBarControls: some View {
-        Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 8, verticalSpacing: 10) {
-            GridRow {
-                settingsRowLabel("Item")
-                VStack(alignment: .leading, spacing: 4) {
-                    Picker("", selection: Binding(
-                        get: { usesOwnItem },
-                        set: { menuBarDraft.separate = $0 }
-                    )) {
-                        Text("Share the BarShelf icon").tag(false)
-                        Text("Its own menu bar item").tag(true)
-                    }
-                    .pickerStyle(.radioGroup)
-                    .labelsHidden()
-                    .disabled(!canShareStrip || stackedForcesOwnItem)
+        VStack(alignment: .leading, spacing: 10) {
+            // Fourteen rows in one column had become a wall; three questions —
+            // how it looks, what it reads, what it does — each get a tab.
+            Picker("", selection: $menuBarTab) {
+                ForEach(MenuBarSettingsTab.allCases, id: \.self) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .accessibilityLabel("Menu bar settings")
+            .frame(width: 260)
 
-                    if !canShareStrip {
-                        settingsHint("This widget shows no text, and an icon cannot join the shared strip.")
-                    } else if stackedForcesOwnItem {
-                        settingsHint("Two rows need their own item.")
-                    } else if !menuBarDraft.separate {
-                        HStack(spacing: 6) {
-                            Button("Move Left") { runtime.moveInMenuBar(widget.id, by: -1) }
-                                .disabled(!runtime.canMoveInMenuBar(widget.id, by: -1))
-                            Button("Move Right") { runtime.moveInMenuBar(widget.id, by: 1) }
-                                .disabled(!runtime.canMoveInMenuBar(widget.id, by: 1))
+            Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 8, verticalSpacing: 10) {
+                switch menuBarTab {
+                case .look:
+                    GridRow {
+                        settingsRowLabel("Item")
+                        VStack(alignment: .leading, spacing: 4) {
+                            Picker("", selection: Binding(
+                                get: { usesOwnItem },
+                                set: { menuBarDraft.separate = $0 }
+                            )) {
+                                Text("Share the BarShelf icon").tag(false)
+                                Text("Its own menu bar item").tag(true)
+                            }
+                            .pickerStyle(.radioGroup)
+                            .labelsHidden()
+                            .disabled(!canShareStrip || stackedForcesOwnItem)
+
+                            if !canShareStrip {
+                                settingsHint("This widget shows no text, and an icon cannot join the shared strip.")
+                            } else if stackedForcesOwnItem {
+                                settingsHint("Two rows need their own item.")
+                            } else if !menuBarDraft.separate {
+                                HStack(spacing: 6) {
+                                    Button("Move Left") { runtime.moveInMenuBar(widget.id, by: -1) }
+                                        .disabled(!runtime.canMoveInMenuBar(widget.id, by: -1))
+                                    Button("Move Right") { runtime.moveInMenuBar(widget.id, by: 1) }
+                                        .disabled(!runtime.canMoveInMenuBar(widget.id, by: 1))
+                                }
+                                .controlSize(.small)
+                            } else {
+                                settingsHint("Drag it in the menu bar with ⌘ to reorder.")
+                            }
                         }
-                        .controlSize(.small)
-                    } else {
-                        settingsHint("Drag it in the menu bar with ⌘ to reorder.")
                     }
-                }
-            }
 
-            GridRow {
-                settingsRowLabel("Layout")
-                Picker("", selection: Binding(
-                    get: { effectiveStyle },
-                    set: { menuBarDraft.style = $0 }
-                )) {
-                    ForEach(MenuBarStyle.allCases, id: \.self) { style in
-                        Text(style.title).tag(style)
-                    }
-                }
-                .pickerStyle(.radioGroup)
-                .labelsHidden()
-            }
-
-            if effectiveStyle != .metrics {
-                GridRow {
-                    settingsRowLabel("Label")
-                    VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        // Same three-state problem the icon has: "" is no
-                        // label, nil is the widget's own, and a text field
-                        // cannot say which an empty box means.
-                        Toggle("", isOn: Binding(
-                            get: { menuBarDraft.label != "" },
-                            set: { menuBarDraft.label = $0 ? nil : "" }
-                        ))
-                        .toggleStyle(.checkbox)
+                    GridRow {
+                        settingsRowLabel("Layout")
+                        Picker("", selection: Binding(
+                            get: { effectiveStyle },
+                            set: { menuBarDraft.style = $0 }
+                        )) {
+                            ForEach(MenuBarStyle.allCases, id: \.self) { style in
+                                Text(style.title).tag(style)
+                            }
+                        }
+                        .pickerStyle(.radioGroup)
                         .labelsHidden()
-                        TextField("the widget's own", text: Binding(
-                            get: { menuBarDraft.label == "" ? "" : (menuBarDraft.label ?? "") },
-                            set: { menuBarDraft.label = $0.isEmpty ? nil : $0 }
-                        ))
-                        .frame(width: 150)
-                        .disabled(menuBarDraft.label == "")
                     }
-                        settingsHint(
-                            effectiveStyle == .stacked
-                            ? "Drawn above the value. Uncheck for the value alone."
-                            : "Drawn before the value. Uncheck for the value alone."
-                        )
-                    }
-                }
-            }
 
-            GridRow {
-                settingsRowLabel("Icon")
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        // "" means no icon, nil means the widget's own. A text
-                        // field cannot say the difference, so the checkbox does
-                        // — and it sits beside the field it governs.
-                        Toggle("", isOn: Binding(
-                            get: { menuBarDraft.icon != "" },
-                            set: { menuBarDraft.icon = $0 ? nil : "" }
-                        ))
-                        .toggleStyle(.checkbox)
-                        .labelsHidden()
-                        TextField(
-                            widget.manifest.statusItem?.icon ?? "the widget's own",
-                            text: Binding(
-                                get: { menuBarDraft.icon == "" ? "" : (menuBarDraft.icon ?? "") },
-                                set: { menuBarDraft.icon = $0.isEmpty ? nil : $0 }
-                            )
-                        )
-                        .frame(width: 150)
-                        .disabled(menuBarDraft.icon == "")
-                    }
-                    settingsHint("An SF Symbol name or an emoji. Uncheck for no icon.")
-                }
-            }
-
-            GridRow {
-                settingsRowLabel("Width")
-                styleControls.width
-            }
-
-            GridRow {
-                settingsRowLabel("Text")
-                styleControls.text
-            }
-
-            GridRow {
-                settingsRowLabel("Graph")
-                VStack(alignment: .leading, spacing: 4) {
-                    Picker("", selection: Binding(
-                        get: { shownPresentation.effectiveChart },
-                        set: { value in
-                            let inherited = inheritedPresentation.effectiveChart
-                            setPresentation { $0.chart = value == inherited ? nil : value }
-                        }
-                    )) {
-                        Text("None").tag(MenuBarChart.none)
-                        Text("Line").tag(MenuBarChart.line)
-                        Text("Bars").tag(MenuBarChart.bars)
-                        Text("Gauge").tag(MenuBarChart.gauge)
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .frame(width: 240)
-                    settingsHint(usesOwnItem
-                        ? "Drawn from the item's first reading as it refreshes. Percentages use 0–100; anything else scales to its recent peak."
-                        : "A graph needs the item's own place in the menu bar; sharing the BarShelf icon, it shows text only.")
-                }
-            }
-
-            GridRow {
-                settingsRowLabel("Color")
-                styleControls.color
-            }
-
-            if !thresholdMetrics.isEmpty || menuBarDraft.presentation?.hasThresholds == true
-                || menuBarDraft.presentation?.showWhen != nil {
-                GridRow {
-                    settingsRowLabel("Alerts")
-                    thresholdControls
-                }
-            }
-
-            GridRow {
-                settingsRowLabel("Click")
-                clickControls
-            }
-
-            GridRow {
-                settingsRowLabel("Style")
-                styleShortcuts
-            }
-
-            GridRow {
-                settingsRowLabel("Update")
-                VStack(alignment: .leading, spacing: 4) {
-                    Picker("", selection: intervalBinding) {
-                        Text(widgetIntervalTitle).tag(0.0)
-                        Divider()
-                        ForEach(MenuBarPlacement.intervalChoices, id: \.self) { seconds in
-                            Text(Self.intervalTitle(seconds)).tag(seconds)
+                    if effectiveStyle != .metrics {
+                        GridRow {
+                            settingsRowLabel("Label")
+                            VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 6) {
+                                // Same three-state problem the icon has: "" is no
+                                // label, nil is the widget's own, and a text field
+                                // cannot say which an empty box means.
+                                Toggle("", isOn: Binding(
+                                    get: { menuBarDraft.label != "" },
+                                    set: { menuBarDraft.label = $0 ? nil : "" }
+                                ))
+                                .toggleStyle(.checkbox)
+                                .labelsHidden()
+                                TextField("the widget's own", text: Binding(
+                                    get: { menuBarDraft.label == "" ? "" : (menuBarDraft.label ?? "") },
+                                    set: { menuBarDraft.label = $0.isEmpty ? nil : $0 }
+                                ))
+                                .frame(width: 150)
+                                .disabled(menuBarDraft.label == "")
+                            }
+                                settingsHint(
+                                    effectiveStyle == .stacked
+                                    ? "Drawn above the value. Uncheck for the value alone."
+                                    : "Drawn before the value. Uncheck for the value alone."
+                                )
+                            }
                         }
                     }
-                    .labelsHidden()
-                    .frame(width: 180)
-                    settingsHint("How often this item refreshes while it is in the menu bar. Slower is lighter on battery.")
-                }
-            }
 
-            if !editableMetricRows.isEmpty {
-                GridRow {
-                    settingsRowLabel("Metrics")
-                    metricPresentationControls
-                }
-            }
-
-            if menuBarDraft.presentation != nil {
-                GridRow {
-                    settingsRowLabel("Presentation")
-                    Button("Reset menu presentation") {
-                        menuBarDraft.presentation = nil
-                        syncAlertTexts()
+                    GridRow {
+                        settingsRowLabel("Icon")
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 6) {
+                                // "" means no icon, nil means the widget's own. A text
+                                // field cannot say the difference, so the checkbox does
+                                // — and it sits beside the field it governs.
+                                Toggle("", isOn: Binding(
+                                    get: { menuBarDraft.icon != "" },
+                                    set: { menuBarDraft.icon = $0 ? nil : "" }
+                                ))
+                                .toggleStyle(.checkbox)
+                                .labelsHidden()
+                                TextField(
+                                    widget.manifest.statusItem?.icon ?? "the widget's own",
+                                    text: Binding(
+                                        get: { menuBarDraft.icon == "" ? "" : (menuBarDraft.icon ?? "") },
+                                        set: { menuBarDraft.icon = $0.isEmpty ? nil : $0 }
+                                    )
+                                )
+                                .frame(width: 150)
+                                .disabled(menuBarDraft.icon == "")
+                            }
+                            settingsHint("An SF Symbol name or an emoji. Uncheck for no icon.")
+                        }
                     }
-                        .controlSize(.small)
+
+                    GridRow {
+                        settingsRowLabel("Width")
+                        styleControls.width
+                    }
+
+                    GridRow {
+                        settingsRowLabel("Text")
+                        styleControls.text
+                    }
+
+                    GridRow {
+                        settingsRowLabel("Graph")
+                        VStack(alignment: .leading, spacing: 4) {
+                            Picker("", selection: Binding(
+                                get: { shownPresentation.effectiveChart },
+                                set: { value in
+                                    let inherited = inheritedPresentation.effectiveChart
+                                    setPresentation { $0.chart = value == inherited ? nil : value }
+                                }
+                            )) {
+                                Text("None").tag(MenuBarChart.none)
+                                Text("Line").tag(MenuBarChart.line)
+                                Text("Bars").tag(MenuBarChart.bars)
+                                Text("Gauge").tag(MenuBarChart.gauge)
+                            }
+                            .pickerStyle(.segmented)
+                            .labelsHidden()
+                            .frame(width: 240)
+                            settingsHint(usesOwnItem
+                                ? "Drawn from the item's first reading as it refreshes. Percentages use 0–100; anything else scales to its recent peak."
+                                : "A graph needs the item's own place in the menu bar; sharing the BarShelf icon, it shows text only.")
+                        }
+                    }
+
+                    GridRow {
+                        settingsRowLabel("Color")
+                        styleControls.color
+                    }
+
+                    GridRow {
+                        settingsRowLabel("Style")
+                        styleShortcuts
+                    }
+
+                case .readings:
+                    // Computed once per render; each resolves the whole
+                    // presentation.
+                    let judged = thresholdMetrics
+                    let rows = editableMetricRows
+                    if !judged.isEmpty || menuBarDraft.presentation?.hasThresholds == true
+                        || menuBarDraft.presentation?.showWhen != nil {
+                        GridRow {
+                            settingsRowLabel("Alerts")
+                            thresholdControls
+                        }
+                    }
+
+                    if !rows.isEmpty {
+                        GridRow {
+                            settingsRowLabel("Metrics")
+                            metricPresentationControls
+                        }
+                    }
+
+                    if judged.isEmpty, rows.isEmpty,
+                       menuBarDraft.presentation?.hasThresholds != true,
+                       menuBarDraft.presentation?.showWhen == nil {
+                        GridRow {
+                            settingsRowLabel("")
+                            // No snapshot is "not yet", not "never".
+                            settingsHint(runtime.snapshots[widget.id]?.statusMetrics == nil
+                                ? "No reading yet. Once the widget refreshes, its alerts and rows can be set here."
+                                : "This widget has no numeric readings to set alerts or row options for.")
+                        }
+                    }
+                    if !rows.isEmpty, effectiveStyle != .metrics {
+                        GridRow {
+                            settingsRowLabel("")
+                            settingsHint("Per-row labels, colours and order appear with the Two metric rows layout, on the Look tab.")
+                        }
+                    }
+                case .behavior:
+                    GridRow {
+                        settingsRowLabel("Click")
+                        clickControls
+                    }
+
+                    GridRow {
+                        settingsRowLabel("Update")
+                        VStack(alignment: .leading, spacing: 4) {
+                            Picker("", selection: intervalBinding) {
+                                Text(widgetIntervalTitle).tag(0.0)
+                                Divider()
+                                ForEach(MenuBarPlacement.intervalChoices, id: \.self) { seconds in
+                                    Text(Self.intervalTitle(seconds)).tag(seconds)
+                                }
+                            }
+                            .labelsHidden()
+                            .frame(width: 180)
+                            settingsHint("How often this item refreshes while it is in the menu bar. Slower is lighter on battery.")
+                        }
+                    }
+
+                }
+                // Resets only what this tab shows: a button on Behavior must
+                // not quietly wipe the graph and alerts set on the others.
+                if tabHasChoices(menuBarTab) {
+                    GridRow {
+                        settingsRowLabel("")
+                        Button("Reset \(menuBarTab.title)") { resetTab(menuBarTab) }
+                            .controlSize(.small)
+                    }
                 }
             }
         }
@@ -1240,6 +1279,7 @@ struct WidgetSettingsView: View {
         let others = runtime.menuBarCandidates.filter { other in
             other.id != widget.id && runtime.prefs.menuBarPlacements[other.id] != nil
         }
+        VStack(alignment: .leading, spacing: 4) {
         HStack(spacing: 8) {
             Menu("Apply Preset") {
                 ForEach(MenuBarPresentation.presets, id: \.name) { preset in
@@ -1264,6 +1304,47 @@ struct WidgetSettingsView: View {
             .disabled(others.isEmpty)
         }
         .controlSize(.small)
+        // Presets and copies reach past this tab: Minimal hides units, and a
+        // copy takes the other item's unit setting.
+        settingsHint("Can also change units, on the Readings tab.")
+        }
+    }
+
+    /// The draft with what `tab` sets cleared back to the widget's own.
+    private func resetting(_ tab: MenuBarSettingsTab, _ placement: MenuBarPlacement) -> MenuBarPlacement {
+        var placement = placement
+        var presentation = placement.presentation ?? MenuBarPresentation()
+        switch tab {
+        case .look:
+            presentation = MenuBarPolicy.clearingGlobalStyle(presentation) ?? MenuBarPresentation()
+            presentation.chart = nil
+        case .readings:
+            presentation.showValues = nil
+            presentation.showUnits = nil
+            presentation.precision = nil
+            presentation.metricOrder = nil
+            presentation.metricOverrides = nil
+            presentation.warningAt = nil
+            presentation.dangerAt = nil
+            presentation.thresholdDirection = nil
+            presentation.showWhen = nil
+        case .behavior:
+            placement.clickAction = nil
+            placement.clickTarget = nil
+            placement.interval = nil
+        }
+        placement.presentation = presentation == MenuBarPresentation() ? nil : presentation
+        return placement
+    }
+
+    private func tabHasChoices(_ tab: MenuBarSettingsTab) -> Bool {
+        resetting(tab, menuBarDraft) != menuBarDraft
+    }
+
+    private func resetTab(_ tab: MenuBarSettingsTab) {
+        menuBarDraft = resetting(tab, menuBarDraft)
+        syncAlertTexts()
+        if tab == .behavior { clickTargetResolves = nil }
     }
 
     /// The alert fields from the draft — on open, and whenever the draft's
@@ -1597,6 +1678,19 @@ struct SearchField: NSViewRepresentable {
                 return true
             default: return false
             }
+        }
+    }
+}
+
+/// The three tabs of a widget's menu bar settings.
+enum MenuBarSettingsTab: CaseIterable {
+    case look, readings, behavior
+
+    var title: String {
+        switch self {
+        case .look: return "Look"
+        case .readings: return "Readings"
+        case .behavior: return "Behavior"
         }
     }
 }

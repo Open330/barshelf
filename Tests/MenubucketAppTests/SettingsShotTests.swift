@@ -22,22 +22,26 @@ final class SettingsShotTests: XCTestCase {
             ?? runtime.widgets.first
         else { throw XCTSkip("no widget installed to render settings for") }
 
-        // The whole pane, not its first screen.
+        // The whole pane, not its first screen — once per tab.
         WidgetSettingsView.scrollMaxHeight = 2000
-        defer { WidgetSettingsView.scrollMaxHeight = 420 }
-        let view = WidgetSettingsView(widget: widget, runtime: runtime)
-            .frame(width: 420)
-            .background(Color(nsColor: .windowBackgroundColor))
-        let hosting = NSHostingView(rootView: view)
-        hosting.frame = NSRect(x: 0, y: 0, width: 420, height: 1500)
-        hosting.layoutSubtreeIfNeeded()
+        defer {
+            WidgetSettingsView.scrollMaxHeight = 420
+        }
+        for tab in MenuBarSettingsTab.allCases {
+            let view = WidgetSettingsView(widget: widget, runtime: runtime, initialTab: tab)
+                .frame(width: 420)
+                .background(Color(nsColor: .windowBackgroundColor))
+            let hosting = NSHostingView(rootView: view)
+            hosting.frame = NSRect(x: 0, y: 0, width: 420, height: 1500)
+            hosting.layoutSubtreeIfNeeded()
 
-        let rep = try XCTUnwrap(hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds))
-        hosting.cacheDisplay(in: hosting.bounds, to: rep)
-        let png = try XCTUnwrap(rep.representation(using: .png, properties: [:]))
-        let url = URL(fileURLWithPath: dir).appendingPathComponent("settings.png")
-        try png.write(to: url)
-        print("wrote \(url.path)")
+            let rep = try XCTUnwrap(hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds))
+            hosting.cacheDisplay(in: hosting.bounds, to: rep)
+            let png = try XCTUnwrap(rep.representation(using: .png, properties: [:]))
+            let url = URL(fileURLWithPath: dir).appendingPathComponent("settings-\(tab.title.lowercased()).png")
+            try png.write(to: url)
+            print("wrote \(url.path)")
+        }
     }
 
     func testWriteTheMenuBarDefaults() throws {

@@ -23,6 +23,11 @@
   result, …, fallback)` picks one of many readings by a setting without a
   dozen nested `if`s; `get(object, key)` reads a field chosen at run time.
   The System and Sensors widgets (0.5.1) are rewritten with them.
+## Settings
+
+- **A widget's menu bar settings are in three tabs** — Look, Readings and
+  Behavior — instead of fourteen rows in one column. The preview stays above
+  them.
 
 ## Fixes
 
