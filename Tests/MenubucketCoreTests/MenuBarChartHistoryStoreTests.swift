@@ -21,7 +21,7 @@ final class MenuBarChartHistoryStoreTests: XCTestCase {
         let saved = Date(timeIntervalSince1970: 1_000_000)
         try MenuBarChartHistoryStore.save(["w": history], to: url, at: saved)
         let loaded = MenuBarChartHistoryStore.load(from: url, now: saved.addingTimeInterval(60))
-        XCTAssertEqual(loaded["w"]?.values, [10, 20, 30])
+        XCTAssertEqual(loaded["w"]?.values, [10, 20, 30, 99], "the unfinished step's peak is kept")
         XCTAssertEqual(loaded["w"]?.scale, 100)
         XCTAssertNil(loaded["w"]?.lastAt, "the old run's clock means nothing now")
         XCTAssertNil(loaded["w"]?.pending)
@@ -30,7 +30,10 @@ final class MenuBarChartHistoryStoreTests: XCTestCase {
     func testALongAbsenceStartsAfresh() throws {
         let saved = Date(timeIntervalSince1970: 1_000_000)
         try MenuBarChartHistoryStore.save(["w": .init(series: "cpu", scale: 100, values: [1])], to: url, at: saved)
-        XCTAssertTrue(MenuBarChartHistoryStore.load(from: url, now: saved.addingTimeInterval(11 * 60)).isEmpty)
+        XCTAssertFalse(MenuBarChartHistoryStore.load(from: url, now: saved.addingTimeInterval(45)).isEmpty,
+                       "an update's relaunch is bridged")
+        XCTAssertTrue(MenuBarChartHistoryStore.load(from: url, now: saved.addingTimeInterval(2 * 60)).isEmpty,
+                      "a gap longer than a graph's own window is not drawn as a line")
         XCTAssertTrue(MenuBarChartHistoryStore.load(from: url, now: saved.addingTimeInterval(-5)).isEmpty,
                       "a clock that went backwards is not trusted")
     }

@@ -297,6 +297,7 @@ final class WidgetRuntime: ObservableObject {
         if let url = Self.chartHistoryURL {
             menuBarHistory = MenuBarChartHistoryStore.load(from: url)
         }
+        startChartHistorySaver()
         loadWidgets()
         startHotReload()
         startMenuBarStalenessTicker()
@@ -478,6 +479,7 @@ final class WidgetRuntime: ObservableObject {
         snapshot.safeForSensitiveCache = false
         setSnapshot(snapshot, for: widgetId)
         let sensitive = params.sensitive == true || widget.isSensitive
+        if sensitive { sensitiveRenderIDs.insert(widgetId) } else { sensitiveRenderIDs.remove(widgetId) }
         if sensitive {
             cancelPendingPersist(widgetId)
             if let cacheRoot = params.cacheRoot {
@@ -1434,7 +1436,12 @@ final class WidgetRuntime: ObservableObject {
         // A chart turned off, an item taken out of the bar, a widget
         // disabled or removed: its points go, so coming back starts afresh
         // instead of joining an hour-old line onto a new one.
-        menuBarHistory = menuBarHistory.filter { charting.contains($0.key) }
+        // A widget that has not rendered yet may take its chart from its
+        // first render (`status.presentation`), so a history restored at
+        // launch waits for that render before it can be judged unwanted.
+        menuBarHistory = menuBarHistory.filter { id, _ in
+            charting.contains(id) || (snapshots[id]?.updatedAt == nil && candidates.contains { $0.entry.widgetID == id })
+        }
         chartPending.formIntersection(charting)
 
         // "Show only when" items are ordered and capped like any other, then
@@ -1483,6 +1490,10 @@ final class WidgetRuntime: ObservableObject {
     private(set) var menuBarHistory: [String: MenuBarChartHistory] = [:]
     /// Widgets with a snapshot the chart has not taken a point from yet.
     private var chartPending: Set<String> = []
+    /// Widgets whose last render asked to stay off disk.
+    private var sensitiveRenderIDs: Set<String> = []
+    private var lastSavedChartHistory: [String: MenuBarChartHistory] = [:]
+    private var chartHistoryTimer: Timer?
 
     /// Every entry the menu bar owns, in order and capped: drawn now, or
     /// hidden by its "show only when" threshold.
@@ -2770,15 +2781,34 @@ final class WidgetRuntime: ObservableObject {
             .appendingPathComponent("cache", isDirectory: true)
     }()
 
+    /// Beside refresh-stats.json, outside the per-widget snapshot cache,
+    /// whose `<id>.json` names a widget id could collide with.
     private static var chartHistoryURL: URL? {
-        cacheDirectory?.appendingPathComponent("menu-bar-charts.json")
+        applicationSupportDirectory.appendingPathComponent("menu-bar-charts.json")
     }
 
-    /// Graphs pick up where they were after a quick relaunch (an update, a
-    /// restart of the app) instead of starting empty.
+    /// Graphs pick up where they were after a relaunch — an in-app update
+    /// included — instead of starting empty. Saved on a timer as well as at
+    /// quit: an update starts the new build *before* the old one quits, and
+    /// `barshelf upgrade` stops the app with a signal that runs no quit
+    /// handlers, so a save at quit alone would never reach the next run.
+    /// Widgets whose output must not touch disk are left out.
     func saveChartHistory() {
         guard let url = Self.chartHistoryURL else { return }
-        try? MenuBarChartHistoryStore.save(menuBarHistory, to: url)
+        let sensitive = Set(widgets.filter(\.isSensitive).map(\.id)).union(sensitiveRenderIDs)
+        let kept = menuBarHistory.filter { !sensitive.contains($0.key) }
+        guard kept != lastSavedChartHistory else { return }
+        try? MenuBarChartHistoryStore.save(kept, to: url)
+        lastSavedChartHistory = kept
+    }
+
+    private func startChartHistorySaver() {
+        let timer = Timer(timeInterval: MenuBarChartHistoryStore.saveInterval, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.saveChartHistory() }
+        }
+        timer.tolerance = 5
+        RunLoop.main.add(timer, forMode: .common)
+        chartHistoryTimer = timer
     }
 
     private static func cacheURL(for widgetID: String) -> URL? {
