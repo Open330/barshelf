@@ -38,7 +38,7 @@
     },
     "kind1": {
       "use": "assign",
-      "from": "if(transforms.isKey1, coalesce(transforms.picked1.kind, 'temperature'), if(eq(transforms.sel1,'power'), 'power', if(eq(transforms.sel1,'fan'), 'fan', if(eq(transforms.sel1,'fanUsage'), 'fanUsage', if(eq(transforms.sel1,'none'), 'none', 'temperature')))))"
+      "from": "if(transforms.isKey1, coalesce(transforms.picked1.kind, 'temperature'), switch(transforms.sel1, 'power', 'power', 'fan', 'fan', 'fanUsage', 'fanUsage', 'none', 'none', 'temperature'))"
     },
     "isTemp1": {
       "use": "assign",
@@ -46,7 +46,7 @@
     },
     "raw1": {
       "use": "assign",
-      "from": "if(transforms.isKey1, transforms.picked1.value, if(eq(transforms.sel1,'power'), sources.data.sensors.power, if(eq(transforms.sel1,'fan'), sources.data.sensors.fans.0.rpm, if(eq(transforms.sel1,'fanUsage'), sources.data.sensors.fans.0.usage, if(eq(transforms.sel1,'gpu'), if(eq(settings.aggregate,'hottest'), coalesce(sources.data.sensors.gpuMax, sources.data.sensors.gpu), sources.data.sensors.gpu), if(eq(transforms.sel1,'battery'), if(eq(settings.aggregate,'hottest'), coalesce(sources.data.sensors.batteryMax, sources.data.sensors.battery), sources.data.sensors.battery), if(eq(transforms.sel1,'peak'), sources.data.sensors.peak, if(eq(transforms.sel1,'none'), null, if(eq(settings.aggregate,'hottest'), coalesce(sources.data.sensors.cpuMax, sources.data.sensors.cpu), sources.data.sensors.cpu)))))))))"
+      "from": "if(transforms.isKey1, transforms.picked1.value, switch(transforms.sel1, 'power', sources.data.sensors.power, 'fan', sources.data.sensors.fans.0.rpm, 'fanUsage', sources.data.sensors.fans.0.usage, 'gpu', if(eq(settings.aggregate,'hottest'), coalesce(sources.data.sensors.gpuMax, sources.data.sensors.gpu), sources.data.sensors.gpu), 'battery', if(eq(settings.aggregate,'hottest'), coalesce(sources.data.sensors.batteryMax, sources.data.sensors.battery), sources.data.sensors.battery), 'peak', sources.data.sensors.peak, 'none', null, if(eq(settings.aggregate,'hottest'), coalesce(sources.data.sensors.cpuMax, sources.data.sensors.cpu), sources.data.sensors.cpu)))"
     },
     "shown1": {
       "use": "assign",
@@ -54,15 +54,15 @@
     },
     "unit1": {
       "use": "assign",
-      "from": "if(eq(transforms.kind1,'power'), 'W', if(eq(transforms.kind1,'fan'), 'rpm', if(eq(transforms.kind1,'fanUsage'), '%', if(transforms.fahrenheit, '°F', '°C'))))"
+      "from": "switch(transforms.kind1, 'power', 'W', 'fan', 'rpm', 'fanUsage', '%', if(transforms.fahrenheit, '°F', '°C'))"
     },
     "label1": {
       "use": "assign",
-      "from": "if(transforms.isKey1, coalesce(transforms.picked1.name, 'Sensor'), if(eq(transforms.sel1,'power'), 'Power', if(eq(transforms.sel1,'fan'), 'Fan speed', if(eq(transforms.sel1,'fanUsage'), 'Fan load', if(eq(transforms.sel1,'gpu'), if(eq(settings.aggregate,'hottest'), 'Hottest GPU', 'GPU temperature'), if(eq(transforms.sel1,'battery'), if(eq(settings.aggregate,'hottest'), 'Hottest battery', 'Battery temperature'), if(eq(transforms.sel1,'peak'), 'Hottest sensor', if(eq(transforms.sel1,'none'), '', if(eq(settings.aggregate,'hottest'), 'Hottest CPU', 'CPU temperature')))))))))"
+      "from": "if(transforms.isKey1, coalesce(transforms.picked1.name, 'Sensor'), switch(transforms.sel1, 'power', 'Power', 'fan', 'Fan speed', 'fanUsage', 'Fan load', 'gpu', if(eq(settings.aggregate,'hottest'), 'Hottest GPU', 'GPU temperature'), 'battery', if(eq(settings.aggregate,'hottest'), 'Hottest battery', 'Battery temperature'), 'peak', 'Hottest sensor', 'none', '', if(eq(settings.aggregate,'hottest'), 'Hottest CPU', 'CPU temperature')))"
     },
     "prefix1": {
       "use": "assign",
-      "from": "if(transforms.isKey1, if(eq(transforms.kind1,'power'), 'Power', if(eq(transforms.kind1,'fan'), 'Fan', coalesce(transforms.picked1.key, 'Sensor'))), if(eq(transforms.sel1,'power'), 'Power', if(eq(transforms.sel1,'fan'), 'Fan', if(eq(transforms.sel1,'fanUsage'), 'Fan', if(eq(transforms.sel1,'gpu'), 'GPU', if(eq(transforms.sel1,'battery'), 'Batt', if(eq(transforms.sel1,'peak'), 'Peak', if(eq(transforms.sel1,'none'), '', 'CPU'))))))))"
+      "from": "if(transforms.isKey1, switch(transforms.kind1, 'power', 'Power', 'fan', 'Fan', coalesce(transforms.picked1.key, 'Sensor')), switch(transforms.sel1, 'power', 'Power', 'fan', 'Fan', 'fanUsage', 'Fan', 'gpu', 'GPU', 'battery', 'Batt', 'peak', 'Peak', 'none', '', 'CPU'))"
     },
     "sel2": {
       "use": "assign",
@@ -78,7 +78,7 @@
     },
     "kind2": {
       "use": "assign",
-      "from": "if(transforms.isKey2, coalesce(transforms.picked2.kind, 'temperature'), if(eq(transforms.sel2,'power'), 'power', if(eq(transforms.sel2,'fan'), 'fan', if(eq(transforms.sel2,'fanUsage'), 'fanUsage', if(eq(transforms.sel2,'none'), 'none', 'temperature')))))"
+      "from": "if(transforms.isKey2, coalesce(transforms.picked2.kind, 'temperature'), switch(transforms.sel2, 'power', 'power', 'fan', 'fan', 'fanUsage', 'fanUsage', 'none', 'none', 'temperature'))"
     },
     "isTemp2": {
       "use": "assign",
@@ -86,7 +86,7 @@
     },
     "raw2": {
       "use": "assign",
-      "from": "if(transforms.isKey2, transforms.picked2.value, if(eq(transforms.sel2,'power'), sources.data.sensors.power, if(eq(transforms.sel2,'fan'), sources.data.sensors.fans.0.rpm, if(eq(transforms.sel2,'fanUsage'), sources.data.sensors.fans.0.usage, if(eq(transforms.sel2,'gpu'), if(eq(settings.aggregate,'hottest'), coalesce(sources.data.sensors.gpuMax, sources.data.sensors.gpu), sources.data.sensors.gpu), if(eq(transforms.sel2,'battery'), if(eq(settings.aggregate,'hottest'), coalesce(sources.data.sensors.batteryMax, sources.data.sensors.battery), sources.data.sensors.battery), if(eq(transforms.sel2,'peak'), sources.data.sensors.peak, if(eq(transforms.sel2,'none'), null, if(eq(settings.aggregate,'hottest'), coalesce(sources.data.sensors.cpuMax, sources.data.sensors.cpu), sources.data.sensors.cpu)))))))))"
+      "from": "if(transforms.isKey2, transforms.picked2.value, switch(transforms.sel2, 'power', sources.data.sensors.power, 'fan', sources.data.sensors.fans.0.rpm, 'fanUsage', sources.data.sensors.fans.0.usage, 'gpu', if(eq(settings.aggregate,'hottest'), coalesce(sources.data.sensors.gpuMax, sources.data.sensors.gpu), sources.data.sensors.gpu), 'battery', if(eq(settings.aggregate,'hottest'), coalesce(sources.data.sensors.batteryMax, sources.data.sensors.battery), sources.data.sensors.battery), 'peak', sources.data.sensors.peak, 'none', null, if(eq(settings.aggregate,'hottest'), coalesce(sources.data.sensors.cpuMax, sources.data.sensors.cpu), sources.data.sensors.cpu)))"
     },
     "shown2": {
       "use": "assign",
@@ -94,15 +94,15 @@
     },
     "unit2": {
       "use": "assign",
-      "from": "if(eq(transforms.kind2,'power'), 'W', if(eq(transforms.kind2,'fan'), 'rpm', if(eq(transforms.kind2,'fanUsage'), '%', if(transforms.fahrenheit, '°F', '°C'))))"
+      "from": "switch(transforms.kind2, 'power', 'W', 'fan', 'rpm', 'fanUsage', '%', if(transforms.fahrenheit, '°F', '°C'))"
     },
     "label2": {
       "use": "assign",
-      "from": "if(transforms.isKey2, coalesce(transforms.picked2.name, 'Sensor'), if(eq(transforms.sel2,'power'), 'Power', if(eq(transforms.sel2,'fan'), 'Fan speed', if(eq(transforms.sel2,'fanUsage'), 'Fan load', if(eq(transforms.sel2,'gpu'), if(eq(settings.aggregate,'hottest'), 'Hottest GPU', 'GPU temperature'), if(eq(transforms.sel2,'battery'), if(eq(settings.aggregate,'hottest'), 'Hottest battery', 'Battery temperature'), if(eq(transforms.sel2,'peak'), 'Hottest sensor', if(eq(transforms.sel2,'none'), '', if(eq(settings.aggregate,'hottest'), 'Hottest CPU', 'CPU temperature')))))))))"
+      "from": "if(transforms.isKey2, coalesce(transforms.picked2.name, 'Sensor'), switch(transforms.sel2, 'power', 'Power', 'fan', 'Fan speed', 'fanUsage', 'Fan load', 'gpu', if(eq(settings.aggregate,'hottest'), 'Hottest GPU', 'GPU temperature'), 'battery', if(eq(settings.aggregate,'hottest'), 'Hottest battery', 'Battery temperature'), 'peak', 'Hottest sensor', 'none', '', if(eq(settings.aggregate,'hottest'), 'Hottest CPU', 'CPU temperature')))"
     },
     "prefix2": {
       "use": "assign",
-      "from": "if(transforms.isKey2, if(eq(transforms.kind2,'power'), 'Power', if(eq(transforms.kind2,'fan'), 'Fan', coalesce(transforms.picked2.key, 'Sensor'))), if(eq(transforms.sel2,'power'), 'Power', if(eq(transforms.sel2,'fan'), 'Fan', if(eq(transforms.sel2,'fanUsage'), 'Fan', if(eq(transforms.sel2,'gpu'), 'GPU', if(eq(transforms.sel2,'battery'), 'Batt', if(eq(transforms.sel2,'peak'), 'Peak', if(eq(transforms.sel2,'none'), '', 'CPU'))))))))"
+      "from": "if(transforms.isKey2, switch(transforms.kind2, 'power', 'Power', 'fan', 'Fan', coalesce(transforms.picked2.key, 'Sensor')), switch(transforms.sel2, 'power', 'Power', 'fan', 'Fan', 'fanUsage', 'Fan', 'gpu', 'GPU', 'battery', 'Batt', 'peak', 'Peak', 'none', '', 'CPU'))"
     },
     "decimals": {
       "use": "assign",
@@ -125,7 +125,7 @@
     },
     "suffix1": {
       "use": "assign",
-      "from": "if(eq(transforms.kind1,'power'), 'W', if(eq(transforms.kind1,'fan'), ' rpm', if(eq(transforms.kind1,'fanUsage'), '%', if(transforms.fahrenheit, '°F', '°'))))"
+      "from": "switch(transforms.kind1, 'power', 'W', 'fan', ' rpm', 'fanUsage', '%', if(transforms.fahrenheit, '°F', '°'))"
     },
     "hasSecond": {
       "use": "assign",

@@ -1705,6 +1705,12 @@ final class WidgetRuntime: ObservableObject {
         if !manual, !scheduler.allowsAutomaticRefresh(widgetID: id) {
             return // exponential backoff window — automatic triggers suppressed
         }
+        // A widget for a newer BarShelf would render "—" or fail somewhere
+        // obscure; it says what to update instead, and does not run.
+        if let reason = widget.manifest.incompatibility(hostVersion: AppVersionInfo.current.version) {
+            if snapshots[id]?.error != reason { updateSnapshot(id) { $0.error = reason } }
+            return
+        }
         // Permission enforcement: nothing runs until the user approved the
         // widget's current permission set (approval card shown instead).
         guard gatePermissions(for: widget) else { return }

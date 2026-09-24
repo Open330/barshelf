@@ -14,6 +14,11 @@
     "refresh"
   ],
   "properties": {
+    "minHostVersion": {
+      "description": "The oldest BarShelf this widget runs on, e.g. \"0.3.11\". Declare it when using an expression function or source field that version introduced; newer hosts refuse to install or run the widget on an older version and say to update.",
+      "type": "string",
+      "pattern": "^[0-9]+(\\.[0-9]+){1,2}$"
+    },
     "$schema": {
       "type": "string"
     },

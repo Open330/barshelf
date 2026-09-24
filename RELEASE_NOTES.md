@@ -13,6 +13,17 @@
   `coalesce` and `default` no longer compute branches they discard — a
   reading picked from a dozen options used to compute all twelve.
 
+## Widgets
+
+- **Widgets can say which BarShelf they need.** A widget can declare
+  `minHostVersion`; on an older BarShelf it now says "Needs BarShelf X or
+  later" instead of running and showing "—", and installing it is refused
+  with the same reason (in the app and in `barshelf install`).
+- **New expression functions: `switch` and `get`.** `switch(value, case,
+  result, …, fallback)` picks one of many readings by a setting without a
+  dozen nested `if`s; `get(object, key)` reads a field chosen at run time.
+  The System and Sensors widgets (0.5.1) are rewritten with them.
+
 ## Fixes
 
 - **Network and disk speeds no longer spike after sleep.** Their rates were

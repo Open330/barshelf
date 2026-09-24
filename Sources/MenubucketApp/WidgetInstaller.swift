@@ -371,6 +371,10 @@ final class WidgetInstaller {
         }
 
         for candidate in discovery.candidates {
+            if let reason = candidate.manifest.incompatibility(hostVersion: AppVersionInfo.current.version) {
+                failed.append("\(candidate.manifest.name): \(reason)")
+                continue
+            }
             let isUpdate = WidgetInstallFlow.isInstalled(id: candidate.manifest.id)
             guard confirmInstall(candidate, isUpdate: isUpdate) else { continue }
             do {

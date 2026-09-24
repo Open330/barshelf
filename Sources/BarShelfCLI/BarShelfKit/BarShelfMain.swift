@@ -104,6 +104,16 @@ public enum BarShelfMain {
         }
     }
 
+    /// The installed BarShelf's version, else this CLI's own.
+    static func installedHostVersion() -> String {
+        if let app = UpgradeCommand.installedApp(explicitPath: nil),
+           let info = NSDictionary(contentsOf: app.appendingPathComponent("Contents/Info.plist")),
+           let version = info["CFBundleShortVersionString"] as? String, !version.isEmpty {
+            return version
+        }
+        return version
+    }
+
     private static func performInstall(input: String, assumeYes: Bool) async -> Int32 {
         let interactive = isatty(fileno(stdin)) != 0
         do {
@@ -124,7 +134,15 @@ public enum BarShelfMain {
             let widgetsDir = HeadlessInstaller.defaultWidgetsDirectory
             var installedCount = 0
             var failureCount = session.failures.count
+            let hostVersion = installedHostVersion()
             for candidate in candidates {
+                // The app that will run it decides, not this CLI: the two can
+                // be on different versions.
+                if let reason = candidate.manifest.incompatibility(hostVersion: hostVersion) {
+                    printError("skipped \(candidate.manifest.id): \(reason)")
+                    failureCount += 1
+                    continue
+                }
                 let isUpdate = HeadlessInstaller.isInstalled(
                     id: candidate.manifest.id, in: widgetsDir
                 )
