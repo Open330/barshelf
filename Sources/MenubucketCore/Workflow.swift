@@ -701,11 +701,50 @@ public enum WorkflowEngine {
                 let name = String(expr[..<paren])
                 let inner = String(expr[expr.index(after: paren)..<expr.index(before: expr.endIndex)])
                 if isFunctionName(name) {
-                    let args = try splitArguments(inner).map { try evaluateExpression($0) }
+                    let sources = try splitArguments(inner)
+                    if let value = try evaluateLazily(name, sources) { return value }
+                    let args = try sources.map { try evaluateExpression($0) }
                     return try call(name, args: args)
                 }
             }
             return try resolvePath(expr)
+        }
+
+        /// The logic functions, evaluated only as far as their result needs.
+        ///
+        /// The language is pure, so this changes no result — it changes what
+        /// a menu bar refresh costs. A reading chosen by setting is a chain of
+        /// a dozen `if(eq(sel,'x'), …)`; evaluated eagerly, every refresh
+        /// computed all twelve readings to keep one (15% of an idle app's CPU
+        /// in a profile). nil for any other function.
+        private mutating func evaluateLazily(_ name: String, _ args: [String]) throws -> JSONValue? {
+            switch name {
+            case "if":
+                guard args.count >= 2 else { return .null }
+                if Self.truthy(try evaluateExpression(args[0])) { return try evaluateExpression(args[1]) }
+                return args.count >= 3 ? try evaluateExpression(args[2]) : .null
+            case "and":
+                for arg in args where !Self.truthy(try evaluateExpression(arg)) { return .bool(false) }
+                return .bool(true)
+            case "or":
+                for arg in args where Self.truthy(try evaluateExpression(arg)) { return .bool(true) }
+                return .bool(false)
+            case "coalesce":
+                for arg in args {
+                    let value = try evaluateExpression(arg)
+                    if value.isNull { continue }
+                    if case let .string(text) = value, text.isEmpty { continue }
+                    return value
+                }
+                return .null
+            case "default":
+                guard let first = args.first else { return .null }
+                let value = try evaluateExpression(first)
+                if Self.truthy(value) { return value }
+                return args.count >= 2 ? try evaluateExpression(args[1]) : .null
+            default:
+                return nil
+            }
         }
 
         private func isFunctionName(_ name: String) -> Bool {
@@ -796,8 +835,8 @@ public enum WorkflowEngine {
 
             // MARK: logic — condition + branches
             case "if":
-                // if(cond, thenValue, elseValue). Args are eagerly evaluated
-                // (the language is pure, so this only selects a value).
+                // if(cond, thenValue, elseValue). Normally reached through
+                // `evaluateLazily`; kept for callers that pass values.
                 guard args.count >= 2 else { return .null }
                 return Self.truthy(args[0]) ? args[1] : (args.count >= 3 ? args[2] : .null)
             case "not":

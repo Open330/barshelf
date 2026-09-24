@@ -35,7 +35,8 @@ final class MenuBarChartTests: XCTestCase {
     func testHistoryKeepsTheNewestUpToTheLimit() {
         var history: MenuBarChartHistory?
         for value in 0..<(MenuBarPolicy.chartHistoryLimit + 5) {
-            history = MenuBarPolicy.recordingChart(history, ("cpu", Double(value), 100))
+            history = MenuBarPolicy.recordingChart(history, ("cpu", Double(value), 100),
+                                                   at: Double(value) * MenuBarPolicy.chartStep)
         }
         XCTAssertEqual(history?.values.count, MenuBarPolicy.chartHistoryLimit)
         XCTAssertEqual(history?.values.first, 5)
@@ -43,12 +44,12 @@ final class MenuBarChartTests: XCTestCase {
     }
 
     func testAnotherReadingStartsANewSeries() {
-        var history = MenuBarPolicy.recordingChart(nil, ("cpu", 10, 100))
-        history = MenuBarPolicy.recordingChart(history, ("cpu", 20, 100))
+        var history = MenuBarPolicy.recordingChart(nil, ("cpu", 10, 100), at: 0)
+        history = MenuBarPolicy.recordingChart(history, ("cpu", 20, 100), at: 10)
         XCTAssertEqual(history.values, [10, 20])
-        let moved = MenuBarPolicy.recordingChart(history, ("memory", 60, 100))
+        let moved = MenuBarPolicy.recordingChart(history, ("memory", 60, 100), at: 20)
         XCTAssertEqual(moved.values, [60], "memory is not joined onto CPU")
-        let rescaled = MenuBarPolicy.recordingChart(history, ("cpu", 1800, nil))
+        let rescaled = MenuBarPolicy.recordingChart(history, ("cpu", 1800, nil), at: 20)
         XCTAssertEqual(rescaled.values, [1800])
         XCTAssertNil(rescaled.scale)
 
@@ -56,6 +57,33 @@ final class MenuBarChartTests: XCTestCase {
         let applied = MenuBarPolicy.applyingChart(entry(.line, history: [], scale: nil), history: history)
         XCTAssertEqual(applied.chartScale, 100)
         XCTAssertEqual(applied.history, [10, 20])
+    }
+
+    func testAPointPerStepTakingItsPeak() {
+        var history = MenuBarPolicy.recordingChart(nil, ("ram", 50, 100), at: 100)
+        let first = history
+        history = MenuBarPolicy.recordingChart(history, ("ram", 70, 100), at: 102)
+        XCTAssertEqual(history.values, first.values, "inside a step the chart does not move, so nothing redraws")
+        history = MenuBarPolicy.recordingChart(history, ("ram", 55, 100), at: 104)
+        history = MenuBarPolicy.recordingChart(history, ("ram", 52, 100), at: 105)
+        XCTAssertEqual(history.values, [50, 70], "the next point is the step's peak")
+        history = MenuBarPolicy.recordingChart(history, ("ram", 51, 100), at: 111)
+        XCTAssertEqual(history.values, [50, 70, 51])
+    }
+
+    func testAGaugeRedrawsOnlyWhenItsRingWouldMove() {
+        let gauge = entry(.gauge, history: [], scale: 100)
+        var a = gauge; a.metrics[0].number = 42.0
+        var b = gauge; b.metrics[0].number = 42.6
+        let history = MenuBarChartHistory(series: "cpu", scale: 100, values: [1, 2, 3])
+        XCTAssertEqual(MenuBarPolicy.applyingChart(a, history: history).history,
+                       MenuBarPolicy.applyingChart(b, history: history).history)
+        XCTAssertEqual(MenuBarPolicy.applyingChart(a, history: history).history.count, 1)
+        var fan = MenuBarEntry(widgetID: "f", name: "Fan", metrics: [StatusMetric(label: "Fan", number: 1500, unit: "rpm")],
+                               separate: true, presentation: MenuBarPresentation(dangerAt: 3000, chart: .gauge))
+        fan = MenuBarPolicy.applyingChart(fan, history: nil)
+        XCTAssertEqual(fan.chartScale, 3000, "against the danger threshold, not its own peak")
+        XCTAssertEqual(try XCTUnwrap(fan.history.first), 1500, accuracy: 1)
     }
 
     func testChartIsLenientAndLayered() throws {
