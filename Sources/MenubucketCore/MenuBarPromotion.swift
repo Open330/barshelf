@@ -169,7 +169,7 @@ public enum MenuBarChart: String, Codable, Equatable, Sendable, CaseIterable {
 }
 
 /// Recent values of one reading, for an item's chart.
-public struct MenuBarChartHistory: Equatable, Sendable {
+public struct MenuBarChartHistory: Codable, Equatable, Sendable {
     /// The metric key the values came from.
     public var series: String
     /// 100 for a percentage, nil for a reading scaled to its own peak.
@@ -180,6 +180,10 @@ public struct MenuBarChartHistory: Equatable, Sendable {
     public var lastAt: TimeInterval?
     /// The highest reading since then, waiting to become the next point.
     public var pending: Double?
+
+    /// `lastAt` and `pending` are this run's clock and are not kept: after a
+    /// restart the next reading simply starts the next step.
+    private enum CodingKeys: String, CodingKey { case series, scale, values }
 
     public init(series: String, scale: Double?, values: [Double], lastAt: TimeInterval? = nil) {
         self.series = series

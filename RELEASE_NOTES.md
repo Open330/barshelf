@@ -31,6 +31,12 @@
 
 ## Fixes
 
+- **Graphs survive an update or a quick relaunch.** Graph history is saved
+  every 30 seconds and at quit, so after an in-app update or a restart
+  within a minute each graph picks up where it was; after a longer gap it
+  starts fresh rather than joining old points to new. Widgets that keep
+  their output off disk are never saved.
+
 - **Network and disk speeds no longer spike after sleep.** Their rates were
   timed on a clock that stops while the Mac sleeps, so traffic from a night
   of dark wakes was divided by a few seconds on the first refresh after
