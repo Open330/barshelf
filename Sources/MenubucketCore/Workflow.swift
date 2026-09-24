@@ -852,7 +852,9 @@ public enum WorkflowEngine {
                 switch (args[0], args[1]) {
                 case let (.object(object), key):
                     return object[key.stringified] ?? .null
-                case let (.array(items), .number(n)) where n.isFinite && n >= 0 && n < Double(items.count):
+                case let (.array(items), .number(n))
+                    where n.isFinite && n >= 0 && n < Double(items.count) && n == n.rounded():
+                    // A fractional index is missing, as "1.7" is as a string.
                     return items[Int(n)]
                 case let (.array(items), .string(text)):
                     guard let n = Int(text), n >= 0, n < items.count else { return .null }

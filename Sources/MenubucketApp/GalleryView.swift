@@ -210,9 +210,19 @@ final class GalleryModel: ObservableObject {
     /// installed `widget.json` — drives the card's primary "Update" button.
     func updateAvailable(for entry: RegistryWidgetEntry) -> Bool {
         guard installedIDs.contains(entry.id) else { return false }
+        // An update this BarShelf would refuse is not one to offer.
+        guard Self.needsNewerHost(entry) == nil else { return false }
         return SemanticVersionOrder.isNewer(
             entry.version, than: installedVersions[entry.id]
         )
+    }
+
+    /// Why this BarShelf cannot install `entry`, or nil.
+    static func needsNewerHost(_ entry: RegistryWidgetEntry) -> String? {
+        guard let required = entry.minHostVersion, let host = WidgetRuntime.hostVersion,
+              SemanticVersionOrder.isNewer(required, than: host)
+        else { return nil }
+        return "Needs BarShelf \(required) or later"
     }
 
     func onWindowShown() {
@@ -897,7 +907,15 @@ struct GalleryCard: View {
 
     @ViewBuilder
     private var installControl: some View {
-        if updateAvailable {
+        // Not installed and this BarShelf would refuse it: say so rather
+        // than offer Install. (Installed, it just shows Installed — the
+        // newer version is held back by `updateAvailable`.)
+        if let needs = GalleryModel.needsNewerHost(entry), !isInstalled {
+            Text(needs)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .help("Update BarShelf to install this widget")
+        } else if updateAvailable {
             Button("Update", action: install)
                 .controlSize(.small)
                 .help("A newer version is available in the registry")

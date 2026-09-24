@@ -49,9 +49,13 @@
       "use": "assign",
       "from": "if(transforms.isText1, switch(sources.data.memory.pressure, 'critical', 'Critical', 'warning', 'Warning', 'normal', 'Normal', '—'), if(eq(transforms.number1, null), '—', if(eq(transforms.format1,'percent'), concat(string(round(number(transforms.number1), 0)), '%'), if(eq(transforms.format1,'bytesPerSecond'), if(lt(number(transforms.number1), 1000000), concat(string(round(div(number(transforms.number1), 1000), 0)), ' kB/s'), concat(string(round(div(number(transforms.number1), 1000000), 1)), ' MB/s')), if(gte(number(transforms.number1), 1000000000000), concat(string(round(div(number(transforms.number1), 1000000000000), 1)), ' TB'), concat(string(round(div(number(transforms.number1), 1000000000), transforms.precision1)), ' GB'))))))"
     },
+    "tintBasis1": {
+      "use": "assign",
+      "from": "number(coalesce(switch(transforms.sel1, 'cpuUser', null, 'cpuSystem', null, 'cpuCore', null, 'memory', sources.data.memory.usage, 'pressure', null, 'swap', null, 'disk', sources.data.disk.usage, 'diskFree', sources.data.disk.usage, 'diskRead', null, 'diskWrite', null, 'none', null, sources.data.cpu.usage), 0))"
+    },
     "tint1": {
       "use": "assign",
-      "from": "if(transforms.isText1, switch(sources.data.memory.pressure, 'critical', 'danger', 'warning', 'warning', ''), if(gt(number(coalesce(switch(transforms.sel1, 'cpu', sources.data.cpu.usage, 'memory', sources.data.memory.usage, 'disk', sources.data.disk.usage, 'diskFree', sources.data.disk.usage, null), 0)), 90), 'danger', if(gt(number(coalesce(switch(transforms.sel1, 'cpu', sources.data.cpu.usage, 'memory', sources.data.memory.usage, 'disk', sources.data.disk.usage, 'diskFree', sources.data.disk.usage, null), 0)), 75), 'warning', '')))"
+      "from": "if(transforms.isText1, switch(sources.data.memory.pressure, 'critical', 'danger', 'warning', 'warning', ''), if(gt(transforms.tintBasis1, 90), 'danger', if(gt(transforms.tintBasis1, 75), 'warning', '')))"
     },
     "sel2": {
       "use": "assign",
@@ -85,9 +89,13 @@
       "use": "assign",
       "from": "if(transforms.isText2, switch(sources.data.memory.pressure, 'critical', 'Critical', 'warning', 'Warning', 'normal', 'Normal', '—'), if(eq(transforms.number2, null), '—', if(eq(transforms.format2,'percent'), concat(string(round(number(transforms.number2), 0)), '%'), if(eq(transforms.format2,'bytesPerSecond'), if(lt(number(transforms.number2), 1000000), concat(string(round(div(number(transforms.number2), 1000), 0)), ' kB/s'), concat(string(round(div(number(transforms.number2), 1000000), 1)), ' MB/s')), if(gte(number(transforms.number2), 1000000000000), concat(string(round(div(number(transforms.number2), 1000000000000), 1)), ' TB'), concat(string(round(div(number(transforms.number2), 1000000000), transforms.precision2)), ' GB'))))))"
     },
+    "tintBasis2": {
+      "use": "assign",
+      "from": "number(coalesce(switch(transforms.sel2, 'cpuUser', null, 'cpuSystem', null, 'cpuCore', null, 'memory', sources.data.memory.usage, 'pressure', null, 'swap', null, 'disk', sources.data.disk.usage, 'diskFree', sources.data.disk.usage, 'diskRead', null, 'diskWrite', null, 'none', null, sources.data.cpu.usage), 0))"
+    },
     "tint2": {
       "use": "assign",
-      "from": "if(transforms.isText2, switch(sources.data.memory.pressure, 'critical', 'danger', 'warning', 'warning', ''), if(gt(number(coalesce(switch(transforms.sel2, 'cpu', sources.data.cpu.usage, 'memory', sources.data.memory.usage, 'disk', sources.data.disk.usage, 'diskFree', sources.data.disk.usage, null), 0)), 90), 'danger', if(gt(number(coalesce(switch(transforms.sel2, 'cpu', sources.data.cpu.usage, 'memory', sources.data.memory.usage, 'disk', sources.data.disk.usage, 'diskFree', sources.data.disk.usage, null), 0)), 75), 'warning', '')))"
+      "from": "if(transforms.isText2, switch(sources.data.memory.pressure, 'critical', 'danger', 'warning', 'warning', ''), if(gt(transforms.tintBasis2, 90), 'danger', if(gt(transforms.tintBasis2, 75), 'warning', '')))"
     },
     "hasSecond": {
       "use": "assign",

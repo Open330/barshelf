@@ -49,6 +49,7 @@ final class HostVersionTests: XCTestCase {
         XCTAssertEqual(try label("string(get(sources.d.list, 1))"), "20")
         XCTAssertEqual(try label("string(get(sources.d, 'missing'))"), "")
         XCTAssertEqual(try label("string(get(sources.d.list, 9))"), "")
+        XCTAssertEqual(try label("string(get(sources.d.list, 0.5))"), "", "a fractional index is missing")
     }
 
     /// A bundled widget that uses a function newer hosts introduced must say
@@ -58,15 +59,25 @@ final class HostVersionTests: XCTestCase {
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("widgets")
         let introduced = ["switch(": "0.3.11", "get(": "0.3.11"]
-        for dir in try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil) {
-            guard let workflow = try? String(contentsOf: dir.appendingPathComponent("workflow.json"), encoding: .utf8),
-                  let manifestData = try? Data(contentsOf: dir.appendingPathComponent("widget.json"))
-            else { continue }
-            let manifest = try JSONDecoder().decode(Manifest.self, from: manifestData)
-            for (function, version) in introduced where workflow.range(of: "[^a-zA-Z_.]" + NSRegularExpression.escapedPattern(for: function), options: .regularExpression) != nil {
-                XCTAssertNotNil(manifest.minHostVersion, "\(dir.lastPathComponent) uses \(function) but declares no minHostVersion")
-                XCTAssertFalse(SemanticVersionOrder.isNewer(version, than: manifest.minHostVersion),
-                               "\(dir.lastPathComponent) uses \(function), which needs \(version)")
+        for dir in try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)
+        where (try? dir.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
+            let manifestURL = dir.appendingPathComponent("widget.json")
+            guard FileManager.default.fileExists(atPath: manifestURL.path) else { continue }
+            let manifest = try JSONDecoder().decode(Manifest.self, from: Data(contentsOf: manifestURL))
+            // Every JSON file the widget ships: an expression can sit in the
+            // manifest or in a split view file as well as in workflow.json.
+            let files = try FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)
+                .filter { $0.pathExtension == "json" }
+            for file in files {
+                let text = try String(contentsOf: file, encoding: .utf8)
+                for (function, version) in introduced
+                where text.range(of: "[^a-zA-Z_.]" + NSRegularExpression.escapedPattern(for: function),
+                                 options: .regularExpression) != nil {
+                    XCTAssertNotNil(manifest.minHostVersion,
+                                    "\(dir.lastPathComponent)/\(file.lastPathComponent) uses \(function) but declares no minHostVersion")
+                    XCTAssertFalse(SemanticVersionOrder.isNewer(version, than: manifest.minHostVersion),
+                                   "\(dir.lastPathComponent) uses \(function), which needs \(version)")
+                }
             }
         }
     }

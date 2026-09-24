@@ -39,6 +39,8 @@ final class SystemTintExpressionTests: XCTestCase {
         XCTAssertEqual(try evaluate(["menuBarMetric": "cpuCore"]).statusTint, "",
                        "only the machine-wide percentages carry the built-in colours")
         XCTAssertEqual(try evaluate(["menuBarMetric": "pressure"], pressure: "critical").statusTint, "danger")
+        XCTAssertEqual(try evaluate(["menuBarMetric": "someday"]).statusMetrics?.first?.number, 1,
+                       "an unknown selection shows CPU")
         XCTAssertEqual(try evaluate(["menuBarMetric": "memory", "menuBarMemoryDisplay": "used"], memory: 95).statusTint,
                        "danger", "shown as bytes, memory is still judged by its usage")
         let second = try evaluate(["menuBarMetric": "cpu", "menuBarSecondary": "memory"], memory: 96)

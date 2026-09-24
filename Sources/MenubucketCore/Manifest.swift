@@ -25,9 +25,9 @@ public struct Manifest: Codable, Equatable {
     public var appearance: WidgetAppearance?
     /// The oldest BarShelf this widget runs on, e.g. `"0.3.11"` — for a
     /// widget that uses an expression function or a source field that
-    /// version introduced. A newer host checks it and says what to update
-    /// rather than rendering "—" or failing obscurely; a host from before
-    /// this field existed ignores it.
+    /// version introduced. A host that is too old refuses it and says what
+    /// to update, rather than failing with "unknown function"; a host from
+    /// before this field existed ignores it.
     public var minHostVersion: String?
 
     /// Why this widget cannot run on `hostVersion`, or nil when it can. A

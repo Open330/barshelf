@@ -104,13 +104,14 @@ public enum BarShelfMain {
         }
     }
 
-    /// The installed BarShelf's version, else this CLI's own.
-    static func installedHostVersion() -> String {
-        if let app = UpgradeCommand.installedApp(explicitPath: nil),
-           let info = NSDictionary(contentsOf: app.appendingPathComponent("Contents/Info.plist")),
-           let version = info["CFBundleShortVersionString"] as? String, !version.isEmpty {
-            return version
-        }
+    /// The version of the BarShelf that will run what this installs: the
+    /// installed app's. An app without one is a development build, which runs
+    /// everything (nil), as the app itself judges; with no app at all, this
+    /// CLI's own version stands in.
+    static func installedHostVersion() -> String? {
+        guard let app = UpgradeCommand.installedApp(explicitPath: nil) else { return version }
+        let info = NSDictionary(contentsOf: app.appendingPathComponent("Contents/Info.plist"))
+        guard let version = info?["CFBundleShortVersionString"] as? String, !version.isEmpty else { return nil }
         return version
     }
 
@@ -136,13 +137,6 @@ public enum BarShelfMain {
             var failureCount = session.failures.count
             let hostVersion = installedHostVersion()
             for candidate in candidates {
-                // The app that will run it decides, not this CLI: the two can
-                // be on different versions.
-                if let reason = candidate.manifest.incompatibility(hostVersion: hostVersion) {
-                    printError("skipped \(candidate.manifest.id): \(reason)")
-                    failureCount += 1
-                    continue
-                }
                 let isUpdate = HeadlessInstaller.isInstalled(
                     id: candidate.manifest.id, in: widgetsDir
                 )
@@ -170,8 +164,10 @@ public enum BarShelfMain {
                 }
 
                 do {
+                    // The app that will run it decides, not this CLI: the two
+                    // can be on different versions.
                     let destination = try HeadlessInstaller.install(
-                        candidate, into: widgetsDir
+                        candidate, into: widgetsDir, hostVersion: hostVersion
                     )
                     print("  \(isUpdate ? "updated" : "installed") → \(destination.path)")
                     installedCount += 1
