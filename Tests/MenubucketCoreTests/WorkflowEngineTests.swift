@@ -1365,3 +1365,34 @@ final class PersistenceWidgetTests: XCTestCase {
     }
 
 }
+
+/// `if`, `and`, `or`, `coalesce` and `default` evaluate only what their
+/// result needs — same values, less work, and a branch not taken can no
+/// longer fail the whole render.
+final class LazyLogicTests: XCTestCase {
+    private func value(_ expression: String) throws -> JSONValue? {
+        let json = """
+        {"schemaVersion":1,"kind":"workflow","sources":{},
+         "status":{"label":"${\(expression)}"},"view":{"type":"text","text":"x"}}
+        """
+        let def = try JSONDecoder().decode(WorkflowDefinition.self, from: Data(json.utf8))
+        return try WorkflowEngine.evaluate(def, sources: [:], settings: .object([:])).statusLabel.map(JSONValue.string)
+    }
+
+    func testBranchesNotTakenAreNotEvaluated() throws {
+        XCTAssertEqual(try value("if(true, 'yes', transforms.missing)"), .string("yes"))
+        XCTAssertEqual(try value("if(false, transforms.missing, 'no')"), .string("no"))
+        XCTAssertEqual(try value("string(and(false, transforms.missing))"), .string("false"))
+        XCTAssertEqual(try value("string(or(true, transforms.missing))"), .string("true"))
+        XCTAssertEqual(try value("coalesce('first', transforms.missing)"), .string("first"))
+        XCTAssertEqual(try value("default('set', transforms.missing)"), .string("set"))
+    }
+
+    func testResultsAreUnchanged() throws {
+        XCTAssertEqual(try value("if(eq(1, 2), 'a', if(eq(2, 2), 'b', 'c'))"), .string("b"))
+        XCTAssertEqual(try value("coalesce(null, '', 'z')"), .string("z"))
+        XCTAssertEqual(try value("string(and(true, true, false))"), .string("false"))
+        XCTAssertEqual(try value("default('', 'fallback')"), .string("fallback"))
+        XCTAssertThrowsError(try value("if(true, transforms.missing, 'x')"), "a branch taken still fails loudly")
+    }
+}

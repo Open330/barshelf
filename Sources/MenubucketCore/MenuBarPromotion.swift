@@ -176,11 +176,16 @@ public struct MenuBarChartHistory: Equatable, Sendable {
     public var scale: Double?
     /// Oldest first, at most `MenuBarPolicy.chartHistoryLimit`.
     public var values: [Double]
+    /// When the last point was added.
+    public var lastAt: TimeInterval?
+    /// The highest reading since then, waiting to become the next point.
+    public var pending: Double?
 
-    public init(series: String, scale: Double?, values: [Double]) {
+    public init(series: String, scale: Double?, values: [Double], lastAt: TimeInterval? = nil) {
         self.series = series
         self.scale = scale
         self.values = values
+        self.lastAt = lastAt
     }
 }
 
@@ -1010,17 +1015,32 @@ public enum MenuBarPolicy {
         return (keys[index], value, percent ? 100 : nil)
     }
 
-    /// `history` with `sample` added. A sample from another reading (the
-    /// rows were reordered or one hidden) or on another kind of scale starts
-    /// a new series: joining memory onto CPU, or rpm onto °C, draws a line
-    /// that means nothing.
+    /// The least time between two points of a chart. A chart that moves on
+    /// every refresh redraws its item on every refresh — the RAM item whose
+    /// number sat still started repainting every 2 s, most of what turning
+    /// graphs on cost. A point is the highest reading of its step, so a
+    /// spike between points still shows.
+    public static let chartStep: TimeInterval = 5
+
+    /// `history` with `sample` taken in at `now`. A sample from another
+    /// reading (the rows were reordered or one hidden) or on another kind of
+    /// scale starts a new series: joining memory onto CPU, or rpm onto °C,
+    /// draws a line that means nothing.
     public static func recordingChart(
-        _ history: MenuBarChartHistory?, _ sample: (key: String, value: Double, scale: Double?)
+        _ history: MenuBarChartHistory?, _ sample: (key: String, value: Double, scale: Double?),
+        at now: TimeInterval
     ) -> MenuBarChartHistory {
         guard var history, history.series == sample.key, history.scale == sample.scale else {
-            return MenuBarChartHistory(series: sample.key, scale: sample.scale, values: [sample.value])
+            return MenuBarChartHistory(series: sample.key, scale: sample.scale, values: [sample.value], lastAt: now)
         }
-        history.values = Array((history.values + [sample.value]).suffix(chartHistoryLimit))
+        let peak = max(history.pending ?? sample.value, sample.value)
+        if let lastAt = history.lastAt, now - lastAt >= 0, now - lastAt < chartStep {
+            history.pending = peak
+            return history
+        }
+        history.values = Array((history.values + [peak]).suffix(chartHistoryLimit))
+        history.lastAt = now
+        history.pending = nil
         return history
     }
 
@@ -1029,6 +1049,19 @@ public enum MenuBarPolicy {
     /// points already drawn.
     public static func applyingChart(_ entry: MenuBarEntry, history: MenuBarChartHistory?) -> MenuBarEntry {
         var entry = entry
+        // A gauge shows only the current reading, on a fixed scale, rounded
+        // to what its ring can show — so the item redraws when the ring would
+        // move, not whenever a digit behind it does. Against 0–100 for a
+        // percentage, the danger threshold when set, else the recent peak.
+        if entry.presentation.effectiveChart == .gauge, let sample = chartSample(entry) {
+            let danger = entry.presentation.dangerAt.flatMap { $0 > 0 ? $0 : nil }
+            let top = sample.scale ?? danger ?? max(history?.values.max() ?? 0, sample.value, .leastNonzeroMagnitude)
+            let steps = 48.0
+            let share = (min(max(sample.value / top, 0), 1) * steps).rounded() / steps
+            entry.history = [share * top]
+            entry.chartScale = top
+            return entry
+        }
         entry.history = history?.values ?? []
         entry.chartScale = history?.scale
         return entry

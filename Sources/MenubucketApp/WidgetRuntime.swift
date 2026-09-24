@@ -1414,7 +1414,9 @@ final class WidgetRuntime: ObservableObject {
                 // A new snapshot adds a point; a sync for any other reason
                 // (a settings change, the staleness tick) must not repeat it.
                 if chartPending.remove(widget.id) != nil, let sample = MenuBarPolicy.chartSample(applied) {
-                    menuBarHistory[widget.id] = MenuBarPolicy.recordingChart(menuBarHistory[widget.id], sample)
+                    menuBarHistory[widget.id] = MenuBarPolicy.recordingChart(
+                        menuBarHistory[widget.id], sample, at: SleepAwareClock.now()
+                    )
                 }
                 applied = MenuBarPolicy.applyingChart(applied, history: menuBarHistory[widget.id])
                 charting.insert(widget.id)
