@@ -31,6 +31,10 @@
 
 ## Fixes
 
+- **Graphs survive a quick relaunch.** Quitting and reopening BarShelf
+  (an update, a restart) within ten minutes picks each graph up where it
+  was; after longer it starts fresh rather than joining old points to new.
+
 - **Network and disk speeds no longer spike after sleep.** Their rates were
   timed on a clock that stops while the Mac sleeps, so traffic from a night
   of dark wakes was divided by a few seconds on the first refresh after

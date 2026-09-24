@@ -289,10 +289,14 @@ final class WidgetRuntime: ObservableObject {
             .sink { [weak self] _ in
                 self?.flushPendingPersists()
                 self?.refreshStatsStore.flush()
+                self?.saveChartHistory()
             }
             .store(in: &cancellables)
         seedStarterWidgets()
         refreshBundledWidgets()
+        if let url = Self.chartHistoryURL {
+            menuBarHistory = MenuBarChartHistoryStore.load(from: url)
+        }
         loadWidgets()
         startHotReload()
         startMenuBarStalenessTicker()
@@ -2765,6 +2769,17 @@ final class WidgetRuntime: ObservableObject {
             .appendingPathComponent("barshelf", isDirectory: true)
             .appendingPathComponent("cache", isDirectory: true)
     }()
+
+    private static var chartHistoryURL: URL? {
+        cacheDirectory?.appendingPathComponent("menu-bar-charts.json")
+    }
+
+    /// Graphs pick up where they were after a quick relaunch (an update, a
+    /// restart of the app) instead of starting empty.
+    func saveChartHistory() {
+        guard let url = Self.chartHistoryURL else { return }
+        try? MenuBarChartHistoryStore.save(menuBarHistory, to: url)
+    }
 
     private static func cacheURL(for widgetID: String) -> URL? {
         let sanitized = widgetID.map { character -> Character in
