@@ -39,18 +39,14 @@ public enum DiskIOMetrics {
         private var previous: (counters: Counters, at: TimeInterval)?
         private var last: Rates = Rates()
 
-        public static func clock() -> TimeInterval {
-            TimeInterval(clock_gettime_nsec_np(CLOCK_MONOTONIC)) / 1_000_000_000
-        }
-
         public init(read: @escaping () -> Counters? = DiskIOMetrics.readCounters) {
             self.read = read
         }
 
-        /// `now` counts sleep (`CLOCK_MONOTONIC` on Darwin; `systemUptime`
-        /// does not), so a night's sleep is a gap `maximumWindow` refuses
-        /// rather than a few seconds that dark-wake I/O gets divided by.
-        public func sample(now: TimeInterval = Sampler.clock()) -> Rates {
+        /// `now` counts sleep (see `SleepAwareClock`), so a night's sleep is a
+        /// gap `maximumWindow` refuses rather than a few seconds that
+        /// dark-wake I/O gets divided by.
+        public func sample(now: TimeInterval = SleepAwareClock.now()) -> Rates {
             lock.lock()
             defer { lock.unlock() }
             // Two widgets reading at once share one measurement rather than

@@ -23,3 +23,16 @@ final class DiskIOMetricsTests: XCTestCase {
         XCTAssertGreaterThan(counters.read, 0)
     }
 }
+
+final class SleepAwareClockTests: XCTestCase {
+    /// The clock the rate samplers use must count sleep, which the uptime
+    /// clock does not; awake, the two advance together.
+    func testTracksContinuousTimeNotUptime() {
+        var info = mach_timebase_info_data_t()
+        mach_timebase_info(&info)
+        let continuous = Double(mach_continuous_time()) * Double(info.numer) / Double(info.denom) / 1e9
+        XCTAssertEqual(SleepAwareClock.now(), continuous, accuracy: 0.05)
+        let a = SleepAwareClock.now()
+        XCTAssertGreaterThanOrEqual(SleepAwareClock.now(), a)
+    }
+}
