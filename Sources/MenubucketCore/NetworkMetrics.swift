@@ -86,7 +86,9 @@ public struct NetworkMetrics: Sendable {
             defer { lock.unlock() }
             // Read after acquiring the lock so a queued caller cannot install
             // an older timestamp after a newer completed sample.
-            let now = ProcessInfo.processInfo.systemUptime
+            // Sleep counts: a night asleep must exceed `maximumWindow` and
+            // re-baseline, not pass for a few seconds of traffic.
+            let now = SleepAwareClock.now()
             if let lastSampleAt, now - lastSampleAt < Self.minimumWindow {
                 return presented(interface: interface)
             }
