@@ -104,6 +104,17 @@ public enum BarShelfMain {
         }
     }
 
+    /// The version of the BarShelf that will run what this installs: the
+    /// installed app's. An app without one is a development build, which runs
+    /// everything (nil), as the app itself judges; with no app at all, this
+    /// CLI's own version stands in.
+    static func installedHostVersion() -> String? {
+        guard let app = UpgradeCommand.installedApp(explicitPath: nil) else { return version }
+        let info = NSDictionary(contentsOf: app.appendingPathComponent("Contents/Info.plist"))
+        guard let version = info?["CFBundleShortVersionString"] as? String, !version.isEmpty else { return nil }
+        return version
+    }
+
     private static func performInstall(input: String, assumeYes: Bool) async -> Int32 {
         let interactive = isatty(fileno(stdin)) != 0
         do {
@@ -124,6 +135,7 @@ public enum BarShelfMain {
             let widgetsDir = HeadlessInstaller.defaultWidgetsDirectory
             var installedCount = 0
             var failureCount = session.failures.count
+            let hostVersion = installedHostVersion()
             for candidate in candidates {
                 let isUpdate = HeadlessInstaller.isInstalled(
                     id: candidate.manifest.id, in: widgetsDir
@@ -152,8 +164,10 @@ public enum BarShelfMain {
                 }
 
                 do {
+                    // The app that will run it decides, not this CLI: the two
+                    // can be on different versions.
                     let destination = try HeadlessInstaller.install(
-                        candidate, into: widgetsDir
+                        candidate, into: widgetsDir, hostVersion: hostVersion
                     )
                     print("  \(isUpdate ? "updated" : "installed") → \(destination.path)")
                     installedCount += 1

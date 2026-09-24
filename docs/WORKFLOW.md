@@ -339,7 +339,12 @@ Arbitrary JavaScript는 금지한다. 표현식은 문자열 안의 `${...}` 보
 배포한다면 `coalesce(widget.visible, true)`로 감싸라 — 거기서는 늘 그랬듯
 전부 하는 쪽으로 떨어진다.
 
-지원 내장 함수는 다음과 같다.
+지원 내장 함수는 다음과 같다. **0.3.11+** 표시가 있는 함수를 쓰는 위젯은
+`widget.json`에 `"minHostVersion": "0.3.11"`을 선언해야 한다 — 그보다 오래된
+BarShelf에는 그 함수가 없어 워크플로 평가가 "unknown function" 오류로 실패하고
+위젯이 오류 카드가 된다. 선언하면 0.3.11 이상 호스트가 더 낮은 버전에서의
+설치·실행을 막고 "업데이트하라"고 알려 준다(0.3.11 이전 호스트는 이 필드 자체를
+모르므로, 번들 위젯처럼 앱과 함께 배포되는 경로가 가장 안전하다).
 
 | 함수 | 설명 |
 | --- | --- |
@@ -349,10 +354,12 @@ Arbitrary JavaScript는 금지한다. 표현식은 문자열 안의 `${...}` 보
 | `file.basename(path)` / `file.extension(path)` | 경로의 파일명 / 확장자. |
 | `text.truncate(s,n)` | 문자열을 최대 길이로 줄인다. |
 | `concat(a,b,...)` | 인자들의 문자열 표현을 이어붙인다. `${}` **안에서** 문자열을 만드는 유일한 방법이라 `if(...)`의 각 가지에 단위를 붙일 때 쓴다. |
-| `coalesce(a,b,...)` | 첫 번째 non-null·non-empty 값을 반환한다. |
+| `coalesce(a,b,...)` | 첫 번째 non-null·non-empty 값을 반환한다(그 뒤는 평가하지 않는다). |
 | `default(v, fallback)` | `v`가 falsy면 `fallback`. |
-| `if(cond, a, b)` | `cond`가 truthy면 `a`, 아니면 `b`. (인자는 모두 미리 평가됨) |
-| `not`, `and`, `or` | 불리언 로직. falsy: `null`·`false`·`0`·`""`·빈 배열·빈 객체. |
+| `if(cond, a, b)` | `cond`가 truthy면 `a`, 아니면 `b`. 고른 가지만 평가한다. |
+| `switch(v, c1, r1, c2, r2, …, fallback)` | `v`와 같은 첫 `c`의 짝 `r`, 없으면 `fallback`(없으면 `null`). 설정으로 여러 판독값 중 하나를 고를 때 `if` 중첩 대신 쓴다. 일치한 결과만 평가한다. **BarShelf 0.3.11+** |
+| `get(obj, key)` | 실행 시에 정해지는 키로 필드를 읽는다. 배열이면 숫자 인덱스. 없으면 `null`. 예: `get(sources.data.sensors, settings.pick)`. **BarShelf 0.3.11+** |
+| `not`, `and`, `or` | 불리언 로직. `and`/`or`는 결과가 정해지면 나머지를 평가하지 않는다. falsy: `null`·`false`·`0`·`""`·빈 배열·빈 객체. |
 | `eq`, `ne` | 값 동등/비동등 비교. |
 | `gt`, `gte`, `lt`, `lte` | 순서 비교(양쪽이 숫자면 수치, 아니면 문자열). |
 | `contains(hay, needle)` | 문자열 부분일치 또는 배열 포함 여부. |
@@ -549,7 +556,7 @@ the manifest's `statusItem.presentation` defaults.
 ```
 
 셀렉터가 `cases`의 키와 일치하면 그 노드를, 없으면 `default`를(그것도 없으면
-빈 `spacer`를) 확장한다. `if()` 함수와 달리 미선택 가지는 평가되지 않는다.
+빈 `spacer`를) 확장한다. 미선택 가지는 평가되지 않는다.
 
 ## 파일 노드
 

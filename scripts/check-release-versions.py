@@ -182,7 +182,14 @@ def check_registry_versions() -> list[str]:
             )
             continue
         checked += 1
-        shipped = json.loads(manifest.read_text()).get("version")
+        widget = json.loads(manifest.read_text())
+        shipped = widget.get("version")
+        # The gallery reads this to hold back an update the host would refuse.
+        if entry.get("minHostVersion") != widget.get("minHostVersion"):
+            problems.append(
+                f"registry/index.json: {entry.get('id')} minHostVersion is "
+                f"{entry.get('minHostVersion')}, widgets/{bundled} declares {widget.get('minHostVersion')}"
+            )
         if entry.get("version") != shipped:
             problems.append(
                 f"registry/index.json: {entry.get('id')} says "

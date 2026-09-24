@@ -68,6 +68,9 @@ public struct RegistryWidgetEntry: Codable, Equatable, Sendable {
     public var install: Install
     public var permissions: PermissionsSummary?
     public var homepage: String?
+    /// The widget's `minHostVersion`, so the gallery can say "needs a newer
+    /// BarShelf" instead of offering an update that would be refused.
+    public var minHostVersion: String?
 
     public init(
         id: String,
@@ -86,8 +89,10 @@ public struct RegistryWidgetEntry: Codable, Equatable, Sendable {
         accent: String? = nil,
         install: Install,
         permissions: PermissionsSummary? = nil,
-        homepage: String? = nil
+        homepage: String? = nil,
+        minHostVersion: String? = nil
     ) {
+        self.minHostVersion = minHostVersion
         self.id = id
         self.name = name
         self.description = description

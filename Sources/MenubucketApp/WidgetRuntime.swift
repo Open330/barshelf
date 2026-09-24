@@ -254,6 +254,9 @@ final class WidgetRuntime: ObservableObject {
     ]
 
     private static let defaultTimeoutMs = 25_000
+    /// This build's version, read once: the check on every refresh must not
+    /// re-read the bundle's Info.plist.
+    static let hostVersion = AppVersionInfo.current.version
     private static let hotReloadDebounceSec: TimeInterval = 0.4
 
     init(
@@ -1704,6 +1707,12 @@ final class WidgetRuntime: ObservableObject {
         guard !inFlight.contains(id) else { return } // in-flight coalescing
         if !manual, !scheduler.allowsAutomaticRefresh(widgetID: id) {
             return // exponential backoff window — automatic triggers suppressed
+        }
+        // A widget for a newer BarShelf would render "—" or fail somewhere
+        // obscure; it says what to update instead, and does not run.
+        if let reason = widget.manifest.incompatibility(hostVersion: Self.hostVersion) {
+            if snapshots[id]?.error != reason { updateSnapshot(id) { $0.error = reason } }
+            return
         }
         // Permission enforcement: nothing runs until the user approved the
         // widget's current permission set (approval card shown instead).

@@ -23,6 +23,21 @@ public struct Manifest: Codable, Equatable {
     /// R12: author-provided default theming. Lenient decode (invalid values →
     /// nil fields, never a decode failure) via `WidgetAppearance`.
     public var appearance: WidgetAppearance?
+    /// The oldest BarShelf this widget runs on, e.g. `"0.3.11"` — for a
+    /// widget that uses an expression function or a source field that
+    /// version introduced. A host that is too old refuses it and says what
+    /// to update, rather than failing with "unknown function"; a host from
+    /// before this field existed ignores it.
+    public var minHostVersion: String?
+
+    /// Why this widget cannot run on `hostVersion`, or nil when it can. A
+    /// nil host version is a development build, which runs everything.
+    public func incompatibility(hostVersion: String?) -> String? {
+        guard let required = minHostVersion?.trimmingCharacters(in: .whitespaces), !required.isEmpty,
+              let hostVersion, SemanticVersionOrder.isNewer(required, than: hostVersion)
+        else { return nil }
+        return "Needs BarShelf \(required) or later (this is \(hostVersion)). Update BarShelf to use it."
+    }
 
     public init(
         schemaVersion: Int,
@@ -36,8 +51,10 @@ public struct Manifest: Codable, Equatable {
         statusItem: StatusItem? = nil,
         permissions: Permissions? = nil,
         settings: [Setting]? = nil,
-        appearance: WidgetAppearance? = nil
+        appearance: WidgetAppearance? = nil,
+        minHostVersion: String? = nil
     ) {
+        self.minHostVersion = minHostVersion
         self.schemaVersion = schemaVersion
         self.id = id
         self.name = name

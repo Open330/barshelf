@@ -23,19 +23,19 @@
     },
     "number1": {
       "use": "assign",
-      "from": "if(eq(transforms.sel1,'cpuUser'), sources.data.cpu.user, if(eq(transforms.sel1,'cpuSystem'), sources.data.cpu.system, if(eq(transforms.sel1,'cpuCore'), sources.data.cpu.coreMax, if(eq(transforms.sel1,'memory'), if(eq(settings.menuBarMemoryDisplay,'used'), sources.data.memory.used, if(eq(settings.menuBarMemoryDisplay,'available'), sources.data.memory.free, sources.data.memory.usage)), if(eq(transforms.sel1,'pressure'), null, if(eq(transforms.sel1,'swap'), sources.data.memory.swap.used, if(eq(transforms.sel1,'disk'), sources.data.disk.usage, if(eq(transforms.sel1,'diskFree'), sources.data.disk.free, if(eq(transforms.sel1,'diskRead'), sources.data.disk.read, if(eq(transforms.sel1,'diskWrite'), sources.data.disk.write, if(eq(transforms.sel1,'none'), null, sources.data.cpu.usage)))))))))))"
+      "from": "switch(transforms.sel1, 'cpuUser', sources.data.cpu.user, 'cpuSystem', sources.data.cpu.system, 'cpuCore', sources.data.cpu.coreMax, 'memory', switch(settings.menuBarMemoryDisplay, 'used', sources.data.memory.used, 'available', sources.data.memory.free, sources.data.memory.usage), 'pressure', null, 'swap', sources.data.memory.swap.used, 'disk', sources.data.disk.usage, 'diskFree', sources.data.disk.free, 'diskRead', sources.data.disk.read, 'diskWrite', sources.data.disk.write, 'none', null, sources.data.cpu.usage)"
     },
     "format1": {
       "use": "assign",
-      "from": "if(eq(transforms.sel1,'cpuUser'), 'percent', if(eq(transforms.sel1,'cpuSystem'), 'percent', if(eq(transforms.sel1,'cpuCore'), 'percent', if(eq(transforms.sel1,'memory'), if(or(eq(settings.menuBarMemoryDisplay,'used'), eq(settings.menuBarMemoryDisplay,'available')), 'bytes', 'percent'), if(eq(transforms.sel1,'pressure'), '', if(eq(transforms.sel1,'swap'), 'bytes', if(eq(transforms.sel1,'disk'), 'percent', if(eq(transforms.sel1,'diskFree'), 'bytes', if(eq(transforms.sel1,'diskRead'), 'bytesPerSecond', if(eq(transforms.sel1,'diskWrite'), 'bytesPerSecond', if(eq(transforms.sel1,'none'), '', 'percent')))))))))))"
+      "from": "switch(transforms.sel1, 'memory', if(or(eq(settings.menuBarMemoryDisplay,'used'), eq(settings.menuBarMemoryDisplay,'available')), 'bytes', 'percent'), 'pressure', '', 'swap', 'bytes', 'diskFree', 'bytes', 'diskRead', 'bytesPerSecond', 'diskWrite', 'bytesPerSecond', 'none', '', 'percent')"
     },
     "prefix1": {
       "use": "assign",
-      "from": "if(eq(transforms.sel1,'cpuUser'), 'User', if(eq(transforms.sel1,'cpuSystem'), 'Sys', if(eq(transforms.sel1,'cpuCore'), 'Core', if(eq(transforms.sel1,'memory'), 'RAM', if(eq(transforms.sel1,'pressure'), 'RAM', if(eq(transforms.sel1,'swap'), 'Swap', if(eq(transforms.sel1,'disk'), 'Disk', if(eq(transforms.sel1,'diskFree'), 'Free', if(eq(transforms.sel1,'diskRead'), 'Read', if(eq(transforms.sel1,'diskWrite'), 'Write', if(eq(transforms.sel1,'none'), '', 'CPU')))))))))))"
+      "from": "switch(transforms.sel1, 'cpuUser', 'User', 'cpuSystem', 'Sys', 'cpuCore', 'Core', 'memory', 'RAM', 'pressure', 'RAM', 'swap', 'Swap', 'disk', 'Disk', 'diskFree', 'Free', 'diskRead', 'Read', 'diskWrite', 'Write', 'none', '', 'CPU')"
     },
     "label1": {
       "use": "assign",
-      "from": "if(eq(transforms.sel1,'cpuUser'), 'CPU user', if(eq(transforms.sel1,'cpuSystem'), 'CPU system', if(eq(transforms.sel1,'cpuCore'), 'Busiest core', if(eq(transforms.sel1,'memory'), 'Memory', if(eq(transforms.sel1,'pressure'), 'Memory pressure', if(eq(transforms.sel1,'swap'), 'Swap used', if(eq(transforms.sel1,'disk'), 'Disk', if(eq(transforms.sel1,'diskFree'), 'Disk free', if(eq(transforms.sel1,'diskRead'), 'Disk read', if(eq(transforms.sel1,'diskWrite'), 'Disk write', if(eq(transforms.sel1,'none'), '', 'CPU')))))))))))"
+      "from": "switch(transforms.sel1, 'cpuUser', 'CPU user', 'cpuSystem', 'CPU system', 'cpuCore', 'Busiest core', 'memory', 'Memory', 'pressure', 'Memory pressure', 'swap', 'Swap used', 'disk', 'Disk', 'diskFree', 'Disk free', 'diskRead', 'Disk read', 'diskWrite', 'Disk write', 'none', '', 'CPU')"
     },
     "precision1": {
       "use": "assign",
@@ -47,11 +47,15 @@
     },
     "text1": {
       "use": "assign",
-      "from": "if(transforms.isText1, if(eq(sources.data.memory.pressure,'critical'), 'Critical', if(eq(sources.data.memory.pressure,'warning'), 'Warning', if(eq(sources.data.memory.pressure,'normal'), 'Normal', '—'))), if(eq(transforms.number1, null), '—', if(eq(transforms.format1,'percent'), concat(string(round(number(transforms.number1), 0)), '%'), if(eq(transforms.format1,'bytesPerSecond'), if(lt(number(transforms.number1), 1000000), concat(string(round(div(number(transforms.number1), 1000), 0)), ' kB/s'), concat(string(round(div(number(transforms.number1), 1000000), 1)), ' MB/s')), if(gte(number(transforms.number1), 1000000000000), concat(string(round(div(number(transforms.number1), 1000000000000), 1)), ' TB'), concat(string(round(div(number(transforms.number1), 1000000000), transforms.precision1)), ' GB'))))))"
+      "from": "if(transforms.isText1, switch(sources.data.memory.pressure, 'critical', 'Critical', 'warning', 'Warning', 'normal', 'Normal', '—'), if(eq(transforms.number1, null), '—', if(eq(transforms.format1,'percent'), concat(string(round(number(transforms.number1), 0)), '%'), if(eq(transforms.format1,'bytesPerSecond'), if(lt(number(transforms.number1), 1000000), concat(string(round(div(number(transforms.number1), 1000), 0)), ' kB/s'), concat(string(round(div(number(transforms.number1), 1000000), 1)), ' MB/s')), if(gte(number(transforms.number1), 1000000000000), concat(string(round(div(number(transforms.number1), 1000000000000), 1)), ' TB'), concat(string(round(div(number(transforms.number1), 1000000000), transforms.precision1)), ' GB'))))))"
+    },
+    "tintBasis1": {
+      "use": "assign",
+      "from": "number(coalesce(switch(transforms.sel1, 'cpuUser', null, 'cpuSystem', null, 'cpuCore', null, 'memory', sources.data.memory.usage, 'pressure', null, 'swap', null, 'disk', sources.data.disk.usage, 'diskFree', sources.data.disk.usage, 'diskRead', null, 'diskWrite', null, 'none', null, sources.data.cpu.usage), 0))"
     },
     "tint1": {
       "use": "assign",
-      "from": "if(transforms.isText1, if(eq(sources.data.memory.pressure,'critical'), 'danger', if(eq(sources.data.memory.pressure,'warning'), 'warning', '')), if(gt(number(coalesce(if(eq(transforms.sel1,'cpuUser'), null, if(eq(transforms.sel1,'cpuSystem'), null, if(eq(transforms.sel1,'cpuCore'), null, if(eq(transforms.sel1,'memory'), sources.data.memory.usage, if(eq(transforms.sel1,'pressure'), null, if(eq(transforms.sel1,'swap'), null, if(eq(transforms.sel1,'disk'), sources.data.disk.usage, if(eq(transforms.sel1,'diskFree'), sources.data.disk.usage, if(eq(transforms.sel1,'diskRead'), null, if(eq(transforms.sel1,'diskWrite'), null, if(eq(transforms.sel1,'none'), null, sources.data.cpu.usage))))))))))), 0)), 90), 'danger', if(gt(number(coalesce(if(eq(transforms.sel1,'cpuUser'), null, if(eq(transforms.sel1,'cpuSystem'), null, if(eq(transforms.sel1,'cpuCore'), null, if(eq(transforms.sel1,'memory'), sources.data.memory.usage, if(eq(transforms.sel1,'pressure'), null, if(eq(transforms.sel1,'swap'), null, if(eq(transforms.sel1,'disk'), sources.data.disk.usage, if(eq(transforms.sel1,'diskFree'), sources.data.disk.usage, if(eq(transforms.sel1,'diskRead'), null, if(eq(transforms.sel1,'diskWrite'), null, if(eq(transforms.sel1,'none'), null, sources.data.cpu.usage))))))))))), 0)), 75), 'warning', '')))"
+      "from": "if(transforms.isText1, switch(sources.data.memory.pressure, 'critical', 'danger', 'warning', 'warning', ''), if(gt(transforms.tintBasis1, 90), 'danger', if(gt(transforms.tintBasis1, 75), 'warning', '')))"
     },
     "sel2": {
       "use": "assign",
@@ -59,19 +63,19 @@
     },
     "number2": {
       "use": "assign",
-      "from": "if(eq(transforms.sel2,'cpuUser'), sources.data.cpu.user, if(eq(transforms.sel2,'cpuSystem'), sources.data.cpu.system, if(eq(transforms.sel2,'cpuCore'), sources.data.cpu.coreMax, if(eq(transforms.sel2,'memory'), if(eq(settings.menuBarMemoryDisplay,'used'), sources.data.memory.used, if(eq(settings.menuBarMemoryDisplay,'available'), sources.data.memory.free, sources.data.memory.usage)), if(eq(transforms.sel2,'pressure'), null, if(eq(transforms.sel2,'swap'), sources.data.memory.swap.used, if(eq(transforms.sel2,'disk'), sources.data.disk.usage, if(eq(transforms.sel2,'diskFree'), sources.data.disk.free, if(eq(transforms.sel2,'diskRead'), sources.data.disk.read, if(eq(transforms.sel2,'diskWrite'), sources.data.disk.write, if(eq(transforms.sel2,'none'), null, sources.data.cpu.usage)))))))))))"
+      "from": "switch(transforms.sel2, 'cpuUser', sources.data.cpu.user, 'cpuSystem', sources.data.cpu.system, 'cpuCore', sources.data.cpu.coreMax, 'memory', switch(settings.menuBarMemoryDisplay, 'used', sources.data.memory.used, 'available', sources.data.memory.free, sources.data.memory.usage), 'pressure', null, 'swap', sources.data.memory.swap.used, 'disk', sources.data.disk.usage, 'diskFree', sources.data.disk.free, 'diskRead', sources.data.disk.read, 'diskWrite', sources.data.disk.write, 'none', null, sources.data.cpu.usage)"
     },
     "format2": {
       "use": "assign",
-      "from": "if(eq(transforms.sel2,'cpuUser'), 'percent', if(eq(transforms.sel2,'cpuSystem'), 'percent', if(eq(transforms.sel2,'cpuCore'), 'percent', if(eq(transforms.sel2,'memory'), if(or(eq(settings.menuBarMemoryDisplay,'used'), eq(settings.menuBarMemoryDisplay,'available')), 'bytes', 'percent'), if(eq(transforms.sel2,'pressure'), '', if(eq(transforms.sel2,'swap'), 'bytes', if(eq(transforms.sel2,'disk'), 'percent', if(eq(transforms.sel2,'diskFree'), 'bytes', if(eq(transforms.sel2,'diskRead'), 'bytesPerSecond', if(eq(transforms.sel2,'diskWrite'), 'bytesPerSecond', if(eq(transforms.sel2,'none'), '', 'percent')))))))))))"
+      "from": "switch(transforms.sel2, 'memory', if(or(eq(settings.menuBarMemoryDisplay,'used'), eq(settings.menuBarMemoryDisplay,'available')), 'bytes', 'percent'), 'pressure', '', 'swap', 'bytes', 'diskFree', 'bytes', 'diskRead', 'bytesPerSecond', 'diskWrite', 'bytesPerSecond', 'none', '', 'percent')"
     },
     "prefix2": {
       "use": "assign",
-      "from": "if(eq(transforms.sel2,'cpuUser'), 'User', if(eq(transforms.sel2,'cpuSystem'), 'Sys', if(eq(transforms.sel2,'cpuCore'), 'Core', if(eq(transforms.sel2,'memory'), 'RAM', if(eq(transforms.sel2,'pressure'), 'RAM', if(eq(transforms.sel2,'swap'), 'Swap', if(eq(transforms.sel2,'disk'), 'Disk', if(eq(transforms.sel2,'diskFree'), 'Free', if(eq(transforms.sel2,'diskRead'), 'Read', if(eq(transforms.sel2,'diskWrite'), 'Write', if(eq(transforms.sel2,'none'), '', 'CPU')))))))))))"
+      "from": "switch(transforms.sel2, 'cpuUser', 'User', 'cpuSystem', 'Sys', 'cpuCore', 'Core', 'memory', 'RAM', 'pressure', 'RAM', 'swap', 'Swap', 'disk', 'Disk', 'diskFree', 'Free', 'diskRead', 'Read', 'diskWrite', 'Write', 'none', '', 'CPU')"
     },
     "label2": {
       "use": "assign",
-      "from": "if(eq(transforms.sel2,'cpuUser'), 'CPU user', if(eq(transforms.sel2,'cpuSystem'), 'CPU system', if(eq(transforms.sel2,'cpuCore'), 'Busiest core', if(eq(transforms.sel2,'memory'), 'Memory', if(eq(transforms.sel2,'pressure'), 'Memory pressure', if(eq(transforms.sel2,'swap'), 'Swap used', if(eq(transforms.sel2,'disk'), 'Disk', if(eq(transforms.sel2,'diskFree'), 'Disk free', if(eq(transforms.sel2,'diskRead'), 'Disk read', if(eq(transforms.sel2,'diskWrite'), 'Disk write', if(eq(transforms.sel2,'none'), '', 'CPU')))))))))))"
+      "from": "switch(transforms.sel2, 'cpuUser', 'CPU user', 'cpuSystem', 'CPU system', 'cpuCore', 'Busiest core', 'memory', 'Memory', 'pressure', 'Memory pressure', 'swap', 'Swap used', 'disk', 'Disk', 'diskFree', 'Disk free', 'diskRead', 'Disk read', 'diskWrite', 'Disk write', 'none', '', 'CPU')"
     },
     "precision2": {
       "use": "assign",
@@ -83,11 +87,15 @@
     },
     "text2": {
       "use": "assign",
-      "from": "if(transforms.isText2, if(eq(sources.data.memory.pressure,'critical'), 'Critical', if(eq(sources.data.memory.pressure,'warning'), 'Warning', if(eq(sources.data.memory.pressure,'normal'), 'Normal', '—'))), if(eq(transforms.number2, null), '—', if(eq(transforms.format2,'percent'), concat(string(round(number(transforms.number2), 0)), '%'), if(eq(transforms.format2,'bytesPerSecond'), if(lt(number(transforms.number2), 1000000), concat(string(round(div(number(transforms.number2), 1000), 0)), ' kB/s'), concat(string(round(div(number(transforms.number2), 1000000), 1)), ' MB/s')), if(gte(number(transforms.number2), 1000000000000), concat(string(round(div(number(transforms.number2), 1000000000000), 1)), ' TB'), concat(string(round(div(number(transforms.number2), 1000000000), transforms.precision2)), ' GB'))))))"
+      "from": "if(transforms.isText2, switch(sources.data.memory.pressure, 'critical', 'Critical', 'warning', 'Warning', 'normal', 'Normal', '—'), if(eq(transforms.number2, null), '—', if(eq(transforms.format2,'percent'), concat(string(round(number(transforms.number2), 0)), '%'), if(eq(transforms.format2,'bytesPerSecond'), if(lt(number(transforms.number2), 1000000), concat(string(round(div(number(transforms.number2), 1000), 0)), ' kB/s'), concat(string(round(div(number(transforms.number2), 1000000), 1)), ' MB/s')), if(gte(number(transforms.number2), 1000000000000), concat(string(round(div(number(transforms.number2), 1000000000000), 1)), ' TB'), concat(string(round(div(number(transforms.number2), 1000000000), transforms.precision2)), ' GB'))))))"
+    },
+    "tintBasis2": {
+      "use": "assign",
+      "from": "number(coalesce(switch(transforms.sel2, 'cpuUser', null, 'cpuSystem', null, 'cpuCore', null, 'memory', sources.data.memory.usage, 'pressure', null, 'swap', null, 'disk', sources.data.disk.usage, 'diskFree', sources.data.disk.usage, 'diskRead', null, 'diskWrite', null, 'none', null, sources.data.cpu.usage), 0))"
     },
     "tint2": {
       "use": "assign",
-      "from": "if(transforms.isText2, if(eq(sources.data.memory.pressure,'critical'), 'danger', if(eq(sources.data.memory.pressure,'warning'), 'warning', '')), if(gt(number(coalesce(if(eq(transforms.sel2,'cpuUser'), null, if(eq(transforms.sel2,'cpuSystem'), null, if(eq(transforms.sel2,'cpuCore'), null, if(eq(transforms.sel2,'memory'), sources.data.memory.usage, if(eq(transforms.sel2,'pressure'), null, if(eq(transforms.sel2,'swap'), null, if(eq(transforms.sel2,'disk'), sources.data.disk.usage, if(eq(transforms.sel2,'diskFree'), sources.data.disk.usage, if(eq(transforms.sel2,'diskRead'), null, if(eq(transforms.sel2,'diskWrite'), null, if(eq(transforms.sel2,'none'), null, sources.data.cpu.usage))))))))))), 0)), 90), 'danger', if(gt(number(coalesce(if(eq(transforms.sel2,'cpuUser'), null, if(eq(transforms.sel2,'cpuSystem'), null, if(eq(transforms.sel2,'cpuCore'), null, if(eq(transforms.sel2,'memory'), sources.data.memory.usage, if(eq(transforms.sel2,'pressure'), null, if(eq(transforms.sel2,'swap'), null, if(eq(transforms.sel2,'disk'), sources.data.disk.usage, if(eq(transforms.sel2,'diskFree'), sources.data.disk.usage, if(eq(transforms.sel2,'diskRead'), null, if(eq(transforms.sel2,'diskWrite'), null, if(eq(transforms.sel2,'none'), null, sources.data.cpu.usage))))))))))), 0)), 75), 'warning', '')))"
+      "from": "if(transforms.isText2, switch(sources.data.memory.pressure, 'critical', 'danger', 'warning', 'warning', ''), if(gt(transforms.tintBasis2, 90), 'danger', if(gt(transforms.tintBasis2, 75), 'warning', '')))"
     },
     "hasSecond": {
       "use": "assign",

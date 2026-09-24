@@ -45,7 +45,7 @@ final class HeadlessInstallerTests: XCTestCase {
         // Install end-to-end from the directory.
         let installedRoot = workDir.appendingPathComponent("installed", isDirectory: true)
         let candidates = try await HeadlessInstaller.fetchCandidates(from: URL(fileURLWithPath: widgetDir.path))
-        let dest = try HeadlessInstaller.install(candidates[0], into: installedRoot)
+        let dest = try HeadlessInstaller.install(candidates[0], into: installedRoot, hostVersion: nil)
         XCTAssertTrue(FileManager.default.fileExists(atPath: dest.appendingPathComponent("widget.json").path))
     }
 
@@ -61,7 +61,7 @@ final class HeadlessInstallerTests: XCTestCase {
         XCTAssertEqual(candidate.permissionSummary, ["exec: ./widget.sh"])
 
         let widgetsDir = workDir.appendingPathComponent("widgets", isDirectory: true)
-        let installed = try HeadlessInstaller.install(candidate, into: widgetsDir)
+        let installed = try HeadlessInstaller.install(candidate, into: widgetsDir, hostVersion: nil)
         XCTAssertEqual(installed.lastPathComponent, "local-widget")
         XCTAssertTrue(FileManager.default.fileExists(
             atPath: installed.appendingPathComponent("widget.json").path
@@ -108,7 +108,7 @@ final class HeadlessInstallerTests: XCTestCase {
 
         let first = try await HeadlessInstaller.fetchCandidates(from: archiveURL)
         let installed = try HeadlessInstaller.install(
-            try XCTUnwrap(first.first), into: widgetsDir
+            try XCTUnwrap(first.first), into: widgetsDir, hostVersion: nil
         )
         // Leftover from the "old" install must not survive an update.
         let leftover = installed.appendingPathComponent("stale-file.txt")
@@ -116,7 +116,7 @@ final class HeadlessInstallerTests: XCTestCase {
 
         let second = try await HeadlessInstaller.fetchCandidates(from: archiveURL)
         let reinstalled = try HeadlessInstaller.install(
-            try XCTUnwrap(second.first), into: widgetsDir
+            try XCTUnwrap(second.first), into: widgetsDir, hostVersion: nil
         )
         XCTAssertEqual(installed, reinstalled)
         XCTAssertFalse(FileManager.default.fileExists(atPath: leftover.path))
@@ -138,7 +138,7 @@ final class HeadlessInstallerTests: XCTestCase {
             manifest: manifest, sourceDirectory: missingSource, permissionSummary: []
         )
 
-        XCTAssertThrowsError(try HeadlessInstaller.install(candidate, into: widgetsDir))
+        XCTAssertThrowsError(try HeadlessInstaller.install(candidate, into: widgetsDir, hostVersion: nil))
         XCTAssertEqual(try String(contentsOf: marker), "still here")
     }
 
@@ -201,5 +201,28 @@ final class HeadlessInstallerTests: XCTestCase {
         let widgetDir = widgetsDir.appendingPathComponent("list-widget", isDirectory: true)
         try WidgetScaffold.create(name: "list-widget", kind: .exec, at: widgetDir)
         XCTAssertEqual(BarShelfMain.listWidgets(in: widgetsDir), 0)
+    }
+}
+
+final class HostVersionInstallTests: XCTestCase {
+    /// Every install path goes through `HeadlessInstaller.install`, so the
+    /// check there covers the app, `barshelf-app install` and the CLI alike.
+    func testAWidgetForANewerBarShelfIsRefused() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("hostver-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = root.appendingPathComponent("src", isDirectory: true)
+        try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+        try Data(#"{"schemaVersion":1,"id":"future","name":"Future","minHostVersion":"9.0.0","entry":{"kind":"workflow","main":"workflow.json"}}"#.utf8)
+            .write(to: source.appendingPathComponent("widget.json"))
+        let manifest = try JSONDecoder().decode(Manifest.self, from: Data(contentsOf: source.appendingPathComponent("widget.json")))
+        let candidate = InstallCandidate(manifest: manifest, sourceDirectory: source, permissionSummary: [])
+        let widgets = root.appendingPathComponent("widgets", isDirectory: true)
+        XCTAssertThrowsError(try HeadlessInstaller.install(candidate, into: widgets, hostVersion: "0.3.11")) { error in
+            XCTAssertEqual(error as? HeadlessInstallError,
+                           .needsNewerHost("Needs BarShelf 9.0.0 or later (this is 0.3.11). Update BarShelf to use it."))
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: widgets.appendingPathComponent("future").path))
+        XCTAssertNoThrow(try HeadlessInstaller.install(candidate, into: widgets, hostVersion: nil),
+                         "a development build installs anything")
     }
 }

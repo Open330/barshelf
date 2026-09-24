@@ -737,6 +737,23 @@ public enum WorkflowEngine {
                     return value
                 }
                 return .null
+            case "switch":
+                // switch(value, case1, result1, case2, result2, …, fallback):
+                // the result paired with the first case equal to value, else
+                // the fallback (null when the count is even). Only the value,
+                // the cases up to the match, and the chosen result are
+                // evaluated — a setting that picks one of a dozen readings
+                // reads as one call rather than a dozen nested ifs.
+                guard let first = args.first else { return .null }
+                let value = try evaluateExpression(first)
+                var index = 1
+                while index + 1 < args.count {
+                    if try evaluateExpression(args[index]) == value {
+                        return try evaluateExpression(args[index + 1])
+                    }
+                    index += 2
+                }
+                return index < args.count ? try evaluateExpression(args[index]) : .null
             case "default":
                 guard let first = args.first else { return .null }
                 let value = try evaluateExpression(first)
@@ -827,6 +844,24 @@ public enum WorkflowEngine {
                 // around `${…}`, but not within a branch of `if(…)`, which is
                 // what a conditional unit ("45 °C" vs "—") needs.
                 return .string(args.map(\.stringified).joined())
+            case "get":
+                // get(object, key): a field chosen at run time, which a path
+                // cannot express — get(sources.data.sensors, settings.pick).
+                // A number indexes an array. Missing is null, never an error.
+                guard args.count >= 2 else { return .null }
+                switch (args[0], args[1]) {
+                case let (.object(object), key):
+                    return object[key.stringified] ?? .null
+                case let (.array(items), .number(n))
+                    where n.isFinite && n >= 0 && n < Double(items.count) && n == n.rounded():
+                    // A fractional index is missing, as "1.7" is as a string.
+                    return items[Int(n)]
+                case let (.array(items), .string(text)):
+                    guard let n = Int(text), n >= 0, n < items.count else { return .null }
+                    return items[n]
+                default:
+                    return .null
+                }
             case "text.truncate":
                 guard let text = args.first?.stringValue else { return .string("") }
                 let limit = Self.clampedInt(args.dropFirst().first?.numberValue ?? 0)

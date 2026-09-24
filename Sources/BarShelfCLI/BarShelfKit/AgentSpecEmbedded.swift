@@ -641,7 +641,14 @@ Workflow sources: `use` is `"exec"`, `"fs.directory"`, `"http"`, `"system"`, or
 into `${...}` expressions in `transforms`/`view`: reference source output as
 `$.sources.<id>.<path>`, transforms as `transforms.<id>`, settings as
 `settings.<key>`. Built-in expression functions: `string`, `concat`, `now`, `count`,
-`coalesce`, `date.relative`, `file.basename`, `file.extension`, `text.truncate`.
+`coalesce`, `date.relative`, `file.basename`, `file.extension`, `text.truncate`,
+`if`, `and`, `or`, `not`, comparisons and arithmetic, plus (BarShelf 0.3.11+)
+`switch(value, case1, result1, …, fallback)` — pick one of many readings by a
+setting without nesting ifs — and `get(object, key)` for a key chosen at run
+time. A widget using those declares `"minHostVersion": "0.3.11"` in
+`widget.json`, so a BarShelf that is too old refuses it with "update BarShelf"
+instead of failing with an "unknown function" error card. (Hosts before 0.3.11
+do not know the field, so it protects from 0.3.11 on.)
 Built-in transforms (`use`): `assign`, `limit`, `filter`, `sort`. Repeat with
 `{ "forEach": "$.transforms.x", "as": "item", "template": { … "${item.field}" … } }`.
 Provide an `"empty"` node for the zero-items case.

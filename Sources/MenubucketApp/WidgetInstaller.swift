@@ -191,7 +191,8 @@ enum WidgetInstallFlow {
     static func install(candidate: WidgetDiscovery.Candidate) throws -> Bool {
         let isUpdate = isInstalled(id: candidate.manifest.id)
         try HeadlessInstaller.install(
-            InstallCandidate(candidate), into: widgetsInstallDirectory
+            InstallCandidate(candidate), into: widgetsInstallDirectory,
+            hostVersion: WidgetRuntime.hostVersion
         )
         return isUpdate
     }

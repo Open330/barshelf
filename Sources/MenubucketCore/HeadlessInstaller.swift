@@ -393,10 +393,17 @@ public enum HeadlessInstaller {
     /// Stages a complete candidate beside the live install, then swaps it in.
     /// Copy/validation failures therefore leave the previous widget intact.
     @discardableResult
+    /// `hostVersion` is the BarShelf that will run the widget; one that needs
+    /// a newer BarShelf is refused (`needsNewerHost`). Every install path goes
+    /// through here, so none can skip the check. nil (a development build, or
+    /// no app to ask) installs anything.
     public static func install(
-        _ candidate: InstallCandidate, into widgetsDir: URL
+        _ candidate: InstallCandidate, into widgetsDir: URL, hostVersion: String?
     ) throws -> URL {
-        try installDirectory(
+        if let reason = candidate.manifest.incompatibility(hostVersion: hostVersion) {
+            throw HeadlessInstallError.needsNewerHost(reason)
+        }
+        return try installDirectory(
             from: candidate.sourceDirectory,
             to: widgetsDir.appendingPathComponent(
                 candidate.manifest.id, isDirectory: true
@@ -569,9 +576,12 @@ public enum HeadlessInstallError: Error, LocalizedError, Equatable {
     case httpStatus(Int, URL)
     case downloadTooLarge(limitBytes: Int)
     case noWidgetsFound(details: [String])
+    case needsNewerHost(String)
 
     public var errorDescription: String? {
         switch self {
+        case let .needsNewerHost(reason):
+            return reason
         case .noDownloadCandidates:
             return "no download URL could be derived from the input"
         case let .notHTTP(url):
