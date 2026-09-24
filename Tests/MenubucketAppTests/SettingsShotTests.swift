@@ -26,11 +26,9 @@ final class SettingsShotTests: XCTestCase {
         WidgetSettingsView.scrollMaxHeight = 2000
         defer {
             WidgetSettingsView.scrollMaxHeight = 420
-            WidgetSettingsView.initialMenuBarTab = .look
         }
         for tab in MenuBarSettingsTab.allCases {
-            WidgetSettingsView.initialMenuBarTab = tab
-            let view = WidgetSettingsView(widget: widget, runtime: runtime)
+            let view = WidgetSettingsView(widget: widget, runtime: runtime, initialTab: tab)
                 .frame(width: 420)
                 .background(Color(nsColor: .windowBackgroundColor))
             let hosting = NSHostingView(rootView: view)

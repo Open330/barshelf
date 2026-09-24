@@ -15,9 +15,10 @@ struct WidgetSettingsView: View {
     @ObservedObject private var appPrefs: AppPrefs
     @Environment(\.dismiss) private var dismiss
 
-    init(widget: LoadedWidget, runtime: WidgetRuntime) {
+    init(widget: LoadedWidget, runtime: WidgetRuntime, initialTab: MenuBarSettingsTab = .look) {
         self.widget = widget
         self.runtime = runtime
+        _menuBarTab = State(initialValue: initialTab)
         _appPrefs = ObservedObject(wrappedValue: runtime.appPrefs)
     }
 
@@ -31,10 +32,7 @@ struct WidgetSettingsView: View {
     /// that was changed elsewhere (App Settings' "Use These for All") while
     /// this pane never touched it.
     @State private var menuBarLoaded = MenuBarPlacement(enabled: false)
-    @State private var menuBarTab: MenuBarSettingsTab = WidgetSettingsView.initialMenuBarTab
-    /// The tab a pane opens on. A variable only so the screenshot test can
-    /// render each one.
-    static var initialMenuBarTab: MenuBarSettingsTab = .look
+    @State private var menuBarTab: MenuBarSettingsTab
     /// This Mac's sensors, for a setting with `optionsSource: system.sensors`.
     @State private var sensorOptions: [SensorReading] = []
     /// Whether the click target resolves; nil with no target.
@@ -302,13 +300,14 @@ struct WidgetSettingsView: View {
     /// way to tell which question either pair answered.
     private var menuBarControls: some View {
         VStack(alignment: .leading, spacing: 10) {
-            // Fifteen rows in one column had become a wall; three questions —
+            // Fourteen rows in one column had become a wall; three questions —
             // how it looks, what it reads, what it does — each get a tab.
             Picker("", selection: $menuBarTab) {
                 ForEach(MenuBarSettingsTab.allCases, id: \.self) { Text($0.title).tag($0) }
             }
             .pickerStyle(.segmented)
             .labelsHidden()
+            .accessibilityLabel("Menu bar settings")
             .frame(width: 260)
 
             Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 8, verticalSpacing: 10) {
@@ -462,7 +461,11 @@ struct WidgetSettingsView: View {
                     }
 
                 case .readings:
-                    if !thresholdMetrics.isEmpty || menuBarDraft.presentation?.hasThresholds == true
+                    // Computed once per render; each resolves the whole
+                    // presentation.
+                    let judged = thresholdMetrics
+                    let rows = editableMetricRows
+                    if !judged.isEmpty || menuBarDraft.presentation?.hasThresholds == true
                         || menuBarDraft.presentation?.showWhen != nil {
                         GridRow {
                             settingsRowLabel("Alerts")
@@ -470,18 +473,28 @@ struct WidgetSettingsView: View {
                         }
                     }
 
-                    if !editableMetricRows.isEmpty {
+                    if !rows.isEmpty {
                         GridRow {
                             settingsRowLabel("Metrics")
                             metricPresentationControls
                         }
                     }
 
-                    if thresholdMetrics.isEmpty, editableMetricRows.isEmpty,
-                       menuBarDraft.presentation?.hasThresholds != true {
+                    if judged.isEmpty, rows.isEmpty,
+                       menuBarDraft.presentation?.hasThresholds != true,
+                       menuBarDraft.presentation?.showWhen == nil {
                         GridRow {
                             settingsRowLabel("")
-                            settingsHint("This widget has no numeric readings to set alerts or row options for.")
+                            // No snapshot is "not yet", not "never".
+                            settingsHint(runtime.snapshots[widget.id]?.statusMetrics == nil
+                                ? "No reading yet. Once the widget refreshes, its alerts and rows can be set here."
+                                : "This widget has no numeric readings to set alerts or row options for.")
+                        }
+                    }
+                    if !rows.isEmpty, effectiveStyle != .metrics {
+                        GridRow {
+                            settingsRowLabel("")
+                            settingsHint("Per-row labels, colours and order appear with the Two metric rows layout, on the Look tab.")
                         }
                     }
                 case .behavior:
@@ -507,13 +520,12 @@ struct WidgetSettingsView: View {
                     }
 
                 }
-                if menuBarDraft.presentation != nil {
+                // Resets only what this tab shows: a button on Behavior must
+                // not quietly wipe the graph and alerts set on the others.
+                if tabHasChoices(menuBarTab) {
                     GridRow {
-                        settingsRowLabel("Presentation")
-                        Button("Reset menu presentation") {
-                            menuBarDraft.presentation = nil
-                            syncAlertTexts()
-                        }
+                        settingsRowLabel("")
+                        Button("Reset \(menuBarTab.title)") { resetTab(menuBarTab) }
                             .controlSize(.small)
                     }
                 }
@@ -1267,6 +1279,7 @@ struct WidgetSettingsView: View {
         let others = runtime.menuBarCandidates.filter { other in
             other.id != widget.id && runtime.prefs.menuBarPlacements[other.id] != nil
         }
+        VStack(alignment: .leading, spacing: 4) {
         HStack(spacing: 8) {
             Menu("Apply Preset") {
                 ForEach(MenuBarPresentation.presets, id: \.name) { preset in
@@ -1291,6 +1304,47 @@ struct WidgetSettingsView: View {
             .disabled(others.isEmpty)
         }
         .controlSize(.small)
+        // Presets and copies reach past this tab: Minimal hides units, and a
+        // copy takes the other item's unit setting.
+        settingsHint("Can also change units, on the Readings tab.")
+        }
+    }
+
+    /// The draft with what `tab` sets cleared back to the widget's own.
+    private func resetting(_ tab: MenuBarSettingsTab, _ placement: MenuBarPlacement) -> MenuBarPlacement {
+        var placement = placement
+        var presentation = placement.presentation ?? MenuBarPresentation()
+        switch tab {
+        case .look:
+            presentation = MenuBarPolicy.clearingGlobalStyle(presentation) ?? MenuBarPresentation()
+            presentation.chart = nil
+        case .readings:
+            presentation.showValues = nil
+            presentation.showUnits = nil
+            presentation.precision = nil
+            presentation.metricOrder = nil
+            presentation.metricOverrides = nil
+            presentation.warningAt = nil
+            presentation.dangerAt = nil
+            presentation.thresholdDirection = nil
+            presentation.showWhen = nil
+        case .behavior:
+            placement.clickAction = nil
+            placement.clickTarget = nil
+            placement.interval = nil
+        }
+        placement.presentation = presentation == MenuBarPresentation() ? nil : presentation
+        return placement
+    }
+
+    private func tabHasChoices(_ tab: MenuBarSettingsTab) -> Bool {
+        resetting(tab, menuBarDraft) != menuBarDraft
+    }
+
+    private func resetTab(_ tab: MenuBarSettingsTab) {
+        menuBarDraft = resetting(tab, menuBarDraft)
+        syncAlertTexts()
+        if tab == .behavior { clickTargetResolves = nil }
     }
 
     /// The alert fields from the draft — on open, and whenever the draft's

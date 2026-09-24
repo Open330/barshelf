@@ -26,7 +26,7 @@
 ## Settings
 
 - **A widget's menu bar settings are in three tabs** — Look, Readings and
-  Behavior — instead of fifteen rows in one column. The preview stays above
+  Behavior — instead of fourteen rows in one column. The preview stays above
   them.
 
 ## Fixes
