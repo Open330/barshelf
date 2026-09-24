@@ -13,7 +13,7 @@ APP_BUNDLE_NAME=${APP_BUNDLE_NAME:-"${APP_DISPLAY_NAME}.app"}
 BUILD_CONFIGURATION=${BUILD_CONFIGURATION:-release}
 OUTPUT_DIR=${OUTPUT_DIR:-"${PROJECT_ROOT}/dist"}
 BUNDLE_IDENTIFIER=${BUNDLE_IDENTIFIER:-com.barshelf.app}
-APP_VERSION=${APP_VERSION:-0.3.10}
+APP_VERSION=${APP_VERSION:-0.3.11}
 APP_BUILD=${APP_BUILD:-"$(date +%Y%m%d%H%M)"}
 # Provenance: which commit produced this binary. CFBundleVersion has to stay a
 # period-separated number for App Store validation, so the commit goes in its
