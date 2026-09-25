@@ -225,10 +225,13 @@ def check_widget_versions(released: str) -> list[str]:
         ["git", "diff", "--name-only", tag, "--", "widgets/"],
         cwd=ROOT, capture_output=True, text=True, check=True,
     ).stdout.split()
+    # A README is documentation, not behaviour: the app never reads it, and
+    # bumping a version for one would reinstall every copy for no change.
     names = sorted({
         pathlib.PurePosixPath(path).parts[1]
         for path in changed
         if len(pathlib.PurePosixPath(path).parts) > 2
+        and pathlib.PurePosixPath(path).name != "README.md"
     })
     if not names:
         print("ok: no widget changed since the last release")
