@@ -2,7 +2,7 @@
   "_comment": "Sample index served from this repository. install.bundled lets the packaged gallery install the starter widgets without network access. The `requires` field is a display-only gallery badge for widgets that need an external CLI/runtime. `category` is an optional curated grouping surfaced as gallery filter chips (falls back to `tags`). `screenshot` renders a preview thumbnail and `readme` links a rendered Markdown details page.",
   "schemaVersion": 1,
   "name": "barshelf official registry",
-  "updatedAt": "2026-09-22T12:10:00Z",
+  "updatedAt": "2026-09-25T13:30:00Z",
   "widgets": [
     {
       "id": "dev.barshelf.today",
@@ -30,6 +30,7 @@
       "kind": "workflow",
       "tags": ["files", "workflow", "grid", "list", "stashbar"],
       "category": "Files",
+      "readme": "https://github.com/Open330/barshelf/blob/main/widgets/recent-files-grid/README.md",
       "install": { "url": "https://github.com/jiunbae/stashbar", "bundled": "recent-files-grid" },
       "permissions": { "exec": [], "readPaths": ["~/Downloads"], "keychain": false, "notifications": false },
       "homepage": "https://github.com/jiunbae/stashbar"
@@ -61,6 +62,8 @@
       "kind": "workflow",
       "tags": ["system", "battery", "meter", "native", "workflow"],
       "category": "System",
+      "screenshot": "https://raw.githubusercontent.com/Open330/barshelf/main/assets/widget-previews/tile-battery-meter.png",
+      "readme": "https://github.com/Open330/barshelf/blob/main/widgets/battery-meter/README.md",
       "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/battery-meter", "bundled": "battery-meter" },
       "permissions": { "exec": ["/bin/sh"], "keychain": false, "notifications": false },
       "homepage": "https://github.com/Open330/barshelf"
@@ -130,6 +133,8 @@
       "kind": "workflow",
       "tags": ["developer", "ai", "codex", "quota", "workflow", "http"],
       "category": "Developer",
+      "screenshot": "https://raw.githubusercontent.com/Open330/barshelf/main/assets/widget-previews/tile-codex-reset.png",
+      "readme": "https://github.com/Open330/barshelf/blob/main/widgets/codex-reset/README.md",
       "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/codex-reset", "bundled": "codex-reset" },
       "permissions": { "exec": [], "keychain": false, "notifications": false, "network": ["www.willcodexquotareset.com"] },
       "homepage": "https://www.willcodexquotareset.com/"
@@ -145,6 +150,8 @@
       "kind": "workflow",
       "tags": ["files", "workflow", "storage", "persistence", "diff"],
       "category": "Files",
+      "screenshot": "https://raw.githubusercontent.com/Open330/barshelf/main/assets/widget-previews/tile-downloads-new.png",
+      "readme": "https://github.com/Open330/barshelf/blob/main/widgets/downloads-new/README.md",
       "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/downloads-new", "bundled": "downloads-new" },
       "permissions": { "exec": [], "readPaths": ["~/Downloads"], "keychain": false, "notifications": false },
       "homepage": "https://github.com/Open330/barshelf"
@@ -160,6 +167,8 @@
       "kind": "workflow",
       "tags": ["developer", "status", "workflow", "http"],
       "category": "Developer",
+      "screenshot": "https://raw.githubusercontent.com/Open330/barshelf/main/assets/widget-previews/tile-github-status.png",
+      "readme": "https://github.com/Open330/barshelf/blob/main/widgets/github-status/README.md",
       "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/github-status", "bundled": "github-status" },
       "permissions": { "exec": [], "keychain": false, "notifications": false, "network": ["www.githubstatus.com"] },
       "homepage": "https://www.githubstatus.com/"
@@ -175,6 +184,8 @@
       "kind": "workflow",
       "tags": ["clock", "time", "native", "workflow"],
       "category": "Demo",
+      "screenshot": "https://raw.githubusercontent.com/Open330/barshelf/main/assets/widget-previews/tile-clock.png",
+      "readme": "https://github.com/Open330/barshelf/blob/main/widgets/clock/README.md",
       "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/clock", "bundled": "clock" },
       "permissions": { "exec": ["/bin/date"], "keychain": false, "notifications": false },
       "homepage": "https://github.com/Open330/barshelf"
@@ -225,6 +236,7 @@
       "kind": "workflow",
       "tags": ["weather", "http", "native", "workflow"],
       "category": "Demo",
+      "readme": "https://github.com/Open330/barshelf/blob/main/widgets/weather/README.md",
       "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/weather", "bundled": "weather" },
       "permissions": { "exec": [], "keychain": false, "notifications": false, "network": ["api.open-meteo.com"] },
       "homepage": "https://open-meteo.com/"
@@ -240,6 +252,8 @@
       "kind": "workflow",
       "tags": ["calendar", "date", "grid", "native", "workflow"],
       "category": "Demo",
+      "screenshot": "https://raw.githubusercontent.com/Open330/barshelf/main/assets/widget-previews/tile-calendar.png",
+      "readme": "https://github.com/Open330/barshelf/blob/main/widgets/calendar/README.md",
       "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/calendar", "bundled": "calendar" },
       "permissions": { "exec": ["/bin/sh"], "keychain": false, "notifications": false },
       "homepage": "https://github.com/Open330/barshelf"
@@ -255,6 +269,8 @@
       "kind": "workflow",
       "tags": ["finance", "exchange", "http", "native"],
       "category": "Demo",
+      "screenshot": "https://raw.githubusercontent.com/Open330/barshelf/main/assets/widget-previews/tile-exchange.png",
+      "readme": "https://github.com/Open330/barshelf/blob/main/widgets/exchange/README.md",
       "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/exchange", "bundled": "exchange" },
       "permissions": { "exec": [], "keychain": false, "notifications": false, "network": ["open.er-api.com"] },
       "homepage": "https://www.exchangerate-api.com/"
@@ -270,6 +286,8 @@
       "kind": "workflow",
       "tags": ["system", "network", "ip", "activity", "native"],
       "category": "System",
+      "screenshot": "https://raw.githubusercontent.com/Open330/barshelf/main/assets/widget-previews/tile-network.png",
+      "readme": "https://github.com/Open330/barshelf/blob/main/widgets/network/README.md",
       "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/network", "bundled": "network" },
       "permissions": { "exec": [], "keychain": false, "notifications": false, "system": ["network"] },
       "homepage": "https://github.com/Open330/barshelf"
@@ -285,6 +303,8 @@
       "kind": "workflow",
       "tags": ["finance", "stock", "http", "headers", "native"],
       "category": "Demo",
+      "screenshot": "https://raw.githubusercontent.com/Open330/barshelf/main/assets/widget-previews/tile-stock.png",
+      "readme": "https://github.com/Open330/barshelf/blob/main/widgets/stock/README.md",
       "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/stock", "bundled": "stock" },
       "permissions": { "exec": [], "keychain": false, "notifications": false, "network": ["query1.finance.yahoo.com"] },
       "homepage": "https://finance.yahoo.com/"
@@ -300,6 +320,8 @@
       "kind": "workflow",
       "tags": ["media", "music", "spotify", "native"],
       "category": "Media",
+      "screenshot": "https://raw.githubusercontent.com/Open330/barshelf/main/assets/widget-previews/tile-now-playing.png",
+      "readme": "https://github.com/Open330/barshelf/blob/main/widgets/now-playing/README.md",
       "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/now-playing", "bundled": "now-playing" },
       "permissions": { "exec": ["/bin/sh"], "keychain": false, "notifications": false },
       "homepage": "https://github.com/Open330/barshelf"
@@ -315,6 +337,8 @@
       "kind": "workflow",
       "tags": ["reminders", "tasks", "native"],
       "category": "Media",
+      "screenshot": "https://raw.githubusercontent.com/Open330/barshelf/main/assets/widget-previews/tile-reminders.png",
+      "readme": "https://github.com/Open330/barshelf/blob/main/widgets/reminders/README.md",
       "install": { "url": "https://github.com/Open330/barshelf/tree/main/widgets/reminders", "bundled": "reminders" },
       "permissions": { "exec": ["/bin/sh"], "keychain": false, "notifications": false },
       "homepage": "https://github.com/Open330/barshelf"
