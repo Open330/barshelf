@@ -256,8 +256,8 @@ pre code{background:none;padding:0;color:inherit}
 .body table{border-collapse:collapse;width:100%;font-size:15px;margin:14px 0;display:block;overflow-x:auto}
 .body th,.body td{border-bottom:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
 .body th{color:var(--muted);font-weight:600}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin:18px 0 8px;align-items:start}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:10px;scroll-margin-top:80px}
+.grid{columns:3 280px;column-gap:16px;margin:18px 0 8px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:10px;scroll-margin-top:80px;break-inside:avoid;margin:0 0 16px}
 .card h3{margin:0;font-size:18px}
 .card p{margin:0;color:#2c3033;font-size:15px}
 .card .meta{color:var(--muted);font-size:13px}
