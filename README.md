@@ -88,7 +88,11 @@ scaffold a widget. Prefer the manual steps? The human install guide is right bel
 
 ## Install
 
-Grab `BarShelf-<version>-arm64.zip` from
+```bash
+brew install --cask open330/tap/barshelf
+```
+
+Or grab `BarShelf-<version>-arm64.zip` from
 **[Releases](https://github.com/Open330/barshelf/releases/latest)**, move it to
 `/Applications`, then open it normally. The current v0.3.12 asset is Developer ID
 signed, Apple-notarized, and includes a stapled ticket for offline verification.
