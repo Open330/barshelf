@@ -119,7 +119,8 @@ def is_bundled(widget: dict) -> bool:
 
 # --- Markdown ----------------------------------------------------------------
 # Widget READMEs use a small subset: headings, paragraphs, lists, tables,
-# fenced code, inline code, links and bold. Anything else renders as plain text.
+# fenced code, inline code, links, bold and italics. Anything else renders as
+# plain text.
 
 def inline(text: str, base: str) -> str:
     parts = re.split(r"(`[^`]+`)", text)
@@ -130,6 +131,7 @@ def inline(text: str, base: str) -> str:
             continue
         part = html.escape(part, quote=False)
         part = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", part)
+        part = re.sub(r"(?<![\w*])\*(?!\s)(.+?)(?<!\s)\*(?![\w*])", r"<em>\1</em>", part)
 
         def link(m: re.Match) -> str:
             href = html.unescape(m.group(2))
@@ -254,7 +256,7 @@ pre code{background:none;padding:0;color:inherit}
 .body table{border-collapse:collapse;width:100%;font-size:15px;margin:14px 0;display:block;overflow-x:auto}
 .body th,.body td{border-bottom:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
 .body th{color:var(--muted);font-weight:600}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin:18px 0 8px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin:18px 0 8px;align-items:start}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:10px;scroll-margin-top:80px}
 .card h3{margin:0;font-size:18px}
 .card p{margin:0;color:#2c3033;font-size:15px}
@@ -396,14 +398,20 @@ def widget_page(widget: dict, image_url: str) -> str:
     facts_html = "".join(f"<dt>{k}</dt><dd>{v}</dd>" for k, v in facts)
 
     readme_base = f"{REPO_URL}/blob/main/widgets/{slug}"
-    readme = markdown(readme_of(slug) or INTROS.get(slug, ""), readme_base)
+    # An external widget's intro reads better than its terse registry line, so
+    # it leads and the registry line moves into the body.
+    lead, body_md = widget["description"], readme_of(slug)
+    if not body_md and slug in INTROS:
+        lead, _, rest = INTROS[slug].partition("\n\n")
+        body_md = widget["description"] + "\n\n" + rest
+    readme = markdown(body_md, readme_base)
     headline = TITLES.get(slug)
     title = f"{headline} — {name} · BarShelf" if headline else f"{name} widget for the macOS menu bar · BarShelf"
     body = f"""    <p class="crumbs"><a href="/">BarShelf</a> › <a href="/widgets/">Widgets</a> › {e(name)}</p>
     <section class="head">
       <div>
         <h1>{e(name)}</h1>
-        <p class="lead">{inline(widget["description"], readme_base)}</p>
+        <p class="lead">{inline(lead, readme_base)}</p>
         <dl class="facts">{facts_html}</dl>
         <div class="actions">
           <a class="btn dark" href="#install">Install</a>
