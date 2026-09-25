@@ -3,8 +3,8 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.downloads-new",
   "name": "Downloads",
-  "version": "0.1.0",
-  "icon": "arrow.down.circle.badge.clock",
+  "version": "0.1.1",
+  "icon": "arrow.down.circle.fill",
   "bucket": { "group": "Files", "order": 35, "size": "S" },
 
   "entry": { "kind": "workflow", "main": "workflow.json" },

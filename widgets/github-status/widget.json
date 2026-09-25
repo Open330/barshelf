@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.github-status",
   "name": "GitHub Status",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "icon": "checkmark.seal.fill",
   "bucket": { "group": "Developer", "order": 40, "size": "S" },
 

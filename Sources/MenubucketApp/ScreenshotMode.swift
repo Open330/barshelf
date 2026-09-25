@@ -36,6 +36,17 @@ enum ScreenshotMode {
             ("tile-developer-inbox", "Developer Inbox", "tray.full", ShotData.developerInboxNode, "blue"),
             ("tile-system", "System", "cpu.fill", ShotData.systemNode, "purple"),
             ("tile-sensors", "Sensors", "thermometer.medium", ShotData.sensorsNode, "orange"),
+            ("tile-battery-meter", "Battery", "battery.100percent", ShotData.batteryMeterRenderNode, "green"),
+            ("tile-clock", "Clock", "clock.fill", ShotData.clockRenderNode, "blue"),
+            ("tile-calendar", "Calendar", "calendar", ShotData.calendarRenderNode, "red"),
+            ("tile-codex-reset", "Codex Reset", "cloud.sun.fill", ShotData.codexResetRenderNode, "orange"),
+            ("tile-downloads-new", "Downloads", "arrow.down.circle.fill", ShotData.downloadsNewRenderNode, "green"),
+            ("tile-exchange", "Exchange", "dollarsign.circle.fill", ShotData.exchangeRenderNode, "green"),
+            ("tile-github-status", "GitHub Status", "checkmark.seal.fill", ShotData.githubStatusRenderNode, "green"),
+            ("tile-network", "Network", "arrow.up.arrow.down.circle.fill", ShotData.networkRenderNode, "blue"),
+            ("tile-now-playing", "Now Playing", "music.note", ShotData.nowPlayingRenderNode, "pink"),
+            ("tile-reminders", "Reminders", "checklist", ShotData.remindersRenderNode, "orange"),
+            ("tile-stock", "Stock", "chart.line.uptrend.xyaxis", ShotData.stockRenderNode, "green"),
         ]
         for tile in tiles {
             ok = render(
@@ -403,6 +414,105 @@ private enum ShotData {
 
     private static func decode(_ json: String) -> UINode {
         (try? JSONDecoder().decode(UINode.self, from: Data(json.utf8))) ?? UINode(type: "spacer")
+    }
+
+    /// Real `Battery` render: the widget's own `workflow.json` evaluated
+    /// by `WorkflowEngine` against the exec source on a MacBook at 82%, discharging.
+    /// The inner header's glyph and title are dropped: the tile header carries them.
+    static var batteryMeterRenderNode: UINode {
+        decode(#"""
+        {"action":{"type":"openURL","url":"x-apple.systempreferences:com.apple.Battery-Settings.extension"},"children":[{"children":[{"type":"spacer"},{"foreground":"secondary","lineLimit":1,"role":"caption","text":"discharging","type":"text"}],"spacing":6,"type":"hstack"},{"monospacedDigit":true,"role":"title","size":40,"text":"82%","type":"text"},{"style":"linear","tint":"good","type":"progress","value":0.82}],"spacing":6,"type":"vstack"}
+        """#)
+    }
+
+    /// Real `Clock` render: the widget's own `workflow.json` evaluated
+    /// by `WorkflowEngine` against this Mac's own `/bin/date` output.
+    /// The inner header's glyph and title are dropped: the tile header carries them.
+    static var clockRenderNode: UINode {
+        decode(#"""
+        {"action":{"type":"openURL","url":"x-apple.systempreferences:com.apple.Date-Time-Settings.extension"},"children":[{"children":[{"monospacedDigit":true,"role":"title","size":44,"text":"22:05","type":"text"},{"foreground":"secondary","monospacedDigit":true,"role":"caption","size":17,"text":"38","type":"text"}],"spacing":3,"type":"hstack"},{"foreground":"secondary","role":"caption","text":"Fri Sep 25","type":"text"}],"spacing":2,"type":"vstack"}
+        """#)
+    }
+
+    /// Real `Calendar` render: the widget's own `workflow.json` evaluated
+    /// by `WorkflowEngine` against this Mac's own month-grid command output.
+    /// The inner header's glyph and title are dropped: the tile header carries them.
+    static var calendarRenderNode: UINode {
+        decode(#"""
+        {"action":{"type":"openApp","value":"com.apple.iCal"},"children":[{"children":[{"lineLimit":1,"role":"title","text":"September","type":"text"}],"spacing":6,"type":"hstack"},{"children":[{"foreground":"tertiary","role":"caption","text":"Su","type":"text"},{"foreground":"tertiary","role":"caption","text":"Mo","type":"text"},{"foreground":"tertiary","role":"caption","text":"Tu","type":"text"},{"foreground":"tertiary","role":"caption","text":"We","type":"text"},{"foreground":"tertiary","role":"caption","text":"Th","type":"text"},{"foreground":"tertiary","role":"caption","text":"Fr","type":"text"},{"foreground":"tertiary","role":"caption","text":"Sa","type":"text"}],"columns":7,"spacing":2,"type":"grid"},{"columns":7,"items":[{"fill":"","foreground":"primary","monospacedDigit":true,"role":"body","text":"","type":"text"},{"fill":"","foreground":"primary","monospacedDigit":true,"role":"body","text":"","type":"text"},{"fill":"","foreground":"primary","monospacedDigit":true,"role":"body","text":"1","type":"text"},{"fill":"","foreground":"primary","monospacedDigit":true,"role":"body","text":"2","type":"text"},{"fill":"","foreground":"primary","monospacedDigit":true,"role":"body","text":"3","type":"text"},{"fill":"","foreground":"primary","monospacedDigit":true,"role":"body","text":"4","type":"text"},{"fill":"","foreground":"primary","monospacedDigit":true,"role":"body","text":"5","type":"text"},{"fill":"","foreground":"primary","monospacedDigit":true,"role":"body","text":"6","type":"text"},{"fill":"","foreground":"primary","monospacedDigit":true,"role":"body","text":"7","type":"text"},{"fill":"","foreground":"primary","monospacedDigit":true,"role":"body","text":"8","type":"text"},{"fill":"","foreground":"primary","monospacedDigit":true,"role":"body","text":"9","type":"text"},{"fill":"","foreground":"primary","monospacedDigit":true,"role":"body","text":"10","type":"text"},{"fill":"","foreground":"primary","monospacedDigit":true,"role":"body","text":"11","type":"text"},{"fill":"","foreground":"primary","monospacedDigit":true,"role":"body","text":"12","type":"text"},{"fill":"","foreground":"primary","monospacedDigit":true,"role":"body","text":"13","type":"text"},{"fill":"","foreground":"primary","monospacedDigit":true,"role":"body","text":"14","type":"text"},{"fill":"","foreground":"primary","monospacedDigit":true,"role":"body","text":"15","type":"text"},{"fill":"","foreground":"primary","monospacedDigit":true,"role":"body","text":"16","type":"text"},{"fill":"","foreground":"primary","monospacedDigit":true,"role":"body","text":"17","type":"text"},{"fill":"","foreground":"primary","monospacedDigit":true,"role":"body","text":"18","type":"text"},{"fill":"","foreground":"primary","monospacedDigit":true,"role":"body","text":"19","type":"text"},{"fill":"","foreground":"primary","monospacedDigit":true,"role":"body","text":"20","type":"text"},{"fill":"","foreground":"primary","monospacedDigit":true,"role":"body","text":"21","type":"text"},{"fill":"","foreground":"primary","monospacedDigit":true,"role":"body","text":"22","type":"text"},{"fill":"","foreground":"primary","monospacedDigit":true,"role":"body","text":"23","type":"text"},{"fill":"","foreground":"primary","monospacedDigit":true,"role":"body","text":"24","type":"text"},{"fill":"accent","foreground":"primary","monospacedDigit":true,"role":"title","text":"25","type":"text"},{"fill":"","foreground":"primary","monospacedDigit":true,"role":"body","text":"26","type":"text"},{"fill":"","foreground":"primary","monospacedDigit":true,"role":"body","text":"27","type":"text"},{"fill":"","foreground":"primary","monospacedDigit":true,"role":"body","text":"28","type":"text"},{"fill":"","foreground":"primary","monospacedDigit":true,"role":"body","text":"29","type":"text"},{"fill":"","foreground":"primary","monospacedDigit":true,"role":"body","text":"30","type":"text"}],"spacing":2,"type":"grid"}],"spacing":4,"type":"vstack"}
+        """#)
+    }
+
+    /// Real `Codex Reset` render: the widget's own `workflow.json` evaluated
+    /// by `WorkflowEngine` against a live response from willcodexquotareset.com/api/forecast.
+    /// The inner header's glyph and title are dropped: the tile header carries them.
+    static var codexResetRenderNode: UINode {
+        decode(#"""
+        {"action":{"type":"openURL","url":"https://www.willcodexquotareset.com/"},"children":[{"children":[{"foreground":"secondary","lineLimit":1,"role":"caption","text":"Will Codex reset?","type":"text"},{"type":"spacer"},{"foreground":"secondary","role":"caption","text":"48H","type":"text"}],"spacing":6,"type":"hstack"},{"foreground":"secondary","monospacedDigit":true,"role":"title","size":32,"text":"29%","type":"text"},{"style":"linear","tint":"secondary","type":"progress","value":0.29},{"foreground":"secondary","lineLimit":2,"role":"caption","text":"Last reset 610.4h ago · alert at 70%","type":"text"}],"padding":10,"spacing":6,"type":"vstack"}
+        """#)
+    }
+
+    /// Real `Downloads` render: the widget's own `workflow.json` evaluated
+    /// by `WorkflowEngine` against 42 files with 39 at the last check.
+    /// The inner header's glyph and title are dropped: the tile header carries them.
+    static var downloadsNewRenderNode: UINode {
+        decode(#"""
+        {"action":{"type":"revealFile","value":"~/Downloads"},"children":[{"children":[{"type":"spacer"},{"foreground":"secondary","monospacedDigit":true,"role":"caption","text":"42 files","type":"text"}],"spacing":7,"type":"hstack"},{"foreground":"good","monospacedDigit":true,"role":"body","text":"+3 since last check","type":"text"}],"spacing":6,"tone":"accent","type":"card"}
+        """#)
+    }
+
+    /// Real `Exchange` render: the widget's own `workflow.json` evaluated
+    /// by `WorkflowEngine` against a live response from open.er-api.com.
+    /// The inner header's glyph and title are dropped: the tile header carries them.
+    static var exchangeRenderNode: UINode {
+        decode(#"""
+        {"action":{"type":"openURL","url":"https://www.xe.com/currencyconverter/"},"children":[{"children":[{"foreground":"secondary","role":"caption","text":"USD → KRW","type":"text"}],"spacing":6,"type":"hstack"},{"monospacedDigit":true,"role":"title","size":32,"text":"₩1369","type":"text"},{"foreground":"secondary","role":"caption","text":"per $1","type":"text"}],"spacing":2,"type":"vstack"}
+        """#)
+    }
+
+    /// Real `GitHub Status` render: the widget's own `workflow.json` evaluated
+    /// by `WorkflowEngine` against a live response from githubstatus.com.
+    /// The inner header's glyph and title are dropped: the tile header carries them.
+    static var githubStatusRenderNode: UINode {
+        decode(#"""
+        {"action":{"type":"openURL","url":"https://www.githubstatus.com"},"children":[{"children":[{"lineLimit":1,"role":"title","text":"GitHub","type":"text"},{"type":"spacer"},{"text":"OK","tint":"good","type":"badge"}],"spacing":8,"type":"hstack"},{"lineLimit":2,"role":"body","text":"All Systems Operational","type":"text"},{"foreground":"secondary","lineLimit":2,"role":"caption","text":"Refreshes on open, every 15 minutes, and when your Mac wakes.","type":"text"}],"padding":10,"spacing":8,"type":"vstack"}
+        """#)
+    }
+
+    /// Real `Network` render: the widget's own `workflow.json` evaluated
+    /// by `WorkflowEngine` against the system network source with sample rates and a private LAN address.
+    /// The inner header's glyph and title are dropped: the tile header carries them.
+    static var networkRenderNode: UINode {
+        decode(#"""
+        {"action":{"type":"openURL","url":"x-apple.systempreferences:com.apple.Network-Settings.extension"},"children":[{"children":[{"type":"spacer"},{"foreground":"secondary","monospacedDigit":true,"role":"caption","text":"All interfaces","type":"text"}],"spacing":6,"type":"hstack"},{"lineLimit":1,"monospacedDigit":true,"role":"title","size":18,"text":"192.168.0.8","type":"text"},{"children":[{"children":[{"size":11,"source":{"kind":"sfSymbol","name":"arrow.down"},"tint":"accent","type":"image"},{"monospacedDigit":true,"role":"caption","text":"1.3 MB/s","type":"text"}],"spacing":4,"type":"hstack"},{"children":[{"size":11,"source":{"kind":"sfSymbol","name":"arrow.up"},"tint":"warning","type":"image"},{"monospacedDigit":true,"role":"caption","text":"86 KB/s","type":"text"}],"spacing":4,"type":"hstack"}],"spacing":12,"type":"hstack"}],"spacing":8,"type":"vstack"}
+        """#)
+    }
+
+    /// Real `Now Playing` render: the widget's own `workflow.json` evaluated
+    /// by `WorkflowEngine` against a sample track (the real source reads Music or Spotify).
+    /// The inner header's glyph and title are dropped: the tile header carries them.
+    static var nowPlayingRenderNode: UINode {
+        decode(#"""
+        {"action":{"type":"openApp","value":"com.apple.Music"},"children":[{"lineLimit":2,"role":"title","text":"Clair de Lune - Claude Debussy","type":"text"}],"spacing":4,"type":"vstack"}
+        """#)
+    }
+
+    /// Real `Reminders` render: the widget's own `workflow.json` evaluated
+    /// by `WorkflowEngine` against a sample count of 3 (the real source reads Reminders).
+    /// The inner header's glyph and title are dropped: the tile header carries them.
+    static var remindersRenderNode: UINode {
+        decode(#"""
+        {"action":{"type":"openApp","value":"com.apple.reminders"},"children":[{"monospacedDigit":true,"role":"title","size":40,"text":"3","type":"text"},{"foreground":"secondary","role":"caption","text":"open","type":"text"}],"spacing":2,"type":"vstack"}
+        """#)
+    }
+
+    /// Real `Stock` render: the widget's own `workflow.json` evaluated
+    /// by `WorkflowEngine` against a live Yahoo Finance quote for the default AAPL symbol.
+    /// The inner header's glyph and title are dropped: the tile header carries them.
+    static var stockRenderNode: UINode {
+        decode(#"""
+        {"action":{"type":"openURL","url":"https://finance.yahoo.com/quote/AAPL"},"children":[{"children":[{"foreground":"secondary","role":"caption","text":"AAPL","type":"text"}],"spacing":6,"type":"hstack"},{"monospacedDigit":true,"role":"title","size":32,"text":"335.92","type":"text"},{"foreground":"danger","monospacedDigit":true,"role":"caption","text":"▼ -1.1","type":"text"}],"spacing":2,"type":"vstack"}
+        """#)
     }
 
     static var todayNode: UINode {

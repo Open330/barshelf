@@ -46,6 +46,14 @@ TITLES = {
     "sensors": "Mac temperatures, fans and power in the menu bar",
     "system": "CPU, memory and disk in the macOS menu bar",
     "muxa-watch": "Watch coding agents from the macOS menu bar",
+    "codex-reset": "Will Codex reset? A quota reset forecast in the macOS menu bar",
+    "github-status": "GitHub status in the macOS menu bar",
+    "network": "Network speed and local IP in the macOS menu bar",
+    "exchange": "USD to KRW exchange rate in the macOS menu bar",
+    "stock": "Stock prices in the macOS menu bar",
+    "battery-meter": "Battery percentage in the macOS menu bar",
+    "now-playing": "Now playing from Music or Spotify in the macOS menu bar",
+    "weather": "Weather in the macOS menu bar",
 }
 
 # Widgets that live in another repository have no README here. Say what the

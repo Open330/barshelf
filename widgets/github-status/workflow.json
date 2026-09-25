@@ -13,7 +13,9 @@
 
   "transforms": {
     "status": { "use": "assign", "from": "$.sources.github.status" },
-    "page": { "use": "assign", "from": "$.sources.github.page" }
+    "page": { "use": "assign", "from": "$.sources.github.page" },
+    "label": { "use": "assign", "from": "if(eq(transforms.status.indicator,'none'),'OK',if(eq(transforms.status.indicator,'minor'),'Minor',if(eq(transforms.status.indicator,'major'),'Major',if(eq(transforms.status.indicator,'critical'),'Critical',coalesce(transforms.status.indicator,'Unknown')))))" },
+    "tone": { "use": "assign", "from": "if(eq(transforms.status.indicator,'none'),'good',if(eq(transforms.status.indicator,'minor'),'warning',if(or(eq(transforms.status.indicator,'major'),eq(transforms.status.indicator,'critical')),'danger','secondary')))" }
   },
 
   "view": {
@@ -26,10 +28,10 @@
         "type": "hstack",
         "spacing": 8,
         "children": [
-          { "type": "image", "source": { "kind": "sfSymbol", "name": "checkmark.seal.fill" }, "size": 16, "tint": "accent" },
+          { "type": "image", "source": { "kind": "sfSymbol", "name": "${if(eq(transforms.status.indicator,'none'),'checkmark.seal.fill','exclamationmark.triangle.fill')}" }, "size": 16, "tint": "${transforms.tone}" },
           { "type": "text", "text": "${transforms.page.name}", "role": "title", "lineLimit": 1 },
           { "type": "spacer" },
-          { "type": "badge", "text": "${transforms.status.indicator}", "tint": "accent" }
+          { "type": "badge", "text": "${transforms.label}", "tint": "${transforms.tone}" }
         ]
       },
       {
@@ -49,7 +51,7 @@
   },
 
   "status": {
-    "label": "GitHub ${transforms.status.indicator}",
+    "label": "GitHub ${transforms.label}",
     "tooltip": "GitHub status: ${transforms.status.description}"
   }
 }
