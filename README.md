@@ -4,10 +4,10 @@
 
 # BarShelf
 
-**Your menu bar, finally organized.**
+**Turn any CLI into a native menu bar widget — all behind one icon.**
 
-One menu bar icon. Every glanceable tool you care about — OTP codes, LLM usage,
-recent files, CI status — as native widgets in a single popover.
+One macOS menu bar icon, one popover of native widgets: Claude Code and Codex
+usage, OTP codes, GitHub reviews, recent files — or anything your own scripts print.
 
 [![Platform](https://img.shields.io/badge/macOS-13%2B-000000?logo=apple&logoColor=white)](https://www.apple.com/macos/)
 [![Swift](https://img.shields.io/badge/Swift-5.9-F05138?logo=swift&logoColor=white)](https://swift.org)
