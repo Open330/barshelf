@@ -467,8 +467,21 @@ final class MenuBarController {
         }
     }
 
+    static func autosaveName(for widgetID: String) -> String {
+        "BarShelf.\(widgetID)"
+    }
+
     private func makeSeparateItem(for widgetID: String) -> NSStatusItem {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        // A name per widget is what lets macOS remember where the user put
+        // each item (it saves the position when the item is ⌘-dragged).
+        // Without one only the main item kept its place: an arrangement was
+        // lost at the next launch or update, and an item could come back on
+        // the far side of other apps' icons.
+        item.autosaveName = Self.autosaveName(for: widgetID)
+        // A name remembered as hidden would keep the item out of sight for
+        // good; BarShelf decides visibility, not a stale preference.
+        item.isVisible = true
         if let button = item.button {
             button.target = self
             button.action = #selector(separateItemClicked(_:))
