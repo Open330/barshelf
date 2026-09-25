@@ -6,6 +6,10 @@ on:
     paths:
       - "site/**"
       - "schema/**"
+      - "registry/**"
+      - "widgets/**"
+      - "assets/widget-previews/**"
+      - "scripts/build-widget-pages.py"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -32,6 +36,8 @@ jobs:
           mkdir -p _site/schema
           cp -R site/. _site/
           cp schema/*.json _site/schema/
+      - name: Generate widget pages and sitemap
+        run: python3 scripts/build-widget-pages.py _site
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
