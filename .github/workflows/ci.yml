@@ -54,6 +54,9 @@ jobs:
       - name: Check release version references
         run: python3 scripts/check-release-versions.py
 
+      - name: Build widget pages
+        run: python3 scripts/build-widget-pages.py "$(mktemp -d)"
+
       - name: Validate JSON schemas
         run: |
           for f in schema/*.json registry/index.json; do
