@@ -475,7 +475,7 @@ private enum ShotData {
     /// The inner header's glyph and title are dropped: the tile header carries them.
     static var githubStatusRenderNode: UINode {
         decode(#"""
-        {"action":{"type":"openURL","url":"https://www.githubstatus.com"},"children":[{"children":[{"lineLimit":1,"role":"title","text":"GitHub","type":"text"},{"type":"spacer"},{"text":"none","tint":"accent","type":"badge"}],"spacing":8,"type":"hstack"},{"lineLimit":2,"role":"body","text":"All Systems Operational","type":"text"},{"foreground":"secondary","lineLimit":2,"role":"caption","text":"Refreshes on open, every 15 minutes, and when your Mac wakes.","type":"text"}],"padding":10,"spacing":8,"type":"vstack"}
+        {"action":{"type":"openURL","url":"https://www.githubstatus.com"},"children":[{"children":[{"lineLimit":1,"role":"title","text":"GitHub","type":"text"},{"type":"spacer"},{"text":"OK","tint":"good","type":"badge"}],"spacing":8,"type":"hstack"},{"lineLimit":2,"role":"body","text":"All Systems Operational","type":"text"},{"foreground":"secondary","lineLimit":2,"role":"caption","text":"Refreshes on open, every 15 minutes, and when your Mac wakes.","type":"text"}],"padding":10,"spacing":8,"type":"vstack"}
         """#)
     }
 

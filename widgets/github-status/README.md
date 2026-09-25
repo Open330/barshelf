@@ -7,7 +7,9 @@ GitHub's.
 ## What it shows
 
 - The status page name.
-- GitHub's status indicator as a badge.
+- The overall level as a badge: OK in green, Minor in orange, Major or
+  Critical in red. The menu bar label uses the same word, for example
+  "GitHub OK".
 - The status description, for example "All Systems Operational".
 
 ## Permissions and refresh
