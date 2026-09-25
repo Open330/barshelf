@@ -19,6 +19,8 @@
   <meta name="google-site-verification" content="FfsF-kqtNl0jX3XUKsZXaFRfrCRid8UudBbTWny1BkA" />
   <meta name="naver-site-verification" content="20a619cd7f4baf4303554f3ada1c6bf6f16676e4" />
   <link rel="icon" href="icon-512.png" />
+  <script>document.documentElement.classList.add("js");</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"BarShelf","description":"Turn any CLI into a native macOS menu bar widget — all behind one icon.","applicationCategory":"DeveloperApplication","operatingSystem":"macOS 13 or later (Apple Silicon)","url":"https://barshelf.jiun.dev/","downloadUrl":"https://github.com/Open330/barshelf/releases/latest","license":"https://opensource.org/licenses/MIT","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}</script>
   <style>
     :root {
       --ink: #111315;
@@ -163,19 +165,32 @@
       color: #fff;
       position: relative;
       display: flex;
-      align-items: end;
+      align-items: center;
       isolation: isolate;
-      background-image:
-        linear-gradient(90deg, rgba(0, 0, 0, 0.82) 0%, rgba(0, 0, 0, 0.62) 33%, rgba(0, 0, 0, 0.22) 66%, rgba(0, 0, 0, 0.38) 100%),
-        linear-gradient(0deg, rgba(0, 0, 0, 0.68), rgba(0, 0, 0, 0.02) 42%),
-        url("shots/macos-menubar-popover.jpg");
-      background-size: cover;
-      background-position: center top;
+      background:
+        radial-gradient(60% 70% at 78% 40%, rgba(47, 111, 136, 0.34), transparent 70%),
+        linear-gradient(180deg, #0c0e0f 0%, #121618 100%);
     }
-    .hero-content {
-      padding: 132px 0 82px;
-      max-width: 680px;
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+      gap: 48px;
+      align-items: center;
+      padding: 112px 0 72px;
     }
+    .hero-content { max-width: 640px; }
+    .hero-shot {
+      margin: 0;
+      justify-self: end;
+      width: min(100%, 420px);
+      max-height: 640px;
+      overflow: hidden;
+      border-radius: 18px;
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.08);
+      -webkit-mask-image: linear-gradient(180deg, #000 78%, transparent);
+      mask-image: linear-gradient(180deg, #000 78%, transparent);
+    }
+    .hero-shot img { width: 100%; height: auto; }
     .kicker {
       display: inline-flex;
       align-items: center;
@@ -192,23 +207,26 @@
       background: var(--accent);
       border-radius: 999px;
     }
-    .hero h1 {
+    .wordmark {
       margin-top: 18px;
-      font-size: clamp(52px, 9vw, 112px);
+      font-size: clamp(52px, 8vw, 104px);
+      line-height: 1.04;
       font-weight: 820;
       letter-spacing: 0;
     }
-    .hero-copy {
+    .hero h1 {
       margin-top: 22px;
+      max-width: 590px;
+      font-size: clamp(20px, 2.3vw, 26px);
+      line-height: 1.3;
+      font-weight: 650;
+      text-wrap: balance;
+    }
+    .hero-copy {
+      margin-top: 10px;
       max-width: 590px;
       font-size: clamp(17px, 2vw, 21px);
       color: rgba(255, 255, 255, 0.78);
-    }
-    .hero-copy strong {
-      display: block;
-      margin-bottom: 8px;
-      color: #fff;
-      font-weight: 650;
     }
     .hero-actions {
       margin-top: 32px;
@@ -367,6 +385,8 @@
       height: auto;
       filter: drop-shadow(0 10px 24px rgba(17, 19, 21, 0.10));
     }
+    .tile-gallery a { display: block; border-radius: 14px; }
+    .tile-gallery a:hover img { filter: drop-shadow(0 14px 30px rgba(17, 19, 21, 0.18)); }
     .tile-gallery figcaption {
       margin-top: 2px;
       padding-left: 6px;
@@ -378,7 +398,8 @@
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 16px;
-      margin-top: 16px;
+      max-width: 720px;
+      margin: 40px auto 0;
     }
     .pair-gallery figure { margin: 0; }
     .pair-gallery img {
@@ -579,19 +600,20 @@
     .foot .brand { color: var(--ink); }
     .foot .spacer { margin-left: auto; }
 
-    .reveal {
+    .js .reveal {
       opacity: 0;
       transform: translateY(18px);
       transition: opacity 520ms ease, transform 520ms ease;
     }
-    .reveal.in { opacity: 1; transform: none; }
+    .js .reveal.in { opacity: 1; transform: none; }
     @media (prefers-reduced-motion: reduce) {
-      .reveal { opacity: 1; transform: none; transition: none; }
+      .js .reveal { opacity: 1; transform: none; transition: none; }
     }
 
     @media (max-width: 920px) {
       .links { display: none; }
-      .hero { min-height: min(82svh, 840px); background-position: 62% top; }
+      .hero-grid { grid-template-columns: 1fr; gap: 36px; }
+      .hero-shot { justify-self: start; max-height: 520px; }
       .proof-row, .grid-3, .model, .terminal-grid { grid-template-columns: 1fr 1fr; }
       .split { grid-template-columns: 1fr; }
       .showcase-grid { grid-template-columns: 1fr; }
@@ -604,9 +626,9 @@
       .nav-link { display: none; }
       .nav-actions > .btn { display: none; }
       .btn { min-height: 42px; padding: 0 14px; font-size: 14px; }
-      .hero { min-height: min(86svh, 820px); background-position: 68% top; }
-      .hero-content { padding: 112px 0 54px; }
-      .hero h1 { font-size: clamp(48px, 18vw, 76px); }
+      .hero-grid { padding: 96px 0 48px; }
+      .hero-shot { max-height: 440px; }
+      .wordmark { font-size: clamp(48px, 17vw, 72px); }
       .proof-row, .grid-3, .model, .terminal-grid { grid-template-columns: 1fr; }
       section { padding: 58px 0; }
       .section-head h2 { font-size: clamp(30px, 10vw, 42px); }
@@ -644,15 +666,16 @@
 
   <main id="top">
     <section class="hero" aria-label="BarShelf">
-      <div class="wrap">
+      <div class="wrap hero-grid">
         <div class="hero-content">
           <div class="kicker">
-            <span class="en">Actual macOS capture</span>
-            <span class="ko">실제 macOS 캡처</span>
+            <span class="en">Free for macOS 13+ · Apple Silicon</span>
+            <span class="ko">macOS 13+ · Apple Silicon용 무료 앱</span>
           </div>
-          <h1>BarShelf</h1>
-          <p class="hero-copy en"><strong>Turn any CLI into a native menu bar widget — all behind one icon.</strong> Claude Code and Codex usage, OTP codes, GitHub reviews, recent files, or whatever your own scripts print.</p>
-          <p class="hero-copy ko"><strong>어떤 CLI든 네이티브 메뉴바 위젯으로, 전부 아이콘 하나에.</strong> Claude Code·Codex 사용량, OTP 코드, GitHub 리뷰 요청, 최근 파일, 직접 만든 스크립트의 출력까지.</p>
+          <p class="wordmark">BarShelf</p>
+          <h1><span class="en">Turn any CLI into a native menu bar widget — all behind one icon.</span><span class="ko">어떤 CLI든 네이티브 메뉴바 위젯으로, 전부 아이콘 하나에.</span></h1>
+          <p class="hero-copy en">Claude Code and Codex usage, OTP codes, GitHub reviews, recent files, or whatever your own scripts print.</p>
+          <p class="hero-copy ko">Claude Code·Codex 사용량, OTP 코드, GitHub 리뷰 요청, 최근 파일, 직접 만든 스크립트의 출력까지.</p>
           <div class="hero-actions">
             <a class="btn primary" href="https://github.com/Open330/barshelf/releases/latest" rel="noopener">
               <span class="en">Download for macOS</span><span class="ko">macOS용 다운로드</span>
@@ -660,15 +683,18 @@
             <a class="btn line" href="https://github.com/Open330/barshelf" rel="noopener">GitHub</a>
           </div>
         </div>
+        <figure class="hero-shot">
+          <img src="shots/popover-dark.png" width="800" height="1502" alt="BarShelf popover with Today, Battery, Weather, and Claude Code and Codex usage widgets — real render" />
+        </figure>
       </div>
     </section>
 
     <section class="proof" aria-label="Product facts">
       <div class="wrap proof-row">
-        <div class="proof-item"><strong>1</strong><span class="en">menu bar icon</span><span class="ko">메뉴바 아이콘 하나</span></div>
-        <div class="proof-item"><strong>0</strong><span class="en">dependencies for native widgets · Deno for scripts</span><span class="ko">네이티브 위젯 의존성 · 스크립트는 Deno</span></div>
-        <div class="proof-item"><strong>3</strong><span class="en">widget authoring paths</span><span class="ko">위젯 제작 방식</span></div>
-        <div class="proof-item"><strong>MIT</strong><span class="en">open source</span><span class="ko">오픈소스</span></div>
+        <div class="proof-item"><strong>Notarized</strong><span class="en">Developer ID signed and Apple-notarized</span><span class="ko">Developer ID 서명·Apple 공증</span></div>
+        <div class="proof-item"><strong>Native</strong><span class="en">SwiftUI rendering, no Electron</span><span class="ko">SwiftUI 렌더링, Electron 없음</span></div>
+        <div class="proof-item"><strong>Any CLI</strong><span class="en">if a command emits JSON, it can be a widget</span><span class="ko">JSON을 내는 명령이면 위젯이 됩니다</span></div>
+        <div class="proof-item"><strong>MIT</strong><span class="en">free and open source</span><span class="ko">무료 오픈소스</span></div>
       </div>
     </section>
 
@@ -779,18 +805,18 @@
           </div>
         </div>
         <div class="tile-gallery reveal">
-          <figure><img src="shots/tile-today.png" width="576" height="220" loading="lazy" alt="Today widget — date and clock, real render" /><figcaption>today</figcaption></figure>
-          <figure><img src="shots/tile-otp.png" width="576" height="225" loading="lazy" alt="OTP Codes widget with countdown rings, real render" /><figcaption>otpeek</figcaption></figure>
-          <figure><img src="shots/tile-weather.png" width="576" height="272" loading="lazy" alt="Weather widget, real render" /><figcaption>weather</figcaption></figure>
-          <figure><img src="shots/tile-aas.png" width="576" height="704" loading="lazy" alt="aas usage widget with LLM quota meters, real render" /><figcaption>aas usage</figcaption></figure>
-          <figure><img src="shots/tile-files.png" width="576" height="222" loading="lazy" alt="Recent Files widget, real render" /><figcaption>recent files</figcaption></figure>
-          <figure><img src="shots/tile-battery.png" width="576" height="256" loading="lazy" alt="Battery widget with charge meter, real render" /><figcaption>battery</figcaption></figure>
+          <figure><a href="widgets/today/"><img src="shots/tile-today.png" width="576" height="220" loading="lazy" alt="Today widget — date and clock, real render" /></a><figcaption>today</figcaption></figure>
+          <figure><a href="widgets/otpeek/"><img src="shots/tile-otp.png" width="576" height="225" loading="lazy" alt="OTP Codes widget with countdown rings, real render" /></a><figcaption>otpeek</figcaption></figure>
+          <figure><a href="widgets/#weather"><img src="shots/tile-weather.png" width="576" height="272" loading="lazy" alt="Weather widget, real render" /></a><figcaption>weather</figcaption></figure>
+          <figure><a href="widgets/aas-usage/"><img src="shots/tile-aas.png" width="576" height="704" loading="lazy" alt="aas usage widget with LLM quota meters, real render" /></a><figcaption>aas usage</figcaption></figure>
+          <figure><a href="widgets/#recent-files-grid"><img src="shots/tile-files.png" width="576" height="222" loading="lazy" alt="Recent Files widget, real render" /></a><figcaption>recent files</figcaption></figure>
+          <figure><a href="widgets/#battery-meter"><img src="shots/tile-battery.png" width="576" height="256" loading="lazy" alt="Battery widget with charge meter, real render" /></a><figcaption>battery</figcaption></figure>
           <figure><img src="shots/tile-k8s.png" width="576" height="202" loading="lazy" alt="Custom k8s pods list widget, real render" /><figcaption>your script here</figcaption></figure>
         </div>
         <p class="gallery-more reveal"><a class="btn light-line" href="widgets/"><span class="en">Browse every widget →</span><span class="ko">위젯 전체 보기 →</span></a></p>
         <div class="pair-gallery reveal">
-          <figure><img src="shots/popover-light.png" width="800" height="1366" loading="lazy" alt="BarShelf popover, light appearance — real render" /><figcaption>light</figcaption></figure>
-          <figure><img src="shots/popover-dark.png" width="800" height="1366" loading="lazy" alt="BarShelf popover, dark appearance — real render" /><figcaption>dark</figcaption></figure>
+          <figure><img src="shots/popover-light.png" width="800" height="1502" loading="lazy" alt="BarShelf popover, light appearance — real render" /><figcaption>light</figcaption></figure>
+          <figure><img src="shots/popover-dark.png" width="800" height="1502" loading="lazy" alt="BarShelf popover, dark appearance — real render" /><figcaption>dark</figcaption></figure>
         </div>
       </div>
     </section>
