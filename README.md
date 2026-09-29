@@ -136,6 +136,30 @@ Most native widgets are **clickable** — like a real macOS/iOS widget, clicking
 
 ### Build with an AI agent
 
+Install the reusable [`barshelf-widget` skill](skills/barshelf-widget/SKILL.md)
+to give your agent the authoring workflow, API references, and validation steps.
+From a checkout of this repository, copy it into your Codex skills directory:
+
+```bash
+mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
+# For a first install; if it already exists, review your local copy before updating.
+test -e "${CODEX_HOME:-$HOME/.codex}/skills/barshelf-widget" || \
+  cp -R skills/barshelf-widget "${CODEX_HOME:-$HOME/.codex}/skills/barshelf-widget"
+```
+
+Then invoke it in Codex:
+
+```prompt
+Use $barshelf-widget to build a widget showing my review-requested GitHub PRs.
+Open each PR when clicked, let me set the row limit, and install it locally.
+```
+
+The skill can also be selected automatically for BarShelf widget authoring.
+It uses `barshelf agent-spec` as the host contract; script widgets additionally
+use the typed SDK. The skill itself does not install the app or CLI.
+
+**Without installing a skill**, use the standalone prompt below.
+
 Describe the result you want — the agent can discover the BarShelf API, choose
 the right execution layer, implement the widget, and validate it. Replace only
 the text inside **What I want**, then paste the whole prompt into Codex, Claude
