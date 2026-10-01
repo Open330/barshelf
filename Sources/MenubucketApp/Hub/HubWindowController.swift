@@ -44,6 +44,10 @@ enum HubTab: String, CaseIterable, Identifiable {
 @MainActor
 final class HubModel: ObservableObject {
     @Published var tab: HubTab
+    /// A widget whose settings should be shown, set by
+    /// `HubWindowController.showWidgetSettings(widgetID:)`. The Widgets page
+    /// opens that widget's settings and clears it.
+    @Published var settingsWidgetID: String?
     init(tab: HubTab) { self.tab = tab }
 }
 
@@ -71,6 +75,14 @@ final class HubWindowController: NSObject, NSWindowDelegate {
     func show(tab: HubTab) {
         guard let runtime = registeredRuntime else { return }
         show(runtime: runtime, tab: tab)
+    }
+
+    /// Opens the hub on one widget's settings. The single route every "Widget
+    /// Settings…" entry point uses — popup card, card menu, menu bar item —
+    /// so they all land in the same place.
+    func showWidgetSettings(widgetID: String) {
+        show(tab: .widgets)
+        model?.settingsWidgetID = widgetID
     }
 
     /// Opens the hub at `tab`, or brings the existing window forward and
