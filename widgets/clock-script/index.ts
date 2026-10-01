@@ -30,17 +30,15 @@ async function renderClock(nowMs: number): Promise<void> {
   await barshelf.render(
     ui.vstack([
       ui.hstack([
-        ui.image("clock", { id: "clock-icon", size: 16, tint: "accent" }),
-        ui.text("Script Clock", { id: "clock-title", role: "title" }),
+        ui.text(timeText, {
+          id: "clock-time",
+          role: "code",
+          monospacedDigit: true,
+          accessibility: { label: "Current time", value: timeText },
+        }),
         ui.spacer(),
         ui.badge("TS", { id: "clock-badge", tone: "neutral" }),
       ], { id: "clock-header", spacing: 6 }),
-      ui.text(timeText, {
-        id: "clock-time",
-        role: "code",
-        monospacedDigit: true,
-        accessibility: { label: "Current time", value: timeText },
-      }),
       ui.progress(seconds / 60, {
         id: "clock-progress",
         label: "Minute",

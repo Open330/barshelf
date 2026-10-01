@@ -144,21 +144,6 @@
             "spacing": 6,
             "children": [
               {
-                "type": "image",
-                "source": {
-                  "kind": "sfSymbol",
-                  "name": "thermometer.medium"
-                },
-                "size": 14,
-                "tint": "accent"
-              },
-              {
-                "type": "text",
-                "text": "Sensors",
-                "role": "caption",
-                "foreground": "secondary"
-              },
-              {
                 "type": "spacer"
               },
               {
@@ -369,27 +354,6 @@
       "type": "vstack",
       "spacing": 6,
       "children": [
-        {
-          "type": "hstack",
-          "spacing": 6,
-          "children": [
-            {
-              "type": "image",
-              "source": {
-                "kind": "sfSymbol",
-                "name": "thermometer.medium"
-              },
-              "size": 14,
-              "tint": "secondary"
-            },
-            {
-              "type": "text",
-              "text": "Sensors",
-              "role": "caption",
-              "foreground": "secondary"
-            }
-          ]
-        },
         {
           "type": "text",
           "text": "No hardware sensors are readable on this Mac. Sandboxed builds and virtual machines have no SMC access.",

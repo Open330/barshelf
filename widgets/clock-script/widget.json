@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.clock-script",
   "name": "Script Clock",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "icon": "clock",
   "bucket": { "group": "Demo", "order": 30, "size": "S" },
 

@@ -30,7 +30,6 @@
         "type": "hstack",
         "spacing": 7,
         "children": [
-          { "type": "image", "source": { "kind": "sfSymbol", "name": "arrow.down.circle.fill" }, "size": 15, "tint": "accent" },
           { "type": "text", "text": "${file.basename(settings.folder)}", "role": "title", "lineLimit": 1 },
           { "type": "spacer" },
           { "type": "text", "text": "${count(transforms.items)} files", "role": "caption", "foreground": "secondary", "monospacedDigit": true }

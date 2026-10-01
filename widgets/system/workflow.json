@@ -119,21 +119,6 @@
         "spacing": 6,
         "children": [
           {
-            "type": "image",
-            "source": {
-              "kind": "sfSymbol",
-              "name": "cpu.fill"
-            },
-            "size": 14,
-            "tint": "accent"
-          },
-          {
-            "type": "text",
-            "text": "System",
-            "role": "caption",
-            "foreground": "secondary"
-          },
-          {
             "type": "spacer"
           },
           {

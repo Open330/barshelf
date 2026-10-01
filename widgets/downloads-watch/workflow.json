@@ -28,8 +28,6 @@
         "spacing": 8,
         "padding": 10,
         "children": [
-          { "type": "image", "source": { "kind": "sfSymbol", "name": "arrow.down.circle.fill" }, "size": 16, "tint": "accent" },
-          { "type": "text", "text": "Downloads", "role": "title", "lineLimit": 1 },
           { "type": "spacer" },
           { "type": "text", "text": "${count(transforms.visible)} recent", "role": "caption", "foreground": "secondary" }
         ]

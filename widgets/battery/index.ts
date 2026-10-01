@@ -74,12 +74,6 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
 
   await ctx.render(
     ui.vstack([
-      ui.header("Battery", {
-        icon: symbol,
-        badge: battery.status,
-        badgeTone: tone,
-        tint: tone,
-      }),
       ui.metricCard("Charge", `${Math.round(battery.percent)}%`, {
         icon: symbol,
         tone,

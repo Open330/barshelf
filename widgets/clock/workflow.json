@@ -17,14 +17,6 @@
     "children": [
       {
         "type": "hstack",
-        "spacing": 6,
-        "children": [
-          { "type": "image", "source": { "kind": "sfSymbol", "name": "clock.fill" }, "size": 13, "tint": "accent" },
-          { "type": "text", "text": "Clock", "role": "caption", "foreground": "secondary" }
-        ]
-      },
-      {
-        "type": "hstack",
         "spacing": 3,
         "children": [
           { "type": "text", "text": "${sources.data.h}:${sources.data.m}", "size": 44, "role": "title", "monospacedDigit": true },

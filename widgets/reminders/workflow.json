@@ -17,14 +17,6 @@
     "type": "vstack",
     "spacing": 2,
     "children": [
-      {
-        "type": "hstack",
-        "spacing": 6,
-        "children": [
-          { "type": "image", "source": { "kind": "sfSymbol", "name": "checklist" }, "size": 13, "tint": "accent" },
-          { "type": "text", "text": "Reminders", "role": "caption", "foreground": "secondary" }
-        ]
-      },
       { "type": "text", "text": "${string(sources.data.count)}", "size": 40, "role": "title", "monospacedDigit": true },
       { "type": "text", "text": "open", "role": "caption", "foreground": "secondary" }
     ]

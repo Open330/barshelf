@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.sensors",
   "name": "Sensors",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "minHostVersion": "0.3.11",
   "icon": "thermometer.medium",
   "bucket": {

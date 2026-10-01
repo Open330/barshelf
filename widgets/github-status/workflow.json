@@ -28,8 +28,6 @@
         "type": "hstack",
         "spacing": 8,
         "children": [
-          { "type": "image", "source": { "kind": "sfSymbol", "name": "${if(eq(transforms.status.indicator,'none'),'checkmark.seal.fill','exclamationmark.triangle.fill')}" }, "size": 16, "tint": "${transforms.tone}" },
-          { "type": "text", "text": "${transforms.page.name}", "role": "title", "lineLimit": 1 },
           { "type": "spacer" },
           { "type": "badge", "text": "${transforms.label}", "tint": "${transforms.tone}" }
         ]

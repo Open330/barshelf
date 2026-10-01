@@ -45,21 +45,6 @@
         "spacing": 6,
         "children": [
           {
-            "type": "image",
-            "source": {
-              "kind": "sfSymbol",
-              "name": "arrow.up.arrow.down.circle.fill"
-            },
-            "size": 14,
-            "tint": "accent"
-          },
-          {
-            "type": "text",
-            "text": "Network",
-            "role": "caption",
-            "foreground": "secondary"
-          },
-          {
             "type": "spacer"
           },
           {

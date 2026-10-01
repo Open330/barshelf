@@ -29,14 +29,6 @@
     "tone": "accent",
     "spacing": 6,
     "children": [
-      {
-        "type": "hstack",
-        "spacing": 7,
-        "children": [
-          { "type": "image", "source": { "kind": "sfSymbol", "name": "clock.fill" }, "size": 16, "tint": "accent" },
-          { "type": "text", "text": "Local Time", "role": "title", "lineLimit": 1 }
-        ]
-      },
       { "type": "text", "text": "${text.truncate(string(transforms.time), 8)}", "role": "code", "monospacedDigit": true },
       { "type": "text", "text": "${string(transforms.date)}", "role": "caption", "foreground": "secondary", "lineLimit": 1 }
     ]

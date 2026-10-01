@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.reminders",
   "name": "Reminders",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "icon": "checklist",
   "bucket": { "group": "Media", "order": 11, "size": "S" },
 

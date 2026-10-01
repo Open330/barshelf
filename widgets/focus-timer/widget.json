@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.focus-timer",
   "name": "Focus Timer",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "icon": "timer",
   "bucket": { "group": "Productivity", "order": 20, "size": "S" },
 

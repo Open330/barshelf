@@ -48,10 +48,12 @@ final class AasUsageAdapterTests: XCTestCase {
         XCTAssertEqual(tree.type, "vstack")
         let children = try XCTUnwrap(tree.children)
 
-        // Header: "aas" title + worst-remaining summary.
+        // Header: the worst-remaining summary only. The card header already
+        // names the widget, so the body must not repeat "aas".
         let header = try XCTUnwrap(children.first)
         XCTAssertEqual(header.type, "hstack")
-        XCTAssertEqual(header.children?.first?.text, "aas")
+        XCTAssertNil(flatten(tree).first { $0.text == "aas" })
+        XCTAssertNil(flatten(tree).first { $0.id == "aas-title" })
         let summary = try XCTUnwrap(header.children?.last)
         XCTAssertEqual(summary.text, "5% left")
         XCTAssertEqual(summary.foreground, "danger")
@@ -188,6 +190,8 @@ final class AasUsageAdapterTests: XCTestCase {
         let tree = AasUsageAdapter.adapt(Data(#"{"accounts": []}"#.utf8))
         let empty = try XCTUnwrap(flatten(tree).first { $0.type == "empty" })
         XCTAssertEqual(empty.title, "No accounts")
+        // Nothing to summarize, so no header row at all.
+        XCTAssertNil(flatten(tree).first { $0.id == "aas-header" })
     }
 
     // MARK: - Helpers

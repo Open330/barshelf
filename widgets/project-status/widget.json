@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.project-status",
   "name": "Project Status",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "icon": "point.3.connected.trianglepath.dotted",
   "bucket": { "group": "Developer", "order": 30, "size": "M" },
 

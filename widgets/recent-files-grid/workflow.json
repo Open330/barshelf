@@ -26,7 +26,6 @@
         "spacing": 8,
         "padding": 10,
         "children": [
-          { "type": "image", "source": { "kind": "sfSymbol", "name": "square.grid.2x2" }, "size": 15, "tint": "secondary" },
           { "type": "text", "text": "${file.basename(settings.folder)}", "role": "title", "lineLimit": 1 },
           { "type": "spacer" },
           { "type": "text", "text": "${count(sources.files.items)} files", "role": "caption", "foreground": "secondary" }

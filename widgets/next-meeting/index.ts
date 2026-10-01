@@ -86,7 +86,6 @@ function timeRange(data: MeetingData, locale: string): string {
 
 function redactedFallback(): UINode {
   return ui.vstack([
-    ui.header("Next Meeting", { icon: "calendar.badge.clock" }),
     ui.banner("Calendar details load when the widget refreshes.", {
       tone: "neutral",
       icon: "lock.shield",
@@ -96,12 +95,6 @@ function redactedFallback(): UINode {
 
 function emptyView(days: number): UINode {
   return ui.vstack([
-    ui.header("Next Meeting", {
-      icon: "calendar.badge.checkmark",
-      badge: "Clear",
-      badgeTone: "good",
-      tint: "good",
-    }),
     ui.empty({
       icon: "calendar.badge.checkmark",
       title: "No upcoming events",
@@ -130,16 +123,17 @@ function meetingView(data: MeetingData, ctx: WidgetLoadContext): UINode {
   }));
 
   return ui.vstack([
-    ui.header("Next Meeting", {
-      icon: "calendar.badge.clock",
-      badge: remaining,
-      badgeTone: startMs - ctx.now <= 15 * 60_000 ? "warning" : "accent",
-    }),
     ui.card([
-      ui.text(data.title ?? "Untitled event", {
-        role: "title",
-        lineLimit: 2,
-      }),
+      ui.hstack([
+        ui.text(data.title ?? "Untitled event", {
+          role: "title",
+          lineLimit: 2,
+        }),
+        ui.spacer(),
+        ui.badge(remaining, {
+          tone: startMs - ctx.now <= 15 * 60_000 ? "warning" : "accent",
+        }),
+      ], { spacing: 6 }),
       ui.text(timeRange(data, ctx.locale), {
         role: "body",
         monospacedDigit: true,
@@ -198,12 +192,6 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
     await ctx.log("warn", `Calendar query failed: ${message}`);
     await ctx.render(
       ui.vstack([
-        ui.header("Next Meeting", {
-          icon: "calendar.badge.exclamationmark",
-          badge: "Needs access",
-          badgeTone: "warning",
-          tint: "warning",
-        }),
         ui.banner(
           "Allow Calendar automation for BarShelf, then refresh this widget.",
           {

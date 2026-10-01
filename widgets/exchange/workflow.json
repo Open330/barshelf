@@ -15,14 +15,7 @@
     "type": "vstack",
     "spacing": 2,
     "children": [
-      {
-        "type": "hstack",
-        "spacing": 6,
-        "children": [
-          { "type": "image", "source": { "kind": "sfSymbol", "name": "dollarsign.circle.fill" }, "size": 13, "tint": "accent" },
-          { "type": "text", "text": "USD → KRW", "role": "caption", "foreground": "secondary" }
-        ]
-      },
+      { "type": "text", "text": "USD → KRW", "role": "caption", "foreground": "secondary" },
       { "type": "text", "text": "₩${string(round(number(sources.data.rates.KRW), 0))}", "size": 32, "role": "title", "monospacedDigit": true },
       { "type": "text", "text": "per $1", "role": "caption", "foreground": "secondary" }
     ]
