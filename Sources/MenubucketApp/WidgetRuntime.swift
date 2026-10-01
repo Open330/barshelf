@@ -1273,7 +1273,7 @@ final class WidgetRuntime: ObservableObject {
     }
 
     /// The sort key within a page: an override wins over the manifest order.
-    private func effectiveOrder(for id: String) -> Double {
+    func effectiveOrder(for id: String) -> Double {
         if let override = prefs.override(for: id)?.order { return override }
         return Double(widgets.first(where: { $0.id == id })?.order ?? 0)
     }

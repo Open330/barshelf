@@ -269,4 +269,55 @@ final class WidgetPrefsTests: XCTestCase {
         model.appearanceShowHeader = false
         XCTAssertEqual(model.makeSpec().appearance?.showHeader, false)
     }
+
+    /// Each layout change is one step: undo restores it, redo reapplies it,
+    /// and a second undo goes further back instead of bouncing.
+    func testLayoutChangesUndoAndRedoInOrder() {
+        let prefs = WidgetPrefs(fileURL: fileURL)
+        let undo = UndoManager()
+        undo.groupsByEvent = false
+        func step(_ change: () -> Void) {
+            undo.beginUndoGrouping()
+            prefs.changeLayout("Move", undoManager: undo, change)
+            undo.endUndoGrouping()
+        }
+        step { prefs.setOverride(group: "Ops", order: 0, for: "a") }
+        step { prefs.setDisabled("b", true) }
+        XCTAssertEqual(prefs.override(for: "a")?.group, "Ops")
+        XCTAssertTrue(prefs.isDisabled("b"))
+
+        undo.undo()
+        XCTAssertFalse(prefs.isDisabled("b"))
+        XCTAssertEqual(prefs.override(for: "a")?.group, "Ops")
+        undo.undo()
+        XCTAssertNil(prefs.override(for: "a"))
+        XCTAssertFalse(undo.canUndo)
+
+        undo.redo()
+        XCTAssertEqual(prefs.override(for: "a")?.group, "Ops")
+        undo.redo()
+        XCTAssertTrue(prefs.isDisabled("b"))
+        XCTAssertEqual(WidgetPrefs(fileURL: fileURL).layoutState, prefs.layoutState, "undo and redo are saved")
+    }
+
+    /// An edit in the inspector writes only what it changed, so a switch
+    /// flipped elsewhere meanwhile survives.
+    func testAMenuBarEditKeepsFieldsItDidNotTouch() {
+        let loaded = MenuBarPlacement(enabled: false, label: "CPU")
+        var edited = loaded
+        edited.label = "Load"
+        var stored = loaded
+        stored.enabled = true // switched on from the popup meanwhile
+        stored.adopt(changesFrom: loaded, to: edited)
+        XCTAssertTrue(stored.enabled)
+        XCTAssertEqual(stored.label, "Load")
+    }
+
+    /// `adopt` lists every field by hand; a new field must be added there too.
+    func testAdoptCoversEveryPlacementField() {
+        XCTAssertEqual(
+            Mirror(reflecting: MenuBarPlacement(enabled: false)).children.count, 10,
+            "MenuBarPlacement gained a field: add it to adopt(changesFrom:to:)"
+        )
+    }
 }

@@ -77,6 +77,8 @@ final class HubModel: ObservableObject {
     /// `HubWindowController.showWidgetSettings(widgetID:)`. The Widgets page
     /// opens that widget's settings and clears it.
     @Published var settingsWidgetID: String?
+    /// Which part of those settings to open on.
+    var settingsPage: WidgetSettingsView.InspectorTab = .general
     init(tab: HubTab) { self.tab = tab }
 }
 
@@ -112,8 +114,9 @@ final class HubWindowController: NSObject, NSWindowDelegate {
     /// Opens the hub on one widget's settings. The single route every "Widget
     /// Settings…" entry point uses — popup card, card menu, menu bar item —
     /// so they all land in the same place.
-    func showWidgetSettings(widgetID: String) {
+    func showWidgetSettings(widgetID: String, page: WidgetSettingsView.InspectorTab = .general) {
         show(tab: .widgets)
+        model?.settingsPage = page
         model?.settingsWidgetID = widgetID
     }
 
