@@ -271,6 +271,7 @@ final class UpdateInstallerTests: XCTestCase {
             .extractionFailed("bad"), .archiveHasNoApp, .archiveHasSeveralApps,
             .signatureRejected("signed by a different developer"),
             .gatekeeperRejected, .replaceFailed("busy"),
+            .systemTooOld(required: "14.0", running: "13.6"),
         ]
         for failure in failures {
             XCTAssertFalse(
@@ -280,6 +281,41 @@ final class UpdateInstallerTests: XCTestCase {
                 failure.recoverySuggestion?.isEmpty ?? true, "\(failure) suggests nothing"
             )
         }
+    }
+
+    func testTheMinimumMacOSIsComparedComponentByComponent() {
+        let sonoma = OperatingSystemVersion(majorVersion: 14, minorVersion: 2, patchVersion: 1)
+        XCTAssertTrue(UpdateInstaller.isSatisfied("14", by: sonoma))
+        XCTAssertTrue(UpdateInstaller.isSatisfied("14.0", by: sonoma))
+        XCTAssertTrue(UpdateInstaller.isSatisfied("14.2.1", by: sonoma))
+        XCTAssertTrue(UpdateInstaller.isSatisfied("13.0", by: sonoma))
+        XCTAssertFalse(UpdateInstaller.isSatisfied("14.2.2", by: sonoma))
+        XCTAssertFalse(UpdateInstaller.isSatisfied("14.10", by: sonoma))
+        XCTAssertFalse(UpdateInstaller.isSatisfied("15.0", by: sonoma))
+    }
+
+    /// A malformed requirement is left to Launch Services rather than used to
+    /// block every update.
+    func testAnUnreadableMinimumMacOSDoesNotBlockTheUpdate() {
+        let ventura = OperatingSystemVersion(majorVersion: 13, minorVersion: 0, patchVersion: 0)
+        for value in ["", "fourteen", "14.x", "14..0", "1.2.3.4"] {
+            XCTAssertTrue(UpdateInstaller.isSatisfied(value, by: ventura), value)
+        }
+    }
+
+    func testTheMinimumMacOSIsReadFromTheBundle() throws {
+        let app = try makeApp(named: "BarShelf.app", in: root)
+        XCTAssertNil(UpdateInstaller.requiredSystemVersion(of: app))
+
+        let plistURL = app.appendingPathComponent("Contents/Info.plist")
+        var plist = try XCTUnwrap(
+            PropertyListSerialization.propertyList(from: Data(contentsOf: plistURL), format: nil)
+                as? [String: Any]
+        )
+        plist["LSMinimumSystemVersion"] = "14.0"
+        try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
+            .write(to: plistURL)
+        XCTAssertEqual(UpdateInstaller.requiredSystemVersion(of: app), "14.0")
     }
 
     func testAnArchiveThatIsNotAZipIsRefusedBeforeDittoSeesIt() throws {
@@ -453,6 +489,32 @@ final class UpdateInstallerTests: XCTestCase {
         XCTAssertEqual(UpdateInstaller.installedVersion(of: previous), "1.0.0")
         result.confirm()
         XCTAssertFalse(FileManager.default.fileExists(atPath: previous.path))
+    }
+
+    /// A genuine build for a newer macOS is refused before it displaces the
+    /// copy that still runs here.
+    func testAnUpdateForANewerMacOSIsRefusedAndTheInstalledCopySurvives() throws {
+        let (source, team) = try borrowSignedBundle()
+        guard UpdateInstaller.requiredSystemVersion(of: source) != nil else {
+            throw XCTSkip("the borrowed bundle declares no minimum macOS")
+        }
+        let archive = root.appendingPathComponent("update.zip")
+        try zip(source, to: archive)
+
+        let installed = try makeApp(named: source.lastPathComponent, in: root, version: "1.0.0")
+        XCTAssertThrowsError(
+            try UpdateInstaller.install(
+                archive: archive, replacing: installed,
+                expectedTeam: team, expectedBundleID: nil, checkGatekeeper: false,
+                runningSystem: OperatingSystemVersion(majorVersion: 1, minorVersion: 0, patchVersion: 0)
+            )
+        ) { error in
+            guard case let .systemTooOld(_, running) = error as? UpdateInstaller.Failure else {
+                return XCTFail("expected systemTooOld, got \(error)")
+            }
+            XCTAssertEqual(running, "1.0")
+        }
+        XCTAssertEqual(UpdateInstaller.installedVersion(of: installed), "1.0.0")
     }
 
     func testTheSameArchiveIsRefusedForADifferentDeveloper() throws {

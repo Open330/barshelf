@@ -21,6 +21,9 @@ public enum UpdateInstaller {
         case identityMismatch(expected: String, found: String)
         case signatureRejected(String)
         case gatekeeperRejected
+        /// The build is genuine but needs a newer macOS than this Mac runs;
+        /// installing it would leave an app that refuses to open.
+        case systemTooOld(required: String, running: String)
         case replaceFailed(String)
 
         public var errorDescription: String? {
@@ -45,6 +48,9 @@ public enum UpdateInstaller {
             case .gatekeeperRejected:
                 return "macOS refused the downloaded build (it may have been"
                     + " revoked or is not notarized)."
+            case let .systemTooOld(required, running):
+                return "This update needs macOS \(required) or later; this Mac runs"
+                    + " macOS \(running)."
             case let .replaceFailed(detail):
                 return "The update could not be moved into place: \(detail)"
             }
@@ -61,6 +67,8 @@ public enum UpdateInstaller {
                     + " `brew upgrade --cask barshelf`."
             case .extractionFailed, .archiveHasNoApp, .archiveHasSeveralApps:
                 return "Try again, or download the release manually."
+            case .systemTooOld:
+                return "Update macOS to install it. The installed BarShelf keeps working."
             }
         }
     }
@@ -232,7 +240,8 @@ public enum UpdateInstaller {
         replacing target: URL,
         expectedTeam: String,
         expectedBundleID: String?,
-        checkGatekeeper: Bool = true
+        checkGatekeeper: Bool = true,
+        runningSystem: OperatingSystemVersion = ProcessInfo.processInfo.operatingSystemVersion
     ) throws -> Installed {
         let fileManager = FileManager.default
         guard fileManager.isWritableFile(atPath: target.deletingLastPathComponent().path) else {
@@ -272,6 +281,15 @@ public enum UpdateInstaller {
         }
         if checkGatekeeper, !CodeSignature.passesGatekeeper(app) {
             throw Failure.gatekeeperRejected
+        }
+        // Read only once the signature holds, so a forged bundle cannot pick
+        // the message. Without this, an update that raised the floor would
+        // replace a working copy with one Launch Services will not open.
+        if let required = requiredSystemVersion(of: app),
+           !isSatisfied(required, by: runningSystem) {
+            throw Failure.systemTooOld(
+                required: required, running: describe(runningSystem)
+            )
         }
 
         let version = installedVersion(of: app)
@@ -367,6 +385,30 @@ public enum UpdateInstaller {
     public static func installedVersion(of app: URL) -> String? {
         let version = infoDictionary(of: app)?["CFBundleShortVersionString"] as? String
         return (version?.isEmpty == false) ? version : nil
+    }
+
+    /// `LSMinimumSystemVersion` of a bundle, if it declares one.
+    public static func requiredSystemVersion(of app: URL) -> String? {
+        let value = infoDictionary(of: app)?["LSMinimumSystemVersion"] as? String
+        return (value?.isEmpty == false) ? value : nil
+    }
+
+    /// Whether `running` meets a dotted `required` version (`14`, `14.0`,
+    /// `13.5.1`). An unparseable requirement is treated as met: Launch
+    /// Services is the final judge, and refusing every update over a typo in
+    /// a plist would strand users on the old build for good.
+    public static func isSatisfied(_ required: String, by running: OperatingSystemVersion) -> Bool {
+        let parts = required.split(separator: ".", omittingEmptySubsequences: false).map { Int($0) }
+        guard !parts.isEmpty, parts.count <= 3, parts.allSatisfy({ $0 != nil }) else { return true }
+        let need = parts.map { $0! } + Array(repeating: 0, count: 3 - parts.count)
+        let have = [running.majorVersion, running.minorVersion, running.patchVersion]
+        return have.lexicographicallyPrecedes(need) == false
+    }
+
+    static func describe(_ version: OperatingSystemVersion) -> String {
+        version.patchVersion == 0
+            ? "\(version.majorVersion).\(version.minorVersion)"
+            : "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)"
     }
 
     static func infoDictionary(of app: URL) -> [String: Any]? {
