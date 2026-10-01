@@ -3,23 +3,68 @@ import MenubucketCore
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Auto-generated settings form from the manifest's `settings[]` entries
-/// (string / integer / boolean / enum / directory). Saving stores overrides
-/// in `WidgetPrefs` and reloads the widget.
+/// One widget's settings, shown in the Shelf's inspector (R13 §4.2): the
+/// manifest's own `settings[]` (string / integer / boolean / enum /
+/// directory), its look, its menu bar item, and what it is.
+///
+/// Changes apply as they are made — there is no Save. Each change is one
+/// step on the window's undo stack, so ⌘Z takes it back.
 struct WidgetSettingsView: View {
     let widget: LoadedWidget
     @ObservedObject var runtime: WidgetRuntime
+    /// Shelf actions that need a confirmation the Shelf owns.
+    var onDuplicate: (() -> Void)?
+    var onRemove: (() -> Void)?
     /// Observed so an open pane follows a change to the app-wide menu bar
     /// style: its preview and the values its setters compare against both
     /// include it.
     @ObservedObject private var appPrefs: AppPrefs
     @Environment(\.dismiss) private var dismiss
 
-    init(widget: LoadedWidget, runtime: WidgetRuntime, initialTab: MenuBarSettingsTab = .look) {
+    init(
+        widget: LoadedWidget,
+        runtime: WidgetRuntime,
+        initialTab: MenuBarSettingsTab = .look,
+        page: InspectorTab = .general,
+        onDuplicate: (() -> Void)? = nil,
+        onRemove: (() -> Void)? = nil
+    ) {
         self.widget = widget
         self.runtime = runtime
+        self.onDuplicate = onDuplicate
+        self.onRemove = onRemove
         _menuBarTab = State(initialValue: initialTab)
+        _page = State(initialValue: page)
         _appPrefs = ObservedObject(wrappedValue: runtime.appPrefs)
+    }
+
+    /// The inspector's four pages.
+    enum InspectorTab: String, CaseIterable, Identifiable {
+        case general, look, menuBar, about
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .general: return "General"
+            case .look: return "Look"
+            case .menuBar: return "Menu Bar"
+            case .about: return "About"
+            }
+        }
+    }
+
+    @State private var page: InspectorTab
+    @Environment(\.undoManager) private var undoManager
+    /// What is saved, so a change can be told apart from a reload and undone.
+    @State private var committed: Snapshot?
+    @State private var pendingCommit: Task<Void, Never>?
+    @State private var newPageName = ""
+    @State private var askingForNewPage = false
+
+    /// Everything the settings pane edits through its drafts.
+    private struct Snapshot: Equatable {
+        var values: [String: JSONValue]
+        var appearance: WidgetAppearance
+        var menuBar: MenuBarPlacement
     }
 
     @State private var values: [String: JSONValue] = [:]
@@ -56,56 +101,258 @@ struct WidgetSettingsView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("\(widget.displayName) Settings")
-                .font(.system(size: 13, weight: .semibold))
+        VStack(alignment: .leading, spacing: 0) {
+            header
+            Picker("Section", selection: $page) {
+                ForEach(InspectorTab.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .accessibilityLabel("Widget settings section")
+            .padding(.horizontal, Spacing.m)
+            .padding(.bottom, Spacing.s)
+            Divider()
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    if entries.isEmpty {
-                        Text("This widget has no settings.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    } else {
-                        ForEach(entries, id: \.key) { entry in
-                            row(for: entry, key: entry.key ?? "")
-                        }
+                VStack(alignment: .leading, spacing: Spacing.s) {
+                    switch page {
+                    case .general: generalPage
+                    case .look: appearanceSection
+                    case .menuBar: menuBarSection
+                    case .about: aboutPage
                     }
-
-                    Divider()
-                    menuBarSection
-
-                    Divider()
-                    appearanceSection
                 }
+                .padding(Spacing.m)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             .frame(maxHeight: Self.scrollMaxHeight)
+        }
+        .frame(minWidth: 320, maxWidth: .infinity, alignment: .topLeading)
+        .onAppear(perform: load)
+        .onDisappear(perform: flush)
+        .onChange(of: snapshot) { scheduleCommit() }
+        .alert("New Page", isPresented: $askingForNewPage) {
+            TextField("Page name", text: $newPageName)
+            Button("Move") {
+                let name = newPageName.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !name.isEmpty { runtime.moveWidget(id: widget.id, toGroup: name) }
+                newPageName = ""
+            }
+            Button("Cancel", role: .cancel) { newPageName = "" }
+        } message: {
+            Text("Move \(widget.displayName) to a new page.")
+        }
+    }
 
-            HStack {
-                Spacer()
-                Button("Cancel") { dismiss() }
-                    .keyboardShortcut(.cancelAction)
-                Button("Save") { save() }
-                    .keyboardShortcut(.defaultAction)
+    private var header: some View {
+        HStack(spacing: Spacing.xs) {
+            AccentTile(size: 28) {
+                Image(systemName: widget.manifest.icon ?? "square.dashed")
+            }
+            VStack(alignment: .leading, spacing: 1) {
+                Text(widget.displayName).font(.headline)
+                Text("\(WidgetTypeName.name(widget.manifest.entry.kind)) · version \(widget.packageInfo.version ?? "–")")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
-        .padding(16)
-        .frame(width: 320)
-        .onAppear {
-            values = runtime.prefs.effectiveSettings(
-                for: widget.manifest, widgetID: widget.id
-            ).objectValue ?? [:]
-            appearanceDraft = runtime.prefs.effectiveAppearance(
-                for: widget.manifest, widgetID: widget.id
-            )
-            menuBarDraft = runtime.prefs.menuBarPlacement(
-                for: widget.manifest, widgetID: widget.id
-            )
-            menuBarLoaded = menuBarDraft
-            loadDynamicOptions()
-            syncAlertTexts()
-            clickTargetResolves = menuBarDraft.clickTarget.map { StatusItemController.clickTargetURL($0) != nil }
+        .padding(Spacing.m)
+        .accessibilityElement(children: .combine)
+    }
+
+    // MARK: - General
+
+    @ViewBuilder
+    private var generalPage: some View {
+        let isEnabled = !runtime.prefs.isDisabled(widget.id)
+        Toggle(isOn: Binding(
+            get: { isEnabled },
+            set: { runtime.setWidgetDisabled(widget.id, !$0) }
+        )) {
+            Text("Show on the shelf")
         }
+        .toggleStyle(.switch)
+        if !isEnabled {
+            settingsHint("Turned off: it doesn't refresh and isn't in the popup.")
+        }
+
+        LabeledContent("Page") {
+            Picker("Page", selection: Binding(
+                get: { runtime.effectiveGroup(for: widget.id) },
+                set: { value in
+                    if value == Self.newPageTag { askingForNewPage = true } else {
+                        runtime.moveWidget(id: widget.id, toGroup: value)
+                    }
+                }
+            )) {
+                ForEach(pageOptions, id: \.self) { Text($0).tag($0) }
+                Divider()
+                Text("New Page…").tag(Self.newPageTag)
+            }
+            .labelsHidden()
+            .fixedSize()
+        }
+
+        LabeledContent("Size") {
+            Picker("Size", selection: Binding(
+                get: { runtime.effectiveSize(for: widget.id).uppercased() },
+                set: { runtime.resizeWidget(id: widget.id, toSize: $0 == widget.size.uppercased() ? nil : $0) }
+            )) {
+                ForEach(["XS", "S", "M", "L"], id: \.self) { code in
+                    Text(LayoutSizeName.name(code)).tag(code)
+                }
+            }
+            .labelsHidden()
+            .fixedSize()
+        }
+        settingsHint(LayoutSizeName.description(runtime.effectiveSize(for: widget.id)))
+
+        Divider()
+
+        if entries.isEmpty {
+            Text("This widget has no options of its own.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        } else {
+            ForEach(entries, id: \.key) { entry in
+                row(for: entry, key: entry.key ?? "")
+            }
+        }
+    }
+
+    private static let newPageTag = "\u{0}new-page"
+
+    private var pageOptions: [String] {
+        var options = Set(runtime.allGroups)
+        options.insert(runtime.effectiveGroup(for: widget.id))
+        return options.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
+    // MARK: - About
+
+    @ViewBuilder
+    private var aboutPage: some View {
+        LabeledContent("Type", value: WidgetTypeName.name(widget.manifest.entry.kind))
+        let info = widget.packageInfo
+        LabeledContent("Version", value: info.version ?? "–")
+        LabeledContent("Identifier") {
+            Text(widget.id).textSelection(.enabled).lineLimit(1).truncationMode(.middle)
+        }
+        if let description = info.description, !description.isEmpty {
+            Text(description)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+
+        Divider()
+
+        let lines = WidgetPermissionSummary.lines(for: widget.manifest)
+        if lines.isEmpty {
+            Label("Needs no permissions", systemImage: "checkmark.shield")
+                .foregroundStyle(.secondary)
+        } else {
+            Text("Permissions").font(.headline)
+            ForEach(lines, id: \.self) { line in
+                Label(line.text, systemImage: line.symbol).font(.callout)
+            }
+            HStack {
+                switch runtime.permissionState(for: widget) {
+                case .allowed:
+                    Text("Allowed").foregroundStyle(StatusTone.success.color)
+                    Spacer()
+                    Button("Revoke") { runtime.revokePermissions(widgetID: widget.id) }
+                case .denied:
+                    Text("Denied").foregroundStyle(StatusTone.critical.color)
+                    Spacer()
+                    Button("Allow") { runtime.approvePermissions(widgetID: widget.id) }
+                case .notAsked:
+                    Text("Waiting for you").foregroundStyle(StatusTone.warning.color)
+                    Spacer()
+                    Button("Deny") { runtime.denyPermissions(widgetID: widget.id) }
+                    Button("Allow") { runtime.approvePermissions(widgetID: widget.id) }
+                case .notNeeded:
+                    EmptyView()
+                }
+            }
+        }
+
+        Divider()
+
+        HStack {
+            Button("Show in Finder") {
+                if let url = runtime.widgetDirectory(for: widget.id) {
+                    NSWorkspace.shared.activateFileViewerSelecting([url])
+                }
+            }
+            if let onDuplicate {
+                Button("Duplicate…", action: onDuplicate)
+                    .help("Add a second copy with its own settings")
+            }
+            Spacer()
+            if let onRemove {
+                Button("Remove…", role: .destructive, action: onRemove)
+            }
+        }
+    }
+
+    // MARK: - Applying changes
+
+    private var snapshot: Snapshot {
+        Snapshot(values: values, appearance: appearanceDraft, menuBar: menuBarDraft)
+    }
+
+    private func load() {
+        values = runtime.prefs.effectiveSettings(
+            for: widget.manifest, widgetID: widget.id
+        ).objectValue ?? [:]
+        appearanceDraft = runtime.prefs.effectiveAppearance(
+            for: widget.manifest, widgetID: widget.id
+        )
+        menuBarDraft = runtime.prefs.menuBarPlacement(
+            for: widget.manifest, widgetID: widget.id
+        )
+        menuBarLoaded = menuBarDraft
+        committed = snapshot
+        loadDynamicOptions()
+        syncAlertTexts()
+        clickTargetResolves = menuBarDraft.clickTarget.map { StatusItemController.clickTargetURL($0) != nil }
+    }
+
+    /// Typing in a field should not run the widget once per keystroke; the
+    /// change lands a moment after the last one.
+    private func scheduleCommit() {
+        pendingCommit?.cancel()
+        pendingCommit = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(350))
+            guard !Task.isCancelled else { return }
+            commit()
+        }
+    }
+
+    private func flush() {
+        pendingCommit?.cancel()
+        commit()
+    }
+
+    private func commit() {
+        guard let previous = committed, previous != snapshot else { return }
+        let current = snapshot
+        persist(current, over: previous)
+        committed = current
+        undoManager?.registerUndo(withTarget: UndoAnchor.shared) { _ in
+            restore(previous)
+        }
+        undoManager?.setActionName("Change \(widget.displayName)")
+    }
+
+    /// Puts the drafts back to `snapshot`; the change handler then saves it,
+    /// which registers the redo.
+    private func restore(_ snapshot: Snapshot) {
+        values = snapshot.values
+        appearanceDraft = snapshot.appearance
+        menuBarDraft = snapshot.menuBar
+        syncAlertTexts()
     }
 
     /// The label a picker shows for a stored option value.
@@ -123,32 +370,37 @@ struct WidgetSettingsView: View {
         return title.isEmpty ? option : title
     }
 
-    private func save() {
-        for entry in entries {
-            guard let key = entry.key else { continue }
-            // Enforce integer min/max on commit so free-typed out-of-range
-            // values never reach the widget.
-            if entry.type == "integer", let number = values[key]?.numberValue {
-                values[key] = .number(clampedInteger(number, entry: entry))
+    private func persist(_ current: Snapshot, over previous: Snapshot) {
+        if current.values != previous.values {
+            for entry in entries {
+                guard let key = entry.key else { continue }
+                // Integer min/max are enforced on what is stored, not on the
+                // field, so typing "1" on the way to "15" is not rewritten.
+                var value = current.values[key]
+                if entry.type == "integer", let number = value?.numberValue {
+                    value = .number(clampedInteger(number, entry: entry))
+                }
+                runtime.prefs.setSetting(widgetID: widget.id, key: key, value: value)
             }
-            runtime.prefs.setSetting(widgetID: widget.id, key: key, value: values[key])
         }
-        // Editing everything back to the author default clears the override.
-        let base = authorBase
-        runtime.prefs.setAppearanceOverride(
-            appearanceDraft == base ? nil : appearanceDraft, for: widget.id
-        )
-        // Same rule as the appearance override above: storing a placement that
-        // matches the default would pin the widget away from it forever.
-        let menuBarBase = MenuBarPolicy.resolvedPlacement(
-            stored: nil, statusItem: widget.manifest.statusItem
-        )
-        if menuBarDraft != menuBarLoaded {
-            runtime.setMenuBarPlacement(
-                menuBarDraft == menuBarBase ? nil : menuBarDraft, for: widget.id
+        if current.appearance != previous.appearance {
+            // Editing everything back to the author default clears the override.
+            runtime.prefs.setAppearanceOverride(
+                current.appearance == authorBase ? nil : current.appearance, for: widget.id
             )
         }
-        dismiss()
+        // Same rule: storing a placement that matches the default would pin
+        // the widget away from it forever. And a placement this pane never
+        // touched is left alone, so a change made elsewhere survives.
+        if current.menuBar != previous.menuBar {
+            let menuBarBase = MenuBarPolicy.resolvedPlacement(
+                stored: nil, statusItem: widget.manifest.statusItem
+            )
+            runtime.setMenuBarPlacement(
+                current.menuBar == menuBarBase ? nil : current.menuBar, for: widget.id
+            )
+            menuBarLoaded = current.menuBar
+        }
         runtime.refresh(widgetID: widget.id)
     }
 
@@ -1396,4 +1648,10 @@ enum MenuBarSettingsTab: CaseIterable {
         case .behavior: return "Behavior"
         }
     }
+}
+
+/// A stable object to register undo actions against; SwiftUI views are
+/// values and cannot be one.
+private final class UndoAnchor {
+    static let shared = UndoAnchor()
 }

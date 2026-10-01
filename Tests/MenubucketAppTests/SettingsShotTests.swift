@@ -54,8 +54,13 @@ final class SettingsShotTests: XCTestCase {
         runtime.loadWidgets()
         let wanted = ProcessInfo.processInfo.environment["BARSHELF_SHOT_TABS"]
             .map { Set($0.split(separator: ",").map(String.init)) }
-        for tab in HubTab.allCases where wanted?.contains(tab.rawValue) ?? true {
+        var shots: [(name: String, tab: HubTab, select: String?)] = HubTab.allCases.map { ($0.rawValue, $0, nil) }
+        if let first = runtime.widgets.first(where: { $0.id == "dev.barshelf.system" }) ?? runtime.widgets.first {
+            shots.append(("widgets-inspector", .shelf, first.id))
+        }
+        for (name, tab, select) in shots where wanted?.contains(name) ?? true {
             let model = HubModel(tab: tab)
+            model.settingsWidgetID = select
             let view = HubView(runtime: runtime, appPrefs: prefs, model: model)
                 .frame(width: 1040, height: 720)
             let hosting = NSHostingView(rootView: view)
@@ -71,7 +76,7 @@ final class SettingsShotTests: XCTestCase {
             let rep = try XCTUnwrap(hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds))
             hosting.cacheDisplay(in: hosting.bounds, to: rep)
             let png = try XCTUnwrap(rep.representation(using: .png, properties: [:]))
-            let url = URL(fileURLWithPath: dir).appendingPathComponent("hub-\(tab.rawValue).png")
+            let url = URL(fileURLWithPath: dir).appendingPathComponent("hub-\(name).png")
             try png.write(to: url)
             print("wrote \(url.path)")
         }
