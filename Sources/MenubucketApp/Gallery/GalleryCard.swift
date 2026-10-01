@@ -70,21 +70,14 @@ struct GalleryCard: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color(nsColor: .controlBackgroundColor))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.primary.opacity(0.08))
-        )
+        .cardSurface()
     }
 
     /// App Store-style identity tile: filled accent square with a white glyph
     /// — the strongest per-card differentiator, so cards stop reading as
     /// walls of identical text.
     private var iconTile: some View {
-        RoundedRectangle(cornerRadius: 9, style: .continuous)
+        RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
             .fill(
                 LinearGradient(
                     colors: [accent.opacity(0.95), accent.opacity(0.7)],
@@ -133,7 +126,7 @@ struct GalleryCard: View {
     }
 
     private func badge(_ kind: String) -> some View {
-        Text(kind)
+        Text(WidgetTypeName.name(kind))
             .font(.caption2.weight(.semibold))
             .padding(.horizontal, 6)
             .padding(.vertical, 1)
@@ -230,10 +223,10 @@ struct GalleryCard: View {
                         .frame(maxWidth: .infinity)
                         .frame(height: 120)
                         .clipped()
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.card))
                         .accessibilityLabel("\(entry.name) preview")
                 case .empty:
-                    RoundedRectangle(cornerRadius: 8)
+                    RoundedRectangle(cornerRadius: Radius.card)
                         .fill(Color.secondary.opacity(0.08))
                         .frame(height: 120)
                         .overlay(ProgressView().controlSize(.small))

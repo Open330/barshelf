@@ -172,6 +172,15 @@ else
   echo "warning: registry directory not found; skipping registry resources: ${REGISTRY_DIR}" >&2
 fi
 
+# UI strings. Compiled from the catalog so SwiftUI's `Text("…")` lookups in
+# Bundle.main find them. Each translation in the catalog becomes its own
+# <language>.lproj; with only English there is nothing to emit, since an
+# untranslated key is its own English text.
+STRINGS_CATALOG="${PROJECT_ROOT}/Localization/Localizable.xcstrings"
+if [[ -f "${STRINGS_CATALOG}" ]]; then
+  xcrun xcstringstool compile "${STRINGS_CATALOG}" --output-directory "${RESOURCES_DIR}" >/dev/null
+fi
+
 if [[ "${APP_STORE_BUILD}" == "1" ]]; then
   if [[ -z "${PROVISIONING_PROFILE}" ]]; then
     echo "error: APP_STORE_BUILD=1 requires PROVISIONING_PROFILE" >&2

@@ -86,19 +86,8 @@ struct SearchOverlay: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Widget search")
         .onChange(of: query) { selection = 0 }
-        // ↑/↓ move the highlighted result while the search field keeps focus;
-        // hidden zero-size buttons capture the arrow keys on macOS 13 (no
-        // `.onKeyPress`). ⏎ (onSubmit) activates the current selection.
-        .background(
-            VStack(spacing: 0) {
-                Button("") { moveSelection(-1, hits: hits) }
-                    .keyboardShortcut(.upArrow, modifiers: [])
-                Button("") { moveSelection(1, hits: hits) }
-                    .keyboardShortcut(.downArrow, modifiers: [])
-            }
-            .opacity(0)
-            .accessibilityHidden(true)
-        )
+        // ↑/↓ move the highlighted result and ⏎ activates it: the search
+        // field's delegate turns them into moveUp/moveDown/insertNewline.
     }
 
     private func resultRow(index: Int, hit: SearchHit, hits: [SearchHit]) -> some View {

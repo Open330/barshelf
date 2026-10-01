@@ -53,16 +53,20 @@
 1. `main`이 CI 그린인지 확인한다.
 2. `RELEASE_NOTES.md`를 이번 버전 내용으로 작성한다. 이 파일은 항상 **다음
    릴리스**를 서술하며, GitHub 릴리스 본문에 그대로 붙여 넣는다.
-3. `scripts/build_app.sh`의 `APP_VERSION` 기본값이 이번 버전인지 확인한다.
+3. `bash scripts/sync-strings.sh --check`로 `Localization/Localizable.xcstrings`가
+   소스의 UI 문자열과 맞는지 확인한다. 어긋나면 `bash scripts/sync-strings.sh`로
+   갱신해 커밋한다. 번역이 생긴 뒤로는 여기서 빠진 문자열이 번역되지 않은 채
+   나간다. AppKit 쪽 문자열(`NSMenuItem`, `NSAlert`)은 아직 카탈로그에 없다.
+4. `scripts/build_app.sh`의 `APP_VERSION` 기본값이 이번 버전인지 확인한다.
    개발 빌드가 보고하는 버전이라, 기능 작업을 시작할 때 미리 올려둬도 된다.
-4. **먼저 태그를 만든다.** 산출물이 그 태그에서 나왔다는 걸 보장하기 위해서고,
+5. **먼저 태그를 만든다.** 산출물이 그 태그에서 나왔다는 걸 보장하기 위해서고,
    `release.sh`가 이를 강제한다 — 워킹 트리가 더럽거나 `HEAD`가 태그가 아니면
    빌드를 거부한다(로컬 무공증 패키징은 예외).
 
    ```bash
    git tag -a vX.Y.Z -m "BarShelf X.Y.Z"
    ```
-5. 빌드·서명·공증·패키징:
+6. 빌드·서명·공증·패키징:
 
    ```bash
    VERSION=X.Y.Z \
@@ -76,11 +80,11 @@
    `RELEASED_VERSION`도 함께 갱신한다 — 공증된 공개 릴리스일 때만. 이어서
    트리를 **다음 패치로 올리고**(`build_app.sh`·`BarShelfMain.swift`·노트
    제목), 이번 릴리스의 노트는 `dist/release/RELEASE_NOTES.md`에 남긴다 —
-   6번에서 게시할 때 그 파일을 쓴다. 저장소의 `RELEASE_NOTES.md`는 이미 다음
+   7번에서 게시할 때 그 파일을 쓴다. 저장소의 `RELEASE_NOTES.md`는 이미 다음
    버전을 가리키고 있다. 번들에는
    빌드한 커밋이 `BarShelfSourceCommit`으로 각인되고, 설정 창의 **Source** 행에
    표시된다.
-6. 태그를 밀고 릴리스를 만든다. `release.sh`는 여기까지 하지 않는다.
+7. 태그를 밀고 릴리스를 만든다. `release.sh`는 여기까지 하지 않는다.
    **자가 업데이터가 생긴 뒤로는 `--prerelease`로 시작하는 걸 권장한다** —
    업데이터는 GitHub의 `latest`를 보는데, pre-release는 거기 들어가지 않으므로
    직접 검증할 시간을 벌 수 있다:
@@ -91,7 +95,7 @@
      dist/release/SHA256SUMS --prerelease \
      --title "BarShelf X.Y.Z" --notes-file dist/release/RELEASE_NOTES.md
    ```
-7. **검증한다.** CI의 `Verify Release` 워크플로가 릴리스 게시 시 자동으로 돌고,
+8. **검증한다.** CI의 `Verify Release` 워크플로가 릴리스 게시 시 자동으로 돌고,
    수동으로도 돌릴 수 있다:
 
    ```bash
@@ -102,23 +106,23 @@
    서명·공증·Gatekeeper, 그리고 **자가 업데이터가 요구하는 Developer ID
    요구문**까지 확인한다. 마지막 항목이 실패하면 모든 클라이언트가 그 업데이트를
    거부한다.
-8. 자가 업데이터의 수락 경로를 확인한다. **0.2.0에서는 건너뛴다** — 0.1.3에는
+9. 자가 업데이터의 수락 경로를 확인한다. **0.2.0에서는 건너뛴다** — 0.1.3에는
    Install and Relaunch 버튼 자체가 없어서(그 버전의 업데이터는 릴리스 페이지를
    열 뿐이다) 아무도 0.2.0으로 자가 업데이트할 수 없고, 따라서 잘못된 자동
    설치 위험도 없다. 0.2.1부터는 [업데이트 리허설](#업데이트-리허설)을 먼저
    돌린다. CI 테스트는 이 경로를 건너뛰므로(러너에 Developer ID 번들이 없다)
    리허설이 유일한 사전 검증이다.
-9. 문제없으면 pre-release를 해제해 전체에 푼다:
+10. 문제없으면 pre-release를 해제해 전체에 푼다:
    `gh release edit vX.Y.Z --prerelease=false --latest`
 
    `open330/homebrew-tap`의 `sync-upstream` 워크플로가 하루 한 번 돌며
    cask와 `barshelf-cli` formula를 여기에 맞춘다. 즉시 반영하려면
    `gh workflow run sync-upstream.yml --repo Open330/homebrew-tap`.
-   7번의 `verify-release.sh`가 뒤처진 탭을 실패로 잡는다.
-10. 이제 문서의 버전 문구를 갱신한다 — `README.md`, `docs/INSTALL.md`,
+   8번의 `verify-release.sh`가 뒤처진 탭을 실패로 잡는다.
+11. 이제 문서의 버전 문구를 갱신한다 — `README.md`, `docs/INSTALL.md`,
     `site/index.html`. 갱신된 cask와 함께 커밋한다.
-11. `python3 scripts/check-release-versions.py`가 통과하는지 확인한다. 통과하지
-    않으면 10번이 덜 된 것이다.
+12. `python3 scripts/check-release-versions.py`가 통과하는지 확인한다. 통과하지
+    않으면 11번이 덜 된 것이다.
 
 ## 업데이트 리허설
 

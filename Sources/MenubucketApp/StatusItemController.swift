@@ -15,8 +15,8 @@ final class StatusItemController: NSObject {
     private var statusItem: NSStatusItem!
     private let runtime = WidgetRuntime()
     private let appPrefs = AppPrefs.shared
-    private let pager = PagerState()
-    private var popup: PopupSurface!
+    let pager = PagerState()
+    private(set) var popup: PopupSurface!
     /// Draws the live strip into the main item and owns the extra status items
     /// of widgets the user split out.
     private var menuBar: MenuBarController!
@@ -395,7 +395,7 @@ final class StatusItemController: NSObject {
         }
     }
 
-    @objc private func refreshAll(_ sender: Any?) {
+    @objc func refreshAll(_ sender: Any?) {
         runtime.refreshAll()
     }
 
@@ -418,11 +418,11 @@ final class StatusItemController: NSObject {
         }
     }
 
-    @objc private func checkForUpdates(_ sender: Any?) {
+    @objc func checkForUpdates(_ sender: Any?) {
         Task { @MainActor in UpdateChecker.check(explicit: true) }
     }
 
-    @objc private func openSettings(_ sender: Any?) {
+    @objc func openSettings(_ sender: Any?) {
         popup.hide()
         Task { @MainActor in
             AppSettingsWindowController.shared.show(
@@ -431,7 +431,7 @@ final class StatusItemController: NSObject {
         }
     }
 
-    @objc private func terminateApp(_ sender: Any?) {
+    @objc func terminateApp(_ sender: Any?) {
         NSApp.terminate(sender)
     }
 

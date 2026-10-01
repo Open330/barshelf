@@ -87,6 +87,15 @@ final class PagerState: ObservableObject {
     /// Opening the modal interrupts a horizontal gesture. The AppKit scroll
     /// monitor deliberately stops handling events during search, so waiting for
     /// a later scroll-end event would leave the pager offset in mid-swipe.
+    /// Bumped by the Find menu command; the popup opens its search overlay
+    /// on each change. A counter rather than a flag, so asking twice while it
+    /// is already open is harmless and asking again after closing works.
+    @Published private(set) var searchRequests = 0
+
+    func requestSearch() {
+        searchRequests += 1
+    }
+
     func setSearchPresented(_ presented: Bool) {
         searchIsPresented = presented
         if presented { cancelSwipe() }

@@ -700,10 +700,10 @@ struct WidgetBuilderView: View {
             }
 
             HStack {
-                Text("Panel").font(.system(size: 12))
+                Text("Page").font(.system(size: 12))
                 Spacer()
                 if addingPanel {
-                    TextField("New panel name", text: $model.group)
+                    TextField("New page name", text: $model.group)
                         .textFieldStyle(.roundedBorder).frame(width: 150)
                     Button {
                         if model.group.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -712,7 +712,7 @@ struct WidgetBuilderView: View {
                         addingPanel = false
                     } label: { Image(systemName: "checkmark.circle.fill") }
                         .buttonStyle(.borderless)
-                        .accessibilityLabel("Confirm new panel name")
+                        .accessibilityLabel("Confirm new page name")
                 } else {
                     Picker("", selection: panelSelection) {
                         ForEach(model.existingGroups, id: \.self) { Text($0).tag($0) }
@@ -720,7 +720,7 @@ struct WidgetBuilderView: View {
                             Text(model.group).tag(model.group)
                         }
                         Divider()
-                        Label("New Panel…", systemImage: "plus").tag(Self.newPanelSentinel)
+                        Label("New Page…", systemImage: "plus").tag(Self.newPanelSentinel)
                     }.labelsHidden().frame(width: 170)
                 }
             }

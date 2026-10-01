@@ -288,7 +288,7 @@ struct WidgetSettingsView: View {
                 .padding(.horizontal, 6)
                 .frame(height: 24)
                 .background(
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    RoundedRectangle(cornerRadius: Radius.control, style: .continuous)
                         .fill(Color.primary.opacity(0.07))
                 )
             Spacer(minLength: 0)
@@ -948,14 +948,15 @@ struct WidgetSettingsView: View {
                     Text("Height").font(.system(size: 12))
                     Spacer()
                     Picker("", selection: heightBinding) {
-                        Text("Fit").tag(HeightPreset.fit)
-                        Text("S").tag(HeightPreset.small)
-                        Text("M").tag(HeightPreset.medium)
-                        Text("L").tag(HeightPreset.large)
+                        Text("Auto").tag(HeightPreset.fit)
+                        Text("Short").tag(HeightPreset.small)
+                        Text("Medium").tag(HeightPreset.medium)
+                        Text("Tall").tag(HeightPreset.large)
                     }
-                    .pickerStyle(.segmented).labelsHidden().frame(width: 200)
+                    .pickerStyle(.segmented).labelsHidden().frame(width: 240)
+                    .accessibilityLabel("Height")
                 }
-                Text("Fit grows the card to its content; S/M/L give a fixed height that scrolls.")
+                Text("Auto grows the card to fit its content. Short, Medium, and Tall fix the height and scroll the rest.")
                     .font(.caption2).foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }

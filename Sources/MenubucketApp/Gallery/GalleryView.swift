@@ -222,42 +222,21 @@ struct GalleryView: View {
     }
 
     private func registryNotice(_ text: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
-                .accessibilityHidden(true)
-            Text(text)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Spacer(minLength: 0)
-            Button("Retry") { model.refresh(force: true) }
-                .controlSize(.small)
-                .disabled(model.isLoading)
-        }
-        .padding(10)
-        .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Registry status: \(text)")
+        StatusBanner(tone: .warning, message: text) { retryButton }
+            .accessibilityLabel("Registry status: \(text)")
     }
 
     private func refreshFailureNotice() -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "wifi.exclamationmark")
-                .foregroundStyle(.orange)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Couldn’t refresh the registry. Showing the widgets already loaded.")
-                    .font(.caption)
-            }
-            Spacer(minLength: 0)
-            Button("Retry") { model.refresh(force: true) }
-                .controlSize(.small)
-                .disabled(model.isLoading)
-        }
-        .padding(10)
-        .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Registry refresh failed. Showing widgets already loaded.")
+        StatusBanner(
+            tone: .warning,
+            message: "Couldn’t refresh the registry. Showing the widgets already loaded.",
+            symbol: "wifi.exclamationmark"
+        ) { retryButton }
+    }
+
+    private var retryButton: some View {
+        Button("Retry") { model.refresh(force: true) }
+            .disabled(model.isLoading)
     }
 
     /// One shelf: title + count, a one-line subtitle, and an adaptive grid of

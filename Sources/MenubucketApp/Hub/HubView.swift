@@ -37,27 +37,16 @@ struct HubView: View {
             }
             .background(Color(nsColor: .windowBackgroundColor))
         }
+        // ⌘, arrives as the BarShelf ▸ Settings… menu command (`AppCommands`).
         .navigationTitle(model.tab.title)
-        .background(
-            // ⌘, jumps to Settings while the hub is key (Esc intentionally does
-            // not close — this is a real window, not the popup).
-            Button("", action: { model.tab = .settings })
-                .keyboardShortcut(",", modifiers: .command)
-                .opacity(0)
-                .accessibilityHidden(true)
-        )
     }
 
     private var sidebarHeader: some View {
         HStack(spacing: 10) {
-            Image(nsImage: BarShelfStatusIcon.logoImage(size: NSSize(width: 26, height: 20)))
-                .renderingMode(.template)
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 30, height: 30)
-                .background(
-                    RoundedRectangle(cornerRadius: 7)
-                        .fill(Color.accentColor.opacity(0.12))
-                )
+            AccentTile(size: 30) {
+                Image(nsImage: BarShelfStatusIcon.logoImage(size: NSSize(width: 26, height: 20)))
+                    .renderingMode(.template)
+            }
             VStack(alignment: .leading, spacing: 1) {
                 Text("BarShelf")
                     .font(.system(size: 13, weight: .semibold))
@@ -83,15 +72,10 @@ struct HubView: View {
 
     private var detailHeader: some View {
         HStack(alignment: .center, spacing: 12) {
-            Image(systemName: model.tab.symbol)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 34, height: 34)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.accentColor.opacity(0.12))
-                )
-                .accessibilityHidden(true)
+            AccentTile(size: 34) {
+                Image(systemName: model.tab.symbol)
+                    .font(.headline)
+            }
             VStack(alignment: .leading, spacing: 2) {
                 Text(model.tab.title)
                     .font(.system(size: 18, weight: .semibold))
