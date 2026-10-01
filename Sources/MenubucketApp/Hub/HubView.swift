@@ -77,7 +77,7 @@ struct HubView: View {
         case .menuBar:
             MenuBarPage(appPrefs: appPrefs, runtime: runtime)
         case .gallery:
-            GalleryView(model: galleryModel)
+            GalleryView(model: galleryModel, runtime: runtime)
                 .onAppear { galleryModel.onWindowShown() }
         case .create:
             HubCreateView(runtime: runtime) { model.tab = .shelf }

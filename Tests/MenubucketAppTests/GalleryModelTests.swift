@@ -169,6 +169,99 @@ final class GalleryModelTests: XCTestCase {
         XCTAssertNil(model.loadError)
     }
 
+    /// Issue #1: nothing watches the disk while the hub window is hidden or
+    /// covered, and coming back rescans once.
+    func testHiddenWindowStopsWatchingAndRescansWhenShownAgain() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("barshelf-gallery-occluded-\(UUID().uuidString)")
+        let widgets = root.appendingPathComponent("widgets", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: widgets, withIntermediateDirectories: true)
+
+        let model = GalleryModel(widgetsDirectory: widgets)
+        let entry = makeEntry(id: "dev.test.while-hidden", version: "1.0")
+        model.setEntries(forPreview: [entry])
+        model.onWindowShown()
+        XCTAssertTrue(model.isWatchingInstalledWidgets)
+
+        model.setWindowVisible(false)
+        XCTAssertFalse(model.isActive)
+        XCTAssertFalse(model.isWatchingInstalledWidgets)
+
+        let directory = widgets.appendingPathComponent(entry.id, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        model.refreshInstalledStates()
+        try await Task.sleep(nanoseconds: 300_000_000)
+        XCTAssertTrue(model.installedIDs.isEmpty, "no scan while the window is hidden")
+
+        model.setWindowVisible(true)
+        XCTAssertTrue(model.isWatchingInstalledWidgets)
+        try await waitUntil { model.installedIDs == [entry.id] }
+
+        model.onWindowHidden()
+        XCTAssertFalse(model.isWatchingInstalledWidgets)
+    }
+
+    func testSearchMatchesDescriptionAndTypeAndCategoriesAreCurated() {
+        let model = GalleryModel(
+            widgetsDirectory: FileManager.default.temporaryDirectory
+                .appendingPathComponent("barshelf-gallery-search-\(UUID().uuidString)")
+        )
+        var weather = makeEntry(id: "dev.test.weather", version: "1.0")
+        weather.description = "Forecast for your city"
+        weather.kind = "workflow"
+        weather.category = "Demo"
+        weather.tags = ["http", "native"]
+        var otp = makeEntry(id: "dev.test.otp", version: "1.0")
+        otp.kind = "exec"
+        otp.category = "Security"
+        otp.tags = ["2fa"]
+        model.setEntries(forPreview: [weather, otp])
+
+        XCTAssertEqual(model.availableCategories, ["Demo", "Security"])
+        model.searchText = "forecast"
+        XCTAssertEqual(model.filteredEntries.map(\.id), [weather.id])
+        model.searchText = "command"
+        XCTAssertEqual(model.filteredEntries.map(\.id), [otp.id])
+        model.searchText = "2FA"
+        XCTAssertEqual(model.filteredEntries.map(\.id), [otp.id])
+
+        model.searchText = ""
+        model.selectedCategory = "Security"
+        XCTAssertTrue(model.pickerFiltersAreActive)
+        XCTAssertFalse(model.isSearching)
+        model.clearPickerFilters()
+        XCTAssertFalse(model.filtersAreActive)
+    }
+
+    func testSectionCopyNamesNoPersonalTools() {
+        let model = GalleryModel(
+            widgetsDirectory: FileManager.default.temporaryDirectory
+                .appendingPathComponent("barshelf-gallery-sections-\(UUID().uuidString)")
+        )
+        var custom = makeEntry(id: "dev.test.custom", version: "1.0")
+        custom.collection = "custom"
+        model.setEntries(forPreview: [makeEntry(id: "dev.test.builtin", version: "1.0"), custom])
+        let copy = model.sections.map { "\($0.title) \($0.subtitle)" }.joined(separator: " ")
+        XCTAssertEqual(model.sections.count, 2)
+        for name in ["muxa", "aas", "otpeek", "stashbar", "built-in", "custom"] {
+            XCTAssertFalse(copy.lowercased().contains(name), name)
+        }
+    }
+
+    func testDetailOpensAndClosesForAnEntry() {
+        let model = GalleryModel(
+            widgetsDirectory: FileManager.default.temporaryDirectory
+                .appendingPathComponent("barshelf-gallery-detail-\(UUID().uuidString)")
+        )
+        let entry = makeEntry(id: "dev.test.detail", version: "1.0")
+        model.setEntries(forPreview: [entry])
+        model.showDetail(entry)
+        XCTAssertEqual(model.detailEntry?.id, entry.id)
+        model.closeDetail()
+        XCTAssertNil(model.detailEntry)
+    }
+
     private func makeEntry(id: String, version: String) -> RegistryWidgetEntry {
         RegistryWidgetEntry(
             id: id,
