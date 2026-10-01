@@ -60,15 +60,15 @@ struct HubWidgetsView: View {
                                 }
                                 .buttonStyle(.borderless)
                                 .disabled(buckets.first == bucket)
-                                .help("Move panel up")
-                                .accessibilityLabel("Move panel \(bucket) up")
+                                .help("Move page up")
+                                .accessibilityLabel("Move page \(bucket) up")
                                 Button { moveBucket(bucket, by: 1) } label: {
                                     Image(systemName: "chevron.down")
                                 }
                                 .buttonStyle(.borderless)
                                 .disabled(buckets.last == bucket)
-                                .help("Move panel down")
-                                .accessibilityLabel("Move panel \(bucket) down")
+                                .help("Move page down")
+                                .accessibilityLabel("Move page \(bucket) down")
                             }
                             .contentShape(Rectangle())
                             .onDrag { NSItemProvider(object: bucket as NSString) }
@@ -114,14 +114,14 @@ struct HubWidgetsView: View {
             Text("Add an independently configurable instance of \"\(widget.displayName)\".")
         }
         .alert(
-            "New Panel",
+            "New Page",
             isPresented: Binding(
                 get: { newBucketTarget != nil },
                 set: { if !$0 { newBucketTarget = nil } }
             ),
             presenting: newBucketTarget
         ) { widget in
-            TextField("Panel name", text: $newBucketName)
+            TextField("Page name", text: $newBucketName)
             Button("Move") {
                 let name = newBucketName.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !name.isEmpty { runtime.moveWidget(id: widget.id, toGroup: name) }
@@ -133,7 +133,7 @@ struct HubWidgetsView: View {
                 newBucketTarget = nil
             }
         } message: { _ in
-            Text("Move this widget to a new panel.")
+            Text("Move this widget to a new page.")
         }
         .alert(
             "Widget Action Failed",
@@ -153,7 +153,7 @@ struct HubWidgetsView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text("Installed Widgets")
                     .font(.system(size: 15, weight: .semibold))
-                Text("Drag the handle on each row to arrange popup pages. Panels become pages.")
+                Text("Drag a row to reorder it. Each section is a page of the popup.")
                     .font(.system(size: 12))
                     .foregroundColor(.secondary)
             }
@@ -168,7 +168,7 @@ struct HubWidgetsView: View {
             }
             .controlSize(.small)
             .disabled(runtime.prefs.bucketOverrides.isEmpty)
-            .help("Clear custom panel, order, and size overrides")
+            .help("Clear custom pages, order, and sizes")
         }
         .padding(.horizontal, 20)
         .padding(.top, 16)
@@ -176,22 +176,7 @@ struct HubWidgetsView: View {
     }
 
     private func statPill(_ value: String, _ label: String) -> some View {
-        VStack(spacing: 0) {
-            Text(value)
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
-            Text(label)
-                .font(.caption2)
-                .foregroundColor(.secondary)
-        }
-        .frame(width: 54, height: 34)
-        .background(
-            RoundedRectangle(cornerRadius: 7)
-                .fill(Color(nsColor: .controlBackgroundColor))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 7)
-                .stroke(Color.primary.opacity(0.08))
-        )
+        StatBadge(value: value, label: label)
     }
 
     @ViewBuilder
@@ -244,14 +229,14 @@ struct HubWidgetsView: View {
                         runtime.moveWidget(id: widget.id, toGroup: option)
                     } label: {
                         if option == group {
-                            Label(option, systemImage: "checkmark")
+                            Label(LayoutSizeName.name(option), systemImage: "checkmark")
                         } else {
-                            Text(option)
+                            Text(LayoutSizeName.name(option))
                         }
                     }
                 }
                 Divider()
-                Button("New Panel…") {
+                Button("New Page…") {
                     newBucketName = ""
                     newBucketTarget = widget
                 }
@@ -261,17 +246,17 @@ struct HubWidgetsView: View {
             }
             .menuStyle(.borderlessButton)
             .frame(width: 110)
-            .help("Move to panel")
-            .accessibilityLabel("Panel for \(widget.displayName)")
+            .help("Move to page")
+            .accessibilityLabel("Page for \(widget.displayName)")
 
             Menu {
                 Button {
                     runtime.resizeWidget(id: widget.id, toSize: nil)
                 } label: {
                     if runtime.prefs.override(for: widget.id)?.size == nil {
-                        Label("Widget Default (\(widget.size))", systemImage: "checkmark")
+                        Label("Widget Default (\(LayoutSizeName.name(widget.size)))", systemImage: "checkmark")
                     } else {
-                        Text("Widget Default (\(widget.size))")
+                        Text("Widget Default (\(LayoutSizeName.name(widget.size)))")
                     }
                 }
                 Divider()
@@ -288,11 +273,11 @@ struct HubWidgetsView: View {
                     }
                 }
             } label: {
-                Text(size)
-                    .monospacedDigit()
+                Text(LayoutSizeName.name(size))
+                    .lineLimit(1)
             }
             .menuStyle(.borderlessButton)
-            .frame(width: 46)
+            .frame(width: 96)
             .help("Change card size")
             .accessibilityLabel("Size for \(widget.displayName)")
 
@@ -333,12 +318,7 @@ struct HubWidgetsView: View {
         .controlSize(.small)
         .padding(.horizontal, 6)
         .padding(.vertical, 3)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(disabled
-                    ? Color.secondary.opacity(0.06)
-                    : Color(nsColor: .controlBackgroundColor))
-        )
+        .cardSurface(dimmed: disabled)
     }
 
     // MARK: - Ordering

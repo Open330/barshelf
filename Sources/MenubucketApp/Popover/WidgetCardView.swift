@@ -120,8 +120,8 @@ struct WidgetCardView: View {
         .sheet(isPresented: $showSettings) {
             WidgetSettingsView(widget: widget, runtime: runtime)
         }
-        .alert("Move to a new panel", isPresented: $showNewBucket) {
-            TextField("Panel name", text: $newBucketName)
+        .alert("Move to a new page", isPresented: $showNewBucket) {
+            TextField("Page name", text: $newBucketName)
             Button("Cancel", role: .cancel) { newBucketName = "" }
             Button("Move") {
                 let name = newBucketName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -129,7 +129,7 @@ struct WidgetCardView: View {
                 newBucketName = ""
             }
         } message: {
-            Text("Enter a name for the panel to move \(widget.displayName) into.")
+            Text("Enter a name for the page to move \(widget.displayName) to.")
         }
         .alert("Remove \(widget.displayName)?", isPresented: $showRemoveConfirm) {
             Button("Cancel", role: .cancel) {}
@@ -243,12 +243,12 @@ struct WidgetCardView: View {
         Button(runtime.prefs.isDisabled(widget.id) ? "Enable" : "Disable") {
             runtime.setWidgetDisabled(widget.id, !runtime.prefs.isDisabled(widget.id))
         }
-        Menu("Move to Panel") {
+        Menu("Move to Page") {
             ForEach(runtime.allGroups, id: \.self) { group in
                 Button(group) { runtime.moveWidget(id: widget.id, toGroup: group) }
             }
             Divider()
-            Button("New Panel…") { showNewBucket = true }
+            Button("New Page…") { showNewBucket = true }
         }
         Button("Reveal in Finder") {
             if let directory = runtime.widgetDirectory(for: widget.id) {
@@ -378,11 +378,11 @@ struct WidgetCardView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
                 .fill(Color(nsColor: .windowBackgroundColor))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
                 .strokeBorder(cardAccent.opacity(0.4), lineWidth: 1)
         )
     }
@@ -433,31 +433,11 @@ struct WidgetCardView: View {
     }
 
     private func staleBanner(error: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundColor(.orange)
-            Text("Showing cached data: \(error)")
-                .font(.caption)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 8).fill(Color.orange.opacity(0.10)))
-        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.orange.opacity(0.35), lineWidth: 1))
+        StatusBanner(tone: .warning, message: "Showing cached data: \(error)")
     }
 
     private func failureState(error: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Image(systemName: "xmark.octagon.fill")
-                .foregroundColor(.red)
-            Text(error)
-                .font(.caption)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 8).fill(Color.red.opacity(0.10)))
-        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.red.opacity(0.35), lineWidth: 1))
+        StatusBanner(tone: .critical, message: error)
     }
 
     private static let relativeFormatter: RelativeDateTimeFormatter = {

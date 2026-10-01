@@ -680,12 +680,7 @@ final class WidgetBuilderModel: ObservableObject {
     }
 
     var sizeDescription: String {
-        switch size.uppercased() {
-        case "XS": return "XS - compact strip"
-        case "S": return "S - short card"
-        case "L": return "L - tall showcase"
-        default: return "M - standard card"
-        }
+        "\(LayoutSizeName.name(size)) — \(LayoutSizeName.description(size))"
     }
 
     var previewMinHeight: CGFloat {

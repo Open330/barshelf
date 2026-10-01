@@ -245,12 +245,12 @@ struct AppSettingsView: View {
     }
 
     private func selectionBackground(for symbol: String) -> some View {
-        RoundedRectangle(cornerRadius: 7)
+        RoundedRectangle(cornerRadius: Radius.control)
             .fill(symbol == appPrefs.preferences.menuBarSymbol
                 ? Color.accentColor.opacity(0.20)
                 : Color.clear)
             .overlay(
-                RoundedRectangle(cornerRadius: 7)
+                RoundedRectangle(cornerRadius: Radius.control)
                     .strokeBorder(
                         symbol == appPrefs.preferences.menuBarSymbol
                             ? Color.accentColor.opacity(0.55) : Color.clear
@@ -338,16 +338,25 @@ struct AppSettingsView: View {
     @ViewBuilder
     private var performanceSection: some View {
         SwiftUI.Section {
-            Picker("Refresh Cadence", selection: Binding(
+            // The multiplier scales every widget's interval, so a larger
+            // number means waiting longer between refreshes.
+            Picker("Refresh Speed", selection: Binding(
                 get: { appPrefs.preferences.refreshMultiplier },
                 set: { value in appPrefs.update { $0.refreshMultiplier = value } }
             )) {
-                Text("0.5×").tag(0.5)
-                Text("1×").tag(1.0)
-                Text("2×").tag(2.0)
-                Text("4×").tag(4.0)
+                Text("Faster").tag(0.5)
+                Text("Normal").tag(1.0)
+                Text("Slower").tag(2.0)
+                Text("Slowest").tag(4.0)
             }
             .pickerStyle(.segmented)
+            Text(
+                "How often every widget refreshes. Faster halves the wait between"
+                    + " refreshes; Slower and Slowest double and quadruple it, which"
+                    + " saves battery and network."
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
 
             Toggle(isOn: Binding(
                 get: { appPrefs.preferences.pauseWhenClosed },
@@ -368,7 +377,7 @@ struct AppSettingsView: View {
         SwiftUI.Section {
             HStack(spacing: 10) {
                 statTile("\(runtime.widgets.count)", "widgets")
-                statTile("\(runtime.pages.count)", "panels")
+                statTile("\(runtime.pages.count)", "pages")
                 statTile("\(refreshStats.stats.count)", "tracked")
             }
             .frame(maxWidth: .infinity)
@@ -457,20 +466,7 @@ struct AppSettingsView: View {
     }
 
     private func statTile(_ value: String, _ label: String) -> some View {
-        VStack(spacing: 2) {
-            Text(value)
-                .font(.system(size: 17, weight: .semibold, design: .rounded))
-                .monospacedDigit()
-            Text(label)
-                .font(.caption2)
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: 52)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.primary.opacity(0.05))
-        )
+        StatBadge(value: value, label: label, style: .tile)
     }
 
     // MARK: - Launch at login

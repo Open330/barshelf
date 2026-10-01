@@ -43,7 +43,7 @@ struct WelcomeCardView: View {
                 }
                 .controlSize(.small)
             }
-            Text("Tip: right-click the menu bar icon for Settings — swipe with two fingers to switch panels.")
+            Text("Tip: the gear opens Settings. Swipe with two fingers or press ←/→ to switch pages.")
                 .font(.caption2)
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

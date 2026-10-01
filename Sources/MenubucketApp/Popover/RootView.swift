@@ -58,7 +58,7 @@ struct RootView: View {
                         .contentShape(Rectangle())
                         .onTapGesture { searchPresented = false }
                     SearchOverlay(runtime: runtime, pager: pager, isPresented: $searchPresented)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.control))
                         .shadow(radius: 8)
                         .padding(8)
                 }
@@ -67,12 +67,8 @@ struct RootView: View {
         }
         .overlay(alignment: .bottom) { toastOverlay }
         .animation(.easeInOut(duration: 0.2), value: toast.message)
-        .background( // ⌘F without stealing layout space
-            Button("") { searchPresented = true }
-                .keyboardShortcut("f", modifiers: .command)
-                .opacity(0)
-                .accessibilityHidden(true)
-        )
+        // ⌘F arrives as the Edit ▸ Find menu command (`AppCommands`).
+        .onChange(of: pager.searchRequests) { searchPresented = true }
         .onAppear {
             pager.setSearchPresented(searchPresented)
             publishVisibleWidgets(pages: pages)
@@ -209,8 +205,8 @@ struct RootView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .buttonStyle(.borderless)
-        .help("Jump to the next pinned widget's panel")
-        .accessibilityLabel("\(hidden) more pinned widgets hidden; jump to panel")
+        .help("Jump to the next pinned widget's page")
+        .accessibilityLabel("\(hidden) more pinned widgets hidden; jump to page")
     }
 
     /// All pages laid out horizontally; offset = current page + live drag.
@@ -340,7 +336,7 @@ struct RootView: View {
                 Text("\(index + 1) of \(count)")
                     .font(.caption)
                     .foregroundColor(.secondary)
-                    .accessibilityLabel("Panel \(index + 1) of \(count)")
+                    .accessibilityLabel("Page \(index + 1) of \(count)")
             }
             Spacer()
             Button {
@@ -378,8 +374,8 @@ struct RootView: View {
             }
             .buttonStyle(.borderless)
             .disabled(index == 0)
-            .help("Previous panel")
-            .accessibilityLabel("Previous panel")
+            .help("Previous page")
+            .accessibilityLabel("Previous page")
 
             Spacer()
 
@@ -415,7 +411,7 @@ struct RootView: View {
                 }
             }
             .accessibilityElement(children: .contain)
-            .accessibilityLabel("Panel \(index + 1) of \(pages.count)")
+            .accessibilityLabel("Page \(index + 1) of \(pages.count)")
 
             Spacer()
 
@@ -426,8 +422,8 @@ struct RootView: View {
             }
             .buttonStyle(.borderless)
             .disabled(index >= pages.count - 1)
-            .help("Next panel")
-            .accessibilityLabel("Next panel")
+            .help("Next page")
+            .accessibilityLabel("Next page")
 
             Button {
                 Task { @MainActor in
@@ -546,16 +542,5 @@ struct RootView: View {
                 .padding(.bottom, 10)
         }
         .frame(maxWidth: .infinity)
-    }
-}
-
-/// Capsule chrome for floating controls: a solid, opaque surface with a
-/// hairline border — no translucency.
-struct ControlCapsule: ViewModifier {
-    func body(content: Content) -> some View {
-        content
-            .background(Capsule().fill(Color(nsColor: .windowBackgroundColor)))
-            .overlay(Capsule().strokeBorder(Color.secondary.opacity(0.25), lineWidth: 0.5))
-            .shadow(color: .black.opacity(0.10), radius: 2, y: 1)
     }
 }

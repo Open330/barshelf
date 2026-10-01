@@ -13,9 +13,9 @@ enum GalleryKindFilter: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .all: return "All"
-        case .exec: return "exec"
-        case .workflow: return "workflow"
-        case .script: return "script"
+        case .exec: return WidgetTypeName.name("exec")
+        case .workflow: return WidgetTypeName.name("workflow")
+        case .script: return WidgetTypeName.name("script")
         }
     }
 }

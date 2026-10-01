@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // minimal Edit menu wires those selectors to the first responder.
         NSApp.mainMenu = Self.makeMainMenu()
         statusItemController = StatusItemController()
+        if let menu = NSApp.mainMenu { statusItemController?.installCommands(in: menu) }
         AutomationController.shared.startAtLaunch()
         // Record that this build genuinely came up — after the status item
         // exists, so the receipt attests to the thing a user would look for
