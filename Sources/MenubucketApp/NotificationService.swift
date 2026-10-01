@@ -14,10 +14,21 @@ final class NotificationService: @unchecked Sendable {
         var errorDescription: String? {
             switch self {
             case .unavailable:
-                return "notifications unavailable (no app bundle - run the packaged BarShelf.app)"
+                return "Notifications only work in the installed BarShelf app, not a development build."
             case .denied:
-                return "notification permission denied by the user"
+                return "BarShelf isn't allowed to show notifications. Turn them on in System Settings ▸ Notifications ▸ BarShelf."
             }
+        }
+    }
+
+    /// Asks macOS once, at the moment the user allows a widget that sends
+    /// notifications — so the system prompt follows their own decision
+    /// instead of appearing out of nowhere the first time a widget fires.
+    static func requestAuthorization() {
+        guard Bundle.main.bundleIdentifier != nil else { return }
+        Task {
+            _ = try? await UNUserNotificationCenter.current()
+                .requestAuthorization(options: [.alert, .sound])
         }
     }
 

@@ -239,4 +239,34 @@ final class WidgetPrefsTests: XCTestCase {
         XCTAssertEqual(reloaded.menuBarPlacement(for: manifest, widgetID: b).order, 1)
     }
 
+
+    /// Builder widgets from before the card header was on by default draw
+    /// their own title row; turning the header on for them would print the
+    /// name twice. Everything else gets the header unless it says otherwise.
+    func testOlderBuilderWidgetsKeepTheirOwnTitleRow() {
+        let prefs = WidgetPrefs(fileURL: fileURL)
+        func manifest(_ id: String, showHeader: Bool?) -> Manifest {
+            Manifest(
+                schemaVersion: 1, id: id, name: "W", entry: .init(kind: "workflow"),
+                appearance: showHeader.map { WidgetAppearance(showHeader: $0) }
+            )
+        }
+        XCTAssertFalse(prefs.effectiveAppearance(for: manifest("dev.barshelf.user.old", showHeader: nil)).showsHeader)
+        XCTAssertTrue(prefs.effectiveAppearance(for: manifest("dev.barshelf.user.new", showHeader: true)).showsHeader)
+        XCTAssertFalse(prefs.effectiveAppearance(for: manifest("dev.barshelf.user.off", showHeader: false)).showsHeader)
+        XCTAssertTrue(prefs.effectiveAppearance(for: manifest("dev.barshelf.battery", showHeader: nil)).showsHeader)
+    }
+
+    /// New builder widgets rely on the card header and say so explicitly.
+    @MainActor
+    func testTheBuilderWritesTheHeaderChoiceAndNoTitleRow() {
+        let model = WidgetBuilderModel(existingGroups: [])
+        model.name = "Deploys"
+        let spec = model.makeSpec()
+        XCTAssertFalse(spec.showHeader, "the content must not repeat the card's title")
+        XCTAssertEqual(spec.appearance?.showHeader, true)
+
+        model.appearanceShowHeader = false
+        XCTAssertEqual(model.makeSpec().appearance?.showHeader, false)
+    }
 }

@@ -29,7 +29,7 @@ struct MenuBarStyleControls {
     var width: some View {
         let presentation = shown
         VStack(alignment: .leading, spacing: 6) {
-            Picker("", selection: Binding(
+            Picker("Width", selection: Binding(
                 get: { presentation.effectiveWidth },
                 set: { mode in change { $0.width = keep(mode, \.effectiveWidth) } }
             )) {
@@ -85,7 +85,7 @@ struct MenuBarStyleControls {
         let presentation = shown
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 10) {
-                Picker("", selection: Binding(
+                Picker("Text alignment", selection: Binding(
                     get: { presentation.effectiveAlignment },
                     set: { value in change { $0.alignment = keep(value, \.effectiveAlignment) } }
                 )) {
@@ -100,7 +100,7 @@ struct MenuBarStyleControls {
                 .labelsHidden()
                 .frame(width: 110)
 
-                Picker("", selection: Binding(
+                Picker("Text size", selection: Binding(
                     get: { presentation.size ?? .regular },
                     set: { value in change { $0.size = keep(value) { $0.size ?? .regular } } }
                 )) {
@@ -112,7 +112,7 @@ struct MenuBarStyleControls {
                 .labelsHidden()
                 .frame(width: 90)
 
-                Picker("", selection: Binding(
+                Picker("Text weight", selection: Binding(
                     get: { presentation.weight?.rawValue ?? "default" },
                     // "Default weight" always means "not set here".
                     set: { value in
@@ -147,7 +147,7 @@ struct MenuBarStyleControls {
     var color: some View {
         let presentation = shown
         VStack(alignment: .leading, spacing: 4) {
-            Picker("", selection: Binding(
+            Picker("Color", selection: Binding(
                 get: { presentation.color ?? "automatic" },
                 // "automatic" is stored when it differs from what is
                 // inherited, so an item can take its warning colours back

@@ -223,14 +223,14 @@ struct OnboardingView: View {
     /// row does, outside a Form.
     private func switchRow<Label: View>(isOn: Binding<Bool>, @ViewBuilder label: () -> Label) -> some View {
         HStack {
-            label()
+            // Shown here, spoken by the switch.
+            label().accessibilityHidden(true)
             Spacer()
-            Toggle("", isOn: isOn)
+            Toggle(isOn: isOn) { label() }
                 .toggleStyle(.switch)
                 .labelsHidden()
         }
         .padding(.vertical, 6)
-        .accessibilityElement(children: .combine)
     }
 
     private func title(_ heading: String, _ detail: String) -> some View {

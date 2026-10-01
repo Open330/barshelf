@@ -66,3 +66,12 @@
 - **A welcome on first launch.** Keep the starter widgets you want, set a
   shortcut and login item, and pick values for the menu bar, then BarShelf
   opens its popup.
+- **Updates wait for you.** When a new version is out, the menu bar icon gets
+  a dot and the ⋯ menu offers "Update to BarShelf …" — no dialog appears over
+  your work at launch.
+- macOS asks about notifications when you allow a widget that sends them,
+  not the first time one happens to fire.
+- The Create preview now looks exactly like the card it makes, and widgets
+  made with Create no longer show their name twice.
+- Every control in BarShelf has a name for VoiceOver.
+

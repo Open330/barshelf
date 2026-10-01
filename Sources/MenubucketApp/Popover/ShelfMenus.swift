@@ -6,6 +6,8 @@ import SwiftUI
 struct ShelfMoreMenu: View {
     let runtime: WidgetRuntime
     let onCommand: (AppMenuCommand) -> Void
+    /// So "Check for Updates…" turns into "Update to BarShelf X…".
+    @ObservedObject private var updates = UpdateStatus.shared
 
     var body: some View {
         Menu {

@@ -13,7 +13,12 @@ enum AppMenuCommand: Hashable {
         case .menuBar: return String(localized: "Menu Bar")
         case .openBarShelf: return String(localized: "Open BarShelf…")
         case .settings: return String(localized: "Settings…")
-        case .checkForUpdates: return String(localized: "Check for Updates…")
+        case .checkForUpdates:
+            // Built on the main thread by both menus; once a check has found a
+            // release, the item says so and opens it.
+            let available = MainActor.assumeIsolated { UpdateStatus.shared.available }
+            if let available { return String(localized: "Update to BarShelf \(available)…") }
+            return String(localized: "Check for Updates…")
         case .quit: return String(localized: "Quit BarShelf")
         }
     }

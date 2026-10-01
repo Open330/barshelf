@@ -43,11 +43,12 @@ enum UpdateChecker {
         ReleaseFeed.isNewer(lhs, than: rhs)
     }
 
-    /// `explicit` (menu item) surfaces "you're up to date" and errors;
-    /// the silent launch check stays quiet unless an update is available.
+    /// The launch check (`explicit: false`) is quiet: when a release is
+    /// out it marks the menu bar icon and turns the ⋯ menu's "Check for
+    /// Updates…" into "Update to BarShelf X…" — nothing jumps in front of
+    /// whatever the user was doing. Choosing that item, or Check for
+    /// Updates, asks with the full dialog.
     static func check(explicit: Bool, prefs: AppPrefs = .shared) {
-        // The launch check is the only unsolicited one; turning it off in
-        // Settings turns off exactly that.
         if !explicit, !prefs.preferences.checkForUpdatesAutomatically { return }
         let status = UpdateStatus.shared
         status.isChecking = true
@@ -58,10 +59,12 @@ enum UpdateChecker {
                 let latest = release.version
                 status.lastChecked = Date()
                 let newer = ReleaseFeed.isNewer(latest, than: currentVersion)
-                status.available = newer ? latest : nil
-                if newer, !explicit, prefs.preferences.skippedUpdateVersion == latest {
-                    return
-                }
+                let skipped = prefs.preferences.skippedUpdateVersion == latest
+                status.available = newer && (explicit || !skipped) ? latest : nil
+                HubWindowController.shared.runtime?.attention.set(
+                    .updateAvailable, status.available != nil
+                )
+                guard explicit else { return }
                 if newer {
                     present(
                         latest: latest,
@@ -72,7 +75,7 @@ enum UpdateChecker {
                         )?.url,
                         explicit: explicit
                     )
-                } else if explicit {
+                } else {
                     upToDate(current: currentVersion)
                 }
             } catch {
@@ -180,11 +183,9 @@ enum UpdateChecker {
         }
     }
 
-    /// The launch-time prompt gets a way to stop asking about this release;
-    /// a check the user started does not, since they asked to see it.
-    /// Returns the response the button produces, or one no button produces.
+    /// A way to stop the badge and menu item reminding about this release.
+    /// Returns the response the button produces.
     private static func addSkipButton(to alert: NSAlert, explicit: Bool) -> NSApplication.ModalResponse {
-        guard !explicit else { return NSApplication.ModalResponse(rawValue: -1) }
         alert.addButton(withTitle: "Skip This Version")
         return NSApplication.ModalResponse(
             rawValue: NSApplication.ModalResponse.alertFirstButtonReturn.rawValue + alert.buttons.count - 1
@@ -193,6 +194,8 @@ enum UpdateChecker {
 
     static func skipVersion(_ version: String, prefs: AppPrefs = .shared) {
         prefs.update { $0.skippedUpdateVersion = version }
+        UpdateStatus.shared.available = nil
+        HubWindowController.shared.runtime?.attention.set(.updateAvailable, false)
     }
 
     // MARK: - Install

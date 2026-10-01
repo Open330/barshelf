@@ -634,6 +634,9 @@ final class WidgetRuntime: ObservableObject {
             "hash": .string(PermissionStore.permissionsHash(of: widget.manifest)),
         ])
         setOverlay(nil, for: widgetID)
+        if widget.manifest.permissions?.notifications == true {
+            NotificationService.requestAuthorization()
+        }
         refresh(widget, manual: true)
     }
 
