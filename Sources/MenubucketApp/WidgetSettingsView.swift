@@ -96,8 +96,7 @@ struct WidgetSettingsView: View {
     /// The widget's author default (manifest appearance over neutral). Editing
     /// the controls back to this is treated as "no override".
     private var authorBase: WidgetAppearance {
-        let neutral = WidgetAppearance()
-        return (widget.manifest.appearance ?? neutral).merged(over: neutral)
+        WidgetPrefs.baseAppearance(for: widget.manifest)
     }
 
     var body: some View {
@@ -131,11 +130,28 @@ struct WidgetSettingsView: View {
         .onAppear(perform: load)
         .onDisappear(perform: flush)
         .onChange(of: snapshot) { scheduleCommit() }
+        // An undo or redo saved these settings without this view: show them.
+        .onReceive(NotificationCenter.default.publisher(for: .widgetSettingsDidChange)) { note in
+            guard note.object as? String == widget.id else { return }
+            pendingCommit?.cancel()
+            pendingCommit = nil
+            load()
+        }
+        // ⌘Z right after typing: save the edit first, so the undo takes back
+        // that edit rather than the one before it.
+        .onReceive(NotificationCenter.default.publisher(for: .NSUndoManagerWillUndoChange)) { note in
+            guard note.object as? UndoManager === undoManager, pendingCommit != nil else { return }
+            flush()
+        }
         .alert("New Page", isPresented: $askingForNewPage) {
             TextField("Page name", text: $newPageName)
             Button("Move") {
                 let name = newPageName.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !name.isEmpty { runtime.moveWidget(id: widget.id, toGroup: name) }
+                if !name.isEmpty {
+                    runtime.changeLayout(String(localized: "Move Widget"), undoManager: undoManager) {
+                        runtime.moveWidget(id: widget.id, toGroup: name)
+                    }
+                }
                 newPageName = ""
             }
             Button("Cancel", role: .cancel) { newPageName = "" }
@@ -167,7 +183,11 @@ struct WidgetSettingsView: View {
         let isEnabled = !runtime.prefs.isDisabled(widget.id)
         Toggle(isOn: Binding(
             get: { isEnabled },
-            set: { runtime.setWidgetDisabled(widget.id, !$0) }
+            set: { show in
+                runtime.changeLayout((show ? String(localized: "Show Widget") : String(localized: "Turn Off Widget")), undoManager: undoManager) {
+                    runtime.setWidgetDisabled(widget.id, !show)
+                }
+            }
         )) {
             Text("Show on the shelf")
         }
@@ -181,7 +201,9 @@ struct WidgetSettingsView: View {
                 get: { runtime.effectiveGroup(for: widget.id) },
                 set: { value in
                     if value == Self.newPageTag { askingForNewPage = true } else {
-                        runtime.moveWidget(id: widget.id, toGroup: value)
+                        runtime.changeLayout(String(localized: "Move Widget"), undoManager: undoManager) {
+                            runtime.moveWidget(id: widget.id, toGroup: value)
+                        }
                     }
                 }
             )) {
@@ -196,7 +218,11 @@ struct WidgetSettingsView: View {
         LabeledContent("Size") {
             Picker("Size", selection: Binding(
                 get: { runtime.effectiveSize(for: widget.id).uppercased() },
-                set: { runtime.resizeWidget(id: widget.id, toSize: $0 == widget.size.uppercased() ? nil : $0) }
+                set: { size in
+                    runtime.changeLayout(String(localized: "Change Size"), undoManager: undoManager) {
+                        runtime.resizeWidget(id: widget.id, toSize: size == widget.size.uppercased() ? nil : size)
+                    }
+                }
             )) {
                 ForEach(["XS", "S", "M", "L"], id: \.self) { code in
                     Text(LayoutSizeName.name(code)).tag(code)
@@ -332,27 +358,41 @@ struct WidgetSettingsView: View {
 
     private func flush() {
         pendingCommit?.cancel()
+        pendingCommit = nil
         commit()
     }
 
     private func commit() {
+        pendingCommit = nil
         guard let previous = committed, previous != snapshot else { return }
         let current = snapshot
-        persist(current, over: previous)
+        Self.apply(current, over: previous, widget: widget, runtime: runtime, undoManager: undoManager)
+        menuBarLoaded = current.menuBar
         committed = current
-        undoManager?.registerUndo(withTarget: UndoAnchor.shared) { _ in
-            restore(previous)
-        }
-        undoManager?.setActionName(String(localized: "Change \(widget.displayName)", comment: "Undo action name for a widget settings change"))
     }
 
-    /// Puts the drafts back to `snapshot`; the change handler then saves it,
-    /// which registers the redo.
-    private func restore(_ snapshot: Snapshot) {
-        values = snapshot.values
-        appearanceDraft = snapshot.appearance
-        menuBarDraft = snapshot.menuBar
-        syncAlertTexts()
+    /// Saves `current` where it differs from `previous` and registers the
+    /// step that takes it back. Static, and working from the stored values
+    /// rather than this view's drafts: an undo can run after the inspector
+    /// has moved on to another widget or closed, when no view is left to
+    /// hold the drafts. A view still showing the widget reloads from the
+    /// notification.
+    private static func apply(
+        _ current: Snapshot, over previous: Snapshot,
+        widget: LoadedWidget, runtime: WidgetRuntime, undoManager: UndoManager?,
+        announce: Bool = false
+    ) {
+        persist(current, over: previous, widget: widget, runtime: runtime)
+        if announce {
+            NotificationCenter.default.post(name: .widgetSettingsDidChange, object: widget.id)
+        }
+        guard let undoManager else { return }
+        // Registered during an undo, this becomes the redo, and vice versa.
+        undoManager.registerUndo(withTarget: UndoAnchor.shared) { _ in
+            apply(previous, over: current, widget: widget, runtime: runtime,
+                  undoManager: undoManager, announce: true)
+        }
+        undoManager.setActionName(String(localized: "Change \(widget.displayName)"))
     }
 
     /// The label a picker shows for a stored option value.
@@ -370,10 +410,12 @@ struct WidgetSettingsView: View {
         return title.isEmpty ? option : title
     }
 
-    private func persist(_ current: Snapshot, over previous: Snapshot) {
+    private static func persist(
+        _ current: Snapshot, over previous: Snapshot, widget: LoadedWidget, runtime: WidgetRuntime
+    ) {
         if current.values != previous.values {
-            for entry in entries {
-                guard let key = entry.key else { continue }
+            for entry in (widget.manifest.settings ?? []) {
+                guard let key = entry.key, current.values[key] != previous.values[key] else { continue }
                 // Integer min/max are enforced on what is stored, not on the
                 // field, so typing "1" on the way to "15" is not rewritten.
                 var value = current.values[key]
@@ -385,21 +427,23 @@ struct WidgetSettingsView: View {
         }
         if current.appearance != previous.appearance {
             // Editing everything back to the author default clears the override.
+            let base = WidgetPrefs.baseAppearance(for: widget.manifest)
             runtime.prefs.setAppearanceOverride(
-                current.appearance == authorBase ? nil : current.appearance, for: widget.id
+                current.appearance == base ? nil : current.appearance, for: widget.id
             )
         }
-        // Same rule: storing a placement that matches the default would pin
-        // the widget away from it forever. And a placement this pane never
-        // touched is left alone, so a change made elsewhere survives.
         if current.menuBar != previous.menuBar {
+            // Only the fields this pane changed, laid over what is stored now:
+            // the item may have been switched on or off from the popup while
+            // the inspector was open, and that must survive an edit here.
+            var placement = runtime.prefs.menuBarPlacement(for: widget.manifest, widgetID: widget.id)
+            placement.adopt(changesFrom: previous.menuBar, to: current.menuBar)
+            // Storing a placement that matches the default would pin the
+            // widget away from it forever.
             let menuBarBase = MenuBarPolicy.resolvedPlacement(
                 stored: nil, statusItem: widget.manifest.statusItem
             )
-            runtime.setMenuBarPlacement(
-                current.menuBar == menuBarBase ? nil : current.menuBar, for: widget.id
-            )
-            menuBarLoaded = current.menuBar
+            runtime.setMenuBarPlacement(placement == menuBarBase ? nil : placement, for: widget.id)
         }
         runtime.refresh(widgetID: widget.id)
     }
@@ -1453,6 +1497,10 @@ struct WidgetSettingsView: View {
 
     /// Rounds to an integer and clamps to the manifest's declared min/max.
     private func clampedInteger(_ value: Double, entry: Manifest.Setting) -> Double {
+        Self.clampedInteger(value, entry: entry)
+    }
+
+    private static func clampedInteger(_ value: Double, entry: Manifest.Setting) -> Double {
         var result = value.rounded()
         if let min = entry.min { result = Swift.max(result, min) }
         if let max = entry.max { result = Swift.min(result, max) }
@@ -1660,4 +1708,30 @@ extension MenuBarStyle {
 /// values and cannot be one.
 private final class UndoAnchor {
     static let shared = UndoAnchor()
+}
+
+extension Notification.Name {
+    /// Posted with the widget id when its settings were saved from outside
+    /// the inspector showing them (undo and redo).
+    static let widgetSettingsDidChange = Notification.Name("BarShelfWidgetSettingsDidChange")
+}
+
+extension MenuBarPlacement {
+    /// Takes over each field that differs between `old` and `new`, leaving
+    /// every other field as it is.
+    mutating func adopt(changesFrom old: MenuBarPlacement, to new: MenuBarPlacement) {
+        func take<Value: Equatable>(_ keyPath: WritableKeyPath<MenuBarPlacement, Value>) {
+            if old[keyPath: keyPath] != new[keyPath: keyPath] { self[keyPath: keyPath] = new[keyPath: keyPath] }
+        }
+        take(\.enabled)
+        take(\.separate)
+        take(\.order)
+        take(\.icon)
+        take(\.label)
+        take(\.style)
+        take(\.presentation)
+        take(\.interval)
+        take(\.clickAction)
+        take(\.clickTarget)
+    }
 }

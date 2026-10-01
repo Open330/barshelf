@@ -15,7 +15,38 @@ extension WidgetRuntime {
     }
 
     var hasLayoutChanges: Bool {
-        !prefs.bucketOverrides.isEmpty || !prefs.groupOrder.isEmpty
+        let loaded = Set(widgets.map(\.id))
+        return prefs.bucketOverrides.keys.contains(where: loaded.contains) || !prefs.groupOrder.isEmpty
+    }
+
+    /// Runs a layout change — moving, reordering, resizing, turning widgets
+    /// on or off — as one undo step (R13 decision 2).
+    func changeLayout(_ name: String, undoManager: UndoManager?, _ change: () -> Void) {
+        prefs.changeLayout(name, undoManager: undoManager, change) { [weak self] in
+            self?.objectWillChange.send()
+        }
+    }
+
+    /// Every page with every widget — switched-off ones included — in the
+    /// order the popup shows them. Pages that only hold switched-off
+    /// widgets come last.
+    var shelfPages: [WidgetPage] {
+        func sortMembers(_ members: [LoadedWidget]) -> [LoadedWidget] {
+            members.sorted { lhs, rhs in
+                let lo = effectiveOrder(for: lhs.id), ro = effectiveOrder(for: rhs.id)
+                if lo != ro { return lo < ro }
+                return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
+            }
+        }
+        let grouped = Dictionary(grouping: widgets) { effectiveGroup(for: $0.id) }
+        let visibleOrder = pages.map(\.group)
+        let hiddenOnly = grouped.keys.filter { !visibleOrder.contains($0) }.sorted { lhs, rhs in
+            let lk = prefs.groupSortKey(lhs) ?? .greatestFiniteMagnitude
+            let rk = prefs.groupSortKey(rhs) ?? .greatestFiniteMagnitude
+            if lk != rk { return lk < rk }
+            return lhs.localizedCaseInsensitiveCompare(rhs) == .orderedAscending
+        }
+        return (visibleOrder + hiddenOnly).map { WidgetPage(group: $0, widgets: sortMembers(grouped[$0] ?? [])) }
     }
 
     // MARK: - Permissions
@@ -40,7 +71,9 @@ extension WidgetRuntime {
     /// Forgets the decision, so the widget stops and asks again on its card.
     func revokePermissions(widgetID: String) {
         guard let widget = widgets.first(where: { $0.id == widgetID }) else { return }
-        permissionStore.reset(widgetId: widgetID)
+        // Decisions are stored per package, so a copy and its original share
+        // one; revoking either revokes both, which the Privacy page says.
+        permissionStore.reset(widgetId: widget.manifest.id)
         auditLog.record("permission.revoked", widgetId: widgetID, detail: [
             "hash": .string(PermissionStore.permissionsHash(of: widget.manifest)),
         ])

@@ -134,6 +134,53 @@ final class WidgetPrefs: ObservableObject {
         save()
     }
 
+    /// Where every widget sits: its page, order, size, and whether it is on.
+    /// Captured before a layout change so the change can be undone whole.
+    struct LayoutState: Equatable {
+        var overrides: [String: BucketOverride]
+        var groupOrder: [String: Double]
+        var disabled: Set<String>
+    }
+
+    var layoutState: LayoutState {
+        LayoutState(overrides: bucketOverrides, groupOrder: groupOrder, disabled: disabled)
+    }
+
+    func restoreLayout(_ state: LayoutState) {
+        guard state != layoutState else { return }
+        bucketOverrides = state.overrides
+        groupOrder = state.groupOrder
+        disabled = state.disabled
+        save()
+    }
+
+    /// Runs `change` as one undo step: ⌘Z puts every widget back where it
+    /// was and ⇧⌘Z does it again. `restored` runs after either, so whoever
+    /// shows the layout can redraw it.
+    func changeLayout(
+        _ name: String, undoManager: UndoManager?, _ change: () -> Void,
+        restored: @escaping () -> Void = {}
+    ) {
+        let before = layoutState
+        change()
+        registerLayoutUndo(name, back: before, undoManager: undoManager, restored: restored)
+    }
+
+    private func registerLayoutUndo(
+        _ name: String, back target: LayoutState, undoManager: UndoManager?,
+        restored: @escaping () -> Void
+    ) {
+        guard let undoManager, layoutState != target else { return }
+        undoManager.registerUndo(withTarget: self) { prefs in
+            let now = prefs.layoutState
+            prefs.restoreLayout(target)
+            restored()
+            // Registered while undoing, so it becomes the redo (and back).
+            prefs.registerLayoutUndo(name, back: now, undoManager: undoManager, restored: restored)
+        }
+        undoManager.setActionName(name)
+    }
+
     /// Erases every stored trace of a widget — used by `removeWidget`.
     func removeAllState(for id: String) {
         var changed = false
@@ -210,19 +257,26 @@ final class WidgetPrefs: ObservableObject {
     /// default merged over the neutral baseline.
     static let builderWidgetPrefix = "dev.barshelf.user."
 
+    /// The widget's look before any user override: its manifest over neutral.
+    ///
+    /// Builder widgets made before the card header was on by default draw
+    /// their own name/icon row and say nothing about the header. Showing the
+    /// card header too would print the name twice. The builder now writes
+    /// `showHeader` either way, so only those older ones match.
+    static func baseAppearance(for manifest: Manifest) -> WidgetAppearance {
+        let neutral = WidgetAppearance()
+        var base = (manifest.appearance ?? neutral).merged(over: neutral)
+        if base.showHeader == nil, manifest.id.hasPrefix(builderWidgetPrefix) {
+            base.showHeader = false
+        }
+        return base
+    }
+
     func effectiveAppearance(
         for manifest: Manifest,
         widgetID: String? = nil
     ) -> WidgetAppearance {
-        let neutral = WidgetAppearance()
-        var base = (manifest.appearance ?? neutral).merged(over: neutral)
-        // Builder widgets made before the card header was on by default draw
-        // their own name/icon row and say nothing about the header. Showing
-        // the card header too would print the name twice. The builder now
-        // writes `showHeader` either way, so only those older ones match.
-        if base.showHeader == nil, manifest.id.hasPrefix(Self.builderWidgetPrefix) {
-            base.showHeader = false
-        }
+        let base = Self.baseAppearance(for: manifest)
         guard let override = appearanceOverrides[widgetID ?? manifest.id] else { return base }
         return override.merged(over: base)
     }

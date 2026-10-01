@@ -237,6 +237,8 @@ struct UpdatesSettingsPage: View {
                     LabeledContent {
                         Button("Stop Skipping") {
                             appPrefs.update { $0.skippedUpdateVersion = nil }
+                            // Bring the reminder back now, not at next launch.
+                            UpdateChecker.check(explicit: false, prefs: appPrefs)
                         }
                     } label: {
                         Text("Skipping version \(skipped)")
@@ -310,7 +312,7 @@ struct PrivacySettingsPage: View {
             } header: {
                 Text("Widget Permissions")
             } footer: {
-                Text("A widget can only run commands, use the network, or read files it declared, and only after you allow it. Revoking stops the widget until you allow it again on its card.")
+                Text("A widget can only run commands, use the network, or read files it declared, and only after you allow it. Revoking stops the widget until you allow it again on its card. Copies of a widget share its permissions.")
             }
 
             Section {
@@ -388,6 +390,7 @@ struct AdvancedSettingsPage: View {
     /// runtime's `objectWillChange` (see `RefreshStatsModel`).
     @ObservedObject private var refreshStats: RefreshStatsModel
     @State private var confirmingReset = false
+    @Environment(\.undoManager) private var undoManager
 
     init(appPrefs: AppPrefs, runtime: WidgetRuntime) {
         self.appPrefs = appPrefs
@@ -460,7 +463,11 @@ struct AdvancedSettingsPage: View {
             "Reset the layout of every page?",
             isPresented: $confirmingReset
         ) {
-            Button("Reset Layout", role: .destructive) { runtime.resetLayout() }
+            Button("Reset Layout", role: .destructive) {
+                runtime.changeLayout(String(localized: "Reset Layout"), undoManager: undoManager) {
+                    runtime.resetLayout()
+                }
+            }
         } message: {
             Text("Pages, order, and sizes go back to each widget's defaults. Widgets and their settings stay.")
         }
