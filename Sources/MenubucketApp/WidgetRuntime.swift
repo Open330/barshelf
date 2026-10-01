@@ -230,8 +230,8 @@ final class WidgetRuntime: ObservableObject {
 
     // MARK: Script runtime + permission enforcement (M2)
 
-    private let auditLog = AuditLog()
-    private let permissionStore = PermissionStore(
+    let auditLog = AuditLog()
+    let permissionStore = PermissionStore(
         fileURL: WidgetRuntime.applicationSupportDirectory
             .appendingPathComponent("permissions.json")
     )

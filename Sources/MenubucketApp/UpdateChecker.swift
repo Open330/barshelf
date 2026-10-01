@@ -11,6 +11,17 @@ import MenubucketCore
 /// verified — an ad-hoc local build, a Homebrew-managed copy, a read-only
 /// location — falls back to opening the release page, which is all this did
 /// before.
+/// What the last check found, for the Updates settings page and anything
+/// that wants to show an update is waiting.
+@MainActor
+final class UpdateStatus: ObservableObject {
+    static let shared = UpdateStatus()
+    @Published var lastChecked: Date?
+    /// A newer release than the running build, if the last check found one.
+    @Published var available: String?
+    @Published var isChecking = false
+}
+
 @MainActor
 enum UpdateChecker {
     static var defaultRepository: String { ReleaseFeed.defaultRepository }
@@ -34,12 +45,24 @@ enum UpdateChecker {
 
     /// `explicit` (menu item) surfaces "you're up to date" and errors;
     /// the silent launch check stays quiet unless an update is available.
-    static func check(explicit: Bool) {
+    static func check(explicit: Bool, prefs: AppPrefs = .shared) {
+        // The launch check is the only unsolicited one; turning it off in
+        // Settings turns off exactly that.
+        if !explicit, !prefs.preferences.checkForUpdatesAutomatically { return }
+        let status = UpdateStatus.shared
+        status.isChecking = true
         Task {
+            defer { status.isChecking = false }
             do {
                 let release = try await ReleaseFeed.latest()
                 let latest = release.version
-                if ReleaseFeed.isNewer(latest, than: currentVersion) {
+                status.lastChecked = Date()
+                let newer = ReleaseFeed.isNewer(latest, than: currentVersion)
+                status.available = newer ? latest : nil
+                if newer, !explicit, prefs.preferences.skippedUpdateVersion == latest {
+                    return
+                }
+                if newer {
                     present(
                         latest: latest,
                         name: release.name,
@@ -120,10 +143,12 @@ enum UpdateChecker {
                 alert.buttons[0].keyEquivalent = ""
                 alert.buttons[2].keyEquivalent = "\r"
             }
+            let skip = addSkipButton(to: alert, explicit: explicit)
             switch alert.runModal() {
             case .alertFirstButtonReturn:
                 install(asset: asset, version: latest, page: url)
             case .alertSecondButtonReturn: NSWorkspace.shared.open(url)
+            case skip: skipVersion(latest)
             default: break
             }
             return
@@ -133,11 +158,13 @@ enum UpdateChecker {
             alert.addButton(withTitle: "Copy brew Command")
             alert.addButton(withTitle: "Release Notes")
             alert.addButton(withTitle: "Later")
+            let skip = addSkipButton(to: alert, explicit: explicit)
             switch alert.runModal() {
             case .alertFirstButtonReturn:
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(homebrewUpgradeCommand, forType: .string)
             case .alertSecondButtonReturn: NSWorkspace.shared.open(url)
+            case skip: skipVersion(latest)
             default: break
             }
             return
@@ -145,9 +172,27 @@ enum UpdateChecker {
 
         alert.addButton(withTitle: "Download")
         alert.addButton(withTitle: "Later")
-        if alert.runModal() == .alertFirstButtonReturn {
-            NSWorkspace.shared.open(url)
+        let skip = addSkipButton(to: alert, explicit: explicit)
+        switch alert.runModal() {
+        case .alertFirstButtonReturn: NSWorkspace.shared.open(url)
+        case skip: skipVersion(latest)
+        default: break
         }
+    }
+
+    /// The launch-time prompt gets a way to stop asking about this release;
+    /// a check the user started does not, since they asked to see it.
+    /// Returns the response the button produces, or one no button produces.
+    private static func addSkipButton(to alert: NSAlert, explicit: Bool) -> NSApplication.ModalResponse {
+        guard !explicit else { return NSApplication.ModalResponse(rawValue: -1) }
+        alert.addButton(withTitle: "Skip This Version")
+        return NSApplication.ModalResponse(
+            rawValue: NSApplication.ModalResponse.alertFirstButtonReturn.rawValue + alert.buttons.count - 1
+        )
+    }
+
+    static func skipVersion(_ version: String, prefs: AppPrefs = .shared) {
+        prefs.update { $0.skippedUpdateVersion = version }
     }
 
     // MARK: - Install

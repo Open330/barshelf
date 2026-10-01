@@ -18,3 +18,4 @@ dist/
 
 # Branding exploration (local only)
 assets/logo-concepts/
+.claude/worktrees/

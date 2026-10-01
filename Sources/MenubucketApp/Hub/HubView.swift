@@ -1,7 +1,7 @@
 import MenubucketCore
 import SwiftUI
 
-/// Root of the hub window: a sidebar (Widgets / Gallery / Create / Settings)
+/// Root of the hub window: a two-group sidebar (workspace pages, then settings)
 /// driving a detail area. The sidebar selection is stored in `HubModel` so the
 /// controller can re-target it while the window stays open.
 struct HubView: View {
@@ -15,81 +15,51 @@ struct HubView: View {
 
     var body: some View {
         NavigationSplitView {
-            VStack(spacing: 0) {
-                sidebarHeader
-                List(HubTab.allCases, selection: selection) { tab in
-                    Label(tab.title, systemImage: tab.symbol)
-                        .tag(tab)
-                        .padding(.vertical, 3)
-                        .accessibilityLabel(tab.title)
+            List(selection: selection) {
+                Section {
+                    ForEach(HubTab.workspace) { sidebarRow($0) }
                 }
-                .listStyle(.sidebar)
-                Spacer(minLength: 0)
-                sidebarFooter
+                Section("Settings") {
+                    ForEach(HubTab.settingsPages) { sidebarRow($0) }
+                }
             }
-            .navigationSplitViewColumnWidth(min: 168, ideal: 188, max: 240)
+            .listStyle(.sidebar)
+            .safeAreaInset(edge: .top, spacing: 0) { sidebarHeader }
+            .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 260)
         } detail: {
-            VStack(spacing: 0) {
-                detailHeader
-                Divider()
-                detail
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            .background(Color(nsColor: .windowBackgroundColor))
+            detail
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(nsColor: .windowBackgroundColor))
+                // The window toolbar carries the page's name; no second
+                // header repeats it inside the page.
+                .navigationTitle(model.tab.title)
+                .navigationSubtitle(model.tab.subtitle)
         }
-        // ⌘, arrives as the BarShelf ▸ Settings… menu command (`AppCommands`).
-        .navigationTitle(model.tab.title)
+    }
+
+    private func sidebarRow(_ tab: HubTab) -> some View {
+        Label(tab.title, systemImage: tab.symbol)
+            .tag(tab)
     }
 
     private var sidebarHeader: some View {
-        HStack(spacing: 10) {
-            AccentTile(size: 30) {
-                Image(nsImage: BarShelfStatusIcon.logoImage(size: NSSize(width: 26, height: 20)))
+        HStack(spacing: Spacing.xs) {
+            AccentTile(size: 28) {
+                Image(nsImage: BarShelfStatusIcon.logoImage(size: NSSize(width: 24, height: 18)))
                     .renderingMode(.template)
             }
             VStack(alignment: .leading, spacing: 1) {
                 Text("BarShelf")
-                    .font(.system(size: 13, weight: .semibold))
-                Text("Widget workspace")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.top, 16)
-        .padding(.bottom, 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var sidebarFooter: some View {
-        Text("\(runtime.widgets.count) installed")
-            .font(.caption2)
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 16)
-            .padding(.bottom, 12)
-    }
-
-    private var detailHeader: some View {
-        HStack(alignment: .center, spacing: 12) {
-            AccentTile(size: 34) {
-                Image(systemName: model.tab.symbol)
                     .font(.headline)
-            }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(model.tab.title)
-                    .font(.system(size: 18, weight: .semibold))
-                Text(model.tab.subtitle)
-                    .font(.system(size: 12))
+                Text("\(runtime.widgets.count) widgets installed")
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Spacer()
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 18)
-        .padding(.bottom, 14)
+        .padding(.horizontal, Spacing.s)
+        .padding(.vertical, Spacing.xs)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .accessibilityElement(children: .combine)
     }
 
     private var selection: Binding<HubTab?> {
@@ -102,15 +72,27 @@ struct HubView: View {
     @ViewBuilder
     private var detail: some View {
         switch model.tab {
-        case .widgets:
+        case .shelf:
             HubWidgetsView(runtime: runtime, model: model)
+        case .menuBar:
+            MenuBarPage(appPrefs: appPrefs, runtime: runtime)
         case .gallery:
             GalleryView(model: galleryModel)
                 .onAppear { galleryModel.onWindowShown() }
         case .create:
-            HubCreateView(runtime: runtime) { model.tab = .widgets }
-        case .settings:
-            AppSettingsView(appPrefs: appPrefs, runtime: runtime)
+            HubCreateView(runtime: runtime) { model.tab = .shelf }
+        case .automation:
+            SettingsPage { AutomationSettingsView() }
+        case .general:
+            GeneralSettingsPage(appPrefs: appPrefs)
+        case .shortcuts:
+            ShortcutsSettingsPage(appPrefs: appPrefs)
+        case .updates:
+            UpdatesSettingsPage(appPrefs: appPrefs)
+        case .privacy:
+            PrivacySettingsPage(runtime: runtime)
+        case .advanced:
+            AdvancedSettingsPage(appPrefs: appPrefs, runtime: runtime)
         }
     }
 }

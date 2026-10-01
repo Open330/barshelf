@@ -3,37 +3,66 @@ import Combine
 import MenubucketCore
 import SwiftUI
 
-/// The four top-level sections of the hub window's sidebar. Raw values are
-/// stable identifiers used by the back-compat shims and deep links.
+/// Every page of the hub window's sidebar, in two groups (R13 §3.2): the
+/// workspace — what you build and arrange — and the app's own settings, one
+/// grouped form per page. Raw values are stable identifiers for deep links;
+/// `widgets` keeps the Shelf's historical one.
 enum HubTab: String, CaseIterable, Identifiable {
-    case widgets, gallery, create, settings
+    case shelf = "widgets"
+    case menuBar, gallery, create, automation
+    case general, shortcuts, updates, privacy, advanced
+
+    /// Former names, kept so existing callers read naturally.
+    static let widgets = HubTab.shelf
+    static let settings = HubTab.general
+
+    static let workspace: [HubTab] = [.shelf, .menuBar, .gallery, .create, .automation]
+    static let settingsPages: [HubTab] = [.general, .shortcuts, .updates, .privacy, .advanced]
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .widgets: return "Widgets"
+        case .shelf: return "Shelf"
+        case .menuBar: return "Menu Bar"
         case .gallery: return "Gallery"
         case .create: return "Create"
-        case .settings: return "Settings"
+        case .automation: return "Automation"
+        case .general: return "General"
+        case .shortcuts: return "Shortcuts"
+        case .updates: return "Updates"
+        case .privacy: return "Privacy"
+        case .advanced: return "Advanced"
         }
     }
 
     var symbol: String {
         switch self {
-        case .widgets: return "square.grid.2x2"
+        case .shelf: return "square.grid.2x2"
+        case .menuBar: return "menubar.rectangle"
         case .gallery: return "sparkles.rectangle.stack"
         case .create: return "wand.and.stars"
-        case .settings: return "gearshape"
+        case .automation: return "keyboard"
+        case .general: return "gearshape"
+        case .shortcuts: return "command"
+        case .updates: return "arrow.down.circle"
+        case .privacy: return "hand.raised"
+        case .advanced: return "slider.horizontal.3"
         }
     }
 
     var subtitle: String {
         switch self {
-        case .widgets: return "Arrange, theme, and maintain installed widgets."
-        case .gallery: return "Install curated examples and production-ready starters."
-        case .create: return "Build a widget from command, HTTP JSON, pasted JSON, folder, or text."
-        case .settings: return "Tune BarShelf behavior, performance, and diagnostics."
+        case .shelf: return "Arrange your pages and widgets."
+        case .menuBar: return "Choose what shows in the menu bar and how it looks."
+        case .gallery: return "Find and install widgets."
+        case .create: return "Build a widget from a command, a URL, a folder, or text."
+        case .automation: return "Keyboard shortcuts and window control, imported from Hammerspoon."
+        case .general: return "Icon, login, and sounds."
+        case .shortcuts: return "Keyboard shortcuts for BarShelf."
+        case .updates: return "How BarShelf keeps itself up to date."
+        case .privacy: return "What each widget is allowed to do."
+        case .advanced: return "Refresh speed, battery use, and diagnostics."
         }
     }
 }
@@ -140,5 +169,17 @@ final class HubWindowController: NSObject, NSWindowDelegate {
                 NSApp.setActivationPolicy(.accessory)
             }
         }
+    }
+}
+
+/// Back-compat shim: settings live in the hub's Settings pages. Keeps the
+/// historical signature so older call sites need no edits.
+@MainActor
+final class AppSettingsWindowController {
+    static let shared = AppSettingsWindowController()
+
+    func show(runtime: WidgetRuntime, appPrefs: AppPrefs = .shared) {
+        _ = appPrefs
+        HubWindowController.shared.show(runtime: runtime, tab: .settings)
     }
 }
