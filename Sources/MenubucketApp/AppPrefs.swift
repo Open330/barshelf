@@ -28,26 +28,13 @@ final class AppPrefs: ObservableObject {
     func update(_ change: (inout AppPreferences) -> Void) {
         var copy = preferences
         change(&copy)
-        copy = AppPreferences(
-            menuBarSymbol: copy.menuBarSymbol,
-            refreshMultiplier: copy.refreshMultiplier,
-            pauseWhenClosed: copy.pauseWhenClosed,
-            launchAtLogin: copy.launchAtLogin,
-            popupHotkeyEnabled: copy.popupHotkeyEnabled,
-            popupHotkey: copy.popupHotkey,
-            copySoundEnabled: copy.copySoundEnabled,
-            menuBarPresentation: copy.menuBarPresentation
-        )
+        copy.normalize()
         preferences = copy
     }
 
     private func save() {
         do {
-            var normalized = preferences
-            normalized.refreshMultiplier = SchedulePolicy.normalizedRefreshMultiplier(
-                normalized.refreshMultiplier
-            )
-            try normalized.save(to: fileURL)
+            try preferences.save(to: fileURL)
             lastError = nil
         } catch {
             lastError = (error as? LocalizedError)?.errorDescription
