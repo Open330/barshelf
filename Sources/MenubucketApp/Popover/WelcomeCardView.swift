@@ -7,21 +7,23 @@ import UniformTypeIdentifiers
 /// first-run seeding pass. The close button records the dismissal in prefs,
 /// so the card never returns.
 struct WelcomeCardView: View {
+    let addWidget: () -> Void
     let dismiss: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Spacing.xs) {
             HStack(spacing: 6) {
                 Image(systemName: "sparkles")
-                    .foregroundColor(.accentColor)
+                    .foregroundStyle(Color.accentColor)
                     .accessibilityHidden(true)
-            Text("Welcome to BarShelf")
-                    .font(.system(size: 12, weight: .semibold))
+                Text("Welcome to BarShelf")
+                    .font(.callout)
+                    .fontWeight(.semibold)
                 Spacer()
                 Button(action: dismiss) {
                     Image(systemName: "xmark")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(.secondary)
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.borderless)
                 .help("Dismiss")
@@ -32,18 +34,14 @@ struct WelcomeCardView: View {
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 8) {
-                Button("Open Widget Gallery") {
-                    Task { @MainActor in
-                        GalleryWindowController.shared.show()
-                    }
-                }
-                .controlSize(.small)
+                Button("Add Widget…", action: addWidget)
+                    .controlSize(.small)
                 Button("Getting Started") {
                     NSWorkspace.shared.open(RootView.gettingStartedURL)
                 }
                 .controlSize(.small)
             }
-            Text("Tip: the gear opens Settings. Swipe with two fingers or press ←/→ to switch pages.")
+            Text("Tip: ⋯ has everything else — editing the shelf, settings, updates. Swipe with two fingers or press ←/→ to switch pages.")
                 .font(.caption2)
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

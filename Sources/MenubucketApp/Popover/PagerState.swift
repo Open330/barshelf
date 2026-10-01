@@ -16,6 +16,12 @@ final class PagerState: ObservableObject {
     /// True during an active swipe — disables the snap animation so content
     /// tracks the fingers 1:1.
     @Published private(set) var isSwiping = false
+    /// Edit mode: cards show their drag handle, width and remove controls.
+    /// Entered from ⌘E or ⋯ ▸ Edit Shelf; Esc, Done, or closing leaves it.
+    @Published var isEditing = false
+    /// The tallest the popup may grow on the status item's screen. Set by
+    /// `StatusItemController` each time the popup opens.
+    @Published var maxHeight: CGFloat = RootView.defaultSize.height
 
     /// Width of one page (popup content width).
     var pageWidth: CGFloat = RootView.defaultSize.width
@@ -23,6 +29,10 @@ final class PagerState: ObservableObject {
     static let snapThresholdFraction: CGFloat = 1.0 / 3.0
     /// Rubber-band resistance beyond the first/last page.
     static let rubberBandFactor: CGFloat = 0.25
+
+    func toggleEditing() {
+        isEditing.toggle()
+    }
 
     func clamp(to pageCount: Int) {
         if pageCount == 0 {

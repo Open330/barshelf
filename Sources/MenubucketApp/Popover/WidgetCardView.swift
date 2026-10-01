@@ -3,8 +3,9 @@ import MenubucketCore
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// A widget card: name header, rendered content, cached-data warning banner
-/// on failure, and an updated-at caption. Cached tree is shown while loading.
+/// A widget card: header (name, refresh state, last update), rendered
+/// content, and whichever state the widget is in when it has nothing to show
+/// (`CardStateViews`). The cached tree stays on screen while reloading.
 ///
 /// Performance (R05): the card observes only its own `WidgetCardModel` — the
 /// runtime is held unobserved, so another widget's refresh publishes nothing
@@ -18,18 +19,19 @@ struct WidgetCardView: View {
     let compactHeight: CGFloat?
     /// When true the card border flashes accent (driven by `pendingReveal`).
     let isHighlighted: Bool
+    let placement: CardPlacement
     @ObservedObject private var model: WidgetCardModel
-    @State private var showSettings = false
     @State private var showRemoveConfirm = false
     @State private var showNewBucket = false
     @State private var newBucketName = ""
     @State private var removeError: String?
-    /// Hovering reveals the per-card refresh button (hidden at rest to reduce
-    /// visual noise). The button stays in the accessibility tree either way.
+    /// Hovering reveals the card's quick controls (hidden at rest to reduce
+    /// visual noise); keyboard focus reveals them too.
     @State private var isHovering = false
     @FocusState private var controlsFocused: Bool
     @State private var isDropTarget = false
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.shelfIsEditing) private var shelfIsEditing
 
     /// Effective theming (user override → author default → neutral). Injected
     /// into the rendered tree and used for the card's own chrome.
@@ -37,14 +39,16 @@ struct WidgetCardView: View {
         runtime.prefs.effectiveAppearance(for: widget.manifest, widgetID: widget.id)
     }
 
-    /// The card's own chrome header (icon + name + refresh) is **off by default**
-    /// — widgets carry their own header/content, so showing the app chrome too
-    /// duplicated the logo and title. Opt in per widget with `showHeader: true`;
-    /// refresh stays reachable via the context menu either way.
-    private var showsHeader: Bool { appearance.showHeader ?? false }
+    /// The card's own header is on by default — it is how a reading, or an
+    /// error, is traced to its widget — unless the widget's appearance turns
+    /// it off.
+    private var showsHeader: Bool { appearance.showsHeader }
+
+    /// Edit controls only make sense on a shelf page.
+    private var isEditing: Bool { shelfIsEditing && placement == .shelf && compactHeight == nil }
 
     /// compact density tightens the card's content insets.
-    private var contentInset: CGFloat { appearance.density == .compact ? 8 : 12 }
+    private var contentInset: CGFloat { appearance.density == .compact ? Spacing.xs : Spacing.s }
 
     /// Accent used for the tinted wash and the reveal highlight.
     private var cardAccent: Color { appearance.accentColor ?? .accentColor }
@@ -64,12 +68,14 @@ struct WidgetCardView: View {
         widget: LoadedWidget,
         runtime: WidgetRuntime,
         isHighlighted: Bool = false,
-        compactHeight: CGFloat? = nil
+        compactHeight: CGFloat? = nil,
+        placement: CardPlacement = .shelf
     ) {
         self.widget = widget
         self.runtime = runtime
         self.isHighlighted = isHighlighted
         self.compactHeight = compactHeight
+        self.placement = placement
         _model = ObservedObject(wrappedValue: runtime.cardModel(for: widget.id))
     }
 
@@ -84,7 +90,9 @@ struct WidgetCardView: View {
             .environment(\.remoteImageHosts, widget.manifest.permissions?.network ?? [])
             .environment(\.localFileReadPaths, runtime.effectiveReadPaths(for: widget))
         .background(sectionBackground)
-        .overlay(alignment: .topTrailing) { cardControls }
+        .overlay(alignment: .topTrailing) {
+            if !isEditing { cardControls }
+        }
         // Insertion indicator while a dragged card hovers over this one.
         .overlay(alignment: .leading) {
             if isDropTarget {
@@ -97,29 +105,18 @@ struct WidgetCardView: View {
         }
         .contentShape(Rectangle())
         // Drop target: another card dropped here reorders it before this one.
-        .onDrop(of: [UTType.plainText], isTargeted: $isDropTarget.animation(.easeInOut(duration: 0.12))) { providers in
-            reorderDrop(providers)
+        .onDrop(of: CardDrag.types, isTargeted: $isDropTarget.animation(.easeInOut(duration: 0.12))) { providers in
+            guard placement == .shelf else { return false }
+            return CardDrag.receive(providers) { draggedID in
+                runtime.reorderWidget(id: draggedID, before: widget.id)
+            }
         }
         .animation(.easeInOut(duration: 0.4), value: isHighlighted)
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) { isHovering = hovering }
         }
-        .accessibilityAction(named: Text("Refresh")) {
-            runtime.refresh(widgetID: widget.id)
-        }
-        .accessibilityAction(named: Text("Open settings")) {
-            showSettings = true
-        }
-        .accessibilityAction(named: Text("Move up")) { moveWithinPanel(by: -1) }
-        .accessibilityAction(named: Text("Move down")) { moveWithinPanel(by: 1) }
-        .accessibilityAction(named: Text(runtime.prefs.isPinned(widget.id) ? "Unpin" : "Pin")) {
-            runtime.prefs.togglePin(widget.id)
-            runtime.objectWillChange.send()
-        }
+        .modifier(CardAccessibilityActions(card: self))
         .contextMenu { cardContextMenu }
-        .sheet(isPresented: $showSettings) {
-            WidgetSettingsView(widget: widget, runtime: runtime)
-        }
         .alert("Move to a new page", isPresented: $showNewBucket) {
             TextField("Page name", text: $newBucketName)
             Button("Cancel", role: .cancel) { newBucketName = "" }
@@ -174,24 +171,29 @@ struct WidgetCardView: View {
     @ViewBuilder
     private func cardContents(snapshot: WidgetSnapshot, scrollFixedContent: Bool) -> some View {
         VStack(alignment: .leading, spacing: 6) {
+            if isEditing {
+                editBar
+            }
             if showsHeader {
                 cardHeader(snapshot: snapshot)
             }
-            if scrollFixedContent {
-                // Fixed footprint: content taller than the card scrolls inside.
-                ScrollView(.vertical, showsIndicators: true) {
+            Group {
+                if scrollFixedContent {
+                    // Fixed footprint: content taller than the card scrolls inside.
+                    ScrollView(.vertical, showsIndicators: true) {
+                        VStack(alignment: .leading, spacing: 8) { cardContent(snapshot: snapshot) }
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                } else {
+                    // Fit to content: the card grows to fit.
                     VStack(alignment: .leading, spacing: 8) { cardContent(snapshot: snapshot) }
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            } else {
-                // Fit to content: the card grows to fit.
-                VStack(alignment: .leading, spacing: 8) { cardContent(snapshot: snapshot) }
             }
-            if let updatedAt = snapshot.updatedAt {
-                Text("Updated \(Self.relativeFormatter.localizedString(for: updatedAt, relativeTo: Date()))")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+            // While editing, a drag must never press one of the widget's buttons.
+            .allowsHitTesting(!isEditing)
+            if !showsHeader, model.overlay == nil, let updatedAt = snapshot.updatedAt {
+                FreshnessText(updatedAt: updatedAt)
             }
         }
     }
@@ -199,56 +201,107 @@ struct WidgetCardView: View {
     @ViewBuilder
     private func cardContent(snapshot: WidgetSnapshot) -> some View {
         if let overlay = model.overlay {
-            // Host-generated card (permission approval / restart) replaces the
+            // Host-owned state (permission decision / crash stop) replaces the
             // widget content until resolved.
-            ViewTreeRenderer(node: overlay)
-                .environment(\.actionContext, actionContext)
+            overlayView(overlay)
         } else if let tree = snapshot.viewTree {
-            if let error = snapshot.error {
-                staleBanner(error: error)
+            if let error = snapshot.error, !showsHeader {
+                // No header to carry the badge: keep it above the content.
+                CachedBadge(error: error, onRetry: retry)
             }
             ViewTreeRenderer(node: tree)
                 .environment(\.actionContext, actionContext)
         } else if let error = snapshot.error {
-            failureState(error: error)
+            CardErrorView(error: error, onRetry: retry, onSettings: openSettings)
         } else if snapshot.isLoading {
-            loadingState
+            CardSkeleton()
         } else {
-            Text("No data yet")
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.vertical, 8)
+            CardEmptyView(onRefresh: retry)
         }
     }
 
-    /// Card right-click actions: pin/refresh/settings plus R11 management —
-    /// disable, move to a panel, reveal on disk, and destructive removal.
+    @ViewBuilder
+    private func overlayView(_ overlay: CardOverlay) -> some View {
+        switch overlay {
+        case let .approvalNeeded(requests):
+            PermissionApprovalView(
+                widgetName: widget.displayName,
+                requests: requests,
+                onAllow: { runtime.approvePermissions(widgetID: widget.id) },
+                onDeny: { runtime.denyPermissions(widgetID: widget.id) }
+            )
+        case let .denied(requests):
+            PermissionDeniedView(
+                widgetName: widget.displayName,
+                requests: requests,
+                onAllow: { runtime.approvePermissions(widgetID: widget.id) },
+                onRemove: { showRemoveConfirm = true }
+            )
+        case let .disabled(reason):
+            CrashDisabledView(
+                reason: reason,
+                onRestart: { runtime.restartScriptWidget(widgetID: widget.id) },
+                onOpenLogs: { CrashDisabledView.openLogs(widgetID: widget.id) }
+            )
+        }
+    }
+
+    // MARK: - Actions
+
+    fileprivate func retry() {
+        runtime.refresh(widgetID: widget.id)
+    }
+
+    /// The one route to a widget's settings: the hub, on this widget.
+    fileprivate func openSettings() {
+        let id = widget.id
+        Task { @MainActor in HubWindowController.shared.showWidgetSettings(widgetID: id) }
+    }
+
+    fileprivate func togglePin() {
+        runtime.prefs.togglePin(widget.id)
+        runtime.objectWillChange.send() // pinned row lives in RootView
+    }
+
+    /// "Pin", "Unpin", or — at the cap — why it cannot be pinned.
+    fileprivate var pinTitle: String {
+        if runtime.prefs.isPinned(widget.id) { return String(localized: "Unpin") }
+        return runtime.canPin(widget.id)
+            ? String(localized: "Pin")
+            : String(localized: "Pin (\(PinnedShelf.capacity) max — unpin one first)")
+    }
+
+    // MARK: - Context menu
+
+    /// Card right-click actions. Shortcuts only: every one is also reachable
+    /// from visible UI (hover controls, edit mode, the hub).
     @ViewBuilder
     private var cardContextMenu: some View {
-        Button(runtime.prefs.isPinned(widget.id) ? "Unpin" : "Pin") {
-            runtime.prefs.togglePin(widget.id)
-            runtime.objectWillChange.send() // pinned row lives in RootView
+        if placement == .shelf {
+            Button(pinTitle, action: togglePin)
+                .disabled(!runtime.canPin(widget.id))
         }
-        Button("Settings…") { showSettings = true }
-        Button("Refresh") { runtime.refresh(widgetID: widget.id) }
+        Button("Settings…", action: openSettings)
+        Button("Refresh", action: retry)
 
-        Button("Move Up") { moveWithinPanel(by: -1) }
-            .disabled(adjacentWidget(by: -1) == nil)
-        Button("Move Down") { moveWithinPanel(by: 1) }
-            .disabled(adjacentWidget(by: 1) == nil)
+        if placement == .shelf {
+            Button("Move Up") { moveWithinPanel(by: -1) }
+                .disabled(adjacentWidget(by: -1) == nil)
+            Button("Move Down") { moveWithinPanel(by: 1) }
+                .disabled(adjacentWidget(by: 1) == nil)
 
-        Divider()
-
-        Button(runtime.prefs.isDisabled(widget.id) ? "Enable" : "Disable") {
-            runtime.setWidgetDisabled(widget.id, !runtime.prefs.isDisabled(widget.id))
-        }
-        Menu("Move to Page") {
-            ForEach(runtime.allGroups, id: \.self) { group in
-                Button(group) { runtime.moveWidget(id: widget.id, toGroup: group) }
-            }
             Divider()
-            Button("New Page…") { showNewBucket = true }
+
+            Button(runtime.prefs.isDisabled(widget.id) ? "Enable" : "Disable") {
+                runtime.setWidgetDisabled(widget.id, !runtime.prefs.isDisabled(widget.id))
+            }
+            Menu("Move to Page") {
+                ForEach(runtime.allGroups, id: \.self) { group in
+                    Button(group) { runtime.moveWidget(id: widget.id, toGroup: group) }
+                }
+                Divider()
+                Button("New Page…") { showNewBucket = true }
+            }
         }
         Button("Reveal in Finder") {
             if let directory = runtime.widgetDirectory(for: widget.id) {
@@ -256,9 +309,10 @@ struct WidgetCardView: View {
             }
         }
 
-        Divider()
-
-        Button("Remove Widget…", role: .destructive) { showRemoveConfirm = true }
+        if placement == .shelf {
+            Divider()
+            Button("Remove Widget…", role: .destructive) { showRemoveConfirm = true }
+        }
     }
 
     private func adjacentWidget(by offset: Int) -> LoadedWidget? {
@@ -268,7 +322,7 @@ struct WidgetCardView: View {
         return page.widgets[index + offset]
     }
 
-    private func moveWithinPanel(by offset: Int) {
+    fileprivate func moveWithinPanel(by offset: Int) {
         guard let adjacent = adjacentWidget(by: offset) else { return }
         if offset < 0 {
             runtime.reorderWidget(id: widget.id, before: adjacent.id)
@@ -284,49 +338,94 @@ struct WidgetCardView: View {
         }
     }
 
-    /// Quieter header: `.caption` secondary so the widget name recedes and the
-    /// content reads first. The refresh button is revealed on hover only.
+    // MARK: - Header
+
+    /// Name on the left; the cached badge, a refreshing indicator and the
+    /// last-update time on the right. Quiet (`.caption`, secondary) so the
+    /// content reads first.
     private func cardHeader(snapshot: WidgetSnapshot) -> some View {
         HStack(spacing: 6) {
             if let icon = widget.manifest.icon {
                 Image(systemName: icon)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(cardAccent)
                     .accessibilityHidden(true)
             }
             Text(widget.displayName)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .fontWeight(.semibold)
+                .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .truncationMode(.tail)
-            Spacer()
-            if snapshot.isLoading {
-                ProgressView().controlSize(.mini)
+                .accessibilityAddTraits(.isHeader)
+            if model.overlay == nil, snapshot.viewTree != nil, let error = snapshot.error {
+                CachedBadge(error: error, onRetry: retry)
+            }
+            Spacer(minLength: Spacing.xxs)
+            if snapshot.isLoading, snapshot.viewTree != nil {
+                ProgressView()
+                    .controlSize(.mini)
                     .accessibilityLabel("Refreshing")
+            }
+            if model.overlay == nil, let updatedAt = snapshot.updatedAt {
+                FreshnessText(updatedAt: updatedAt)
+                    .layoutPriority(-1)
             }
         }
     }
 
-    /// Centered progress + caption while the first data load is in flight.
-    private var loadingState: some View {
-        VStack(spacing: 6) {
-            ProgressView().controlSize(.small)
-            Text("Loading…").font(.caption).foregroundColor(.secondary)
+    // MARK: - Edit mode
+
+    /// Always visible while editing: drag handle, width, remove.
+    private var editBar: some View {
+        let isHalf = runtime.effectiveSize(for: widget.id) == "S"
+        return HStack(spacing: Spacing.xs) {
+            Image(systemName: "line.3.horizontal")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .frame(width: 22, height: 22)
+                .contentShape(Rectangle())
+                .onDrag { CardDrag.provider(for: widget.id) } preview: { dragPreview }
+                .help("Drag to reorder, or onto a page dot to move it to that page")
+                .accessibilityLabel("Reorder \(widget.displayName)")
+            if !showsHeader {
+                Text(widget.displayName)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+            Button(LayoutSizeName.name(isHalf ? "S" : "M")) {
+                runtime.resizeWidget(id: widget.id, toSize: isHalf ? "M" : "S")
+            }
+            .controlSize(.small)
+            .help(isHalf ? "Make this card full width" : "Make this card half width")
+            .accessibilityLabel("Width: \(LayoutSizeName.name(isHalf ? "S" : "M"))")
+            .accessibilityHint(isHalf ? "Switches to Full Width" : "Switches to Half Width")
+            Button { showRemoveConfirm = true } label: {
+                Image(systemName: "minus.circle.fill")
+                    .font(.callout)
+                    .symbolRenderingMode(.palette)
+                    .foregroundStyle(.white, StatusTone.critical.color)
+            }
+            .buttonStyle(.plain)
+            .help("Remove Widget…")
+            .accessibilityLabel("Remove \(widget.displayName)")
         }
-        .frame(maxWidth: .infinity, alignment: .center)
-        .padding(.vertical, 10)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Loading")
     }
 
+    // MARK: - Hover controls
+
     /// Hover controls at the widget's top-right — refresh, a drag handle to
-    /// move/reorder, and settings — grouped in one glass capsule.
-    @ViewBuilder
+    /// move/reorder, and settings — grouped in one capsule. Out of the
+    /// accessibility tree while invisible; the card's accessibility actions
+    /// offer the same things.
     private var cardControls: some View {
-        HStack(spacing: 2) {
-            Button { runtime.refresh(widgetID: widget.id) } label: {
+        let visible = isHovering || controlsFocused
+        return HStack(spacing: 2) {
+            Button(action: retry) {
                 Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .frame(width: 22, height: 20)
             }
@@ -334,20 +433,18 @@ struct WidgetCardView: View {
             .focused($controlsFocused)
             .help("Refresh \(widget.displayName)")
             .accessibilityLabel("Refresh \(widget.displayName)")
-            Image(systemName: "line.3.horizontal")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 22, height: 20)
-                .onDrag {
-                    NSItemProvider(object: widget.id as NSString)
-                } preview: {
-                    dragPreview
-                }
-                .help("Drag to move")
-                .accessibilityLabel("Move \(widget.displayName)")
-            Button { showSettings = true } label: {
+            if placement == .shelf {
+                Image(systemName: "line.3.horizontal")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 22, height: 20)
+                    .onDrag { CardDrag.provider(for: widget.id) } preview: { dragPreview }
+                    .help("Drag to move")
+                    .accessibilityLabel("Move \(widget.displayName)")
+            }
+            Button(action: openSettings) {
                 Image(systemName: "slider.horizontal.3")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .frame(width: 22, height: 20)
             }
@@ -363,7 +460,8 @@ struct WidgetCardView: View {
         // Keep the controls in the focus order even while visually quiet; a
         // keyboard focus immediately reveals them without making the whole
         // card (and its embedded text fields) a separate focus target.
-        .opacity(isHovering || controlsFocused ? 1 : 0)
+        .opacity(visible ? 1 : 0)
+        .accessibilityHidden(!visible)
     }
 
     /// The card's drag proxy — a labeled chip so you can see what you're moving.
@@ -372,11 +470,12 @@ struct WidgetCardView: View {
             Image(systemName: widget.manifest.icon ?? "square.grid.2x2")
                 .foregroundStyle(cardAccent)
             Text(widget.displayName)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.callout)
+                .fontWeight(.semibold)
                 .lineLimit(1)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, Spacing.s)
+        .padding(.vertical, Spacing.xs)
         .background(
             RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
                 .fill(Color(nsColor: .windowBackgroundColor))
@@ -385,17 +484,6 @@ struct WidgetCardView: View {
             RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
                 .strokeBorder(cardAccent.opacity(0.4), lineWidth: 1)
         )
-    }
-
-    private func reorderDrop(_ providers: [NSItemProvider]) -> Bool {
-        guard let provider = providers.first else { return false }
-        provider.loadObject(ofClass: NSString.self) { object, _ in
-            guard let draggedId = object as? String else { return }
-            DispatchQueue.main.async {
-                runtime.reorderWidget(id: draggedId, before: widget.id)
-            }
-        }
-        return true
     }
 
     /// Applies a fixed height only when one is set; otherwise leaves the view to
@@ -426,23 +514,32 @@ struct WidgetCardView: View {
                     ? cardAccent.opacity(dark ? 0.22 : 0.16)
                     : tinted
                         ? cardAccent.opacity(dark ? 0.12 : 0.07)
-                        : isHovering
+                        : isHovering || isEditing
                             ? Color.primary.opacity(dark ? 0.06 : 0.04)
                             : Color.clear
             )
     }
+}
 
-    private func staleBanner(error: String) -> some View {
-        StatusBanner(tone: .warning, message: "Showing cached data: \(error)")
+/// The card's VoiceOver actions — the same things the hover controls and the
+/// context menu offer, for when neither is visible.
+private struct CardAccessibilityActions: ViewModifier {
+    let card: WidgetCardView
+
+    func body(content: Content) -> some View {
+        let base = content
+            .accessibilityAction(named: Text("Refresh")) { card.retry() }
+            .accessibilityAction(named: Text("Open settings")) { card.openSettings() }
+        if card.placement == .shelf {
+            base
+                .accessibilityAction(named: Text("Move up")) { card.moveWithinPanel(by: -1) }
+                .accessibilityAction(named: Text("Move down")) { card.moveWithinPanel(by: 1) }
+                .accessibilityAction(named: Text(card.pinTitle)) {
+                    guard card.runtime.canPin(card.widget.id) else { return }
+                    card.togglePin()
+                }
+        } else {
+            base
+        }
     }
-
-    private func failureState(error: String) -> some View {
-        StatusBanner(tone: .critical, message: error)
-    }
-
-    private static let relativeFormatter: RelativeDateTimeFormatter = {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter
-    }()
 }

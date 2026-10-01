@@ -1,5 +1,99 @@
 import AppKit
 
+/// The commands the popup's ⋯ menu and the status item's right-click menu
+/// share. Both menus are built from `AppMenu.sections`, so the two cannot
+/// drift apart: a command added here appears in both.
+enum AppMenuCommand: Hashable {
+    case editShelf, addWidget, menuBar, openBarShelf, checkForUpdates, quit
+
+    var title: String {
+        switch self {
+        case .editShelf: return String(localized: "Edit Shelf")
+        case .addWidget: return String(localized: "Add Widget…")
+        case .menuBar: return String(localized: "Menu Bar")
+        case .openBarShelf: return String(localized: "Open BarShelf…")
+        case .checkForUpdates: return String(localized: "Check for Updates…")
+        case .quit: return String(localized: "Quit BarShelf")
+        }
+    }
+
+    /// The ⌘-key shown beside the item; empty for none. The same keys are
+    /// main-menu commands (`installCommands`), which is what makes them work
+    /// while no menu is open.
+    var keyEquivalent: String {
+        switch self {
+        case .editShelf: return "e"
+        case .openBarShelf: return ","
+        case .quit: return "q"
+        case .addWidget, .menuBar, .checkForUpdates: return ""
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .editShelf: return "pencil"
+        case .addWidget: return "plus"
+        case .menuBar: return "menubar.rectangle"
+        case .openBarShelf: return "macwindow"
+        case .checkForUpdates: return "arrow.down.circle"
+        case .quit: return "power"
+        }
+    }
+}
+
+enum AppMenu {
+    /// Groups, in order; a separator goes between groups.
+    static let sections: [[AppMenuCommand]] = [
+        [.editShelf, .addWidget, .menuBar],
+        [.openBarShelf, .checkForUpdates],
+        [.quit],
+    ]
+
+    /// One row of "Menu Bar ▸": a widget that can show a live value, checked
+    /// while it is on the bar.
+    struct MenuBarToggle: Identifiable, Equatable {
+        let id: String
+        let title: String
+        let isOn: Bool
+        let help: String
+    }
+
+    /// "Menu Bar ▸" — the picker for which widgets show a live value.
+    ///
+    /// It lists the widgets that offer one, checked when they are on the bar.
+    /// This is both how a widget sharing the strip (which has no status item of
+    /// its own to right-click) gets taken off, and how the feature is found in
+    /// the first place, since promotion is off until the user asks for it.
+    /// Empty when no widget offers a value; the submenu is hidden then.
+    static func menuBarToggles(runtime: WidgetRuntime) -> [MenuBarToggle] {
+        let shown = runtime.menuBarWidgetIDs
+        let labels = Dictionary(
+            runtime.menuBar.entries.map { ($0.widgetID, $0.label) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        return runtime.menuBarCandidates.map { widget in
+            let isOn = shown.contains(widget.id)
+            // A checked item with nothing in the bar reads as broken; say why.
+            let value = runtime.dormantMenuBarWidgetIDs.contains(widget.id)
+                ? String(localized: "hidden until its reading gets there")
+                : isOn ? (labels[widget.id] ?? nil) : nil
+            return MenuBarToggle(
+                id: widget.id,
+                title: value.map { "\(widget.displayName) — \($0)" } ?? widget.displayName,
+                isOn: isOn,
+                help: isOn
+                    ? String(localized: "Remove \(widget.displayName) from the menu bar")
+                    : String(localized: "Show \(widget.displayName) in the menu bar")
+            )
+        }
+    }
+
+    static func toggleMenuBar(widgetID: String, runtime: WidgetRuntime) {
+        let isOn = runtime.menuBarWidgetIDs.contains(widgetID)
+        runtime.updateMenuBarPlacement(for: widgetID) { $0.enabled = !isOn }
+    }
+}
+
 /// The app's commands as real main-menu items, so their shortcuts work in
 /// every BarShelf window — the popup, a widget card, the hub — instead of
 /// only while the status item's menu happens to be open.
@@ -24,6 +118,7 @@ extension StatusItemController: NSMenuItemValidation {
         let widgets = NSMenu(title: "Widgets")
         widgetsItem.submenu = widgets
         widgets.addItem(command("Refresh All", #selector(refreshAll(_:)), "r"))
+        widgets.addItem(command("Edit Shelf", #selector(toggleEditShelf(_:)), "e"))
         widgets.addItem(command("Create Widget…", #selector(openWidgetBuilder(_:)), "n"))
         mainMenu.addItem(widgetsItem)
 
@@ -40,8 +135,17 @@ extension StatusItemController: NSMenuItemValidation {
         pager.requestSearch()
     }
 
+    /// ⌘E: in and out of the popup's edit mode. Popup-only, like Find.
+    @objc func toggleEditShelf(_ sender: Any?) {
+        guard popupIsKey else { return }
+        pager.toggleEditing()
+    }
+
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
-        if menuItem.action == #selector(findInPopup(_:)) { return popupIsKey }
+        if menuItem.action == #selector(findInPopup(_:))
+            || menuItem.action == #selector(toggleEditShelf(_:)) {
+            return popupIsKey
+        }
         return true
     }
 
@@ -53,5 +157,70 @@ extension StatusItemController: NSMenuItemValidation {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
         item.target = self
         return item
+    }
+
+    // MARK: - Shared app menu (status item right-click)
+
+    /// The status item's right-click menu, built from `AppMenu.sections` —
+    /// the same definition the popup's ⋯ menu draws.
+    func makeAppMenu() -> NSMenu {
+        let menu = NSMenu()
+        // Explicit enablement: with automatic validation AppKit re-enables any
+        // item whose target responds to its action, overriding `isEnabled`.
+        menu.autoenablesItems = false
+        for (index, section) in AppMenu.sections.enumerated() {
+            if index > 0 { menu.addItem(.separator()) }
+            for command in section {
+                if command == .menuBar {
+                    if let item = makeMenuBarSubmenuItem() { menu.addItem(item) }
+                    continue
+                }
+                let item = NSMenuItem(
+                    title: command.title,
+                    action: #selector(performAppMenuItem(_:)),
+                    keyEquivalent: command.keyEquivalent
+                )
+                item.target = self
+                item.representedObject = command
+                item.image = NSImage(systemSymbolName: command.symbol, accessibilityDescription: nil)
+                menu.addItem(item)
+            }
+        }
+        return menu
+    }
+
+    /// nil when no widget can go on the menu bar, so the menu does not offer
+    /// an empty submenu.
+    private func makeMenuBarSubmenuItem() -> NSMenuItem? {
+        let toggles = AppMenu.menuBarToggles(runtime: shelfRuntime)
+        guard !toggles.isEmpty else { return nil }
+        let item = NSMenuItem(title: AppMenuCommand.menuBar.title, action: nil, keyEquivalent: "")
+        item.image = NSImage(systemSymbolName: AppMenuCommand.menuBar.symbol, accessibilityDescription: nil)
+        let submenu = NSMenu()
+        submenu.autoenablesItems = false
+        for toggle in toggles {
+            let row = NSMenuItem(
+                title: toggle.title,
+                action: #selector(toggleMenuBarWidget(_:)),
+                keyEquivalent: ""
+            )
+            row.target = self
+            row.representedObject = toggle.id
+            row.state = toggle.isOn ? .on : .off
+            row.toolTip = toggle.help
+            submenu.addItem(row)
+        }
+        item.submenu = submenu
+        return item
+    }
+
+    @objc private func performAppMenuItem(_ sender: NSMenuItem) {
+        guard let command = sender.representedObject as? AppMenuCommand else { return }
+        perform(command, fromPopup: false)
+    }
+
+    @objc private func toggleMenuBarWidget(_ sender: NSMenuItem) {
+        guard let widgetID = sender.representedObject as? String else { return }
+        AppMenu.toggleMenuBar(widgetID: widgetID, runtime: shelfRuntime)
     }
 }

@@ -63,12 +63,37 @@ struct WidgetPage: Identifiable {
 /// popup view tree.
 final class WidgetCardModel: ObservableObject {
     @Published fileprivate(set) var snapshot: WidgetSnapshot
-    @Published fileprivate(set) var overlay: UINode?
+    @Published fileprivate(set) var overlay: CardOverlay?
 
-    fileprivate init(snapshot: WidgetSnapshot, overlay: UINode?) {
+    fileprivate init(snapshot: WidgetSnapshot, overlay: CardOverlay?) {
         self.snapshot = snapshot
         self.overlay = overlay
     }
+}
+
+/// A state the host shows *instead of* a widget's own content until it is
+/// resolved. The runtime decides which one applies; `CardStateViews` draws it.
+enum CardOverlay: Equatable {
+    /// New or changed permissions waiting for the user's decision.
+    case approvalNeeded([PermissionRequest])
+    /// The user denied the current permission set; the widget does not run.
+    case denied([PermissionRequest])
+    /// A script widget kept crashing and was stopped.
+    case disabled(reason: String)
+
+    var needsApproval: Bool {
+        if case .approvalNeeded = self { return true }
+        return false
+    }
+}
+
+/// One capability a widget asks for, as the approval card lists it.
+struct PermissionRequest: Equatable, Hashable {
+    let symbol: String
+    let description: String
+    /// Something that blocks the widget outright rather than a permission
+    /// the user can grant.
+    var isWarning = false
 }
 
 /// Per-widget refresh statistics for the Monitoring pane.
@@ -177,13 +202,16 @@ final class WidgetRuntime: ObservableObject {
     /// Host-generated cards rendered *instead of* the snapshot tree:
     /// permission approval prompts and crash-loop "Restart Widget" cards.
     /// Same publish routing as `snapshots`.
-    private(set) var overlayCards: [String: UINode] = [:]
+    private(set) var overlayCards: [String: CardOverlay] = [:]
     private var cardModels: [String: WidgetCardModel] = [:]
     /// Pinned widgets + per-widget settings overrides (user preferences).
     let prefs = WidgetPrefs()
     let appPrefs: AppPrefs
     /// Observed by the Monitoring pane only — see `RefreshStatsModel`.
     let refreshStats = RefreshStatsModel()
+    /// Whether a widget is waiting on the user (approval, error). Observed by
+    /// the status item's badge only.
+    let attention = ShelfAttention()
     /// Widget id the UI should jump to and highlight (post-install reveal, R11).
     /// Consumers clear it after handling.
     @Published var pendingReveal: String?
@@ -552,7 +580,7 @@ final class WidgetRuntime: ObservableObject {
             }
         case let .disabled(reason):
             scriptDisabledReasonCache[widgetId] = reason
-            setOverlay(Self.disabledCard(reason: reason), for: widgetId)
+            setOverlay(.disabled(reason: reason), for: widgetId)
             updateSnapshot(widgetId) {
                 $0.isLoading = false
                 $0.error = "Widget disabled: \(reason)"
@@ -595,7 +623,8 @@ final class WidgetRuntime: ObservableObject {
                 "hash": .string(PermissionStore.permissionsHash(of: widget.manifest)),
             ])
         }
-        setOverlay(Self.approvalCard(for: widget, denied: denied), for: widget.id)
+        let requests = Self.permissionRequests(for: widget)
+        setOverlay(denied ? .denied(requests) : .approvalNeeded(requests), for: widget.id)
     }
 
     func approvePermissions(widgetID: String) {
@@ -614,7 +643,7 @@ final class WidgetRuntime: ObservableObject {
         auditLog.record("permission.denied", widgetId: widgetID, detail: [
             "hash": .string(PermissionStore.permissionsHash(of: widget.manifest)),
         ])
-        setOverlay(Self.approvalCard(for: widget, denied: true), for: widgetID)
+        setOverlay(.denied(Self.permissionRequests(for: widget)), for: widgetID)
     }
 
     /// "Restart Widget" after a crash-loop disable.
@@ -658,96 +687,68 @@ final class WidgetRuntime: ObservableObject {
         }
     }
 
-    // MARK: - Host-generated cards
+    // MARK: - Host-generated card states
 
-    static func approvalCard(for widget: LoadedWidget, denied: Bool) -> UINode {
-        var rows: [UINode] = []
+    /// What a widget is asking to be allowed to do, one line per capability,
+    /// in words rather than raw commands. The approval card lists these.
+    static func permissionRequests(for widget: LoadedWidget) -> [PermissionRequest] {
+        var rows: [PermissionRequest] = []
         let permissions = widget.manifest.permissions
         for exec in permissions?.exec ?? [] {
             if let patterns = exec.allowedArgs, !patterns.isEmpty {
                 for pattern in patterns {
-                    rows.append(permissionRow(
-                        icon: "terminal",
-                        title: describeExec(command: exec.command, args: pattern)
+                    rows.append(PermissionRequest(
+                        symbol: "terminal",
+                        description: describeExec(command: exec.command, args: pattern)
                     ))
                 }
             } else if exec.allowedArgs != nil {
-                rows.append(permissionRow(
-                    icon: "terminal",
-                    title: describeExec(command: exec.command, args: [])
+                rows.append(PermissionRequest(
+                    symbol: "terminal",
+                    description: describeExec(command: exec.command, args: [])
                 ))
             } else {
-                rows.append(permissionRow(
-                    icon: "terminal",
-                    title: "Run \(friendlyCommandName(exec.command)) with any arguments"
+                rows.append(PermissionRequest(
+                    symbol: "terminal",
+                    description: "Run \(friendlyCommandName(exec.command)) with any arguments"
                 ))
             }
         }
         if permissions?.exec?.isEmpty != false,
            widget.manifest.entry.kind == "exec" {
-            rows.append(permissionRow(
-                icon: "exclamationmark.triangle.fill",
-                title: "Blocked: executable source has no command allowlist"
+            rows.append(PermissionRequest(
+                symbol: "exclamationmark.triangle.fill",
+                description: "Blocked: this widget runs a command but does not say which",
+                isWarning: true
             ))
         }
         if permissions?.keychain == true {
-            rows.append(permissionRow(icon: "key.fill", title: "Read & write Keychain secrets"))
+            rows.append(PermissionRequest(symbol: "key.fill", description: "Read and save passwords in your Keychain"))
         }
         if permissions?.notifications == true {
-            rows.append(permissionRow(icon: "bell.fill", title: "Post notifications"))
+            rows.append(PermissionRequest(symbol: "bell.fill", description: "Show notifications"))
         }
         if let net = permissions?.network, !net.isEmpty {
             let hosts = net.prefix(4).joined(separator: ", ")
             let suffix = net.count > 4 ? ", …" : ""
-            rows.append(permissionRow(icon: "network", title: "Connect to \(hosts)\(suffix)"))
+            rows.append(PermissionRequest(symbol: "network", description: "Connect to \(hosts)\(suffix)"))
         }
         for path in permissions?.readPaths ?? [] {
-            rows.append(permissionRow(icon: "folder.fill", title: "Read files in \(path)"))
+            rows.append(PermissionRequest(symbol: "folder.fill", description: "Read files in \(path)"))
         }
         if permissions?.storage?.granted == true {
-            rows.append(permissionRow(icon: "internaldrive.fill", title: "Save small data on this Mac"))
+            rows.append(PermissionRequest(symbol: "internaldrive.fill", description: "Save small amounts of data on this Mac"))
         }
         if let env = permissions?.env, !env.isEmpty {
-            rows.append(permissionRow(
-                icon: "leaf.fill",
-                title: "Read environment: \(env.joined(separator: ", "))"
+            rows.append(PermissionRequest(
+                symbol: "leaf.fill",
+                description: "Read settings from the environment: \(env.joined(separator: ", "))"
             ))
         }
         if rows.isEmpty {
-            rows.append(permissionRow(icon: "checkmark.seal.fill", title: "No special permissions"))
+            rows.append(PermissionRequest(symbol: "checkmark.seal.fill", description: "No special permissions"))
         }
-
-        var children: [UINode] = [
-            UINode(
-                type: "banner",
-                text: denied
-                    ? "Permissions denied — approve to run this widget"
-                    : "\(widget.displayName) requests these permissions:",
-                tone: denied ? "danger" : "warning"
-            ),
-        ]
-        children.append(contentsOf: rows)
-        children.append(UINode(type: "hstack", children: [
-            UINode(type: "button", title: "Approve",
-                   action: NodeAction(type: "permission.approve")),
-            UINode(type: "button", title: "Deny",
-                   action: NodeAction(type: "permission.deny")),
-        ], spacing: 8))
-        return UINode(type: "vstack", children: children, spacing: 6)
-    }
-
-    /// One permission line in the approval card: a leading SF Symbol and a
-    /// human-readable description, instead of a raw shell command dump.
-    private static func permissionRow(icon: String, title: String) -> UINode {
-        UINode(type: "hstack", children: [
-            UINode(
-                type: "image",
-                source: ImageSource(kind: "sfSymbol", name: icon),
-                size: 12,
-                tint: "secondary"
-            ),
-            UINode(type: "text", text: title, role: "caption", lineLimit: 2),
-        ], spacing: 6)
+        return rows
     }
 
     /// Turns an exec permission (command + a specific argument pattern) into a
@@ -800,14 +801,6 @@ final class WidgetRuntime: ObservableObject {
             i = j
         }
         return tools
-    }
-
-    static func disabledCard(reason: String) -> UINode {
-        UINode(type: "vstack", children: [
-            UINode(type: "banner", text: "Widget disabled: \(reason)", tone: "danger"),
-            UINode(type: "button", title: "Restart Widget",
-                   action: NodeAction(type: "widget.restart")),
-        ], spacing: 6)
     }
 
     // MARK: - Discovery
@@ -1184,6 +1177,7 @@ final class WidgetRuntime: ObservableObject {
         scheduler.configure(widgets: widgets.filter { !prefs.isDisabled($0.id) })
         setVisibleWidgetIDs(visibleWidgetIDs)
         syncMenuBar()
+        updateAttention()
         objectWillChange.send()
         if !flag, scriptDisableStopTokens[id] == nil {
             refresh(widgetID: id, manual: true)
@@ -2738,8 +2732,10 @@ final class WidgetRuntime: ObservableObject {
     /// snapshot is unchanged; otherwise only the affected card model publishes.
     private func setSnapshot(_ snapshot: WidgetSnapshot, for id: String) {
         guard snapshots[id] != snapshot else { return }
+        let errorChanged = snapshots[id]?.error != snapshot.error
         snapshots[id] = snapshot
         cardModels[id]?.snapshot = snapshot
+        if errorChanged { updateAttention() }
         if menuBarWidgetIDs.contains(id) {
             chartPending.insert(id)
             syncMenuBar()
@@ -2747,10 +2743,23 @@ final class WidgetRuntime: ObservableObject {
     }
 
     /// Single write path for overlay cards (`nil` removes), same suppression.
-    private func setOverlay(_ node: UINode?, for id: String) {
-        guard overlayCards[id] != node else { return }
-        overlayCards[id] = node
-        cardModels[id]?.overlay = node
+    private func setOverlay(_ overlay: CardOverlay?, for id: String) {
+        guard overlayCards[id] != overlay else { return }
+        overlayCards[id] = overlay
+        cardModels[id]?.overlay = overlay
+        updateAttention()
+    }
+
+    /// Recomputes the widget part of `attention` from the current state.
+    private func updateAttention() {
+        let reasons = ShelfAttention.widgetReasons(
+            widgetIDs: widgets.map(\.id),
+            isDisabled: { prefs.isDisabled($0) },
+            overlay: { overlayCards[$0] },
+            error: { snapshots[$0]?.error }
+        )
+        attention.set(.approvalNeeded, reasons.contains(.approvalNeeded))
+        attention.set(.widgetError, reasons.contains(.widgetError))
     }
 
     /// Drops per-widget state for removed widget ids (hot reload cleanup).
@@ -2764,6 +2773,7 @@ final class WidgetRuntime: ObservableObject {
         snapshots = snapshots.filter { liveIDs.contains($0.key) }
         overlayCards = overlayCards.filter { liveIDs.contains($0.key) }
         cardModels = cardModels.filter { liveIDs.contains($0.key) }
+        updateAttention()
         inFlight.formIntersection(liveIDs)
         refreshStartedAt = refreshStartedAt.filter { liveIDs.contains($0.key) }
     }

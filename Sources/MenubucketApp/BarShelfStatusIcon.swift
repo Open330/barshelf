@@ -16,14 +16,49 @@ enum BarShelfStatusIcon {
     /// Applies the selected mark and its stable accessible name to the status
     /// control. The button label is authoritative because the custom-drawn
     /// logo has no intrinsic accessibility description.
+    ///
+    /// `badged` adds the attention dot: something in BarShelf (a widget
+    /// awaiting approval or failing) wants the user. The spoken name says so
+    /// too, so the dot is not the only signal.
     static func configure(
         _ button: NSStatusBarButton,
         symbol: String,
-        fallback: String
+        fallback: String,
+        badged: Bool = false
     ) {
-        button.image = image(for: symbol, fallback: fallback)
+        let base = image(for: symbol, fallback: fallback)
+        button.image = badged ? badgedImage(base) : base
         button.imagePosition = .imageOnly
-        button.setAccessibilityLabel(accessibilityName)
+        button.setAccessibilityLabel(accessibilityLabel(badged: badged))
+    }
+
+    static func accessibilityLabel(badged: Bool) -> String {
+        badged
+            ? String(localized: "BarShelf, needs attention")
+            : accessibilityName
+    }
+
+    /// `base` with a small dot at its top-trailing corner, cut out of the mark
+    /// by a clear ring so it reads at menu bar size. Still a template image,
+    /// so it follows a light or dark menu bar like the mark itself.
+    static func badgedImage(_ base: NSImage) -> NSImage {
+        let size = base.size
+        let image = NSImage(size: size, flipped: false) { rect in
+            base.draw(in: rect)
+            let diameter = max(5, min(rect.width, rect.height) * 0.36)
+            let dot = NSRect(
+                x: rect.maxX - diameter, y: rect.maxY - diameter,
+                width: diameter, height: diameter
+            )
+            NSGraphicsContext.current?.compositingOperation = .clear
+            NSBezierPath(ovalIn: dot.insetBy(dx: -1.5, dy: -1.5)).fill()
+            NSGraphicsContext.current?.compositingOperation = .sourceOver
+            NSColor.black.setFill()
+            NSBezierPath(ovalIn: dot).fill()
+            return true
+        }
+        image.isTemplate = true
+        return image
     }
 
     static func image(for symbol: String, fallback: String) -> NSImage {

@@ -31,18 +31,25 @@ enum PopupEventRouting {
 /// NSPopover-backed popup surface (behavior `.transient`).
 final class PopoverSurface: NSObject, PopupSurface, NSPopoverDelegate {
     private let popover = NSPopover()
+    private let closesOnEscape: Bool
+    private var escapeMonitor: Any?
 
     var onShow: (() -> Void)?
     var onHide: (() -> Void)?
 
     /// - Parameter fitsContent: sizes the popover to what the view asks for
     ///   instead of to `contentSize`. A single widget card has no business
-    ///   being as tall as the whole shelf.
+    ///   being as tall as the whole shelf, and the shelf grows with its pages.
+    /// - Parameter closesOnEscape: Esc closes the popover. For surfaces with
+    ///   no keyboard handling of their own; the shelf has its own (Esc first
+    ///   leaves edit mode).
     init<Content: View>(
         rootView: Content,
         contentSize: CGSize = RootView.defaultSize,
-        fitsContent: Bool = false
+        fitsContent: Bool = false,
+        closesOnEscape: Bool = false
     ) {
+        self.closesOnEscape = closesOnEscape
         super.init()
         popover.behavior = .transient
         popover.animates = true
@@ -69,7 +76,27 @@ final class PopoverSurface: NSObject, PopupSurface, NSPopoverDelegate {
         // Make the popover window key so its text fields receive keyboard input
         // and standard editing key equivalents (⌘A/⌘C/⌘V/⌘X).
         popover.contentViewController?.view.window?.makeKey()
+        if closesOnEscape { installEscapeMonitor() }
         onShow?()
+    }
+
+    private func installEscapeMonitor() {
+        removeEscapeMonitor()
+        escapeMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
+            guard let self, event.keyCode == 53,
+                  event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty,
+                  PopupEventRouting.belongsToPopup(eventWindow: event.window, popupWindow: self.eventWindow)
+            else { return event }
+            self.hide()
+            return nil
+        }
+    }
+
+    private func removeEscapeMonitor() {
+        if let escapeMonitor {
+            NSEvent.removeMonitor(escapeMonitor)
+            self.escapeMonitor = nil
+        }
     }
 
     func hide() {
@@ -79,6 +106,7 @@ final class PopoverSurface: NSObject, PopupSurface, NSPopoverDelegate {
     // MARK: - NSPopoverDelegate
 
     func popoverDidClose(_ notification: Notification) {
+        removeEscapeMonitor()
         onHide?()
     }
 }

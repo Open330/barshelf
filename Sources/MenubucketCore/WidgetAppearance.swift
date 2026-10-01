@@ -40,6 +40,11 @@ public struct WidgetAppearance: Codable, Equatable, Sendable {
         self.fixedHeight = fixedHeight
     }
 
+    /// Whether the card draws its own header (title, refresh state, last
+    /// update). On unless the widget's author or the user turned it off: the
+    /// header is how an error is traced back to the widget that has it.
+    public var showsHeader: Bool { showHeader ?? true }
+
     /// Field-wise merge where `self` wins: each of `self`'s non-nil fields
     /// overrides `base`; nil fields fall through to `base`.
     public func merged(over base: WidgetAppearance) -> WidgetAppearance {

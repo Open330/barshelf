@@ -8,7 +8,8 @@ import SwiftUI
 ///
 /// Follows the file-stack pattern: variable-length status item, single action
 /// wired for `[.leftMouseUp, .rightMouseUp]` — left click toggles the popup,
-/// right click (or ctrl-click) opens the context menu (Refresh All / Quit).
+/// right click (or ctrl-click) opens the app menu (`AppMenu`), the same one
+/// the popup's ⋯ button shows.
 final class StatusItemController: NSObject {
     private static let statusItemLength: CGFloat = 28
 
@@ -37,91 +38,15 @@ final class StatusItemController: NSObject {
     private var swipeAccumulatedX: CGFloat = 0
     private var consumeMomentum = false
 
-    private lazy var statusMenu: NSMenu = {
-        let menu = NSMenu()
-        // Explicit enablement: with automatic validation AppKit re-enables any
-        // item whose target responds to its action, overriding `isEnabled`.
-        menu.autoenablesItems = false
-
-        let hubItem = NSMenuItem(
-            title: "Open BarShelf…",
-            action: #selector(openHub(_:)),
-            keyEquivalent: ""
-        )
-        hubItem.target = self
-        menu.addItem(hubItem)
-
-        menu.addItem(menuBarSubmenuItem)
-
-        menu.addItem(.separator())
-
-        let refreshItem = NSMenuItem(
-            title: "Refresh All",
-            action: #selector(refreshAll(_:)),
-            keyEquivalent: "r"
-        )
-        refreshItem.target = self
-        menu.addItem(refreshItem)
-
-        let installItem = NSMenuItem(
-            title: "Install Widget from URL…",
-            action: #selector(installWidgetFromURL(_:)),
-            keyEquivalent: ""
-        )
-        installItem.target = self
-        menu.addItem(installItem)
-
-        let galleryItem = NSMenuItem(
-            title: "Widget Gallery…",
-            action: #selector(openWidgetGallery(_:)),
-            keyEquivalent: ""
-        )
-        galleryItem.target = self
-        menu.addItem(galleryItem)
-
-        let builderItem = NSMenuItem(
-            title: "Create Widget…",
-            action: #selector(openWidgetBuilder(_:)),
-            keyEquivalent: "n"
-        )
-        builderItem.target = self
-        menu.addItem(builderItem)
-
-        menu.addItem(.separator())
-
-        let settingsItem = NSMenuItem(
-            title: "Settings…",
-            action: #selector(openSettings(_:)),
-            keyEquivalent: ","
-        )
-        settingsItem.target = self
-        menu.addItem(settingsItem)
-
-        let updateItem = NSMenuItem(
-            title: "Check for Updates…",
-            action: #selector(checkForUpdates(_:)),
-            keyEquivalent: ""
-        )
-        updateItem.target = self
-        menu.addItem(updateItem)
-
-        menu.addItem(.separator())
-
-        let quitItem = NSMenuItem(
-            title: "Quit BarShelf",
-            action: #selector(terminateApp(_:)),
-            keyEquivalent: "q"
-        )
-        quitItem.target = self
-        menu.addItem(quitItem)
-
-        return menu
-    }()
-
     override init() {
         super.init()
 
-        let surface = PopoverSurface(rootView: RootView(runtime: runtime, pager: pager))
+        let surface = PopoverSurface(
+            rootView: RootView(runtime: runtime, pager: pager) { [weak self] command in
+                self?.perform(command, fromPopup: true)
+            },
+            fitsContent: true
+        )
         surface.onShow = { [weak self] in
             self?.runtime.popupOpened()
             self?.installKeyboardMonitor()
@@ -132,6 +57,7 @@ final class StatusItemController: NSObject {
             self?.removeKeyboardMonitor()
             self?.removeScrollMonitor()
             self?.pager.cancelSwipe()
+            self?.pager.isEditing = false
         }
         popup = surface
 
@@ -190,9 +116,20 @@ final class StatusItemController: NSObject {
         HotkeyRegistrationCoordinator.shared.register = { [weak self] combination in
             self?.replaceHotkey(with: combination) ?? false
         }
+        // The dot on the icon: a widget waiting for approval or failing.
+        runtime.attention.$reasons
+            .receive(on: RunLoop.main)
+            .removeDuplicates()
+            .sink { [weak self] reasons in
+                self?.menuBar.setAttention(!reasons.isEmpty)
+            }
+            .store(in: &cancellables)
         applyStatusSymbol(appPrefs.preferences.menuBarSymbol)
         updateHotkey(appPrefs.preferences)
     }
+
+    /// The runtime, for the app menu built in `AppCommands`.
+    var shelfRuntime: WidgetRuntime { runtime }
 
     deinit {
         removeKeyboardMonitor()
@@ -227,9 +164,19 @@ final class StatusItemController: NSObject {
     private func togglePopup() {
         if popup.isShown {
             popup.hide()
-        } else if let button = statusItem.button {
-            popup.show(relativeTo: button)
+        } else {
+            showPopup()
         }
+    }
+
+    /// Opens the shelf, first telling it how tall it may grow on the screen
+    /// the status item is on.
+    private func showPopup() {
+        guard let button = statusItem.button else { return }
+        if let screen = button.window?.screen ?? NSScreen.main {
+            pager.maxHeight = RootView.maximumHeight(screenVisibleHeight: screen.visibleFrame.height)
+        }
+        popup.show(relativeTo: button)
     }
 
     /// A click on a widget's own item does what its settings say; anything
@@ -296,7 +243,8 @@ final class StatusItemController: NSObject {
 
         let surface = PopoverSurface(
             rootView: MenuBarWidgetPopover(widget: widget, runtime: runtime),
-            fitsContent: true
+            fitsContent: true,
+            closesOnEscape: true
         )
         surface.onHide = { [weak self] in
             guard self?.widgetPopover?.widgetID == widgetID else { return }
@@ -318,75 +266,42 @@ final class StatusItemController: NSObject {
     }
 
     private func openPopupIfNeeded() {
-        guard !popup.isShown, let button = statusItem.button else { return }
-        popup.show(relativeTo: button)
+        guard !popup.isShown else { return }
+        showPopup()
     }
 
     private func showStatusItemMenu(with event: NSEvent) {
         guard let button = statusItem.button else { return }
-        rebuildMenuBarSubmenu()
-        NSMenu.popUpContextMenu(statusMenu, with: event, for: button)
+        NSMenu.popUpContextMenu(makeAppMenu(), with: event, for: button)
     }
 
-    /// "Menu Bar ▸" — the picker for which widgets show a live value.
-    ///
-    /// It lists the widgets that offer one, checked when they are on the bar.
-    /// This is both how a widget sharing the strip (which has no status item of
-    /// its own to right-click) gets taken off, and how the feature is found in
-    /// the first place, since promotion is off until the user asks for it.
+    /// Runs a command from the app menu — the popup's ⋯ button or the status
+    /// item's right-click menu, which are the same list (`AppMenu`).
+    func perform(_ command: AppMenuCommand, fromPopup: Bool) {
+        switch command {
+        case .editShelf:
+            if fromPopup {
+                pager.toggleEditing()
+            } else {
+                openPopupIfNeeded()
+                pager.isEditing = true
+            }
+        case .addWidget:
+            popup.hide()
+            Task { @MainActor in HubWindowController.shared.show(tab: .gallery) }
+        case .menuBar:
+            break // a submenu, not an action
+        case .openBarShelf:
+            openSettings(nil)
+        case .checkForUpdates:
+            checkForUpdates(nil)
+        case .quit:
+            terminateApp(nil)
+        }
+    }
+
     /// The card currently hanging off a menu bar item, if any.
     private var widgetPopover: (widgetID: String, surface: PopoverSurface)?
-
-    private lazy var menuBarSubmenuItem: NSMenuItem = {
-        let item = NSMenuItem(title: "Menu Bar", action: nil, keyEquivalent: "")
-        let submenu = NSMenu()
-        submenu.autoenablesItems = false
-        item.submenu = submenu
-        return item
-    }()
-
-    private func rebuildMenuBarSubmenu() {
-        guard let submenu = menuBarSubmenuItem.submenu else { return }
-        submenu.removeAllItems()
-
-        let candidates = runtime.menuBarCandidates
-        guard !candidates.isEmpty else {
-            menuBarSubmenuItem.isHidden = true
-            return
-        }
-        menuBarSubmenuItem.isHidden = false
-
-        let shown = runtime.menuBarWidgetIDs
-        let labels = Dictionary(
-            runtime.menuBar.entries.map { ($0.widgetID, $0.label) },
-            uniquingKeysWith: { first, _ in first }
-        )
-        for widget in candidates {
-            let isOn = shown.contains(widget.id)
-            // A checked item with nothing in the bar reads as broken; say why.
-            let value = runtime.dormantMenuBarWidgetIDs.contains(widget.id)
-                ? "hidden until its reading gets there"
-                : isOn ? (labels[widget.id] ?? nil) : nil
-            let item = NSMenuItem(
-                title: value.map { "\(widget.displayName) — \($0)" } ?? widget.displayName,
-                action: #selector(toggleMenuBarWidget(_:)),
-                keyEquivalent: ""
-            )
-            item.target = self
-            item.representedObject = widget.id
-            item.state = isOn ? .on : .off
-            item.toolTip = isOn
-                ? "Remove \(widget.displayName) from the menu bar"
-                : "Show \(widget.displayName) in the menu bar"
-            submenu.addItem(item)
-        }
-    }
-
-    @objc private func toggleMenuBarWidget(_ sender: NSMenuItem) {
-        guard let widgetID = sender.representedObject as? String else { return }
-        let isOn = runtime.menuBarWidgetIDs.contains(widgetID)
-        runtime.updateMenuBarPlacement(for: widgetID) { $0.enabled = !isOn }
-    }
 
     @objc private func openHub(_ sender: Any?) {
         popup.hide()
@@ -397,18 +312,6 @@ final class StatusItemController: NSObject {
 
     @objc func refreshAll(_ sender: Any?) {
         runtime.refreshAll()
-    }
-
-    @objc private func installWidgetFromURL(_ sender: Any?) {
-        popup.hide()
-        WidgetInstaller.shared.promptForURL()
-    }
-
-    @objc private func openWidgetGallery(_ sender: Any?) {
-        popup.hide()
-        Task { @MainActor in
-            GalleryWindowController.shared.show()
-        }
     }
 
     @objc func openWidgetBuilder(_ sender: Any?) {
@@ -658,8 +561,12 @@ final class StatusItemController: NSObject {
             case 124 where modifiers.isEmpty: // →
                 self.pager.step(1, pageCount: pageCount)
                 return nil
-            case 53 where modifiers.isEmpty: // Esc
-                self.popup.hide()
+            case 53 where modifiers.isEmpty: // Esc: leave edit mode, then close
+                if self.pager.isEditing {
+                    self.pager.isEditing = false
+                } else {
+                    self.popup.hide()
+                }
                 return nil
             default:
                 break
