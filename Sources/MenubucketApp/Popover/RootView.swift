@@ -11,6 +11,7 @@ import UniformTypeIdentifiers
 /// 360 points wide; as tall as its tallest page, up to what the status item's
 /// screen allows (`PagerState.maxHeight`).
 struct RootView: View {
+    @Environment(\.undoManager) private var undoManager
     @ObservedObject var runtime: WidgetRuntime
     @ObservedObject var pager: PagerState
     /// Runs an app-menu command (⋯ menu, edit mode's Add Widget).
@@ -498,7 +499,9 @@ struct RootView: View {
         )) { providers in
             CardDrag.receive(providers) { widgetID in
                 guard runtime.effectiveGroup(for: widgetID) != page.group else { return }
-                runtime.moveWidget(id: widgetID, toGroup: page.group)
+                runtime.changeLayout(String(localized: "Move Widget"), undoManager: undoManager) {
+                    runtime.moveWidget(id: widgetID, toGroup: page.group)
+                }
                 ToastCenter.shared.show(String(localized: "Moved to \(page.group)"))
             }
         }

@@ -17,6 +17,10 @@ struct ShelfView: View {
     @State private var duplicateName = ""
     @State private var actionError: String?
     @State private var dropHighlight: String?
+    /// The inspector part a request ("Customize…") asked for, for that widget
+    /// only; any other selection opens on General.
+    @State private var requestedPage: (widgetID: String, page: WidgetSettingsView.InspectorTab)?
+    @Environment(\.undoManager) private var undoManager
 
     private let columnWidth: CGFloat = 230
 
@@ -51,7 +55,10 @@ struct ShelfView: View {
         }
         .onAppear(perform: openRequestedSettings)
         .onChange(of: model.settingsWidgetID) { openRequestedSettings() }
-        .onChange(of: selection) { _, id in if id != nil { inspectorShown = true } }
+        .onChange(of: selection) { _, id in
+            if id != nil { inspectorShown = true }
+            if id != requestedPage?.widgetID { requestedPage = nil }
+        }
         .alert(
             "Remove \(removalTarget?.displayName ?? "Widget")?",
             isPresented: Binding(
@@ -231,7 +238,9 @@ struct ShelfView: View {
     private func chipMenu(_ widget: LoadedWidget, disabled: Bool) -> some View {
         Button("Settings") { selection = widget.id; inspectorShown = true }
         Button(disabled ? "Show on the Shelf" : "Turn Off") {
-            runtime.setWidgetDisabled(widget.id, !disabled)
+            runtime.changeLayout(String(localized: disabled ? "Show Widget" : "Turn Off Widget"), undoManager: undoManager) {
+                runtime.setWidgetDisabled(widget.id, !disabled)
+            }
         }
         Menu("Move to Page") {
             ForEach(shelfPages.map(\.name), id: \.self) { name in
@@ -269,6 +278,7 @@ struct ShelfView: View {
             WidgetSettingsView(
                 widget: widget,
                 runtime: runtime,
+                page: requestedPage?.widgetID == widget.id ? requestedPage!.page : .general,
                 onDuplicate: { duplicateTarget = widget },
                 onRemove: { removalTarget = widget }
             )
@@ -319,33 +329,27 @@ struct ShelfView: View {
         let widgets: [LoadedWidget]
     }
 
-    /// Pages in popup order, each with its widgets in popup order — switched
-    /// off widgets included, where they would sit.
+    /// The popup's pages in the popup's order, switched-off widgets included
+    /// where they would sit.
     private var shelfPages: [ShelfPage] {
-        let grouped = Dictionary(grouping: runtime.widgets) { runtime.effectiveGroup(for: $0.id) }
-        let names = grouped.keys.sorted { lhs, rhs in
-            let lk = runtime.prefs.groupSortKey(lhs) ?? .greatestFiniteMagnitude
-            let rk = runtime.prefs.groupSortKey(rhs) ?? .greatestFiniteMagnitude
-            if lk != rk { return lk < rk }
-            return lhs.localizedCaseInsensitiveCompare(rhs) == .orderedAscending
-        }
-        return names.map { name in
-            ShelfPage(name: name, widgets: (grouped[name] ?? []).sorted { lhs, rhs in
-                let lo = orderValue(lhs), ro = orderValue(rhs)
-                if lo != ro { return lo < ro }
-                return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
-            })
-        }
-    }
-
-    private func orderValue(_ widget: LoadedWidget) -> Double {
-        runtime.prefs.override(for: widget.id)?.order ?? Double(widget.order)
+        runtime.shelfPages.map { ShelfPage(name: $0.group, widgets: $0.widgets) }
     }
 
     /// Puts `id` on `page` just before `target` (or last), and rewrites that
     /// page's order as a dense sequence so the popup shows the same thing.
     private func move(_ id: String, toPage page: String, before target: String?) {
         guard runtime.widgets.contains(where: { $0.id == id }) else { return }
+        runtime.changeLayout(String(localized: "Move Widget"), undoManager: undoManager) {
+            place(id, onPage: page, before: target)
+        }
+    }
+
+    private func place(_ id: String, onPage page: String, before target: String?) {
+        // Pin the page order first: renumbering a page's widgets must not
+        // move the page itself when no order has been saved yet.
+        if runtime.prefs.groupOrder.isEmpty {
+            runtime.prefs.setGroupsOrder(shelfPages.map(\.name))
+        }
         if runtime.effectiveGroup(for: id) != page {
             runtime.moveWidget(id: id, toGroup: page)
         }
@@ -376,7 +380,9 @@ struct ShelfView: View {
         let target = index + offset
         guard order.indices.contains(target) else { return }
         order.swapAt(index, target)
-        runtime.prefs.setGroupsOrder(order)
+        runtime.changeLayout(String(localized: "Move Page"), undoManager: undoManager) {
+            runtime.prefs.setGroupsOrder(order)
+        }
         runtime.objectWillChange.send()
     }
 
@@ -385,6 +391,8 @@ struct ShelfView: View {
     private func openRequestedSettings() {
         guard let id = model.settingsWidgetID else { return }
         model.settingsWidgetID = nil
+        requestedPage = (id, model.settingsPage)
+        model.settingsPage = .general
         selection = id
         inspectorShown = true
     }

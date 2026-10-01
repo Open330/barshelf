@@ -11,6 +11,7 @@ import UniformTypeIdentifiers
 /// runtime is held unobserved, so another widget's refresh publishes nothing
 /// this card subscribes to and this card's body is not re-evaluated.
 struct WidgetCardView: View {
+    @Environment(\.undoManager) private var undoManager
     let widget: LoadedWidget
     let runtime: WidgetRuntime
     /// The pinned strip deliberately uses a compact, fixed footprint. This is
@@ -108,7 +109,9 @@ struct WidgetCardView: View {
         .onDrop(of: CardDrag.types, isTargeted: $isDropTarget.animation(.easeInOut(duration: 0.12))) { providers in
             guard placement == .shelf else { return false }
             return CardDrag.receive(providers) { draggedID in
-                runtime.reorderWidget(id: draggedID, before: widget.id)
+                runtime.changeLayout(String(localized: "Move Widget"), undoManager: undoManager) {
+                    runtime.reorderWidget(id: draggedID, before: widget.id)
+                }
             }
         }
         .animation(.easeInOut(duration: 0.4), value: isHighlighted)
@@ -122,7 +125,11 @@ struct WidgetCardView: View {
             Button("Cancel", role: .cancel) { newBucketName = "" }
             Button("Move") {
                 let name = newBucketName.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !name.isEmpty { runtime.moveWidget(id: widget.id, toGroup: name) }
+                if !name.isEmpty {
+                    runtime.changeLayout(String(localized: "Move Widget"), undoManager: undoManager) {
+                        runtime.moveWidget(id: widget.id, toGroup: name)
+                    }
+                }
                 newBucketName = ""
             }
         } message: {
@@ -297,7 +304,11 @@ struct WidgetCardView: View {
             }
             Menu("Move to Page") {
                 ForEach(runtime.allGroups, id: \.self) { group in
-                    Button(group) { runtime.moveWidget(id: widget.id, toGroup: group) }
+                    Button(group) {
+                        runtime.changeLayout(String(localized: "Move Widget"), undoManager: undoManager) {
+                            runtime.moveWidget(id: widget.id, toGroup: group)
+                        }
+                    }
                 }
                 Divider()
                 Button("New Page…") { showNewBucket = true }
@@ -324,10 +335,12 @@ struct WidgetCardView: View {
 
     fileprivate func moveWithinPanel(by offset: Int) {
         guard let adjacent = adjacentWidget(by: offset) else { return }
-        if offset < 0 {
-            runtime.reorderWidget(id: widget.id, before: adjacent.id)
-        } else {
-            runtime.reorderWidget(id: adjacent.id, before: widget.id)
+        runtime.changeLayout(String(localized: "Move Widget"), undoManager: undoManager) {
+            if offset < 0 {
+                runtime.reorderWidget(id: widget.id, before: adjacent.id)
+            } else {
+                runtime.reorderWidget(id: adjacent.id, before: widget.id)
+            }
         }
         runtime.reveal(widgetID: widget.id)
     }
@@ -396,7 +409,13 @@ struct WidgetCardView: View {
             }
             Spacer(minLength: 0)
             Button(LayoutSizeName.name(isHalf ? "S" : "M")) {
-                runtime.resizeWidget(id: widget.id, toSize: isHalf ? "M" : "S")
+                // Back to the widget's own size when that is a full-width
+                // one (Strip, Full Width, Tall), so the switch does not lose it.
+                let own = widget.size.uppercased()
+                let target: String? = isHalf ? (own == "S" ? "M" : nil) : "S"
+                runtime.changeLayout(String(localized: "Change Size"), undoManager: undoManager) {
+                    runtime.resizeWidget(id: widget.id, toSize: target)
+                }
             }
             .controlSize(.small)
             .help(isHalf ? "Make this card full width" : "Make this card half width")

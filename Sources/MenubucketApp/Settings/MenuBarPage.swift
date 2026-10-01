@@ -183,7 +183,7 @@ private struct MenuBarItemRow: View {
 
                     Spacer()
                     Button("Customize…") {
-                        HubWindowController.shared.showWidgetSettings(widgetID: widget.id)
+                        HubWindowController.shared.showWidgetSettings(widgetID: widget.id, page: .menuBar)
                     }
                     .help("Label, icon, graph, alerts, and what a click does")
                 }

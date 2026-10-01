@@ -13,7 +13,11 @@ struct KeyRecorder: View {
 
     @State private var isRecording = false
     @State private var monitor: Any?
+    @State private var resignObserver: NSObjectProtocol?
     @State private var hint: String?
+    /// The window this recorder lives in; keys typed anywhere else are not
+    /// its business.
+    @State private var hostWindow: NSWindow?
 
     var body: some View {
         VStack(alignment: .trailing, spacing: Spacing.xxs) {
@@ -42,6 +46,7 @@ struct KeyRecorder: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .background(WindowReader { hostWindow = $0 })
         .onDisappear(perform: stopRecording)
     }
 
@@ -56,16 +61,31 @@ struct KeyRecorder: View {
 
     private func startRecording() {
         isRecording = true
-        hint = "Press a key with ⌘, ⌥, ⌃, or ⇧. Esc cancels."
+        hint = String(localized: "Press a key with ⌘, ⌥, ⌃, or ⇧. Esc cancels.")
+        let window = hostWindow
         monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { event in
+            // Only this window's keys: typing in the popup or another window
+            // while this one waits must reach that window, not become the
+            // shortcut.
+            guard window == nil || event.window === window else { return event }
             handle(event)
             return nil
+        }
+        // Clicking away ends recording, as it does in System Settings.
+        if let window {
+            resignObserver = NotificationCenter.default.addObserver(
+                forName: NSWindow.didResignKeyNotification, object: window, queue: .main
+            ) { _ in
+                MainActor.assumeIsolated { stopRecording() }
+            }
         }
     }
 
     private func stopRecording() {
         if let monitor { NSEvent.removeMonitor(monitor) }
         monitor = nil
+        if let resignObserver { NotificationCenter.default.removeObserver(resignObserver) }
+        resignObserver = nil
         isRecording = false
         hint = nil
     }
@@ -98,5 +118,28 @@ struct KeyRecorder: View {
         parts.append(key)
         stopRecording()
         onRecord(parts.joined(separator: "+"))
+    }
+}
+
+/// Hands over the NSWindow a SwiftUI view is in, each time it moves into one.
+private struct WindowReader: NSViewRepresentable {
+    let onWindow: (NSWindow?) -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = ReportingView()
+        view.onWindow = onWindow
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {}
+
+    private final class ReportingView: NSView {
+        var onWindow: ((NSWindow?) -> Void)?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            let window = self.window
+            DispatchQueue.main.async { [onWindow] in onWindow?(window) }
+        }
     }
 }
