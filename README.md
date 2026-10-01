@@ -106,6 +106,14 @@ Full guide, `barshelf` CLI, and troubleshooting: **[docs/INSTALL.md](docs/INSTAL
 > Requires macOS 13+ on Apple Silicon. Script widgets need [Deno](https://deno.land)
 > (`brew install deno`); exec and workflow widgets work without it.
 
+## Keyboard and window extensions
+
+Bring your Hammerspoon navigation settings into **Settings → Extensions**.
+Import the supported `init.lua` profile to preserve Fn arrow mappings, monitor
+shortcuts, and window cycling, then customize the generated JavaScript.
+Requires Accessibility access; no additional runtime is needed.
+See [setup, import scope, and scripting API](docs/AUTOMATION.md).
+
 ## Gallery widgets
 
 Native widgets ship in the gallery — most are declarative **workflows**

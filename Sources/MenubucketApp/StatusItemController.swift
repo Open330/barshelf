@@ -613,8 +613,15 @@ final class StatusItemController: NSObject {
         let selfPtr = Unmanaged.passUnretained(self).toOpaque()
         InstallEventHandler(
             GetApplicationEventTarget(),
-            { _, _, userData -> OSStatus in
-                guard let userData else { return noErr }
+            { _, event, userData -> OSStatus in
+                guard let userData, let event else { return OSStatus(eventNotHandledErr) }
+                var id = EventHotKeyID()
+                guard GetEventParameter(
+                    event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID),
+                    nil, MemoryLayout<EventHotKeyID>.size, nil, &id
+                ) == noErr, id.signature == 0x4253_5246, id.id == 1 else {
+                    return OSStatus(eventNotHandledErr)
+                }
                 let controller = Unmanaged<StatusItemController>
                     .fromOpaque(userData).takeUnretainedValue()
                 DispatchQueue.main.async { controller.hotkeyPressed() }
