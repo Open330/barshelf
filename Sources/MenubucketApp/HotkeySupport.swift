@@ -85,6 +85,40 @@ enum HotkeyGrammar {
         .joined(separator: "+")
     }
 
+    /// The grammar's name for a key code, or nil when the key cannot be
+    /// part of a shortcut. Lets a recorder turn a key press into text the
+    /// parser accepts.
+    static func keyName(for keyCode: UInt32) -> String? {
+        keyCodes.first { $0.value == keyCode }?.key
+    }
+
+    /// "cmd+shift+b" as the menu bar would print it: ⌘⇧B.
+    static func displayText(_ text: String) -> String {
+        guard case .success(let combination) = parse(text) else { return text }
+        let parts = combination.canonicalText.split(separator: "+").map(String.init)
+        var symbols = ""
+        for part in parts.dropLast() {
+            switch part {
+            case "ctrl": symbols += "⌃"
+            case "opt": symbols += "⌥"
+            case "shift": symbols += "⇧"
+            case "cmd": symbols += "⌘"
+            default: break
+            }
+        }
+        // AppKit's order is ⌃⌥⇧⌘; canonical text is cmd, shift, opt, ctrl.
+        let ordered = String("⌃⌥⇧⌘".filter { symbols.contains($0) })
+        let key = parts.last ?? ""
+        let keyLabel: String
+        switch key {
+        case "space": keyLabel = "Space"
+        case "return": keyLabel = "↩"
+        case "tab": keyLabel = "⇥"
+        default: keyLabel = key.uppercased()
+        }
+        return ordered + keyLabel
+    }
+
     private static let keyCodes: [String: UInt32] = [
         "a": 0, "s": 1, "d": 2, "f": 3, "h": 4, "g": 5, "z": 6, "x": 7,
         "c": 8, "v": 9, "b": 11, "q": 12, "w": 13, "e": 14, "r": 15, "y": 16,

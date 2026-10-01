@@ -31,6 +31,12 @@ public struct AppPreferences: Codable, Equatable, Sendable {
     /// style fields are honoured (`MenuBarPolicy.globalStyle`); precision,
     /// ordering and per-row overrides mean something only for one widget.
     public var menuBarPresentation: MenuBarPresentation?
+    /// Look for a new release shortly after launch. A manual check from the
+    /// menu or Settings works either way.
+    public var checkForUpdatesAutomatically: Bool
+    /// A release the user chose to skip: the automatic check stays quiet
+    /// about it, and speaks up again for anything newer.
+    public var skippedUpdateVersion: String?
 
     public static let defaultMenuBarSymbol = "barshelf.logo"
     public static let defaultPopupHotkey = "cmd+shift+b"
@@ -43,7 +49,9 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         popupHotkeyEnabled: Bool = false,
         popupHotkey: String = AppPreferences.defaultPopupHotkey,
         copySoundEnabled: Bool = false,
-        menuBarPresentation: MenuBarPresentation? = nil
+        menuBarPresentation: MenuBarPresentation? = nil,
+        checkForUpdatesAutomatically: Bool = true,
+        skippedUpdateVersion: String? = nil
     ) {
         self.menuBarSymbol = menuBarSymbol
         self.refreshMultiplier = refreshMultiplier
@@ -53,6 +61,8 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         self.popupHotkeyEnabled = popupHotkeyEnabled
         self.popupHotkey = popupHotkey
         self.menuBarPresentation = menuBarPresentation
+        self.checkForUpdatesAutomatically = checkForUpdatesAutomatically
+        self.skippedUpdateVersion = skippedUpdateVersion
         normalize()
     }
 
@@ -69,6 +79,8 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         let hotkey = popupHotkey.trimmingCharacters(in: .whitespacesAndNewlines)
         popupHotkey = hotkey.isEmpty ? Self.defaultPopupHotkey : hotkey
         menuBarPresentation = MenuBarPolicy.globalStyle(menuBarPresentation)
+        let skipped = skippedUpdateVersion?.trimmingCharacters(in: .whitespacesAndNewlines)
+        skippedUpdateVersion = (skipped?.isEmpty == false) ? skipped : nil
     }
 
     /// Lenient decoding: absent keys fall back to defaults, the multiplier is
@@ -99,6 +111,12 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         menuBarPresentation = (try? container.decodeIfPresent(
             MenuBarPresentation.self, forKey: .menuBarPresentation
         )) ?? nil
+        checkForUpdatesAutomatically = try container.decodeIfPresent(
+            Bool.self, forKey: .checkForUpdatesAutomatically
+        ) ?? true
+        skippedUpdateVersion = try container.decodeIfPresent(
+            String.self, forKey: .skippedUpdateVersion
+        )
         normalize()
     }
 
