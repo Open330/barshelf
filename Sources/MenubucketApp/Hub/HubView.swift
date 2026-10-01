@@ -103,7 +103,7 @@ struct HubView: View {
     private var detail: some View {
         switch model.tab {
         case .widgets:
-            HubWidgetsView(runtime: runtime)
+            HubWidgetsView(runtime: runtime, model: model)
         case .gallery:
             GalleryView(model: galleryModel)
                 .onAppear { galleryModel.onWindowShown() }

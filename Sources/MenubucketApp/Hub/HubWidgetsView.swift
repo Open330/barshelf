@@ -10,6 +10,7 @@ import UniformTypeIdentifiers
 /// never appear in `runtime.pages`).
 struct HubWidgetsView: View {
     @ObservedObject var runtime: WidgetRuntime
+    @ObservedObject var model: HubModel
 
     private let layoutSizes = ["XS", "S", "M", "L"]
 
@@ -80,6 +81,8 @@ struct HubWidgetsView: View {
                 }
             }
         }
+        .onAppear(perform: openRequestedSettings)
+        .onChange(of: model.settingsWidgetID) { openRequestedSettings() }
         .sheet(item: $settingsSheetWidget) { widget in
             WidgetSettingsView(widget: widget, runtime: runtime)
         }
@@ -462,5 +465,12 @@ struct HubWidgetsView: View {
             widgetActionError = (error as? LocalizedError)?.errorDescription
                 ?? error.localizedDescription
         }
+    }
+
+    /// Shows the settings `HubWindowController.showWidgetSettings` asked for.
+    private func openRequestedSettings() {
+        guard let id = model.settingsWidgetID else { return }
+        model.settingsWidgetID = nil
+        settingsSheetWidget = runtime.widgets.first { $0.id == id }
     }
 }
