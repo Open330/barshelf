@@ -231,15 +231,15 @@ enum WidgetInstallFlowError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .noDownloadCandidates:
-            return "no download URL could be derived from the input"
+            return String(localized: "no download URL could be derived from the input")
         case let .notHTTP(url):
-            return "unexpected non-HTTP response from \(url.absoluteString)"
+            return String(localized: "unexpected non-HTTP response from \(url.absoluteString)")
         case let .httpStatus(code, url):
-            return "download failed (HTTP \(code)): \(url.absoluteString)"
+            return String(localized: "download failed (HTTP \(code)): \(url.absoluteString)")
         case let .downloadTooLarge(limit):
-            return "download exceeds the \(limit / (1024 * 1024)) MB limit"
+            return String(localized: "download exceeds the \(limit / (1024 * 1024)) MB limit")
         case let .noWidgetsFound(details):
-            var message = "no widget.json found in the archive"
+            var message = String(localized: "no widget.json found in the archive")
             if !details.isEmpty {
                 message += "\n" + details.joined(separator: "\n")
             }
@@ -376,9 +376,11 @@ final class WidgetInstaller {
             guard confirmInstall(candidate, isUpdate: isUpdate) else { continue }
             do {
                 try WidgetInstallFlow.install(candidate: candidate)
+                let description = WidgetInstallFlow.describe(candidate)
                 installed.append(
-                    (isUpdate ? "Updated " : "Installed ")
-                        + WidgetInstallFlow.describe(candidate)
+                    isUpdate
+                        ? String(localized: "Updated \(description)", comment: "A widget update finished; the argument names the widget.")
+                        : String(localized: "Installed \(description)", comment: "A widget install finished; the argument names the widget.")
                 )
                 installedIDs.append(candidate.manifest.id)
             } catch {
@@ -416,29 +418,27 @@ final class WidgetInstaller {
 
         let alert = NSAlert()
         alert.messageText = isUpdate
-            ? "Update widget \"\(candidate.manifest.name)\"?"
-            : "Install widget \"\(candidate.manifest.name)\"?"
+            ? String(localized: "Update widget \"\(candidate.manifest.name)\"?")
+            : String(localized: "Install widget \"\(candidate.manifest.name)\"?")
 
         var info: [String] = ["id: \(candidate.manifest.id)"]
         if let version = candidate.displayVersion {
-            info.append("version: \(version)")
+            info.append(String(localized: "version: \(version)"))
         }
         let permissions = InstallCandidate(candidate).permissionSummary
         if permissions.isEmpty {
-            info.append("Requested permissions: none")
+            info.append(String(localized: "Requested permissions: none"))
         } else {
-            info.append("Requested permissions:")
+            info.append(String(localized: "Requested permissions:"))
             info.append(contentsOf: permissions.map { "• \($0)" })
-            info.append("Nothing runs automatically — each permission still "
-                + "requires your approval on the widget's first run.")
+            info.append(String(localized: "Nothing runs automatically — each permission still requires your approval on the widget's first run."))
         }
         if isUpdate {
-            info.append("An existing install will be replaced. Changed "
-                + "permissions must be approved again before they take effect.")
+            info.append(String(localized: "An existing install will be replaced. Changed permissions must be approved again before they take effect."))
         }
         alert.informativeText = info.joined(separator: "\n")
-        alert.addButton(withTitle: isUpdate ? "Update" : "Install")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: isUpdate ? String(localized: "Update") : String(localized: "Install"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
         return alert.runModal() == .alertFirstButtonReturn
     }
 
@@ -447,24 +447,26 @@ final class WidgetInstaller {
         let alert = NSAlert()
         alert.alertStyle = failed.isEmpty ? .informational : .warning
         alert.messageText = installed.isEmpty
-            ? "No widgets installed"
-            : "Installed \(installed.count) widget\(installed.count == 1 ? "" : "s")"
+            ? String(localized: "No widgets installed")
+            : installed.count == 1
+                ? String(localized: "Installed 1 widget")
+                : String(localized: "Installed \(installed.count) widgets")
         var lines = installed
         if !failed.isEmpty {
-            lines.append("Failed:")
+            lines.append(String(localized: "Failed:"))
             lines.append(contentsOf: failed.map { "• \($0)" })
         }
         alert.informativeText = lines.joined(separator: "\n")
-        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: String(localized: "OK"))
         alert.runModal()
     }
 
     private func showError(_ error: Error) {
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "Widget install failed"
+        alert.messageText = String(localized: "Widget install failed")
         alert.informativeText = error.localizedDescription
-        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: String(localized: "OK"))
         alert.runModal()
     }
 }
@@ -488,7 +490,10 @@ final class DownloadProgressPanel: NSObject, @unchecked Sendable {
 
     /// The app update reuses this panel, so the wording is a parameter — the
     /// determinate bar and the working Cancel are the point of sharing it.
-    init(title: String = "Installing Widget", message: String = "Downloading widget…") {
+    init(
+        title: String = String(localized: "Installing Widget"),
+        message: String = String(localized: "Downloading widget…")
+    ) {
         self.title = title
         self.label = NSTextField(labelWithString: message)
         super.init()
@@ -520,7 +525,7 @@ final class DownloadProgressPanel: NSObject, @unchecked Sendable {
         content.addSubview(indicator)
 
         let cancel = NSButton(
-            title: "Cancel", target: self, action: #selector(cancelClicked)
+            title: String(localized: "Cancel"), target: self, action: #selector(cancelClicked)
         )
         cancel.bezelStyle = .rounded
         cancel.frame = NSRect(x: 232, y: 8, width: 88, height: 28)
@@ -554,13 +559,13 @@ final class DownloadProgressPanel: NSObject, @unchecked Sendable {
             indicator.maxValue = Double(expected)
             indicator.doubleValue = Double(min(received, expected))
             label.stringValue =
-                "Downloading… \(Self.megabytes(received)) / \(Self.megabytes(expected))"
+                String(localized: "Downloading… \(Self.megabytes(received)) / \(Self.megabytes(expected))")
         } else {
             if !indicator.isIndeterminate {
                 indicator.isIndeterminate = true
                 indicator.startAnimation(nil)
             }
-            label.stringValue = "Downloading… \(Self.megabytes(received))"
+            label.stringValue = String(localized: "Downloading… \(Self.megabytes(received))")
         }
     }
 

@@ -48,7 +48,7 @@ struct AutomationSettingsView: View {
                     .border(Color.secondary.opacity(0.25))
                     .accessibilityLabel("Automation JavaScript")
                 HStack {
-                    Button(controller.isRunning ? "Save & Reload" : "Save Script") {
+                    Button(controller.isRunning ? String(localized: "Save & Reload") : String(localized: "Save Script")) {
                         controller.apply(source: draft, enabled: controller.isRunning)
                     }
                     Button("Revert Draft") { draft = controller.source }
@@ -63,7 +63,7 @@ struct AutomationSettingsView: View {
 
             SwiftUI.Section {
                 ForEach(Array(displays.enumerated()), id: \.element.id) { index, display in
-                    LabeledContent("\(index + 1). \(display.name)", value: "Display ID \(display.id)")
+                    LabeledContent("\(index + 1). \(display.name)", value: String(localized: "Display ID \(display.id)"))
                 }
                 Text("Screen numbers follow macOS display order, primary first. Check this list after reconnecting monitors.")
                     .font(.caption).foregroundStyle(.secondary)

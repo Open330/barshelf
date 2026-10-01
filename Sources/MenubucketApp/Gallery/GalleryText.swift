@@ -24,46 +24,46 @@ enum GalleryPermissionText {
         if !commands.isEmpty {
             lines.append(GalleryPermissionLine(
                 symbol: "terminal",
-                short: "Runs: \(list(commands))",
-                sentence: "Runs these commands on your Mac: \(list(commands))."
+                short: String(localized: "Runs: \(list(commands))", comment: "Gallery permission; the list of commands a widget runs"),
+                sentence: String(localized: "Runs these commands on your Mac: \(list(commands)).")
             ))
         }
         let hosts = clean(permissions.network)
         if !hosts.isEmpty {
             lines.append(GalleryPermissionLine(
                 symbol: "network",
-                short: "Network: \(list(hosts))",
-                sentence: "Connects to these websites: \(list(hosts))."
+                short: String(localized: "Network: \(list(hosts))"),
+                sentence: String(localized: "Connects to these websites: \(list(hosts)).")
             ))
         }
         let paths = clean(permissions.readPaths)
         if !paths.isEmpty {
             lines.append(GalleryPermissionLine(
                 symbol: "folder",
-                short: "Reads files in: \(list(paths))",
-                sentence: "Reads files in these folders: \(list(paths))."
+                short: String(localized: "Reads files in: \(list(paths))"),
+                sentence: String(localized: "Reads files in these folders: \(list(paths)).")
             ))
         }
         let telemetry = clean(permissions.system)
         if !telemetry.isEmpty {
             lines.append(GalleryPermissionLine(
                 symbol: "gauge",
-                short: "Reads system information: \(list(telemetry))",
-                sentence: "Reads information about your Mac: \(list(telemetry))."
+                short: String(localized: "Reads system information: \(list(telemetry))"),
+                sentence: String(localized: "Reads information about your Mac: \(list(telemetry)).")
             ))
         }
         if permissions.keychain == true {
             lines.append(GalleryPermissionLine(
                 symbol: "key",
-                short: "Reads a Keychain secret",
-                sentence: "Reads a password or token you save in your Keychain."
+                short: String(localized: "Reads a Keychain secret"),
+                sentence: String(localized: "Reads a password or token you save in your Keychain.")
             ))
         }
         if permissions.notifications == true {
             lines.append(GalleryPermissionLine(
                 symbol: "bell",
-                short: "Posts notifications",
-                sentence: "Can show notifications."
+                short: String(localized: "Posts notifications"),
+                sentence: String(localized: "Can show notifications.")
             ))
         }
         return lines

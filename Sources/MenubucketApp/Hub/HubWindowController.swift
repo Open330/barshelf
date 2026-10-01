@@ -23,16 +23,16 @@ enum HubTab: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .shelf: return "Shelf"
-        case .menuBar: return "Menu Bar"
-        case .gallery: return "Gallery"
-        case .create: return "Create"
-        case .automation: return "Automation"
-        case .general: return "General"
-        case .shortcuts: return "Shortcuts"
-        case .updates: return "Updates"
-        case .privacy: return "Privacy"
-        case .advanced: return "Advanced"
+        case .shelf: return String(localized: "Shelf", comment: "Hub page: the widget shelf")
+        case .menuBar: return String(localized: "Menu Bar")
+        case .gallery: return String(localized: "Gallery")
+        case .create: return String(localized: "Create", comment: "Hub page: build a widget")
+        case .automation: return String(localized: "Automation")
+        case .general: return String(localized: "General", comment: "Settings page title")
+        case .shortcuts: return String(localized: "Shortcuts")
+        case .updates: return String(localized: "Updates")
+        case .privacy: return String(localized: "Privacy")
+        case .advanced: return String(localized: "Advanced")
         }
     }
 
@@ -53,16 +53,16 @@ enum HubTab: String, CaseIterable, Identifiable {
 
     var subtitle: String {
         switch self {
-        case .shelf: return "Arrange your pages and widgets."
-        case .menuBar: return "Choose what shows in the menu bar and how it looks."
-        case .gallery: return "Find and install widgets."
-        case .create: return "Build a widget from a command, a URL, a folder, or text."
-        case .automation: return "Keyboard shortcuts and window control, imported from Hammerspoon."
-        case .general: return "Icon, login, and sounds."
-        case .shortcuts: return "Keyboard shortcuts for BarShelf."
-        case .updates: return "How BarShelf keeps itself up to date."
-        case .privacy: return "What each widget is allowed to do."
-        case .advanced: return "Refresh speed, battery use, and diagnostics."
+        case .shelf: return String(localized: "Arrange your pages and widgets.")
+        case .menuBar: return String(localized: "Choose what shows in the menu bar and how it looks.")
+        case .gallery: return String(localized: "Find and install widgets.")
+        case .create: return String(localized: "Build a widget from a command, a URL, a folder, or text.")
+        case .automation: return String(localized: "Keyboard shortcuts and window control, imported from Hammerspoon.")
+        case .general: return String(localized: "Icon, login, and sounds.")
+        case .shortcuts: return String(localized: "Keyboard shortcuts for BarShelf.")
+        case .updates: return String(localized: "How BarShelf keeps itself up to date.")
+        case .privacy: return String(localized: "What each widget is allowed to do.")
+        case .advanced: return String(localized: "Refresh speed, battery use, and diagnostics.")
         }
     }
 }

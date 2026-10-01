@@ -9,10 +9,10 @@ final class WidgetInstallURLPrompt: NSObject, NSTextFieldDelegate {
 
     override init() {
         super.init()
-        alert.messageText = "Install Widget from URL"
-        alert.informativeText = "Enter a GitHub repository URL or a direct .zip/.mbw archive URL."
+        alert.messageText = String(localized: "Install Widget from URL")
+        alert.informativeText = String(localized: "Enter a GitHub repository URL or a direct .zip/.mbw archive URL.")
         field.placeholderString = "https://github.com/user/widget-repo"
-        field.setAccessibilityLabel("Widget URL")
+        field.setAccessibilityLabel(String(localized: "Widget URL"))
         field.delegate = self
         validationLabel.frame = NSRect(x: 0, y: 0, width: 340, height: 48)
         validationLabel.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
@@ -20,8 +20,8 @@ final class WidgetInstallURLPrompt: NSObject, NSTextFieldDelegate {
         accessory.addSubview(field)
         accessory.addSubview(validationLabel)
         alert.accessoryView = accessory
-        alert.addButton(withTitle: "Install").keyEquivalent = "\r"
-        alert.addButton(withTitle: "Cancel").keyEquivalent = "\u{1b}"
+        alert.addButton(withTitle: String(localized: "Install")).keyEquivalent = "\r"
+        alert.addButton(withTitle: String(localized: "Cancel")).keyEquivalent = "\u{1b}"
         alert.window.initialFirstResponder = field
         validate()
     }
@@ -39,7 +39,7 @@ final class WidgetInstallURLPrompt: NSObject, NSTextFieldDelegate {
     private func validate() {
         let message = Self.validationMessage(for: field.stringValue)
         alert.buttons[0].isEnabled = message == nil
-        validationLabel.stringValue = message ?? "Ready to review and install this widget."
+        validationLabel.stringValue = message ?? String(localized: "Ready to review and install this widget.")
         let isEmpty = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         validationLabel.textColor = message != nil && !isEmpty ? .systemRed : .secondaryLabelColor
         field.setAccessibilityHelp(validationLabel.stringValue)
@@ -47,7 +47,7 @@ final class WidgetInstallURLPrompt: NSObject, NSTextFieldDelegate {
 
     static func validationMessage(for input: String) -> String? {
         if input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return "Enter a widget URL to continue."
+            return String(localized: "Enter a widget URL to continue.")
         }
         do {
             _ = try WidgetInstallSource.parse(input)
@@ -55,7 +55,7 @@ final class WidgetInstallURLPrompt: NSObject, NSTextFieldDelegate {
         } catch {
             // Keep guidance short enough to read below the field; the input
             // itself stays editable instead of being repeated in an error.
-            return "Use an HTTPS GitHub repository or a .zip/.mbw archive URL."
+            return String(localized: "Use an HTTPS GitHub repository or a .zip/.mbw archive URL.")
         }
     }
 }

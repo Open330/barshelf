@@ -37,7 +37,7 @@ final class AutomationController: ObservableObject {
             let config = try JSONDecoder().decode(Configuration.self, from: Data(contentsOf: fileURL))
             source = config.source
             launchEnabled = config.enabled
-        } catch { message = "Could not read saved automation: \(error.localizedDescription)" }
+        } catch { message = String(localized: "Could not read saved automation: \(error.localizedDescription)") }
     }
 
     func startAtLaunch() {
@@ -51,17 +51,17 @@ final class AutomationController: ObservableObject {
             let script = try AutomationScript(source: candidate)
             if enabled {
                 guard isTrusted() else {
-                    throw AutomationFailure("Grant Accessibility access below, then enable the extension again.")
+                    throw AutomationFailure(String(localized: "Grant Accessibility access below, then enable the extension again."))
                 }
                 guard !hammerspoonRunning() else {
-                    throw AutomationFailure("Quit Hammerspoon before enabling this extension so the same keys are not handled twice.")
+                    throw AutomationFailure(String(localized: "Quit Hammerspoon before enabling this extension so the same keys are not handled twice."))
                 }
             }
             let replacement = enabled ? makeEngine(script) : nil
             replacement?.report = { [weak self] in self?.message = $0 }
             replacement?.permissionLost = { [weak self] in
                 self?.disable()
-                self?.message = "Accessibility access was removed. Grant access and enable the extension again."
+                self?.message = String(localized: "Accessibility access was removed. Grant access and enable the extension again.")
             }
             let previous = engine
             previous?.stop()
@@ -74,7 +74,7 @@ final class AutomationController: ObservableObject {
                 catch {
                     engine = nil
                     isRunning = false
-                    throw AutomationFailure("Could not restore the previous extension: \(error.localizedDescription). Enable it again after resolving the issue.")
+                    throw AutomationFailure(String(localized: "Could not restore the previous extension: \(error.localizedDescription). Enable it again after resolving the issue."))
                 }
                 throw error
             }
@@ -100,7 +100,7 @@ final class AutomationController: ObservableObject {
         do {
             try save(Configuration(source: source, enabled: false))
             message = nil
-        } catch { message = "Stopped for this session, but could not save disabled state: \(error.localizedDescription)" }
+        } catch { message = String(localized: "Stopped for this session, but could not save disabled state: \(error.localizedDescription)") }
     }
 
     func stopForTermination() { engine?.stop() }
@@ -111,7 +111,7 @@ final class AutomationController: ObservableObject {
         do {
             let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
             guard (attributes[.size] as? NSNumber)?.intValue ?? 0 <= 256 * 1024 else {
-                throw AutomationFailure("Extension files must be smaller than 256 KB.")
+                throw AutomationFailure(String(localized: "Extension files must be smaller than 256 KB."))
             }
             let contents = try String(contentsOf: url, encoding: .utf8)
             let imported: String
@@ -123,8 +123,8 @@ final class AutomationController: ObservableObject {
             } else if url.pathExtension.lowercased() == "js" {
                 _ = try AutomationScript(source: contents)
                 imported = contents
-                summary = "JavaScript loaded into the editor. Save to apply it."
-            } else { throw AutomationFailure("Choose an init.lua navigation profile or a .js extension.") }
+                summary = String(localized: "JavaScript loaded into the editor. Save to apply it.")
+            } else { throw AutomationFailure(String(localized: "Choose an init.lua navigation profile or a .js extension.")) }
             importSummary = summary
             message = nil
             return imported

@@ -27,13 +27,13 @@ final class AutomationScript {
     var report: ((String) -> Void)?
 
     init(source: String) throws {
-        guard let context = JSContext() else { throw AutomationFailure("Cannot create JavaScript runtime.") }
+        guard let context = JSContext() else { throw AutomationFailure(String(localized: "Cannot create JavaScript runtime.")) }
         self.context = context
         let dispatch: @convention(block) (String, JSValue) -> Void = { [weak self] name, argument in
             guard let self else { return }
             guard self.invoking else {
                 JSContext.current()?.exception = JSValue(newErrorFromMessage:
-                    "Window actions must run inside a shortcut callback.", in: JSContext.current())
+                    String(localized: "Window actions must run inside a shortcut callback."), in: JSContext.current())
                 return
             }
             do { try self.command?(name, argument) }
@@ -47,20 +47,20 @@ final class AutomationScript {
         context.evaluateScript(source, withSourceURL: URL(fileURLWithPath: "automation.js"))
         try checkException()
         guard let values = context.objectForKeyedSubscript("__bindings") else {
-            throw AutomationFailure("Missing shortcut registrations.")
+            throw AutomationFailure(String(localized: "Missing shortcut registrations."))
         }
         var used = Set<String>()
         let count = Int(values.forProperty("length").toInt32())
-        guard (0...64).contains(count) else { throw AutomationFailure("At most 64 shortcuts are supported.") }
+        guard (0...64).contains(count) else { throw AutomationFailure(String(localized: "At most 64 shortcuts are supported.")) }
         for i in 0..<count {
             let item = values.atIndex(i)!
             guard let modifiers = item.forProperty("modifiers").toArray() as? [String],
                   let key = item.forProperty("key").toString() else {
-                throw AutomationFailure("Shortcut modifiers and key must be strings.")
+                throw AutomationFailure(String(localized: "Shortcut modifiers and key must be strings."))
             }
             let combo = try HotkeyGrammar.parse((modifiers + [key]).joined(separator: "+")).get()
             guard used.insert("\(combo.keyCode):\(combo.modifiers)").inserted else {
-                throw AutomationFailure("Duplicate shortcut: \(combo.canonicalText).")
+                throw AutomationFailure(String(localized: "Duplicate shortcut: \(combo.canonicalText)."))
             }
             bindings.append(Binding(combination: combo, callback: item.forProperty("run")))
         }
@@ -68,22 +68,22 @@ final class AutomationScript {
             guard let types = value.forProperty("keyboardTypes").toArray() as? [NSNumber],
                   !types.isEmpty, types.allSatisfy({ $0.doubleValue >= 0 && $0.doubleValue <= 65535 && $0.doubleValue.rounded() == $0.doubleValue }),
                   let map = value.forProperty("keys").toDictionary() as? [String: String], !map.isEmpty else {
-                throw AutomationFailure("Fn remapping needs keyboardTypes (integer array) and keys (object).")
+                throw AutomationFailure(String(localized: "Fn remapping needs keyboardTypes (integer array) and keys (object)."))
             }
             var keys: [Int64: Int64] = [:]
             for (key, arrow) in map {
                 guard let code = Self.physicalKeys[key.lowercased()], let target = Self.arrows[arrow] else {
-                    throw AutomationFailure("Unsupported Fn mapping: \(key) → \(arrow). Use letter keys and up/down/left/right.")
+                    throw AutomationFailure(String(localized: "Unsupported Fn mapping: \(key) → \(arrow). Use letter keys and up/down/left/right."))
                 }
                 if let previous = keys[code], previous != target {
-                    throw AutomationFailure("Conflicting mappings for physical key \(key).")
+                    throw AutomationFailure(String(localized: "Conflicting mappings for physical key \(key)."))
                 }
                 keys[code] = target
             }
             remap = Remap(keyboardTypes: Set(types.map(\.int64Value)), keys: keys)
         }
         guard !bindings.isEmpty || remap != nil else {
-            throw AutomationFailure("The script did not register any shortcuts or Fn mappings.")
+            throw AutomationFailure(String(localized: "The script did not register any shortcuts or Fn mappings."))
         }
     }
 
@@ -98,10 +98,10 @@ final class AutomationScript {
 
     private func checkException() throws {
         if let error = context.exception {
-            let message = error.toString() ?? "JavaScript error"
+            let message = error.toString() ?? String(localized: "JavaScript error")
             let line = error.forProperty("line")?.toInt32() ?? 0
             context.exception = nil
-            throw AutomationFailure(line > 0 ? "\(message) (line \(line))" : message)
+            throw AutomationFailure(line > 0 ? String(localized: "\(message) (line \(line))") : message)
         }
     }
 

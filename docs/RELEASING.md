@@ -55,8 +55,11 @@
    릴리스**를 서술하며, GitHub 릴리스 본문에 그대로 붙여 넣는다.
 3. `bash scripts/sync-strings.sh --check`로 `Localization/Localizable.xcstrings`가
    소스의 UI 문자열과 맞는지 확인한다. 어긋나면 `bash scripts/sync-strings.sh`로
-   갱신해 커밋한다. 번역이 생긴 뒤로는 여기서 빠진 문자열이 번역되지 않은 채
-   나간다. AppKit 쪽 문자열(`NSMenuItem`, `NSAlert`)은 아직 카탈로그에 없다.
+   갱신해 커밋한다. 여기서 빠진 문자열은 번역되지 않은 채 나간다. AppKit 쪽
+   문자열(`NSMenuItem`, `NSAlert`, 창 제목)과 `String` 변수로 넘기는 표시
+   문자열은 `String(localized:)`로 감싸야 카탈로그에 잡힌다. 새로 생긴 문자열은
+   릴리스 전에 카탈로그에 한국어(`ko`) 번역을 넣고 `"state": "translated"`로
+   표시한다 — 번역이 없으면 한국어 Mac에서 그 문자열만 영어로 보인다.
 4. `scripts/build_app.sh`의 `APP_VERSION` 기본값이 이번 버전인지 확인한다.
    개발 빌드가 보고하는 버전이라, 기능 작업을 시작할 때 미리 올려둬도 된다.
 5. **먼저 태그를 만든다.** 산출물이 그 태그에서 나왔다는 걸 보장하기 위해서고,

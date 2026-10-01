@@ -24,7 +24,7 @@ enum ActionRouter {
             }
             // Always confirm visually; sound is an explicit user preference.
             // Never log the copied value — it may be sensitive.
-            Task { @MainActor in ToastCenter.shared.show(action.toast ?? "Copied") }
+            Task { @MainActor in ToastCenter.shared.show(action.toast ?? String(localized: "Copied")) }
             if (runtime?.appPrefs ?? AppPrefs.shared).preferences.copySoundEnabled {
                 NSSound.beep()
             }

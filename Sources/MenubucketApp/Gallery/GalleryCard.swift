@@ -104,7 +104,7 @@ struct GalleryCard: View {
 
     private var accessibilityName: String {
         var parts = [entry.name]
-        if let kind = entry.kind { parts.append("\(WidgetTypeName.name(kind)) widget") }
+        if let kind = entry.kind { parts.append(String(localized: "\(WidgetTypeName.name(kind)) widget", comment: "Accessibility: widget type, e.g. Command widget")) }
         if let description = entry.description { parts.append(description) }
         if let requires = entry.requires, !requires.isEmpty {
             parts.append(requirementStyle.accessibilityLabel(requires))
@@ -122,16 +122,16 @@ struct GalleryCard: View {
     static func status(
         entry: RegistryWidgetEntry, isInstalled: Bool, updateAvailable: Bool
     ) -> String {
-        if updateAvailable { return "Installed, update available" }
-        if isInstalled { return "Installed" }
+        if updateAvailable { return String(localized: "Installed, update available") }
+        if isInstalled { return String(localized: "Installed") }
         if let needs = GalleryModel.needsNewerHost(entry) { return needs }
-        return "Not installed"
+        return String(localized: "Not installed")
     }
 
     private var quickActionTitle: String? {
-        if updateAvailable { return "Update" }
+        if updateAvailable { return String(localized: "Update", comment: "Button: install a newer version of a widget") }
         if isInstalled || GalleryModel.needsNewerHost(entry) != nil { return nil }
-        return "Install"
+        return String(localized: "Install")
     }
 
     @ViewBuilder
@@ -197,28 +197,27 @@ struct GalleryCard: View {
             return RequirementStyle(
                 color: StatusTone.success.color,
                 symbol: "checkmark.seal",
-                text: { "\($0) ready" },
-                help: { "\($0) was found on your Mac" },
-                accessibilityLabel: { "needs \($0), which is installed" }
+                text: { String(localized: "\($0) ready", comment: "A required tool, e.g. Deno ready") },
+                help: { String(localized: "\($0) was found on your Mac") },
+                accessibilityLabel: { String(localized: "needs \($0), which is installed") }
             )
         case .missing:
             return RequirementStyle(
                 color: StatusTone.warning.color,
                 symbol: "exclamationmark.triangle",
-                text: { "\($0) — not installed" },
+                text: { String(localized: "\($0) — not installed") },
                 help: {
-                    "This widget needs \($0) installed on your Mac. "
-                        + "You can still install the widget now."
+                    String(localized: "This widget needs \($0) installed on your Mac. You can still install the widget now.")
                 },
-                accessibilityLabel: { "needs \($0), which is not installed" }
+                accessibilityLabel: { String(localized: "needs \($0), which is not installed") }
             )
         case .unknown, nil:
             return RequirementStyle(
                 color: .secondary,
                 symbol: "wrench.and.screwdriver",
-                text: { "Requires \($0)" },
-                help: { "This widget needs \($0) installed on your Mac" },
-                accessibilityLabel: { "needs \($0)" }
+                text: { String(localized: "Requires \($0)") },
+                help: { String(localized: "This widget needs \($0) installed on your Mac") },
+                accessibilityLabel: { String(localized: "needs \($0)") }
             )
         }
     }

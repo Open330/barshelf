@@ -34,7 +34,7 @@ struct SearchOverlay: View {
                 // plain SwiftUI TextField can't route those), plus autofocus and a
                 // built-in search icon + clear button.
                 SearchField(text: $query,
-                            placeholder: "Search widgets and items…",
+                            placeholder: String(localized: "Search widgets and items…"),
                             autofocus: true,
                             onSubmit: { execute(hits: hits) },
                             onCancel: { isPresented = false },
@@ -210,7 +210,7 @@ final class KeyEquivSearchField: NSSearchField {
 /// a built-in magnifier + clear button, and autofocus when it appears.
 struct SearchField: NSViewRepresentable {
     @Binding var text: String
-    var placeholder: String = "Search"
+    var placeholder: String = String(localized: "Search")
     var autofocus: Bool = false
     var onSubmit: () -> Void = {}
     var onCancel: () -> Void = {}

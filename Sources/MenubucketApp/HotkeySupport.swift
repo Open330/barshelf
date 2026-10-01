@@ -26,12 +26,12 @@ enum HotkeyGrammar {
 
         var errorDescription: String? {
             switch self {
-            case .empty: return "Enter a shortcut, for example cmd+shift+b."
-            case .missingModifier: return "Include at least one modifier: cmd, shift, opt, or ctrl."
-            case .missingKey: return "Include one key after the modifiers."
-            case .duplicateModifier(let modifier): return "\(modifier) is included more than once."
-            case .multipleKeys: return "Use exactly one key with the modifiers."
-            case .unsupportedKey(let key): return "\"\(key)\" is not a supported shortcut key."
+            case .empty: return String(localized: "Enter a shortcut, for example cmd+shift+b.")
+            case .missingModifier: return String(localized: "Include at least one modifier: cmd, shift, opt, or ctrl.")
+            case .missingKey: return String(localized: "Include one key after the modifiers.")
+            case .duplicateModifier(let modifier): return String(localized: "\(modifier) is included more than once.")
+            case .multipleKeys: return String(localized: "Use exactly one key with the modifiers.")
+            case .unsupportedKey(let key): return String(localized: "\"\(key)\" is not a supported shortcut key.")
             }
         }
     }
@@ -111,7 +111,7 @@ enum HotkeyGrammar {
         let key = parts.last ?? ""
         let keyLabel: String
         switch key {
-        case "space": keyLabel = "Space"
+        case "space": keyLabel = String(localized: "Space", comment: "The space bar, as a shortcut key.")
         case "return": keyLabel = "↩"
         case "tab": keyLabel = "⇥"
         default: keyLabel = key.uppercased()
@@ -178,7 +178,7 @@ final class HotkeyRegistrationCoordinator: ObservableObject {
                 // `StatusItemController` registers a candidate before it
                 // releases the current Carbon shortcut. A conflict therefore
                 // leaves an already-working shortcut live.
-                message = "BarShelf could not register \(combination.canonicalText). It may already be used by another app."
+                message = String(localized: "BarShelf could not register \(combination.canonicalText). It may already be used by another app.")
                 return
             }
             let next = HotkeyPreferencePolicy.committed(

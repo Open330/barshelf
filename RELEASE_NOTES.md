@@ -74,4 +74,7 @@
 - The Create preview now looks exactly like the card it makes, and widgets
   made with Create no longer show their name twice.
 - Every control in BarShelf has a name for VoiceOver.
+- **BarShelf speaks Korean.** Menus, the popup, the BarShelf window, alerts,
+  and onboarding appear in Korean when Korean is your Mac's preferred
+  language.
 

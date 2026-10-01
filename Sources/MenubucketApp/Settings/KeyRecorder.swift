@@ -51,8 +51,8 @@ struct KeyRecorder: View {
     }
 
     private var label: String {
-        if isRecording { return "Type Shortcut…" }
-        return shortcut.isEmpty ? "Record Shortcut" : HotkeyGrammar.displayText(shortcut)
+        if isRecording { return String(localized: "Type Shortcut…") }
+        return shortcut.isEmpty ? String(localized: "Record Shortcut") : HotkeyGrammar.displayText(shortcut)
     }
 
     private func toggleRecording() {
@@ -103,11 +103,11 @@ struct KeyRecorder: View {
             return
         }
         guard !flags.isEmpty else {
-            hint = "Add ⌘, ⌥, ⌃, or ⇧ so the shortcut doesn't fire while you type."
+            hint = String(localized: "Add ⌘, ⌥, ⌃, or ⇧ so the shortcut doesn't fire while you type.")
             return
         }
         guard let key = HotkeyGrammar.keyName(for: keyCode) else {
-            hint = "That key can't be used. Try a letter, a number, Space, Tab, or Return."
+            hint = String(localized: "That key can't be used. Try a letter, a number, Space, Tab, or Return.")
             return
         }
         var parts: [String] = []
