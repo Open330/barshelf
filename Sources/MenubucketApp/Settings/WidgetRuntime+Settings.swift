@@ -94,3 +94,19 @@ enum WidgetPermissionSummary {
         }
     }
 }
+
+extension LoadedWidget {
+    /// `version` and `description` from the package's widget.json. The
+    /// manifest decoder leaves both out — the runtime never needs them — so
+    /// the inspector reads them on its own.
+    var packageInfo: (version: String?, description: String?) {
+        struct Probe: Decodable {
+            let version: String?
+            let description: String?
+        }
+        guard let data = try? Data(contentsOf: directory.appendingPathComponent("widget.json")),
+              let probe = try? JSONDecoder().decode(Probe.self, from: data)
+        else { return (nil, nil) }
+        return (probe.version, probe.description)
+    }
+}

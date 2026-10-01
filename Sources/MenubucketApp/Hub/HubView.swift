@@ -73,7 +73,7 @@ struct HubView: View {
     private var detail: some View {
         switch model.tab {
         case .shelf:
-            HubWidgetsView(runtime: runtime, model: model)
+            ShelfView(runtime: runtime, model: model)
         case .menuBar:
             MenuBarPage(appPrefs: appPrefs, runtime: runtime)
         case .gallery:

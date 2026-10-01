@@ -18,4 +18,11 @@
 - **Privacy page.** See what each widget is allowed to do in plain words, and
   allow, deny, or revoke it there.
 - Resetting the layout now asks first, and also restores the order of pages.
+- **The Shelf.** Your pages side by side, each widget where it sits in the
+  popup. Drag a widget to reorder it or onto another page to move it, and
+  select it to change its settings in the inspector next to it.
+- **Settings apply as you change them.** No more Save button; ⌘Z undoes a
+  change. A widget's settings are in four parts: General (page, size, and
+  its own options), Look, Menu Bar, and About (version, permissions, and
+  Remove).
 
