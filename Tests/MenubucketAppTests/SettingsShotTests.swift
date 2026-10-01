@@ -81,4 +81,26 @@ final class SettingsShotTests: XCTestCase {
             print("wrote \(url.path)")
         }
     }
+
+    func testWriteTheOnboardingSteps() throws {
+        guard let dir = ProcessInfo.processInfo.environment["BARSHELF_SHOT_DIR"] else {
+            throw XCTSkip("set BARSHELF_SHOT_DIR to write the onboarding steps")
+        }
+        let prefs = AppPrefs(fileURL: URL(fileURLWithPath: dir).appendingPathComponent("shot-app-prefs.json"))
+        let runtime = WidgetRuntime(appPrefs: prefs)
+        runtime.loadWidgets()
+        for step in OnboardingView.Step.allCases {
+            let view = OnboardingView(runtime: runtime, appPrefs: prefs, startAt: step) { _ in }
+            let hosting = NSHostingView(rootView: view)
+            hosting.frame = NSRect(x: 0, y: 0, width: 560, height: 500)
+            let window = NSWindow(contentRect: hosting.frame, styleMask: [.titled], backing: .buffered, defer: false)
+            window.contentView = hosting
+            hosting.layoutSubtreeIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+            let rep = try XCTUnwrap(hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds))
+            hosting.cacheDisplay(in: hosting.bounds, to: rep)
+            let png = try XCTUnwrap(rep.representation(using: .png, properties: [:]))
+            try png.write(to: URL(fileURLWithPath: dir).appendingPathComponent("onboarding-\(step.rawValue).png"))
+        }
+    }
 }

@@ -33,3 +33,6 @@
   the grid.
 - The Gallery no longer uses CPU in the background while its window is
   minimized or covered (#1).
+- **A welcome on first launch.** Keep the starter widgets you want, set a
+  shortcut and login item, and pick values for the menu bar, then BarShelf
+  opens its popup.

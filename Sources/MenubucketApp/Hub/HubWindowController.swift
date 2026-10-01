@@ -95,6 +95,9 @@ final class HubWindowController: NSObject, NSWindowDelegate {
     /// shims (e.g. `GalleryWindowController.show()`) can still open the hub.
     private weak var registeredRuntime: WidgetRuntime?
 
+    /// The app's runtime, once `StatusItemController` has registered it.
+    var runtime: WidgetRuntime? { registeredRuntime }
+
     /// Called once at launch by `StatusItemController` so `show(tab:)` works.
     func register(runtime: WidgetRuntime) {
         registeredRuntime = runtime
