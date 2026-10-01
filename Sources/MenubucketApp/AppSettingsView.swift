@@ -39,6 +39,7 @@ struct AppSettingsView: View {
         case menuBar = "Menu Bar"
         case performance = "Performance"
         case monitoring = "Monitoring"
+        case extensions = "Extensions"
         var id: String { rawValue }
     }
 
@@ -62,7 +63,7 @@ struct AppSettingsView: View {
             .pickerStyle(.segmented)
             .labelsHidden()
             .accessibilityLabel("Settings section")
-            .frame(maxWidth: 380)
+            .frame(maxWidth: 520)
             .padding(.horizontal, 20)
             .padding(.top, 16)
             .padding(.bottom, 4)
@@ -73,6 +74,7 @@ struct AppSettingsView: View {
                 case .menuBar: menuBarSection
                 case .performance: performanceSection
                 case .monitoring: monitoringSection
+                case .extensions: AutomationSettingsView()
                 }
             }
             .formStyle(.grouped)

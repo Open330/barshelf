@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // minimal Edit menu wires those selectors to the first responder.
         NSApp.mainMenu = Self.makeMainMenu()
         statusItemController = StatusItemController()
+        AutomationController.shared.startAtLaunch()
         // Record that this build genuinely came up — after the status item
         // exists, so the receipt attests to the thing a user would look for
         // rather than to a process having been created. An updater waits for
@@ -29,6 +30,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
             UpdateChecker.check(explicit: false)
         }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        AutomationController.shared.stopForTermination()
     }
 
     /// Minimal main menu carrying only the standard Edit commands. Not shown
