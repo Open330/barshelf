@@ -9,7 +9,7 @@
 One macOS menu bar icon, one popover of native widgets: Claude Code and Codex
 usage, OTP codes, GitHub reviews, recent files — or anything your own scripts print.
 
-[![Platform](https://img.shields.io/badge/macOS-13%2B-000000?logo=apple&logoColor=white)](https://www.apple.com/macos/)
+[![Platform](https://img.shields.io/badge/macOS-14%2B-000000?logo=apple&logoColor=white)](https://www.apple.com/macos/)
 [![Swift](https://img.shields.io/badge/Swift-5.9-F05138?logo=swift&logoColor=white)](https://swift.org)
 [![Release](https://img.shields.io/github/v/release/Open330/barshelf)](https://github.com/Open330/barshelf/releases/latest)
 [![Dependencies](https://img.shields.io/badge/dependencies-zero-4c1)](Package.swift)
@@ -79,7 +79,7 @@ Install BarShelf on my Mac and scaffold my first widget.
    then install it:    barshelf install ./my-widget
 4. Confirm the widget appears in the menu bar popover.
 
-Requires macOS 13+ on Apple Silicon. Script widgets also need Deno (brew install deno).
+Requires macOS 14+ on Apple Silicon. Script widgets also need Deno (brew install deno).
 ```
 <div><img src="https://quickstart-for-agents.vercel.app/api/footer.svg?theme=claude-code&tokens=1.2k&model=Opus+4.8&project=barshelf" width="100%" /></div>
 
@@ -103,7 +103,7 @@ installs are left to `brew upgrade --cask barshelf`.
 
 Full guide, `barshelf` CLI, and troubleshooting: **[docs/INSTALL.md](docs/INSTALL.md)**.
 
-> Requires macOS 13+ on Apple Silicon. Script widgets need [Deno](https://deno.land)
+> Requires macOS 14+ on Apple Silicon. Script widgets need [Deno](https://deno.land)
 > (`brew install deno`); exec and workflow widgets work without it.
 
 ## Keyboard and window extensions

@@ -415,7 +415,7 @@ struct WidgetBuilderView: View {
 
             Toggle("Only keep rows that match", isOn: $model.filterEnabled)
                 .toggleStyle(.switch)
-                .onChange(of: model.filterEnabled) { on in
+                .onChange(of: model.filterEnabled) { _, on in
                     if on, model.filterField.isEmpty {
                         model.filterField = model.detectedFields.first ?? ""
                     }
@@ -435,7 +435,7 @@ struct WidgetBuilderView: View {
 
             Toggle("Sort rows", isOn: $model.sortEnabled)
                 .toggleStyle(.switch)
-                .onChange(of: model.sortEnabled) { on in
+                .onChange(of: model.sortEnabled) { _, on in
                     if on, model.sortField.isEmpty {
                         model.sortField = model.detectedFields.first ?? ""
                     }
@@ -464,7 +464,7 @@ struct WidgetBuilderView: View {
                 ForEach(WidgetBuilderModel.RowActionKind.allCases) { Text($0.label).tag($0) }
             }
             .labelsHidden().frame(maxWidth: 260, alignment: .leading)
-            .onChange(of: model.rowActionKind) { kind in
+            .onChange(of: model.rowActionKind) { _, kind in
                 if kind != .none, model.rowActionField.isEmpty {
                     model.rowActionField = model.detectedFields.first ?? ""
                 }

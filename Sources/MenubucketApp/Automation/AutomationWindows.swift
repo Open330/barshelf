@@ -108,7 +108,7 @@ final class AutomationWindows {
     private func focus(_ window: Window) throws {
         guard let app = NSRunningApplication(processIdentifier: window.pid) else { return }
         _ = AXUIElementSetAttributeValue(window.element, kAXMainAttribute as CFString, kCFBooleanTrue)
-        app.activate(options: [.activateIgnoringOtherApps])
+        app.activate()
         try checked(AXUIElementPerformAction(window.element, kAXRaiseAction as CFString), "focus window")
     }
     private func checked(_ error: AXError, _ action: String) throws {

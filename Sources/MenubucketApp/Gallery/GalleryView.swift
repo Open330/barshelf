@@ -32,7 +32,7 @@ struct GalleryView: View {
         .onDisappear {
             model.onWindowHidden()
         }
-        .onChange(of: model.kindFilter) { _ in
+        .onChange(of: model.kindFilter) {
             // A category chip may no longer exist for the new kind segment;
             // drop a stale selection so results don't silently empty out.
             if let selected = model.selectedCategory,

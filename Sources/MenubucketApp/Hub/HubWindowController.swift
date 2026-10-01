@@ -78,7 +78,7 @@ final class HubWindowController: NSObject, NSWindowDelegate {
     func show(runtime: WidgetRuntime, tab: HubTab) {
         registeredRuntime = runtime
         NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate()
 
         if let window, let model {
             model.tab = tab

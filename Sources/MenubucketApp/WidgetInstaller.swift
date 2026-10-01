@@ -277,7 +277,7 @@ final class WidgetInstaller {
 
     /// Menu entry point: "Install Widget from URL…".
     func promptForURL() {
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate()
         let prompt = WidgetInstallURLPrompt()
         guard let input = prompt.run() else { return }
         install(input: input)
@@ -412,7 +412,7 @@ final class WidgetInstaller {
     private func confirmInstall(
         _ candidate: WidgetDiscovery.Candidate, isUpdate: Bool
     ) -> Bool {
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate()
 
         let alert = NSAlert()
         alert.messageText = isUpdate
@@ -539,7 +539,7 @@ final class DownloadProgressPanel: NSObject, @unchecked Sendable {
         panel.center()
         self.panel = panel
 
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate()
         panel.makeKeyAndOrderFront(nil)
     }
 

@@ -810,15 +810,15 @@ private struct FileImageView: View {
             .cornerRadius(3)
             .accessibilityLabel((path as NSString).lastPathComponent)
             .onAppear(perform: load)
-            .onChange(of: cacheIdentity) { _ in
+            .onChange(of: cacheIdentity) {
                 loader.reset()
                 load()
             }
-            .onChange(of: localFileReadPaths) { _ in
+            .onChange(of: localFileReadPaths) {
                 loader.reset()
                 load()
             }
-            .onChange(of: contentIsActive) { active in
+            .onChange(of: contentIsActive) { _, active in
                 if active { load() } else { loader.reset() }
             }
             .onDisappear { loader.reset() }
@@ -883,15 +883,15 @@ private struct RemoteImageView: View {
         }
         .accessibilityLabel(accessibilityLabel ?? "")
         .onAppear(perform: load)
-        .onChange(of: url) { _ in
+        .onChange(of: url) {
             loader.reset()
             load()
         }
-        .onChange(of: allowedHosts) { _ in
+        .onChange(of: allowedHosts) {
             loader.reset()
             load()
         }
-        .onChange(of: contentIsActive) { active in
+        .onChange(of: contentIsActive) { _, active in
             if active { load() } else { loader.reset() }
         }
         .onDisappear { loader.reset() }
