@@ -72,15 +72,9 @@ enum ActionRouter {
             // Script runtime: forwarded to the widget as `widget.action`.
             runtime?.sendScriptEvent(actionId: action.id, widgetID: widgetID)
 
-        // Host-generated cards (permission approval / crash-loop restart).
-        case "permission.approve":
-            runtime?.approvePermissions(widgetID: widgetID)
-
-        case "permission.deny":
-            runtime?.denyPermissions(widgetID: widgetID)
-
-        case "widget.restart":
-            runtime?.restartScriptWidget(widgetID: widgetID)
+        // Approve, Deny and Restart are host controls drawn natively by the
+        // card (`CardStateViews`), never actions a widget's own tree can
+        // trigger — a widget must not be able to approve itself.
 
         default:
             NSLog("barshelf: unknown action type '%@' from %@", action.type, widgetID)

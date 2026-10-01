@@ -17,6 +17,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.mainMenu = Self.makeMainMenu()
         statusItemController = StatusItemController()
         if let menu = NSApp.mainMenu { statusItemController?.installCommands(in: menu) }
+        // First launch: the starter widgets were just seeded, so walk through
+        // them, the shortcut, and the menu bar once.
+        if let runtime = HubWindowController.shared.runtime {
+            OnboardingWindowController.shared.showIfNeeded(runtime: runtime)
+        }
         AutomationController.shared.startAtLaunch()
         // Record that this build genuinely came up — after the status item
         // exists, so the receipt attests to the thing a user would look for

@@ -36,3 +36,33 @@
 - **No more double titles.** Bundled widgets no longer repeat their own name
   and icon under the card's header ("Battery" then "Battery" again), so the
   card goes straight to the reading. Your installed copies update on launch.
+- **Everything in the popup, no right-click needed.** The page name at the top
+  is now a menu of all your pages. A new **⋯** button holds Edit Shelf (⌘E),
+  Add Widget…, Menu Bar, Open BarShelf…, Settings… (⌘,), Check for Updates…, and Quit —
+  the same list the menu bar icon shows when you right-click it.
+- **Edit Shelf.** Press ⌘E (or ⋯ ▸ Edit Shelf) to rearrange: every card shows
+  a drag handle, a Half Width / Full Width switch, and a remove button. Drag a
+  card onto a page dot to move it to that page. Press Esc or Done to finish.
+- **Card headers are on.** Each card shows its name, when it last updated, and
+  a spinner while it refreshes. Widgets that turned the header off keep it off.
+- **Errors say what to do.** A failing widget explains the cause in plain
+  words — a missing command, a timeout, no connection, an HTTP error, bad data,
+  a blocked permission — with a Retry button, the full message under Details,
+  and a link to its settings. A widget showing older data marks it "Cached".
+- **Clearer permission requests.** New widgets list what they want to do, with
+  Allow and Deny buttons. A denied widget shrinks to a small card where you can
+  review its permissions again or remove it. A widget stopped after crashing
+  offers Restart and Open Logs.
+- **A dot on the menu bar icon** when a widget is waiting for your approval or
+  has an error.
+- **The popup grows to fit.** It is as tall as your widgets need, up to the
+  height of your screen.
+- A widget's card opened from its own menu bar item closes with Esc, shows
+  "Copied" when you copy, and no longer offers page options that do not apply
+  there.
+- Pin explains its limit: with two cards pinned it reads "Pin (2 max — unpin
+  one first)".
+- The gear on a card opens that widget's settings in the BarShelf window.
+- **A welcome on first launch.** Keep the starter widgets you want, set a
+  shortcut and login item, and pick values for the menu bar, then BarShelf
+  opens its popup.

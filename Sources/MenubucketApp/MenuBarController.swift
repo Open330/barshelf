@@ -56,6 +56,8 @@ final class MenuBarController {
     /// a bitmap, so it is only rebuilt when the choice actually changes — not
     /// on every 2 s strip redraw.
     private var appliedSymbol: String?
+    /// Whether the main item carries the attention dot.
+    private var attention = false
     private var currentEntries: [MenuBarEntry] = []
     /// What each separate item last drew, keyed by widget id, and what the
     /// main item's strip last drew (nil until it is first drawn).
@@ -133,6 +135,15 @@ final class MenuBarController {
         redraw()
     }
 
+    /// The attention dot on the main item (`ShelfAttention`).
+    func setAttention(_ needsAttention: Bool) {
+        guard attention != needsAttention else { return }
+        attention = needsAttention
+        // Rebuild the mark with or without the dot on the next draw.
+        appliedSymbol = nil
+        redraw()
+    }
+
     func apply(_ entries: [MenuBarEntry]) {
         guard currentEntries != entries else { return }
         currentEntries = entries
@@ -151,7 +162,8 @@ final class MenuBarController {
         guard let button = mainItem.button else { return }
         if appliedSymbol != mainSymbol {
             BarShelfStatusIcon.configure(
-                button, symbol: mainSymbol, fallback: AppPreferences.defaultMenuBarSymbol
+                button, symbol: mainSymbol, fallback: AppPreferences.defaultMenuBarSymbol,
+                badged: attention
             )
             appliedSymbol = mainSymbol
             // `configure` resets the image position, so the strip has to be
@@ -166,14 +178,14 @@ final class MenuBarController {
             button.attributedTitle = NSAttributedString(string: "")
             button.imagePosition = .imageOnly
             button.toolTip = nil
-            button.setAccessibilityLabel(BarShelfStatusIcon.accessibilityName)
+            button.setAccessibilityLabel(BarShelfStatusIcon.accessibilityLabel(badged: attention))
             return
         }
         let tooltip = MenuBarPolicy.tooltip(for: entries)
         if button.toolTip != tooltip { button.toolTip = tooltip }
         let spoken = entries.map(MenuBarPolicy.accessibilityText).joined(separator: "; ")
         if previous.map({ $0.map(MenuBarPolicy.accessibilityText).joined(separator: "; ") != spoken }) ?? true {
-            button.setAccessibilityLabel("\(BarShelfStatusIcon.accessibilityName), \(spoken)")
+            button.setAccessibilityLabel("\(BarShelfStatusIcon.accessibilityLabel(badged: attention)), \(spoken)")
         }
         // Raw numeric samples and spoken descriptions are not necessarily a
         // visible change after the user's precision/value settings apply.

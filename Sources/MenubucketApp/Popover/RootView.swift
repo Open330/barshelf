@@ -4,13 +4,17 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /// Popup root: one page per panel group, vertical scroll inside a page,
-/// horizontal two-finger swipe / arrow buttons / dots / keyboard for page
+/// horizontal two-finger swipe / page menu / dots / keyboard for page
 /// switching. Pages sit side by side in a sliding strip so swipes track the
 /// fingers and snap with a spring.
+///
+/// 360 points wide; as tall as its tallest page, up to what the status item's
+/// screen allows (`PagerState.maxHeight`).
 struct RootView: View {
     @ObservedObject var runtime: WidgetRuntime
     @ObservedObject var pager: PagerState
-    @ObservedObject private var toast = ToastCenter.shared
+    /// Runs an app-menu command (⋯ menu, edit mode's Add Widget).
+    let onCommand: (AppMenuCommand) -> Void
     @State private var searchPresented = false
     @FocusState private var searchButtonFocused: Bool
     @AccessibilityFocusState private var searchButtonAccessibilityFocused: Bool
@@ -20,8 +24,29 @@ struct RootView: View {
     /// Changes for every reveal request, including a second request for the
     /// same widget while its highlight is still visible.
     @State private var revealToken = UUID()
+    /// Measured natural heights: each page's cards, and the chrome around them.
+    @State private var pageContentHeights: [String: CGFloat] = [:]
+    @State private var topChromeHeight: CGFloat = 0
+    @State private var footerHeight: CGFloat = 0
+    /// The page dot a dragged card is hovering over.
+    @State private var dropTargetPageID: String?
 
     static let defaultSize = CGSize(width: 360, height: 480)
+    /// Short enough for a single small card; tall enough that the empty
+    /// state and the search overlay still fit.
+    static let minimumHeight: CGFloat = 240
+    /// Room kept free below the popup on the status item's screen.
+    static let screenMargin: CGFloat = 40
+
+    init(
+        runtime: WidgetRuntime,
+        pager: PagerState,
+        onCommand: @escaping (AppMenuCommand) -> Void = { _ in }
+    ) {
+        self.runtime = runtime
+        self.pager = pager
+        self.onCommand = onCommand
+    }
 
     var body: some View {
         let pages = runtime.pages
@@ -31,12 +56,20 @@ struct RootView: View {
             } else {
                 let index = min(max(pager.index, 0), pages.count - 1)
 
-                header(for: pages[index], index: index, count: pages.count)
-                Divider()
-                pinnedRow
+                VStack(spacing: 0) {
+                    header(pages: pages, index: index)
+                    Divider()
+                    if !pager.isEditing { pinnedRow }
+                }
+                .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { topChromeHeight = $0 }
                 pagerStrip(pages: pages, index: index)
-                Divider()
-                footer(pages: pages, index: index)
+                if pages.count > 1 {
+                    VStack(spacing: 0) {
+                        Divider()
+                        footer(pages: pages, index: index)
+                    }
+                    .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { footerHeight = $0 }
+                }
             }
         }
         // The overlay is a real modal surface: keep the shelf behind it out of
@@ -44,9 +77,10 @@ struct RootView: View {
         .accessibilityHidden(searchPresented)
         .disabled(searchPresented)
         .allowsHitTesting(!searchPresented)
-        .frame(width: Self.defaultSize.width, height: Self.defaultSize.height)
+        .frame(width: Self.defaultSize.width, height: popupHeight(pages: pages))
         // Solid, opaque popup surface — no popover translucency bleeding through.
         .background(Color(nsColor: .controlBackgroundColor))
+        .environment(\.shelfIsEditing, pager.isEditing)
         .overlay(alignment: .top) {
             if searchPresented {
                 ZStack(alignment: .top) {
@@ -60,15 +94,18 @@ struct RootView: View {
                     SearchOverlay(runtime: runtime, pager: pager, isPresented: $searchPresented)
                         .clipShape(RoundedRectangle(cornerRadius: Radius.control))
                         .shadow(radius: 8)
-                        .padding(8)
+                        .padding(Spacing.xs)
                 }
                 .transition(.opacity)
             }
         }
-        .overlay(alignment: .bottom) { toastOverlay }
-        .animation(.easeInOut(duration: 0.2), value: toast.message)
+        .overlay { ToastOverlay(bottomInset: pages.count > 1 ? 46 : Spacing.s) }
+        .animation(.easeInOut(duration: 0.2), value: pager.isEditing)
         // ⌘F arrives as the Edit ▸ Find menu command (`AppCommands`).
         .onChange(of: pager.searchRequests) { searchPresented = true }
+        .onChange(of: pager.isEditing) { _, editing in
+            if editing { searchPresented = false }
+        }
         .onAppear {
             pager.setSearchPresented(searchPresented)
             publishVisibleWidgets(pages: pages)
@@ -101,6 +138,35 @@ struct RootView: View {
         }
     }
 
+    // MARK: - Height
+
+    private func popupHeight(pages: [WidgetPage]) -> CGFloat {
+        guard !pages.isEmpty else { return min(Self.defaultSize.height, pager.maxHeight) }
+        let measured = pages.compactMap { pageContentHeights[$0.id] }
+        return Self.popupHeight(
+            chrome: topChromeHeight + (pages.count > 1 ? footerHeight : 0),
+            content: measured.max(),
+            maxHeight: pager.maxHeight
+        )
+    }
+
+    /// Chrome plus the tallest page, between `minimumHeight` and `maxHeight`.
+    /// The tallest page rather than the current one, so swiping between pages
+    /// does not make the popup jump; a taller page scrolls inside.
+    static func popupHeight(chrome: CGFloat, content: CGFloat?, maxHeight: CGFloat) -> CGFloat {
+        let ceiling = max(maxHeight, minimumHeight)
+        guard let content else { return min(defaultSize.height, ceiling) }
+        return min(max(chrome + content, minimumHeight), ceiling)
+    }
+
+    /// The tallest the popup may be on a screen whose visible frame (menu bar
+    /// and Dock excluded) is `screenVisibleHeight` tall.
+    static func maximumHeight(screenVisibleHeight: CGFloat) -> CGFloat {
+        max(minimumHeight, screenVisibleHeight - screenMargin)
+    }
+
+    // MARK: - Visibility
+
     /// The selected page is the actual visibility source of truth. All pages
     /// coexist in the horizontal HStack for swipe animation, so card
     /// `onAppear` callbacks cannot distinguish onscreen from offscreen pages.
@@ -122,7 +188,7 @@ struct RootView: View {
         // A disabled widget is absent from `pages`, so it cannot keep doing
         // visible-only work merely because it remains in the pin preference.
         let enabledIDs = Set(pages.flatMap(\.widgets).map(\.id))
-        let displayedPinned = pinnedIDs.filter(enabledIDs.contains).prefix(2)
+        let displayedPinned = PinnedShelf.displayedIDs(pinned: pinnedIDs, enabledIDs: enabledIDs)
         return Set(pages[safeIndex].widgets.map(\.id)).union(displayedPinned)
     }
 
@@ -149,69 +215,50 @@ struct RootView: View {
         }
     }
 
-    /// Bottom-center transient confirmation capsule (copy/toast feedback).
-    @ViewBuilder
-    private var toastOverlay: some View {
-        if let message = toast.message {
-            Text(message)
-                .font(.caption)
-                .fontWeight(.medium)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .modifier(ControlCapsule())
-                .padding(.bottom, 46)
-                .transition(.opacity.combined(with: .move(edge: .bottom)))
-                .accessibilityLabel(message)
-        }
-    }
+    // MARK: - Pinned
 
     /// Pinned widgets stay above the pager on every page (invariant: at most
-    /// a compact strip — full cards live in their panel).
+    /// a compact strip — full cards live in their panel). Hidden while editing:
+    /// they are copies, and edit mode works on the cards in their pages.
     @ViewBuilder
     private var pinnedRow: some View {
-        let pinnedWidgets = runtime.prefs.pinned.compactMap { id in
-            runtime.widgets.first { $0.id == id && !runtime.prefs.isDisabled(id) }
-        }
+        let enabledIDs = runtime.enabledWidgetIDs
+        let shown = PinnedShelf.displayedIDs(pinned: runtime.prefs.pinned, enabledIDs: enabledIDs)
+        let overflow = PinnedShelf.overflowIDs(pinned: runtime.prefs.pinned, enabledIDs: enabledIDs)
+        let pinnedWidgets = shown.compactMap { id in runtime.widgets.first { $0.id == id } }
         if !pinnedWidgets.isEmpty {
             VStack(spacing: 0) {
-                ForEach(pinnedWidgets.prefix(2)) { widget in
+                ForEach(pinnedWidgets) { widget in
                     WidgetCardView(widget: widget, runtime: runtime, compactHeight: 120)
                 }
-                if pinnedWidgets.count > 2 {
-                    pinnedOverflow(pinnedWidgets: pinnedWidgets)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 4)
+                if !overflow.isEmpty {
+                    pinnedOverflow(overflowIDs: overflow)
+                        .padding(.horizontal, Spacing.s)
+                        .padding(.vertical, Spacing.xxs)
                 }
             }
             Divider()
         }
     }
 
-    /// "+N pinned hidden" caption below the two-card pinned strip: jumps to the
-    /// panel page of the first still-visible pinned widget beyond the strip.
-    private func pinnedOverflow(pinnedWidgets: [LoadedWidget]) -> some View {
-        let hidden = pinnedWidgets.count - 2
-        return Button {
-            let pages = runtime.pages
-            if let target = pinnedWidgets.dropFirst(2).first(where: { widget in
-                pages.contains { $0.widgets.contains { $0.id == widget.id } }
-            }) {
-                runtime.reveal(widgetID: target.id)
-            }
+    /// Only reachable through older preferences or a duplicated pinned widget
+    /// (Pin is disabled at the cap), so it says plainly what happened and
+    /// jumps to the first one left out.
+    private func pinnedOverflow(overflowIDs: [String]) -> some View {
+        Button {
+            if let target = overflowIDs.first { runtime.reveal(widgetID: target) }
         } label: {
-            Text("+\(hidden) pinned hidden")
+            Text("\(overflowIDs.count) more pinned — only \(PinnedShelf.capacity) fit here. Show")
                 .font(.caption2)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .buttonStyle(.borderless)
         .help("Jump to the next pinned widget's page")
-        .accessibilityLabel("\(hidden) more pinned widgets hidden; jump to page")
     }
 
-    /// All pages laid out horizontally; offset = current page + live drag.
-    /// During a swipe the offset follows the fingers (no animation); on
-    /// release the spring snaps to the committed page (rubber band at edges).
+    // MARK: - Pages
+
     /// One row of the native-style card grid: two adjacent `S` widgets pair up
     /// (like native small widgets); every other size is a full-width row.
     private struct CardRow: Identifiable {
@@ -242,6 +289,9 @@ struct RootView: View {
         return rows
     }
 
+    /// All pages laid out horizontally; offset = current page + live drag.
+    /// During a swipe the offset follows the fingers (no animation); on
+    /// release the spring snaps to the committed page (rubber band at edges).
     private func pagerStrip(pages: [WidgetPage], index: Int) -> some View {
         GeometryReader { geometry in
             let width = geometry.size.width
@@ -251,33 +301,10 @@ struct RootView: View {
                 ForEach(pages) { page in
                     ScrollViewReader { proxy in
                         ScrollView {
-                            VStack(spacing: 0) {
-                                if runtime.prefs.welcomePending,
-                                   page.id == Self.welcomePageID(pages: pages) {
-                                    WelcomeCardView {
-                                        runtime.prefs.dismissWelcome()
-                                        runtime.objectWillChange.send()
-                                    }
-                                    rowSeparator
+                            pageContent(page, pages: pages)
+                                .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { height in
+                                    pageContentHeights[page.id] = height
                                 }
-                                let rows = cardRows(page.widgets)
-                                ForEach(Array(rows.enumerated()), id: \.element.id) { rowIndex, row in
-                                    HStack(alignment: .top, spacing: 0) {
-                                        ForEach(Array(row.widgets.enumerated()), id: \.element.id) { widgetIndex, widget in
-                                            if widgetIndex > 0 { Divider() }
-                                            WidgetCardView(
-                                                widget: widget,
-                                                runtime: runtime,
-                                                isHighlighted: widget.id == highlightedID
-                                            )
-                                            .frame(maxWidth: .infinity)
-                                            .id(widget.id)
-                                        }
-                                    }
-                                    if rowIndex < rows.count - 1 { rowSeparator }
-                                }
-                            }
-                            .padding(.bottom, 6)
                         }
                         .onChange(of: revealToken) {
                             guard let id = highlightedID,
@@ -318,157 +345,166 @@ struct RootView: View {
         .clipped()
     }
 
-    /// Inset hairline between widget sections — separation without boxes.
-    private var rowSeparator: some View {
-        Divider().padding(.horizontal, 12)
+    private func pageContent(_ page: WidgetPage, pages: [WidgetPage]) -> some View {
+        VStack(spacing: 0) {
+            if runtime.prefs.welcomePending, !pager.isEditing,
+               page.id == Self.welcomePageID(pages: pages) {
+                WelcomeCardView(addWidget: { onCommand(.addWidget) }) {
+                    runtime.prefs.dismissWelcome()
+                    runtime.objectWillChange.send()
+                }
+                rowSeparator
+            }
+            let rows = cardRows(page.widgets)
+            ForEach(Array(rows.enumerated()), id: \.element.id) { rowIndex, row in
+                HStack(alignment: .top, spacing: 0) {
+                    ForEach(Array(row.widgets.enumerated()), id: \.element.id) { widgetIndex, widget in
+                        if widgetIndex > 0 { Divider() }
+                        WidgetCardView(
+                            widget: widget,
+                            runtime: runtime,
+                            isHighlighted: widget.id == highlightedID
+                        )
+                        .frame(maxWidth: .infinity)
+                        .id(widget.id)
+                    }
+                }
+                if rowIndex < rows.count - 1 { rowSeparator }
+            }
+            if pager.isEditing {
+                rowSeparator
+                Button { onCommand(.addWidget) } label: {
+                    Label("Add Widget…", systemImage: "plus")
+                        .frame(maxWidth: .infinity)
+                }
+                .controlSize(.large)
+                .padding(Spacing.s)
+            }
+        }
+        .padding(.bottom, 6)
     }
 
-    /// Composed toolbar: panel title + inline page indicator on the left,
-    /// search/refresh on the right, all on `.bar` material so header and footer
-    /// read as one continuous chrome around the scrolling cards.
-    private func header(for page: WidgetPage, index: Int, count: Int) -> some View {
-        HStack(spacing: 8) {
-            Text(page.group)
-                .font(.system(size: 13, weight: .semibold))
-                .lineLimit(1)
-                .truncationMode(.tail)
-            if count > 1 {
-                Text("\(index + 1) of \(count)")
+    /// Inset hairline between widget sections — separation without boxes.
+    private var rowSeparator: some View {
+        Divider().padding(.horizontal, Spacing.s)
+    }
+
+    // MARK: - Header and footer
+
+    /// Page menu on the left; search, refresh and ⋯ on the right — or, while
+    /// editing, Done.
+    private func header(pages: [WidgetPage], index: Int) -> some View {
+        HStack(spacing: Spacing.xs) {
+            PageMenu(pages: pages, index: index) { target in
+                pager.jump(to: target, pageCount: pages.count)
+            }
+            if pages.count > 1 {
+                Text("\(index + 1) of \(pages.count)")
                     .font(.caption)
-                    .foregroundColor(.secondary)
-                    .accessibilityLabel("Page \(index + 1) of \(count)")
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel("Page \(index + 1) of \(pages.count)")
             }
             Spacer()
-            Button {
-                searchPresented = true
-            } label: {
-                Image(systemName: "magnifyingglass")
+            if pager.isEditing {
+                Button("Done") { pager.isEditing = false }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .help("Finish editing (Esc)")
+            } else {
+                Button {
+                    searchPresented = true
+                } label: {
+                    Image(systemName: "magnifyingglass")
+                }
+                .buttonStyle(.borderless)
+                .focused($searchButtonFocused)
+                .accessibilityFocused($searchButtonAccessibilityFocused)
+                .help("Search (⌘F)")
+                .accessibilityLabel("Search")
+                Button {
+                    runtime.refreshAll()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.borderless)
+                .help("Refresh All (⌘R)")
+                .accessibilityLabel("Refresh all widgets")
+                ShelfMoreMenu(runtime: runtime, onCommand: onCommand)
             }
-            .buttonStyle(.borderless)
-            .focused($searchButtonFocused)
-            .accessibilityFocused($searchButtonAccessibilityFocused)
-            .help("Search (⌘F)")
-            .accessibilityLabel("Search")
-            Button {
-                runtime.refreshAll()
-            } label: {
-                Image(systemName: "arrow.clockwise")
-            }
-            .buttonStyle(.borderless)
-            .help("Refresh All")
-            .accessibilityLabel("Refresh all widgets")
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, Spacing.s)
+        .padding(.vertical, Spacing.xs)
+        .frame(minHeight: 36)
         .background(Color(nsColor: .windowBackgroundColor))
     }
 
+    /// Page dots. Each is also a drop target: a card dragged onto a dot moves
+    /// to that page.
     private func footer(pages: [WidgetPage], index: Int) -> some View {
-        HStack(spacing: 6) {
-            addWidgetMenu
-
-            Button {
-                pager.step(-1, pageCount: pages.count)
-            } label: {
-                Image(systemName: "chevron.left")
-            }
-            .buttonStyle(.borderless)
-            .disabled(index == 0)
-            .help("Previous page")
-            .accessibilityLabel("Previous page")
-
-            Spacer()
-
-            ScrollViewReader { proxy in
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 0) {
-                        ForEach(Array(pages.enumerated()), id: \.element.id) { pageIndex, page in
-                            // Size + fill cue (not hue alone) marks the current page.
-                            Button {
-                                pager.jump(to: pageIndex, pageCount: pages.count)
-                            } label: {
-                                Circle()
-                                    .fill(pageIndex == index ? Color.primary : Color.secondary.opacity(0.35))
-                                    .frame(width: pageIndex == index ? 7 : 6,
-                                           height: pageIndex == index ? 7 : 6)
-                                    .frame(width: 24, height: 24)
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .id(page.id)
-                            .help(page.group)
-                            .accessibilityLabel(page.group)
-                            .accessibilityAddTraits(pageIndex == index ? [.isSelected] : [])
-                        }
-                    }
-                }
-                .frame(maxWidth: 130, maxHeight: 24)
-                .onChange(of: index) { _, newIndex in
-                    guard pages.indices.contains(newIndex) else { return }
-                    withAnimation(.easeOut(duration: 0.15)) {
-                        proxy.scrollTo(pages[newIndex].id, anchor: .center)
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 0) {
+                    ForEach(Array(pages.enumerated()), id: \.element.id) { pageIndex, page in
+                        pageDot(page: page, pageIndex: pageIndex, index: index, pageCount: pages.count)
                     }
                 }
             }
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel("Page \(index + 1) of \(pages.count)")
-
-            Spacer()
-
-            Button {
-                pager.step(1, pageCount: pages.count)
-            } label: {
-                Image(systemName: "chevron.right")
-            }
-            .buttonStyle(.borderless)
-            .disabled(index >= pages.count - 1)
-            .help("Next page")
-            .accessibilityLabel("Next page")
-
-            Button {
-                Task { @MainActor in
-                    AppSettingsWindowController.shared.show(runtime: runtime)
+            .frame(maxWidth: 220, maxHeight: 24)
+            .fixedSize(horizontal: true, vertical: false)
+            .onChange(of: index) { _, newIndex in
+                guard pages.indices.contains(newIndex) else { return }
+                withAnimation(.easeOut(duration: 0.15)) {
+                    proxy.scrollTo(pages[newIndex].id, anchor: .center)
                 }
-            } label: {
-                Image(systemName: "gearshape")
             }
-            .buttonStyle(.borderless)
-            .help("Settings")
-            .accessibilityLabel("Open settings")
         }
-        .padding(.horizontal, 12)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Page \(index + 1) of \(pages.count)")
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, Spacing.s)
         .padding(.vertical, 6)
         .background(Color(nsColor: .windowBackgroundColor))
     }
 
-    /// Footer "+" entry point: add widgets from the gallery, a URL, or the
-    /// no-code builder. Mirrors the first-run empty-state CTAs.
-    private var addWidgetMenu: some View {
-        Menu {
-            Button {
-                Task { @MainActor in GalleryWindowController.shared.show() }
-            } label: {
-                Label("Widget Gallery…", systemImage: "square.grid.2x2")
-            }
-            Button {
-                WidgetInstaller.shared.promptForURL()
-            } label: {
-                Label("Install from URL…", systemImage: "link")
-            }
-            Button {
-                Task { @MainActor in WidgetBuilderController.shared.show(runtime: runtime) }
-            } label: {
-                Label("Create Widget…", systemImage: "wand.and.stars")
-            }
+    private func pageDot(page: WidgetPage, pageIndex: Int, index: Int, pageCount: Int) -> some View {
+        let isCurrent = pageIndex == index
+        let isDropTarget = dropTargetPageID == page.id
+        // Size + fill cue (not hue alone) marks the current page.
+        return Button {
+            pager.jump(to: pageIndex, pageCount: pageCount)
         } label: {
-            Image(systemName: "plus")
+            Circle()
+                .fill(isDropTarget ? Color.accentColor
+                    : isCurrent ? Color.primary : Color.secondary.opacity(0.35))
+                .frame(width: isDropTarget ? 10 : isCurrent ? 7 : 6,
+                       height: isDropTarget ? 10 : isCurrent ? 7 : 6)
+                .frame(width: 24, height: 24)
+                .contentShape(Rectangle())
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .help("Add a widget")
-        .accessibilityLabel("Add a widget")
+        .buttonStyle(.plain)
+        .id(page.id)
+        .help(page.group)
+        .accessibilityLabel(page.group)
+        .accessibilityAddTraits(isCurrent ? [.isSelected] : [])
+        .onDrop(of: CardDrag.types, isTargeted: Binding(
+            get: { dropTargetPageID == page.id },
+            set: { targeted in
+                if targeted {
+                    dropTargetPageID = page.id
+                } else if dropTargetPageID == page.id {
+                    dropTargetPageID = nil
+                }
+            }
+        )) { providers in
+            CardDrag.receive(providers) { widgetID in
+                guard runtime.effectiveGroup(for: widgetID) != page.group else { return }
+                runtime.moveWidget(id: widgetID, toGroup: page.group)
+                ToastCenter.shared.show(String(localized: "Moved to \(page.group)"))
+            }
+        }
     }
+
+    // MARK: - Empty state
 
     /// GETTING-STARTED guide on GitHub (opened from onboarding CTAs).
     static let gettingStartedURL = URL(
@@ -485,34 +521,34 @@ struct RootView: View {
     }
 
     /// First-run onboarding shown instead of a blank popup: a short pitch and
-    /// three CTAs (gallery, URL install, docs).
+    /// the ways to get a first widget.
     private var emptyState: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: Spacing.s) {
+            HStack {
+                Spacer()
+                ShelfMoreMenu(runtime: runtime, onCommand: onCommand)
+            }
+            .padding(.horizontal, Spacing.s)
+            .padding(.top, Spacing.xs)
             Spacer()
             Image(systemName: "tray.full")
-                .font(.system(size: 32))
-                .foregroundColor(.accentColor)
+                .font(.largeTitle)
+                .foregroundStyle(Color.accentColor)
                 .accessibilityHidden(true)
             Text("Time to tidy up your menu bar")
-                .font(.system(size: 14, weight: .semibold))
+                .font(.headline)
             Text("BarShelf collects your menu bar extras\ninto one popup of widgets.")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             VStack(spacing: 6) {
-                Button {
-                    Task { @MainActor in
-                        GalleryWindowController.shared.show()
-                    }
-                } label: {
-                    Label("Open Widget Gallery", systemImage: "square.grid.2x2")
+                Button { onCommand(.addWidget) } label: {
+                    Label("Add Widget…", systemImage: "plus")
                         .frame(maxWidth: .infinity)
                 }
                 .keyboardShortcut(.defaultAction)
                 Button {
-                    Task { @MainActor in
-                        WidgetBuilderController.shared.show(runtime: runtime)
-                    }
+                    Task { @MainActor in HubWindowController.shared.show(tab: .create) }
                 } label: {
                     Label("Create Your Own Widget", systemImage: "wand.and.stars")
                         .frame(maxWidth: .infinity)
@@ -532,13 +568,13 @@ struct RootView: View {
             }
             .controlSize(.large)
             .padding(.horizontal, 48)
-            .padding(.top, 4)
+            .padding(.top, Spacing.xxs)
             Spacer()
             Text("Widgets live in ~/Library/Application Support/barshelf/widgets/")
                 .font(.caption2)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 12)
+                .padding(.horizontal, Spacing.s)
                 .padding(.bottom, 10)
         }
         .frame(maxWidth: .infinity)

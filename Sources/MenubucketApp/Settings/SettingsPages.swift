@@ -118,6 +118,12 @@ struct GeneralSettingsPage: View {
     }
 
     private func setLaunchAtLogin(_ enabled: Bool) {
+        launchError = Self.setLaunchAtLogin(enabled, appPrefs: appPrefs)
+        if launchError != nil { syncLaunchAtLoginStatus() }
+    }
+
+    /// Registers or unregisters the login item. Returns why it failed, if it did.
+    static func setLaunchAtLogin(_ enabled: Bool, appPrefs: AppPrefs) -> String? {
         do {
             if enabled {
                 try SMAppService.mainApp.register()
@@ -125,11 +131,10 @@ struct GeneralSettingsPage: View {
                 try SMAppService.mainApp.unregister()
             }
             appPrefs.update { $0.launchAtLogin = enabled }
-            launchError = nil
+            return nil
         } catch {
-            launchError = "Couldn't change login items: "
+            return "Couldn't change login items: "
                 + ((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
-            syncLaunchAtLoginStatus()
         }
     }
 
