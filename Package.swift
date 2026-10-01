@@ -4,7 +4,7 @@ import PackageDescription
 let package = Package(
     name: "barshelf",
     platforms: [
-        .macOS(.v13)
+        .macOS(.v14)
     ],
     products: [
         .executable(name: "barshelf-app", targets: ["MenubucketApp"]),

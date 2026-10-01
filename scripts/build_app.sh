@@ -13,7 +13,7 @@ APP_BUNDLE_NAME=${APP_BUNDLE_NAME:-"${APP_DISPLAY_NAME}.app"}
 BUILD_CONFIGURATION=${BUILD_CONFIGURATION:-release}
 OUTPUT_DIR=${OUTPUT_DIR:-"${PROJECT_ROOT}/dist"}
 BUNDLE_IDENTIFIER=${BUNDLE_IDENTIFIER:-com.barshelf.app}
-APP_VERSION=${APP_VERSION:-0.3.14}
+APP_VERSION=${APP_VERSION:-0.4.0}
 APP_BUILD=${APP_BUILD:-"$(date +%Y%m%d%H%M)"}
 # Provenance: which commit produced this binary. CFBundleVersion has to stay a
 # period-separated number for App Store validation, so the commit goes in its
@@ -28,7 +28,7 @@ if [[ -z "${APP_COMMIT:-}" ]]; then
     APP_COMMIT="unknown"
   fi
 fi
-MINIMUM_SYSTEM_VERSION=${MINIMUM_SYSTEM_VERSION:-13.0}
+MINIMUM_SYSTEM_VERSION=${MINIMUM_SYSTEM_VERSION:-14.0}
 APP_CATEGORY=${APP_CATEGORY:-public.app-category.utilities}
 APP_COPYRIGHT=${APP_COPYRIGHT:-"Copyright (c) $(date +%Y) BarShelf contributors."}
 INFO_PLIST_TEMPLATE=${INFO_PLIST_TEMPLATE:-"${SCRIPT_DIR}/Info.plist.template"}

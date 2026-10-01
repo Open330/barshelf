@@ -78,7 +78,7 @@ struct RootView: View {
             publishVisibleWidgets(pages: pages)
         }
         .onDisappear { pager.setSearchPresented(false) }
-        .onChange(of: searchPresented) { presented in
+        .onChange(of: searchPresented) { _, presented in
             pager.setSearchPresented(presented)
             if !presented {
                 // Return keyboard users to the control that opened the modal.
@@ -91,7 +91,7 @@ struct RootView: View {
                 }
             }
         }
-        .onChange(of: pager.index) { _ in publishVisibleWidgets(pages: runtime.pages) }
+        .onChange(of: pager.index) { publishVisibleWidgets(pages: runtime.pages) }
         .onReceive(runtime.objectWillChange) { _ in
             DispatchQueue.main.async {
                 let updatedPages = runtime.pages
@@ -283,7 +283,7 @@ struct RootView: View {
                             }
                             .padding(.bottom, 6)
                         }
-                        .onChange(of: revealToken) { _ in
+                        .onChange(of: revealToken) {
                             guard let id = highlightedID,
                                   page.widgets.contains(where: { $0.id == id }) else { return }
                             // The pager first moves this page onscreen. Deferring one
@@ -317,7 +317,7 @@ struct RootView: View {
                 value: offset
             )
             .onAppear { pager.pageWidth = width }
-            .onChange(of: width) { pager.pageWidth = $0 }
+            .onChange(of: width) { _, newValue in pager.pageWidth = newValue }
         }
         .clipped()
     }
@@ -407,7 +407,7 @@ struct RootView: View {
                     }
                 }
                 .frame(maxWidth: 130, maxHeight: 24)
-                .onChange(of: index) { newIndex in
+                .onChange(of: index) { _, newIndex in
                     guard pages.indices.contains(newIndex) else { return }
                     withAnimation(.easeOut(duration: 0.15)) {
                         proxy.scrollTo(pages[newIndex].id, anchor: .center)

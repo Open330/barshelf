@@ -2,7 +2,7 @@
 
 BarShelf은 macOS **메뉴바 앱**(`BarShelf.app`)과 선택 설치하는 개발자용 CLI(`barshelf`)로 배포된다.
 
-- 요구 사항: **macOS 13 (Ventura) 이상**, Apple Silicon(arm64) — 현재 릴리스는 arm64 빌드만 제공
+- 요구 사항: **macOS 14 (Sonoma) 이상**, Apple Silicon(arm64) — 현재 릴리스는 arm64 빌드만 제공
 - 스크립트 위젯을 쓰려면 [Deno](https://deno.land) 필요 (`brew install deno`) — 없어도 exec/workflow 위젯은 전부 동작
 
 ## 방법 A — GitHub Releases (권장)

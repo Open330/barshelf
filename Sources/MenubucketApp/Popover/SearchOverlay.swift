@@ -70,7 +70,7 @@ struct SearchOverlay: View {
                         }
                     }
                     .frame(maxHeight: 220)
-                    .onChange(of: selection) { newValue in
+                    .onChange(of: selection) { _, newValue in
                         guard hits.indices.contains(newValue) else { return }
                         withAnimation(.easeOut(duration: 0.12)) {
                             proxy.scrollTo(hits[newValue].id, anchor: .center)
@@ -85,7 +85,7 @@ struct SearchOverlay: View {
         // result rows from being interleaved with background controls.
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Widget search")
-        .onChange(of: query) { _ in selection = 0 }
+        .onChange(of: query) { selection = 0 }
         // ↑/↓ move the highlighted result while the search field keeps focus;
         // hidden zero-size buttons capture the arrow keys on macOS 13 (no
         // `.onKeyPress`). ⏎ (onSubmit) activates the current selection.
