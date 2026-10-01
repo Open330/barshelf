@@ -6,7 +6,9 @@ import SwiftUI
 /// wherever it is opened from and nothing has to be maintained twice. What
 /// differs is the framing: a fixed, narrow width and a height that follows the
 /// content, because this answers a question about one reading rather than
-/// presenting a shelf.
+/// presenting a shelf. The card leaves out what only makes sense on the shelf
+/// (pin, reorder, move to a page); Esc closes it (`PopoverSurface`), and a
+/// copy confirms here just as it does on the shelf.
 struct MenuBarWidgetPopover: View {
     let widget: LoadedWidget
     let runtime: WidgetRuntime
@@ -20,10 +22,11 @@ struct MenuBarWidgetPopover: View {
 
     var body: some View {
         ScrollView(.vertical) {
-            WidgetCardView(widget: widget, runtime: runtime)
-                .padding(10)
+            WidgetCardView(widget: widget, runtime: runtime, placement: .single)
+                .padding(Spacing.xs)
         }
         .frame(width: Self.width)
         .frame(maxHeight: Self.maximumHeight)
+        .overlay { ToastOverlay() }
     }
 }

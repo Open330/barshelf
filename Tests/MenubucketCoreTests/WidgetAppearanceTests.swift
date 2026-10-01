@@ -87,4 +87,14 @@ final class WidgetAppearanceTests: XCTestCase {
         XCTAssertNil(a.accent)
         XCTAssertEqual(a.density, .regular)
     }
+
+    /// The card header is on unless someone turned it off.
+    func testHeaderIsOnUnlessExplicitlyTurnedOff() {
+        XCTAssertTrue(WidgetAppearance().showsHeader)
+        XCTAssertTrue(WidgetAppearance(showHeader: true).showsHeader)
+        XCTAssertFalse(WidgetAppearance(showHeader: false).showsHeader)
+        // A user's explicit "off" survives a manifest that leaves it unset.
+        let user = WidgetAppearance(showHeader: false)
+        XCTAssertFalse(user.merged(over: WidgetAppearance()).showsHeader)
+    }
 }

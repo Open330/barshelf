@@ -1133,14 +1133,18 @@ private struct PopoverShot: View {
     let scheme: ColorScheme
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Text("Demo").font(.system(size: 13, weight: .semibold))
+            // Mirrors RootView's header: page menu, position, search,
+            // refresh, ⋯ (drawn as images — ImageRenderer has no native menus).
+            HStack(spacing: Spacing.xs) {
+                Text("Demo").font(.headline)
+                Image(systemName: "chevron.down").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
+                Text("1 of 3").font(.caption).foregroundStyle(.secondary)
                 Spacer()
-                Image(systemName: "magnifyingglass").font(.system(size: 11)).foregroundColor(.secondary)
-                Image(systemName: "arrow.clockwise").font(.system(size: 11)).foregroundColor(.secondary)
-                Text("‹ 1 / 3 ›").font(.system(size: 11, design: .monospaced)).foregroundColor(.secondary)
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                Image(systemName: "arrow.clockwise").foregroundStyle(.secondary)
+                Image(systemName: "ellipsis.circle").foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 12).padding(.vertical, 10)
+            .padding(.horizontal, Spacing.s).padding(.vertical, 10)
             Divider()
             VStack(spacing: 0) {
                 ShotCard(title: "Today", icon: "calendar", node: ShotData.todayNode, accentName: "red")

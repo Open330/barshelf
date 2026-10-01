@@ -520,12 +520,23 @@ struct NodeView: View {
         .padding(.vertical, 12)
     }
 
+    /// A node type this BarShelf does not know — usually a widget written for
+    /// a newer version. Says so, and what to do, instead of leaving a gap.
     private var unsupportedView: some View {
-        Text("⚠︎ unsupported: \(node.type)")
-            .font(.caption)
-            .foregroundColor(.secondary)
-            .padding(4)
-            .background(RoundedRectangle(cornerRadius: 4).fill(Color.secondary.opacity(0.1)))
+        Label {
+            Text("Part of this widget needs a newer BarShelf (“\(node.type)”). Check for Updates in the ⋯ menu.")
+                .fixedSize(horizontal: false, vertical: true)
+        } icon: {
+            Image(systemName: "puzzlepiece.extension")
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .padding(Spacing.xxs)
+        .background(
+            RoundedRectangle(cornerRadius: Radius.control, style: .continuous)
+                .fill(Color.secondary.opacity(0.1))
+        )
+        .accessibilityElement(children: .combine)
     }
 }
 
