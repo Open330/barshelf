@@ -45,16 +45,30 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         copySoundEnabled: Bool = false,
         menuBarPresentation: MenuBarPresentation? = nil
     ) {
-        let symbol = menuBarSymbol.trimmingCharacters(in: .whitespacesAndNewlines)
-        self.menuBarSymbol = symbol.isEmpty ? Self.defaultMenuBarSymbol : symbol
-        self.refreshMultiplier = SchedulePolicy.normalizedRefreshMultiplier(refreshMultiplier)
+        self.menuBarSymbol = menuBarSymbol
+        self.refreshMultiplier = refreshMultiplier
         self.pauseWhenClosed = pauseWhenClosed
         self.launchAtLogin = launchAtLogin
         self.copySoundEnabled = copySoundEnabled
         self.popupHotkeyEnabled = popupHotkeyEnabled
+        self.popupHotkey = popupHotkey
+        self.menuBarPresentation = menuBarPresentation
+        normalize()
+    }
+
+    /// Brings every field into its allowed range: a blank symbol or hotkey
+    /// falls back to the default (a blank status item would make the app
+    /// unreachable), the multiplier snaps to the allowed steps, and the
+    /// menu bar block keeps only its style fields. The one place these rules
+    /// live, so an edit through `AppPrefs.update` cannot skip them and a new
+    /// preference does not have to be threaded through a field-by-field copy.
+    public mutating func normalize() {
+        let symbol = menuBarSymbol.trimmingCharacters(in: .whitespacesAndNewlines)
+        menuBarSymbol = symbol.isEmpty ? Self.defaultMenuBarSymbol : symbol
+        refreshMultiplier = SchedulePolicy.normalizedRefreshMultiplier(refreshMultiplier)
         let hotkey = popupHotkey.trimmingCharacters(in: .whitespacesAndNewlines)
-        self.popupHotkey = hotkey.isEmpty ? Self.defaultPopupHotkey : hotkey
-        self.menuBarPresentation = MenuBarPolicy.globalStyle(menuBarPresentation)
+        popupHotkey = hotkey.isEmpty ? Self.defaultPopupHotkey : hotkey
+        menuBarPresentation = MenuBarPolicy.globalStyle(menuBarPresentation)
     }
 
     /// Lenient decoding: absent keys fall back to defaults, the multiplier is
@@ -62,14 +76,11 @@ public struct AppPreferences: Codable, Equatable, Sendable {
     /// default (a blank status item would make the app unreachable).
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        let symbol = try container.decodeIfPresent(
-            String.self, forKey: .menuBarSymbol
-        )?.trimmingCharacters(in: .whitespacesAndNewlines)
-        menuBarSymbol = (symbol?.isEmpty == false)
-            ? symbol! : Self.defaultMenuBarSymbol
-        refreshMultiplier = SchedulePolicy.normalizedRefreshMultiplier(
-            try container.decodeIfPresent(Double.self, forKey: .refreshMultiplier) ?? 1
-        )
+        menuBarSymbol = try container.decodeIfPresent(String.self, forKey: .menuBarSymbol)
+            ?? Self.defaultMenuBarSymbol
+        refreshMultiplier = try container.decodeIfPresent(
+            Double.self, forKey: .refreshMultiplier
+        ) ?? 1
         pauseWhenClosed = try container.decodeIfPresent(
             Bool.self, forKey: .pauseWhenClosed
         ) ?? false
@@ -82,14 +93,13 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         popupHotkeyEnabled = try container.decodeIfPresent(
             Bool.self, forKey: .popupHotkeyEnabled
         ) ?? false
-        let hotkey = try container.decodeIfPresent(
-            String.self, forKey: .popupHotkey
-        )?.trimmingCharacters(in: .whitespacesAndNewlines)
-        popupHotkey = (hotkey?.isEmpty == false) ? hotkey! : Self.defaultPopupHotkey
+        popupHotkey = try container.decodeIfPresent(String.self, forKey: .popupHotkey)
+            ?? Self.defaultPopupHotkey
         // A malformed block must not cost the user every other preference.
-        menuBarPresentation = MenuBarPolicy.globalStyle(
-            (try? container.decodeIfPresent(MenuBarPresentation.self, forKey: .menuBarPresentation)) ?? nil
-        )
+        menuBarPresentation = (try? container.decodeIfPresent(
+            MenuBarPresentation.self, forKey: .menuBarPresentation
+        )) ?? nil
+        normalize()
     }
 
     // MARK: - File persistence
