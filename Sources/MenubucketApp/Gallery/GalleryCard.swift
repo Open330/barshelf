@@ -4,6 +4,8 @@ import SwiftUI
 
 // MARK: - Card
 
+/// One registry widget in the grid. Clicking (or Return on a focused card)
+/// opens its detail page; the quick Install/Update button installs in place.
 struct GalleryCard: View {
     let entry: RegistryWidgetEntry
     let isInstalled: Bool
@@ -12,35 +14,38 @@ struct GalleryCard: View {
     /// PATH status of `entry.requires`; `nil` while the probe is pending.
     let requirementStatus: RequirementChecker.Status?
     let install: () -> Void
+    /// Opens the detail page. Nil renders a static card (screenshots).
+    var openDetails: (() -> Void)?
 
-    /// Card accent: the entry's registry `accent` (same vocabulary as widget
-    /// `appearance.accent`), falling back to the system accent.
+    @FocusState private var isFocused: Bool
+    @State private var isHovered = false
+
     private var accent: Color {
-        WidgetAppearance(accent: entry.accent).accentColor ?? .accentColor
+        GalleryIconTile.accent(for: entry)
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Spacing.xs) {
             screenshotPreview
-            HStack(alignment: .top, spacing: 10) {
-                iconTile
+            HStack(alignment: .top, spacing: Spacing.s) {
+                GalleryIconTile(entry: entry, size: 40)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(entry.name)
                         .font(.headline)
                         .lineLimit(1)
-                    HStack(spacing: 5) {
+                    HStack(spacing: Spacing.xxs) {
                         if let kind = entry.kind {
-                            badge(kind)
+                            GalleryTypeBadge(kind: kind)
                         }
                         if let category = entry.category, !category.isEmpty {
                             Text(category)
                                 .font(.caption2)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                         }
                         if let version = entry.version {
                             Text("v\(version)")
                                 .font(.caption2)
-                                .foregroundColor(Color.secondary.opacity(0.7))
+                                .foregroundStyle(.secondary)
                                 .monospacedDigit()
                         }
                     }
@@ -51,47 +56,82 @@ struct GalleryCard: View {
             if let description = entry.description {
                 Text(description)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .lineLimit(2)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            HStack(spacing: 4) {
+            HStack(spacing: Spacing.xxs) {
                 requiresBadge
-                permissionChips
+                permissionIcons
                 Spacer(minLength: 0)
-                if detailsURL != nil {
-                    Button("Details") { openDetails() }
-                        .buttonStyle(.link)
-                        .font(.caption)
-                        .help("Open the widget's Markdown introduction page")
-                }
             }
         }
-        .padding(12)
+        .padding(Spacing.s)
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .cardSurface()
+        .overlay(focusRing)
+        .contentShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+        .modifier(OpensDetail(
+            open: openDetails, isFocused: $isFocused, isHovered: $isHovered
+        ))
+        // VoiceOver reads the card as one element: name, type, status, and
+        // what it needs; the default action opens details, Install is a
+        // named action.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityName)
+        .accessibilityValue(statusText)
+        .accessibilityHint(openDetails == nil ? "" : "Opens the widget’s details")
+        .accessibilityAddTraits(openDetails == nil ? [] : .isButton)
+        .accessibilityAction { openDetails?() }
+        .accessibilityActions {
+            if let title = quickActionTitle {
+                Button(title, action: install)
+            }
+        }
     }
 
-    /// App Store-style identity tile: filled accent square with a white glyph
-    /// — the strongest per-card differentiator, so cards stop reading as
-    /// walls of identical text.
-    private var iconTile: some View {
-        RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-            .fill(
-                LinearGradient(
-                    colors: [accent.opacity(0.95), accent.opacity(0.7)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
-            .frame(width: 40, height: 40)
-            .overlay(
-                Image(systemName: entry.icon ?? "app.dashed")
-                    .font(.system(size: 19, weight: .medium))
-                    .foregroundColor(.white)
-            )
-            .accessibilityHidden(true)
+    @ViewBuilder
+    private var focusRing: some View {
+        if isFocused {
+            RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+                .strokeBorder(Color.accentColor, lineWidth: 2)
+        } else if isHovered {
+            RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.18), lineWidth: 1)
+        }
+    }
+
+    private var accessibilityName: String {
+        var parts = [entry.name]
+        if let kind = entry.kind { parts.append("\(WidgetTypeName.name(kind)) widget") }
+        if let description = entry.description { parts.append(description) }
+        if let requires = entry.requires, !requires.isEmpty {
+            parts.append(requirementStyle.accessibilityLabel(requires))
+        }
+        return parts.joined(separator: ", ")
+    }
+
+    private var statusText: String {
+        GalleryCard.status(
+            entry: entry, isInstalled: isInstalled, updateAvailable: updateAvailable
+        )
+    }
+
+    /// Install state in words, shared with the detail page.
+    static func status(
+        entry: RegistryWidgetEntry, isInstalled: Bool, updateAvailable: Bool
+    ) -> String {
+        if updateAvailable { return "Installed, update available" }
+        if isInstalled { return "Installed" }
+        if let needs = GalleryModel.needsNewerHost(entry) { return needs }
+        return "Not installed"
+    }
+
+    private var quickActionTitle: String? {
+        if updateAvailable { return "Update" }
+        if isInstalled || GalleryModel.needsNewerHost(entry) != nil { return nil }
+        return "Install"
     }
 
     @ViewBuilder
@@ -102,54 +142,32 @@ struct GalleryCard: View {
         if let needs = GalleryModel.needsNewerHost(entry), !isInstalled {
             Text(needs)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .help("Update BarShelf to install this widget")
         } else if updateAvailable {
             Button("Update", action: install)
                 .controlSize(.small)
                 .help("A newer version is available in the registry")
+                .accessibilityLabel("Update \(entry.name)")
         } else if isInstalled {
-            HStack(spacing: 4) {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(.green)
-                Text("Installed")
-                    .foregroundColor(.secondary)
-            }
-            .font(.caption)
-            .contextMenu { Button("Reinstall", action: install) }
-            .help("Installed — right-click to reinstall")
-            .accessibilityLabel("\(entry.name) is installed")
+            Label("Installed", systemImage: "checkmark.circle.fill")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .symbolRenderingMode(.multicolor)
+                .contextMenu { Button("Reinstall", action: install) }
+                .help("Installed — right-click to reinstall")
         } else {
             Button("Install", action: install)
                 .controlSize(.small)
-        }
-    }
-
-    private func badge(_ kind: String) -> some View {
-        Text(WidgetTypeName.name(kind))
-            .font(.caption2.weight(.semibold))
-            .padding(.horizontal, 6)
-            .padding(.vertical, 1)
-            .background(badgeColor(kind).opacity(0.18))
-            .foregroundColor(badgeColor(kind))
-            .clipShape(Capsule())
-    }
-
-    private func badgeColor(_ kind: String) -> Color {
-        switch kind {
-        case "exec": return .blue
-        case "script": return .purple
-        case "workflow": return .orange
-        default: return .gray
+                .accessibilityLabel("Install \(entry.name)")
         }
     }
 
     /// External requirement badge (`requires` registry field): flags widgets
-    /// that need a CLI or runtime installed first (e.g. "aas CLI", "Deno").
+    /// that need a CLI or runtime installed first (e.g. "Deno").
     ///
-    /// Colour reflects the PATH probe (display-only — never blocks install):
-    /// green check when the binary is present, orange "not installed" when it
-    /// is missing, neutral while the probe is pending or indeterminate.
+    /// Colour reflects the PATH probe (display-only — never blocks install),
+    /// and the symbol and text carry the same verdict.
     @ViewBuilder
     private var requiresBadge: some View {
         if let requires = entry.requires,
@@ -157,14 +175,11 @@ struct GalleryCard: View {
             let style = requirementStyle
             Label(style.text(requires), systemImage: style.symbol)
                 .font(.caption2.weight(.medium))
-                .padding(.horizontal, 6)
+                .padding(.horizontal, Spacing.xs)
                 .padding(.vertical, 2)
-                .background(style.color.opacity(0.15))
-                .foregroundColor(style.color)
-                .clipShape(Capsule())
-                .padding(.top, 2)
+                .background(style.color.opacity(0.15), in: Capsule())
+                .foregroundStyle(style.color)
                 .help(style.help(requires))
-                .accessibilityLabel(style.accessibilityLabel(requires))
         }
     }
 
@@ -180,162 +195,204 @@ struct GalleryCard: View {
         switch requirementStatus {
         case .satisfied:
             return RequirementStyle(
-                color: .green,
+                color: StatusTone.success.color,
                 symbol: "checkmark.seal",
                 text: { "\($0) ready" },
-                help: { "\($0) was found on your PATH" },
-                accessibilityLabel: { "Requirement \($0) is installed" }
+                help: { "\($0) was found on your Mac" },
+                accessibilityLabel: { "needs \($0), which is installed" }
             )
         case .missing:
             return RequirementStyle(
-                color: .orange,
+                color: StatusTone.warning.color,
                 symbol: "exclamationmark.triangle",
                 text: { "\($0) — not installed" },
                 help: {
                     "This widget needs \($0) installed on your Mac. "
                         + "You can still install the widget now."
                 },
-                accessibilityLabel: { "Requirement \($0) is not installed" }
+                accessibilityLabel: { "needs \($0), which is not installed" }
             )
         case .unknown, nil:
             return RequirementStyle(
-                color: .orange,
+                color: .secondary,
                 symbol: "wrench.and.screwdriver",
                 text: { "Requires \($0)" },
                 help: { "This widget needs \($0) installed on your Mac" },
-                accessibilityLabel: { "Requires \($0)" }
+                accessibilityLabel: { "needs \($0)" }
             )
         }
     }
 
-    /// Optional preview image (`screenshot` registry field). Renders a
-    /// fixed-height thumbnail when the value forms a loadable `http(s)`/`file`
-    /// URL; loading shows a placeholder and any failure degrades to nothing.
+    /// Optional preview image (`screenshot` registry field), loaded through
+    /// `GalleryScreenshot`; any failure degrades to nothing.
     @ViewBuilder
     private var screenshotPreview: some View {
-        if let url = screenshotURL {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case let .success(image):
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 120)
-                        .clipped()
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.card))
-                        .accessibilityLabel("\(entry.name) preview")
-                case .empty:
-                    RoundedRectangle(cornerRadius: Radius.card)
-                        .fill(Color.secondary.opacity(0.08))
-                        .frame(height: 120)
-                        .overlay(ProgressView().controlSize(.small))
-                        .accessibilityHidden(true)
-                case .failure:
-                    // Graceful absence — no broken-image chrome.
-                    EmptyView()
-                @unknown default:
-                    EmptyView()
-                }
-            }
+        if let url = GalleryLinks.screenshotURL(entry) {
+            GalleryScreenshot(url: url, name: entry.name, height: 120)
         }
     }
 
-    /// Only `http(s)` and `file` schemes are honored; a bare relative path
-    /// (which we cannot resolve without the registry base) yields `nil`.
-    private var screenshotURL: URL? {
-        guard let raw = entry.screenshot?
-            .trimmingCharacters(in: .whitespaces), !raw.isEmpty,
-            let url = URL(string: raw),
-            let scheme = url.scheme?.lowercased(),
-            scheme == "http" || scheme == "https" || scheme == "file"
-        else { return nil }
-        return url
-    }
-
-    /// Registry `readme` accepts a rendered Markdown/documentation URL. Keep
-    /// navigation user-initiated and outside the widget permission model.
-    private var detailsURL: URL? {
-        guard let raw = entry.readme?
-            .trimmingCharacters(in: .whitespaces), !raw.isEmpty,
-            let url = URL(string: raw),
-            let scheme = url.scheme?.lowercased(),
-            scheme == "http" || scheme == "https" || scheme == "file"
-        else { return nil }
-        return url
-    }
-
-    private func openDetails() {
-        guard let detailsURL else { return }
-        NSWorkspace.shared.open(detailsURL)
-    }
-
-    /// Display-only permission chips ("신뢰 UX") — the enforcement gate stays
-    /// the first-run approval card after install. Compact icon capsules; the
-    /// specifics (which commands, which hosts) live in each chip's tooltip so
-    /// the card stays scannable.
+    /// Compact permission icons; the detail page spells each one out.
     @ViewBuilder
-    private var permissionChips: some View {
-        let chips = permissionChipLabels
-        if !chips.isEmpty {
-            HStack(spacing: 4) {
-                ForEach(chips, id: \.self) { chip in
-                    Image(systemName: chip.symbol)
+    private var permissionIcons: some View {
+        let lines = GalleryPermissionText.lines(for: entry.permissions)
+        if !lines.isEmpty {
+            HStack(spacing: Spacing.xxs) {
+                ForEach(lines, id: \.self) { line in
+                    Image(systemName: line.symbol)
                         .font(.caption2)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 3)
-                        .background(Color.secondary.opacity(0.12))
-                        .foregroundColor(.secondary)
-                        .clipShape(Capsule())
-                        .help(chip.help)
-                        .accessibilityLabel(chip.help)
+                        .background(Color.secondary.opacity(0.12), in: Capsule())
+                        .foregroundStyle(.secondary)
+                        .help(line.short)
                 }
             }
         }
     }
+}
 
-    private struct Chip: Hashable {
-        let symbol: String
-        let help: String
+/// Click, hover, and keyboard focus for a card that opens a detail page.
+private struct OpensDetail: ViewModifier {
+    let open: (() -> Void)?
+    var isFocused: FocusState<Bool>.Binding
+    @Binding var isHovered: Bool
+
+    func body(content: Content) -> some View {
+        if let open {
+            content
+                .onTapGesture(perform: open)
+                .onHover { isHovered = $0 }
+                .focusable(interactions: .activate)
+                .focused(isFocused)
+                .focusEffectDisabled()
+                .onKeyPress(.return) { open(); return .handled }
+                .onKeyPress(.space) { open(); return .handled }
+        } else {
+            content
+        }
+    }
+}
+
+// MARK: - Shared pieces (card + detail page)
+
+/// App Store-style identity tile: the entry's accent with a white glyph.
+struct GalleryIconTile: View {
+    let entry: RegistryWidgetEntry
+    var size: CGFloat = 40
+
+    /// The entry's registry `accent` (same vocabulary as widget
+    /// `appearance.accent`), falling back to the system accent.
+    static func accent(for entry: RegistryWidgetEntry) -> Color {
+        WidgetAppearance(accent: entry.accent).accentColor ?? .accentColor
     }
 
-    private var permissionChipLabels: [Chip] {
-        guard let permissions = entry.permissions else { return [] }
-        var chips: [Chip] = []
-        let commands = permissions.exec ?? []
-        if !commands.isEmpty {
-            chips.append(Chip(
-                symbol: "terminal",
-                help: "Runs: \(commands.joined(separator: ", "))"
-            ))
+    var body: some View {
+        let accent = Self.accent(for: entry)
+        RoundedRectangle(cornerRadius: size > 48 ? Radius.surface : Radius.card, style: .continuous)
+            .fill(
+                LinearGradient(
+                    colors: [accent.opacity(0.95), accent.opacity(0.7)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .frame(width: size, height: size)
+            .overlay(
+                Image(systemName: entry.icon ?? "app.dashed")
+                    .font(size > 48 ? .largeTitle : .title3)
+                    .foregroundStyle(.white)
+            )
+            .accessibilityHidden(true)
+    }
+}
+
+/// Command / Workflow / Script, as a tinted capsule with its name.
+struct GalleryTypeBadge: View {
+    let kind: String
+
+    var body: some View {
+        Text(WidgetTypeName.name(kind))
+            .font(.caption2.weight(.semibold))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 1)
+            .background(color.opacity(0.18), in: Capsule())
+            .foregroundStyle(color)
+    }
+
+    private var color: Color {
+        switch kind {
+        case "exec": return .blue
+        case "script": return .purple
+        case "workflow": return .orange
+        default: return .gray
         }
-        if permissions.keychain == true {
-            chips.append(Chip(symbol: "key", help: "Reads a Keychain secret"))
+    }
+}
+
+/// A registry screenshot; a placeholder while loading, nothing on failure.
+struct GalleryScreenshot: View {
+    let url: URL
+    let name: String
+    let height: CGFloat
+
+    var body: some View {
+        AsyncImage(url: url) { phase in
+            switch phase {
+            case let .success(image):
+                image
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: height)
+                    .clipped()
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+                    .accessibilityLabel("Preview of \(name)")
+            case .empty:
+                RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+                    .fill(Color.secondary.opacity(0.08))
+                    .frame(height: height)
+                    .overlay(ProgressView().controlSize(.small))
+                    .accessibilityHidden(true)
+            default:
+                // Graceful absence — no broken-image chrome.
+                EmptyView()
+            }
         }
-        if permissions.notifications == true {
-            chips.append(Chip(symbol: "bell", help: "Posts notifications"))
+    }
+}
+
+/// Registry URLs the gallery will open or load. Only `http(s)` and `file`
+/// schemes; a bare relative path (unresolvable without the registry base)
+/// yields nil.
+enum GalleryLinks {
+    static func screenshotURL(_ entry: RegistryWidgetEntry) -> URL? {
+        url(entry.screenshot)
+    }
+
+    static func readmeURL(_ entry: RegistryWidgetEntry) -> URL? {
+        url(entry.readme)
+    }
+
+    static func homepageURL(_ entry: RegistryWidgetEntry) -> URL? {
+        url(entry.homepage)
+    }
+
+    /// Where the widget is downloaded from, when that is a web page.
+    static func sourceURL(_ entry: RegistryWidgetEntry) -> URL? {
+        guard entry.install.bundled == nil else { return nil }
+        guard let url = url(entry.install.url), url.scheme?.lowercased() != "file" else {
+            return nil
         }
-        let hosts = permissions.network ?? []
-        if !hosts.isEmpty {
-            chips.append(Chip(
-                symbol: "network",
-                help: "Network: \(hosts.joined(separator: ", "))"
-            ))
-        }
-        let paths = permissions.readPaths ?? []
-        if !paths.isEmpty {
-            chips.append(Chip(
-                symbol: "folder",
-                help: "Reads files in: \(paths.joined(separator: ", "))"
-            ))
-        }
-        let telemetry = permissions.system ?? []
-        if !telemetry.isEmpty {
-            chips.append(Chip(
-                symbol: "gauge",
-                help: "Reads system telemetry: \(telemetry.joined(separator: ", "))"
-            ))
-        }
-        return chips
+        return url
+    }
+
+    private static func url(_ raw: String?) -> URL? {
+        guard let raw = raw?.trimmingCharacters(in: .whitespaces), !raw.isEmpty,
+              let url = URL(string: raw),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https" || scheme == "file"
+        else { return nil }
+        return url
     }
 }

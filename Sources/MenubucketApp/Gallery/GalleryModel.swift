@@ -43,6 +43,14 @@ final class GalleryModel: ObservableObject {
     /// Detailed source errors stay in diagnostics rather than appearing in the
     /// gallery as noisy transport or parser text.
     @Published private(set) var registryNotice: String?
+    /// The entry whose detail page is open, or nil for the grid.
+    @Published var detailEntryID: String?
+    /// The last failed removal, shown on the detail page.
+    @Published var removeError: String?
+
+    /// The app's runtime, for removing widgets. `GalleryView` sets it; when
+    /// nothing has, `resolvedRuntime` finds the hub's.
+    weak var runtime: WidgetRuntime?
 
     private let client: RegistryClient
     private let widgetsDirectory: URL
@@ -55,8 +63,15 @@ final class GalleryModel: ObservableObject {
     private var loadGeneration = 0
     private var installedStateGeneration = 0
     private var requirementGeneration = 0
-    private var isGalleryVisible = false
+    /// The gallery is in the view hierarchy (hub on the Gallery section).
+    private(set) var isGalleryVisible = false
+    /// Its window is on screen: not minimized and not fully covered.
+    private(set) var isWindowVisible = true
+    /// File watching and probes run only while both hold (issue #1).
+    var isActive: Bool { isGalleryVisible && isWindowVisible }
     private var hasLoadedOnce = false
+    /// A registry load has finished at least once (or entries were injected).
+    var hasLoaded: Bool { hasLoadedOnce }
 
     init(
         client: RegistryClient = GalleryModel.makeDefaultClient(),
@@ -102,14 +117,42 @@ final class GalleryModel: ObservableObject {
     }
 
     var filtersAreActive: Bool {
-        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || kindFilter != .all || selectedCategory != nil
+        isSearching || pickerFiltersAreActive
     }
 
+    var isSearching: Bool {
+        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// The type or category picker narrows the list (search aside).
+    var pickerFiltersAreActive: Bool {
+        kindFilter != .all || selectedCategory != nil
+    }
+
+    /// Resets search, type, and category.
     func clearFilters() {
         searchText = ""
+        clearPickerFilters()
+    }
+
+    func clearPickerFilters() {
         kindFilter = .all
         selectedCategory = nil
+    }
+
+    var detailEntry: RegistryWidgetEntry? {
+        guard let detailEntryID else { return nil }
+        return entries.first { $0.id == detailEntryID }
+    }
+
+    func showDetail(_ entry: RegistryWidgetEntry) {
+        removeError = nil
+        detailEntryID = entry.id
+    }
+
+    func closeDetail() {
+        removeError = nil
+        detailEntryID = nil
     }
 
     struct GallerySection: Identifiable {
@@ -119,9 +162,10 @@ final class GalleryModel: ObservableObject {
         let entries: [RegistryWidgetEntry]
     }
 
-    /// Two shelves: built-ins first, then the custom-tool integrations
-    /// (`collection == "custom"` — muxa, aas, otpeek, stashbar). Sections
-    /// respect the active filters and drop out when they empty.
+    /// Two shelves: the project's own widgets first, then widgets that show
+    /// data from another app, command-line tool, or service
+    /// (`collection == "custom"`). Sections respect the active filters and
+    /// drop out when they empty.
     var sections: [GallerySection] {
         let filtered = filteredEntries
         let custom = filtered.filter { $0.collection?.lowercased() == "custom" }
@@ -130,16 +174,17 @@ final class GalleryModel: ObservableObject {
         if !builtin.isEmpty {
             result.append(GallerySection(
                 id: "builtin",
-                title: "Built-in Widgets",
-                subtitle: "Native widgets that work out of the box.",
+                title: "BarShelf Widgets",
+                subtitle: "Everyday widgets from the BarShelf project.",
                 entries: builtin
             ))
         }
         if !custom.isEmpty {
             result.append(GallerySection(
                 id: "custom",
-                title: "Custom Widgets",
-                subtitle: "Companions for your own tools — muxa, aas, otpeek, Stashbar.",
+                title: "Connected Widgets",
+                subtitle: "Show information from another app, command-line tool, or web service. "
+                    + "Some need that tool installed first.",
                 entries: custom
             ))
         }
@@ -158,12 +203,10 @@ final class GalleryModel: ObservableObject {
 
     private func matchesQuery(_ entry: RegistryWidgetEntry, _ query: String) -> Bool {
         guard !query.isEmpty else { return true }
-        if entry.name.lowercased().contains(query) { return true }
-        if let tags = entry.tags,
-           tags.contains(where: { $0.lowercased().contains(query) }) {
-            return true
-        }
-        return false
+        var fields = [entry.name, entry.description, entry.category, entry.author]
+        if let kind = entry.kind { fields.append(WidgetTypeName.name(kind)) }
+        fields.append(contentsOf: (entry.tags ?? []).map(Optional.some))
+        return fields.contains { $0?.lowercased().contains(query) == true }
     }
 
     /// Category chip labels for an entry: its curated `category` plus its tags.
@@ -178,13 +221,20 @@ final class GalleryModel: ObservableObject {
         return values
     }
 
-    /// Distinct category chips across the (kind-filtered) registry, sorted so
-    /// the chip row is stable. Empty when no entry carries a category or tag.
+    /// Distinct curated categories across the (kind-filtered) registry,
+    /// sorted so the picker is stable. Tags are left to search: there are
+    /// too many to pick from. A registry with no categories offers its tags.
     var availableCategories: [String] {
         var seen = Set<String>()
         var ordered: [String] = []
+        let curated = entries.contains {
+            !($0.category?.trimmingCharacters(in: .whitespaces).isEmpty ?? true)
+        }
         for entry in entries where matchesKind(entry) {
-            for value in categories(of: entry) where !value.isEmpty {
+            let values = curated
+                ? [entry.category?.trimmingCharacters(in: .whitespaces) ?? ""]
+                : (entry.tags ?? [])
+            for value in values where !value.isEmpty {
                 let key = value.lowercased()
                 if seen.insert(key).inserted { ordered.append(value) }
             }
@@ -213,6 +263,11 @@ final class GalleryModel: ObservableObject {
 
     func onWindowShown() {
         isGalleryVisible = true
+        // A second call during the same appearance must not restart a fetch.
+        if !hasLoadedOnce && loadTask == nil {
+            refresh(force: false)
+        }
+        guard isWindowVisible else { return }
         startWatchingInstalledWidgets()
         refreshInstalledStates()
         // A CLI may have been installed while BarShelf was running. Recheck
@@ -220,10 +275,26 @@ final class GalleryModel: ObservableObject {
         // continuously while cards render.
         requirementChecker.invalidateCache()
         recomputeRequirements()
-        if !hasLoadedOnce {
-            refresh(force: false)
+    }
+
+    /// The hub window was minimized, covered, or brought back (issue #1).
+    /// While it is out of sight nothing watches the disk; coming back
+    /// rescans once, which catches anything installed in the meantime.
+    func setWindowVisible(_ visible: Bool) {
+        guard visible != isWindowVisible else { return }
+        isWindowVisible = visible
+        guard isGalleryVisible else { return }
+        if visible {
+            startWatchingInstalledWidgets()
+            refreshInstalledStates()
+            recomputeRequirements()
+        } else {
+            suspendBackgroundWork()
         }
     }
+
+    /// Whether a file watcher is running — for tests.
+    var isWatchingInstalledWidgets: Bool { installedWatcher != nil }
 
     /// Called when the Gallery section leaves the view hierarchy, including
     /// when its containing hub window closes. Keeping an FSEvents stream alive
@@ -238,6 +309,10 @@ final class GalleryModel: ObservableObject {
         // disabled refresh button.
         loadGeneration += 1
         isLoading = false
+        suspendBackgroundWork()
+    }
+
+    private func suspendBackgroundWork() {
         requirementTask?.cancel()
         requirementTask = nil
         // A requirement probe is deliberately detached from the main actor.
@@ -318,6 +393,55 @@ final class GalleryModel: ObservableObject {
         return nil
     }
 
+    /// The runtime to remove widgets through: the one `GalleryView` was
+    /// given, else the hub window's.
+    var resolvedRuntime: WidgetRuntime? {
+        if let runtime { return runtime }
+        for window in NSApp.windows {
+            if let host = window.contentView as? NSHostingView<HubView> {
+                return host.rootView.runtime
+            }
+        }
+        return nil
+    }
+
+    /// Removes an installed widget through the runtime (directory, cached
+    /// snapshot, permissions, preferences). Failures land in `removeError`.
+    @discardableResult
+    func remove(_ entry: RegistryWidgetEntry) -> Bool {
+        removeError = nil
+        guard let runtime = resolvedRuntime else {
+            removeError = "BarShelf couldn’t remove this widget right now. Try again from the Widgets page."
+            return false
+        }
+        do {
+            try runtime.removeWidget(id: entry.id)
+            installedIDs.remove(entry.id)
+            installedVersions[entry.id] = nil
+            refreshInstalledStates()
+            return true
+        } catch {
+            removeError = (error as? LocalizedError)?.errorDescription
+                ?? error.localizedDescription
+            return false
+        }
+    }
+
+    /// Requirement status per tool, for the detail page. Probes off the
+    /// main thread (cached by `RequirementChecker`).
+    func requirementStatuses(
+        for requirements: [GalleryRequirement]
+    ) async -> [GalleryRequirement: RequirementChecker.Status] {
+        let checker = requirementChecker
+        return await Task.detached(priority: .utility) {
+            var result: [GalleryRequirement: RequirementChecker.Status] = [:]
+            for requirement in requirements {
+                result[requirement] = checker.status(forRequires: requirement.name)
+            }
+            return result
+        }.value
+    }
+
     /// Kicks off the existing GUI install flow (per-widget confirmation
     /// dialog with the permission summary, then the completion alert).
     func install(_ entry: RegistryWidgetEntry) {
@@ -332,7 +456,7 @@ final class GalleryModel: ObservableObject {
     /// A generation check drops late results when another filesystem event or
     /// registry refresh supersedes the scan.
     func refreshInstalledStates() {
-        guard isGalleryVisible else { return }
+        guard isActive else { return }
         installedStateTask?.cancel()
         installedStateGeneration += 1
         let generation = installedStateGeneration
@@ -406,7 +530,7 @@ final class GalleryModel: ObservableObject {
     }
 
     private func handleInstalledWidgetDirectoryChange() {
-        guard isGalleryVisible else { return }
+        guard isActive else { return }
         let desiredMode = desiredInstalledWatcherMode
         if installedWatcherMode != desiredMode {
             installedWatcher?.cancel()
@@ -469,7 +593,7 @@ final class GalleryModel: ObservableObject {
     /// (RequirementChecker caches, so this is a one-time cost per binary), then
     /// publishes the map back on the main actor.
     func recomputeRequirements() {
-        guard isGalleryVisible else { return }
+        guard isActive else { return }
         requirementTask?.cancel()
         requirementGeneration += 1
         let generation = requirementGeneration

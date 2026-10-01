@@ -95,7 +95,16 @@ enum ScreenshotMode {
         model.setEntries(forPreview: deterministic)
         let view = GalleryShot(sections: model.sections)
             .environment(\.colorScheme, .light)
-        return render(view, name: "gallery", to: dir)
+        guard render(view, name: "gallery", to: dir) else { return false }
+        // The detail page for a widget with permissions and a requirement.
+        guard let detail = deterministic.first(where: {
+            $0.requires != nil && $0.permissions?.exec?.isEmpty == false
+        }) ?? deterministic.first else { return false }
+        let detailView = GalleryDetailView(entry: detail, model: model, scrolls: false)
+            .frame(width: 720)
+            .background(Color(nsColor: .windowBackgroundColor))
+            .environment(\.colorScheme, .light)
+        return render(detailView, name: "gallery-detail", to: dir)
     }
 
     // MARK: - Motion demo (frame sequence → H.264 via ffmpeg)
@@ -728,7 +737,7 @@ private struct GalleryShot: View {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         Text(section.title)
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(.headline)
                         Text("\(section.entries.count)")
                             .font(.caption)
                             .foregroundColor(.secondary)
