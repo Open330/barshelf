@@ -594,7 +594,9 @@ final class WidgetBuilderModel: ObservableObject {
             folderGrid: sourceKind == .folder && effectiveDisplay == .grid,
             listSecondary: listSupportsExtraFields ? nonEmpty(listSecondaryField) : nil,
             listTrailing: listSupportsExtraFields ? nonEmpty(listTrailingField) : nil,
-            showHeader: appearanceShowHeader,
+            // The card draws the name and icon (R13 P3); the widget's own
+            // content never repeats them.
+            showHeader: false,
             appearance: manifestAppearance
         )
     }
@@ -705,16 +707,17 @@ final class WidgetBuilderModel: ObservableObject {
         )
     }
 
-    private var manifestAppearance: WidgetAppearance? {
-        // The card-chrome header stays off; the single name/icon header is the
-        // scaffold's in-card node, gated by `spec.showHeader`. So we never set
-        // appearance.showHeader here (that would double the name).
-        let appearance = WidgetAppearance(
+    private var manifestAppearance: WidgetAppearance {
+        // The card's own header carries the name and icon. Written out either
+        // way: an unset value on a builder widget means one made before the
+        // card header existed, whose content still draws its own title
+        // (`WidgetPrefs.effectiveAppearance`).
+        WidgetAppearance(
             accent: appearanceAccent,
             density: appearanceDensity == .regular ? nil : appearanceDensity,
-            cardStyle: appearanceCardStyle == .plain ? nil : appearanceCardStyle
+            cardStyle: appearanceCardStyle == .plain ? nil : appearanceCardStyle,
+            showHeader: appearanceShowHeader
         )
-        return appearance == WidgetAppearance() ? nil : appearance
     }
 
     // MARK: - Live preview

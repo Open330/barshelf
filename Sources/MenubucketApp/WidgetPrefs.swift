@@ -208,12 +208,21 @@ final class WidgetPrefs: ObservableObject {
 
     /// Effective theming = user override merged over the manifest's author
     /// default merged over the neutral baseline.
+    static let builderWidgetPrefix = "dev.barshelf.user."
+
     func effectiveAppearance(
         for manifest: Manifest,
         widgetID: String? = nil
     ) -> WidgetAppearance {
         let neutral = WidgetAppearance()
-        let base = (manifest.appearance ?? neutral).merged(over: neutral)
+        var base = (manifest.appearance ?? neutral).merged(over: neutral)
+        // Builder widgets made before the card header was on by default draw
+        // their own name/icon row and say nothing about the header. Showing
+        // the card header too would print the name twice. The builder now
+        // writes `showHeader` either way, so only those older ones match.
+        if base.showHeader == nil, manifest.id.hasPrefix(Self.builderWidgetPrefix) {
+            base.showHeader = false
+        }
         guard let override = appearanceOverrides[widgetID ?? manifest.id] else { return base }
         return override.merged(over: base)
     }

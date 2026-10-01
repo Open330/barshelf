@@ -568,7 +568,7 @@ struct WidgetSettingsView: View {
                     GridRow {
                         settingsRowLabel("Item")
                         VStack(alignment: .leading, spacing: 4) {
-                            Picker("", selection: Binding(
+                            Picker("Menu bar item", selection: Binding(
                                 get: { usesOwnItem },
                                 set: { menuBarDraft.separate = $0 }
                             )) {
@@ -599,7 +599,7 @@ struct WidgetSettingsView: View {
 
                     GridRow {
                         settingsRowLabel("Layout")
-                        Picker("", selection: Binding(
+                        Picker("Layout", selection: Binding(
                             get: { effectiveStyle },
                             set: { menuBarDraft.style = $0 }
                         )) {
@@ -619,7 +619,7 @@ struct WidgetSettingsView: View {
                                 // Same three-state problem the icon has: "" is no
                                 // label, nil is the widget's own, and a text field
                                 // cannot say which an empty box means.
-                                Toggle("", isOn: Binding(
+                                Toggle("Show a label", isOn: Binding(
                                     get: { menuBarDraft.label != "" },
                                     set: { menuBarDraft.label = $0 ? nil : "" }
                                 ))
@@ -648,7 +648,7 @@ struct WidgetSettingsView: View {
                                 // "" means no icon, nil means the widget's own. A text
                                 // field cannot say the difference, so the checkbox does
                                 // — and it sits beside the field it governs.
-                                Toggle("", isOn: Binding(
+                                Toggle("Show an icon", isOn: Binding(
                                     get: { menuBarDraft.icon != "" },
                                     set: { menuBarDraft.icon = $0 ? nil : "" }
                                 ))
@@ -681,7 +681,7 @@ struct WidgetSettingsView: View {
                     GridRow {
                         settingsRowLabel("Graph")
                         VStack(alignment: .leading, spacing: 4) {
-                            Picker("", selection: Binding(
+                            Picker("Graph", selection: Binding(
                                 get: { shownPresentation.effectiveChart },
                                 set: { value in
                                     let inherited = inheritedPresentation.effectiveChart
@@ -758,7 +758,7 @@ struct WidgetSettingsView: View {
                     GridRow {
                         settingsRowLabel("Update")
                         VStack(alignment: .leading, spacing: 4) {
-                            Picker("", selection: intervalBinding) {
+                            Picker("Update interval", selection: intervalBinding) {
                                 Text(widgetIntervalTitle).tag(0.0)
                                 Divider()
                                 ForEach(MenuBarPlacement.intervalChoices, id: \.self) { seconds in
@@ -840,7 +840,7 @@ struct WidgetSettingsView: View {
             if metrics.contains(where: { $0.number != nil || $0.format != nil }) {
                 HStack(spacing: 8) {
                     Text("Decimals").font(.caption).foregroundStyle(.secondary)
-                    Picker("", selection: precisionBinding) {
+                    Picker("Decimals", selection: precisionBinding) {
                         Text("Auto").tag(-1)
                         Text("0").tag(0)
                         Text("1").tag(1)
@@ -869,7 +869,7 @@ struct WidgetSettingsView: View {
                     .accessibilityLabel("Show \(metricRowTitle(metric, offset: offset))")
                 TextField(metricRowTitle(metric, offset: offset), text: metricLabelBinding(key))
                     .frame(width: 108)
-                Picker("", selection: metricTintBinding(key)) {
+                Picker("Tint for \(metricRowTitle(metric, offset: offset))", selection: metricTintBinding(key)) {
                     Text("Auto").tag("automatic")
                     Text("Monochrome").tag("monochrome")
                     Text("Accent").tag("accent")
@@ -963,7 +963,7 @@ struct WidgetSettingsView: View {
         let unit = MenuBarPolicy.thresholdUnit(thresholdMetrics)
         let below = presentation.thresholdDirection == .below
         VStack(alignment: .leading, spacing: 6) {
-            Picker("", selection: Binding(
+            Picker("Which direction is worse", selection: Binding(
                 get: { presentation.thresholdDirection ?? .above },
                 set: { value in setPresentation { $0.thresholdDirection = value == .above ? nil : value } }
             )) {
@@ -993,7 +993,7 @@ struct WidgetSettingsView: View {
     ) -> some View {
         HStack(spacing: 4) {
             Text(title).font(.caption).foregroundStyle(.secondary)
-            TextField("", text: Binding(
+            TextField(title, text: Binding(
                 get: { text.wrappedValue },
                 set: { typed in
                     text.wrappedValue = typed
@@ -1178,7 +1178,7 @@ struct WidgetSettingsView: View {
             HStack {
                 Text("Density").font(.system(size: 12))
                 Spacer()
-                Picker("", selection: densityBinding) {
+                Picker("Density", selection: densityBinding) {
                     Text("Regular").tag(WidgetAppearance.Density.regular)
                     Text("Compact").tag(WidgetAppearance.Density.compact)
                 }
@@ -1368,7 +1368,7 @@ struct WidgetSettingsView: View {
             HStack {
                 Text(title).font(.system(size: 12))
                 Spacer()
-                Picker("", selection: Binding(
+                Picker(title, selection: Binding(
                     get: { values[key]?.stringValue ?? "" },
                     set: { values[key] = .string($0) }
                 )) {
@@ -1399,7 +1399,7 @@ struct WidgetSettingsView: View {
         default: // "string"
             VStack(alignment: .leading, spacing: 4) {
                 Text(title).font(.system(size: 12))
-                TextField("", text: stringBinding(key))
+                TextField(title, text: stringBinding(key))
                     .textFieldStyle(.roundedBorder)
             }
         }
@@ -1488,7 +1488,7 @@ struct WidgetSettingsView: View {
     @ViewBuilder
     private var clickControls: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Picker("", selection: Binding(
+            Picker("When clicked", selection: Binding(
                 get: { menuBarDraft.effectiveClickAction },
                 set: { menuBarDraft.clickAction = $0 == .card ? nil : $0 }
             )) {

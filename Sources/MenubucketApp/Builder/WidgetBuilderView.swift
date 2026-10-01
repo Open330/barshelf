@@ -372,7 +372,7 @@ struct WidgetBuilderView: View {
     private var displayStep: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("How should it look?").font(.system(size: 13, weight: .semibold))
-            Picker("", selection: $model.displayKind) {
+            Picker("Display", selection: $model.displayKind) {
                 ForEach(model.availableDisplays) { d in Text(d.label).tag(d) }
             }
             .pickerStyle(.radioGroup)
@@ -423,7 +423,7 @@ struct WidgetBuilderView: View {
             if model.filterEnabled {
                 HStack(spacing: 6) {
                     refineField($model.filterField)
-                    Picker("", selection: $model.filterIsNot) {
+                    Picker("Match", selection: $model.filterIsNot) {
                         Text("is").tag(false)
                         Text("is not").tag(true)
                     }
@@ -443,7 +443,7 @@ struct WidgetBuilderView: View {
             if model.sortEnabled {
                 HStack(spacing: 6) {
                     refineField($model.sortField)
-                    Picker("", selection: $model.sortDescending) {
+                    Picker("Sort order", selection: $model.sortDescending) {
                         Text("Asc").tag(false)
                         Text("Desc").tag(true)
                     }
@@ -460,7 +460,7 @@ struct WidgetBuilderView: View {
 
             Divider().padding(.vertical, 2)
             Text("When a row is clicked").font(.system(size: 12))
-            Picker("", selection: $model.rowActionKind) {
+            Picker("When a row is clicked", selection: $model.rowActionKind) {
                 ForEach(WidgetBuilderModel.RowActionKind.allCases) { Text($0.label).tag($0) }
             }
             .labelsHidden().frame(maxWidth: 260, alignment: .leading)
@@ -487,7 +487,7 @@ struct WidgetBuilderView: View {
                 TextField("field", text: selection)
                     .textFieldStyle(.roundedBorder).frame(width: 130)
             } else {
-                Picker("", selection: selection) {
+                Picker("Field", selection: selection) {
                     Text("—").tag("")
                     if !model.detectedFields.contains(selection.wrappedValue),
                        !selection.wrappedValue.isEmpty {
@@ -538,7 +538,7 @@ struct WidgetBuilderView: View {
                 TextField("Field path, e.g. name", text: selection)
                     .textFieldStyle(.roundedBorder)
             } else {
-                Picker("", selection: selection) {
+                Picker(title, selection: selection) {
                     if !model.detectedFields.contains(selection.wrappedValue),
                        !selection.wrappedValue.isEmpty {
                         Text(selection.wrappedValue).tag(selection.wrappedValue)
@@ -714,7 +714,7 @@ struct WidgetBuilderView: View {
                         .buttonStyle(.borderless)
                         .accessibilityLabel("Confirm new page name")
                 } else {
-                    Picker("", selection: panelSelection) {
+                    Picker("Page", selection: panelSelection) {
                         ForEach(model.existingGroups, id: \.self) { Text($0).tag($0) }
                         if !model.existingGroups.contains(model.group) {
                             Text(model.group).tag(model.group)
@@ -728,7 +728,7 @@ struct WidgetBuilderView: View {
             VStack(alignment: .leading, spacing: 5) {
                 HStack {
                     Text("Size").font(.system(size: 12))
-                    Picker("", selection: $model.size) {
+                    Picker("Size", selection: $model.size) {
                         ForEach(sizes, id: \.self) { Text($0).tag($0) }
                     }
                     .pickerStyle(.segmented)
@@ -744,7 +744,7 @@ struct WidgetBuilderView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Text("Refresh").font(.system(size: 12))
-                        Picker("", selection: Binding(
+                        Picker("Refresh", selection: Binding(
                             get: { model.refreshSeconds ?? 0 },
                             set: { model.refreshSeconds = $0 == 0 ? nil : $0 }
                         )) {
@@ -820,7 +820,7 @@ struct WidgetBuilderView: View {
 
             HStack {
                 Text("Density").font(.system(size: 12))
-                Picker("", selection: $model.appearanceDensity) {
+                Picker("Density", selection: $model.appearanceDensity) {
                     Text("Regular").tag(WidgetAppearance.Density.regular)
                     Text("Compact").tag(WidgetAppearance.Density.compact)
                 }
@@ -831,7 +831,7 @@ struct WidgetBuilderView: View {
 
             HStack {
                 Text("Card").font(.system(size: 12))
-                Picker("", selection: $model.appearanceCardStyle) {
+                Picker("Card style", selection: $model.appearanceCardStyle) {
                     Text("Plain").tag(WidgetAppearance.CardStyle.plain)
                     Text("Tinted").tag(WidgetAppearance.CardStyle.tinted)
                 }
@@ -912,32 +912,43 @@ struct WidgetBuilderView: View {
         }
     }
 
+    /// Drawn the way the popup draws a card: a flat section with the card
+    /// header (icon and name) when it is on, tinted when the style says so —
+    /// so what the preview shows is what lands on the shelf.
     private func previewCard(_ node: UINode) -> some View {
         let appearance = model.previewAppearance
         let accent = appearance.accentColor ?? .accentColor
-        let inset: CGFloat = appearance.density == .compact ? 8 : 12
-        // The name/icon header is part of the rendered tree (the scaffold emits
-        // it when "Show header" is on), so the preview shows it exactly once —
-        // no separate chrome header here.
-        return VStack(alignment: .leading, spacing: 8) {
+        let inset: CGFloat = appearance.density == .compact ? Spacing.xs : Spacing.s
+        return VStack(alignment: .leading, spacing: 6) {
+            if appearance.showsHeader {
+                HStack(spacing: 6) {
+                    Image(systemName: model.icon)
+                        .font(.caption)
+                        .foregroundStyle(accent)
+                        .accessibilityHidden(true)
+                    Text(model.previewTitle)
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Spacer(minLength: Spacing.xxs)
+                    Text("Updated just now")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
             ViewTreeRenderer(node: node)
                 .environment(\.widgetAppearance, appearance)
         }
-        .padding(inset)
+        .padding(.horizontal, inset + 2)
+        .padding(.vertical, 10)
         .frame(maxWidth: .infinity, minHeight: model.previewMinHeight, alignment: .topLeading)
         .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color(nsColor: .controlBackgroundColor))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(appearance.cardStyle == .tinted ? accent.opacity(0.12) : Color.clear)
-                )
+            Rectangle().fill(appearance.cardStyle == .tinted ? accent.opacity(0.07) : Color.clear)
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(Color.secondary.opacity(0.12), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.08), radius: 3, y: 1)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .overlay(alignment: .top) { Divider() }
+        .overlay(alignment: .bottom) { Divider() }
     }
 
     // MARK: Footer
