@@ -292,6 +292,8 @@ final class StatusItemController: NSObject {
         case .menuBar:
             break // a submenu, not an action
         case .openBarShelf:
+            openHub(nil)
+        case .settings:
             openSettings(nil)
         case .checkForUpdates:
             checkForUpdates(nil)

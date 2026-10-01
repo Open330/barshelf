@@ -61,10 +61,12 @@ final class AppCommandsTests: XCTestCase {
     func testTheAppMenuHasTheDocumentedCommandsAndShortcuts() {
         XCTAssertEqual(
             AppMenu.sections,
-            [[.editShelf, .addWidget, .menuBar], [.openBarShelf, .checkForUpdates], [.quit]]
+            [[.editShelf, .addWidget, .menuBar], [.openBarShelf, .settings, .checkForUpdates], [.quit]]
         )
         XCTAssertEqual(AppMenuCommand.editShelf.keyEquivalent, "e")
-        XCTAssertEqual(AppMenuCommand.openBarShelf.keyEquivalent, ",")
+        // ⌘, is Settings, as everywhere on macOS; Open BarShelf opens the Shelf.
+        XCTAssertEqual(AppMenuCommand.settings.keyEquivalent, ",")
+        XCTAssertEqual(AppMenuCommand.openBarShelf.keyEquivalent, "")
         XCTAssertEqual(AppMenuCommand.quit.keyEquivalent, "q")
         XCTAssertEqual(AppMenuCommand.addWidget.title, "Add Widget…")
     }

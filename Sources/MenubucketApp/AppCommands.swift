@@ -4,7 +4,7 @@ import AppKit
 /// share. Both menus are built from `AppMenu.sections`, so the two cannot
 /// drift apart: a command added here appears in both.
 enum AppMenuCommand: Hashable {
-    case editShelf, addWidget, menuBar, openBarShelf, checkForUpdates, quit
+    case editShelf, addWidget, menuBar, openBarShelf, settings, checkForUpdates, quit
 
     var title: String {
         switch self {
@@ -12,6 +12,7 @@ enum AppMenuCommand: Hashable {
         case .addWidget: return String(localized: "Add Widget…")
         case .menuBar: return String(localized: "Menu Bar")
         case .openBarShelf: return String(localized: "Open BarShelf…")
+        case .settings: return String(localized: "Settings…")
         case .checkForUpdates: return String(localized: "Check for Updates…")
         case .quit: return String(localized: "Quit BarShelf")
         }
@@ -23,9 +24,9 @@ enum AppMenuCommand: Hashable {
     var keyEquivalent: String {
         switch self {
         case .editShelf: return "e"
-        case .openBarShelf: return ","
+        case .settings: return ","
         case .quit: return "q"
-        case .addWidget, .menuBar, .checkForUpdates: return ""
+        case .addWidget, .menuBar, .openBarShelf, .checkForUpdates: return ""
         }
     }
 
@@ -35,6 +36,7 @@ enum AppMenuCommand: Hashable {
         case .addWidget: return "plus"
         case .menuBar: return "menubar.rectangle"
         case .openBarShelf: return "macwindow"
+        case .settings: return "gearshape"
         case .checkForUpdates: return "arrow.down.circle"
         case .quit: return "power"
         }
@@ -45,7 +47,7 @@ enum AppMenu {
     /// Groups, in order; a separator goes between groups.
     static let sections: [[AppMenuCommand]] = [
         [.editShelf, .addWidget, .menuBar],
-        [.openBarShelf, .checkForUpdates],
+        [.openBarShelf, .settings, .checkForUpdates],
         [.quit],
     ]
 

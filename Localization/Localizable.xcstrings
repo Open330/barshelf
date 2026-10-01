@@ -129,6 +129,7 @@
     "Category": {},
     "Center": {},
     "Change %@": {},
+    "Change this any time in BarShelf ▸ Menu Bar.": {},
     "Check Now": {},
     "Check for Updates…": {},
     "Check for new and updated widgets": {},
@@ -152,6 +153,7 @@
     "Command widgets run a command; Workflows are built from steps; Scripts run JavaScript": {},
     "Compact": {},
     "Confirm new page name": {},
+    "Continue": {},
     "Copied — clears in 30s": {},
     "Copy": {},
     "Copy From": {},
@@ -212,6 +214,7 @@
     "Fit": {},
     "Fixed": {},
     "Folder": {},
+    "For example ⇧⌘B.": {},
     "Gallery": {},
     "Gauge": {},
     "Getting Started": {},
@@ -328,6 +331,7 @@
     "No widgets match “%@”": {},
     "No widgets yet": {},
     "None": {},
+    "None of your widgets can do that yet. Widgets like System, Battery, and Weather in the Gallery can; turn it on later in BarShelf ▸ Menu Bar.": {},
     "None of your widgets can show a value in the menu bar. Widgets like System, Battery, and Weather can.": {},
     "Normal": {},
     "OK": {},
@@ -463,10 +467,12 @@
     "Shell script": {},
     "Short": {},
     "Short intervals are useful while testing; production widgets should usually stay at 30s or slower.": {},
+    "Shortcut": {},
     "Shortcut %@": {},
     "Show %@": {},
     "Show %@ in the menu bar": {},
     "Show All Widgets": {},
+    "Show BarShelf": {},
     "Show Inspector": {},
     "Show at most %lld": {},
     "Show every type and category": {},
@@ -484,6 +490,7 @@
     "Showing the last good result": {},
     "Showing the last good result — the latest refresh failed": {},
     "Size": {},
+    "Skip Setup": {},
     "Skipping version %@": {},
     "Slower": {},
     "Slowest": {},
@@ -492,7 +499,18 @@
     "Source": {},
     "Source: %@": {},
     "Start BarShelf when you sign in to your Mac.": {},
+    "Start BarShelf when you sign in.": {},
     "Steady": {},
+    "Step %lld of %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Step %1$lld of %2$lld"
+          }
+        }
+      }
+    },
     "Stop Skipping": {},
     "Stop this widget until you allow it again": {},
     "Stopped after crashing repeatedly: %@": {},
@@ -554,6 +572,7 @@
     "Wait a little; BarShelf retries on its own.": {},
     "Waiting for you": {},
     "Warning": {},
+    "We added a few widgets to start with. Keep the ones you want.": {},
     "We installed a couple of starter widgets so this popup isn't empty. Browse the gallery for more — like usage meters and OTP codes — or remove the starters anytime.": {},
     "Welcome to BarShelf": {},
     "What It Can Do": {},
@@ -570,6 +589,7 @@
     "Width: %@": {},
     "Window": {},
     "You won't be reminded about this version. Newer ones still show up.": {},
+    "You'll find more in the Gallery: usage meters, one-time codes, system sensors, and more.": {},
     "Your shelf is empty": {},
     "by %@": {},
     "com.apple.ActivityMonitor or https://…": {},

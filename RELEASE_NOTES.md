@@ -35,7 +35,7 @@
   minimized or covered (#1).
 - **Everything in the popup, no right-click needed.** The page name at the top
   is now a menu of all your pages. A new **⋯** button holds Edit Shelf (⌘E),
-  Add Widget…, Menu Bar, Open BarShelf (⌘,), Check for Updates…, and Quit —
+  Add Widget…, Menu Bar, Open BarShelf…, Settings… (⌘,), Check for Updates…, and Quit —
   the same list the menu bar icon shows when you right-click it.
 - **Edit Shelf.** Press ⌘E (or ⋯ ▸ Edit Shelf) to rearrange: every card shows
   a drag handle, a Half Width / Full Width switch, and a remove button. Drag a
@@ -60,3 +60,6 @@
 - Pin explains its limit: with two cards pinned it reads "Pin (2 max — unpin
   one first)".
 - The gear on a card opens that widget's settings in the BarShelf window.
+- **A welcome on first launch.** Keep the starter widgets you want, set a
+  shortcut and login item, and pick values for the menu bar, then BarShelf
+  opens its popup.
