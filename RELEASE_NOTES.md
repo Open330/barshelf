@@ -25,4 +25,11 @@
   change. A widget's settings are in four parts: General (page, size, and
   its own options), Look, Menu Bar, and About (version, permissions, and
   Remove).
-
+- **A better Gallery.** Search with a result count, filter by type
+  (Command, Workflow, Script) and category, and open any widget to see a
+  large preview, its full description, what it's allowed to do in plain
+  words, which tools it needs (with the install command), and Install,
+  Update, Open, or Remove. Install from URL and Create Widget sit right above
+  the grid.
+- The Gallery no longer uses CPU in the background while its window is
+  minimized or covered (#1).
