@@ -365,21 +365,21 @@ final class StatusItemController: NSObject {
         // away.
         let placement = runtime.prefs.menuBarPlacement(for: widget.manifest, widgetID: widgetID)
         if placement.effectiveClickAction != .card {
-            let card = NSMenuItem(title: "Show Card", action: #selector(showPromotedCard(_:)), keyEquivalent: "")
+            let card = NSMenuItem(title: String(localized: "Show Card"), action: #selector(showPromotedCard(_:)), keyEquivalent: "")
             card.target = self
             card.representedObject = (widgetID, button)
             menu.addItem(card)
         }
 
         let open = NSMenuItem(
-            title: "Show in BarShelf", action: #selector(showPromotedWidget(_:)), keyEquivalent: ""
+            title: String(localized: "Show in BarShelf"), action: #selector(showPromotedWidget(_:)), keyEquivalent: ""
         )
         open.target = self
         open.representedObject = widgetID
         menu.addItem(open)
 
         let refresh = NSMenuItem(
-            title: "Refresh", action: #selector(refreshPromotedWidget(_:)), keyEquivalent: ""
+            title: String(localized: "Refresh"), action: #selector(refreshPromotedWidget(_:)), keyEquivalent: ""
         )
         refresh.target = self
         refresh.representedObject = widgetID
@@ -388,7 +388,7 @@ final class StatusItemController: NSObject {
         menu.addItem(.separator())
 
         let merge = NSMenuItem(
-            title: "Merge into BarShelf Item",
+            title: String(localized: "Merge into BarShelf Item"),
             action: #selector(mergePromotedWidget(_:)),
             keyEquivalent: ""
         )
@@ -400,7 +400,7 @@ final class StatusItemController: NSObject {
         menu.addItem(merge)
 
         let remove = NSMenuItem(
-            title: "Remove from Menu Bar",
+            title: String(localized: "Remove from Menu Bar"),
             action: #selector(demotePromotedWidget(_:)),
             keyEquivalent: ""
         )
@@ -461,7 +461,7 @@ final class StatusItemController: NSObject {
             }
             guard replaceHotkey(with: combo) else {
                 disableUnregisteredHotkey(message:
-                    "BarShelf could not register \(combo.canonicalText). It may already be used by another app."
+                    String(localized: "BarShelf could not register \(combo.canonicalText). It may already be used by another app.")
                 )
                 return
             }

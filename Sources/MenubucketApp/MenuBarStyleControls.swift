@@ -49,11 +49,17 @@ struct MenuBarStyleControls {
                         change { $0.digits = keep(digits, \.effectiveDigits) }
                     }
                 ), in: 1...6) {
-                    Text("Room for \(presentation.effectiveDigits) digit\(presentation.effectiveDigits == 1 ? "" : "s")")
-                        .monospacedDigit()
+                    Group {
+                        if presentation.effectiveDigits == 1 {
+                            Text("Room for 1 digit")
+                        } else {
+                            Text("Room for \(presentation.effectiveDigits) digits")
+                        }
+                    }
+                    .monospacedDigit()
                 }
                 .fixedSize()
-                Self.hint("Keeps the item the same width as a reading goes from 9 to 10. A longer reading widens it once and it stays that wide.")
+                Self.hint(String(localized: "Keeps the item the same width as a reading goes from 9 to 10. A longer reading widens it once and it stays that wide."))
             case .fixed:
                 // A stepper rather than a text field: a field that clamps on
                 // every keystroke cannot be typed into ("1" became 32).
@@ -68,14 +74,14 @@ struct MenuBarStyleControls {
                 .fixedSize()
                 switch usesOwnItem {
                 case true?:
-                    Self.hint("The text column is always this wide. Content that does not fit still widens it rather than being cut off.")
+                    Self.hint(String(localized: "The text column is always this wide. Content that does not fit still widens it rather than being cut off."))
                 case false?:
-                    Self.hint("Fixed needs the item's own place in the menu bar; sharing the BarShelf icon, it keeps a steady width instead.")
+                    Self.hint(String(localized: "Fixed needs the item's own place in the menu bar; sharing the BarShelf icon, it keeps a steady width instead."))
                 case nil:
-                    Self.hint("The text column is always this wide. Items that share the BarShelf icon keep a steady width instead.")
+                    Self.hint(String(localized: "The text column is always this wide. Items that share the BarShelf icon keep a steady width instead."))
                 }
             case .fit:
-                Self.hint("Exactly as wide as the current reading, so the item and its neighbours move when the digits change.")
+                Self.hint(String(localized: "Exactly as wide as the current reading, so the item and its neighbours move when the digits change."))
             }
         }
     }
@@ -138,8 +144,8 @@ struct MenuBarStyleControls {
                 }
             ))
             Self.hint(presentation.effectiveNumberAlignment == .right
-                ? "Alignment places the label and value rows. Right-aligned numbers keep the last digit and the unit still as 9 becomes 10."
-                : "Alignment places the label and value rows. Left-aligned numbers start where the label does; the unit moves as 9 becomes 10.")
+                ? String(localized: "Alignment places the label and value rows. Right-aligned numbers keep the last digit and the unit still as 9 becomes 10.")
+                : String(localized: "Alignment places the label and value rows. Left-aligned numbers start where the label does; the unit moves as 9 becomes 10."))
         }
     }
 
@@ -165,7 +171,7 @@ struct MenuBarStyleControls {
             }
             .labelsHidden()
             .frame(width: 150)
-            Self.hint("Automatic keeps the widget's own warning colors; monochrome follows the menu bar.")
+            Self.hint(String(localized: "Automatic keeps the widget's own warning colors; monochrome follows the menu bar."))
         }
     }
 

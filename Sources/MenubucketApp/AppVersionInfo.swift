@@ -26,7 +26,7 @@ struct AppVersionInfo: Equatable {
     }
 
     var versionLabel: String {
-        version ?? "Development build"
+        version ?? String(localized: "Development build")
     }
 
     /// True when the build was packaged from a working tree with uncommitted

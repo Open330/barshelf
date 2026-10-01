@@ -18,7 +18,7 @@ struct WidgetBuilderView: View {
     ]
     private let sizes = ["XS", "S", "M", "L"]
     private let refreshChoices = [
-        ("On open", 0),
+        (String(localized: "On open", comment: "Widget refresh interval: only when the popup opens"), 0),
         ("1s", 1),
         ("5s", 5),
         ("15s", 15),
@@ -34,12 +34,12 @@ struct WidgetBuilderView: View {
         let color: Color
     }
     private let accentChoices: [AccentChoice] = [
-        .init(id: "default", name: "Default", value: nil, color: .accentColor),
-        .init(id: "blue", name: "Blue", value: "blue", color: .blue),
-        .init(id: "green", name: "Green", value: "green", color: .green),
-        .init(id: "orange", name: "Orange", value: "orange", color: .orange),
-        .init(id: "purple", name: "Purple", value: "purple", color: .purple),
-        .init(id: "pink", name: "Pink", value: "pink", color: .pink),
+        .init(id: "default", name: String(localized: "Default", comment: "Accent color choice"), value: nil, color: .accentColor),
+        .init(id: "blue", name: String(localized: "Blue"), value: "blue", color: .blue),
+        .init(id: "green", name: String(localized: "Green"), value: "green", color: .green),
+        .init(id: "orange", name: String(localized: "Orange"), value: "orange", color: .orange),
+        .init(id: "purple", name: String(localized: "Purple"), value: "purple", color: .purple),
+        .init(id: "pink", name: String(localized: "Pink"), value: "pink", color: .pink),
     ]
 
     var body: some View {
@@ -503,27 +503,27 @@ struct WidgetBuilderView: View {
     private var displayHint: String {
         switch model.effectiveDisplay {
         case .grid:
-            return "Files render as a thumbnail grid — drag out to Finder or click to open."
+            return String(localized: "Files render as a thumbnail grid — drag out to Finder or click to open.")
         case .list where model.sourceKind == .folder:
-            return "Files render as rows with a thumbnail, name, and modified time."
+            return String(localized: "Files render as rows with a thumbnail, name, and modified time.")
         case .list where model.sourceKind == .httpJSON,
              .table where model.sourceKind == .httpJSON,
              .value where model.sourceKind == .httpJSON:
-            return "Fetch the endpoint once to map fields from its JSON response."
+            return String(localized: "Fetch the endpoint once to map fields from its JSON response.")
         case .list where model.sourceKind == .pastedJSON,
              .table where model.sourceKind == .pastedJSON,
              .value where model.sourceKind == .pastedJSON:
-            return "Paste valid JSON in step 1 to map fields."
+            return String(localized: "Paste valid JSON in step 1 to map fields.")
         case .text:
-            return "The raw source output is shown as text."
+            return String(localized: "The raw source output is shown as text.")
         default:
-            return "Run the command in step 1 to map fields."
+            return String(localized: "Run the command in step 1 to map fields.")
         }
     }
 
     /// A labeled, optional field selector ("—" clears it). Used for the list
     /// row's secondary/trailing fields.
-    private func optionalFieldRow(_ title: String, selection: Binding<String>) -> some View {
+    private func optionalFieldRow(_ title: LocalizedStringKey, selection: Binding<String>) -> some View {
         HStack {
             Text(title).font(.system(size: 12))
             Spacer()
@@ -531,7 +531,7 @@ struct WidgetBuilderView: View {
         }
     }
 
-    private func fieldPicker(_ title: String, selection: Binding<String>) -> some View {
+    private func fieldPicker(_ title: LocalizedStringKey, selection: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title).font(.system(size: 12))
             if model.detectedFields.isEmpty {

@@ -61,21 +61,21 @@ enum WidgetPermissionSummary {
         var lines: [Line] = []
         let exec = permissions.exec ?? []
         if !exec.isEmpty {
-            lines.append(Line(symbol: "terminal", text: "Run \(list(unique(exec.map { ($0.command as NSString).lastPathComponent })))"))
+            lines.append(Line(symbol: "terminal", text: String(localized: "Run \(list(unique(exec.map { ($0.command as NSString).lastPathComponent })))", comment: "Permission summary: commands the widget may run")))
         }
         let network = permissions.network ?? []
         if !network.isEmpty {
-            lines.append(Line(symbol: "network", text: "Connect to \(list(network))"))
+            lines.append(Line(symbol: "network", text: String(localized: "Connect to \(list(network))", comment: "Permission summary: hosts the widget may reach")))
         }
         let paths = permissions.readPaths ?? []
         if !paths.isEmpty {
-            lines.append(Line(symbol: "folder", text: "Read \(list(paths))"))
+            lines.append(Line(symbol: "folder", text: String(localized: "Read \(list(paths))", comment: "Permission summary: paths the widget may read")))
         }
         if permissions.keychain == true {
-            lines.append(Line(symbol: "key", text: "Read its own secrets from the Keychain"))
+            lines.append(Line(symbol: "key", text: String(localized: "Read its own secrets from the Keychain")))
         }
         if permissions.notifications == true {
-            lines.append(Line(symbol: "bell", text: "Send notifications"))
+            lines.append(Line(symbol: "bell", text: String(localized: "Send notifications")))
         }
         return lines
     }
@@ -89,8 +89,10 @@ enum WidgetPermissionSummary {
         switch items.count {
         case 0: return ""
         case 1: return items[0]
-        case 2: return "\(items[0]) and \(items[1])"
-        default: return items.dropLast().joined(separator: ", ") + ", and \(items.last!)"
+        case 2: return String(localized: "\(items[0]) and \(items[1])", comment: "A list of two items")
+        default:
+            let head = items.dropLast().joined(separator: String(localized: ", ", comment: "Separator between list items"))
+            return String(localized: "\(head), and \(items.last!)", comment: "The end of a list of three or more items: the leading items, then the last one")
         }
     }
 }

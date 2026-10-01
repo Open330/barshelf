@@ -80,7 +80,7 @@ struct MenuBarPage: View {
             styleRow("Presets") {
                 HStack(spacing: Spacing.xs) {
                     ForEach(MenuBarPresentation.appWidePresets, id: \.name) { preset in
-                        Button(preset.name) {
+                        Button(MenuBarPresetName.title(preset.name)) {
                             appPrefs.update { preferences in
                                 preferences.menuBarPresentation = (preferences.menuBarPresentation
                                     ?? MenuBarPresentation()).applying(preset: preset.presentation)
@@ -121,12 +121,27 @@ struct MenuBarPage: View {
 
     // Stacked rather than LabeledContent: a grouped form pushes the control
     // to the trailing edge, which tears these wide controls apart.
-    private func styleRow<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+    private func styleRow<Content: View>(_ title: LocalizedStringKey, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: Spacing.xs) {
             Text(title)
             content()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// A style preset's name as the app shows it. The core keeps the English
+/// name as the preset's identity.
+enum MenuBarPresetName {
+    static func title(_ name: String) -> String {
+        switch name {
+        case "Compact": return String(localized: "Compact", comment: "Menu bar style preset")
+        case "Steady": return String(localized: "Steady", comment: "Menu bar style preset: values keep a fixed width")
+        case "Bold": return String(localized: "Bold", comment: "Menu bar style preset")
+        case "Minimal": return String(localized: "Minimal", comment: "Menu bar style preset")
+        case "Graph": return String(localized: "Graph", comment: "Menu bar style preset")
+        default: return name
+        }
     }
 }
 
@@ -198,7 +213,7 @@ private struct MenuBarItemRow: View {
     private func reading(isOn: Bool) -> String? {
         guard isOn else { return nil }
         if runtime.dormantMenuBarWidgetIDs.contains(widget.id) {
-            return "Hidden until its reading reaches the level you set"
+            return String(localized: "Hidden until its reading reaches the level you set")
         }
         return runtime.menuBar.entries.first { $0.widgetID == widget.id }?.label
     }

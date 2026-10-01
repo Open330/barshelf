@@ -32,7 +32,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "Welcome to BarShelf"
+        window.title = String(localized: "Welcome to BarShelf")
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false
@@ -233,7 +233,7 @@ struct OnboardingView: View {
         .padding(.vertical, 6)
     }
 
-    private func title(_ heading: String, _ detail: String) -> some View {
+    private func title(_ heading: LocalizedStringKey, _ detail: LocalizedStringKey) -> some View {
         VStack(alignment: .leading, spacing: Spacing.xs) {
             if step == .widgets {
                 AccentTile(size: 44) {
@@ -251,7 +251,7 @@ struct OnboardingView: View {
         }
     }
 
-    private func tip(_ symbol: String, _ text: String) -> some View {
+    private func tip(_ symbol: String, _ text: LocalizedStringKey) -> some View {
         Label {
             Text(text).fixedSize(horizontal: false, vertical: true)
         } icon: {

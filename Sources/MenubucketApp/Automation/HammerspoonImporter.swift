@@ -14,7 +14,7 @@ enum HammerspoonImporter {
         let profile = try extract(source)
         let reference = try extract(referenceSource)
         guard profile.skeleton == reference.skeleton else {
-            throw AutomationFailure("This Lua file contains helper logic or APIs outside the supported navigation profile. Nothing was imported. Use a JavaScript extension for custom logic; see docs/AUTOMATION.md.")
+            throw AutomationFailure(String(localized: "This Lua file contains helper logic or APIs outside the supported navigation profile. Nothing was imported. Use a JavaScript extension for custom logic; see docs/AUTOMATION.md."))
         }
         let types = try json(profile.types)
         let keys = try json(profile.keys)
@@ -26,7 +26,7 @@ enum HammerspoonImporter {
         """
         _ = try AutomationScript(source: script)
         return Result(script: script,
-            summary: "Imported \(profile.bindings.count) shortcuts and Fn mappings for keyboard types \(types). Window focus uses top-to-bottom, then left-to-right order. The native host restores input monitoring after sleep.")
+            summary: String(localized: "Imported \(profile.bindings.count) shortcuts and Fn mappings for keyboard types \(types). Window focus uses top-to-bottom, then left-to-right order. The native host restores input monitoring after sleep."))
     }
 
     private struct Profile {
@@ -41,26 +41,26 @@ enum HammerspoonImporter {
         var index = 0
         var next: String? { index < tokens.count ? tokens[index] : nil }
         mutating func take() throws -> String {
-            guard let next else { throw AutomationFailure("Incomplete Lua navigation profile.") }
+            guard let next else { throw AutomationFailure(String(localized: "Incomplete Lua navigation profile.")) }
             index += 1
             return next
         }
         mutating func expect(_ token: String) throws {
             guard try take() == token else {
-                throw AutomationFailure("Unsupported Lua syntax near token \(index); expected \(token). Nothing was imported.")
+                throw AutomationFailure(String(localized: "Unsupported Lua syntax near token \(index); expected \(token). Nothing was imported."))
             }
         }
         mutating func string() throws -> String {
             let token = try take()
             guard token.hasPrefix("\""), let data = token.data(using: .utf8),
                   let value = try JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed) as? String else {
-                throw AutomationFailure("Expected a literal Lua string near token \(index).")
+                throw AutomationFailure(String(localized: "Expected a literal Lua string near token \(index)."))
             }
             return value
         }
         mutating func integer() throws -> Int {
             guard let value = Int(try take()), value >= 0, value <= 65535 else {
-                throw AutomationFailure("Expected an integer from 0 to 65535 in the Lua profile.")
+                throw AutomationFailure(String(localized: "Expected an integer from 0 to 65535 in the Lua profile."))
             }
             return value
         }
@@ -72,7 +72,7 @@ enum HammerspoonImporter {
         while cursor.next != nil {
             let remaining = cursor.tokens[cursor.index...]
             if remaining.starts(with: ["local", "INTERNAL_TYPES", "=", "{"]) {
-                guard profile.types.isEmpty else { throw AutomationFailure("Duplicate INTERNAL_TYPES table.") }
+                guard profile.types.isEmpty else { throw AutomationFailure(String(localized: "Duplicate INTERNAL_TYPES table.")) }
                 cursor.index += 4
                 while cursor.next != "}" {
                     profile.types.append(try cursor.integer())
@@ -81,7 +81,7 @@ enum HammerspoonImporter {
                 try cursor.expect("}")
                 profile.skeleton.append("<keyboard-types>")
             } else if remaining.starts(with: ["local", "MAP", "=", "{"]) {
-                guard profile.keys.isEmpty else { throw AutomationFailure("Duplicate MAP table.") }
+                guard profile.keys.isEmpty else { throw AutomationFailure(String(localized: "Duplicate MAP table.")) }
                 cursor.index += 4
                 while cursor.next != "}" {
                     let key: String
@@ -92,7 +92,7 @@ enum HammerspoonImporter {
                     } else { key = try cursor.take() }
                     try cursor.expect("=")
                     let arrow = try cursor.string()
-                    guard profile.keys[key] == nil else { throw AutomationFailure("Duplicate Fn mapping: \(key).") }
+                    guard profile.keys[key] == nil else { throw AutomationFailure(String(localized: "Duplicate Fn mapping: \(key).")) }
                     profile.keys[key] = arrow
                     if cursor.next != "}" { try cursor.expect(",") }
                 }
@@ -119,15 +119,15 @@ enum HammerspoonImporter {
                 switch action {
                 case "moveMouseToScreen", "moveWindowToScreen":
                     let screen = try cursor.integer()
-                    guard screen > 0 else { throw AutomationFailure("Screen numbers start at 1.") }
+                    guard screen > 0 else { throw AutomationFailure(String(localized: "Screen numbers start at 1.")) }
                     argument = String(screen)
                 case "rotateWindowFocus":
                     let direction = try cursor.string()
                     guard ["forward", "backward"].contains(direction) else {
-                        throw AutomationFailure("Unknown window rotation direction: \(direction).")
+                        throw AutomationFailure(String(localized: "Unknown window rotation direction: \(direction)."))
                     }
                     argument = try json(direction)
-                default: throw AutomationFailure("Unsupported Lua callback: \(action). Nothing was imported.")
+                default: throw AutomationFailure(String(localized: "Unsupported Lua callback: \(action). Nothing was imported."))
                 }
                 for token in [")", "end", ")"] { try cursor.expect(token) }
                 profile.bindings.append("hs.hotkey.bind(\(try json(mods)), \(try json(key)), () => \(action)(\(argument)));")
@@ -152,7 +152,7 @@ enum HammerspoonImporter {
             if value.hasPrefix("'") {
                 // Quoting style may differ; complex Lua escapes require manual migration.
                 let content = String(value.dropFirst().dropLast())
-                guard !content.contains("\\") else { throw AutomationFailure("Lua string escapes require manual migration.") }
+                guard !content.contains("\\") else { throw AutomationFailure(String(localized: "Lua string escapes require manual migration.")) }
                 return try json(content)
             }
             return value

@@ -10,19 +10,19 @@ enum LayoutSizeName {
     /// shares a row: two in a row sit side by side.
     static func name(_ code: String) -> String {
         switch code.uppercased() {
-        case "XS": return "Strip"
-        case "S": return "Half Width"
-        case "L": return "Tall"
-        default: return "Full Width"
+        case "XS": return String(localized: "Strip", comment: "Widget size name")
+        case "S": return String(localized: "Half Width", comment: "Widget size name")
+        case "L": return String(localized: "Tall (size)", defaultValue: "Tall", comment: "Widget size name; distinct from the Tall height preset")
+        default: return String(localized: "Full Width", comment: "Widget size name")
         }
     }
 
     static func description(_ code: String) -> String {
         switch code.uppercased() {
-        case "XS": return "A single compact line."
-        case "S": return "Half the width; two in a row share it."
-        case "L": return "Full width, with room for a list or grid."
-        default: return "Full width, standard height."
+        case "XS": return String(localized: "A single compact line.")
+        case "S": return String(localized: "Half the width; two in a row share it.")
+        case "L": return String(localized: "Full width, with room for a list or grid.")
+        default: return String(localized: "Full width, standard height.")
         }
     }
 }
@@ -31,9 +31,9 @@ enum WidgetTypeName {
     /// `exec` / `workflow` / `script` from the registry, as a person would say it.
     static func name(_ kind: String) -> String {
         switch kind {
-        case "exec": return "Command"
-        case "workflow": return "Workflow"
-        case "script": return "Script"
+        case "exec": return String(localized: "Command", comment: "Widget type")
+        case "workflow": return String(localized: "Workflow", comment: "Widget type")
+        case "script": return String(localized: "Script", comment: "Widget type")
         default: return kind.capitalized
         }
     }

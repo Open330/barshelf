@@ -49,29 +49,29 @@ final class AutomationEngine: AutomationRunning {
         self.script = script
         script.report = { [weak self] in self?.report?($0) }
         script.command = { [weak self] name, value in
-            guard let self, self.active else { throw AutomationFailure("Extension is disabled.") }
+            guard let self, self.active else { throw AutomationFailure(String(localized: "Extension is disabled.")) }
             switch name {
             case "mouse", "window":
                 let number = value.toDouble()
                 guard value.isNumber, number.isFinite, number >= 1, number <= 65535, number.rounded() == number else {
-                    throw AutomationFailure("Display number must be a positive integer.")
+                    throw AutomationFailure(String(localized: "Display number must be a positive integer."))
                 }
                 if name == "mouse" { try self.windows.moveMouse(to: Int(number)) }
                 else { try self.windows.moveWindow(to: Int(number)) }
             case "rotate":
                 guard let direction = value.toString(), ["forward", "backward"].contains(direction) else {
-                    throw AutomationFailure("Rotation direction must be forward or backward.")
+                    throw AutomationFailure(String(localized: "Rotation direction must be forward or backward."))
                 }
                 try self.windows.rotate(forward: direction == "forward")
             case "log": self.report?(value.toString() ?? "")
-            default: throw AutomationFailure("Unsupported automation action: \(name).")
+            default: throw AutomationFailure(String(localized: "Unsupported automation action: \(name)."))
             }
         }
     }
 
     func start() throws {
         guard !active else { return }
-        guard AXIsProcessTrusted() else { throw AutomationFailure("Allow BarShelf in System Settings → Privacy & Security → Accessibility, then enable the extension again.") }
+        guard AXIsProcessTrusted() else { throw AutomationFailure(String(localized: "Allow BarShelf in System Settings → Privacy & Security → Accessibility, then enable the extension again.")) }
         do {
             if !script.bindings.isEmpty { try registerHotkeys() }
             if script.remap != nil { try installTap() }
@@ -126,7 +126,7 @@ final class AutomationEngine: AutomationRunning {
             }
             return noErr
         }, 1, &type, Unmanaged.passUnretained(self).toOpaque(), &handler)
-        guard status == noErr else { throw AutomationFailure("Cannot install shortcut event handler (\(status)).") }
+        guard status == noErr else { throw AutomationFailure(String(localized: "Cannot install shortcut event handler (\(status)).")) }
         for (index, binding) in script.bindings.enumerated() {
             var reference: EventHotKeyRef?
             let combo = binding.combination
@@ -134,7 +134,7 @@ final class AutomationEngine: AutomationRunning {
                 EventHotKeyID(signature: Self.signature, id: UInt32(index + 1)),
                 GetApplicationEventTarget(), 0, &reference)
             guard result == noErr, let reference else {
-                throw AutomationFailure("Cannot register \(combo.canonicalText). Quit Hammerspoon or change the conflicting shortcut, then try again (\(result)).")
+                throw AutomationFailure(String(localized: "Cannot register \(combo.canonicalText). Quit Hammerspoon or change the conflicting shortcut, then try again (\(result))."))
             }
             hotkeys.append(reference)
         }
@@ -156,11 +156,11 @@ final class AutomationEngine: AutomationRunning {
                 engine.remap(type: type, event: event)
                 return Unmanaged.passUnretained(event)
             }, userInfo: Unmanaged.passUnretained(self).toOpaque()) else {
-                throw AutomationFailure("Cannot start Fn-key monitoring. Check Accessibility permission for this BarShelf build; if macOS requests Input Monitoring, allow it and restart BarShelf.")
+                throw AutomationFailure(String(localized: "Cannot start Fn-key monitoring. Check Accessibility permission for this BarShelf build; if macOS requests Input Monitoring, allow it and restart BarShelf."))
             }
         tap = newTap
         guard let runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, newTap, 0) else {
-            throw AutomationFailure("Cannot create keyboard event source.")
+            throw AutomationFailure(String(localized: "Cannot create keyboard event source."))
         }
         source = runLoopSource
         CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)

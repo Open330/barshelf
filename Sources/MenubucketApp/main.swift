@@ -46,20 +46,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// (accessory app has no visible menu bar) but its key equivalents are
     /// dispatched to the first responder while the app is active — the standard
     /// way menu-bar apps enable cut/copy/paste/select-all in their popovers.
+    /// The Edit menu's title; `installCommands` finds the menu by it.
+    static var editMenuTitle: String {
+        String(localized: "Edit", comment: "The main menu's Edit menu (Undo, Cut, Copy, Paste).")
+    }
+
     private static func makeMainMenu() -> NSMenu {
         let main = NSMenu()
         let editItem = NSMenuItem()
         main.addItem(editItem)
-        let edit = NSMenu(title: "Edit")
+        let edit = NSMenu(title: editMenuTitle)
         editItem.submenu = edit
-        edit.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
-        let redo = edit.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "z")
+        edit.addItem(withTitle: String(localized: "Undo"), action: Selector(("undo:")), keyEquivalent: "z")
+        let redo = edit.addItem(withTitle: String(localized: "Redo"), action: Selector(("redo:")), keyEquivalent: "z")
         redo.keyEquivalentModifierMask = [.command, .shift]
         edit.addItem(.separator())
-        edit.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
-        edit.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
-        edit.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
-        edit.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        edit.addItem(withTitle: String(localized: "Cut"), action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        edit.addItem(withTitle: String(localized: "Copy"), action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        edit.addItem(withTitle: String(localized: "Paste"), action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        edit.addItem(withTitle: String(localized: "Select All"), action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         return main
     }
 

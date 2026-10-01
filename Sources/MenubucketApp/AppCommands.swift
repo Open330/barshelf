@@ -122,14 +122,14 @@ extension StatusItemController: NSMenuItemValidation {
         mainMenu.insertItem(appItem, at: 0)
 
         let widgetsItem = NSMenuItem()
-        let widgets = NSMenu(title: "Widgets")
+        let widgets = NSMenu(title: String(localized: "Widgets"))
         widgetsItem.submenu = widgets
         widgets.addItem(command("Refresh All", #selector(refreshAll(_:)), "r"))
         widgets.addItem(command("Edit Shelf", #selector(toggleEditShelf(_:)), "e"))
         widgets.addItem(command("Create Widget…", #selector(openWidgetBuilder(_:)), "n"))
         mainMenu.addItem(widgetsItem)
 
-        if let edit = mainMenu.items.first(where: { $0.submenu?.title == "Edit" })?.submenu {
+        if let edit = mainMenu.items.first(where: { $0.submenu?.title == AppDelegate.editMenuTitle })?.submenu {
             edit.addItem(.separator())
             edit.addItem(command("Find…", #selector(findInPopup(_:)), "f"))
         }
@@ -160,8 +160,9 @@ extension StatusItemController: NSMenuItemValidation {
         popup.isShown && popup.eventWindow?.isKeyWindow == true
     }
 
-    private func command(_ title: String, _ action: Selector, _ key: String) -> NSMenuItem {
-        let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
+    /// The title is a localization key, so the catalog picks up each literal.
+    private func command(_ title: String.LocalizationValue, _ action: Selector, _ key: String) -> NSMenuItem {
+        let item = NSMenuItem(title: String(localized: title), action: action, keyEquivalent: key)
         item.target = self
         return item
     }

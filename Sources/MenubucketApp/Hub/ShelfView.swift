@@ -53,7 +53,7 @@ struct ShelfView: View {
         .onChange(of: model.settingsWidgetID) { openRequestedSettings() }
         .onChange(of: selection) { _, id in if id != nil { inspectorShown = true } }
         .alert(
-            "Remove \(removalTarget?.displayName ?? "Widget")?",
+            "Remove \(removalTarget?.displayName ?? String(localized: "Widget"))?",
             isPresented: Binding(
                 get: { removalTarget != nil },
                 set: { if !$0 { removalTarget = nil } }
@@ -66,7 +66,7 @@ struct ShelfView: View {
             Text("This deletes \"\(widget.displayName)\" and its data. It can be installed again from the Gallery.")
         }
         .alert(
-            "Duplicate \(duplicateTarget?.displayName ?? "Widget")",
+            "Duplicate \(duplicateTarget?.displayName ?? String(localized: "Widget"))",
             isPresented: Binding(
                 get: { duplicateTarget != nil },
                 set: { if !$0 { duplicateTarget = nil } }
@@ -251,13 +251,13 @@ struct ShelfView: View {
     }
 
     private func chipStatus(_ widget: LoadedWidget, disabled: Bool) -> (text: String, tone: StatusTone)? {
-        if disabled { return ("Turned off", .info) }
+        if disabled { return (String(localized: "Turned off"), .info) }
         switch runtime.permissionState(for: widget) {
-        case .notAsked: return ("Waiting for your permission", .warning)
-        case .denied: return ("Permission denied", .critical)
+        case .notAsked: return (String(localized: "Waiting for your permission"), .warning)
+        case .denied: return (String(localized: "Permission denied"), .critical)
         default: break
         }
-        if runtime.snapshots[widget.id]?.error != nil { return ("Last refresh failed", .critical) }
+        if runtime.snapshots[widget.id]?.error != nil { return (String(localized: "Last refresh failed"), .critical) }
         return nil
     }
 

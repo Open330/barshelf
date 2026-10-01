@@ -70,7 +70,7 @@ final class AutomationWindows {
         guard let target = Self.displays[safe: number - 1], let window = focusedWindow(),
               let source = screen(of: window) else { return }
         if attribute(window.element, "AXFullScreen") as? Bool == true {
-            throw AutomationFailure("Exit full screen before moving this window.")
+            throw AutomationFailure(String(localized: "Exit full screen before moving this window."))
         }
         let frame = AutomationGeometry.movedFrame(window.frame, from: source.usable, to: target.usable)
         var size = frame.size
@@ -79,8 +79,8 @@ final class AutomationWindows {
         // Resize before and after positioning: some apps constrain size to the
         // old display until the origin has moved onto the destination display.
         _ = AXUIElementSetAttributeValue(window.element, kAXSizeAttribute as CFString, sizeValue)
-        try checked(AXUIElementSetAttributeValue(window.element, kAXPositionAttribute as CFString, position), "move window")
-        try checked(AXUIElementSetAttributeValue(window.element, kAXSizeAttribute as CFString, sizeValue), "resize window")
+        try checked(AXUIElementSetAttributeValue(window.element, kAXPositionAttribute as CFString, position), String(localized: "move window", comment: "Fills \"Could not %@\" when a window action fails."))
+        try checked(AXUIElementSetAttributeValue(window.element, kAXSizeAttribute as CFString, sizeValue), String(localized: "resize window", comment: "Fills \"Could not %@\" when a window action fails."))
     }
 
     func rotate(forward: Bool) throws {
@@ -109,11 +109,11 @@ final class AutomationWindows {
         guard let app = NSRunningApplication(processIdentifier: window.pid) else { return }
         _ = AXUIElementSetAttributeValue(window.element, kAXMainAttribute as CFString, kCFBooleanTrue)
         app.activate()
-        try checked(AXUIElementPerformAction(window.element, kAXRaiseAction as CFString), "focus window")
+        try checked(AXUIElementPerformAction(window.element, kAXRaiseAction as CFString), String(localized: "focus window", comment: "Fills \"Could not %@\" when a window action fails."))
     }
     private func checked(_ error: AXError, _ action: String) throws {
         guard error == .success else {
-            throw AutomationFailure("Could not \(action) (Accessibility error \(error.rawValue)). The app may not support this operation.")
+            throw AutomationFailure(String(localized: "Could not \(action) (Accessibility error \(error.rawValue)). The app may not support this operation."))
         }
     }
     private func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {

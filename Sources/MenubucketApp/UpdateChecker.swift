@@ -110,34 +110,33 @@ enum UpdateChecker {
     ) {
         let blocker = installBlocker()
         let alert = NSAlert()
-        alert.messageText = "BarShelf \(latest) is available"
+        alert.messageText = String(localized: "BarShelf \(latest) is available")
 
-        var lines = ["You're on \(currentVersion)."]
+        var lines = [String(localized: "You're on \(currentVersion).")]
         if isUsingOverriddenFeed {
-            lines.append("Update source overridden: \(repository)")
+            lines.append(String(localized: "Update source overridden: \(repository)"))
         }
         if let name { lines.append(name) }
         switch blocker {
         case .homebrewManaged:
-            lines.append("Update it the way you installed it:\n\(homebrewUpgradeCommand)")
+            lines.append(String(localized: "Update it the way you installed it:\n\(homebrewUpgradeCommand)"))
         case .some(let reason):
             lines.append(reason.message)
-            lines.append("Open the release page to download the build and verify its checksum.")
+            lines.append(String(localized: "Open the release page to download the build and verify its checksum."))
         case nil where asset == nil:
-            lines.append("This release publishes no \(appAssetName(version: latest)).")
-            lines.append("Open the release page to download it manually.")
+            lines.append(String(localized: "This release publishes no \(appAssetName(version: latest)).", comment: "The argument is the expected download file name."))
+            lines.append(String(localized: "Open the release page to download it manually."))
         case nil:
-            lines.append(
-                "BarShelf can install it and relaunch. The download is verified"
-                    + " against this build's Developer ID before anything is replaced."
-            )
+            lines.append(String(
+                localized: "BarShelf can install it and relaunch. The download is verified against this build's Developer ID before anything is replaced."
+            ))
         }
         alert.informativeText = lines.joined(separator: "\n\n")
 
         if blocker == nil, let asset {
-            alert.addButton(withTitle: "Install and Relaunch")
-            alert.addButton(withTitle: "Download…")
-            alert.addButton(withTitle: "Later")
+            alert.addButton(withTitle: String(localized: "Install and Relaunch"))
+            alert.addButton(withTitle: String(localized: "Download…"))
+            alert.addButton(withTitle: String(localized: "Later", comment: "Alert button that postpones the action."))
             // The launch-time check is unsolicited: it appears seconds after
             // startup, over whatever the user was doing. Replacing and
             // relaunching the app must not be one stray Return away, so the
@@ -158,9 +157,9 @@ enum UpdateChecker {
         }
 
         if blocker == .homebrewManaged {
-            alert.addButton(withTitle: "Copy brew Command")
-            alert.addButton(withTitle: "Release Notes")
-            alert.addButton(withTitle: "Later")
+            alert.addButton(withTitle: String(localized: "Copy brew Command"))
+            alert.addButton(withTitle: String(localized: "Release Notes"))
+            alert.addButton(withTitle: String(localized: "Later", comment: "Alert button that postpones the action."))
             let skip = addSkipButton(to: alert, explicit: explicit)
             switch alert.runModal() {
             case .alertFirstButtonReturn:
@@ -173,8 +172,8 @@ enum UpdateChecker {
             return
         }
 
-        alert.addButton(withTitle: "Download")
-        alert.addButton(withTitle: "Later")
+        alert.addButton(withTitle: String(localized: "Download"))
+        alert.addButton(withTitle: String(localized: "Later", comment: "Alert button that postpones the action."))
         let skip = addSkipButton(to: alert, explicit: explicit)
         switch alert.runModal() {
         case .alertFirstButtonReturn: NSWorkspace.shared.open(url)
@@ -186,7 +185,7 @@ enum UpdateChecker {
     /// A way to stop the badge and menu item reminding about this release.
     /// Returns the response the button produces.
     private static func addSkipButton(to alert: NSAlert, explicit: Bool) -> NSApplication.ModalResponse {
-        alert.addButton(withTitle: "Skip This Version")
+        alert.addButton(withTitle: String(localized: "Skip This Version"))
         return NSApplication.ModalResponse(
             rawValue: NSApplication.ModalResponse.alertFirstButtonReturn.rawValue + alert.buttons.count - 1
         )
@@ -211,7 +210,7 @@ enum UpdateChecker {
         // The same panel widget installs use: a determinate bar driven by
         // Content-Length, and a Cancel that actually stops the work.
         let progress = DownloadProgressPanel(
-            title: "Updating BarShelf", message: "Downloading BarShelf \(version)…"
+            title: String(localized: "Updating BarShelf"), message: String(localized: "Downloading BarShelf \(version)…")
         )
         let target = appURL
         let bundleID = Bundle.main.bundleIdentifier
@@ -223,7 +222,7 @@ enum UpdateChecker {
                 }
                 defer { try? FileManager.default.removeItem(at: archive) }
                 try Task.checkCancellation()
-                progress.setMessage("Verifying and installing…")
+                progress.setMessage(String(localized: "Verifying and installing…"))
                 let installed = try await Task.detached(priority: .userInitiated) {
                     try UpdateInstaller.install(
                         archive: archive,
@@ -243,7 +242,7 @@ enum UpdateChecker {
                     // The panel stays up through the restart: the wait below is
                     // seconds long and briefly shows two menu bar icons, which
                     // needs explaining while it happens.
-                    progress.setMessage("Restarting BarShelf…")
+                    progress.setMessage(String(localized: "Restarting BarShelf…"))
                     relaunch(installed, page: page, progress: progress)
                 }
             } catch is CancellationError {
@@ -263,11 +262,11 @@ enum UpdateChecker {
         expected: String, installed: String, app: URL
     ) {
         let alert = NSAlert()
-        alert.messageText = "The update reports a different version"
-        alert.informativeText = "BarShelf \(expected) was announced, but the"
-            + " installed build reports \(installed). It is signed correctly and"
-            + " has been installed; the release asset may be mismatched."
-        alert.addButton(withTitle: "OK")
+        alert.messageText = String(localized: "The update reports a different version")
+        alert.informativeText = String(
+            localized: "BarShelf \(expected) was announced, but the installed build reports \(installed). It is signed correctly and has been installed; the release asset may be mismatched."
+        )
+        alert.addButton(withTitle: String(localized: "OK"))
         alert.runModal()
     }
 
@@ -324,21 +323,18 @@ enum UpdateChecker {
     ) {
         let rolledBack = installed.rollBack()
         let alert = NSAlert()
-        alert.messageText = "BarShelf was updated but did not start"
+        alert.messageText = String(localized: "BarShelf was updated but did not start")
         var text = detail.map { $0 + "\n\n" } ?? ""
-        text += "The new build was installed at \(installed.app.path) but did not"
-            + " come up within \(Int(LaunchReceiptStore.defaultTimeout)) seconds."
+        text += String(
+            localized: "The new build was installed at \(installed.app.path) but did not come up within \(Int(LaunchReceiptStore.defaultTimeout)) seconds."
+        )
         text += rolledBack
-            ? "\n\nThe version you were running has been put back, and this copy"
-                + " is still it — nothing was lost. Updating again will try the"
-                + " same thing, so it is worth reporting."
-            : "\n\nThe previous version could not be restored. This copy keeps"
-                + " running for now, but do not quit it before reinstalling"
-                + " BarShelf from the release page."
+            ? "\n\n" + String(localized: "The version you were running has been put back, and this copy is still it — nothing was lost. Updating again will try the same thing, so it is worth reporting.")
+            : "\n\n" + String(localized: "The previous version could not be restored. This copy keeps running for now, but do not quit it before reinstalling BarShelf from the release page.")
         alert.informativeText = text
-        alert.addButton(withTitle: "Open Releases")
-        alert.addButton(withTitle: "Show in Finder")
-        alert.addButton(withTitle: "Later")
+        alert.addButton(withTitle: String(localized: "Open Releases"))
+        alert.addButton(withTitle: String(localized: "Show in Finder"))
+        alert.addButton(withTitle: String(localized: "Later", comment: "Alert button that postpones the action."))
         switch alert.runModal() {
         case .alertFirstButtonReturn:
             NSWorkspace.shared.open(page)
@@ -350,17 +346,17 @@ enum UpdateChecker {
 
     private static func presentInstallFailure(_ error: Error, page: URL) {
         let alert = NSAlert()
-        alert.messageText = "The update was not installed"
+        alert.messageText = String(localized: "The update was not installed")
         var text = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         if let suggestion = (error as? LocalizedError)?.recoverySuggestion {
             text += "\n\n" + suggestion
         }
         // Nothing was replaced — say so, so a failure does not read as a
         // half-finished install.
-        text += "\n\nYour installed copy was left untouched."
+        text += "\n\n" + String(localized: "Your installed copy was left untouched.")
         alert.informativeText = text
-        alert.addButton(withTitle: "Open Releases")
-        alert.addButton(withTitle: "Later")
+        alert.addButton(withTitle: String(localized: "Open Releases"))
+        alert.addButton(withTitle: String(localized: "Later", comment: "Alert button that postpones the action."))
         if alert.runModal() == .alertFirstButtonReturn {
             NSWorkspace.shared.open(page)
         }
@@ -370,19 +366,19 @@ enum UpdateChecker {
 
     private static func upToDate(current: String) {
         let alert = NSAlert()
-        alert.messageText = "You're up to date"
-        alert.informativeText = "BarShelf \(current) is the latest version."
-            + (isUsingOverriddenFeed ? "\n\nUpdate source overridden: \(repository)" : "")
-        alert.addButton(withTitle: "OK")
+        alert.messageText = String(localized: "You're up to date")
+        alert.informativeText = String(localized: "BarShelf \(current) is the latest version.")
+            + (isUsingOverriddenFeed ? "\n\n" + String(localized: "Update source overridden: \(repository)") : "")
+        alert.addButton(withTitle: String(localized: "OK"))
         alert.runModal()
     }
 
     private static func presentError(_ error: Error) {
         let alert = NSAlert()
-        alert.messageText = "Couldn't check for updates"
+        alert.messageText = String(localized: "Couldn't check for updates")
         alert.informativeText = (error as? LocalizedError)?.errorDescription ?? "\(error)"
-        alert.addButton(withTitle: "OK")
-        alert.addButton(withTitle: "Open Releases")
+        alert.addButton(withTitle: String(localized: "OK"))
+        alert.addButton(withTitle: String(localized: "Open Releases"))
         if alert.runModal() == .alertSecondButtonReturn {
             NSWorkspace.shared.open(releasesPage)
         }

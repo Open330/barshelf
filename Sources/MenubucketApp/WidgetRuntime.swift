@@ -713,7 +713,7 @@ final class WidgetRuntime: ObservableObject {
             } else {
                 rows.append(PermissionRequest(
                     symbol: "terminal",
-                    description: "Run \(friendlyCommandName(exec.command)) with any arguments"
+                    description: String(localized: "Run \(friendlyCommandName(exec.command)) with any arguments")
                 ))
             }
         }
@@ -721,35 +721,35 @@ final class WidgetRuntime: ObservableObject {
            widget.manifest.entry.kind == "exec" {
             rows.append(PermissionRequest(
                 symbol: "exclamationmark.triangle.fill",
-                description: "Blocked: this widget runs a command but does not say which",
+                description: String(localized: "Blocked: this widget runs a command but does not say which"),
                 isWarning: true
             ))
         }
         if permissions?.keychain == true {
-            rows.append(PermissionRequest(symbol: "key.fill", description: "Read and save passwords in your Keychain"))
+            rows.append(PermissionRequest(symbol: "key.fill", description: String(localized: "Read and save passwords in your Keychain")))
         }
         if permissions?.notifications == true {
-            rows.append(PermissionRequest(symbol: "bell.fill", description: "Show notifications"))
+            rows.append(PermissionRequest(symbol: "bell.fill", description: String(localized: "Show notifications")))
         }
         if let net = permissions?.network, !net.isEmpty {
             let hosts = net.prefix(4).joined(separator: ", ")
             let suffix = net.count > 4 ? ", …" : ""
-            rows.append(PermissionRequest(symbol: "network", description: "Connect to \(hosts)\(suffix)"))
+            rows.append(PermissionRequest(symbol: "network", description: String(localized: "Connect to \(hosts)\(suffix)")))
         }
         for path in permissions?.readPaths ?? [] {
-            rows.append(PermissionRequest(symbol: "folder.fill", description: "Read files in \(path)"))
+            rows.append(PermissionRequest(symbol: "folder.fill", description: String(localized: "Read files in \(path)")))
         }
         if permissions?.storage?.granted == true {
-            rows.append(PermissionRequest(symbol: "internaldrive.fill", description: "Save small amounts of data on this Mac"))
+            rows.append(PermissionRequest(symbol: "internaldrive.fill", description: String(localized: "Save small amounts of data on this Mac")))
         }
         if let env = permissions?.env, !env.isEmpty {
             rows.append(PermissionRequest(
                 symbol: "leaf.fill",
-                description: "Read settings from the environment: \(env.joined(separator: ", "))"
+                description: String(localized: "Read settings from the environment: \(env.joined(separator: ", "))")
             ))
         }
         if rows.isEmpty {
-            rows.append(PermissionRequest(symbol: "checkmark.seal.fill", description: "No special permissions"))
+            rows.append(PermissionRequest(symbol: "checkmark.seal.fill", description: String(localized: "No special permissions")))
         }
         return rows
     }
@@ -763,15 +763,15 @@ final class WidgetRuntime: ObservableObject {
         if shells.contains(name.lowercased()),
            let flag = args.firstIndex(of: "-c"), flag + 1 < args.count {
             let tools = referencedTools(in: args[flag + 1])
-            guard !tools.isEmpty else { return "Run a shell command" }
+            guard !tools.isEmpty else { return String(localized: "Run a shell command") }
             let shown = tools.prefix(6).joined(separator: ", ")
             let more = tools.count > 6 ? ", …" : ""
-            return "Run system tools: \(shown)\(more)"
+            return String(localized: "Run system tools: \(shown)\(more)")
         }
-        guard !args.isEmpty else { return "Run \(name)" }
+        guard !args.isEmpty else { return String(localized: "Run \(name)") }
         var detail = ([name] + args).joined(separator: " ")
         if detail.count > 72 { detail = String(detail.prefix(71)) + "…" }
-        return "Run \(detail)"
+        return String(localized: "Run \(detail)")
     }
 
     /// The basename of an executable path (`/usr/bin/top` → `top`).
@@ -990,7 +990,7 @@ final class WidgetRuntime: ObservableObject {
         }
         guard Self.isRemovableWidgetDirectory(widget.directory) else {
             throw RuntimeError.notRemovable(
-                "widget \"\(id)\" is not inside the user widgets directory"
+                String(localized: "widget \"\(id)\" is not inside the user widgets directory")
             )
         }
         if id == widget.manifest.id {
@@ -1002,7 +1002,7 @@ final class WidgetRuntime: ObservableObject {
             ))?.contains { $0.lastPathComponent.hasPrefix(aliasPrefix) } ?? false
             if hasInstances {
                 throw RuntimeError.notRemovable(
-                    "Remove the additional \"\(widget.manifest.name)\" instances before removing its package."
+                    String(localized: "Remove the additional \"\(widget.manifest.name)\" instances before removing its package.")
                 )
             }
         }
@@ -1026,7 +1026,7 @@ final class WidgetRuntime: ObservableObject {
         let normalized = Self.normalizedInstanceLabel(label)
         guard !normalized.isEmpty else {
             throw RuntimeError.invalidInstanceName(
-                "Instance name must contain a letter or number."
+                String(localized: "Instance name must contain a letter or number.")
             )
         }
 
@@ -1038,7 +1038,7 @@ final class WidgetRuntime: ObservableObject {
             atPath: canonical.path, isDirectory: &canonicalIsDirectory
         ), canonicalIsDirectory.boolValue else {
             throw RuntimeError.notRemovable(
-                "Install \"\(widget.manifest.name)\" before adding another instance."
+                String(localized: "Install \"\(widget.manifest.name)\" before adding another instance.")
             )
         }
 
@@ -1046,7 +1046,7 @@ final class WidgetRuntime: ObservableObject {
         let destination = Self.userWidgetsRoot.appendingPathComponent(instanceID)
         guard !FileManager.default.fileExists(atPath: destination.path) else {
             throw RuntimeError.invalidInstanceName(
-                "An instance named \"\(normalized)\" already exists."
+                String(localized: "An instance named \"\(normalized)\" already exists.")
             )
         }
         do {
@@ -1055,7 +1055,7 @@ final class WidgetRuntime: ObservableObject {
             )
         } catch {
             throw RuntimeError.invalidInstanceName(
-                "Could not create instance \"\(normalized)\": \(error.localizedDescription)"
+                String(localized: "Could not create instance \"\(normalized)\": \(error.localizedDescription)")
             )
         }
 
@@ -2704,7 +2704,7 @@ final class WidgetRuntime: ObservableObject {
             switch self {
             case let .missingAdapter(message): return message
             case let .invalidWorkflow(message): return message
-            case let .widgetNotFound(id): return "widget \"\(id)\" was not found"
+            case let .widgetNotFound(id): return String(localized: "widget \"\(id)\" was not found")
             case let .notRemovable(message): return message
             case let .invalidInstanceName(message): return message
             }

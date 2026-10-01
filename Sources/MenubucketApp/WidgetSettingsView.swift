@@ -44,10 +44,10 @@ struct WidgetSettingsView: View {
         var id: String { rawValue }
         var title: String {
             switch self {
-            case .general: return "General"
-            case .look: return "Look"
-            case .menuBar: return "Menu Bar"
-            case .about: return "About"
+            case .general: return String(localized: "General", comment: "Widget inspector tab")
+            case .look: return String(localized: "Look", comment: "Widget inspector tab: appearance")
+            case .menuBar: return String(localized: "Menu Bar", comment: "Widget inspector tab")
+            case .about: return String(localized: "About", comment: "Widget inspector tab")
             }
         }
     }
@@ -173,7 +173,7 @@ struct WidgetSettingsView: View {
         }
         .toggleStyle(.switch)
         if !isEnabled {
-            settingsHint("Turned off: it doesn't refresh and isn't in the popup.")
+            settingsHint(String(localized: "Turned off: it doesn't refresh and isn't in the popup."))
         }
 
         LabeledContent("Page") {
@@ -343,7 +343,7 @@ struct WidgetSettingsView: View {
         undoManager?.registerUndo(withTarget: UndoAnchor.shared) { _ in
             restore(previous)
         }
-        undoManager?.setActionName("Change \(widget.displayName)")
+        undoManager?.setActionName(String(localized: "Change \(widget.displayName)", comment: "Undo action name for a widget settings change"))
     }
 
     /// Puts the drafts back to `snapshot`; the change handler then saves it,
@@ -514,16 +514,9 @@ struct WidgetSettingsView: View {
                 // The one thing worth saying at the bottom rather than beside
                 // a control, because it is about the widget, not a setting.
                 if publishesNoStatusText {
-                    settingsHint(
-                        "This widget publishes no value, so only its icon can"
-                            + " appear. Give its workflow a `status.label` (or a"
-                            + " script `host.render` status) to show one."
-                    )
+                    settingsHint(String(localized: "This widget publishes no value, so only its icon can appear. Give its workflow a `status.label` (or a script `host.render` status) to show one."))
                 } else {
-                    settingsHint(
-                        "It keeps refreshing while the popup is closed."
-                            + " At most \(MenuBarPolicy.maxEntries) widgets are shown."
-                    )
+                    settingsHint(String(localized: "It keeps refreshing while the popup is closed. At most \(MenuBarPolicy.maxEntries) widgets are shown."))
                 }
             }
         }
@@ -580,9 +573,9 @@ struct WidgetSettingsView: View {
                             .disabled(!canShareStrip || stackedForcesOwnItem)
 
                             if !canShareStrip {
-                                settingsHint("This widget shows no text, and an icon cannot join the shared strip.")
+                                settingsHint(String(localized: "This widget shows no text, and an icon cannot join the shared strip."))
                             } else if stackedForcesOwnItem {
-                                settingsHint("Two rows need their own item.")
+                                settingsHint(String(localized: "Two rows need their own item."))
                             } else if !menuBarDraft.separate {
                                 HStack(spacing: 6) {
                                     Button("Move Left") { runtime.moveInMenuBar(widget.id, by: -1) }
@@ -592,7 +585,7 @@ struct WidgetSettingsView: View {
                                 }
                                 .controlSize(.small)
                             } else {
-                                settingsHint("Drag it in the menu bar with ⌘ to reorder.")
+                                settingsHint(String(localized: "Drag it in the menu bar with ⌘ to reorder."))
                             }
                         }
                     }
@@ -604,7 +597,7 @@ struct WidgetSettingsView: View {
                             set: { menuBarDraft.style = $0 }
                         )) {
                             ForEach(MenuBarStyle.allCases, id: \.self) { style in
-                                Text(style.title).tag(style)
+                                Text(style.displayTitle).tag(style)
                             }
                         }
                         .pickerStyle(.radioGroup)
@@ -634,8 +627,8 @@ struct WidgetSettingsView: View {
                             }
                                 settingsHint(
                                     effectiveStyle == .stacked
-                                    ? "Drawn above the value. Uncheck for the value alone."
-                                    : "Drawn before the value. Uncheck for the value alone."
+                                    ? String(localized: "Drawn above the value. Uncheck for the value alone.")
+                                    : String(localized: "Drawn before the value. Uncheck for the value alone.")
                                 )
                             }
                         }
@@ -655,7 +648,7 @@ struct WidgetSettingsView: View {
                                 .toggleStyle(.checkbox)
                                 .labelsHidden()
                                 TextField(
-                                    widget.manifest.statusItem?.icon ?? "the widget's own",
+                                    widget.manifest.statusItem?.icon ?? String(localized: "the widget's own", comment: "Placeholder: the widget's own icon is used"),
                                     text: Binding(
                                         get: { menuBarDraft.icon == "" ? "" : (menuBarDraft.icon ?? "") },
                                         set: { menuBarDraft.icon = $0.isEmpty ? nil : $0 }
@@ -664,7 +657,7 @@ struct WidgetSettingsView: View {
                                 .frame(width: 150)
                                 .disabled(menuBarDraft.icon == "")
                             }
-                            settingsHint("An SF Symbol name or an emoji. Uncheck for no icon.")
+                            settingsHint(String(localized: "An SF Symbol name or an emoji. Uncheck for no icon."))
                         }
                     }
 
@@ -697,8 +690,8 @@ struct WidgetSettingsView: View {
                             .labelsHidden()
                             .frame(width: 240)
                             settingsHint(usesOwnItem
-                                ? "Drawn from the item's first reading as it refreshes. Percentages use 0–100; anything else scales to its recent peak."
-                                : "A graph needs the item's own place in the menu bar; sharing the BarShelf icon, it shows text only.")
+                                ? String(localized: "Drawn from the item's first reading as it refreshes. Percentages use 0–100; anything else scales to its recent peak.")
+                                : String(localized: "A graph needs the item's own place in the menu bar; sharing the BarShelf icon, it shows text only."))
                         }
                     }
 
@@ -739,14 +732,14 @@ struct WidgetSettingsView: View {
                             settingsRowLabel("")
                             // No snapshot is "not yet", not "never".
                             settingsHint(runtime.snapshots[widget.id]?.statusMetrics == nil
-                                ? "No reading yet. Once the widget refreshes, its alerts and rows can be set here."
-                                : "This widget has no numeric readings to set alerts or row options for.")
+                                ? String(localized: "No reading yet. Once the widget refreshes, its alerts and rows can be set here.")
+                                : String(localized: "This widget has no numeric readings to set alerts or row options for."))
                         }
                     }
                     if !rows.isEmpty, effectiveStyle != .metrics {
                         GridRow {
                             settingsRowLabel("")
-                            settingsHint("Per-row labels, colours and order appear with the Two metric rows layout, on the Look tab.")
+                            settingsHint(String(localized: "Per-row labels, colours and order appear with the Two metric rows layout, on the Look tab."))
                         }
                     }
                 case .behavior:
@@ -767,7 +760,7 @@ struct WidgetSettingsView: View {
                             }
                             .labelsHidden()
                             .frame(width: 180)
-                            settingsHint("How often this item refreshes while it is in the menu bar. Slower is lighter on battery.")
+                            settingsHint(String(localized: "How often this item refreshes while it is in the menu bar. Slower is lighter on battery."))
                         }
                     }
 
@@ -792,7 +785,7 @@ struct WidgetSettingsView: View {
         let rows = editableMetricRows
         if rows.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
-                settingsHint("This widget has no metric rows to customize yet.")
+                settingsHint(String(localized: "This widget has no metric rows to customize yet."))
             }
         } else {
             VStack(alignment: .leading, spacing: 8) {
@@ -851,7 +844,7 @@ struct WidgetSettingsView: View {
                     .frame(width: 105)
                 }
             } else {
-                settingsHint("This widget supplies text readings, so decimal controls do not apply.")
+                settingsHint(String(localized: "This widget supplies text readings, so decimal controls do not apply."))
             }
 
         }
@@ -889,7 +882,7 @@ struct WidgetSettingsView: View {
     }
 
     private func metricRowTitle(_ metric: StatusMetric, offset: Int) -> String {
-        metric.label.isEmpty ? "Metric \(offset + 1)" : metric.label
+        metric.label.isEmpty ? String(localized: "Metric \(offset + 1)") : metric.label
     }
 
     private var inheritedPresentation: MenuBarPresentation {
@@ -979,8 +972,8 @@ struct WidgetSettingsView: View {
             }
             thresholdField(below ? "Show only at or below" : "Show only at or above", $showWhenText, \.showWhen, unit: unit)
             settingsHint(presentation.hasThresholds
-                ? "Readings past a threshold turn warning or danger; the widget's own colors no longer apply. Blank turns one off."
-                : "Blank uses the widget's own colors. A \"show only\" value hides the item until a reading gets there.")
+                ? String(localized: "Readings past a threshold turn warning or danger; the widget's own colors no longer apply. Blank turns one off.")
+                : String(localized: "Blank uses the widget's own colors. A \"show only\" value hides the item until a reading gets there."))
         }
     }
 
@@ -988,7 +981,7 @@ struct WidgetSettingsView: View {
     /// after typing keeps what was typed. The text is its own state: a field
     /// reformatted from the stored number could not be typed "7.5" into.
     private func thresholdField(
-        _ title: String, _ text: Binding<String>,
+        _ title: LocalizedStringKey, _ text: Binding<String>,
         _ keyPath: WritableKeyPath<MenuBarPresentation, Double?>, unit: String
     ) -> some View {
         HStack(spacing: 4) {
@@ -1029,14 +1022,16 @@ struct WidgetSettingsView: View {
     }
 
     private var widgetIntervalTitle: String {
-        guard let seconds = widget.manifest.refresh?.interval else { return "Default" }
-        return "Default (\(Self.intervalTitle(seconds).lowercased()))"
+        guard let seconds = widget.manifest.refresh?.interval else { return String(localized: "Default", comment: "Refresh interval: the widget's own") }
+        return String(localized: "Default (\(Self.intervalTitle(seconds).lowercased()))", comment: "Refresh interval: the widget's own, e.g. Default (every 5 s)")
     }
 
     static func intervalTitle(_ seconds: Double) -> String {
         seconds >= 60 && seconds.truncatingRemainder(dividingBy: 60) == 0
-            ? "Every \(Int(seconds / 60)) min"
-            : seconds == seconds.rounded() ? "Every \(Int(seconds)) s" : "Every \(seconds) s"
+            ? String(localized: "Every \(Int(seconds / 60)) min")
+            : seconds == seconds.rounded()
+                ? String(localized: "Every \(Int(seconds)) s", comment: "Refresh interval in seconds")
+                : String(localized: "Every \(seconds) s", comment: "Refresh interval in seconds")
     }
 
     private func metricHiddenBinding(_ key: String) -> Binding<Bool> {
@@ -1122,7 +1117,7 @@ struct WidgetSettingsView: View {
         }
     }
 
-    private func settingsRowLabel(_ text: String) -> some View {
+    private func settingsRowLabel(_ text: LocalizedStringKey) -> some View {
         Text(text)
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -1143,15 +1138,15 @@ struct WidgetSettingsView: View {
     }
 
     private let accentSwatches: [AccentSwatch] = [
-        .init(name: "Default", value: nil),
-        .init(name: "Blue", value: "blue"),
-        .init(name: "Purple", value: "purple"),
-        .init(name: "Pink", value: "pink"),
-        .init(name: "Red", value: "red"),
-        .init(name: "Orange", value: "orange"),
-        .init(name: "Yellow", value: "yellow"),
-        .init(name: "Green", value: "green"),
-        .init(name: "Gray", value: "gray"),
+        .init(name: String(localized: "Default", comment: "Accent color choice"), value: nil),
+        .init(name: String(localized: "Blue"), value: "blue"),
+        .init(name: String(localized: "Purple"), value: "purple"),
+        .init(name: String(localized: "Pink"), value: "pink"),
+        .init(name: String(localized: "Red"), value: "red"),
+        .init(name: String(localized: "Orange"), value: "orange"),
+        .init(name: String(localized: "Yellow"), value: "yellow"),
+        .init(name: String(localized: "Green"), value: "green"),
+        .init(name: String(localized: "Gray"), value: "gray"),
     ]
 
     private var appearanceSection: some View {
@@ -1420,7 +1415,7 @@ struct WidgetSettingsView: View {
            !(entry.options ?? []).contains(selected) {
             // Only a list that loaded and lacks it says "not on this Mac":
             // still loading, or a build that cannot read sensors, just names it.
-            options.insert((selected, sensorOptions.isEmpty ? key : "\(key) (not on this Mac)"), at: 0)
+            options.insert((selected, sensorOptions.isEmpty ? key : String(localized: "\(key) (not on this Mac)", comment: "A sensor this Mac does not have")), at: 0)
         }
         return options
     }
@@ -1478,9 +1473,9 @@ struct WidgetSettingsView: View {
 
     private func rangeHint(for entry: Manifest.Setting) -> String? {
         switch (entry.min, entry.max) {
-        case let (min?, max?): return "Range \(Int(min))–\(Int(max))"
-        case let (min?, nil): return "Min \(Int(min))"
-        case let (nil, max?): return "Max \(Int(max))"
+        case let (min?, max?): return String(localized: "Range \(Int(min))–\(Int(max))")
+        case let (min?, nil): return String(localized: "Min \(Int(min))", comment: "Minimum allowed value")
+        case let (nil, max?): return String(localized: "Max \(Int(max))", comment: "Maximum allowed value")
         default: return nil
         }
     }
@@ -1516,12 +1511,12 @@ struct WidgetSettingsView: View {
                 // Resolved when the target changes, not on every render: it is
                 // a Launch Services lookup.
                 if clickTargetResolves == false {
-                    settingsHint("Nothing on this Mac answers to that; a click will show the card instead.")
+                    settingsHint(String(localized: "Nothing on this Mac answers to that; a click will show the card instead."))
                 }
             }
             settingsHint(usesOwnItem
-                ? "A right click always opens the item's menu, which can still show the card."
-                : "Clicks belong to items with their own place in the menu bar.")
+                ? String(localized: "A right click always opens the item's menu, which can still show the card.")
+                : String(localized: "Clicks belong to items with their own place in the menu bar."))
         }
     }
 
@@ -1535,7 +1530,7 @@ struct WidgetSettingsView: View {
         HStack(spacing: 8) {
             Menu("Apply Preset") {
                 ForEach(MenuBarPresentation.presets, id: \.name) { preset in
-                    Button(preset.name) {
+                    Button(MenuBarPresetName.title(preset.name)) {
                         setPresentation { $0 = $0.applying(preset: preset.presentation) }
                     }
                 }
@@ -1558,7 +1553,7 @@ struct WidgetSettingsView: View {
         .controlSize(.small)
         // Presets and copies reach past this tab: Minimal hides units, and a
         // copy takes the other item's unit setting.
-        settingsHint("Can also change units, on the Readings tab.")
+        settingsHint(String(localized: "Can also change units, on the Readings tab."))
         }
     }
 
@@ -1643,9 +1638,20 @@ enum MenuBarSettingsTab: CaseIterable {
 
     var title: String {
         switch self {
-        case .look: return "Look"
-        case .readings: return "Readings"
-        case .behavior: return "Behavior"
+        case .look: return String(localized: "Look", comment: "Menu bar settings tab: appearance")
+        case .readings: return String(localized: "Readings", comment: "Menu bar settings tab: the widget's values")
+        case .behavior: return String(localized: "Behavior", comment: "Menu bar settings tab")
+        }
+    }
+}
+
+extension MenuBarStyle {
+    /// `title`, in the app's language. The core's English stays for logs.
+    var displayTitle: String {
+        switch self {
+        case .inline: return String(localized: "Label beside the value")
+        case .stacked: return String(localized: "Label above the value")
+        case .metrics: return String(localized: "Two metric rows")
         }
     }
 }

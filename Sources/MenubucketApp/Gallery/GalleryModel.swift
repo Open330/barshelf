@@ -12,7 +12,7 @@ enum GalleryKindFilter: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var label: String {
         switch self {
-        case .all: return "All"
+        case .all: return String(localized: "All", comment: "Gallery filter: every widget type")
         case .exec: return WidgetTypeName.name("exec")
         case .workflow: return WidgetTypeName.name("workflow")
         case .script: return WidgetTypeName.name("script")
@@ -173,17 +173,16 @@ final class GalleryModel: ObservableObject {
         if !builtin.isEmpty {
             result.append(GallerySection(
                 id: "builtin",
-                title: "BarShelf Widgets",
-                subtitle: "Everyday widgets from the BarShelf project.",
+                title: String(localized: "BarShelf Widgets"),
+                subtitle: String(localized: "Everyday widgets from the BarShelf project."),
                 entries: builtin
             ))
         }
         if !custom.isEmpty {
             result.append(GallerySection(
                 id: "custom",
-                title: "Connected Widgets",
-                subtitle: "Show information from another app, command-line tool, or web service. "
-                    + "Some need that tool installed first.",
+                title: String(localized: "Connected Widgets"),
+                subtitle: String(localized: "Show information from another app, command-line tool, or web service. Some need that tool installed first."),
                 entries: custom
             ))
         }
@@ -257,7 +256,7 @@ final class GalleryModel: ObservableObject {
         guard let required = entry.minHostVersion, let host = WidgetRuntime.hostVersion,
               SemanticVersionOrder.isNewer(required, than: host)
         else { return nil }
-        return "Needs BarShelf \(required) or later"
+        return String(localized: "Needs BarShelf \(required) or later")
     }
 
     func onWindowShown() {
@@ -380,14 +379,14 @@ final class GalleryModel: ObservableObject {
     ) -> String? {
         let warningText = result.warnings.joined(separator: " ").lowercased()
         if warningText.contains("refresh failed"), case .cache = result.source {
-            return "Couldn’t refresh the registry. Showing cached widgets."
+            return String(localized: "Couldn’t refresh the registry. Showing cached widgets.")
         }
         if case .bundled = result.source,
            warningText.contains("unavailable") || warningText.contains("failed") {
-            return "Using the bundled widget registry while the online registry is unavailable."
+            return String(localized: "Using the bundled widget registry while the online registry is unavailable.")
         }
         if !result.warnings.isEmpty {
-            return "Some registry details could not be loaded."
+            return String(localized: "Some registry details could not be loaded.")
         }
         return nil
     }
@@ -402,7 +401,7 @@ final class GalleryModel: ObservableObject {
     func remove(_ entry: RegistryWidgetEntry) -> Bool {
         removeError = nil
         guard let runtime = resolvedRuntime else {
-            removeError = "BarShelf couldn’t remove this widget right now. Try again from the Widgets page."
+            removeError = String(localized: "BarShelf couldn’t remove this widget right now. Try again from the Widgets page.")
             return false
         }
         do {

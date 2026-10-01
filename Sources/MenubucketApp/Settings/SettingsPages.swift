@@ -22,7 +22,7 @@ private struct PrefsErrorSection: View {
     var body: some View {
         if let error = appPrefs.lastError {
             Section {
-                StatusBanner(tone: .critical, message: "Couldn't save settings: \(error)")
+                StatusBanner(tone: .critical, message: String(localized: "Couldn't save settings: \(error)"))
             }
         }
     }
@@ -93,17 +93,17 @@ struct GeneralSettingsPage: View {
     static func name(for symbol: String) -> String {
         switch symbol {
         case BarShelfStatusIcon.logoSymbol: return "BarShelf"
-        case "tray.full": return "Tray"
-        case "square.grid.2x2": return "Grid"
-        case "menubar.rectangle": return "Menu Bar"
-        case "switch.2": return "Switches"
-        case "bolt": return "Bolt"
-        case "gauge": return "Gauge"
-        case "sparkles": return "Sparkles"
-        case "circle.grid.3x3": return "Dots"
-        case "rectangle.stack": return "Stack"
-        case "app": return "App"
-        case "terminal": return "Terminal"
+        case "tray.full": return String(localized: "Tray", comment: "Menu bar icon choice")
+        case "square.grid.2x2": return String(localized: "Grid", comment: "Menu bar icon choice")
+        case "menubar.rectangle": return String(localized: "Menu Bar", comment: "Menu bar icon choice")
+        case "switch.2": return String(localized: "Switches", comment: "Menu bar icon choice")
+        case "bolt": return String(localized: "Bolt", comment: "Menu bar icon choice")
+        case "gauge": return String(localized: "Gauge", comment: "Menu bar icon choice")
+        case "sparkles": return String(localized: "Sparkles", comment: "Menu bar icon choice")
+        case "circle.grid.3x3": return String(localized: "Dots", comment: "Menu bar icon choice")
+        case "rectangle.stack": return String(localized: "Stack", comment: "Menu bar icon choice")
+        case "app": return String(localized: "App", comment: "Menu bar icon choice")
+        case "terminal": return String(localized: "Terminal", comment: "Menu bar icon choice")
         default: return symbol
         }
     }
@@ -133,7 +133,7 @@ struct GeneralSettingsPage: View {
             appPrefs.update { $0.launchAtLogin = enabled }
             return nil
         } catch {
-            return "Couldn't change login items: "
+            return String(localized: "Couldn't change login items: ")
                 + ((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
         }
     }
@@ -196,13 +196,13 @@ struct ShortcutsSettingsPage: View {
     }
 
     private static let appShortcuts = [
-        AppShortcut(title: "Search the popup", keys: "⌘F"),
-        AppShortcut(title: "Refresh all widgets", keys: "⌘R"),
-        AppShortcut(title: "Create a widget", keys: "⌘N"),
-        AppShortcut(title: "Open Settings", keys: "⌘,"),
-        AppShortcut(title: "Go to page 1–9", keys: "⌘1 … ⌘9"),
-        AppShortcut(title: "Previous or next page", keys: "← →"),
-        AppShortcut(title: "Quit BarShelf", keys: "⌘Q"),
+        AppShortcut(title: String(localized: "Search the popup"), keys: "⌘F"),
+        AppShortcut(title: String(localized: "Refresh all widgets"), keys: "⌘R"),
+        AppShortcut(title: String(localized: "Create a widget"), keys: "⌘N"),
+        AppShortcut(title: String(localized: "Open Settings"), keys: "⌘,"),
+        AppShortcut(title: String(localized: "Go to page 1–9"), keys: "⌘1 … ⌘9"),
+        AppShortcut(title: String(localized: "Previous or next page"), keys: "← →"),
+        AppShortcut(title: String(localized: "Quit BarShelf"), keys: "⌘Q"),
     ]
 }
 
@@ -271,7 +271,7 @@ struct UpdatesSettingsPage: View {
                 if UpdateChecker.isUsingOverriddenFeed {
                     StatusBanner(
                         tone: .warning,
-                        message: "Updates come from \(UpdateChecker.repository) instead of the official releases."
+                        message: String(localized: "Updates come from \(UpdateChecker.repository) instead of the official releases.")
                     )
                 }
             } header: {
@@ -283,10 +283,10 @@ struct UpdatesSettingsPage: View {
     }
 
     private var statusLine: String {
-        if status.isChecking { return "Checking…" }
-        if let available = status.available { return "BarShelf \(available) is available" }
-        if status.lastChecked != nil { return "BarShelf is up to date" }
-        return "Not checked yet"
+        if status.isChecking { return String(localized: "Checking…") }
+        if let available = status.available { return String(localized: "BarShelf \(available) is available") }
+        if status.lastChecked != nil { return String(localized: "BarShelf is up to date") }
+        return String(localized: "Not checked yet")
     }
 }
 
@@ -503,9 +503,9 @@ private struct DiagnosticsRow: View {
 
     private var outcome: (text: String, tone: StatusTone) {
         switch stats?.lastOutcomeWasSuccess {
-        case .some(true): return ("Working", .success)
-        case .some(false): return ("Failing", .critical)
-        case .none: return ("Not run yet", .info)
+        case .some(true): return (String(localized: "Working", comment: "A widget's last refresh succeeded"), .success)
+        case .some(false): return (String(localized: "Failing", comment: "A widget's last refresh failed"), .critical)
+        case .none: return (String(localized: "Not run yet"), .info)
         }
     }
 
@@ -514,12 +514,12 @@ private struct DiagnosticsRow: View {
     private var detail: String {
         let ok = stats?.successCount ?? 0
         let failed = stats?.failureCount ?? 0
-        let duration = stats?.lastDurationMs.map { "\(Int($0.rounded())) ms" } ?? "–"
-        return "\(ok) ok · \(failed) failed · \(duration)"
+        let duration = stats?.lastDurationMs.map { String(localized: "\(Int($0.rounded())) ms", comment: "A duration in milliseconds") } ?? "–"
+        return String(localized: "\(ok) ok · \(failed) failed · \(duration)", comment: "Refresh counts: successful, failed, and how long the last one took")
     }
 
     private var lastRefresh: String {
-        guard let last = stats?.lastRefreshAt else { return "Never refreshed" }
-        return "Refreshed \(last.formatted(.relative(presentation: .named)))"
+        guard let last = stats?.lastRefreshAt else { return String(localized: "Never refreshed") }
+        return String(localized: "Refreshed \(last.formatted(.relative(presentation: .named)))")
     }
 }

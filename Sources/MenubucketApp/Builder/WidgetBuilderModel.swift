@@ -13,9 +13,9 @@ final class WidgetBuilderModel: ObservableObject {
         case source, display, details
         var title: String {
             switch self {
-            case .source: return "Source"
-            case .display: return "Display"
-            case .details: return "Details"
+            case .source: return String(localized: "Source", comment: "Widget builder step title")
+            case .display: return String(localized: "Display", comment: "Widget builder step title")
+            case .details: return String(localized: "Details", comment: "Widget builder step title")
             }
         }
     }
@@ -25,12 +25,12 @@ final class WidgetBuilderModel: ObservableObject {
         var id: String { rawValue }
         var label: String {
             switch self {
-            case .command: return "Run a command"
-            case .shellScript: return "Shell script"
-            case .httpJSON: return "HTTP JSON"
-            case .pastedJSON: return "Paste JSON"
-            case .folder: return "Watch a folder"
-            case .staticText: return "Static text"
+            case .command: return String(localized: "Run a command")
+            case .shellScript: return String(localized: "Shell script")
+            case .httpJSON: return String(localized: "HTTP JSON")
+            case .pastedJSON: return String(localized: "Paste JSON")
+            case .folder: return String(localized: "Watch a folder")
+            case .staticText: return String(localized: "Static text")
             }
         }
         var symbol: String {
@@ -63,42 +63,42 @@ final class WidgetBuilderModel: ObservableObject {
     static let commandTemplates: [CommandTemplate] = [
         .init(
             id: "github-actions",
-            title: "GitHub Actions runs",
+            title: String(localized: "GitHub Actions runs"),
             command: "gh run list --limit 5 --json name,status,conclusion",
             suggestedName: "GitHub Actions",
             suggestedIcon: "bolt"
         ),
         .init(
             id: "kubernetes-pods",
-            title: "Kubernetes pods",
+            title: String(localized: "Kubernetes pods"),
             command: "kubectl get pods -o json | jq '[.items[] | {name: .metadata.name, phase: .status.phase}]'",
             suggestedName: "Kubernetes Pods",
             suggestedIcon: "network"
         ),
         .init(
             id: "disk-usage",
-            title: "Disk usage",
+            title: String(localized: "Disk usage"),
             command: #"df -h / | tail -1 | awk '{print "{\"used\":\""$3"\",\"free\":\""$4"\",\"pct\":\""$5"\"}"}'"#,
             suggestedName: "Disk Usage",
             suggestedIcon: "gauge"
         ),
         .init(
             id: "homebrew-outdated",
-            title: "Homebrew outdated",
+            title: String(localized: "Homebrew outdated"),
             command: "brew outdated --json=v2 | jq '[.formulae[] | {name, current: .installed_versions[0], latest: .current_version}]'",
             suggestedName: "Homebrew Outdated",
             suggestedIcon: "cube.box"
         ),
         .init(
             id: "docker-containers",
-            title: "Docker containers",
+            title: String(localized: "Docker containers"),
             command: "docker ps --format '{{json .}}' | jq -s '[.[] | {name: .Names, status: .Status}]'",
             suggestedName: "Docker Containers",
             suggestedIcon: "cube.box"
         ),
         .init(
             id: "recent-git-commits",
-            title: "Recent git commits",
+            title: String(localized: "Recent git commits"),
             command: #"git -C ~/your/repo log -5 --pretty=format:'{"hash":"%h","msg":"%s"}' | jq -s ."#,
             suggestedName: "Recent Commits",
             suggestedIcon: "clock"
@@ -110,12 +110,12 @@ final class WidgetBuilderModel: ObservableObject {
         var id: String { rawValue }
         var label: String {
             switch self {
-            case .list: return "List"
-            case .grid: return "Grid"
-            case .table: return "Table"
-            case .value: return "Single value"
-            case .meter: return "Meter"
-            case .text: return "Plain text"
+            case .list: return String(localized: "List", comment: "Widget display style")
+            case .grid: return String(localized: "Grid", comment: "Widget display style")
+            case .table: return String(localized: "Table", comment: "Widget display style")
+            case .value: return String(localized: "Single value")
+            case .meter: return String(localized: "Meter", comment: "Widget display style")
+            case .text: return String(localized: "Plain text")
             }
         }
     }
@@ -126,19 +126,19 @@ final class WidgetBuilderModel: ObservableObject {
         var id: String { rawValue }
         var label: String {
             switch self {
-            case .none: return "Nothing"
-            case .copy: return "Copy a field"
-            case .openURL: return "Open a field as a URL"
-            case .openFile: return "Open a field as a file"
+            case .none: return String(localized: "Nothing", comment: "Row click action: do nothing")
+            case .copy: return String(localized: "Copy a field")
+            case .openURL: return String(localized: "Open a field as a URL")
+            case .openFile: return String(localized: "Open a field as a file")
             }
         }
         /// Label for the field being acted on.
         var fieldPrompt: String {
             switch self {
             case .none: return ""
-            case .copy: return "Field to copy"
-            case .openURL: return "URL field"
-            case .openFile: return "File-path field"
+            case .copy: return String(localized: "Field to copy")
+            case .openURL: return String(localized: "URL field")
+            case .openFile: return String(localized: "File-path field")
             }
         }
     }
@@ -147,7 +147,7 @@ final class WidgetBuilderModel: ObservableObject {
     enum MeterStyle: String, CaseIterable, Identifiable {
         case bar, ring
         var id: String { rawValue }
-        var label: String { self == .bar ? "Bar" : "Ring" }
+        var label: String { self == .bar ? String(localized: "Bar", comment: "Meter style") : String(localized: "Ring", comment: "Meter style") }
     }
 
     /// One editable meter in the display step: a numeric field scaled by
@@ -509,8 +509,8 @@ final class WidgetBuilderModel: ObservableObject {
 
     var pastedJSONError: String? {
         pastedJSONText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? "Paste JSON to continue."
-            : (parsedPastedJSON == nil ? "JSON is not valid yet." : nil)
+            ? String(localized: "Paste JSON to continue.")
+            : (parsedPastedJSON == nil ? String(localized: "JSON is not valid yet.") : nil)
     }
 
     private var httpURLHost: String? {
@@ -672,12 +672,12 @@ final class WidgetBuilderModel: ObservableObject {
 
     private var suggestedPreviewName: String {
         switch sourceKind {
-        case .command: return "Command Widget"
-        case .shellScript: return "Script Widget"
-        case .httpJSON: return "HTTP JSON Widget"
-        case .pastedJSON: return "Pasted JSON Widget"
-        case .folder: return "Folder Widget"
-        case .staticText: return "Text Widget"
+        case .command: return String(localized: "Command Widget")
+        case .shellScript: return String(localized: "Script Widget")
+        case .httpJSON: return String(localized: "HTTP JSON Widget")
+        case .pastedJSON: return String(localized: "Pasted JSON Widget")
+        case .folder: return String(localized: "Folder Widget")
+        case .staticText: return String(localized: "Text Widget")
         }
     }
 
@@ -753,7 +753,7 @@ final class WidgetBuilderModel: ObservableObject {
         switch sourceKind {
         case .command, .shellScript:
             if let json = lastJSON { return ["data": json] }
-            return ["data": .string(testOutput.isEmpty ? "(run the command to preview)" : testOutput)]
+            return ["data": .string(testOutput.isEmpty ? String(localized: "(run the command to preview)") : testOutput)]
         case .httpJSON:
             if let json = lastJSON { return ["data": json] }
             return ["data": .object([
@@ -786,7 +786,7 @@ final class WidgetBuilderModel: ObservableObject {
             let dir = root
                 .appendingPathComponent(spec.resolvedID, isDirectory: true)
             guard !FileManager.default.fileExists(atPath: dir.path) else {
-                createError = "A widget with id \"\(spec.resolvedID)\" already exists. Change the name/id or remove the existing widget first."
+                createError = String(localized: "A widget with id \"\(spec.resolvedID)\" already exists. Change the name/id or remove the existing widget first.")
                 return
             }
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

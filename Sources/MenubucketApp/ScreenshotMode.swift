@@ -1226,7 +1226,7 @@ private struct BuilderShot: View {
         .environment(\.colorScheme, .dark)
     }
 
-    private func stepView(_ num: String, _ label: String, done: Bool = false, now: Bool = false) -> some View {
+    private func stepView(_ num: String, _ label: LocalizedStringKey, done: Bool = false, now: Bool = false) -> some View {
         HStack(spacing: 7) {
             Text(num)
                 .font(.system(size: 11, weight: .bold, design: .monospaced))
@@ -1237,7 +1237,7 @@ private struct BuilderShot: View {
         }
     }
 
-    private func optRow(_ label: String, selected: Bool = false) -> some View {
+    private func optRow(_ label: LocalizedStringKey, selected: Bool = false) -> some View {
         HStack {
             Text(label).font(.system(size: 12)).foregroundColor(selected ? .primary : .secondary)
             Spacer()
