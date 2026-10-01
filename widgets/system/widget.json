@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.system",
   "name": "System",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "minHostVersion": "0.3.11",
   "icon": "cpu.fill",
   "bucket": {

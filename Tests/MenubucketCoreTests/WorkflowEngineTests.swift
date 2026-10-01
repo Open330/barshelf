@@ -892,7 +892,8 @@ final class NativeWidgetsTests: XCTestCase {
             ])],
             settings: .object([:])
         )
-        let timeRow = out.viewTree.children?[1]
+        // The card header names the widget; the body leads with the time.
+        let timeRow = out.viewTree.children?.first
         XCTAssertEqual(timeRow?.children?.first?.text, "20:53")
         XCTAssertEqual(timeRow?.children?.first?.size, 44)
         XCTAssertEqual(timeRow?.children?.last?.text, "26")
@@ -1220,7 +1221,7 @@ final class PersistenceWidgetTests: XCTestCase {
             nowMs: nowMs
         )
         // The running count renders as prior + 1.
-        let valueNode = output.viewTree.children?[1].children?.first
+        let valueNode = output.viewTree.children?.first?.children?.first
         XCTAssertEqual(valueNode?.text, "3")
         XCTAssertEqual(output.statusLabel, "3")
 

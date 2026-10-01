@@ -17,14 +17,7 @@
     "type": "vstack",
     "spacing": 4,
     "children": [
-      {
-        "type": "hstack",
-        "spacing": 6,
-        "children": [
-          { "type": "image", "source": { "kind": "sfSymbol", "name": "calendar" }, "size": 13, "tint": "accent" },
-          { "type": "text", "text": "${sources.data.month}", "role": "title", "lineLimit": 1 }
-        ]
-      },
+      { "type": "text", "text": "${sources.data.month}", "role": "title", "lineLimit": 1 },
       {
         "type": "grid",
         "columns": 7,

@@ -204,15 +204,6 @@ async function render(state: FocusState, nowMs: number): Promise<void> {
 
   await barshelf.render(
     ui.vstack([
-      ui.header("Focus Timer", {
-        icon: "timer",
-        badge: statusTitle(state.status),
-        badgeTone: state.status === "completed"
-          ? "good"
-          : state.status === "paused"
-          ? "warning"
-          : "accent",
-      }),
       ui.card([
         ui.hstack([
           timerProgress(state, nowMs),

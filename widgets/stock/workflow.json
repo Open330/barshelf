@@ -22,14 +22,7 @@
     "type": "vstack",
     "spacing": 2,
     "children": [
-      {
-        "type": "hstack",
-        "spacing": 6,
-        "children": [
-          { "type": "image", "source": { "kind": "sfSymbol", "name": "chart.line.uptrend.xyaxis" }, "size": 13, "tint": "accent" },
-          { "type": "text", "text": "${coalesce(transforms.m.symbol, settings.symbol)}", "role": "caption", "foreground": "secondary" }
-        ]
-      },
+      { "type": "text", "text": "${coalesce(transforms.m.symbol, settings.symbol)}", "role": "caption", "foreground": "secondary" },
       { "type": "text", "text": "${string(round(number(transforms.m.regularMarketPrice), 2))}", "size": 32, "role": "title", "monospacedDigit": true },
       {
         "type": "text",

@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.top-processes",
   "name": "Top Processes",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "icon": "cpu.fill",
   "bucket": { "group": "System", "order": 20, "size": "M" },
 

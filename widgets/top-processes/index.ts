@@ -83,11 +83,6 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
   const topTone = toneFor(top.cpu);
   await ctx.render(
     ui.vstack([
-      ui.header("Top Processes", {
-        icon: "cpu.fill",
-        badge: `${processes.length} active`,
-        badgeTone: "accent",
-      }),
       ui.metricCard("Peak CPU", `${top.cpu.toFixed(1)}%`, {
         icon: "flame.fill",
         tone: topTone,

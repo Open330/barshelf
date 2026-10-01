@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.local-time",
   "name": "Local Time",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "icon": "clock.fill",
   "bucket": { "group": "Demo", "order": 40, "size": "S" },
 

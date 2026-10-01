@@ -95,9 +95,6 @@ function webRemote(remote: string): { url: string; host: string } | null {
 
 function setupView(message: string): UINode {
   return ui.vstack([
-    ui.header("Project Status", {
-      icon: "point.3.connected.trianglepath.dotted",
-    }),
     ui.empty({
       icon: "folder.badge.gearshape",
       title: "Choose a project",
@@ -155,9 +152,6 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
   if (statusResult.exitCode !== 0) {
     await ctx.render(
       ui.vstack([
-        ui.header("Project Status", {
-          icon: "point.3.connected.trianglepath.dotted",
-        }),
         ui.banner(
           "The selected directory is unavailable or is not a Git repository.",
           {
@@ -214,7 +208,6 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
   await ctx.render(
     ui.vstack([
       ui.header(directoryName(directory), {
-        icon: "point.3.connected.trianglepath.dotted",
         subtitle: status.branch,
         badge: clean ? "Clean" : `${status.dirtyFiles} changed`,
         badgeTone: clean ? "good" : "warning",

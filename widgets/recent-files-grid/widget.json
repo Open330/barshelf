@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.recent-files-grid",
   "name": "Recent Files",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "icon": "square.grid.2x2",
   "bucket": { "group": "Files", "order": 31, "size": "M" },
 

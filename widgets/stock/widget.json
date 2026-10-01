@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.stock",
   "name": "Stock",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "icon": "chart.line.uptrend.xyaxis",
   "bucket": { "group": "Demo", "order": 15, "size": "S" },
 

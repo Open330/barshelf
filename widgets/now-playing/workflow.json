@@ -17,14 +17,6 @@
     "type": "vstack",
     "spacing": 4,
     "children": [
-      {
-        "type": "hstack",
-        "spacing": 6,
-        "children": [
-          { "type": "image", "source": { "kind": "sfSymbol", "name": "music.note" }, "size": 14, "tint": "accent" },
-          { "type": "text", "text": "Now Playing", "role": "caption", "foreground": "secondary" }
-        ]
-      },
       { "type": "text", "text": "${sources.data.track}", "role": "title", "lineLimit": 2 }
     ]
   },

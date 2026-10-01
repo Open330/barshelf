@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.now-playing",
   "name": "Now Playing",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "icon": "music.note",
   "bucket": { "group": "Media", "order": 10, "size": "M" },
 

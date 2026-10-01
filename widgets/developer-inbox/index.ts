@@ -289,12 +289,6 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
   const total = prs.length + notifications.length;
 
   const children: UINode[] = [
-    ui.header("Developer Inbox", {
-      icon: "tray.full.fill",
-      badge: total > 0 ? String(total) : "Clear",
-      badgeTone: total > 0 ? "accent" : "good",
-      subtitle: "GitHub activity that needs your attention",
-    }),
     ui.hstack([
       ui.stat("Review requests", prs.length, {
         icon: "arrow.triangle.pull",

@@ -13,8 +13,6 @@
         "type": "hstack",
         "spacing": 6,
         "children": [
-          { "type": "image", "source": { "kind": "sfSymbol", "name": "square.grid.2x2.fill" }, "size": 16, "tint": "accent" },
-          { "type": "text", "text": "Quick Shelf", "role": "title", "lineLimit": 1 },
           { "type": "spacer" },
           { "type": "badge", "text": "6 shortcuts", "tone": "accent" }
         ]

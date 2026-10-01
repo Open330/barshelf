@@ -107,7 +107,10 @@ public enum AasUsageAdapter {
     }
 
     public static func buildTree(from payload: Payload) -> UINode {
-        var children: [UINode] = [header(for: payload)]
+        var children: [UINode] = []
+        if let header = header(for: payload) {
+            children.append(header)
+        }
 
         if payload.accounts.isEmpty {
             children.append(UINode(
@@ -128,21 +131,22 @@ public enum AasUsageAdapter {
 
     // MARK: - Pieces
 
-    static func header(for payload: Payload) -> UINode {
-        var items: [UINode] = [
-            UINode(id: "aas-title", type: "text", text: "aas", role: "title"),
+    /// The worst remaining share across every meter, right-aligned. The
+    /// widget's card header already names it, so the body carries no "aas"
+    /// title of its own — and with no meters there is nothing to summarize.
+    static func header(for payload: Payload) -> UINode? {
+        guard let worst = worstRemaining(in: payload) else { return nil }
+        let items: [UINode] = [
             UINode(id: "aas-header-spacer", type: "spacer"),
-        ]
-        if let worst = worstRemaining(in: payload) {
-            items.append(UINode(
+            UINode(
                 id: "aas-summary",
                 type: "text",
                 text: String(format: "%.0f%% left", worst),
                 role: "caption",
                 monospacedDigit: true,
                 foreground: severity(remainingPct: worst)
-            ))
-        }
+            ),
+        ]
         return UINode(id: "aas-header", type: "hstack", children: items, spacing: 6)
     }
 

@@ -32,12 +32,6 @@
         "spacing": 6,
         "children": [
           {
-            "type": "image",
-            "source": { "kind": "sfSymbol", "name": "cloud.sun.fill" },
-            "size": 13,
-            "tint": "accent"
-          },
-          {
             "type": "text",
             "text": "Will Codex reset?",
             "role": "caption",

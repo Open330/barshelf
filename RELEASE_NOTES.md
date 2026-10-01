@@ -33,3 +33,6 @@
   the grid.
 - The Gallery no longer uses CPU in the background while its window is
   minimized or covered (#1).
+- **No more double titles.** Bundled widgets no longer repeat their own name
+  and icon under the card's header ("Battery" then "Battery" again), so the
+  card goes straight to the reading. Your installed copies update on launch.

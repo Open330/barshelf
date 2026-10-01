@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.downloads-watch",
   "name": "Downloads Watch",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "icon": "arrow.down.circle.fill",
   "bucket": { "group": "Files", "order": 40, "size": "M" },
 

@@ -157,12 +157,15 @@ function itemRow(item: ClipboardItem): UINode {
 async function render(now: number): Promise<void> {
   const pinned = items.filter((item) => item.pinned).length;
   const children: UINode[] = [
-    ui.header("Clipboard Shelf", {
-      icon: "clipboard.fill",
-      badge: `${items.length}/${historyLimit}`,
-      badgeTone: "accent",
-      subtitle: "Memory-only history · secrets are skipped",
-    }),
+    ui.hstack([
+      ui.text("Memory-only history · secrets are skipped", {
+        role: "caption",
+        foreground: "secondary",
+        lineLimit: 1,
+      }),
+      ui.spacer(),
+      ui.badge(`${items.length}/${historyLimit}`, { tone: "accent" }),
+    ], { spacing: 6 }),
   ];
 
   if (ignoredSensitive) {

@@ -27,7 +27,6 @@
             "size": 15,
             "tint": "${if(gt(sources.data.pct, 25), 'good', if(gt(sources.data.pct, 10), 'warning', 'danger'))}"
           },
-          { "type": "text", "text": "Battery", "role": "caption", "foreground": "secondary" },
           { "type": "spacer" },
           { "type": "text", "text": "${sources.data.state}", "role": "caption", "foreground": "secondary", "lineLimit": 1 }
         ]

@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.clipboard-shelf",
   "name": "Clipboard Shelf",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "icon": "clipboard.fill",
   "bucket": { "group": "Everyday", "order": 40, "size": "M" },
 
