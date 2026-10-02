@@ -62,6 +62,7 @@ struct GeneralSettingsPage: View {
                 }
             } footer: {
                 Text("The icon BarShelf shows in the menu bar.")
+                    .formFooter()
             }
 
             Section {
@@ -186,6 +187,7 @@ struct ShortcutsSettingsPage: View {
                 Text("In BarShelf")
             } footer: {
                 Text("These work in the popup and in this window.")
+                    .formFooter()
             }
         }
     }
@@ -313,6 +315,7 @@ struct PrivacySettingsPage: View {
                 Text("Widget Permissions")
             } footer: {
                 Text("A widget can only run commands, use the network, or read files it declared, and only after you allow it. Revoking stops the widget until you allow it again on its card. Copies of a widget share its permissions.")
+                    .formFooter()
             }
 
             Section {

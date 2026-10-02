@@ -46,7 +46,7 @@ public struct InstallCandidate: Equatable, Sendable {
         )
     }
 
-    private static func loadWorkflow(
+    public static func loadWorkflow(
         for candidate: WidgetDiscovery.Candidate
     ) -> WorkflowDefinition? {
         guard candidate.manifest.entry.kind == "workflow" else { return nil }

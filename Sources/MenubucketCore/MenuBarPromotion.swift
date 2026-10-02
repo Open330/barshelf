@@ -1427,7 +1427,12 @@ public enum MenuBarPolicy {
     }
 
     /// Multi-line tooltip: one line per entry, each "Name — value".
-    public static func tooltip(for entries: [MenuBarEntry]) -> String? {
+    ///
+    /// `active` and `inactive` name an on/off reading; the app passes them
+    /// in its user's language, Core has no strings of its own to translate.
+    public static func tooltip(
+        for entries: [MenuBarEntry], active: String = "Active", inactive: String = "Inactive"
+    ) -> String? {
         let lines = entries.map { entry -> String in
             if let tooltip = entry.tooltip, !tooltip.isEmpty {
                 return "\(entry.name) — \(tooltip)"
@@ -1439,7 +1444,7 @@ public enum MenuBarPolicy {
                         .joined(separator: " ")
                     if !visible.isEmpty { return visible }
                     if let accessibilityLabel = metric.accessibilityLabel { return accessibilityLabel }
-                    if metric.active != nil { return metric.active == true ? "Active" : "Inactive" }
+                    if metric.active != nil { return metric.active == true ? active : inactive }
                     return nil
                 }.joined(separator: " · ")
                 if !text.isEmpty { return "\(entry.name) — \(text)" }

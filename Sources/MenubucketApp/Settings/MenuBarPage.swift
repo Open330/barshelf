@@ -36,6 +36,7 @@ struct MenuBarPage: View {
             Text("In the Menu Bar")
         } footer: {
             Text("Items that share the BarShelf icon appear next to it in this order. An item of its own can be moved by holding ⌘ and dragging it in the menu bar.")
+                .formFooter()
         }
     }
 
@@ -99,6 +100,7 @@ struct MenuBarPage: View {
             Text("Style for All Items")
         } footer: {
             Text("Every item uses this style unless its own settings change it.")
+                .formFooter()
         }
     }
 

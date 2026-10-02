@@ -100,8 +100,11 @@ load formula ... from untrusted tap`이 나오면 안내대로
 
 ## 업데이트
 
-메뉴바 우클릭의 **Check for Updates…** 가 GitHub Releases를 확인한다. 새 버전이
-있으면 어떻게 설치할지는 이 복사본이 어떤 상태인지에 따라 달라진다.
+BarShelf는 실행할 때 GitHub Releases를 조용히 확인한다. 새 버전이 있으면 메뉴바
+아이콘에 점이 생기고 팝업 ⋯ 메뉴에 **Update to BarShelf …** 가 나타나며, 이를 누르면
+설치 안내가 뜬다. 직접 확인하려면 ⋯ → **Check for Updates…** 나 BarShelf 창 →
+**Updates** 의 **Check Now** 를 쓴다. 자동 확인 끄기와 "이 버전 건너뛰기"도 같은
+페이지에 있다. 어떻게 설치할지는 이 복사본이 어떤 상태인지에 따라 달라진다.
 
 | 설치 형태 | 동작 |
 | --- | --- |
@@ -137,8 +140,8 @@ load formula ... from untrusted tap`이 나오면 안내대로
 
 ## 설치 확인 체크리스트
 
-- [ ] 메뉴바 아이콘 클릭 → 팝업에 첫 실행 위젯(Today / Recent Files / Quick Shelf) 표시
-- [ ] 우클릭 메뉴에 Widget Gallery… / Install Widget from URL… / Refresh All 표시
+- [ ] 첫 실행 시 환영 창이 뜨고, 끝내면 팝업에 시작 위젯(Today / Recent Files / Quick Shelf) 표시
+- [ ] 팝업 ⋯ 메뉴와 아이콘 우클릭 메뉴에 Edit Shelf / Add Widget… / Settings… 표시
 - [ ] `barshelf list` 실행 시 설치된 위젯 목록 출력
 - [ ] (선택) `brew install deno` 후 clock-script 위젯 동작
 

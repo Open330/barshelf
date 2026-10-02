@@ -246,8 +246,9 @@ sharing) the BarShelf mark.
 - `mode` — `"none"` keeps the widget out of the menu bar. `"text"` shows its
   status label, `"icon"` its symbol, `"dynamic"` both. Anything but `"none"`
   makes the widget *eligible* and lists it in the menu bar picker; **nothing is
-  shown until the user turns it on**, from the BarShelf icon's right-click menu
-  (**Menu Bar ▸**) or the widget's Settings → Menu Bar. Declaring a mode never
+  shown until the user turns it on**, from the popup's ⋯ menu or the BarShelf
+  icon's right-click menu (**Menu Bar ▸**), the BarShelf window's **Menu Bar**
+  page, or the widget's settings (Menu Bar). Declaring a mode never
   takes over someone's menu bar on an update. The user can also promote a
   widget the author left at `"none"`, from its settings pane.
 - The live text is the value the widget already computes: a workflow's
@@ -317,8 +318,9 @@ sharing) the BarShelf mark.
   to two independent metrics in its own status item. Stacked and metrics both
   take their own item.
 - Widgets that show a label **share one status item** with the BarShelf mark
-  (`✦ 42% · 61% · 58°`); a widget can be split into its own item from Settings
-  or its right-click menu, and each separate item carries its own right-click
+  (`✦ 42% · 61% · 58°`); a widget can be split into its own item from the
+  BarShelf window's Menu Bar page or the widget's settings, and each separate
+  item carries its own right-click
   menu (show, refresh, merge back, remove). An `"icon"`-only widget always gets
   its own item, since an icon cannot join a text strip — but a user who sets an
   **emoji** as the icon can share the strip, because an emoji is text.

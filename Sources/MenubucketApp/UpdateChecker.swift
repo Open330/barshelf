@@ -121,7 +121,7 @@ enum UpdateChecker {
         case .homebrewManaged:
             lines.append(String(localized: "Update it the way you installed it:\n\(homebrewUpgradeCommand)"))
         case .some(let reason):
-            lines.append(reason.message)
+            lines.append(reason.localizedMessage)
             lines.append(String(localized: "Open the release page to download the build and verify its checksum."))
         case nil where asset == nil:
             lines.append(String(localized: "This release publishes no \(appAssetName(version: latest)).", comment: "The argument is the expected download file name."))
@@ -381,6 +381,23 @@ enum UpdateChecker {
         alert.addButton(withTitle: String(localized: "Open Releases"))
         if alert.runModal() == .alertSecondButtonReturn {
             NSWorkspace.shared.open(releasesPage)
+        }
+    }
+}
+
+extension UpdateInstaller.Blocker {
+    /// `message` in the user's language. Core keeps the English one for the
+    /// `barshelf` command line.
+    var localizedMessage: String {
+        switch self {
+        case .notSigned:
+            return String(localized: "This is a locally built copy, so BarShelf cannot verify an update against it.")
+        case .notWritable:
+            return String(localized: "BarShelf cannot write to its own location.")
+        case .homebrewManaged:
+            return String(localized: "BarShelf was installed with Homebrew.")
+        case .sandboxed:
+            return String(localized: "This copy came from the App Store, which handles its own updates.")
         }
     }
 }

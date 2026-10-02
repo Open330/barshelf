@@ -109,3 +109,14 @@ struct ControlCapsule: ViewModifier {
             .shadow(color: .black.opacity(0.10), radius: 2, y: 1)
     }
 }
+
+extension View {
+    /// A form section's footer note, starting at the section's leading edge
+    /// in every language. A grouped form otherwise lays a wrapped footer out
+    /// against the trailing edge.
+    func formFooter() -> some View {
+        multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+

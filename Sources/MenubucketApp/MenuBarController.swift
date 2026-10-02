@@ -181,7 +181,7 @@ final class MenuBarController {
             button.setAccessibilityLabel(BarShelfStatusIcon.accessibilityLabel(badged: attention))
             return
         }
-        let tooltip = MenuBarPolicy.tooltip(for: entries)
+        let tooltip = MenuBarPolicy.tooltip(for: entries, active: String(localized: "Active"), inactive: String(localized: "Inactive"))
         if button.toolTip != tooltip { button.toolTip = tooltip }
         let spoken = entries.map(MenuBarPolicy.accessibilityText).joined(separator: "; ")
         if previous.map({ $0.map(MenuBarPolicy.accessibilityText).joined(separator: "; ") != spoken }) ?? true {
@@ -286,7 +286,7 @@ final class MenuBarController {
             guard previous != entry else { continue }
             appliedSeparate[entry.widgetID] = entry
             guard let button = item.button else { continue }
-            let tooltip = MenuBarPolicy.tooltip(for: [entry])
+            let tooltip = MenuBarPolicy.tooltip(for: [entry], active: String(localized: "Active"), inactive: String(localized: "Inactive"))
             if button.toolTip != tooltip { button.toolTip = tooltip }
             // Tooltips say more than the item shows — the System widget's
             // names CPU, memory *and* disk, the Sensors one carries a decimal —
