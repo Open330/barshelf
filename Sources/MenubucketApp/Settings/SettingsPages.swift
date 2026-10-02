@@ -66,6 +66,20 @@ struct GeneralSettingsPage: View {
             }
 
             Section {
+                Picker(selection: Binding(
+                    get: { appPrefs.preferences.popupHeight },
+                    set: { value in appPrefs.update { $0.popupHeight = value } }
+                )) {
+                    Text("Standard").tag(AppPreferences.PopupHeight.standard)
+                    Text("Tall").tag(AppPreferences.PopupHeight.tall)
+                    Text("Fit to Screen").tag(AppPreferences.PopupHeight.fitScreen)
+                } label: {
+                    Text("Popup height")
+                    Text("How tall the popup grows before its pages scroll. It is shorter when there is less to show.")
+                }
+            }
+
+            Section {
                 Toggle(isOn: Binding(
                     get: { appPrefs.preferences.launchAtLogin },
                     set: setLaunchAtLogin

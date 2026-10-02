@@ -174,7 +174,10 @@ final class StatusItemController: NSObject {
     private func showPopup() {
         guard let button = statusItem.button else { return }
         if let screen = button.window?.screen ?? NSScreen.main {
-            pager.maxHeight = RootView.maximumHeight(screenVisibleHeight: screen.visibleFrame.height)
+            pager.maxHeight = RootView.maximumHeight(
+                screenVisibleHeight: screen.visibleFrame.height,
+                cap: appPrefs.preferences.popupHeight.points.map { CGFloat($0) }
+            )
         }
         popup.show(relativeTo: button)
     }

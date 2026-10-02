@@ -3046,6 +3046,16 @@
         }
       }
     },
+    "Fit to Screen": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "화면에 맞춤"
+          }
+        }
+      }
+    },
     "Fixed": {
       "localizations": {
         "ko": {
@@ -3518,6 +3528,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "어떻게 보이게 할까요?"
+          }
+        }
+      }
+    },
+    "How tall the popup grows before its pages scroll. It is shorter when there is less to show.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "페이지가 스크롤되기 전까지 팝업이 늘어나는 최대 높이입니다. 보여 줄 내용이 적으면 더 낮아집니다."
           }
         }
       }
@@ -5631,6 +5651,16 @@
         }
       }
     },
+    "Popup height": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "팝업 높이"
+          }
+        }
+      }
+    },
     "Posts notifications": {
       "localizations": {
         "ko": {
@@ -7482,6 +7512,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "스택"
+          }
+        }
+      }
+    },
+    "Standard": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "표준"
           }
         }
       }

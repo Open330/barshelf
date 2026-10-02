@@ -105,6 +105,10 @@ final class PopoverShelfTests: XCTestCase {
     func testMaximumHeightLeavesAMargin() {
         XCTAssertEqual(RootView.maximumHeight(screenVisibleHeight: 1000), 1000 - RootView.screenMargin)
         XCTAssertEqual(RootView.maximumHeight(screenVisibleHeight: 100), RootView.minimumHeight)
+        // The user's cap wins on a big screen; a small screen still wins over the cap.
+        XCTAssertEqual(RootView.maximumHeight(screenVisibleHeight: 1400, cap: 480), 480)
+        XCTAssertEqual(RootView.maximumHeight(screenVisibleHeight: 500, cap: 640), 500 - RootView.screenMargin)
+        XCTAssertEqual(RootView.maximumHeight(screenVisibleHeight: 1400, cap: nil), 1400 - RootView.screenMargin)
     }
 
     // MARK: - Freshness

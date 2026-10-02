@@ -37,6 +37,26 @@ public struct AppPreferences: Codable, Equatable, Sendable {
     /// A release the user chose to skip: the automatic check stays quiet
     /// about it, and speaks up again for anything newer.
     public var skippedUpdateVersion: String?
+    /// The tallest the popup grows before its pages scroll.
+    public var popupHeight: PopupHeight
+
+    public enum PopupHeight: String, Codable, CaseIterable, Sendable {
+        /// 480 pt, the size BarShelf has always opened at.
+        case standard
+        /// 640 pt.
+        case tall
+        /// As tall as the screen allows.
+        case fitScreen
+
+        /// The cap in points; nil for "the screen decides".
+        public var points: Double? {
+            switch self {
+            case .standard: return 480
+            case .tall: return 640
+            case .fitScreen: return nil
+            }
+        }
+    }
 
     public static let defaultMenuBarSymbol = "barshelf.logo"
     public static let defaultPopupHotkey = "cmd+shift+b"
@@ -51,7 +71,8 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         copySoundEnabled: Bool = false,
         menuBarPresentation: MenuBarPresentation? = nil,
         checkForUpdatesAutomatically: Bool = true,
-        skippedUpdateVersion: String? = nil
+        skippedUpdateVersion: String? = nil,
+        popupHeight: PopupHeight = .standard
     ) {
         self.menuBarSymbol = menuBarSymbol
         self.refreshMultiplier = refreshMultiplier
@@ -63,6 +84,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         self.menuBarPresentation = menuBarPresentation
         self.checkForUpdatesAutomatically = checkForUpdatesAutomatically
         self.skippedUpdateVersion = skippedUpdateVersion
+        self.popupHeight = popupHeight
         normalize()
     }
 
@@ -117,6 +139,9 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         skippedUpdateVersion = try container.decodeIfPresent(
             String.self, forKey: .skippedUpdateVersion
         )
+        // An unknown value from a newer build falls back rather than failing
+        // the whole file.
+        popupHeight = (try? container.decodeIfPresent(PopupHeight.self, forKey: .popupHeight)) ?? .standard
         normalize()
     }
 
