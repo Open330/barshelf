@@ -1,6 +1,11 @@
-# BarShelf 0.4.1
+# BarShelf 0.5.0
 
 > Unreleased. Requires macOS 14+ on Apple Silicon.
+
+BarShelf 0.5.0 redesigns the whole app: a new BarShelf window with a Shelf
+you arrange by dragging, settings that apply as you change them, a popup
+that needs no right-click, a better Gallery, a first-run welcome, and a
+Korean interface.
 
 ## Changes
 
