@@ -161,9 +161,12 @@ struct RootView: View {
     }
 
     /// The tallest the popup may be on a screen whose visible frame (menu bar
-    /// and Dock excluded) is `screenVisibleHeight` tall.
-    static func maximumHeight(screenVisibleHeight: CGFloat) -> CGFloat {
-        max(minimumHeight, screenVisibleHeight - screenMargin)
+    /// and Dock excluded) is `screenVisibleHeight` tall, with the user's
+    /// chosen cap (`nil` lets the screen decide).
+    static func maximumHeight(screenVisibleHeight: CGFloat, cap: CGFloat? = nil) -> CGFloat {
+        let screen = max(minimumHeight, screenVisibleHeight - screenMargin)
+        guard let cap else { return screen }
+        return max(minimumHeight, min(cap, screen))
     }
 
     // MARK: - Visibility

@@ -29,6 +29,15 @@ final class HubSettingsTests: XCTestCase {
         XCTAssertNil(prefs.skippedUpdateVersion, "a blank skip must not hide every update")
     }
 
+    /// The popup opens at its long-standing size unless the user asks for more.
+    func testPopupHeightDefaultsToStandard() throws {
+        let decoded = try JSONDecoder().decode(AppPreferences.self, from: Data("{}".utf8))
+        XCTAssertEqual(decoded.popupHeight, .standard)
+        XCTAssertEqual(AppPreferences.PopupHeight.standard.points, 480)
+        let unknown = try JSONDecoder().decode(AppPreferences.self, from: Data(#"{"popupHeight":"huge"}"#.utf8))
+        XCTAssertEqual(unknown.popupHeight, .standard)
+    }
+
     func testUpdatePreferencesRoundTrip() throws {
         let prefs = AppPreferences(checkForUpdatesAutomatically: false, skippedUpdateVersion: "0.5.0")
         let data = try JSONEncoder().encode(prefs)

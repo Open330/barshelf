@@ -1,8 +1,8 @@
-# BarShelf 0.5.0
+# BarShelf 0.5.1
 
 > Unreleased. Requires macOS 14+ on Apple Silicon.
 
-BarShelf 0.5.0 redesigns the whole app: a new BarShelf window with a Shelf
+BarShelf 0.5.1 redesigns the whole app: a new BarShelf window with a Shelf
 you arrange by dragging, settings that apply as you change them, a popup
 that needs no right-click, a better Gallery, a first-run welcome, and a
 Korean interface.
@@ -60,8 +60,9 @@ Korean interface.
   offers Restart and Open Logs.
 - **A dot on the menu bar icon** when a widget is waiting for your approval or
   has an error.
-- **The popup grows to fit.** It is as tall as your widgets need, up to the
-  height of your screen.
+- **The popup fits its content.** It is as tall as your widgets need, up to
+  480 points as before; choose Tall or Fit to Screen in Settings ▸ General ▸
+  Popup height for more.
 - A widget's card opened from its own menu bar item closes with Esc, shows
   "Copied" when you copy, and no longer offers page options that do not apply
   there.
