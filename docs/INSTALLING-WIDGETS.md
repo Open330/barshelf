@@ -55,15 +55,12 @@ barshelf://install?url=https%3A%2F%2Fgithub.com%2Fexample%2Fbarshelf-widgets
 
 ## 설치 경로
 
-### 메뉴바에서 설치
+### 갤러리에서 URL로 설치
 
-1. 메뉴바의 BarShelf 아이콘을 우클릭한다.
-2. `Install Widget from URL...`을 선택한다.
+1. 팝업의 ⋯ 메뉴 → **Add Widget…** 으로 BarShelf 창의 갤러리를 연다.
+2. 위쪽의 **Install from URL…** 을 누른다.
 3. GitHub URL, `.zip`, `.mbw` URL 중 하나를 붙여 넣는다.
-4. 설치 확인 화면에서 위젯 이름, 버전, 요구 권한 요약을 확인하고 설치한다.
-
-<!-- 스크린샷 자리: 메뉴바 우클릭 메뉴의 Install Widget from URL... 항목 -->
-<!-- 스크린샷 자리: URL 입력 다이얼로그 -->
+4. 설치 확인 화면에서 위젯 이름, 버전, 요구 권한을 확인하고 설치한다.
 
 ### 딥링크로 설치
 

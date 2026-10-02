@@ -1,7 +1,7 @@
 # Keyboard and window extensions
 
 BarShelf can replace the keyboard and window-navigation portion of a
-Hammerspoon setup. Open **Settings → Extensions**, import your configuration,
+Hammerspoon setup. Open the BarShelf window's **Automation** page, import your configuration,
 review the script, and save it. Grant **Accessibility** access, quit Hammerspoon,
 and enable the extension. An enabled extension starts with BarShelf; turning it
 off immediately unregisters its shortcuts and keyboard event tap.

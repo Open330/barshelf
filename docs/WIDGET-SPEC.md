@@ -181,10 +181,10 @@ Workflow DSL 상세 계약은 [`docs/WORKFLOW.md`](WORKFLOW.md)를 따른다.
   직접 고를 수 있다 — 번들 `system`/`sensors` 위젯이 그 예다. 자세한 패턴은
   [`WORKFLOW.md`의 메뉴바 승격](WORKFLOW.md#메뉴바-승격).
 - label을 가진 위젯들은 BarShelf 마크와 **status item 하나를 공유**한다
-  (`✦ 42% · 61% · 58°`). 위젯 설정이나 우클릭 메뉴에서 자기 아이템으로 분리할 수
-  있다. `icon` 모드는 아이콘을 글자 줄에 섞을 수 없으므로 항상 자기 아이템을 쓴다.
-- 공유 스트립의 좌우 순서는 위젯 설정의 **Position → Move Left / Move Right**로
-  바꾼다. 자기 아이템을 쓰는 위젯은 macOS가 제공하는 ⌘-드래그로 옮긴다.
+  (`✦ 42% · 61% · 58°`). BarShelf 창의 메뉴 막대 페이지나 위젯 설정에서 자기
+  아이템으로 분리할 수 있다. `icon` 모드는 아이콘을 글자 줄에 섞을 수 없으므로 항상 자기 아이템을 쓴다.
+- 공유 스트립의 좌우 순서는 BarShelf 창 메뉴 막대 페이지의 ← → 버튼(또는 위젯
+  설정 Menu Bar 탭의 Move Left / Move Right)으로 바꾼다. 자기 아이템을 쓰는 위젯은 macOS가 제공하는 ⌘-드래그로 옮긴다.
 - 최대 5개까지 승격된다. 이 상한은 그리기 전에 적용되므로, 넘친 위젯이 보이지도 않으면서 닫힌 팝오버 폴링 면제를 들고 있는 일은 없다. label은 한 줄로 합쳐 14자에서 자른다.
 - 작성자가 `mode`를 선언해도 그것만으로 켜지지 않는다. 업데이트가 사용자의 메뉴바를 말없이 차지하고 배터리를 더 쓰게 만들지 않기 위해서다.
 - 승격된 위젯은 팝오버가 닫혀 있어도 자기 `refresh.interval`로 계속 돈다.
@@ -232,7 +232,7 @@ Workflow DSL 상세 계약은 [`docs/WORKFLOW.md`](WORKFLOW.md)를 따른다.
 
 ### `settings`
 
-설정 선언은 위젯 헤더 우클릭 메뉴의 "Settings..." UI로 자동 변환된다. 저장된 값은 App Support에 유지되고, workflow에서는 `${settings.key}` 보간으로, script 위젯에서는 runtime context로 전달된다.
+설정 선언은 BarShelf 창 인스펙터의 General 탭 입력 항목으로 자동 변환된다 (카드의 톱니바퀴나 우클릭 → Settings…로 연다). 바꾸면 바로 저장된다. 저장된 값은 App Support에 유지되고, workflow에서는 `${settings.key}` 보간으로, script 위젯에서는 runtime context로 전달된다.
 
 ```json
 [
@@ -249,7 +249,7 @@ Workflow DSL 상세 계약은 [`docs/WORKFLOW.md`](WORKFLOW.md)를 따른다.
 
 | 기능 | 계약 |
 | --- | --- |
-| Pin | `bucket.pinned: true`이면 위젯은 최초 상태에서 모든 페이지 상단의 pinned 영역에 들어간다. 사용자가 헤더 우클릭 메뉴에서 pin을 토글하면 저장된 사용자 설정이 manifest 기본값보다 우선한다. Pinned 영역은 최대 2행을 목표로 한다. |
+| Pin | `bucket.pinned: true`이면 위젯은 최초 상태에서 모든 페이지 상단의 pinned 영역에 들어간다. 사용자가 카드 우클릭 메뉴에서 pin을 토글하면 저장된 사용자 설정이 manifest 기본값보다 우선한다. Pinned 영역은 최대 2행을 목표로 한다. |
 | Search | 팝오버에서 `Command-F` 또는 타이핑 시작으로 검색 오버레이를 연다. 현재 snapshot 기준으로 위젯 이름, UINode `text`, 안정적 `id`를 매칭한다. 위/아래로 결과를 이동하고 Enter는 해당 노드의 action이 있으면 실행한다. |
 | Settings | `settings[]` 선언으로 자동 폼을 만든다. 값 변경은 위젯 reload에 반영되고 workflow의 `${settings.key}` 보간에 사용된다. |
 | Drag-out | UINode에 `drag: { "filePath": "/path/to/file" }`가 있으면 Finder와 다른 앱으로 파일을 드래그할 수 있다. |

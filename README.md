@@ -108,7 +108,7 @@ Full guide, `barshelf` CLI, and troubleshooting: **[docs/INSTALL.md](docs/INSTAL
 
 ## Keyboard and window extensions
 
-Bring your Hammerspoon navigation settings into **Settings → Extensions**.
+Bring your Hammerspoon navigation settings into **BarShelf ▸ Automation**.
 Import the supported `init.lua` profile to preserve Fn arrow mappings, monitor
 shortcuts, and window cycling, then customize the generated JavaScript.
 Requires Accessibility access; no additional runtime is needed.

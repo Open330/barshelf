@@ -590,6 +590,16 @@
         }
       }
     },
+    "Active": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "활성"
+          }
+        }
+      }
+    },
     "Activity log": {
       "localizations": {
         "ko": {
@@ -1069,6 +1079,16 @@
         }
       }
     },
+    "BarShelf cannot write to its own location.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BarShelf가 설치된 위치에 쓸 수 없습니다."
+          }
+        }
+      }
+    },
     "BarShelf collects your menu bar extras\ninto one popup of widgets.": {
       "localizations": {
         "ko": {
@@ -1115,6 +1135,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "BarShelf는 메뉴 막대에 있습니다. 알아 두면 좋은 점:"
+          }
+        }
+      }
+    },
+    "BarShelf was installed with Homebrew.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BarShelf가 Homebrew로 설치되었습니다."
           }
         }
       }
@@ -3588,6 +3618,16 @@
         }
       }
     },
+    "Inactive": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "비활성"
+          }
+        }
+      }
+    },
     "Include at least one modifier: cmd, shift, opt, or ctrl.": {
       "localizations": {
         "ko": {
@@ -5788,6 +5828,28 @@
         }
       }
     },
+    "Read system information: %@": {
+      "comment": "Permission summary: system readings such as cpu or memory",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "시스템 정보 읽기: %@"
+          }
+        }
+      }
+    },
+    "Read the environment variables %@": {
+      "comment": "Permission summary: environment variables the widget may read",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "환경 변수 %@ 읽기"
+          }
+        }
+      }
+    },
     "Readings": {
       "comment": "Menu bar settings tab: the widget's values",
       "localizations": {
@@ -5855,6 +5917,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mac에 관한 정보를 읽습니다: %@."
+          }
+        }
+      }
+    },
+    "Reads system information it hasn't declared, so it will be blocked": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "선언하지 않은 시스템 정보를 읽으므로 차단됩니다"
           }
         }
       }
@@ -6533,6 +6605,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "실행 중…"
+          }
+        }
+      }
+    },
+    "Runs a command it hasn't declared, so it will be blocked": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "선언하지 않은 명령을 실행하므로 차단됩니다"
           }
         }
       }
@@ -7999,6 +8081,16 @@
         }
       }
     },
+    "This copy came from the App Store, which handles its own updates.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Store에서 설치한 사본이므로 App Store가 업데이트를 관리합니다."
+          }
+        }
+      }
+    },
     "This deletes \"%@\" and its data. It can be installed again from the Gallery.": {
       "localizations": {
         "ko": {
@@ -8025,6 +8117,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "위젯의 파일과 설정이 삭제되며 되돌릴 수 없습니다."
+          }
+        }
+      }
+    },
+    "This is a locally built copy, so BarShelf cannot verify an update against it.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "직접 빌드한 사본이라 BarShelf가 업데이트를 검증할 수 없습니다."
           }
         }
       }

@@ -425,7 +425,9 @@ final class WidgetInstaller {
         if let version = candidate.displayVersion {
             info.append(String(localized: "version: \(version)"))
         }
-        let permissions = InstallCandidate(candidate).permissionSummary
+        let permissions = WidgetPermissionSummary.lines(
+            for: candidate.manifest, workflow: InstallCandidate.loadWorkflow(for: candidate)
+        ).map(\.text)
         if permissions.isEmpty {
             info.append(String(localized: "Requested permissions: none"))
         } else {

@@ -92,6 +92,13 @@ if commandLineArguments.count >= 2, commandLineArguments[1] == "screenshot" {
     exit(MainActor.assumeIsolated { ScreenshotMode.run(outputDir: outDir) })
 }
 
+// `barshelf-app screenshot-hub <dir>` renders the BarShelf window, onboarding,
+// and the popup in the app's language (see HubScreenshotMode).
+if commandLineArguments.count >= 2, commandLineArguments[1] == "screenshot-hub" {
+    let outDir = commandLineArguments.count >= 3 ? commandLineArguments[2] : "./hub-shots"
+    exit(MainActor.assumeIsolated { HubScreenshotMode.run(outputDir: outDir) })
+}
+
 let app = NSApplication.shared
 let delegate = AppDelegate()
 app.delegate = delegate

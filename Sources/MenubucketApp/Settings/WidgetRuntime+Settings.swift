@@ -89,9 +89,20 @@ enum WidgetPermissionSummary {
         let text: String
     }
 
-    static func lines(for manifest: Manifest) -> [Line] {
-        guard let permissions = manifest.permissions else { return [] }
+    /// - Parameter workflow: the widget's workflow when known, which reveals a
+    ///   command or system reading it uses without having declared it.
+    static func lines(for manifest: Manifest, workflow: WorkflowDefinition? = nil) -> [Line] {
         var lines: [Line] = []
+        // Missing declarations first: the widget will be blocked from doing
+        // these, which matters more than what it is allowed.
+        if (manifest.permissions?.exec ?? []).isEmpty,
+           WidgetDiscovery.manifestRequiresExecPermission(manifest, workflow: workflow) {
+            lines.append(Line(symbol: "exclamationmark.triangle", text: String(localized: "Runs a command it hasn't declared, so it will be blocked")))
+        }
+        if (manifest.permissions?.system ?? []).isEmpty, WidgetDiscovery.usesSystemSource(workflow) {
+            lines.append(Line(symbol: "exclamationmark.triangle", text: String(localized: "Reads system information it hasn't declared, so it will be blocked")))
+        }
+        guard let permissions = manifest.permissions else { return lines }
         let exec = permissions.exec ?? []
         if !exec.isEmpty {
             lines.append(Line(symbol: "terminal", text: String(localized: "Run \(list(unique(exec.map { ($0.command as NSString).lastPathComponent })))", comment: "Permission summary: commands the widget may run")))
@@ -109,6 +120,17 @@ enum WidgetPermissionSummary {
         }
         if permissions.notifications == true {
             lines.append(Line(symbol: "bell", text: String(localized: "Send notifications")))
+        }
+        let environment = permissions.env ?? []
+        if !environment.isEmpty {
+            lines.append(Line(symbol: "list.bullet.rectangle", text: String(localized: "Read the environment variables \(list(environment))", comment: "Permission summary: environment variables the widget may read")))
+        }
+        if permissions.storage?.granted == true {
+            lines.append(Line(symbol: "internaldrive", text: String(localized: "Save small amounts of data on this Mac")))
+        }
+        let system = permissions.system ?? []
+        if !system.isEmpty {
+            lines.append(Line(symbol: "cpu", text: String(localized: "Read system information: \(list(system))", comment: "Permission summary: system readings such as cpu or memory")))
         }
         return lines
     }

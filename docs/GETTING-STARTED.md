@@ -37,7 +37,7 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test
 
 ## 코드 없이 위젯 만들기: Widget Builder
 
-JSON을 직접 작성하지 않고도 위젯을 만들고 싶다면 in-app **Widget Builder**를 사용한다. 메뉴바의 BarShelf 아이콘을 우클릭하고 **Create Widget…**을 선택하면 열린다.
+JSON을 직접 작성하지 않고도 위젯을 만들고 싶다면 in-app **Widget Builder**를 사용한다. BarShelf 창 사이드바의 **Create**(`Command-N`)에서 연다. 팝업의 ⋯ 메뉴 → **Add Widget…** 으로 갤러리를 연 뒤 **Create Widget**을 눌러도 된다.
 
 3단계로 진행한다.
 
@@ -150,22 +150,25 @@ chmod +x "$install_root/hello.sh"
 ## 기본 조작
 
 - 메뉴바 아이콘을 클릭하면 팝오버가 열린다.
-- 좌우 화살표, 하단 점, 두 손가락 가로 스와이프로 페이지를 전환한다.
+- 좌우 화살표, 하단 점, 두 손가락 가로 스와이프로 페이지를 전환한다. 헤더의 페이지 이름을 누르면 모든 페이지 목록이 나온다.
+- 헤더의 ⋯ 메뉴에 선반 편집, 위젯 추가, 메뉴 막대, BarShelf 열기, 설정, 업데이트 확인, 종료가 있다. 메뉴바 아이콘 우클릭 메뉴도 같은 목록이다.
 - `Command-1`부터 `Command-9`까지는 페이지로 바로 이동한다.
 - `Command-F` 또는 타이핑으로 검색을 연다.
-- `Command-R` 전체 새로고침, `Command-N` 위젯 만들기, `Command-,` 설정, `Command-Q` 종료. 팝오버와 BarShelf 창 어디서나 동작한다.
-- 위젯 카드 우클릭 메뉴에서 pin, settings, refresh 등을 사용할 수 있다 (자세한 목록은 아래 "위젯 관리" 참고).
+- `Command-R` 전체 새로고침, `Command-N` 위젯 만들기, `Command-E` 선반 편집, `Command-,` 설정, `Command-Q` 종료. 팝오버와 BarShelf 창 어디서나 동작한다.
+- 위젯 카드의 톱니바퀴는 BarShelf 창에서 그 위젯의 설정을 연다. 카드 우클릭 메뉴에서 pin, refresh 등도 쓸 수 있다 (아래 "위젯 관리" 참고).
 - `drag.filePath`가 있는 파일 노드는 Finder나 다른 앱으로 드래그할 수 있다.
 
 ### 위젯 관리
 
+**선반 편집**(`Command-E` 또는 ⋯ → Edit Shelf)을 켜면 모든 카드에 끌기 손잡이, 절반 너비/전체 너비 전환, 제거 버튼이 나타난다. 카드를 끌어 순서를 바꾸고, 하단 페이지 점 위에 놓으면 그 페이지로 옮겨진다. Esc나 Done으로 끝낸다.
+
 위젯 카드를 우클릭하면 다음 메뉴가 나온다.
 
-- **Pin**: 위젯을 상단에 고정해 페이지를 넘겨도 계속 보이게 한다.
-- **Settings**: 위젯별 설정 화면을 연다.
+- **Pin**: 위젯을 상단에 고정해 페이지를 넘겨도 계속 보이게 한다 (최대 2개).
+- **Settings…**: BarShelf 창에서 그 위젯의 설정을 연다.
 - **Disable**: 삭제하지 않고 새로고침과 팝오버 노출만 끈다.
 - **Move to Page**: 다른 페이지로 옮기거나 새 페이지 이름을 입력해 만든다.
 - **Reveal in Finder**: 위젯이 설치된 디렉터리를 Finder로 연다.
 - **Remove**: 확인 후 위젯 디렉터리와 관련 상태(pin, 설정, 새로고침 기록 등)를 모두 삭제한다.
 
-메뉴바 아이콘 우클릭 → **Settings**로 여는 설정 창의 **Widgets** 탭에서도 전체 위젯을 한 목록으로 보면서 활성화/비활성화, 페이지 이동, 드래그 순서 변경, 삭제를 관리할 수 있다.
+BarShelf 창의 **Shelf**에서는 페이지가 열로 나란히 보인다. 위젯을 끌어 순서를 바꾸거나 다른 페이지로 옮기고, 선택하면 오른쪽 인스펙터에서 설정을 바꾼다. 설정은 바로 반영되며 `Command-Z`로 되돌린다.
