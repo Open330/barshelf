@@ -102,6 +102,26 @@ spctl --assess --type execute "${APP}" >/dev/null 2>&1 \
   || fail "Gatekeeper rejects the app"
 ok "Gatekeeper accepts the app"
 
+# The desktop widget extension (0.6.0+). Signed on its own, inside-out: a
+# `--deep` signature would give it the app's entitlements instead of its
+# sandbox, and macOS would never show it in the widget gallery.
+EXTENSION="${APP}/Contents/PlugIns/BarShelfWidgets.appex"
+if [[ -d "${EXTENSION}" ]]; then
+  EXT_INFO=$(codesign -dv --verbose=2 "${EXTENSION}" 2>&1)
+  [[ "$(sed -n 's/^TeamIdentifier=//p' <<<"${EXT_INFO}")" == "${TEAM}" ]] \
+    || fail "the widget extension is not signed by team ${TEAM}"
+  grep -q "flags=.*runtime" <<<"${EXT_INFO}" \
+    || fail "the widget extension lacks the hardened runtime notarization requires"
+  EXT_ENTITLEMENTS=$(codesign -d --entitlements :- "${EXTENSION}" 2>/dev/null)
+  grep -q "com.apple.security.app-sandbox" <<<"${EXT_ENTITLEMENTS}" \
+    || fail "the widget extension is not sandboxed; macOS will not offer it"
+  grep -q "${TEAM}.com.barshelf.shared" <<<"${EXT_ENTITLEMENTS}" \
+    || fail "the widget extension does not share the BarShelf App Group"
+  codesign -d --entitlements :- "${APP}" 2>/dev/null | grep -q "${TEAM}.com.barshelf.shared" \
+    || fail "the app does not share the App Group with its widget extension"
+  ok "widget extension is signed, sandboxed, and shares the App Group"
+fi
+
 # --- CLI -------------------------------------------------------------------
 # `barshelf upgrade` extracts these two by member name from the root of the
 # tarball, and pins them to the same Developer ID requirement the app uses.

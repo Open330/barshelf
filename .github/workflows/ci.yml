@@ -51,6 +51,16 @@ jobs:
       - name: Test
         run: swift test
 
+      # The desktop widget extension is the one Xcode-built part of the app;
+      # building it here keeps a Swift-only change from breaking it unseen.
+      - name: Build widget extension
+        run: |
+          xcodebuild -quiet \
+            -project WidgetExtension/BarShelfWidgets.xcodeproj \
+            -scheme BarShelfWidgets -configuration Release \
+            -derivedDataPath .build/widget-extension \
+            CODE_SIGNING_ALLOWED=NO build
+
       - name: Check release version references
         run: python3 scripts/check-release-versions.py
 
