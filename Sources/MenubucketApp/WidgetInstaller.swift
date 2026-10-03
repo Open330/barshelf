@@ -286,12 +286,23 @@ final class WidgetInstaller {
     /// Deep link entry point. Routes by host:
     /// - `barshelf://refresh?widget=<id>` → `onRefreshRequest` (no `widget`
     ///   query item → refresh all url-trigger widgets).
+    /// - `barshelf://show?widget=<id>` → open the popup on that widget (a
+    ///   click on a desktop widget).
     /// - anything else (`barshelf://install?url=…`, bare URLs) → install.
     func handleDeepLink(_ url: URL) {
         let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
         let route = (components?.host ?? url.host
             ?? url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")))
             .lowercased()
+        if route == "show" {
+            let widgetID = components?.queryItems?.first { $0.name == "widget" }?.value
+            if let widgetID, !widgetID.isEmpty {
+                onReveal?(widgetID)
+            } else {
+                onOpenPopup?()
+            }
+            return
+        }
         if route == "refresh" {
             let widgetID = components?.queryItems?
                 .first { $0.name == "widget" }?

@@ -12,6 +12,11 @@
 
 ## 전제
 
+- **Xcode** — 데스크톱 위젯 확장(`WidgetExtension/`)은 `build_app.sh`가 `xcodebuild`로
+  빌드해 `Contents/PlugIns/`에 넣고, 확장 → 앱 순서로 따로 서명한다(`--deep` 금지).
+  `WidgetExtension/project.yml`을 고쳤다면 그 폴더에서 `xcodegen generate`로 프로젝트를
+  다시 만들어 커밋한다. 확장 없이 빌드하려면 `BUILD_WIDGETS=0`.
+
 - **Developer ID Application** 인증서 (`security find-identity -v -p codesigning`)
 - **App Store Connect API 키** — `ASC_KEY_ID`, `ASC_ISSUER_ID`,
   `~/.appstoreconnect/private_keys/AuthKey_<ASC_KEY_ID>.p8`

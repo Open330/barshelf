@@ -52,6 +52,16 @@ APP_STORE_ENTITLEMENTS=${APP_STORE_ENTITLEMENTS:-"${SCRIPT_DIR}/AppStore.entitle
 PROVISIONING_PROFILE=${PROVISIONING_PROFILE:-}
 SIGN_KEYCHAIN=${SIGN_KEYCHAIN:-}
 SIGN_ENTITLEMENTS_PATH=${APP_STORE_ENTITLEMENTS}
+# The macOS widget extension (R14). Built with Xcode from WidgetExtension/,
+# because WidgetKit's configuration UI needs App Intents metadata only Xcode
+# generates. BUILD_WIDGETS=0 leaves it out; so does an App Store build.
+BUILD_WIDGETS=${BUILD_WIDGETS:-1}
+WIDGETS_PROJECT=${WIDGETS_PROJECT:-"${PROJECT_ROOT}/WidgetExtension/BarShelfWidgets.xcodeproj"}
+WIDGET_EXTENSION_NAME=BarShelfWidgets.appex
+WIDGET_ENTITLEMENTS=${WIDGET_ENTITLEMENTS:-"${PROJECT_ROOT}/WidgetExtension/BarShelfWidgets/BarShelfWidgets.entitlements"}
+# The app's own entitlements outside the App Store: the App Group it shares
+# with the widget extension.
+HOST_ENTITLEMENTS=${HOST_ENTITLEMENTS:-"${SCRIPT_DIR}/BarShelf.entitlements"}
 
 APP_BUNDLE_PATH="${OUTPUT_DIR}/${APP_BUNDLE_NAME}"
 CONTENTS_DIR="${APP_BUNDLE_PATH}/Contents"
@@ -265,7 +275,64 @@ for CLI_PRODUCT_NAME in ${CLI_PRODUCT_NAMES}; do
   echo "BarShelf CLI copied to ${OUTPUT_DIR}/${CLI_PRODUCT_NAME}"
 done
 
-if command -v codesign >/dev/null 2>&1; then
+# --- Widget extension ---
+WIDGET_EXTENSION_PATH="${CONTENTS_DIR}/PlugIns/${WIDGET_EXTENSION_NAME}"
+rm -rf "${CONTENTS_DIR}/PlugIns"
+if [[ "${BUILD_WIDGETS}" == "1" && "${APP_STORE_BUILD}" != "1" ]]; then
+  if ! command -v xcodebuild >/dev/null 2>&1; then
+    echo "error: building the widget extension needs Xcode (or set BUILD_WIDGETS=0)" >&2
+    exit 1
+  fi
+  echo "Building ${WIDGET_EXTENSION_NAME}"
+  WIDGETS_DERIVED_DATA="${PROJECT_ROOT}/.build/widget-extension"
+  xcodebuild -quiet \
+    -project "${WIDGETS_PROJECT}" \
+    -scheme BarShelfWidgets \
+    -configuration Release \
+    -derivedDataPath "${WIDGETS_DERIVED_DATA}" \
+    CODE_SIGNING_ALLOWED=NO \
+    MARKETING_VERSION="${APP_VERSION}" \
+    CURRENT_PROJECT_VERSION="${APP_BUILD}" \
+    build
+  mkdir -p "${CONTENTS_DIR}/PlugIns"
+  ditto "${WIDGETS_DERIVED_DATA}/Build/Products/Release/${WIDGET_EXTENSION_NAME}" "${WIDGET_EXTENSION_PATH}"
+fi
+
+# Signs one piece of code with an optional entitlements file. Inside-out:
+# the extension first with its own sandboxed entitlements, then the app
+# around it — never `--deep`, which would stamp the app's entitlements onto
+# the extension.
+sign_code() {
+  local path=$1 entitlements=${2:-}
+  local args=(--force --options runtime --sign "${SIGN_IDENTITY}")
+  if [[ "${SIGN_IDENTITY}" == "-" ]]; then
+    args+=(--timestamp=none)
+  else
+    args+=(--timestamp)
+  fi
+  [[ -n "${SIGN_KEYCHAIN}" && "${SIGN_IDENTITY}" != "-" ]] && args+=(--keychain "${SIGN_KEYCHAIN}")
+  [[ -n "${entitlements}" ]] && args+=(--entitlements "${entitlements}")
+  codesign "${args[@]}" "${path}" >/dev/null
+}
+
+if command -v codesign >/dev/null 2>&1 && [[ -d "${WIDGET_EXTENSION_PATH}" ]]; then
+  echo "Signing ${WIDGET_EXTENSION_NAME}"
+  sign_code "${WIDGET_EXTENSION_PATH}" "${WIDGET_ENTITLEMENTS}"
+fi
+
+if command -v codesign >/dev/null 2>&1 && [[ "${APP_STORE_BUILD}" != "1" ]]; then
+  if [[ "${SIGN_IDENTITY}" == "-" ]]; then
+    # Ad-hoc: no team, so no App Group either. The app's shared-widget
+    # publisher stays off, which keeps macOS from prompting about it.
+    echo "Ad-hoc signing ${APP_BUNDLE_PATH}"
+    sign_code "${APP_BUNDLE_PATH}"
+  else
+    echo "Signing ${APP_BUNDLE_PATH} with ${SIGN_IDENTITY}"
+    sign_code "${APP_BUNDLE_PATH}" "${HOST_ENTITLEMENTS}"
+  fi
+fi
+
+if command -v codesign >/dev/null 2>&1 && [[ "${APP_STORE_BUILD}" == "1" ]]; then
   if [[ "${SIGN_IDENTITY}" == "-" ]]; then
     echo "Ad-hoc signing ${APP_BUNDLE_PATH}"
     codesign --force --options runtime --sign - --timestamp=none --deep "${APP_BUNDLE_PATH}" >/dev/null
@@ -281,15 +348,8 @@ if command -v codesign >/dev/null 2>&1; then
         --entitlements "${SIGN_ENTITLEMENTS_PATH}" \
         --deep "${APP_BUNDLE_PATH}" >/dev/null
     fi
-  else
-    echo "Signing ${APP_BUNDLE_PATH} with ${SIGN_IDENTITY}"
-    if [[ -n "${SIGN_KEYCHAIN}" ]]; then
-      codesign --force --options runtime --sign "${SIGN_IDENTITY}" --keychain "${SIGN_KEYCHAIN}" --deep "${APP_BUNDLE_PATH}" >/dev/null
-    else
-      codesign --force --options runtime --sign "${SIGN_IDENTITY}" --deep "${APP_BUNDLE_PATH}" >/dev/null
-    fi
   fi
-else
+elif ! command -v codesign >/dev/null 2>&1; then
   echo "warning: codesign not found; app bundle is unsigned" >&2
 fi
 

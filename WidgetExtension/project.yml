@@ -1,0 +1,80 @@
+# The BarShelf widget extension — the one part of BarShelf an Xcode project
+# builds, because WidgetKit's configuration UI needs App Intents metadata
+# that only Xcode generates. The app itself stays a Swift package.
+#
+# Regenerate after editing: `xcodegen generate` (in this directory). The
+# generated BarShelfWidgets.xcodeproj is committed, so building it needs only
+# Xcode: scripts/build_app.sh runs xcodebuild and embeds the .appex.
+name: BarShelfWidgets
+options:
+  bundleIdPrefix: com.barshelf.app
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+packages:
+  BarShelf:
+    path: ..
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ARCHS: arm64
+    ENABLE_HARDENED_RUNTIME: YES
+    CODE_SIGNING_ALLOWED: NO
+    LOCALIZATION_PREFERS_STRING_CATALOGS: YES
+    SWIFT_EMIT_LOC_STRINGS: YES
+targets:
+  BarShelfWidgets:
+    type: app-extension
+    platform: macOS
+    sources:
+      - path: BarShelfWidgets
+    dependencies:
+      - package: BarShelf
+        product: MenubucketCore
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.barshelf.app.widgets
+        PRODUCT_NAME: BarShelfWidgets
+        INFOPLIST_FILE: BarShelfWidgets/Info.plist
+        CODE_SIGN_ENTITLEMENTS: BarShelfWidgets/BarShelfWidgets.entitlements
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
+    info:
+      path: BarShelfWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: BarShelf
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSMinimumSystemVersion: "14.0"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: BarShelfWidgets/BarShelfWidgets.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.application-groups:
+          - 728FW73BS8.com.barshelf.shared
+  # Draws the widget view to PNGs from the shared container's data — for
+  # checking the widget without placing it on the desktop. Not shipped.
+  BarShelfWidgetsPreview:
+    type: tool
+    platform: macOS
+    sources:
+      - path: PreviewTool
+      - path: BarShelfWidgets
+        excludes:
+          - BarShelfWidgetsBundle.swift
+          - Info.plist
+          - "*.entitlements"
+    dependencies:
+      - package: BarShelf
+        product: MenubucketCore
+    settings:
+      base:
+        PRODUCT_NAME: BarShelfWidgetsPreview
+        CODE_SIGNING_ALLOWED: NO
+

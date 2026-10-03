@@ -1,0 +1,14 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Battery" : { "localizations" : { "ko" : { "stringUnit" : { "state" : "translated", "value" : "배터리" } } } },
+    "BarShelf Widget" : { "localizations" : { "ko" : { "stringUnit" : { "state" : "translated", "value" : "BarShelf 위젯" } } } },
+    "Choose a Widget" : { "localizations" : { "ko" : { "stringUnit" : { "state" : "translated", "value" : "위젯 선택" } } } },
+    "Open BarShelf once, then choose a widget to show here." : { "localizations" : { "ko" : { "stringUnit" : { "state" : "translated", "value" : "BarShelf를 한 번 연 뒤, 여기에 보여 줄 위젯을 고르세요." } } } },
+    "Show one of your BarShelf widgets." : { "localizations" : { "ko" : { "stringUnit" : { "state" : "translated", "value" : "BarShelf 위젯 하나를 보여 줍니다." } } } },
+    "Shows one of your BarShelf widgets as it last looked." : { "localizations" : { "ko" : { "stringUnit" : { "state" : "translated", "value" : "BarShelf 위젯 하나를 마지막으로 새로 고친 모습으로 보여 줍니다." } } } },
+    "Waiting for BarShelf to refresh this widget." : { "localizations" : { "ko" : { "stringUnit" : { "state" : "translated", "value" : "BarShelf가 이 위젯을 새로 고치기를 기다리는 중입니다." } } } },
+    "Widget" : { "localizations" : { "ko" : { "stringUnit" : { "state" : "translated", "value" : "위젯" } } } }
+  },
+  "version" : "1.0"
+}

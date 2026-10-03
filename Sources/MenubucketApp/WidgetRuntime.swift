@@ -195,6 +195,8 @@ final class ScriptCallbackGate: @unchecked Sendable {
 /// (surfaced via `snapshot.error`) and feed the exponential backoff.
 final class WidgetRuntime: ObservableObject {
     @Published private(set) var widgets: [LoadedWidget] = []
+    /// Feeds the macOS widget extension (R14).
+    let sharedShelf = SharedShelfPublisher()
     /// Source of truth for renders. Deliberately *not* `@Published`: updates
     /// are routed to the affected widget's `WidgetCardModel` only (publish
     /// suppressed when the snapshot is unchanged, `Equatable`).
@@ -507,8 +509,11 @@ final class WidgetRuntime: ObservableObject {
         snapshot.safeForSensitiveCache = false
         setSnapshot(snapshot, for: widgetId)
         let sensitive = params.sensitive == true || widget.isSensitive
+        let wasSensitive = sensitiveRenderIDs.contains(widgetId)
         if sensitive { sensitiveRenderIDs.insert(widgetId) } else { sensitiveRenderIDs.remove(widgetId) }
+        if sensitive != wasSensitive { publishDesktopWidgetIndex() }
         if sensitive {
+            sharedShelf.withdraw(widgetID: widgetId)
             cancelPendingPersist(widgetId)
             if let cacheRoot = params.cacheRoot {
                 // Keep the live tree memory-only. Persist only the separate
@@ -904,6 +909,7 @@ final class WidgetRuntime: ObservableObject {
         scheduler.configure(widgets: enabled)
         scheduler.setVisibleWidgetIDs(visibleWidgetIDs)
         syncMenuBar()
+        publishDesktopWidgetIndex()
     }
 
     static func discoverWidgets(in searchDirectories: [URL]) -> [LoadedWidget] {
@@ -1154,6 +1160,7 @@ final class WidgetRuntime: ObservableObject {
     func setWidgetDisabled(_ id: String, _ flag: Bool) {
         guard prefs.isDisabled(id) != flag else { return }
         prefs.setDisabled(id, flag)
+        publishDesktopWidgetIndex()
         if flag {
             scriptCallbackGate.invalidate(widgetID: id)
             if scriptRefreshes.cancel(widgetID: id) {
@@ -2864,11 +2871,64 @@ final class WidgetRuntime: ObservableObject {
             guard let latest = self.unpersistedSnapshots.removeValue(forKey: id)
             else { return }
             Self.persistQueue.async { Self.writeCachedSnapshot(latest) }
+            // On the same throttle as the cache: a widget refreshing every
+            // two seconds must not rewrite the shared folder that often.
+            self.publishToDesktopWidgets(latest)
         }
         pendingPersists[id] = item
         DispatchQueue.main.asyncAfter(
             deadline: .now() + Self.persistIntervalSec, execute: item
         )
+    }
+
+    // MARK: - Desktop widgets (R14)
+
+    /// Widgets a desktop widget may mirror: everything switched on that is
+    /// not sensitive, by manifest or by what it last rendered.
+    private func desktopWidgetCandidates() -> [LoadedWidget] {
+        widgets.filter { !$0.isSensitive && !sensitiveRenderIDs.contains($0.id) && !prefs.isDisabled($0.id) }
+    }
+
+    func publishDesktopWidgetIndex() {
+        guard sharedShelf.isEnabled else { return }
+        let candidates = desktopWidgetCandidates()
+        let changed = sharedShelf.publishIndex(candidates.map { widget in
+            SharedShelf.Entry(
+                id: widget.id,
+                name: widget.displayName,
+                icon: widget.manifest.icon,
+                accent: prefs.effectiveAppearance(for: widget.manifest, widgetID: widget.id).accent,
+                page: effectiveGroup(for: widget.id)
+            )
+        })
+        // A widget just offered (first launch, re-enabled) shows what BarShelf
+        // already has instead of waiting for its next refresh.
+        guard changed else { return }
+        for widget in candidates {
+            if let snapshot = snapshots[widget.id], snapshot.viewTree != nil {
+                publishToDesktopWidgets(snapshot)
+            }
+        }
+    }
+
+    /// Mirrors a render the cache has just kept, on the cache's 30-second
+    /// throttle. Only the cache path calls this, so sensitive renders
+    /// (memory-only) never get here; the checks below are the second lock.
+    private func publishToDesktopWidgets(_ snapshot: WidgetSnapshot) {
+        guard sharedShelf.isEnabled, snapshot.safeForSensitiveCache != true,
+              !sensitiveRenderIDs.contains(snapshot.widgetID),
+              let widget = widgets.first(where: { $0.id == snapshot.widgetID }),
+              !widget.isSensitive
+        else { return }
+        sharedShelf.publish(SharedShelf.Snapshot(
+            widgetID: widget.id,
+            name: widget.displayName,
+            icon: widget.manifest.icon,
+            accent: prefs.effectiveAppearance(for: widget.manifest, widgetID: widget.id).accent,
+            viewTree: snapshot.viewTree,
+            updatedAt: snapshot.updatedAt,
+            error: snapshot.error
+        ))
     }
 
     /// Drops a scheduled write *and* the snapshot it held. The sensitive
@@ -2887,6 +2947,7 @@ final class WidgetRuntime: ObservableObject {
         let held = Array(unpersistedSnapshots.values)
         unpersistedSnapshots.removeAll()
         guard !held.isEmpty else { return }
+        for snapshot in held { publishToDesktopWidgets(snapshot) }
         Self.persistQueue.sync {
             for snapshot in held { Self.writeCachedSnapshot(snapshot) }
         }

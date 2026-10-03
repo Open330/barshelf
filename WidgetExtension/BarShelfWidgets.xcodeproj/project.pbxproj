@@ -1,0 +1,500 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0E6F91B24BB1D5E680B2ED2A /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 328EEB6285A21ADE988BD5A9 /* SwiftUI.framework */; };
+		137DD31FFDC6820F023437B7 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3954A2AB3F1008EDDAAEE220 /* main.swift */; };
+		25FFEF933A98239973399CEE /* BarShelfWidgetsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7E2C8D8F0992AF74253EA6A /* BarShelfWidgetsBundle.swift */; };
+		36AC0C5864DB27615C69D8BC /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 7B505F8DF3C2A9D1FF94FE91 /* Localizable.xcstrings */; };
+		4195A0A5241CEF6A27FD0695 /* ShelfWidgetIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2961B05761B714139E0AC3AB /* ShelfWidgetIntent.swift */; };
+		446AF0B171DBCDADC2B8DF85 /* WidgetNodeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C61BB6D5CEA5D1651EF109D8 /* WidgetNodeView.swift */; };
+		476453C0C400EC58CDCF3F2A /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 7B505F8DF3C2A9D1FF94FE91 /* Localizable.xcstrings */; };
+		480743A44B71F0316790DCBD /* ShelfWidgetIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2961B05761B714139E0AC3AB /* ShelfWidgetIntent.swift */; };
+		5236C8258B5158648CAFFFFE /* MenubucketCore in Frameworks */ = {isa = PBXBuildFile; productRef = 910104821328EDAEEB51C053 /* MenubucketCore */; };
+		5A8E9EA08A74F81BCB6A909A /* WidgetNodeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C61BB6D5CEA5D1651EF109D8 /* WidgetNodeView.swift */; };
+		7984B92A85BDD37317BDAA01 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 49D0524C67478B39B0C53A99 /* WidgetKit.framework */; };
+		B162097A519560CD0658C1AE /* MenubucketCore in Frameworks */ = {isa = PBXBuildFile; productRef = F712C895B770A2690B947749 /* MenubucketCore */; };
+		BCC5CD171C8CF94762900E0B /* ShelfWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BB49CE264140519F81A6BFF /* ShelfWidget.swift */; };
+		D053038D4DF70749934C093A /* ShelfWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BB49CE264140519F81A6BFF /* ShelfWidget.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		2675FBC0CCB88B8CCBEF287E /* BarShelfWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BarShelfWidgets.entitlements; sourceTree = "<group>"; };
+		2961B05761B714139E0AC3AB /* ShelfWidgetIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfWidgetIntent.swift; sourceTree = "<group>"; };
+		328EEB6285A21ADE988BD5A9 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		3954A2AB3F1008EDDAAEE220 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		3CE7ECBE141E6C91E4D96D56 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		49D0524C67478B39B0C53A99 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		5FE557425549274E252DF4E9 /* barshelf */ = {isa = PBXFileReference; lastKnownFileType = folder; name = barshelf; path = ..; sourceTree = SOURCE_ROOT; };
+		7B505F8DF3C2A9D1FF94FE91 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		7BB49CE264140519F81A6BFF /* ShelfWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfWidget.swift; sourceTree = "<group>"; };
+		9E670D45E7A7EBE006E48708 /* BarShelfWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = BarShelfWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B7E2C8D8F0992AF74253EA6A /* BarShelfWidgetsBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarShelfWidgetsBundle.swift; sourceTree = "<group>"; };
+		BAFDAA46AAA4E5811FE4F1DF /* BarShelfWidgetsPreview */ = {isa = PBXFileReference; includeInIndex = 0; path = BarShelfWidgetsPreview; sourceTree = BUILT_PRODUCTS_DIR; };
+		C61BB6D5CEA5D1651EF109D8 /* WidgetNodeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetNodeView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		CB201B3E3826368A8C8DE442 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B162097A519560CD0658C1AE /* MenubucketCore in Frameworks */,
+				7984B92A85BDD37317BDAA01 /* WidgetKit.framework in Frameworks */,
+				0E6F91B24BB1D5E680B2ED2A /* SwiftUI.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D8AFDB20ACFA485795B8F70D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5236C8258B5158648CAFFFFE /* MenubucketCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		203EEB98B0FD4DB8DA9F12FF /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				5FE557425549274E252DF4E9 /* barshelf */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+		42CC2224E38EEB67AA9E62A7 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				328EEB6285A21ADE988BD5A9 /* SwiftUI.framework */,
+				49D0524C67478B39B0C53A99 /* WidgetKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		60171A1966A7BF5A5020025C /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				9E670D45E7A7EBE006E48708 /* BarShelfWidgets.appex */,
+				BAFDAA46AAA4E5811FE4F1DF /* BarShelfWidgetsPreview */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		85A9ADDC201258FA34081C56 = {
+			isa = PBXGroup;
+			children = (
+				FF6DB703DD549A4817C3A2C3 /* BarShelfWidgets */,
+				203EEB98B0FD4DB8DA9F12FF /* Packages */,
+				F5512935C4F52B1E4311F5A7 /* PreviewTool */,
+				42CC2224E38EEB67AA9E62A7 /* Frameworks */,
+				60171A1966A7BF5A5020025C /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		F5512935C4F52B1E4311F5A7 /* PreviewTool */ = {
+			isa = PBXGroup;
+			children = (
+				3954A2AB3F1008EDDAAEE220 /* main.swift */,
+			);
+			path = PreviewTool;
+			sourceTree = "<group>";
+		};
+		FF6DB703DD549A4817C3A2C3 /* BarShelfWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				2675FBC0CCB88B8CCBEF287E /* BarShelfWidgets.entitlements */,
+				B7E2C8D8F0992AF74253EA6A /* BarShelfWidgetsBundle.swift */,
+				3CE7ECBE141E6C91E4D96D56 /* Info.plist */,
+				7B505F8DF3C2A9D1FF94FE91 /* Localizable.xcstrings */,
+				7BB49CE264140519F81A6BFF /* ShelfWidget.swift */,
+				2961B05761B714139E0AC3AB /* ShelfWidgetIntent.swift */,
+				C61BB6D5CEA5D1651EF109D8 /* WidgetNodeView.swift */,
+			);
+			path = BarShelfWidgets;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		1AA58662933C1F9E007A3F59 /* BarShelfWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A4F6F520B09BFD196A5CE35D /* Build configuration list for PBXNativeTarget "BarShelfWidgets" */;
+			buildPhases = (
+				FD0F0591BA14651621A21873 /* Sources */,
+				7250426F6B55D6E0A430FE3A /* Resources */,
+				CB201B3E3826368A8C8DE442 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = BarShelfWidgets;
+			packageProductDependencies = (
+				F712C895B770A2690B947749 /* MenubucketCore */,
+			);
+			productName = BarShelfWidgets;
+			productReference = 9E670D45E7A7EBE006E48708 /* BarShelfWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		CC8278F668F87524C06BE282 /* BarShelfWidgetsPreview */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B9877A37D1B3DC787DF81982 /* Build configuration list for PBXNativeTarget "BarShelfWidgetsPreview" */;
+			buildPhases = (
+				013347F8334697AEED8F2F8E /* Sources */,
+				806CF5023622DB8076AC2D97 /* Resources */,
+				D8AFDB20ACFA485795B8F70D /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = BarShelfWidgetsPreview;
+			packageProductDependencies = (
+				910104821328EDAEEB51C053 /* MenubucketCore */,
+			);
+			productName = BarShelfWidgetsPreview;
+			productReference = BAFDAA46AAA4E5811FE4F1DF /* BarShelfWidgetsPreview */;
+			productType = "com.apple.product-type.tool";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		41234A50583D337F5F771BC4 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = BB4D5BA26E9A928671BB8F18 /* Build configuration list for PBXProject "BarShelfWidgets" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+				ko,
+			);
+			mainGroup = 85A9ADDC201258FA34081C56;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				FDB4857E024541910BBD76DB /* XCLocalSwiftPackageReference ".." */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 60171A1966A7BF5A5020025C /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				1AA58662933C1F9E007A3F59 /* BarShelfWidgets */,
+				CC8278F668F87524C06BE282 /* BarShelfWidgetsPreview */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		7250426F6B55D6E0A430FE3A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				36AC0C5864DB27615C69D8BC /* Localizable.xcstrings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		806CF5023622DB8076AC2D97 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				476453C0C400EC58CDCF3F2A /* Localizable.xcstrings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		013347F8334697AEED8F2F8E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BCC5CD171C8CF94762900E0B /* ShelfWidget.swift in Sources */,
+				480743A44B71F0316790DCBD /* ShelfWidgetIntent.swift in Sources */,
+				446AF0B171DBCDADC2B8DF85 /* WidgetNodeView.swift in Sources */,
+				137DD31FFDC6820F023437B7 /* main.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FD0F0591BA14651621A21873 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				25FFEF933A98239973399CEE /* BarShelfWidgetsBundle.swift in Sources */,
+				D053038D4DF70749934C093A /* ShelfWidget.swift in Sources */,
+				4195A0A5241CEF6A27FD0695 /* ShelfWidgetIntent.swift in Sources */,
+				5A8E9EA08A74F81BCB6A909A /* WidgetNodeView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		84ADB782FE84855849722665 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGNING_ALLOWED = NO;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = BarShelfWidgets/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.barshelf.app.BarShelfWidgetsPreview;
+				PRODUCT_NAME = BarShelfWidgetsPreview;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		876C6899B08DCBFF4C935ECF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = BarShelfWidgets/BarShelfWidgets.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = BarShelfWidgets/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.barshelf.app.widgets;
+				PRODUCT_NAME = BarShelfWidgets;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
+		};
+		8CFE441DE1FE9D2B95B44BCD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = BarShelfWidgets/BarShelfWidgets.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = BarShelfWidgets/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.barshelf.app.widgets;
+				PRODUCT_NAME = BarShelfWidgets;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
+		9C587627201F3DCE072AD50D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = arm64;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGNING_ALLOWED = NO;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.0.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		CEA818828A4DB3FB85F404DA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGNING_ALLOWED = NO;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = BarShelfWidgets/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.barshelf.app.BarShelfWidgetsPreview;
+				PRODUCT_NAME = BarShelfWidgetsPreview;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		F68939E2CD4B4786B34E1FE5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = arm64;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGNING_ALLOWED = NO;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.0.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A4F6F520B09BFD196A5CE35D /* Build configuration list for PBXNativeTarget "BarShelfWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8CFE441DE1FE9D2B95B44BCD /* Debug */,
+				876C6899B08DCBFF4C935ECF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		B9877A37D1B3DC787DF81982 /* Build configuration list for PBXNativeTarget "BarShelfWidgetsPreview" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				84ADB782FE84855849722665 /* Debug */,
+				CEA818828A4DB3FB85F404DA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		BB4D5BA26E9A928671BB8F18 /* Build configuration list for PBXProject "BarShelfWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F68939E2CD4B4786B34E1FE5 /* Debug */,
+				9C587627201F3DCE072AD50D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		FDB4857E024541910BBD76DB /* XCLocalSwiftPackageReference ".." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ..;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		910104821328EDAEEB51C053 /* MenubucketCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = MenubucketCore;
+		};
+		F712C895B770A2690B947749 /* MenubucketCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = MenubucketCore;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 41234A50583D337F5F771BC4 /* Project object */;
+}
