@@ -7,8 +7,9 @@ struct ShelfEntry: TimelineEntry {
     let date: Date
     let widgetID: String?
     let snapshot: SharedShelf.Snapshot?
-    /// Part keys the user picked, in their order; empty for the summary.
+    /// Part keys the user picked, in their order; empty lets the widget pick.
     var partKeys: [String] = []
+    var style: ShelfWidgetStyle = .automatic
 }
 
 struct ShelfProvider: AppIntentTimelineProvider {
@@ -18,33 +19,47 @@ struct ShelfProvider: AppIntentTimelineProvider {
 
     func snapshot(for configuration: SelectShelfWidgetIntent, in context: Context) async -> ShelfEntry {
         if context.isPreview, configuration.widget == nil {
+            // The gallery shows the user's own first widget when there is one.
+            if let first = SharedContainer.index()?.entries.first, let snapshot = SharedContainer.snapshot(for: first.id) {
+                return ShelfEntry(date: Date(), widgetID: first.id, snapshot: snapshot)
+            }
             return ShelfEntry(date: Date(), widgetID: "sample", snapshot: Self.sample)
         }
-        return entry(for: configuration)
+        return entry(for: configuration, at: Date())
     }
 
     func timeline(for configuration: SelectShelfWidgetIntent, in context: Context) async -> Timeline<ShelfEntry> {
+        let now = Date()
+        var entries = [entry(for: configuration, at: now)]
+        // A second entry at the moment the reading turns old, so the widget
+        // says so without BarShelf spending a reload on it.
+        if let staleAfter = entries[0].snapshot?.staleAfter, staleAfter > now {
+            entries.append(entry(for: configuration, at: staleAfter))
+        }
         // BarShelf asks for a reload when the data changes; the fallback
         // below only covers a BarShelf that is not running.
-        Timeline(entries: [entry(for: configuration)], policy: .after(Date().addingTimeInterval(30 * 60)))
+        return Timeline(entries: entries, policy: .after(now.addingTimeInterval(30 * 60)))
     }
 
-    private func entry(for configuration: SelectShelfWidgetIntent) -> ShelfEntry {
+    private func entry(for configuration: SelectShelfWidgetIntent, at date: Date) -> ShelfEntry {
         guard let id = configuration.widget?.id else {
-            return ShelfEntry(date: Date(), widgetID: nil, snapshot: nil)
+            return ShelfEntry(date: date, widgetID: nil, snapshot: nil)
         }
         let keys = (configuration.parts ?? []).filter { $0.widgetID == id }.map(\.key)
-        return ShelfEntry(date: Date(), widgetID: id, snapshot: SharedContainer.snapshot(for: id), partKeys: keys)
+        return ShelfEntry(
+            date: date, widgetID: id, snapshot: SharedContainer.snapshot(for: id),
+            partKeys: keys, style: configuration.style
+        )
     }
 
-    /// What the widget gallery shows before anything is chosen.
+    /// What the widget gallery shows when the user has no data yet.
     static let sample: SharedShelf.Snapshot = {
         func row(_ label: String, _ value: String, _ fraction: Double, _ tint: String) -> UINode {
             UINode(type: "vstack", children: [
                 UINode(type: "hstack", children: [
-                    UINode(type: "text", text: label, role: "caption"),
+                    UINode(type: "text", text: label),
                     UINode(type: "spacer"),
-                    UINode(type: "text", text: value, role: "caption", foreground: tint),
+                    UINode(type: "text", text: value, foreground: tint),
                 ]),
                 UINode(type: "progress", tint: tint, value: fraction),
             ], spacing: 4)
@@ -86,6 +101,8 @@ struct ShelfWidgetView: View {
     let entry: ShelfEntry
     /// Set by the preview tool, which has no real widget family.
     var familyOverride: WidgetFamily?
+    /// Where exported thumbnails are; the preview tool passes its own.
+    var container: URL? = SharedContainer.url
     @Environment(\.widgetFamily) private var environmentFamily
 
     private var family: WidgetFamily { familyOverride ?? environmentFamily }
@@ -121,119 +138,112 @@ struct ShelfWidgetView: View {
         return components.url
     }
 
-    // MARK: - Content
+    // MARK: - Layout
 
     private func content(_ snapshot: SharedShelf.Snapshot) -> some View {
         let accent = WidgetPalette.color(snapshot.accent) ?? .accentColor
+        let plan = layout(for: snapshot)
         return VStack(alignment: .leading, spacing: 8) {
-            header(snapshot, accent: accent)
-            body(for: snapshot, accent: accent)
-                .modifier(TopAlignedClip())
+            header(snapshot, title: plan.heading, accent: accent)
+            Group {
+                switch plan.template {
+                case .bigValue:
+                    BigValueTemplate(summary: plan.headline ?? SharedShelf.Summary(title: snapshot.name), accent: accent, family: family)
+                case .meters:
+                    MetersTemplate(items: plan.items, accent: accent, family: family)
+                case .list:
+                    ListTemplate(items: plan.items, accent: accent, family: family)
+                case .grid:
+                    GridTemplate(items: plan.items, family: family)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .clipped()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    private func header(_ snapshot: SharedShelf.Snapshot, accent: Color) -> some View {
-        HStack(spacing: 5) {
+    private struct Plan {
+        var template: SharedShelf.Template
+        var items: [TemplateItem]
+        /// The single item a big-value layout shows.
+        var headline: SharedShelf.Summary?
+        /// What the header names: the widget, or the one item shown.
+        var heading: String?
+    }
+
+    /// Which items, in which layout. Picked items in the picked order;
+    /// otherwise the widget's own items (sections that hold items are left
+    /// out, so nothing shows twice). The small size shows one item large
+    /// unless the items are a few readings that fit as rings.
+    private func layout(for snapshot: SharedShelf.Snapshot) -> Plan {
+        let picked = entry.partKeys.compactMap { key in snapshot.parts.first { $0.key == key } }
+        let pool = picked.isEmpty ? snapshot.parts.filter { !$0.isGroup } : picked
+        let all = pool.map { part in
+            TemplateItem(
+                id: part.key,
+                summary: part.summary ?? SharedShelf.summarize(part.node, fallbackTitle: part.title),
+                group: part.group,
+                thumbnail: part.summary?.thumbnail.flatMap { name in
+                    container.flatMap { SharedShelf.imagesDirectory(for: snapshot.widgetID, in: $0) }?
+                        .appendingPathComponent(name)
+                }
+            )
+        }
+
+        var template = entry.style.template ?? SharedShelf.automaticTemplate(for: all.map(\.summary))
+        if entry.style.template == nil, family == .systemSmall, template == .list {
+            template = .bigValue
+        }
+        if template == .meters, entry.style.template == nil, family == .systemSmall, all.count > 3 {
+            template = .bigValue
+        }
+
+        if template == .bigValue {
+            if let first = all.first {
+                return Plan(template: .bigValue, items: [], headline: first.summary, heading: first.summary.title)
+            }
+            var root = snapshot.summary ?? SharedShelf.Summary()
+            if root.value == nil, let label = snapshot.statusLabel {
+                root.value = label
+                root.tone = root.tone ?? snapshot.statusTint
+            }
+            return Plan(template: .bigValue, items: [], headline: root, heading: root.title)
+        }
+        let count = WidgetMetrics.capacity(template, family)
+        return Plan(template: template, items: Array(all.prefix(count)), headline: nil, heading: nil)
+    }
+
+    private func header(_ snapshot: SharedShelf.Snapshot, title: String?, accent: Color) -> some View {
+        let stale = snapshot.staleAfter.map { entry.date >= $0 } ?? false
+        return HStack(spacing: 5) {
             if let icon = snapshot.icon {
                 Image(systemName: icon)
                     .font(.caption)
                     .foregroundStyle(accent)
                     .widgetAccentable()
             }
-            Text(snapshot.name)
+            // An item shown alone is named by itself ("chatgpt@codex"); the
+            // widget's name is then the context.
+            Text(title ?? snapshot.name)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
+                .truncationMode(.middle)
             Spacer(minLength: 4)
-            if let updated = snapshot.updatedAt {
-                // "6 min, 4 sec" ticks without spending reloads, but crowds
-                // out the name in the small size; there the time will do.
-                Group {
-                    if family == .systemSmall {
-                        Text(updated, style: .time)
-                    } else {
-                        Text(updated, style: .relative)
-                    }
+            if stale, let updated = snapshot.updatedAt {
+                // Only an old reading says how old it is.
+                Label {
+                    Text(updated, style: .relative)
+                } icon: {
+                    Image(systemName: "clock.arrow.circlepath")
                 }
+                .labelStyle(.titleAndIcon)
                 .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.orange)
                 .lineLimit(1)
-                .multilineTextAlignment(.trailing)
                 .layoutPriority(-1)
             }
-        }
-    }
-
-    @ViewBuilder
-    private func body(for snapshot: SharedShelf.Snapshot, accent: Color) -> some View {
-        let chosen = entry.partKeys.compactMap { key in snapshot.parts.first { $0.key == key } }
-        if !chosen.isEmpty {
-            parts(chosen, accent: accent)
-        } else if family == .systemSmall, let headline = snapshot.statusLabel, !headline.isEmpty {
-            headlineView(headline, tint: WidgetPalette.color(snapshot.statusTint, accent: accent) ?? .primary,
-                         detail: automaticParts(snapshot).prefix(1).map { $0 }, accent: accent)
-        } else if !automaticParts(snapshot).isEmpty {
-            parts(automaticParts(snapshot), accent: accent)
-        } else if let tree = snapshot.viewTree {
-            WidgetNodeView(node: tree, accent: accent, rowLimit: rowLimit)
-        } else if let error = snapshot.error {
-            Label(error, systemImage: "exclamationmark.triangle.fill")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    /// Items to show when none were picked: the leaves, not the sections
-    /// holding them, so nothing appears twice.
-    private func automaticParts(_ snapshot: SharedShelf.Snapshot) -> [SharedShelf.Part] {
-        snapshot.parts.filter { !$0.isGroup }
-    }
-
-    /// The small widget's summary: the reading the widget puts in the menu
-    /// bar, large, over its first item.
-    private func headlineView(_ text: String, tint: Color, detail: [SharedShelf.Part], accent: Color) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(text)
-                .font(.system(size: 34, weight: .semibold, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(tint)
-                .lineLimit(1)
-                .minimumScaleFactor(0.5)
-                .widgetAccentable()
-            ForEach(detail) { part in
-                WidgetNodeView(node: part.node, accent: accent, rowLimit: 2)
-            }
-        }
-    }
-
-    /// Chosen or leading items. Cards and sections sit two to a row when
-    /// there is room; label-and-value rows stack.
-    @ViewBuilder
-    private func parts(_ parts: [SharedShelf.Part], accent: Color) -> some View {
-        let blocky = parts.contains { ["card", "section"].contains($0.node.type) }
-        if blocky && family != .systemSmall && parts.count > 1 {
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 8, alignment: .top), GridItem(.flexible(), spacing: 8, alignment: .top)],
-                      alignment: .leading, spacing: 8) {
-                ForEach(parts) { part in
-                    WidgetNodeView(node: part.node, accent: accent, rowLimit: 3)
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                }
-            }
-        } else {
-            VStack(alignment: .leading, spacing: blocky ? 8 : 6) {
-                ForEach(parts) { part in
-                    WidgetNodeView(node: part.node, accent: accent, rowLimit: rowLimit)
-                }
-            }
-        }
-    }
-
-    /// How many list rows fit; the rest is cut rather than scrolled.
-    private var rowLimit: Int {
-        switch family {
-        case .systemSmall, .systemMedium: return 3
-        default: return 8
         }
     }
 
@@ -251,27 +261,5 @@ struct ShelfWidgetView: View {
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
-/// Lays content out from the top at its natural height and cuts whatever
-/// does not fit at the bottom, with a short fade — never centering an
-/// oversized view so that its top (and the header above it) is lost.
-private struct TopAlignedClip: ViewModifier {
-    func body(content: Content) -> some View {
-        GeometryReader { proxy in
-            content
-                .frame(width: proxy.size.width, alignment: .topLeading)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
-                .clipped()
-                .mask(
-                    VStack(spacing: 0) {
-                        Rectangle()
-                        LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
-                            .frame(height: min(14, proxy.size.height / 4))
-                    }
-                )
-        }
     }
 }

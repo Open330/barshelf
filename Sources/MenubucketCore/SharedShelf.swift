@@ -24,6 +24,24 @@ public enum SharedShelf {
 
     public static let indexFileName = "index.json"
     public static let snapshotsDirectoryName = "snapshots"
+    /// `images/<widget id>/<name>.png`: thumbnails BarShelf exported.
+    public static let imagesDirectoryName = "images"
+
+    /// Where a widget's exported thumbnails live.
+    public static func imagesDirectory(for widgetID: String, in container: URL) -> URL? {
+        guard let name = snapshotFileName(for: widgetID) else { return nil }
+        return container.appendingPathComponent(imagesDirectoryName, isDirectory: true)
+            .appendingPathComponent(String(name.dropLast(5)), isDirectory: true)
+    }
+
+    /// When a reading refreshed every `interval` seconds should count as
+    /// old: two intervals on, never under half an hour (WidgetKit redraws
+    /// at most every 15 minutes anyway). With no interval, `fallback`.
+    public static func staleAfter(updatedAt: Date?, interval: Double?, fallback: TimeInterval = 3600) -> Date? {
+        guard let updatedAt else { return nil }
+        let window = interval.map { max($0 * 2, 1800) } ?? fallback
+        return updatedAt.addingTimeInterval(window)
+    }
 
     /// One widget a user can choose for a desktop widget.
     public struct Entry: Codable, Equatable, Sendable, Identifiable {
@@ -67,11 +85,18 @@ public enum SharedShelf {
         public var statusTint: String?
         /// The pieces of `viewTree` a user can choose to show (`parts(of:)`).
         public var parts: [Part]
+        /// The whole widget boiled down, for the big-value template when it
+        /// has no items of its own (Codex Reset).
+        public var summary: Summary?
+        /// When this reading should be called out as old: about two refresh
+        /// intervals after `updatedAt`. Until then a widget shows no time.
+        public var staleAfter: Date?
 
         public init(
             widgetID: String, name: String, icon: String? = nil, accent: String? = nil,
             viewTree: UINode? = nil, updatedAt: Date? = nil, error: String? = nil,
-            statusLabel: String? = nil, statusTint: String? = nil, parts: [Part]? = nil
+            statusLabel: String? = nil, statusTint: String? = nil, parts: [Part]? = nil,
+            staleAfter: Date? = nil
         ) {
             self.widgetID = widgetID
             self.name = name
@@ -83,6 +108,8 @@ public enum SharedShelf {
             self.statusLabel = statusLabel
             self.statusTint = statusTint
             self.parts = parts ?? viewTree.map(SharedShelf.parts(of:)) ?? []
+            self.summary = viewTree.map { SharedShelf.summarize($0, fallbackTitle: name) }
+            self.staleAfter = staleAfter
         }
 
         public init(from decoder: Decoder) throws {
@@ -97,6 +124,8 @@ public enum SharedShelf {
             statusLabel = try c.decodeIfPresent(String.self, forKey: .statusLabel)
             statusTint = try c.decodeIfPresent(String.self, forKey: .statusTint)
             parts = try c.decodeIfPresent([Part].self, forKey: .parts) ?? []
+            summary = try c.decodeIfPresent(Summary.self, forKey: .summary)
+            staleAfter = try c.decodeIfPresent(Date.self, forKey: .staleAfter)
         }
     }
 
@@ -115,16 +144,22 @@ public enum SharedShelf {
         /// whole, but left out when parts are picked automatically, so
         /// nothing shows twice.
         public var containsParts: Bool?
+        /// What a widget template draws for it.
+        public var summary: Summary?
 
         public var id: String { key }
         public var isGroup: Bool { containsParts == true }
 
-        public init(key: String, title: String, group: String? = nil, node: UINode, containsParts: Bool? = nil) {
+        public init(
+            key: String, title: String, group: String? = nil, node: UINode,
+            containsParts: Bool? = nil, summary: Summary? = nil
+        ) {
             self.key = key
             self.title = title
             self.group = group
             self.node = node
             self.containsParts = containsParts
+            self.summary = summary ?? SharedShelf.summarize(node, fallbackTitle: title)
         }
     }
 
@@ -273,6 +308,9 @@ public enum SharedShelf {
     }
 
     public static func removeSnapshot(widgetID: String, from container: URL) {
+        if let images = imagesDirectory(for: widgetID, in: container) {
+            try? FileManager.default.removeItem(at: images)
+        }
         guard let name = snapshotFileName(for: widgetID) else { return }
         try? FileManager.default.removeItem(at: container
             .appendingPathComponent(snapshotsDirectoryName, isDirectory: true)
@@ -287,6 +325,11 @@ public enum SharedShelf {
         let files = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
         for file in files where file.hasSuffix(".json") && !keep.contains(file) {
             try? FileManager.default.removeItem(at: directory.appendingPathComponent(file))
+        }
+        let images = container.appendingPathComponent(imagesDirectoryName, isDirectory: true)
+        let keepImages = Set(keep.map { String($0.dropLast(5)) })
+        for folder in (try? FileManager.default.contentsOfDirectory(atPath: images.path)) ?? [] where !keepImages.contains(folder) {
+            try? FileManager.default.removeItem(at: images.appendingPathComponent(folder))
         }
     }
 

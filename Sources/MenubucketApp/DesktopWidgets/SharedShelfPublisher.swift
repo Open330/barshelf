@@ -1,5 +1,8 @@
+import AppKit
+import CryptoKit
 import Foundation
 import MenubucketCore
+import QuickLookThumbnailing
 import Security
 import WidgetKit
 
@@ -47,12 +50,88 @@ final class SharedShelfPublisher {
 
     func publish(_ snapshot: SharedShelf.Snapshot) {
         guard let container else { return }
+        let paths = Self.imagePaths(in: snapshot)
+        guard !paths.isEmpty, let folder = SharedShelf.imagesDirectory(for: snapshot.widgetID, in: container) else {
+            write(Self.sharing(snapshot, thumbnails: [:]), to: container)
+            return
+        }
+        // Thumbnails first, then the snapshot that names them.
+        Task { [weak self] in
+            let thumbnails = await Self.exportThumbnails(paths, into: folder)
+            await MainActor.run {
+                self?.write(Self.sharing(snapshot, thumbnails: thumbnails), to: container)
+            }
+        }
+    }
+
+    private func write(_ snapshot: SharedShelf.Snapshot, to container: URL) {
         do {
             try SharedShelf.writeSnapshot(snapshot, to: container)
             scheduleReload()
         } catch {
             NSLog("barshelf: could not share \(snapshot.widgetID) with widgets: \(error)")
         }
+    }
+
+    // MARK: - Thumbnails
+
+    /// Most thumbnails exported per widget: a large widget shows eight.
+    static let maximumThumbnails = 12
+    static let thumbnailSize = CGSize(width: 128, height: 128)
+
+    /// Files the snapshot's items show, in order, at most `maximumThumbnails`.
+    static func imagePaths(in snapshot: SharedShelf.Snapshot) -> [String] {
+        var seen: Set<String> = []
+        return snapshot.parts.compactMap(\.summary?.imagePath)
+            .filter { seen.insert($0).inserted }
+            .prefix(maximumThumbnails).map { $0 }
+    }
+
+    /// The snapshot as it goes into the shared folder: thumbnails named by
+    /// their exported file, and no local file paths at all.
+    static func sharing(_ snapshot: SharedShelf.Snapshot, thumbnails: [String: String]) -> SharedShelf.Snapshot {
+        var shared = snapshot
+        for index in shared.parts.indices {
+            guard var summary = shared.parts[index].summary else { continue }
+            summary.thumbnail = summary.imagePath.flatMap { thumbnails[$0] }
+            summary.imagePath = nil
+            shared.parts[index].summary = summary
+        }
+        shared.summary?.imagePath = nil
+        return shared
+    }
+
+    /// Writes a small PNG per file into `folder`, named by the file's path
+    /// and modification time so an unchanged file is not redone, and removes
+    /// the PNGs no longer needed. Returns path → file name.
+    static func exportThumbnails(_ paths: [String], into folder: URL) async -> [String: String] {
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        var names: [String: String] = [:]
+        for path in paths {
+            let url = URL(fileURLWithPath: path)
+            let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+            let digest = SHA256.hash(data: Data("\(path)|\(modified?.timeIntervalSince1970 ?? 0)".utf8))
+            let name = digest.prefix(12).map { String(format: "%02x", $0) }.joined() + ".png"
+            let target = folder.appendingPathComponent(name)
+            if FileManager.default.fileExists(atPath: target.path) {
+                names[path] = name
+                continue
+            }
+            let request = QLThumbnailGenerator.Request(
+                fileAt: url, size: thumbnailSize, scale: 2, representationTypes: .thumbnail
+            )
+            guard let thumbnail = try? await QLThumbnailGenerator.shared.generateBestRepresentation(for: request),
+                  let tiff = thumbnail.nsImage.tiffRepresentation,
+                  let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]),
+                  (try? png.write(to: target, options: .atomic)) != nil
+            else { continue }
+            names[path] = name
+        }
+        let keep = Set(names.values)
+        for file in (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? [] where !keep.contains(file) {
+            try? FileManager.default.removeItem(at: folder.appendingPathComponent(file))
+        }
+        return names
     }
 
     /// Takes a widget out of the shared folder at once — for one that turned

@@ -2929,7 +2929,12 @@ final class WidgetRuntime: ObservableObject {
             updatedAt: snapshot.updatedAt,
             error: snapshot.error,
             statusLabel: snapshot.statusLabel,
-            statusTint: snapshot.statusTint
+            statusTint: snapshot.statusTint,
+            staleAfter: SharedShelf.staleAfter(
+                updatedAt: snapshot.updatedAt,
+                interval: widget.manifest.refresh?.interval.map { $0 * appPrefs.preferences.refreshMultiplier },
+                fallback: widget.manifest.refresh?.staleAfterSec ?? 3600
+            )
         ))
     }
 

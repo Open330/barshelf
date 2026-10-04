@@ -21,6 +21,9 @@ let sizes: [(String, NSSize, WidgetFamily)] = [
 var entries: [ShelfEntry] = (SharedContainer.index()?.entries ?? []).map {
     ShelfEntry(date: Date(), widgetID: $0.id, snapshot: SharedContainer.snapshot(for: $0.id))
 }
+if let style = ProcessInfo.processInfo.environment["PREVIEW_STYLE"].flatMap(ShelfWidgetStyle.init(rawValue:)) {
+    entries = entries.map { ShelfEntry(date: $0.date, widgetID: $0.widgetID, snapshot: $0.snapshot, partKeys: $0.partKeys, style: style) }
+}
 entries.append(ShelfEntry(date: Date(), widgetID: nil, snapshot: nil))
 entries.append(ShelfEntry(date: Date(), widgetID: "sample", snapshot: ShelfProvider.sample))
 // A pick: the given part keys of the given widget (PREVIEW_PICK=<id>|<key>|<key>…).
@@ -31,9 +34,10 @@ if let pick = ProcessInfo.processInfo.environment["PREVIEW_PICK"]?.components(se
 for entry in entries {
     for (name, size, family) in sizes {
         let view = ShelfWidgetView(entry: entry, familyOverride: family)
+            .environment(\.colorScheme, ProcessInfo.processInfo.environment["PREVIEW_DARK"] == "1" ? .dark : .light)
             .padding(14)
             .frame(width: size.width, height: size.height)
-            .background(RoundedRectangle(cornerRadius: 22).fill(Color(nsColor: .windowBackgroundColor)))
+            .background(RoundedRectangle(cornerRadius: 22).fill(ProcessInfo.processInfo.environment["PREVIEW_DARK"] == "1" ? Color(white: 0.12) : Color(white: 0.97)))
         let hosting = NSHostingView(rootView: view)
         hosting.frame = NSRect(origin: .zero, size: size)
         let window = NSWindow(contentRect: hosting.frame, styleMask: [.borderless], backing: .buffered, defer: false)

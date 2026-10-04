@@ -12,6 +12,7 @@
 		25FFEF933A98239973399CEE /* BarShelfWidgetsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7E2C8D8F0992AF74253EA6A /* BarShelfWidgetsBundle.swift */; };
 		36AC0C5864DB27615C69D8BC /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 7B505F8DF3C2A9D1FF94FE91 /* Localizable.xcstrings */; };
 		4195A0A5241CEF6A27FD0695 /* ShelfWidgetIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2961B05761B714139E0AC3AB /* ShelfWidgetIntent.swift */; };
+		435CBB33D3D3C9EC304AC1D9 /* ShelfTemplates.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0936B164A6CC8C20AA933D7 /* ShelfTemplates.swift */; };
 		446AF0B171DBCDADC2B8DF85 /* WidgetNodeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C61BB6D5CEA5D1651EF109D8 /* WidgetNodeView.swift */; };
 		476453C0C400EC58CDCF3F2A /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 7B505F8DF3C2A9D1FF94FE91 /* Localizable.xcstrings */; };
 		480743A44B71F0316790DCBD /* ShelfWidgetIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2961B05761B714139E0AC3AB /* ShelfWidgetIntent.swift */; };
@@ -21,6 +22,7 @@
 		B162097A519560CD0658C1AE /* MenubucketCore in Frameworks */ = {isa = PBXBuildFile; productRef = F712C895B770A2690B947749 /* MenubucketCore */; };
 		BCC5CD171C8CF94762900E0B /* ShelfWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BB49CE264140519F81A6BFF /* ShelfWidget.swift */; };
 		D053038D4DF70749934C093A /* ShelfWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BB49CE264140519F81A6BFF /* ShelfWidget.swift */; };
+		E79A3C28FA10A32C6F34A361 /* ShelfTemplates.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0936B164A6CC8C20AA933D7 /* ShelfTemplates.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -34,6 +36,7 @@
 		7B505F8DF3C2A9D1FF94FE91 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		7BB49CE264140519F81A6BFF /* ShelfWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfWidget.swift; sourceTree = "<group>"; };
 		9E670D45E7A7EBE006E48708 /* BarShelfWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = BarShelfWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B0936B164A6CC8C20AA933D7 /* ShelfTemplates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfTemplates.swift; sourceTree = "<group>"; };
 		B7E2C8D8F0992AF74253EA6A /* BarShelfWidgetsBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarShelfWidgetsBundle.swift; sourceTree = "<group>"; };
 		BAFDAA46AAA4E5811FE4F1DF /* BarShelfWidgetsPreview */ = {isa = PBXFileReference; includeInIndex = 0; path = BarShelfWidgetsPreview; sourceTree = BUILT_PRODUCTS_DIR; };
 		C61BB6D5CEA5D1651EF109D8 /* WidgetNodeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetNodeView.swift; sourceTree = "<group>"; };
@@ -113,6 +116,7 @@
 				B7E2C8D8F0992AF74253EA6A /* BarShelfWidgetsBundle.swift */,
 				3CE7ECBE141E6C91E4D96D56 /* Info.plist */,
 				7B505F8DF3C2A9D1FF94FE91 /* Localizable.xcstrings */,
+				B0936B164A6CC8C20AA933D7 /* ShelfTemplates.swift */,
 				7BB49CE264140519F81A6BFF /* ShelfWidget.swift */,
 				2961B05761B714139E0AC3AB /* ShelfWidgetIntent.swift */,
 				C61BB6D5CEA5D1651EF109D8 /* WidgetNodeView.swift */,
@@ -222,6 +226,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E79A3C28FA10A32C6F34A361 /* ShelfTemplates.swift in Sources */,
 				BCC5CD171C8CF94762900E0B /* ShelfWidget.swift in Sources */,
 				480743A44B71F0316790DCBD /* ShelfWidgetIntent.swift in Sources */,
 				446AF0B171DBCDADC2B8DF85 /* WidgetNodeView.swift in Sources */,
@@ -234,6 +239,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				25FFEF933A98239973399CEE /* BarShelfWidgetsBundle.swift in Sources */,
+				435CBB33D3D3C9EC304AC1D9 /* ShelfTemplates.swift in Sources */,
 				D053038D4DF70749934C093A /* ShelfWidget.swift in Sources */,
 				4195A0A5241CEF6A27FD0695 /* ShelfWidgetIntent.swift in Sources */,
 				5A8E9EA08A74F81BCB6A909A /* WidgetNodeView.swift in Sources */,

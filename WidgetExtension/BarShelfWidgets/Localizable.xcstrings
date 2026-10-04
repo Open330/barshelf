@@ -1,12 +1,32 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Automatic": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "자동"
+          }
+        }
+      }
+    },
     "BarShelf Widget": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "BarShelf 위젯"
+          }
+        }
+      }
+    },
+    "Big Number": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "큰 숫자"
           }
         }
       }
@@ -31,12 +51,42 @@
         }
       }
     },
+    "Grid": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "격자"
+          }
+        }
+      }
+    },
     "Item": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "항목"
+          }
+        }
+      }
+    },
+    "List": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "목록"
+          }
+        }
+      }
+    },
+    "Meters": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "미터"
           }
         }
       }
@@ -77,6 +127,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "BarShelf 위젯 하나를, 또는 그중 고른 항목만 보여 줍니다."
+          }
+        }
+      }
+    },
+    "Style": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "스타일"
           }
         }
       }
