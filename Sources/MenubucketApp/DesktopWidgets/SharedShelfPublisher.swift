@@ -25,6 +25,13 @@ final class SharedShelfPublisher {
     private var lastReload: Date?
     private var pendingReload: DispatchWorkItem?
     private var lastIndex: SharedShelf.Index?
+    /// Thumbnail exports still running, one per widget; a newer publish or a
+    /// withdrawal cancels the one before it.
+    private var exports: [String: Task<Void, Never>] = [:]
+    /// Bumped on every publish and withdrawal, so an export that finishes
+    /// late cannot write over something newer — or bring back a widget that
+    /// was taken out while it ran.
+    private var generations: [String: Int] = [:]
 
     init(container: URL? = SharedShelfPublisher.entitledContainer()) {
         self.container = container
@@ -39,10 +46,15 @@ final class SharedShelfPublisher {
         guard let container else { return false }
         let index = SharedShelf.Index(entries: entries)
         guard index != lastIndex else { return false }
-        lastIndex = index
+        let kept = Set(entries.map(\.id))
+        for id in Set(exports.keys).subtracting(kept) {
+            invalidate(id)
+        }
         do {
             try SharedShelf.writeIndex(index, to: container)
-            SharedShelf.pruneSnapshots(keeping: Set(entries.map(\.id)), in: container)
+            SharedShelf.pruneSnapshots(keeping: kept, in: container)
+            // Only once it is written: a failed write is tried again next time.
+            lastIndex = index
         } catch {
             NSLog("barshelf: could not write the widget index: \(error)")
         }
@@ -51,16 +63,34 @@ final class SharedShelfPublisher {
 
     func publish(_ snapshot: SharedShelf.Snapshot) {
         guard let container else { return }
+        let id = snapshot.widgetID
+        let generation = invalidate(id)
         let paths = Self.imagePaths(in: snapshot)
-        guard !paths.isEmpty, let folder = SharedShelf.imagesDirectory(for: snapshot.widgetID, in: container) else {
+        guard let folder = SharedShelf.imagesDirectory(for: id, in: container) else { return }
+        guard !paths.isEmpty else {
+            // Nothing to picture any more: no thumbnails left behind either.
+            try? FileManager.default.removeItem(at: folder)
             write(Self.sharing(snapshot, thumbnails: [:]), to: container)
             return
         }
-        // Thumbnails first, then the snapshot that names them.
-        Task { @MainActor [weak self] in
+        // Thumbnails first, then the snapshot that names them — unless the
+        // widget was published again or taken out in the meantime.
+        exports[id] = Task { @MainActor [weak self] in
             let thumbnails = await Self.exportThumbnails(paths, into: folder)
-            self?.write(Self.sharing(snapshot, thumbnails: thumbnails), to: container)
+            guard let self, !Task.isCancelled, self.generations[id] == generation else { return }
+            self.exports[id] = nil
+            if let index = self.lastIndex, !index.entries.contains(where: { $0.id == id }) { return }
+            self.write(Self.sharing(snapshot, thumbnails: thumbnails), to: container)
         }
+    }
+
+    /// Cancels any export for the widget and makes older ones stale.
+    @discardableResult
+    private func invalidate(_ id: String) -> Int {
+        exports.removeValue(forKey: id)?.cancel()
+        let next = (generations[id] ?? 0) + 1
+        generations[id] = next
+        return next
     }
 
     private func write(_ snapshot: SharedShelf.Snapshot, to container: URL) {
@@ -87,10 +117,13 @@ final class SharedShelfPublisher {
     }
 
     /// The snapshot as it goes into the shared folder: thumbnails named by
-    /// their exported file, and no local file paths at all.
+    /// their exported file, and no local file paths, actions, or drag
+    /// payloads anywhere in it.
     static func sharing(_ snapshot: SharedShelf.Snapshot, thumbnails: [String: String]) -> SharedShelf.Snapshot {
         var shared = snapshot
+        shared.viewTree = shared.viewTree.map(SharedShelf.scrubbed)
         for index in shared.parts.indices {
+            shared.parts[index].node = SharedShelf.scrubbed(shared.parts[index].node)
             guard var summary = shared.parts[index].summary else { continue }
             summary.thumbnail = summary.imagePath.flatMap { thumbnails[$0] }
             summary.imagePath = nil
@@ -111,6 +144,7 @@ final class SharedShelfPublisher {
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         var names: [String: String] = [:]
         for path in paths {
+            if Task.isCancelled { break }
             let url = URL(fileURLWithPath: path)
             let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
             // `v2`: earlier builds saved stand-in icons under the picture's
@@ -137,6 +171,8 @@ final class SharedShelfPublisher {
                 names[path] = icon
             }
         }
+        // A cancelled export leaves the folder to the one that replaced it.
+        if Task.isCancelled { return names }
         let keep = Set(names.values)
         for file in (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? [] where !keep.contains(file) {
             try? FileManager.default.removeItem(at: folder.appendingPathComponent(file))
@@ -196,8 +232,14 @@ final class SharedShelfPublisher {
     /// out to be sensitive.
     func withdraw(widgetID: String) {
         guard let container else { return }
+        invalidate(widgetID)
         SharedShelf.removeSnapshot(widgetID: widgetID, from: container)
-        scheduleReload()
+        // Not left on the desktop until the reload window closes: this is
+        // rare, and worth a reload from the daily budget.
+        pendingReload?.cancel()
+        pendingReload = nil
+        lastReload = Date()
+        WidgetCenter.shared.reloadTimelines(ofKind: SharedShelf.widgetKind)
     }
 
     private func scheduleReload(now: Date = Date()) {

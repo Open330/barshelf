@@ -1,11 +1,30 @@
-# BarShelf 0.5.1
+# BarShelf 0.6.0
 
 > Unreleased. Requires macOS 14+ on Apple Silicon.
 
-BarShelf 0.5.1 redesigns the whole app: a new BarShelf window with a Shelf
-you arrange by dragging, settings that apply as you change them, a popup
-that needs no right-click, a better Gallery, a first-run welcome, and a
-Korean interface.
+BarShelf 0.6.0 puts your widgets on the desktop and in Notification Center,
+and redesigns the whole app: a new BarShelf window with a Shelf you arrange
+by dragging, settings that apply as you change them, a popup that needs no
+right-click, a better Gallery, a first-run welcome, and a Korean interface.
+
+## Desktop widgets
+
+- **BarShelf on your desktop.** Right-click the desktop (or open Edit Widgets
+  in Notification Center), find BarShelf, and place it in small, medium, or
+  large. Right-click it and choose Edit Widget to pick which BarShelf widget
+  it shows.
+- **Show just what you want.** Pick individual items to show — one account
+  from aas Usage, CPU and Memory from System, or a few files — in the order
+  you pick them.
+- **Drawn for the desktop.** Items are laid out the way macOS's own widgets
+  are: a big number, meters (rings in the small size), a list, or a grid of
+  real file thumbnails. BarShelf picks the style that fits; choose another
+  under Style.
+- **Honest about age.** A widget whose reading is old shows an orange clock
+  and how long ago it updated; a fresh one shows nothing extra.
+- Clicking a desktop widget opens that widget in the BarShelf popup.
+- Desktop widgets update at most every 15 minutes, as macOS allows. Sensitive
+  widgets (one-time codes, clipboard) are never offered.
 
 ## Changes
 
