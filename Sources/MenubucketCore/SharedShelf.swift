@@ -61,10 +61,17 @@ public enum SharedShelf {
         public var updatedAt: Date?
         /// Why the last refresh failed, when it did.
         public var error: String?
+        /// The short reading the widget shows in the menu bar ("42%") — the
+        /// headline of a small desktop widget.
+        public var statusLabel: String?
+        public var statusTint: String?
+        /// The pieces of `viewTree` a user can choose to show (`parts(of:)`).
+        public var parts: [Part]
 
         public init(
             widgetID: String, name: String, icon: String? = nil, accent: String? = nil,
-            viewTree: UINode? = nil, updatedAt: Date? = nil, error: String? = nil
+            viewTree: UINode? = nil, updatedAt: Date? = nil, error: String? = nil,
+            statusLabel: String? = nil, statusTint: String? = nil, parts: [Part]? = nil
         ) {
             self.widgetID = widgetID
             self.name = name
@@ -73,7 +80,160 @@ public enum SharedShelf {
             self.viewTree = viewTree
             self.updatedAt = updatedAt
             self.error = error
+            self.statusLabel = statusLabel
+            self.statusTint = statusTint
+            self.parts = parts ?? viewTree.map(SharedShelf.parts(of:)) ?? []
         }
+
+        public init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            widgetID = try c.decode(String.self, forKey: .widgetID)
+            name = try c.decode(String.self, forKey: .name)
+            icon = try c.decodeIfPresent(String.self, forKey: .icon)
+            accent = try c.decodeIfPresent(String.self, forKey: .accent)
+            viewTree = try c.decodeIfPresent(UINode.self, forKey: .viewTree)
+            updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt)
+            error = try c.decodeIfPresent(String.self, forKey: .error)
+            statusLabel = try c.decodeIfPresent(String.self, forKey: .statusLabel)
+            statusTint = try c.decodeIfPresent(String.self, forKey: .statusTint)
+            parts = try c.decodeIfPresent([Part].self, forKey: .parts) ?? []
+        }
+    }
+
+    /// One piece of a widget's view a user can put on a desktop widget on
+    /// its own: a card, a list row, or a section — an account's usage, one
+    /// sensor, one file — instead of the whole popup view cut to fit.
+    public struct Part: Codable, Equatable, Sendable, Identifiable {
+        /// Stable across refreshes: the node's `id` when the widget gives
+        /// one, else where it sits and what it is called.
+        public var key: String
+        public var title: String
+        /// The section it belongs to, when there is one ("Codex").
+        public var group: String?
+        public var node: UINode
+        /// A section whose own items are parts too. Offered for choosing
+        /// whole, but left out when parts are picked automatically, so
+        /// nothing shows twice.
+        public var containsParts: Bool?
+
+        public var id: String { key }
+        public var isGroup: Bool { containsParts == true }
+
+        public init(key: String, title: String, group: String? = nil, node: UINode, containsParts: Bool? = nil) {
+            self.key = key
+            self.title = title
+            self.group = group
+            self.node = node
+            self.containsParts = containsParts
+        }
+    }
+
+    /// Most parts offered for one widget; a long list is cut, not paged.
+    public static let maximumParts = 40
+
+    /// The choosable pieces of a view tree, in reading order.
+    ///
+    /// Structure first: every `card`, every titled `section` (whole), and
+    /// every row of a `list` or `grid` — looking inside a row that itself
+    /// holds cards or sections. A widget without any of those (System,
+    /// Sensors) is split into its rows instead: each stacked block that
+    /// pairs a label with a value or a meter ("CPU 15%" and its bar).
+    /// Pieces without any text are skipped, having nothing to be named by.
+    public static func parts(of tree: UINode) -> [Part] {
+        var parts: [Part] = []
+        var seen: [String: Int] = [:]
+
+        func add(_ node: UINode, group: String?) {
+            guard parts.count < maximumParts, let title = displayTitle(of: node) else { return }
+            var key = node.id.map { "id:" + $0 } ?? "\(group ?? "")/\(title)"
+            if let count = seen[key] {
+                seen[key] = count + 1
+                key += "#\(count + 1)"
+            } else {
+                seen[key] = 1
+            }
+            parts.append(Part(key: key, title: title, group: group, node: node))
+        }
+
+        func walk(_ node: UINode, group: String?) {
+            guard node.hidden != true, parts.count < maximumParts else { return }
+            switch node.type {
+            case "card":
+                add(node, group: group)
+            case "section":
+                let title = node.title?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let named = (title?.isEmpty == false) ? title : nil
+                let index = parts.count
+                if named != nil { add(node, group: group) }
+                for child in node.children ?? [] { walk(child, group: named ?? group) }
+                if named != nil, parts.count > index + 1, parts.indices.contains(index) {
+                    parts[index].containsParts = true
+                }
+            case "list", "grid":
+                for item in node.items ?? node.children ?? [] where item.hidden != true {
+                    if containsStructure(item) { walk(item, group: group) } else { add(item, group: group) }
+                }
+            case "scroll":
+                if let child = node.child?.node { walk(child, group: group) }
+            default:
+                for child in node.children ?? [] { walk(child, group: group) }
+            }
+        }
+
+        walk(tree, group: nil)
+        if parts.isEmpty {
+            for row in rows(of: tree) { add(row, group: nil) }
+        }
+        return parts
+    }
+
+    /// Whether a node holds a card, a section, or a list somewhere inside.
+    static func containsStructure(_ node: UINode) -> Bool {
+        let inner = (node.children ?? []) + (node.items ?? []) + [node.child?.node].compactMap { $0 }
+        return inner.contains { ["card", "section", "list", "grid"].contains($0.type) || containsStructure($0) }
+    }
+
+    /// The label-and-value rows of a plain stacked widget: the first stack,
+    /// looking through single-child wrappers, with at least two such rows.
+    static func rows(of tree: UINode) -> [UINode] {
+        var node = tree
+        while true {
+            let children = (node.children ?? []).filter { $0.hidden != true }
+            let rowLike = children.filter(isRow)
+            if rowLike.count >= 2 { return rowLike }
+            if node.type == "scroll", let child = node.child?.node { node = child; continue }
+            guard children.count == 1 else { return [] }
+            node = children[0]
+        }
+    }
+
+    /// A block that reads as one reading: two pieces of text ("CPU" "15%"),
+    /// or a text and a meter.
+    static func isRow(_ node: UINode) -> Bool {
+        guard ["hstack", "vstack", "zstack"].contains(node.type) else { return false }
+        var texts = 0
+        var meters = 0
+        func count(_ node: UINode) {
+            if node.type == "text", node.text?.trimmingCharacters(in: .whitespaces).isEmpty == false { texts += 1 }
+            if node.type == "progress" { meters += 1 }
+            for child in (node.children ?? []) + (node.items ?? []) { count(child) }
+        }
+        count(node)
+        return texts >= 2 || (texts >= 1 && meters >= 1)
+    }
+
+    /// The name a piece goes by: its title, else its first line of text.
+    static func displayTitle(of node: UINode) -> String? {
+        func clean(_ text: String?) -> String? {
+            let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return (trimmed?.isEmpty == false) ? trimmed : nil
+        }
+        if let title = clean(node.title) { return title }
+        if node.type == "text", let text = clean(node.text) { return text }
+        for child in (node.children ?? []) + (node.items ?? []) + [node.child?.node].compactMap({ $0 }) {
+            if let title = displayTitle(of: child) { return title }
+        }
+        return nil
     }
 
     // MARK: - Files

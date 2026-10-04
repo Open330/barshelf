@@ -37,17 +37,79 @@ struct ShelfWidgetQuery: EntityQuery {
         (SharedContainer.index()?.entries ?? []).map(ShelfWidgetEntity.init)
     }
 
-    func defaultResult() async -> ShelfWidgetEntity? {
-        SharedContainer.index()?.entries.first.map(ShelfWidgetEntity.init)
+    /// Nothing by default: a widget placed without a choice says how to make
+    /// one, instead of quietly showing whichever widget is first.
+    func defaultResult() async -> ShelfWidgetEntity? { nil }
+}
+
+/// One piece of a chosen widget — an account card, a sensor row, a file —
+/// that the desktop widget can show on its own (`SharedShelf.Part`).
+struct ShelfPartEntity: AppEntity {
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Item"
+    static let defaultQuery = ShelfPartQuery()
+
+    /// `<widget id>\n<part key>`: self-contained, so a saved choice can be
+    /// resolved without knowing which widget it was made for.
+    var id: String
+    var title: String
+    var group: String?
+
+    var widgetID: String { String(id.split(separator: "\n", maxSplits: 1).first ?? "") }
+    var key: String { String(id.split(separator: "\n", maxSplits: 1).dropFirst().first ?? "") }
+
+    var displayRepresentation: DisplayRepresentation {
+        if let group {
+            return DisplayRepresentation(title: "\(title)", subtitle: "\(group)")
+        }
+        return DisplayRepresentation(title: "\(title)")
+    }
+
+    init(widgetID: String, part: SharedShelf.Part) {
+        id = widgetID + "\n" + part.key
+        title = part.title
+        group = part.group
+    }
+
+    init(id: String, title: String) {
+        self.id = id
+        self.title = title
+    }
+}
+
+struct ShelfPartQuery: EntityQuery {
+    /// The widget chosen above, so the list shows that widget's pieces.
+    @IntentParameterDependency<SelectShelfWidgetIntent>(\.$widget)
+    var configuration
+
+    func entities(for identifiers: [String]) async throws -> [ShelfPartEntity] {
+        identifiers.map { id in
+            let entity = ShelfPartEntity(id: id, title: "")
+            let part = SharedContainer.snapshot(for: entity.widgetID)?.parts.first { $0.key == entity.key }
+            if let part { return ShelfPartEntity(widgetID: entity.widgetID, part: part) }
+            // Gone since it was chosen; keep the choice, named by its key.
+            return ShelfPartEntity(id: id, title: entity.key.components(separatedBy: "/").last ?? entity.key)
+        }
+    }
+
+    func suggestedEntities() async throws -> [ShelfPartEntity] {
+        guard let widget = configuration?.widget,
+              let snapshot = SharedContainer.snapshot(for: widget.id)
+        else { return [] }
+        return snapshot.parts.map { ShelfPartEntity(widgetID: widget.id, part: $0) }
     }
 }
 
 struct SelectShelfWidgetIntent: WidgetConfigurationIntent {
     static let title: LocalizedStringResource = "Choose a Widget"
-    static let description = IntentDescription("Show one of your BarShelf widgets.")
+    static let description = IntentDescription("Show one of your BarShelf widgets, or just the items you pick from it.")
 
     @Parameter(title: "Widget")
     var widget: ShelfWidgetEntity?
+
+    /// Empty shows the widget's own summary: its headline in the small size,
+    /// its first items in the larger ones.
+    @Parameter(title: "Show")
+    var parts: [ShelfPartEntity]?
 
     init() {}
 }
@@ -68,6 +130,11 @@ enum SharedContainer {
     }
 
     static func snapshot(for widgetID: String) -> SharedShelf.Snapshot? {
-        url.flatMap { SharedShelf.readSnapshot(widgetID: widgetID, from: $0) }
+        guard var snapshot = url.flatMap({ SharedShelf.readSnapshot(widgetID: widgetID, from: $0) }) else { return nil }
+        // Written by a BarShelf from before items existed: split it here.
+        if snapshot.parts.isEmpty, let tree = snapshot.viewTree {
+            snapshot.parts = SharedShelf.parts(of: tree)
+        }
+        return snapshot
     }
 }

@@ -2927,7 +2927,9 @@ final class WidgetRuntime: ObservableObject {
             accent: prefs.effectiveAppearance(for: widget.manifest, widgetID: widget.id).accent,
             viewTree: snapshot.viewTree,
             updatedAt: snapshot.updatedAt,
-            error: snapshot.error
+            error: snapshot.error,
+            statusLabel: snapshot.statusLabel,
+            statusTint: snapshot.statusTint
         ))
     }
 

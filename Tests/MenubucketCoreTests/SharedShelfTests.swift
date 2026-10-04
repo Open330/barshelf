@@ -54,4 +54,60 @@ final class SharedShelfTests: XCTestCase {
         XCTAssertEqual(SharedShelf.widgetKind, "com.barshelf.app.shelf-widget")
         XCTAssertEqual(SharedShelf.appGroupID, "728FW73BS8.com.barshelf.shared")
     }
+
+    private func text(_ value: String) -> UINode { UINode(type: "text", text: value) }
+
+    /// Usage-meter shape: sections in a list, one card per account.
+    func testCardsInSectionsInAListBecomeParts() {
+        let tree = UINode(type: "vstack", children: [
+            UINode(type: "hstack", children: [text("aas"), text("0% left")]),
+            UINode(type: "list", items: [
+                UINode(type: "section", children: [
+                    UINode(type: "card", children: [text("work@claude"), text("97% left")]),
+                    UINode(type: "card", children: [text("home@claude"), text("40% left")]),
+                ], title: "Claude"),
+                UINode(type: "section", children: [
+                    UINode(type: "card", children: [text("team@codex")]),
+                ], title: "Codex"),
+            ]),
+        ])
+        let parts = SharedShelf.parts(of: tree)
+        XCTAssertEqual(parts.map(\.title), ["Claude", "work@claude", "home@claude", "Codex", "team@codex"])
+        XCTAssertEqual(parts[1].group, "Claude")
+        XCTAssertEqual(parts[4].group, "Codex")
+        // Sections hold the cards, so an automatic pick skips them.
+        XCTAssertEqual(parts.filter(\.isGroup).map(\.title), ["Claude", "Codex"])
+    }
+
+    /// System-monitor shape: no cards, so each label-and-reading row is one.
+    func testPlainRowsBecomePartsWhenThereIsNoStructure() {
+        let tree = UINode(type: "vstack", children: [
+            UINode(type: "hstack", children: [UINode(type: "spacer"), text("2.25")]),
+            UINode(type: "vstack", children: [
+                UINode(type: "hstack", children: [text("CPU"), text("15%")]),
+                UINode(type: "progress", value: 0.15),
+            ]),
+            UINode(type: "hstack", children: [text("Memory"), text("65%")]),
+        ])
+        XCTAssertEqual(SharedShelf.parts(of: tree).map(\.title), ["CPU", "Memory"])
+    }
+
+    /// Keys stay the same from one refresh to the next, so a user's choice
+    /// survives; duplicates are told apart.
+    func testPartKeysAreStableAndUnique() {
+        let tree = UINode(type: "list", items: [text("Same"), text("Same"), UINode(id: "x", type: "text", text: "Other")])
+        let keys = SharedShelf.parts(of: tree).map(\.key)
+        XCTAssertEqual(keys, ["/Same", "/Same#2", "id:x"])
+        XCTAssertEqual(SharedShelf.parts(of: tree).map(\.key), keys)
+    }
+
+    /// A snapshot written before parts existed still reads.
+    func testSnapshotsWithoutPartsStillDecode() throws {
+        let json = #"{"widgetID":"a","name":"A"}"#
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let snapshot = try decoder.decode(SharedShelf.Snapshot.self, from: Data(json.utf8))
+        XCTAssertEqual(snapshot.parts, [])
+        XCTAssertNil(snapshot.statusLabel)
+    }
 }
