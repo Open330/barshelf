@@ -75,7 +75,7 @@ final class SharedShelfPublisher {
 
     // MARK: - Thumbnails
 
-    /// Most thumbnails exported per widget: a large widget shows eight.
+    /// Most thumbnails exported per widget: a large widget shows twelve.
     static let maximumThumbnails = 12
     static let thumbnailSize = CGSize(width: 128, height: 128)
 

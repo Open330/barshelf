@@ -26,7 +26,7 @@ enum WidgetMetrics {
         case (.bigValue, _): return 1
         case (.grid, .systemSmall): return 4
         case (.grid, .systemMedium): return 4
-        case (.grid, _): return 8
+        case (.grid, _): return 12
         case (.meters, .systemSmall): return 3
         case (_, .systemSmall): return 3
         case (.meters, .systemMedium): return 3
@@ -256,8 +256,10 @@ struct GridTemplate: View {
         ) {
             ForEach(items) { item in
                 VStack(spacing: 3) {
-                    thumbnail(item)
+                    // A square cell the picture fills and is cut to.
+                    Color.clear
                         .aspectRatio(1, contentMode: .fit)
+                        .overlay { thumbnail(item) }
                         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     if family != .systemSmall {
                         Text(item.summary.title ?? "")
