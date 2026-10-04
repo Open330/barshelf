@@ -174,13 +174,42 @@ public enum SharedShelf {
     /// Sensors) is split into its rows instead: each stacked block that
     /// pairs a label with a value or a meter ("CPU 15%" and its bar).
     /// Pieces without any text are skipped, having nothing to be named by.
+    /// A node id as it may appear in the shared folder: kept when it is a
+    /// plain name, hashed when it could carry a file path ("tile-/Users/…").
+    public static func shareableID(_ id: String) -> String {
+        guard id.contains("/") || id.count > 64 else { return id }
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+        for byte in id.utf8 {
+            hash = (hash ^ UInt64(byte)) &* 0x0000_0100_0000_01b3
+        }
+        return "h" + String(hash, radix: 16)
+    }
+
+    /// A tree with everything that points outside the widget taken out —
+    /// file paths, actions, drag payloads, image URLs, path-like ids — for
+    /// the shared folder, which the widget extension only draws from.
+    public static func scrubbed(_ node: UINode) -> UINode {
+        var node = node
+        node.id = node.id.map(shareableID)
+        node.action = nil
+        node.drag = nil
+        node.source?.path = nil
+        node.source?.url = nil
+        node.children = node.children?.map(scrubbed)
+        node.items = node.items?.map(scrubbed)
+        if let child = node.child?.node {
+            node.child = UINodeBox(scrubbed(child))
+        }
+        return node
+    }
+
     public static func parts(of tree: UINode) -> [Part] {
         var parts: [Part] = []
         var seen: [String: Int] = [:]
 
         func add(_ node: UINode, group: String?) {
             guard parts.count < maximumParts, let title = displayTitle(of: node) else { return }
-            var key = node.id.map { "id:" + $0 } ?? "\(group ?? "")/\(title)"
+            var key = node.id.map { "id:" + shareableID($0) } ?? "\(group ?? "")/\(title)"
             if let count = seen[key] {
                 seen[key] = count + 1
                 key += "#\(count + 1)"
