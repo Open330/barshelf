@@ -113,7 +113,9 @@ final class SharedShelfPublisher {
         for path in paths {
             let url = URL(fileURLWithPath: path)
             let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
-            let digest = SHA256.hash(data: Data("\(path)|\(modified?.timeIntervalSince1970 ?? 0)".utf8))
+            // `v2`: earlier builds saved stand-in icons under the picture's
+            // name; a new name lets the prune below clear them.
+            let digest = SHA256.hash(data: Data("v2|\(path)|\(modified?.timeIntervalSince1970 ?? 0)".utf8))
             let base = digest.prefix(12).map { String(format: "%02x", $0) }.joined()
             let picture = base + ".png"
             let icon = base + "-icon.png"
