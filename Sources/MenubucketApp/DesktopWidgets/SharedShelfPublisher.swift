@@ -118,7 +118,7 @@ final class SharedShelfPublisher {
                 continue
             }
             let request = QLThumbnailGenerator.Request(
-                fileAt: url, size: thumbnailSize, scale: 2, representationTypes: .thumbnail
+                fileAt: url, size: thumbnailSize, scale: 2, representationTypes: .all
             )
             guard let thumbnail = try? await QLThumbnailGenerator.shared.generateBestRepresentation(for: request),
                   let tiff = thumbnail.nsImage.tiffRepresentation,

@@ -110,4 +110,13 @@ final class SharedShelfTests: XCTestCase {
         XCTAssertEqual(snapshot.parts, [])
         XCTAssertNil(snapshot.statusLabel)
     }
+
+    func testStaleWindowIsNeverUnderHalfAnHour() {
+        let updated = Date(timeIntervalSince1970: 0)
+        XCTAssertEqual(SharedShelf.staleAfter(updatedAt: updated, interval: 3600), updated.addingTimeInterval(7200))
+        XCTAssertEqual(SharedShelf.staleAfter(updatedAt: updated, interval: 60), updated.addingTimeInterval(1800))
+        // A manifest's short staleAfterSec would mark the widget old all the time.
+        XCTAssertEqual(SharedShelf.staleAfter(updatedAt: updated, interval: nil, fallback: 30), updated.addingTimeInterval(1800))
+        XCTAssertNil(SharedShelf.staleAfter(updatedAt: nil, interval: 60))
+    }
 }

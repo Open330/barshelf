@@ -35,11 +35,11 @@ public enum SharedShelf {
     }
 
     /// When a reading refreshed every `interval` seconds should count as
-    /// old: two intervals on, never under half an hour (WidgetKit redraws
-    /// at most every 15 minutes anyway). With no interval, `fallback`.
+    /// old: two intervals on, or `fallback` with no interval — never under
+    /// half an hour, since WidgetKit redraws at most every 15 minutes anyway.
     public static func staleAfter(updatedAt: Date?, interval: Double?, fallback: TimeInterval = 3600) -> Date? {
         guard let updatedAt else { return nil }
-        let window = interval.map { max($0 * 2, 1800) } ?? fallback
+        let window = max(interval.map { $0 * 2 } ?? fallback, 1800)
         return updatedAt.addingTimeInterval(window)
     }
 

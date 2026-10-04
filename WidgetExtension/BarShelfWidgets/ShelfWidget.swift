@@ -232,13 +232,14 @@ struct ShelfWidgetView: View {
                 .truncationMode(.middle)
             Spacer(minLength: 4)
             if stale, let updated = snapshot.updatedAt {
-                // Only an old reading says how old it is.
-                Label {
-                    Text(updated, style: .relative)
-                } icon: {
+                // Only an old reading says how old it is; the small size has
+                // room for the clock alone beside the name.
+                HStack(spacing: 3) {
                     Image(systemName: "clock.arrow.circlepath")
+                    if family != .systemSmall {
+                        Text(updated, style: .relative)
+                    }
                 }
-                .labelStyle(.titleAndIcon)
                 .font(.caption2)
                 .foregroundStyle(.orange)
                 .lineLimit(1)
