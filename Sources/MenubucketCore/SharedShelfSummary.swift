@@ -162,7 +162,7 @@ extension SharedShelf {
             return Metric(
                 label: others.first?.text,
                 value: valueBit.map { $0.text },
-                fraction: fraction.map { min(max($0, 0), 1) },
+                fraction: fraction.map { matchingBar(min(max($0, 0), 1), value: valueBit?.text) },
                 tone: progress?.tint ?? valueBit?.foreground,
                 detail: others.dropFirst().map { $0.text }.joined(separator: " · ").nilIfEmpty
             )
@@ -270,6 +270,15 @@ extension SharedShelf {
             dotTone: dotTone,
             imagePath: imagePath
         )
+    }
+
+    /// A bar that fills the other way from the number beside it ("97% left"
+    /// over a bar of what is used) is turned around, so bar and number agree.
+    static func matchingBar(_ fraction: Double, value: String?) -> Double {
+        guard let value, let range = value.range(of: #"\d+(\.\d+)?(?=\s*%)"#, options: .regularExpression),
+              let percent = Double(value[range]).map({ $0 / 100 })
+        else { return fraction }
+        return abs(fraction - percent) > 0.25 && abs(1 - fraction - percent) < 0.05 ? 1 - fraction : fraction
     }
 
     static func children(of node: UINode) -> [UINode] {

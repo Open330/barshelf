@@ -4,6 +4,7 @@ import Foundation
 import MenubucketCore
 import QuickLookThumbnailing
 import Security
+import UniformTypeIdentifiers
 import WidgetKit
 
 /// Keeps the macOS widget extension's view of BarShelf current (R14): the
@@ -56,11 +57,9 @@ final class SharedShelfPublisher {
             return
         }
         // Thumbnails first, then the snapshot that names them.
-        Task { [weak self] in
+        Task { @MainActor [weak self] in
             let thumbnails = await Self.exportThumbnails(paths, into: folder)
-            await MainActor.run {
-                self?.write(Self.sharing(snapshot, thumbnails: thumbnails), to: container)
-            }
+            self?.write(Self.sharing(snapshot, thumbnails: thumbnails), to: container)
         }
     }
 
@@ -104,34 +103,93 @@ final class SharedShelfPublisher {
     /// Writes a small PNG per file into `folder`, named by the file's path
     /// and modification time so an unchanged file is not redone, and removes
     /// the PNGs no longer needed. Returns path → file name.
-    static func exportThumbnails(_ paths: [String], into folder: URL) async -> [String: String] {
+    ///
+    /// A file with no picture yet gets its icon, named `-icon.png`, and is
+    /// tried again after `iconRetryInterval` — so a picture that becomes
+    /// available later replaces the icon instead of the icon sticking.
+    static func exportThumbnails(_ paths: [String], into folder: URL, now: Date = Date()) async -> [String: String] {
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         var names: [String: String] = [:]
         for path in paths {
             let url = URL(fileURLWithPath: path)
             let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
-            let digest = SHA256.hash(data: Data("\(path)|\(modified?.timeIntervalSince1970 ?? 0)".utf8))
-            let name = digest.prefix(12).map { String(format: "%02x", $0) }.joined() + ".png"
-            let target = folder.appendingPathComponent(name)
-            if FileManager.default.fileExists(atPath: target.path) {
-                names[path] = name
+            // `v2`: earlier builds saved stand-in icons under the picture's
+            // name; a new name lets the prune below clear them.
+            let digest = SHA256.hash(data: Data("v2|\(path)|\(modified?.timeIntervalSince1970 ?? 0)".utf8))
+            let base = digest.prefix(12).map { String(format: "%02x", $0) }.joined()
+            let picture = base + ".png"
+            let icon = base + "-icon.png"
+            if FileManager.default.fileExists(atPath: folder.appendingPathComponent(picture).path) {
+                names[path] = picture
                 continue
             }
-            let request = QLThumbnailGenerator.Request(
-                fileAt: url, size: thumbnailSize, scale: 2, representationTypes: .all
-            )
-            guard let thumbnail = try? await QLThumbnailGenerator.shared.generateBestRepresentation(for: request),
-                  let tiff = thumbnail.nsImage.tiffRepresentation,
-                  let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]),
-                  (try? png.write(to: target, options: .atomic)) != nil
-            else { continue }
-            names[path] = name
+            let iconURL = folder.appendingPathComponent(icon)
+            let iconMade = (try? iconURL.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+            if let iconMade, now.timeIntervalSince(iconMade) < iconRetryInterval {
+                names[path] = icon
+                continue
+            }
+            if let png = await pictureThumbnail(of: url), write(png, to: folder.appendingPathComponent(picture)) {
+                names[path] = picture
+                continue
+            }
+            if let png = await MainActor.run(body: { iconThumbnail(of: url) }), write(png, to: iconURL) {
+                names[path] = icon
+            }
         }
         let keep = Set(names.values)
         for file in (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? [] where !keep.contains(file) {
             try? FileManager.default.removeItem(at: folder.appendingPathComponent(file))
         }
         return names
+    }
+
+    /// How long an icon stands in before the picture is tried again.
+    static let iconRetryInterval: TimeInterval = 10 * 60
+    /// Largest cloud-only image read to make a picture of it.
+    static let maximumDownloadBytes = 25 * 1024 * 1024
+
+    /// The file's picture: Quick Look's thumbnail, or — for an image kept
+    /// only in the cloud (OneDrive, iCloud), which Quick Look cannot preview
+    /// — one read from the image itself, which makes the provider download it.
+    private static func pictureThumbnail(of url: URL) async -> Data? {
+        let request = QLThumbnailGenerator.Request(
+            fileAt: url, size: thumbnailSize, scale: 2, representationTypes: .thumbnail
+        )
+        if let thumbnail = try? await QLThumbnailGenerator.shared.generateBestRepresentation(for: request),
+           let png = pngData(thumbnail.nsImage) {
+            return png
+        }
+        let values = try? url.resourceValues(forKeys: [.contentTypeKey, .fileSizeKey])
+        guard values?.contentType?.conforms(to: .image) == true,
+              (values?.fileSize ?? .max) <= maximumDownloadBytes
+        else { return nil }
+        return await Task.detached(priority: .utility) {
+            guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+                  let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                      kCGImageSourceCreateThumbnailFromImageAlways: true,
+                      kCGImageSourceCreateThumbnailWithTransform: true,
+                      kCGImageSourceThumbnailMaxPixelSize: Int(thumbnailSize.width * 2),
+                  ] as CFDictionary)
+            else { return nil }
+            return NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])
+        }.value
+    }
+
+    @MainActor
+    private static func iconThumbnail(of url: URL) -> Data? {
+        let icon = NSWorkspace.shared.icon(forFile: url.path)
+        icon.size = thumbnailSize
+        return pngData(icon)
+    }
+
+    private static func pngData(_ image: NSImage) -> Data? {
+        guard let tiff = image.tiffRepresentation else { return nil }
+        return NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:])
+    }
+
+    private static func write(_ data: Data, to url: URL) -> Bool {
+        (try? data.write(to: url, options: .atomic)) != nil
     }
 
     /// Takes a widget out of the shared folder at once — for one that turned

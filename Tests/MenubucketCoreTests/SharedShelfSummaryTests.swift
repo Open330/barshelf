@@ -31,7 +31,8 @@ final class SharedShelfSummaryTests: XCTestCase {
         XCTAssertEqual(summary.value, "97% left")
         XCTAssertEqual(summary.detail, "5h · reset 4.1h")
         XCTAssertEqual(summary.metrics.map(\.value), ["97% left", "99% left"])
-        XCTAssertEqual(summary.fraction ?? -1, 0.03, accuracy: 0.0001)
+        // The bar shows what is left, like the number.
+        XCTAssertEqual(summary.fraction ?? -1, 0.97, accuracy: 0.0001)
     }
 
     /// System row: the number is the value even when neither text has a size.
@@ -96,5 +97,14 @@ final class SharedShelfSummaryTests: XCTestCase {
         XCTAssertEqual(summary.title, "a.png")
         XCTAssertEqual(summary.imagePath, "/tmp/a.png")
         XCTAssertEqual(SharedShelf.automaticTemplate(for: [summary]), .grid)
+    }
+
+    func testABarAgreesWithThePercentNextToIt() {
+        // aas draws what is used while saying what is left.
+        XCTAssertEqual(SharedShelf.matchingBar(0.03, value: "97% left"), 0.97, accuracy: 0.001)
+        XCTAssertEqual(SharedShelf.matchingBar(0.46, value: "46%"), 0.46, accuracy: 0.001)
+        XCTAssertEqual(SharedShelf.matchingBar(0.5, value: "41°"), 0.5, accuracy: 0.001)
+        // Unrelated numbers are left alone.
+        XCTAssertEqual(SharedShelf.matchingBar(0.2, value: "35%"), 0.2, accuracy: 0.001)
     }
 }

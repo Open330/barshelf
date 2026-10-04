@@ -232,11 +232,14 @@ struct ListTemplate: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 14)
         } else {
+            // An initial on the item's colour: red when it is in trouble,
+            // otherwise the widget's accent.
             Text(String((summary.title ?? "•").prefix(1)).uppercased())
                 .font(.system(size: 8, weight: .bold))
-                .foregroundStyle(.primary)
+                .foregroundStyle(.white)
                 .frame(width: 14, height: 14)
-                .background(Circle().fill(Color.primary.opacity(0.14)))
+                .background(Circle().fill(["danger", "red"].contains(summary.tone) ? Color.red : accent))
+                .widgetAccentable()
         }
     }
 }
@@ -262,10 +265,11 @@ struct GridTemplate: View {
                         .overlay { thumbnail(item) }
                         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     if family != .systemSmall {
-                        Text(item.summary.title ?? "")
+                        Text(shortFileName(item.summary.title ?? ""))
                             .font(.system(size: 9))
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                             .truncationMode(.middle)
                     }
                 }
@@ -289,6 +293,21 @@ struct GridTemplate: View {
             }
         }
     }
+}
+
+/// "Screenshot 2026-10-03 200519.png" → "Screenshot 20:05"; other names
+/// lose only their extension, which the thumbnail already shows.
+func shortFileName(_ name: String) -> String {
+    let stem = (name as NSString).deletingPathExtension
+    let pattern = #"^(.*?)[ _-]*\d{4}-\d{2}-\d{2}(?: at)?[ _-]*(\d{1,2})[.:]?(\d{2})(?:[.:]?\d{2})?(?: ?[AP]M)?(?: \(\d+\))?$"#
+    guard let regex = try? NSRegularExpression(pattern: pattern),
+          let match = regex.firstMatch(in: stem, range: NSRange(stem.startIndex..., in: stem)),
+          let prefix = Range(match.range(at: 1), in: stem),
+          let hour = Range(match.range(at: 2), in: stem),
+          let minute = Range(match.range(at: 3), in: stem)
+    else { return stem }
+    let lead = stem[prefix].trimmingCharacters(in: .whitespaces)
+    return (lead.isEmpty ? "" : lead + " ") + "\(stem[hour]):\(stem[minute])"
 }
 
 // MARK: - Pieces
