@@ -99,6 +99,31 @@ struct ShelfPartQuery: EntityQuery {
     }
 }
 
+/// How the desktop widget lays out what it shows.
+enum ShelfWidgetStyle: String, AppEnum {
+    case automatic, bigValue, meters, list, grid
+
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Style"
+    static let caseDisplayRepresentations: [ShelfWidgetStyle: DisplayRepresentation] = [
+        .automatic: "Automatic",
+        .bigValue: "Big Number",
+        .meters: "Meters",
+        .list: "List",
+        .grid: "Grid",
+    ]
+
+    /// The template it stands for; nil lets the data decide.
+    var template: SharedShelf.Template? {
+        switch self {
+        case .automatic: return nil
+        case .bigValue: return .bigValue
+        case .meters: return .meters
+        case .list: return .list
+        case .grid: return .grid
+        }
+    }
+}
+
 struct SelectShelfWidgetIntent: WidgetConfigurationIntent {
     static let title: LocalizedStringResource = "Choose a Widget"
     static let description = IntentDescription("Show one of your BarShelf widgets, or just the items you pick from it.")
@@ -110,6 +135,9 @@ struct SelectShelfWidgetIntent: WidgetConfigurationIntent {
     /// its first items in the larger ones.
     @Parameter(title: "Show")
     var parts: [ShelfPartEntity]?
+
+    @Parameter(title: "Style", default: .automatic)
+    var style: ShelfWidgetStyle
 
     init() {}
 }
