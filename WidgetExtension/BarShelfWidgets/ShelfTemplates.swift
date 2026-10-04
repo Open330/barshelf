@@ -269,6 +269,7 @@ struct GridTemplate: View {
                             .font(.system(size: 9))
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                             .truncationMode(.middle)
                     }
                 }
