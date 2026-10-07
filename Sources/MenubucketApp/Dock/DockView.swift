@@ -110,7 +110,7 @@ struct DockView: View {
         .padding(barPadding)
         .background { barBackground }
         .contentShape(Rectangle())
-        .dockMenu { barMenu }
+        .onAppear { DockMenuRouter.shared.bar = { barMenu } }
         .onDrop(of: DockDrop.acceptedTypes, isTargeted: nil) { providers in
             DockDrop.receive(providers, store: store, before: nil)
         }
@@ -201,9 +201,9 @@ struct DockView: View {
                 image: NSWorkspace.shared.icon(forFile: app.path),
                 isRunning: true, scale: scale,
                 action: { DockActions.openApp(path: app.path) },
-                dropFiles: { urls in DockActions.open(urls, withAppAt: app.path) }
+                dropFiles: { urls in DockActions.open(urls, withAppAt: app.path) },
+                menu: { runningAppMenu(app) }
             )
-            .dockMenu { runningAppMenu(app) }
         case .divider:
             divider
         case .trash:
@@ -211,9 +211,9 @@ struct DockView: View {
                 id: tile.id, title: String(localized: "Trash"),
                 image: NSImage(named: NSImage.trashEmptyName), isRunning: false, scale: scale,
                 action: DockActions.openTrash,
-                dropFiles: DockActions.moveToTrash
+                dropFiles: DockActions.moveToTrash,
+                menu: { trashMenu }
             )
-            .dockMenu { trashMenu }
         }
     }
 
@@ -238,7 +238,8 @@ struct DockView: View {
                     image: DockActions.icon(for: item),
                     isRunning: running.isRunning(path: path), scale: scale,
                     action: { DockActions.open(item) },
-                    dropFiles: { urls in DockActions.open(urls, withAppAt: path) }
+                    dropFiles: { urls in DockActions.open(urls, withAppAt: path) },
+                    menu: { itemMenu(item) }
                 )
             case .folder(let path, let color, let label):
                 iconTile(
@@ -249,24 +250,27 @@ struct DockView: View {
                     dropFiles: nil,
                     custom: color.map { color in
                         AnyView(FolderBadge(color: color, label: label ?? DockActions.displayName(for: item)))
-                    }
+                    },
+                    menu: { itemMenu(item) }
                 )
             case .link(let url, _):
                 iconTile(
                     id: item.id, title: DockActions.displayName(for: item),
                     image: nil, isRunning: false, scale: scale,
                     action: { DockActions.open(item) }, dropFiles: nil,
-                    custom: AnyView(LinkBadge(url: url))
+                    custom: AnyView(LinkBadge(url: url)),
+                    menu: { itemMenu(item) }
                 )
             case .file, .shortcut:
                 iconTile(
                     id: item.id, title: DockActions.displayName(for: item),
                     image: DockActions.icon(for: item), isRunning: false, scale: scale,
-                    action: { DockActions.open(item) }, dropFiles: nil
+                    action: { DockActions.open(item) }, dropFiles: nil,
+                    menu: { itemMenu(item) }
                 )
             }
         }
-        .dockMenu { itemMenu(item) }
+        .modifier(OuterItemMenu(item: item, menu: { itemMenu(item) }))
         .onDrag {
             NSItemProvider(object: "\(Self.dragPrefix)\(item.id)" as NSString)
         }
@@ -310,7 +314,8 @@ struct DockView: View {
         scale: CGFloat,
         action: @escaping () -> Void,
         dropFiles: (([URL]) -> Void)?,
-        custom: AnyView? = nil
+        custom: AnyView? = nil,
+        menu: @escaping () -> [DockMenuEntry]
     ) -> some View {
         let grown = tileSize * scale
         let anchor: UnitPoint = switch edge {
@@ -357,6 +362,8 @@ struct DockView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(DockPressStyle())
+        // On the button itself: it is the accessibility element.
+        .dockMenu(id: id, menu)
         .overlay(alignment: labelAlignment) {
             if isClassic, hoveredID == id {
                 HoverLabel(title: title)
@@ -762,3 +769,19 @@ private struct DockGlass: NSViewRepresentable {
     }
 }
 
+
+/// Widgets, spaces, and dividers have no button of their own, so their menu
+/// hangs on the item; icon tiles carry theirs on the button.
+private struct OuterItemMenu: ViewModifier {
+    let item: DockItem
+    let menu: () -> [DockMenuEntry]
+
+    func body(content: Content) -> some View {
+        switch item.kind {
+        case .widget, .spacer, .separator:
+            content.dockMenu(id: item.id, menu)
+        default:
+            content
+        }
+    }
+}

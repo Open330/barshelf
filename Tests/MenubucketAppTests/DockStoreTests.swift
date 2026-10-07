@@ -172,14 +172,28 @@ final class DockStoreTests: XCTestCase {
     }
 }
 
-/// Dock menus are defined once and drawn as a context menu and as an NSMenu
-/// for `AXShowMenu`; the two must carry the same rows.
+/// Dock menus are defined once and offered as a right-click NSMenu and as
+/// named accessibility actions; both must carry the same commands.
 final class DockMenuTests: XCTestCase {
     func testTidyDropsStrayDividers() {
         let entries = DockMenuEntry.tidy([
             .divider, .action("A") {}, .divider, .divider, .action("B") {}, .divider,
         ])
         XCTAssertEqual(entries.map(\.title), ["A", "", "B"])
+    }
+
+    /// VoiceOver gets every command as a named action, submenus spelled out.
+    func testFlattenedActionsSpellOutSubmenus() {
+        var ran: [String] = []
+        let flat = DockMenuEntry.flattened([
+            .action("Open") { ran.append("open") },
+            .divider,
+            .action("Hidden", enabled: false) {},
+            .submenu("Profile", [.action("Work") { ran.append("work") }]),
+        ])
+        XCTAssertEqual(flat.map(\.title), ["Open", "Profile: Work"])
+        flat.forEach { $0.run() }
+        XCTAssertEqual(ran, ["open", "work"])
     }
 
     func testNSMenuMatchesTheEntries() {

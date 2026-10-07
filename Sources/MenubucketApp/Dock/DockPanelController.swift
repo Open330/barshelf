@@ -43,6 +43,24 @@ final class DockHostingView<Content: View>: NSHostingView<Content> {
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
+    override func rightMouseDown(with event: NSEvent) {
+        showMenu(for: event)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        // Control-click is a right-click, as everywhere on the Mac.
+        if event.modifierFlags.contains(.control) {
+            showMenu(for: event)
+        } else {
+            super.mouseDown(with: event)
+        }
+    }
+
+    private func showMenu(for event: NSEvent) {
+        guard let entries = DockMenuRouter.shared.current, !entries.isEmpty else { return }
+        NSMenu.popUpContextMenu(DockMenuPresenter.makeMenu(entries), with: event, for: self)
+    }
+
     override func invalidateIntrinsicContentSize() {
         super.invalidateIntrinsicContentSize()
         onIdealSizeChange?()
@@ -102,9 +120,6 @@ final class DockPanelController {
 
     var onOpenSettings: (() -> Void)?
 
-    /// The dock panel's frame while it is on screen, for menus opened by an
-    /// accessibility action rather than a click. One dock per app.
-    private(set) static var currentFrame: NSRect?
 
     init(store: DockStore, runtime: WidgetRuntime) {
         self.store = store
@@ -257,7 +272,6 @@ final class DockPanelController {
             panel.setFrame(frame, display: true)
             completion?()
         }
-        Self.currentFrame = isRevealed ? frame : nil
     }
 
     // MARK: Auto-hide
