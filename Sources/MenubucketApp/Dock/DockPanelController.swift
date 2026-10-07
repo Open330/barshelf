@@ -324,6 +324,7 @@ final class DockPanelController {
         guard config.mode.showsDock else { return }
         let point = NSEvent.mouseLocation
         followPointerIfNeeded(point)
+        replaceIfAppleDockMoved()
         guard config.autoHide, let screen else { return }
         let atEdge = isAtEdge(point, of: screen)
         if !isRevealed {
@@ -361,6 +362,18 @@ final class DockPanelController {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
         }
     }
+
+    /// The Apple Dock moves between displays with the pointer, which changes
+    /// a display's visible frame without any notification. Sitting on a
+    /// stale frame put the BarShelf Dock under it, so the frame is
+    /// re-checked as the pointer moves (it is the pointer that moves it).
+    private func replaceIfAppleDockMoved() {
+        guard let visible = screen?.visibleFrame, visible != lastVisibleFrame else { return }
+        lastVisibleFrame = visible
+        placePanel(animated: true)
+    }
+
+    private var lastVisibleFrame: NSRect?
 
     /// Following the pointer: resting at the dock's edge of another display
     /// moves the dock there, as the Apple Dock does.
