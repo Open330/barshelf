@@ -66,6 +66,28 @@ final class DockConfigurationTests: XCTestCase {
         XCTAssertEqual(config.activeProfile.items.map(\.id), ["a", "s"])
     }
 
+    func testAppleDockStyleSettingsRoundTripAndClamp() throws {
+        var config = DockConfiguration()
+        config.magnificationAmount = 7
+        config.autoHideDelay = -1
+        config.showIndicators = false
+        config.animateOpening = false
+        config.display = .pointer
+        config.normalize()
+        XCTAssertEqual(config.magnificationAmount, DockConfiguration.magnificationAmountRange.upperBound)
+        XCTAssertEqual(config.autoHideDelay, 0)
+        let file = tempDir.appendingPathComponent("dock.json")
+        try config.save(to: file)
+        XCTAssertEqual(DockConfiguration.load(from: file), config)
+
+        // Files from before these settings get the Apple Dock's defaults.
+        let old = try JSONDecoder().decode(DockConfiguration.self, from: Data(#"{"mode":"alongside"}"#.utf8))
+        XCTAssertTrue(old.showIndicators)
+        XCTAssertTrue(old.animateOpening)
+        XCTAssertEqual(old.display, .main)
+        XCTAssertEqual(old.magnificationAmount, DockConfiguration.defaultMagnificationAmount)
+    }
+
     func testUnknownModeFallsBackAndSizesClamp() throws {
         let json = #"{"mode":"teleport","tileSize":4000,"widgetSize":-3}"#
         let config = try JSONDecoder().decode(DockConfiguration.self, from: Data(json.utf8))

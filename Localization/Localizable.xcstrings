@@ -136,6 +136,16 @@
         }
       }
     },
+    "%@ s": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@초"
+          }
+        }
+      }
+    },
     "%@ stepper": {
       "localizations": {
         "ko": {
@@ -964,6 +974,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "이름이 \"%@\"인 인스턴스가 이미 있습니다."
+          }
+        }
+      }
+    },
+    "Animate opening apps": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "앱을 열 때 애니메이션 표시"
           }
         }
       }
@@ -2632,6 +2652,16 @@
         }
       }
     },
+    "Display with the pointer": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "포인터가 있는 디스플레이"
+          }
+        }
+      }
+    },
     "Displays": {
       "localizations": {
         "ko": {
@@ -3971,6 +4001,7 @@
       }
     },
     "Icon size": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -3996,6 +4027,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "식별자"
+          }
+        }
+      }
+    },
+    "Immediately": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "즉시"
           }
         }
       }
@@ -4897,6 +4938,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "확대"
+          }
+        }
+      }
+    },
+    "Magnification amount": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "확대 정도"
+          }
+        }
+      }
+    },
+    "Main display": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "주 디스플레이"
           }
         }
       }
@@ -7911,6 +7972,16 @@
         }
       }
     },
+    "Show after": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "표시까지 대기"
+          }
+        }
+      }
+    },
     "Show an icon": {
       "localizations": {
         "ko": {
@@ -7991,6 +8062,16 @@
         }
       }
     },
+    "Show indicators for open apps": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "열린 앱에 표시기 보기"
+          }
+        }
+      }
+    },
     "Show information from another app, command-line tool, or web service. Some need that tool installed first.": {
       "localizations": {
         "ko": {
@@ -8007,6 +8088,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "알림 표시"
+          }
+        }
+      }
+    },
+    "Show on": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "표시할 위치"
           }
         }
       }

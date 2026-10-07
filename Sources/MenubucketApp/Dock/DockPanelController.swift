@@ -101,7 +101,7 @@ final class DockHostingView<Content: View>: NSHostingView<Content> {
 final class DockPanelController {
     private let store: DockStore
     private let runtime: WidgetRuntime
-    private let running = RunningApps()
+    private let running = RunningApps.shared
     private let panel = DockPanel()
     private var hostingView: DockHostingView<DockView>!
     private var cancellables: Set<AnyCancellable> = []
@@ -112,6 +112,8 @@ final class DockPanelController {
     /// Whether the dock is out (not slid away by auto-hide).
     private var isRevealed = true
     private var hideWorkItem: DispatchWorkItem?
+    private var revealWorkItem: DispatchWorkItem?
+    private var moveWorkItem: DispatchWorkItem?
 
     /// The edge band, in points, that brings an auto-hidden dock back.
     static let revealBand: CGFloat = 2
@@ -222,12 +224,35 @@ final class DockPanelController {
     private var headroom: (along: CGFloat, across: CGFloat) {
         let tile = CGFloat(config.tileSize)
         let magnifies = config.style == .classic && config.magnification
-        let grow = magnifies ? tile * DockView.maxMagnification : 0
+        let grow = tile * DockView.magnification(for: config)
         // Labels sit past the grown icon; the profile banner past the bar.
         return (along: magnifies ? tile * 2.5 : tile, across: grow + 48)
     }
 
-    private var screen: NSScreen? { NSScreen.screens.first ?? NSScreen.main }
+    /// The display the dock is on: the main one, or (following the pointer)
+    /// the one it last moved to.
+    private var screen: NSScreen? {
+        let main = NSScreen.screens.first ?? NSScreen.main
+        guard config.display == .pointer, let pointerDisplayID else { return main }
+        return NSScreen.screens.first { Self.displayID(of: $0) == pointerDisplayID } ?? main
+    }
+
+    private var pointerDisplayID: CGDirectDisplayID?
+
+    private static func displayID(of screen: NSScreen) -> CGDirectDisplayID? {
+        (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value
+    }
+
+    /// Whether the pointer rests in the reveal band of the dock's edge of
+    /// `screen`.
+    private func isAtEdge(_ point: NSPoint, of screen: NSScreen) -> Bool {
+        let full = screen.frame
+        return switch config.edge {
+        case .bottom: point.y <= full.minY + Self.revealBand && point.x >= full.minX && point.x <= full.maxX
+        case .left: point.x <= full.minX + Self.revealBand && point.y >= full.minY && point.y <= full.maxY
+        case .right: point.x >= full.maxX - Self.revealBand - 1 && point.y >= full.minY && point.y <= full.maxY
+        }
+    }
 
     /// The panel frame for the current size and edge, out on screen or slid
     /// past the edge (the current state unless `revealed` says otherwise).
@@ -296,16 +321,31 @@ final class DockPanelController {
     }
 
     private func mouseMoved() {
-        guard config.mode.showsDock, config.autoHide, let screen else { return }
+        guard config.mode.showsDock else { return }
         let point = NSEvent.mouseLocation
-        let full = screen.frame
-        let atEdge: Bool = switch config.edge {
-        case .bottom: point.y <= full.minY + Self.revealBand && point.x >= full.minX && point.x <= full.maxX
-        case .left: point.x <= full.minX + Self.revealBand && point.y >= full.minY && point.y <= full.maxY
-        case .right: point.x >= full.maxX - Self.revealBand - 1 && point.y >= full.minY && point.y <= full.maxY
-        }
+        followPointerIfNeeded(point)
+        guard config.autoHide, let screen else { return }
+        let atEdge = isAtEdge(point, of: screen)
         if !isRevealed {
-            if atEdge { setRevealed(true) }
+            // Out only after the pointer has rested at the edge a moment, so
+            // passing over the edge (or onto a display below) does not pull
+            // the dock out.
+            if atEdge {
+                if revealWorkItem == nil {
+                    let work = DispatchWorkItem { [weak self] in
+                        guard let self else { return }
+                        self.revealWorkItem = nil
+                        if let screen = self.screen, self.isAtEdge(NSEvent.mouseLocation, of: screen) {
+                            self.setRevealed(true)
+                        }
+                    }
+                    revealWorkItem = work
+                    DispatchQueue.main.asyncAfter(deadline: .now() + config.autoHideDelay, execute: work)
+                }
+            } else {
+                revealWorkItem?.cancel()
+                revealWorkItem = nil
+            }
             return
         }
         let inside = barFrame().insetBy(dx: -12, dy: -12).contains(point) || atEdge
@@ -320,6 +360,30 @@ final class DockPanelController {
             hideWorkItem = work
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
         }
+    }
+
+    /// Following the pointer: resting at the dock's edge of another display
+    /// moves the dock there, as the Apple Dock does.
+    private func followPointerIfNeeded(_ point: NSPoint) {
+        guard config.display == .pointer,
+              let target = NSScreen.screens.first(where: { NSMouseInRect(point, $0.frame, false) }),
+              let targetID = Self.displayID(of: target),
+              targetID != screen.flatMap(Self.displayID(of:)),
+              isAtEdge(point, of: target)
+        else { return }
+        // One pending move at a time; it re-checks the pointer when it fires.
+        guard moveWorkItem == nil else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.moveWorkItem = nil
+            guard NSMouseInRect(NSEvent.mouseLocation, target.frame, false),
+                  self.isAtEdge(NSEvent.mouseLocation, of: target) else { return }
+            self.pointerDisplayID = targetID
+            self.placePanel(animated: false)
+            if self.config.autoHide { self.setRevealed(true) }
+        }
+        moveWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + max(0.3, config.autoHideDelay), execute: work)
     }
 
     /// The bar's own frame on screen, without the headroom.

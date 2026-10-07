@@ -6,6 +6,8 @@ import UniformTypeIdentifiers
 /// Apps with a Dock presence that are running now, in launch order. Feeds the
 /// running dots and the section of apps that are open but not in the profile.
 final class RunningApps: ObservableObject {
+    /// One per app: the dock and the actions that launch from it share it.
+    static let shared = RunningApps()
     struct App: Identifiable, Equatable {
         let path: String
         let bundleID: String?
@@ -15,6 +17,11 @@ final class RunningApps: ObservableObject {
 
     @Published private(set) var apps: [App] = []
     @Published private(set) var frontmostPath: String?
+    /// Apps opened from the dock that have not finished launching; their
+    /// icons bounce until they have, as on the Apple Dock.
+    @Published private(set) var launching: Set<String> = []
+    /// Longest a bounce lasts if an app never reports that it launched.
+    static let launchTimeout: TimeInterval = 15
 
     private var observers: [NSObjectProtocol] = []
 
@@ -27,7 +34,12 @@ final class RunningApps: ObservableObject {
             NSWorkspace.didHideApplicationNotification,
             NSWorkspace.didUnhideApplicationNotification,
         ] {
-            observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+            observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
+                if name == NSWorkspace.didLaunchApplicationNotification,
+                   let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+                   let url = app.bundleURL {
+                    self?.launching.remove(Self.key(url.path))
+                }
                 self?.reload()
             })
         }
@@ -49,6 +61,20 @@ final class RunningApps: ObservableObject {
         if running != apps { apps = running }
         let front = NSWorkspace.shared.frontmostApplication?.bundleURL.map { Self.key($0.path) }
         if front != frontmostPath { frontmostPath = front }
+    }
+
+    /// Starts an icon bouncing, unless the app is already up.
+    func markLaunching(path: String) {
+        let key = Self.key(path)
+        guard !isRunning(path: key) else { return }
+        launching.insert(key)
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.launchTimeout) { [weak self] in
+            self?.launching.remove(key)
+        }
+    }
+
+    func isLaunching(path: String) -> Bool {
+        launching.contains(Self.key(path))
     }
 
     func isRunning(path: String) -> Bool {
@@ -98,6 +124,9 @@ enum DockActions {
     /// Launches the app, or brings it forward with a reopen event so an app
     /// with no windows opens one — what clicking the Apple Dock does.
     static func openApp(path: String) {
+        if DockStore.shared.configuration.animateOpening {
+            RunningApps.shared.markLaunching(path: path)
+        }
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
         NSWorkspace.shared.openApplication(at: URL(fileURLWithPath: path), configuration: configuration)

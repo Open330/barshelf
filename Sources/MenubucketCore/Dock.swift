@@ -49,6 +49,25 @@ public struct DockConfiguration: Codable, Equatable, Sendable {
     /// Apps that are running but not in the profile, after a separator.
     public var showRunningApps: Bool
     public var showTrash: Bool
+    /// How much a hovered icon grows: 0 is barely, 1 is double size.
+    public var magnificationAmount: Double = DockConfiguration.defaultMagnificationAmount
+    /// The dots under running apps.
+    public var showIndicators: Bool = true
+    /// An app bounces while it launches from the dock.
+    public var animateOpening: Bool = true
+    /// Seconds the pointer rests at the edge before an auto-hidden dock
+    /// comes out.
+    public var autoHideDelay: Double = DockConfiguration.defaultAutoHideDelay
+    /// Which display the dock is on.
+    public var display: Display = .main
+
+    public enum Display: String, Codable, CaseIterable, Sendable {
+        /// The display with the menu bar.
+        case main
+        /// Follows the pointer to the display it rests at the edge of, as the
+        /// Apple Dock does.
+        case pointer
+    }
 
     public var profiles: [DockProfile]
     public var activeProfileID: String
@@ -66,6 +85,10 @@ public struct DockConfiguration: Codable, Equatable, Sendable {
     public static let widgetSizeRange: ClosedRange<Double> = 72...220
     public static let defaultTileSize: Double = 52
     public static let defaultWidgetSize: Double = 110
+    public static let magnificationAmountRange: ClosedRange<Double> = 0.1...1
+    public static let defaultMagnificationAmount: Double = 0.5
+    public static let autoHideDelayRange: ClosedRange<Double> = 0...2
+    public static let defaultAutoHideDelay: Double = 0.2
     /// Profiles past this many cannot get a ⌃⌥ number.
     public static let hotkeyProfileLimit = 9
 
@@ -108,6 +131,10 @@ public struct DockConfiguration: Codable, Equatable, Sendable {
     public mutating func normalize() {
         tileSize = Self.clamp(tileSize, to: Self.tileSizeRange, fallback: Self.defaultTileSize)
         widgetSize = Self.clamp(widgetSize, to: Self.widgetSizeRange, fallback: Self.defaultWidgetSize)
+        magnificationAmount = Self.clamp(
+            magnificationAmount, to: Self.magnificationAmountRange, fallback: Self.defaultMagnificationAmount
+        )
+        autoHideDelay = Self.clamp(autoHideDelay, to: Self.autoHideDelayRange, fallback: Self.defaultAutoHideDelay)
         if profiles.isEmpty {
             profiles = [DockProfile(id: DockProfile.defaultID, name: DockProfile.defaultName)]
         }
@@ -172,6 +199,7 @@ public struct DockConfiguration: Codable, Equatable, Sendable {
         case mode, style, edge, tileSize, widgetSize, magnification, autoHide
         case showRunningApps, showTrash, profiles, activeProfileID
         case profileHotkeysEnabled, appleDockLayouts, appleDockBackup
+        case magnificationAmount, showIndicators, animateOpening, autoHideDelay, display
     }
 
     public init(from decoder: Decoder) throws {
@@ -191,6 +219,12 @@ public struct DockConfiguration: Codable, Equatable, Sendable {
         profileHotkeysEnabled = (try? c.decodeIfPresent(Bool.self, forKey: .profileHotkeysEnabled)) ?? false
         appleDockLayouts = (try? c.decodeIfPresent(Bool.self, forKey: .appleDockLayouts)) ?? false
         appleDockBackup = (try? c.decodeIfPresent(AppleDockVisibility.self, forKey: .appleDockBackup)) ?? nil
+        magnificationAmount = (try? c.decodeIfPresent(Double.self, forKey: .magnificationAmount))
+            ?? defaults.magnificationAmount
+        showIndicators = (try? c.decodeIfPresent(Bool.self, forKey: .showIndicators)) ?? defaults.showIndicators
+        animateOpening = (try? c.decodeIfPresent(Bool.self, forKey: .animateOpening)) ?? defaults.animateOpening
+        autoHideDelay = (try? c.decodeIfPresent(Double.self, forKey: .autoHideDelay)) ?? defaults.autoHideDelay
+        display = (try? c.decodeIfPresent(Display.self, forKey: .display)) ?? defaults.display
         normalize()
     }
 

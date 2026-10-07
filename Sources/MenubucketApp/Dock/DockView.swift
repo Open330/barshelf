@@ -89,10 +89,15 @@ struct DockView: View {
               tiles[hovered].magnifies, tiles[index].magnifies
         else { return 1 }
         let distance = CGFloat(abs(index - hovered))
-        return 1 + Self.maxMagnification * max(0, 1 - distance / 2.5)
+        return 1 + Self.magnification(for: config) * max(0, 1 - distance / 2.5)
     }
 
-    static let maxMagnification: CGFloat = 0.5
+    /// How much the hovered icon grows, as a fraction of its size; 0 when
+    /// this dock does not magnify.
+    static func magnification(for config: DockConfiguration) -> CGFloat {
+        guard config.style == .classic, config.magnification else { return 0 }
+        return CGFloat(config.magnificationAmount)
+    }
 
     // MARK: Body
 
@@ -237,6 +242,7 @@ struct DockView: View {
                     id: item.id, title: DockActions.displayName(for: item),
                     image: DockActions.icon(for: item),
                     isRunning: running.isRunning(path: path), scale: scale,
+                    isLaunching: running.isLaunching(path: path),
                     action: { DockActions.open(item) },
                     dropFiles: { urls in DockActions.open(urls, withAppAt: path) },
                     menu: { itemMenu(item) }
@@ -312,6 +318,7 @@ struct DockView: View {
         image: NSImage?,
         isRunning: Bool,
         scale: CGFloat,
+        isLaunching: Bool = false,
         action: @escaping () -> Void,
         dropFiles: (([URL]) -> Void)?,
         custom: AnyView? = nil,
@@ -336,6 +343,7 @@ struct DockView: View {
                 }
                 .frame(width: tileSize, height: tileSize)
                 .scaleEffect(scale, anchor: anchor)
+                .modifier(LaunchBounce(isActive: isLaunching, edge: edge, height: tileSize * 0.45))
                 .frame(
                     width: edge.isVertical ? tileSize : grown,
                     height: edge.isVertical ? grown : tileSize,
@@ -352,7 +360,7 @@ struct DockView: View {
                 }
             }
             .overlay(alignment: runningDotAlignment) {
-                if isRunning {
+                if isRunning, config.showIndicators {
                     Circle()
                         .fill(Color.primary.opacity(0.7))
                         .frame(width: isClassic ? 3 : 4, height: isClassic ? 3 : 4)
@@ -781,6 +789,30 @@ private struct OuterItemMenu: ViewModifier {
         case .widget, .spacer, .separator:
             content.dockMenu(id: item.id, menu)
         default:
+            content
+        }
+    }
+}
+
+/// An icon hopping off the dock while its app launches.
+private struct LaunchBounce: ViewModifier {
+    let isActive: Bool
+    let edge: DockConfiguration.Edge
+    let height: CGFloat
+
+    func body(content: Content) -> some View {
+        if isActive {
+            TimelineView(.animation) { context in
+                // Hops of 0.6 s, easing at the top like a thrown ball.
+                let phase = context.date.timeIntervalSinceReferenceDate
+                    .truncatingRemainder(dividingBy: 0.6) / 0.6
+                let lift = height * CGFloat(sin(phase * .pi))
+                content.offset(
+                    x: edge == .left ? lift : edge == .right ? -lift : 0,
+                    y: edge == .bottom ? -lift : 0
+                )
+            }
+        } else {
             content
         }
     }

@@ -110,8 +110,12 @@ struct DockSettingsPage: View {
         }
     }
 
+    /// Only said with one display: with several, the Apple Dock moves to
+    /// whichever the pointer rests at, so "the same edge" may not be.
     private var sharesEdgeWithAppleDock: Bool {
-        store.appleDock.orientation == config.edge.rawValue && store.appleDock.visibility.autohide != true
+        NSScreen.screens.count == 1
+            && store.appleDock.orientation == config.edge.rawValue
+            && store.appleDock.visibility.autohide != true
     }
 
     // MARK: Appearance
@@ -134,10 +138,17 @@ struct DockSettingsPage: View {
                 Text("Right").tag(DockConfiguration.Edge.right)
             }
             .pickerStyle(.segmented)
-            LabeledContent("Icon size") {
+            LabeledContent("Size") {
                 HStack {
-                    Slider(value: binding(\.tileSize), in: DockConfiguration.tileSizeRange, step: 2)
-                        .frame(maxWidth: 220)
+                    Slider(value: binding(\.tileSize), in: DockConfiguration.tileSizeRange) {
+                        Text("Size")
+                    } minimumValueLabel: {
+                        Text("Small").font(.caption)
+                    } maximumValueLabel: {
+                        Text("Large").font(.caption)
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: 260)
                     if let apple = store.appleDock.tileSize, abs(apple - config.tileSize) >= 1 {
                         Button("Match Apple Dock") { store.update { $0.tileSize = apple } }
                             .controlSize(.small)
@@ -146,13 +157,52 @@ struct DockSettingsPage: View {
             }
             if config.style == .shelf {
                 LabeledContent("Widget size") {
-                    Slider(value: binding(\.widgetSize), in: DockConfiguration.widgetSizeRange, step: 2)
-                        .frame(maxWidth: 220)
+                    Slider(value: binding(\.widgetSize), in: DockConfiguration.widgetSizeRange) {
+                        Text("Widget size")
+                    } minimumValueLabel: {
+                        Text("Small").font(.caption)
+                    } maximumValueLabel: {
+                        Text("Large").font(.caption)
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: 260)
                 }
             }
-            Toggle("Magnification", isOn: binding(\.magnification))
-                .disabled(config.style != .classic)
+            if config.style == .classic {
+                Toggle("Magnification", isOn: binding(\.magnification))
+                LabeledContent("Magnification amount") {
+                    Slider(value: binding(\.magnificationAmount), in: DockConfiguration.magnificationAmountRange) {
+                        Text("Magnification amount")
+                    } minimumValueLabel: {
+                        Text("Small").font(.caption)
+                    } maximumValueLabel: {
+                        Text("Large").font(.caption)
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: 260)
+                }
+                .disabled(!config.magnification)
+            }
+            Picker("Show on", selection: binding(\.display)) {
+                Text("Main display").tag(DockConfiguration.Display.main)
+                Text("Display with the pointer").tag(DockConfiguration.Display.pointer)
+            }
             Toggle("Automatically hide and show the dock", isOn: binding(\.autoHide))
+            if config.autoHide {
+                LabeledContent("Show after") {
+                    HStack {
+                        Slider(value: binding(\.autoHideDelay), in: DockConfiguration.autoHideDelayRange)
+                            .frame(maxWidth: 200)
+                        Text(config.autoHideDelay < 0.05
+                             ? String(localized: "Immediately")
+                             : String(localized: "\(config.autoHideDelay, format: .number.precision(.fractionLength(1))) s"))
+                            .monospacedDigit()
+                            .frame(minWidth: 70, alignment: .trailing)
+                    }
+                }
+            }
+            Toggle("Animate opening apps", isOn: binding(\.animateOpening))
+            Toggle("Show indicators for open apps", isOn: binding(\.showIndicators))
             Toggle("Show open apps that aren't in the dock", isOn: binding(\.showRunningApps))
             Toggle("Show Trash", isOn: binding(\.showTrash))
         }
