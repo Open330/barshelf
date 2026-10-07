@@ -284,6 +284,12 @@ public final class AppleDock {
         restart()
     }
 
+    /// The Apple Dock's icon size in points, when it has one set.
+    public var tileSize: Double? {
+        defaults.synchronize()
+        return Self.double(defaults.value(forKey: "tilesize"))
+    }
+
     /// "bottom", "left", or "right".
     public var orientation: String {
         defaults.synchronize()

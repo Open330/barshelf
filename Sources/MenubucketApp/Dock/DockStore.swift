@@ -34,7 +34,13 @@ final class DockStore: ObservableObject {
     ) {
         self.fileURL = fileURL
         self.appleDock = appleDock
-        configuration = DockConfiguration.load(from: fileURL)
+        var configuration = DockConfiguration.load(from: fileURL)
+        // A first dock starts at the Apple Dock's own icon size.
+        if !FileManager.default.fileExists(atPath: fileURL.path), let size = appleDock.tileSize {
+            configuration.tileSize = size
+            configuration.normalize()
+        }
+        self.configuration = configuration
     }
 
     var activeProfile: DockProfile { configuration.activeProfile }

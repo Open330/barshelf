@@ -45,9 +45,11 @@ Drag apps, folders, files, or web links onto the dock to add them. Drag an
 item onto another to move it. Right-click any item for its menu, including
 **Remove from Dock**.
 
-**Classic** looks like the Apple Dock: icons on glass (Liquid Glass on macOS
-26 and later), names on hover, and optional magnification. **Shelf** is a
-sturdier bar with names under icons, with more room for widgets.
+**Classic** looks like the Apple Dock: its icon size by default, icons on
+clear Liquid Glass (macOS 26 and later), names on hover, optional
+magnification. Widgets keep to icon height there, showing their name and main
+reading (or two small bars). **Shelf** is a sturdier bar with names under
+icons and widgets as full cards.
 
 ## Profiles
 

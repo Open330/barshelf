@@ -107,7 +107,7 @@ struct DockView: View {
             }
             if tiles.isEmpty { emptyHint }
         }
-        .padding(isClassic ? max(5, tileSize * 0.12) : max(8, tileSize * 0.18))
+        .padding(barPadding)
         .background { barBackground }
         .contentShape(Rectangle())
         .dockMenu { barMenu }
@@ -142,11 +142,19 @@ struct DockView: View {
         }
     }
 
+    /// Measured off the Apple Dock (macOS 26–27): about a fifth of an icon
+    /// around the icons, and corners a fifth of the bar's thickness.
+    private var barPadding: CGFloat { isClassic ? max(4, tileSize * 0.19) : max(8, tileSize * 0.18) }
+    private var barCornerRadius: CGFloat { isClassic ? (tileSize + barPadding * 2) * 0.2 : 18 }
+
     @ViewBuilder
     private var barBackground: some View {
-        let shape = RoundedRectangle(cornerRadius: isClassic ? tileSize * 0.36 : 18, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: barCornerRadius, style: .continuous)
         if #available(macOS 26.0, *), isClassic {
-            shape.fill(.clear).glassEffect(.regular, in: shape)
+            // AppKit's clear glass, the see-through Liquid Glass the Apple
+            // Dock shows. Regular glass and the window materials came out as
+            // a flat light-grey slab in this never-active panel.
+            DockGlass(cornerRadius: barCornerRadius)
         } else {
             shape
                 .fill(isClassic ? AnyShapeStyle(.ultraThinMaterial) : AnyShapeStyle(.regularMaterial))
@@ -341,8 +349,8 @@ struct DockView: View {
             .overlay(alignment: runningDotAlignment) {
                 if isRunning {
                     Circle()
-                        .fill(Color.primary.opacity(0.75))
-                        .frame(width: 4, height: 4)
+                        .fill(Color.primary.opacity(0.7))
+                        .frame(width: isClassic ? 3 : 4, height: isClassic ? 3 : 4)
                         .offset(runningDotOffset)
                 }
             }
@@ -374,7 +382,8 @@ struct DockView: View {
     }
 
     private var runningDotOffset: CGSize {
-        let gap = isClassic ? max(4, tileSize * 0.1) : 2
+        // In the middle of the bar's padding, as on the Apple Dock.
+        let gap = isClassic ? barPadding * 0.55 + 1.5 : 2
         switch edge {
         case .bottom: return CGSize(width: 0, height: isClassic ? gap : gap + 2)
         case .left: return CGSize(width: -gap, height: 0)
@@ -425,7 +434,14 @@ struct DockView: View {
     private func widgetTile(item: DockItem, widgetID: String) -> some View {
         let frame = widgetFrame(for: widgetID)
         let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
-        if let widget = runtime.widgets.first(where: { $0.id == widgetID }) {
+        if isClassic, let widget = runtime.widgets.first(where: { $0.id == widgetID }) {
+            // Classic keeps the Apple Dock's height: a glance, not a card.
+            DockWidgetGlance(widget: widget, runtime: runtime, height: tileSize)
+                .frame(width: tileSize * DockWidgetGlance.widthFactor(size: runtime.effectiveSize(for: widgetID)))
+                .contentShape(Rectangle())
+                .onTapGesture { DockActions.open(item) }
+                .help(widget.displayName)
+        } else if let widget = runtime.widgets.first(where: { $0.id == widgetID }) {
             WidgetCardView(widget: widget, runtime: runtime, compactHeight: frame.height, placement: .single)
                 .frame(width: frame.width, height: frame.height)
                 .clipShape(shape)
@@ -728,3 +744,21 @@ enum DockDrop {
         return true
     }
 }
+
+/// The system's Liquid Glass as an AppKit view, for the Classic bar.
+@available(macOS 26.0, *)
+private struct DockGlass: NSViewRepresentable {
+    let cornerRadius: CGFloat
+
+    func makeNSView(context: Context) -> NSGlassEffectView {
+        let view = NSGlassEffectView()
+        view.style = .clear
+        view.cornerRadius = cornerRadius
+        return view
+    }
+
+    func updateNSView(_ view: NSGlassEffectView, context: Context) {
+        view.cornerRadius = cornerRadius
+    }
+}
+

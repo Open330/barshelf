@@ -575,7 +575,18 @@
         }
       }
     },
+    "A sturdier bar with names under icons, and widgets as full cards.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "아이콘 아래에 이름이 붙는 단단한 막대. 위젯은 전체 카드로 보입니다."
+          }
+        }
+      }
+    },
     "A sturdier bar with names under icons; roomy for widgets.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -3050,6 +3061,16 @@
         }
       }
     },
+    "Error": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "오류"
+          }
+        }
+      }
+    },
     "Every %lf s": {
       "comment": "Refresh interval in seconds",
       "localizations": {
@@ -4678,11 +4699,22 @@
       }
     },
     "Like the Apple Dock: icons on glass, names on hover.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "Apple Dock처럼: 유리 위의 아이콘, 가리키면 이름 표시."
+          }
+        }
+      }
+    },
+    "Like the Apple Dock: icons on glass, names on hover. Widgets show their main reading at icon height.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Dock처럼: 유리 위의 아이콘, 가리키면 이름 표시. 위젯은 아이콘 높이에 주요 값만 보여 줍니다."
           }
         }
       }
@@ -4895,6 +4927,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "조건"
+          }
+        }
+      }
+    },
+    "Match Apple Dock": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Dock에 맞추기"
           }
         }
       }

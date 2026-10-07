@@ -124,8 +124,8 @@ struct DockSettingsPage: View {
             }
             .pickerStyle(.segmented)
             Text(config.style == .classic
-                 ? "Like the Apple Dock: icons on glass, names on hover."
-                 : "A sturdier bar with names under icons; roomy for widgets.")
+                 ? "Like the Apple Dock: icons on glass, names on hover. Widgets show their main reading at icon height."
+                 : "A sturdier bar with names under icons, and widgets as full cards.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Picker("Position on screen", selection: binding(\.edge)) {
@@ -135,12 +135,20 @@ struct DockSettingsPage: View {
             }
             .pickerStyle(.segmented)
             LabeledContent("Icon size") {
-                Slider(value: binding(\.tileSize), in: DockConfiguration.tileSizeRange, step: 2)
-                    .frame(maxWidth: 220)
+                HStack {
+                    Slider(value: binding(\.tileSize), in: DockConfiguration.tileSizeRange, step: 2)
+                        .frame(maxWidth: 220)
+                    if let apple = store.appleDock.tileSize, abs(apple - config.tileSize) >= 1 {
+                        Button("Match Apple Dock") { store.update { $0.tileSize = apple } }
+                            .controlSize(.small)
+                    }
+                }
             }
-            LabeledContent("Widget size") {
-                Slider(value: binding(\.widgetSize), in: DockConfiguration.widgetSizeRange, step: 2)
-                    .frame(maxWidth: 220)
+            if config.style == .shelf {
+                LabeledContent("Widget size") {
+                    Slider(value: binding(\.widgetSize), in: DockConfiguration.widgetSizeRange, step: 2)
+                        .frame(maxWidth: 220)
+                }
             }
             Toggle("Magnification", isOn: binding(\.magnification))
                 .disabled(config.style != .classic)
