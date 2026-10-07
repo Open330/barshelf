@@ -40,6 +40,8 @@ final class DockHostingView<Content: View>: NSHostingView<Content> {
     var onIdealSizeChange: (() -> Void)?
     private var accumulated: CGFloat = 0
     private var firedThisGesture = false
+    private var commandScrollFired = false
+    private var lastCommandScroll: TimeInterval = 0
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
@@ -70,9 +72,17 @@ final class DockHostingView<Content: View>: NSHostingView<Content> {
         // Momentum after the fingers lift would switch a second time.
         guard event.momentumPhase.isEmpty else { return }
         if event.modifierFlags.contains(.command) {
-            // A mouse wheel notch, or a decent trackpad flick: one profile.
+            // One profile per gesture or wheel notch: a trackpad flick sends
+            // a run of events, and each switch may restart the Apple Dock.
             let delta = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY / 20 : event.scrollingDeltaY
-            if abs(delta) >= 1 { onSwipe?(delta > 0 ? -1 : 1) }
+            let now = ProcessInfo.processInfo.systemUptime
+            if event.phase == .began { commandScrollFired = false }
+            if abs(delta) >= 1, !commandScrollFired, now - lastCommandScroll > 0.35 {
+                commandScrollFired = event.hasPreciseScrollingDeltas
+                lastCommandScroll = now
+                onSwipe?(delta > 0 ? -1 : 1)
+            }
+            if event.phase == .ended || event.phase == .cancelled { commandScrollFired = false }
             return
         }
         guard event.hasPreciseScrollingDeltas, abs(event.scrollingDeltaX) > abs(event.scrollingDeltaY) else {
@@ -162,7 +172,8 @@ final class DockPanelController {
             .store(in: &cancellables)
         NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)
             .receive(on: RunLoop.main)
-            .sink { [weak self] _ in self?.placePanel(animated: false) }
+            // Displays coming and going change whether the pointer matters.
+            .sink { [weak self] _ in self?.configurationChanged() }
             .store(in: &cancellables)
         configurationChanged()
     }
@@ -182,7 +193,11 @@ final class DockPanelController {
             runtime.setDockWidgetIDs([])
             return
         }
-        installMouseMonitorsIfNeeded()
+        if needsPointerTracking {
+            installMouseMonitorsIfNeeded()
+        } else {
+            removeMouseMonitors()
+        }
         if !config.autoHide { isRevealed = true }
         setNeedsMeasure()
         placePanel(animated: false)
@@ -300,6 +315,15 @@ final class DockPanelController {
     }
 
     // MARK: Auto-hide
+
+    /// Watching every mouse move system-wide is only worth it for what
+    /// needs the pointer: auto-hide, following it between displays, and
+    /// stepping aside when the Apple Dock moves onto this display (which
+    /// only happens with more than one display).
+    private var needsPointerTracking: Bool {
+        config.autoHide || config.display == .pointer
+            || (config.mode == .alongside && NSScreen.screens.count > 1)
+    }
 
     private func installMouseMonitorsIfNeeded() {
         guard mouseMonitors.isEmpty else { return }

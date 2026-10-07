@@ -26,7 +26,8 @@ public enum DockCommand {
         arguments: [String],
         configurationURL: URL = DockCommand.configurationURL,
         openURL: (URL) -> Bool = DockCommand.openInApp,
-        appleDock: () -> AppleDock = { AppleDock() }
+        appleDock: () -> AppleDock = { AppleDock() },
+        appIsRunning: () -> Bool = DockCommand.appIsRunning
     ) -> Int32 {
         guard let subcommand = arguments.first else {
             BarShelfMain.printError(usage)
@@ -56,6 +57,13 @@ public enum DockCommand {
         case "previous", "prev":
             return send(query: "previous", openURL: openURL)
         case "restore-apple-dock":
+            // A running BarShelf owns dock.json and would save its own copy
+            // over an edit made here, hiding the Dock again at next launch.
+            if appIsRunning() {
+                let status = send(query: "restore-apple-dock", openURL: openURL)
+                if status == 0 { print("asked BarShelf to bring back the Apple Dock") }
+                return status
+            }
             let dock = appleDock()
             var config = DockConfiguration.load(from: configurationURL)
             if let backup = config.appleDockBackup {
@@ -99,6 +107,17 @@ public enum DockCommand {
             return 1
         }
         return 0
+    }
+
+    public static func appIsRunning() -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+        process.arguments = ["-x", "barshelf-app"]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        guard (try? process.run()) != nil else { return false }
+        process.waitUntilExit()
+        return process.terminationStatus == 0
     }
 
     /// `open -g` hands the URL to BarShelf without bringing anything forward.

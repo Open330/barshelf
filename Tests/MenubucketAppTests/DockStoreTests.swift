@@ -164,11 +164,55 @@ final class DockStoreTests: XCTestCase {
         XCTAssertEqual(received[1].first?.name, "next")
     }
 
-    func testSwitchURLRoundTripsAName() {
-        let profile = DockProfile(id: "x", name: "Deep Work & Co")
+    /// The copyable link names the profile by id, so renaming it does not
+    /// quietly break a Focus automation.
+    func testSwitchURLUsesTheStableID() {
+        let profile = DockProfile(id: "a&b", name: "Deep Work")
         let url = URL(string: DockSettingsPage.switchURL(for: profile))!
         let value = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first?.value
-        XCTAssertEqual(value, "Deep Work & Co")
+        XCTAssertEqual(value, "a&b")
+    }
+
+    func testDeletingTheActiveProfileSwitchesProperly() {
+        defaults.values[AppleDock.appsKey] = [AppleDockTiles.appTile(path: "/Applications/Mail.app")]
+        let store = makeStore()
+        store.captureAppleDock(into: DockProfile.defaultID)
+        let work = store.addProfile(named: "Work")
+        store.update { $0.appleDockLayouts = true }
+        store.activate(profileID: work)
+        defaults.values[AppleDock.appsKey] = [AppleDockTiles.appTile(path: "/Applications/Music.app")]
+        var activated: [String] = []
+        store.onProfileActivated = { activated.append($0.id) }
+
+        store.removeProfile(work)
+        XCTAssertEqual(store.configuration.activeProfileID, DockProfile.defaultID)
+        XCTAssertEqual(activated, [DockProfile.defaultID])
+        XCTAssertEqual(AppleDockTiles.labels(of: defaults.values[AppleDock.appsKey] as! [Any]), ["Mail"])
+    }
+
+    func testAnUnreadableAppleDockIsNotSaved() {
+        let store = makeStore()
+        XCTAssertFalse(store.captureAppleDock(into: DockProfile.defaultID))
+        XCTAssertNil(store.activeProfile.appleDock)
+        XCTAssertNotNil(store.lastError)
+    }
+
+    func testRestoreRequestedByTheCLILeavesReplaceMode() {
+        let store = makeStore()
+        store.update { $0.mode = .replace }
+        store.restoreAppleDockOnRequest()
+        XCTAssertEqual(store.configuration.mode, .alongside)
+        XCTAssertFalse(store.appleDock.isHidden)
+        XCTAssertNil(DockConfiguration.load(from: fileURL).appleDockBackup)
+    }
+
+    func testMenuRouterForgetsAGoneTile() {
+        let router = DockMenuRouter()
+        router.bar = { [.action("Dock Settings…") {}] }
+        router.enter("mail", entries: { [.action("Quit") {}] })
+        XCTAssertEqual(router.current?.map(\.title), ["Quit"])
+        router.keep(only: ["notes"])
+        XCTAssertEqual(router.current?.map(\.title), ["Dock Settings…"])
     }
 }
 

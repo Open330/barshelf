@@ -124,6 +124,10 @@ struct DockView: View {
         .onChange(of: hoveredID == nil) { _, resting in onHoverChange(!resting) }
         .animation(.spring(response: 0.22, dampingFraction: 0.82), value: hoveredID)
         .animation(.easeInOut(duration: 0.2), value: tiles.map(\.id))
+        .onChange(of: tiles.map(\.id)) { _, ids in
+            DockMenuRouter.shared.keep(only: Set(ids))
+            if let hoveredID, !ids.contains(hoveredID) { self.hoveredID = nil }
+        }
         // The panel is larger than the bar (room for magnified icons and
         // labels); the bar sits on the screen edge inside it.
         .padding(edgeInsets)
@@ -201,9 +205,8 @@ struct DockView: View {
         case .running(let app):
             iconTile(
                 id: tile.id,
-                title: FileManager.default.displayName(atPath: app.path)
-                    .replacingOccurrences(of: ".app", with: "", options: [.anchored, .backwards]),
-                image: NSWorkspace.shared.icon(forFile: app.path),
+                title: DockActions.fileDisplayName(at: app.path),
+                image: DockActions.fileIcon(at: app.path),
                 isRunning: true, scale: scale,
                 action: { DockActions.openApp(path: app.path) },
                 dropFiles: { urls in DockActions.open(urls, withAppAt: app.path) },

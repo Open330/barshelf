@@ -96,6 +96,27 @@ final class RunningApps: ObservableObject {
 
 /// What clicking, dropping on, and right-clicking a dock tile does.
 enum DockActions {
+    // Icons and names, once per path. The dock's body runs on every hover
+    // change while magnifying, and asking LaunchServices for every tile's
+    // icon each time stuttered the animation.
+    private static let iconCache = NSCache<NSString, NSImage>()
+    private static let nameCache = NSCache<NSString, NSString>()
+
+    static func fileIcon(at path: String) -> NSImage {
+        if let cached = iconCache.object(forKey: path as NSString) { return cached }
+        let icon = NSWorkspace.shared.icon(forFile: path)
+        iconCache.setObject(icon, forKey: path as NSString)
+        return icon
+    }
+
+    static func fileDisplayName(at path: String) -> String {
+        if let cached = nameCache.object(forKey: path as NSString) { return cached as String }
+        let name = FileManager.default.displayName(atPath: path)
+            .replacingOccurrences(of: ".app", with: "", options: [.anchored, .backwards])
+        nameCache.setObject(name as NSString, forKey: path as NSString)
+        return name
+    }
+
     static var trashURL: URL {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".Trash", isDirectory: true)
     }
@@ -195,12 +216,12 @@ enum DockActions {
     static func icon(for item: DockItem) -> NSImage? {
         switch item.kind {
         case .app(let path), .file(let path):
-            return NSWorkspace.shared.icon(forFile: path)
+            return fileIcon(at: path)
         case .folder(let path, _, _):
-            return NSWorkspace.shared.icon(forFile: path)
+            return fileIcon(at: path)
         case .shortcut:
             return NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.shortcuts")
-                .map { NSWorkspace.shared.icon(forFile: $0.path) }
+                .map { fileIcon(at: $0.path) }
         default:
             return nil
         }
@@ -209,8 +230,7 @@ enum DockActions {
     static func displayName(for item: DockItem) -> String {
         switch item.kind {
         case .app(let path), .file(let path):
-            return FileManager.default.displayName(atPath: path)
-                .replacingOccurrences(of: ".app", with: "", options: [.anchored, .backwards])
+            return fileDisplayName(at: path)
         default:
             return item.fallbackTitle
         }

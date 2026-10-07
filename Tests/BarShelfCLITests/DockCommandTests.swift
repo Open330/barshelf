@@ -62,7 +62,8 @@ final class DockCommandTests: XCTestCase {
 
         let status = DockCommand.run(
             arguments: ["restore-apple-dock"], configurationURL: fileURL,
-            appleDock: { AppleDock(defaults: defaults) {} }
+            appleDock: { AppleDock(defaults: defaults) {} },
+            appIsRunning: { false }
         )
         XCTAssertEqual(status, 0)
         XCTAssertEqual(defaults.values[AppleDock.autohideKey] as? Bool, false)
@@ -70,6 +71,23 @@ final class DockCommandTests: XCTestCase {
         let saved = DockConfiguration.load(from: fileURL)
         XCTAssertNil(saved.appleDockBackup)
         XCTAssertEqual(saved.mode, .alongside)
+    }
+
+    /// With BarShelf running the app is asked, and the file is left alone.
+    func testRestoreAsksARunningApp() throws {
+        var config = DockConfiguration.load(from: fileURL)
+        config.mode = .replace
+        try config.save(to: fileURL)
+        var opened: [URL] = []
+        let status = DockCommand.run(
+            arguments: ["restore-apple-dock"], configurationURL: fileURL,
+            openURL: { opened.append($0); return true },
+            appleDock: { XCTFail("the app does this"); return AppleDock(defaults: FakeDefaults()) {} },
+            appIsRunning: { true }
+        )
+        XCTAssertEqual(status, 0)
+        XCTAssertEqual(opened, [URL(string: "barshelf://dock?restore-apple-dock")!])
+        XCTAssertEqual(DockConfiguration.load(from: fileURL).mode, .replace)
     }
 
     func testUnknownSubcommandFails() {

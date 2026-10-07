@@ -16,6 +16,9 @@ struct DockSettingsPage: View {
     @State private var newProfileName = ""
     @State private var showNewProfilePrompt = false
     @State private var profileToDelete: DockProfile?
+    @ObservedObject private var hotkeyStatus = DockHotkeyStatus.shared
+    @State private var nameDraft = ""
+    @FocusState private var nameFocused: Bool
 
     static let symbolPresets = [
         "square.grid.2x2", "briefcase", "house", "laptopcomputer", "hammer",
@@ -262,7 +265,14 @@ struct DockSettingsPage: View {
             }
             Spacer()
             if config.profileHotkeysEnabled, let label = DockHotkeys.label(forPosition: position) {
-                Text(label).font(.caption.monospaced()).foregroundStyle(.secondary)
+                if hotkeyStatus.unavailable.contains(position) {
+                    Label("\(label) is taken", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .help("Another app or an Automation shortcut already uses \(label). Free it, then turn profile shortcuts off and on.")
+                } else {
+                    Text(label).font(.caption.monospaced()).foregroundStyle(.secondary)
+                }
             }
             if !isActive {
                 Button("Switch") { store.activate(profileID: profile.id) }
@@ -279,10 +289,23 @@ struct DockSettingsPage: View {
     private var itemsSection: some View {
         let profile = selectedProfile
         return Section {
-            TextField("Name", text: Binding(
-                get: { profile.name },
-                set: { name in store.updateProfile(profile.id) { $0.name = name } }
-            ))
+            // Saved on Return or leaving the field: written per keystroke,
+            // the name was trimmed while typing ("Work Mode" lost its space).
+            TextField("Name", text: $nameDraft)
+                .focused($nameFocused)
+                .onSubmit { commitName(profileID: profile.id) }
+                .onChange(of: nameFocused) { _, focused in
+                    if !focused { commitName(profileID: profile.id) }
+                }
+                .onChange(of: profile.id, initial: true) { previous, current in
+                    // Switching profiles mid-edit keeps the edit, on the
+                    // profile it was made to.
+                    if previous != current { commitName(profileID: previous) }
+                    nameDraft = profile.name
+                }
+                .onChange(of: profile.name) { _, name in
+                    if !nameFocused { nameDraft = name }
+                }
             Picker("Symbol", selection: Binding(
                 get: { profile.symbol },
                 set: { symbol in store.updateProfile(profile.id) { $0.symbol = symbol } }
@@ -315,6 +338,16 @@ struct DockSettingsPage: View {
         } header: {
             Text("Items in \(profile.name)")
         }
+    }
+
+    private func commitName(profileID: String) {
+        let name = nameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else {
+            nameDraft = config.profiles.first { $0.id == profileID }?.name ?? ""
+            return
+        }
+        guard config.profiles.first(where: { $0.id == profileID })?.name != name else { return }
+        store.updateProfile(profileID) { $0.name = name }
     }
 
     private func itemRow(_ item: DockItem, profileID: String) -> some View {
@@ -536,8 +569,10 @@ struct DockSettingsPage: View {
         }
     }
 
+    /// By id, which survives a rename; a name link would quietly stop
+    /// working in a Focus automation once the profile is renamed.
     static func switchURL(for profile: DockProfile) -> String {
-        let value = profile.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed.subtracting(CharacterSet(charactersIn: "&=+"))) ?? profile.id
+        let value = profile.id.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed.subtracting(CharacterSet(charactersIn: "&=+"))) ?? profile.id
         return "barshelf://dock?profile=\(value)"
     }
 }

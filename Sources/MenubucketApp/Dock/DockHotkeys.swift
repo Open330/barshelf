@@ -6,6 +6,13 @@ import MenubucketCore
 /// ⌃⌥1…9: switch to the first nine dock profiles (R15). Carbon hot keys, like
 /// the popup shortcut, so no Accessibility permission is needed. Its own
 /// signature keeps its presses apart from the popup shortcut's handler.
+/// Which ⌃⌥ numbers another shortcut already owns — another app, or an
+/// Automation shortcut — for settings to show. Positions are 1-based.
+final class DockHotkeyStatus: ObservableObject {
+    static let shared = DockHotkeyStatus()
+    @Published fileprivate(set) var unavailable: Set<Int> = []
+}
+
 final class DockHotkeys {
     static let signature: OSType = 0x4253_444B // 'BSDK'
     static let modifiers = UInt32(controlKey | optionKey)
@@ -19,6 +26,9 @@ final class DockHotkeys {
     private var refs: [EventHotKeyRef] = []
     private var handler: EventHandlerRef?
     private var registeredCount = 0
+    private var unavailable: Set<Int> = [] {
+        didSet { DockHotkeyStatus.shared.unavailable = unavailable }
+    }
     private var cancellable: AnyCancellable?
 
     init(store: DockStore) {
@@ -42,26 +52,34 @@ final class DockHotkeys {
     }
 
     private func register(count: Int) {
-        guard count != registeredCount else { return }
+        // Same count and nothing failed last time: nothing to do. A failure
+        // is retried, since whatever held the key may have let it go.
+        guard count != registeredCount || !unavailable.isEmpty else { return }
         unregisterAll()
         guard count > 0 else { return }
         installHandlerIfNeeded()
+        var failed: Set<Int> = []
         for (index, keyCode) in Self.digitKeyCodes.prefix(count).enumerated() {
             var ref: EventHotKeyRef?
             let id = EventHotKeyID(signature: Self.signature, id: UInt32(index + 1))
-            // A combination another app already owns just stays unregistered.
             if RegisterEventHotKey(keyCode, Self.modifiers, id, GetApplicationEventTarget(), 0, &ref) == noErr,
                let ref {
                 refs.append(ref)
+            } else {
+                failed.insert(index + 1)
             }
         }
         registeredCount = count
+        unavailable = failed
     }
+
+
 
     private func unregisterAll() {
         refs.forEach { UnregisterEventHotKey($0) }
         refs.removeAll()
         registeredCount = 0
+        unavailable = []
     }
 
     private func installHandlerIfNeeded() {

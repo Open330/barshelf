@@ -117,9 +117,15 @@ final class DockStore: ObservableObject {
     }
 
     func removeProfile(_ id: String) {
+        let wasActive = configuration.activeProfileID == id
         update { config in
             guard config.profiles.count > 1 else { return }
             config.profiles.removeAll { $0.id == id }
+        }
+        // The profile that takes over is switched to properly: its Apple
+        // Dock layout and popup page, not just its items.
+        if wasActive, configuration.activeProfileID != id {
+            activate(profileID: configuration.activeProfileID)
         }
     }
 
@@ -165,10 +171,30 @@ final class DockStore: ObservableObject {
 
     // MARK: Apple Dock layouts
 
-    /// Saves what the Apple Dock shows now into a profile.
-    func captureAppleDock(into profileID: String) {
+    /// Saves what the Apple Dock shows now into a profile. False when its
+    /// layout could not be read; an empty save would unpin everything later.
+    @discardableResult
+    func captureAppleDock(into profileID: String) -> Bool {
         let layout = appleDock.currentLayout()
+        guard !layout.isEmpty else {
+            lastError = String(localized: "Couldn't read the Apple Dock's layout, so nothing was saved.")
+            return false
+        }
         updateProfile(profileID) { $0.appleDock = layout }
+        return true
+    }
+
+    /// `barshelf dock restore-apple-dock` while BarShelf runs: the app owns
+    /// dock.json then, so the CLI asks it instead of editing the file.
+    func restoreAppleDockOnRequest() {
+        if configuration.mode == .replace {
+            update { $0.mode = .alongside }
+        } else if configuration.appleDockBackup != nil {
+            restoreAppleDock()
+            save()
+        } else {
+            appleDock.unhideWithoutBackup()
+        }
     }
 
     /// Puts a profile's saved layout into the Apple Dock now.

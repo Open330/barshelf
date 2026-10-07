@@ -477,6 +477,8 @@ final class StatusItemController: NSObject {
                 store.activate(offset: 1)
             case "previous", "prev":
                 store.activate(offset: -1)
+            case "restore-apple-dock":
+                store.restoreAppleDockOnRequest()
             default:
                 continue
             }

@@ -224,6 +224,19 @@ final class AppleDockTests: XCTestCase {
         XCTAssertNil(defaults.values[AppleDock.autohideDelayKey])
     }
 
+    /// An empty layout is an unreadable save; writing it would unpin
+    /// every app in the Dock.
+    func testAnEmptyLayoutIsNeverWritten() {
+        let defaults = FakeDefaults()
+        defaults.values[AppleDock.appsKey] = [tile("/Applications/Mail.app", guid: 1)]
+        var restarts = 0
+        let dock = AppleDock(defaults: defaults) { restarts += 1 }
+        XCTAssertFalse(dock.apply(AppleDockLayout(appTiles: [], otherTiles: [])))
+        XCTAssertEqual(restarts, 0)
+        XCTAssertEqual((defaults.values[AppleDock.appsKey] as? [Any])?.count, 1)
+        XCTAssertTrue(AppleDockLayout(appTiles: [], otherTiles: []).isEmpty)
+    }
+
     func testLabelsSkipSpacers() {
         let tiles: [Any] = [
             tile("/Applications/Mail.app", guid: 1),

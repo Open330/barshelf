@@ -21,6 +21,9 @@ public struct AppleDockLayout: Codable, Equatable, Sendable {
     }
 
     public var appTiles: [Any] { Self.decode(apps) }
+    /// Nothing readable: the prefs could not be read when it was saved, or
+    /// the stored data is damaged.
+    public var isEmpty: Bool { appTiles.isEmpty && otherTiles.isEmpty }
     public var otherTiles: [Any] { Self.decode(others) }
 
     static func encode(_ tiles: [Any]) -> Data {
@@ -201,6 +204,9 @@ public final class AppleDock {
         let current = currentLayout()
         let newApps = layout.appTiles
         let newOthers = layout.otherTiles
+        // A layout with nothing in it is an unreadable save, not a wish for
+        // an empty Dock: writing it would unpin every app.
+        guard !newApps.isEmpty || !newOthers.isEmpty else { return false }
         if AppleDockTiles.signature(of: current.appTiles) == AppleDockTiles.signature(of: newApps),
            AppleDockTiles.signature(of: current.otherTiles) == AppleDockTiles.signature(of: newOthers) {
             return false

@@ -115,6 +115,16 @@
         }
       }
     },
+    "%@ is taken": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 사용 중"
+          }
+        }
+      }
+    },
     "%@ needs your permission to run.": {
       "localizations": {
         "ko": {
@@ -984,6 +994,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "앱을 열 때 애니메이션 표시"
+          }
+        }
+      }
+    },
+    "Another app or an Automation shortcut already uses %@. Free it, then turn profile shortcuts off and on.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "다른 앱이나 Automation 단축키가 이미 %@을(를) 쓰고 있습니다. 비운 뒤 프로필 단축키를 껐다가 다시 켜세요."
           }
         }
       }
@@ -2253,6 +2273,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "업데이트를 확인할 수 없음"
+          }
+        }
+      }
+    },
+    "Couldn't read the Apple Dock's layout, so nothing was saved.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Dock 레이아웃을 읽지 못해 아무것도 저장하지 않았습니다."
           }
         }
       }

@@ -130,6 +130,13 @@ final class DockMenuRouter {
         if hovered?.id == id { hovered = nil }
     }
 
+    /// Forgets a hovered tile that is gone. SwiftUI does not always say the
+    /// pointer left a view that was removed under it (Remove from Dock, an
+    /// app quitting), which left a right-click showing the gone tile's menu.
+    func keep(only ids: Set<String>) {
+        if let hovered, !ids.contains(hovered.id) { self.hovered = nil }
+    }
+
     /// The entries for a right-click right now.
     var current: [DockMenuEntry]? {
         if let hovered { return hovered.entries() }
