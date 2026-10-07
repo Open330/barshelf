@@ -102,6 +102,10 @@ final class DockPanelController {
 
     var onOpenSettings: (() -> Void)?
 
+    /// The dock panel's frame while it is on screen, for menus opened by an
+    /// accessibility action rather than a click. One dock per app.
+    private(set) static var currentFrame: NSRect?
+
     init(store: DockStore, runtime: WidgetRuntime) {
         self.store = store
         self.runtime = runtime
@@ -253,6 +257,7 @@ final class DockPanelController {
             panel.setFrame(frame, display: true)
             completion?()
         }
+        Self.currentFrame = isRevealed ? frame : nil
     }
 
     // MARK: Auto-hide

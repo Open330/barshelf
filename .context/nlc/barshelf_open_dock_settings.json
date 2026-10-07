@@ -1,0 +1,14 @@
+{
+  "name": "barshelf_open_dock_settings",
+  "target": "com.barshelf.app",
+  "steps": [
+    { "action": "click",
+      "selector": { "role": "StaticText", "value": "Dock", "ancestor": "Sidebar",
+                    "in_focused_window": true },
+      "click_ancestor": ["Row", "Cell"],
+      "intent_text": "BarShelf 창에서 Dock 페이지 열기",
+      "postcondition": { "contains": "Alongside the Apple Dock" },
+      "safety": { "effects": ["read"], "reversibility": "reversible",
+                  "resource": { "object_type": "설정 페이지 탐색", "scope": "entry" } } }
+  ]
+}

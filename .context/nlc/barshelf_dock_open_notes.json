@@ -1,0 +1,15 @@
+{
+  "name": "barshelf_dock_open_notes",
+  "target": "com.barshelf.app",
+  "steps": [
+    { "action": "click",
+      "selector": { "role": "Button", "desc": "Notes" },
+      "intent_text": "BarShelf Dock에서 메모 앱 열기",
+      "postcondition": { "field": { "role": "Button", "desc": "Notes" },
+                         "equals": "Running", "attribute": "Value" },
+      "safety": { "effects": ["write_ephemeral"], "reversibility": "reversible",
+                  "resource": { "object_type": "앱 실행", "scope": "item" },
+                  "evidence": [{ "source": "user_intent", "field": "asked",
+                                 "value": "실제로 테스트도해주세요 … 한번확인해서 잘작동되나해보세요" }] } }
+  ]
+}

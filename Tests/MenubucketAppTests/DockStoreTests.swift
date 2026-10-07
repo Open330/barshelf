@@ -171,3 +171,32 @@ final class DockStoreTests: XCTestCase {
         XCTAssertEqual(value, "Deep Work & Co")
     }
 }
+
+/// Dock menus are defined once and drawn as a context menu and as an NSMenu
+/// for `AXShowMenu`; the two must carry the same rows.
+final class DockMenuTests: XCTestCase {
+    func testTidyDropsStrayDividers() {
+        let entries = DockMenuEntry.tidy([
+            .divider, .action("A") {}, .divider, .divider, .action("B") {}, .divider,
+        ])
+        XCTAssertEqual(entries.map(\.title), ["A", "", "B"])
+    }
+
+    func testNSMenuMatchesTheEntries() {
+        var ran: [String] = []
+        let menu = DockMenuPresenter.makeMenu([
+            .action("Open") { ran.append("open") },
+            .divider,
+            .submenu("Profile", [.action("Work", checked: true) { ran.append("work") }]),
+            .action("Remove from Dock", destructive: true) { ran.append("remove") },
+        ])
+        XCTAssertEqual(menu.items.map(\.title), ["Open", "", "Profile", "Remove from Dock"])
+        XCTAssertTrue(menu.items[1].isSeparatorItem)
+        guard let work = menu.items[2].submenu?.items.first else { return XCTFail("no submenu") }
+        XCTAssertEqual(work.state, .on)
+        for item in [menu.items[0], work, menu.items[3]] {
+            XCTAssertTrue(NSApplication.shared.sendAction(item.action!, to: item.target, from: item))
+        }
+        XCTAssertEqual(ran, ["open", "work", "remove"])
+    }
+}

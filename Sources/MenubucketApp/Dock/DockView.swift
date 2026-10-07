@@ -110,7 +110,7 @@ struct DockView: View {
         .padding(isClassic ? max(5, tileSize * 0.12) : max(8, tileSize * 0.18))
         .background { barBackground }
         .contentShape(Rectangle())
-        .contextMenu { barMenu }
+        .dockMenu { barMenu }
         .onDrop(of: DockDrop.acceptedTypes, isTargeted: nil) { providers in
             DockDrop.receive(providers, store: store, before: nil)
         }
@@ -195,7 +195,7 @@ struct DockView: View {
                 action: { DockActions.openApp(path: app.path) },
                 dropFiles: { urls in DockActions.open(urls, withAppAt: app.path) }
             )
-            .contextMenu { runningAppMenu(app) }
+            .dockMenu { runningAppMenu(app) }
         case .divider:
             divider
         case .trash:
@@ -205,11 +205,7 @@ struct DockView: View {
                 action: DockActions.openTrash,
                 dropFiles: DockActions.moveToTrash
             )
-            .contextMenu {
-                Button("Open") { DockActions.openTrash() }
-                Divider()
-                settingsButton
-            }
+            .dockMenu { trashMenu }
         }
     }
 
@@ -262,7 +258,7 @@ struct DockView: View {
                 )
             }
         }
-        .contextMenu { itemMenu(item) }
+        .dockMenu { itemMenu(item) }
         .onDrag {
             NSItemProvider(object: "\(Self.dragPrefix)\(item.id)" as NSString)
         }
@@ -447,97 +443,88 @@ struct DockView: View {
 
     // MARK: Menus
 
-    @ViewBuilder
-    private func itemMenu(_ item: DockItem) -> some View {
+    private func itemMenu(_ item: DockItem) -> [DockMenuEntry] {
+        var entries: [DockMenuEntry] = []
         switch item.kind {
         case .app(let path):
-            Button("Open") { DockActions.open(item) }
+            entries.append(.action(String(localized: "Open")) { DockActions.open(item) })
             if let app = running.runningApplication(path: path) {
-                Button("Hide") { app.hide() }
-                Button("Quit") { app.terminate() }
+                entries.append(.action(String(localized: "Hide")) { app.hide() })
+                entries.append(.action(String(localized: "Quit")) { app.terminate() })
             }
-            Button("Show in Finder") { DockActions.revealInFinder(path: path) }
+            entries.append(.action(String(localized: "Show in Finder")) { DockActions.revealInFinder(path: path) })
         case .folder(let path, let color, let label):
-            Button("Open") { DockActions.open(item) }
-            Button("Show in Finder") { DockActions.revealInFinder(path: path) }
-            Menu("Color") {
-                Button("None") {
-                    store.replaceItem(DockItem(id: item.id, kind: .folder(path: path, color: nil, label: label)))
-                }
-                ForEach(DockItem.FolderColor.allCases, id: \.self) { option in
-                    Button(FolderBadge.name(option)) {
-                        store.replaceItem(DockItem(id: item.id, kind: .folder(path: path, color: option, label: label)))
-                    }
-                    .disabled(option == color)
-                }
+            entries.append(.action(String(localized: "Open")) { DockActions.open(item) })
+            entries.append(.action(String(localized: "Show in Finder")) { DockActions.revealInFinder(path: path) })
+            let recolor: (DockItem.FolderColor?) -> Void = { option in
+                store.replaceItem(DockItem(id: item.id, kind: .folder(path: path, color: option, label: label)))
             }
+            entries.append(.submenu(
+                String(localized: "Color"),
+                [.action(String(localized: "None"), checked: color == nil) { recolor(nil) }]
+                    + DockItem.FolderColor.allCases.map { option in
+                        .action(FolderBadge.name(option), checked: option == color) { recolor(option) }
+                    }
+            ))
         case .file(let path):
-            Button("Open") { DockActions.open(item) }
-            Button("Show in Finder") { DockActions.revealInFinder(path: path) }
+            entries.append(.action(String(localized: "Open")) { DockActions.open(item) })
+            entries.append(.action(String(localized: "Show in Finder")) { DockActions.revealInFinder(path: path) })
         case .link(let url, _):
-            Button("Open") { DockActions.open(item) }
-            Button("Copy Link") {
+            entries.append(.action(String(localized: "Open")) { DockActions.open(item) })
+            entries.append(.action(String(localized: "Copy Link")) {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(url, forType: .string)
-            }
+            })
         case .shortcut:
-            Button("Run Shortcut") { DockActions.open(item) }
-            Button("Open Shortcuts") {
+            entries.append(.action(String(localized: "Run Shortcut")) { DockActions.open(item) })
+            entries.append(.action(String(localized: "Open Shortcuts")) {
                 if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.shortcuts") {
                     DockActions.openApp(path: url.path)
                 }
-            }
+            })
         case .widget(let id):
-            Button("Show in BarShelf") { DockActions.open(item) }
-            Button("Refresh") { runtime.refresh(widgetID: id) }
+            entries.append(.action(String(localized: "Show in BarShelf")) { DockActions.open(item) })
+            entries.append(.action(String(localized: "Refresh")) { runtime.refresh(widgetID: id) })
         case .spacer, .separator:
-            EmptyView()
+            break
         }
-        Divider()
-        Button("Remove from Dock", role: .destructive) { store.removeItem(item.id) }
-        Divider()
-        profilesMenu
-        settingsButton
+        entries.append(.divider)
+        entries.append(.action(String(localized: "Remove from Dock"), destructive: true) { store.removeItem(item.id) })
+        entries.append(.divider)
+        return DockMenuEntry.tidy(entries + barMenu)
     }
 
-    @ViewBuilder
-    private func runningAppMenu(_ app: RunningApps.App) -> some View {
-        Button("Keep in Dock") {
-            store.addItems([DockItem(kind: .app(path: app.path))])
-        }
+    private func runningAppMenu(_ app: RunningApps.App) -> [DockMenuEntry] {
+        var entries: [DockMenuEntry] = [
+            .action(String(localized: "Keep in Dock")) { store.addItems([DockItem(kind: .app(path: app.path))]) },
+        ]
         if let running = NSRunningApplication(processIdentifier: app.processID) {
-            Button("Hide") { running.hide() }
-            Button("Quit") { running.terminate() }
+            entries.append(.action(String(localized: "Hide")) { running.hide() })
+            entries.append(.action(String(localized: "Quit")) { running.terminate() })
         }
-        Button("Show in Finder") { DockActions.revealInFinder(path: app.path) }
-        Divider()
-        settingsButton
+        entries.append(.action(String(localized: "Show in Finder")) { DockActions.revealInFinder(path: app.path) })
+        return DockMenuEntry.tidy(entries + [.divider] + barMenu)
     }
 
-    @ViewBuilder
-    private var barMenu: some View {
-        profilesMenu
-        settingsButton
+    private var trashMenu: [DockMenuEntry] {
+        DockMenuEntry.tidy([.action(String(localized: "Open")) { DockActions.openTrash() }, .divider] + barMenu)
     }
 
-    @ViewBuilder
-    private var profilesMenu: some View {
+    /// Profiles (when there is more than one) and the dock's settings.
+    private var barMenu: [DockMenuEntry] {
+        var entries: [DockMenuEntry] = []
         if config.profiles.count > 1 {
-            Menu("Profile") {
-                ForEach(config.profiles) { profile in
-                    Toggle(isOn: Binding(
-                        get: { profile.id == config.activeProfileID },
-                        set: { _ in store.activate(profileID: profile.id) }
-                    )) {
-                        Label(profile.name, systemImage: profile.symbol)
+            entries.append(.submenu(
+                String(localized: "Profile"),
+                config.profiles.map { profile in
+                    .action(profile.name, symbol: profile.symbol, checked: profile.id == config.activeProfileID) {
+                        store.activate(profileID: profile.id)
                     }
                 }
-            }
+            ))
         }
-    }
-
-    private var settingsButton: some View {
-        Button("Dock Settings…") { onOpenSettings() }
+        entries.append(.action(String(localized: "Dock Settings…")) { onOpenSettings() })
+        return entries
     }
 
     static func showFolderMenu(path: String) {
