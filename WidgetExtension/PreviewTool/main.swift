@@ -17,6 +17,7 @@ let sizes: [(String, NSSize, WidgetFamily)] = [
     ("small", NSSize(width: 170, height: 170), .systemSmall),
     ("medium", NSSize(width: 364, height: 170), .systemMedium),
     ("large", NSSize(width: 364, height: 382), .systemLarge),
+    ("xlarge", NSSize(width: 760, height: 382), .systemExtraLarge),
 ]
 var entries: [ShelfEntry] = (SharedContainer.index()?.entries ?? []).map {
     ShelfEntry(date: Date(), widgetID: $0.id, snapshot: SharedContainer.snapshot(for: $0.id))

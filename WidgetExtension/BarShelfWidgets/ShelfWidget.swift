@@ -10,6 +10,8 @@ struct ShelfEntry: TimelineEntry {
     /// Part keys the user picked, in their order; empty lets the widget pick.
     var partKeys: [String] = []
     var style: ShelfWidgetStyle = .automatic
+    /// A refresh was asked for from this widget and is not answered yet.
+    var refreshing = false
 }
 
 struct ShelfProvider: AppIntentTimelineProvider {
@@ -31,6 +33,13 @@ struct ShelfProvider: AppIntentTimelineProvider {
     func timeline(for configuration: SelectShelfWidgetIntent, in context: Context) async -> Timeline<ShelfEntry> {
         let now = Date()
         var entries = [entry(for: configuration, at: now)]
+        // A refresh BarShelf never answers (it is not running) stops showing
+        // as pending when the request lapses.
+        if let id = configuration.widget?.id, let asked = SharedContainer.pendingRefresh(for: id) {
+            var settled = entry(for: configuration, at: asked.addingTimeInterval(SharedShelf.refreshRequestLifetime))
+            settled.refreshing = false
+            entries.append(settled)
+        }
         // A second entry at the moment the reading turns old, so the widget
         // says so without BarShelf spending a reload on it.
         if let staleAfter = entries[0].snapshot?.staleAfter, staleAfter > now {
@@ -48,7 +57,8 @@ struct ShelfProvider: AppIntentTimelineProvider {
         let keys = (configuration.parts ?? []).filter { $0.widgetID == id }.map(\.key)
         return ShelfEntry(
             date: date, widgetID: id, snapshot: SharedContainer.snapshot(for: id),
-            partKeys: keys, style: configuration.style
+            partKeys: keys, style: configuration.style,
+            refreshing: SharedContainer.pendingRefresh(for: id) != nil
         )
     }
 
@@ -93,7 +103,7 @@ struct ShelfWidget: Widget {
         }
         .configurationDisplayName("BarShelf Widget")
         .description("Shows one of your BarShelf widgets, or just the items you pick from it.")
-        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .systemExtraLarge])
     }
 }
 
@@ -191,11 +201,14 @@ struct ShelfWidgetView: View {
             )
         }
 
-        var template = entry.style.template ?? SharedShelf.automaticTemplate(for: all.map(\.summary))
-        if entry.style.template == nil, family == .systemSmall, template == .list {
+        // The user's Style, else the widget author's, else BarShelf's guess
+        // — which the small size narrows to what fits.
+        let authored = snapshot.preferredStyle.flatMap(SharedShelf.Template.init(rawValue:))
+        var template = entry.style.template ?? authored ?? SharedShelf.automaticTemplate(for: all.map(\.summary))
+        if entry.style.template == nil, authored == nil, family == .systemSmall, template == .list {
             template = .bigValue
         }
-        if template == .meters, entry.style.template == nil, family == .systemSmall, all.count > 3 {
+        if template == .meters, entry.style.template == nil, authored == nil, family == .systemSmall, all.count > 3 {
             template = .bigValue
         }
 
@@ -231,19 +244,40 @@ struct ShelfWidgetView: View {
                 .lineLimit(1)
                 .truncationMode(.middle)
             Spacer(minLength: 4)
-            if stale, let updated = snapshot.updatedAt {
-                // Only an old reading says how old it is; the small size has
-                // room for the clock alone beside the name.
+            if entry.refreshing {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel(Text("Refreshing"))
+            } else if stale, family == .systemSmall, let id = entry.widgetID {
+                // The small size has room for the clock alone, which is also
+                // its refresh button.
+                Button(intent: RefreshShelfWidgetIntent(widgetID: id)) {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text("Refresh"))
+            } else if stale, let updated = snapshot.updatedAt {
+                // Only an old reading says how old it is.
                 HStack(spacing: 3) {
                     Image(systemName: "clock.arrow.circlepath")
-                    if family != .systemSmall {
-                        Text(updated, style: .relative)
-                    }
+                    Text(updated, style: .relative)
                 }
                 .font(.caption2)
                 .foregroundStyle(.orange)
                 .lineLimit(1)
                 .layoutPriority(-1)
+            }
+            if !entry.refreshing, family != .systemSmall, let id = entry.widgetID {
+                Button(intent: RefreshShelfWidgetIntent(widgetID: id)) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text("Refresh"))
             }
         }
     }

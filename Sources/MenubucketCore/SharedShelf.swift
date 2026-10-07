@@ -91,12 +91,14 @@ public enum SharedShelf {
         /// When this reading should be called out as old: about two refresh
         /// intervals after `updatedAt`. Until then a widget shows no time.
         public var staleAfter: Date?
+        /// The author's layout for Style ▸ Automatic (`Template` raw value).
+        public var preferredStyle: String?
 
         public init(
             widgetID: String, name: String, icon: String? = nil, accent: String? = nil,
             viewTree: UINode? = nil, updatedAt: Date? = nil, error: String? = nil,
             statusLabel: String? = nil, statusTint: String? = nil, parts: [Part]? = nil,
-            staleAfter: Date? = nil
+            staleAfter: Date? = nil, preferredStyle: String? = nil
         ) {
             self.widgetID = widgetID
             self.name = name
@@ -110,6 +112,7 @@ public enum SharedShelf {
             self.parts = parts ?? viewTree.map(SharedShelf.parts(of:)) ?? []
             self.summary = viewTree.map { SharedShelf.summarize($0, fallbackTitle: name) }
             self.staleAfter = staleAfter
+            self.preferredStyle = preferredStyle
         }
 
         public init(from decoder: Decoder) throws {
@@ -126,6 +129,7 @@ public enum SharedShelf {
             parts = try c.decodeIfPresent([Part].self, forKey: .parts) ?? []
             summary = try c.decodeIfPresent(Summary.self, forKey: .summary)
             staleAfter = try c.decodeIfPresent(Date.self, forKey: .staleAfter)
+            preferredStyle = try c.decodeIfPresent(String.self, forKey: .preferredStyle)
         }
     }
 
@@ -191,6 +195,10 @@ public enum SharedShelf {
     public static func scrubbed(_ node: UINode) -> UINode {
         var node = node
         node.id = node.id.map(shareableID)
+        // What a desktop widget must not show is not shared at all.
+        if node.desktopRole == "hide" {
+            return UINode(type: "none", hidden: true)
+        }
         node.action = nil
         node.drag = nil
         node.source?.path = nil
@@ -220,7 +228,7 @@ public enum SharedShelf {
         }
 
         func walk(_ node: UINode, group: String?) {
-            guard node.hidden != true, parts.count < maximumParts else { return }
+            guard node.hidden != true, node.desktopRole != "hide", parts.count < maximumParts else { return }
             switch node.type {
             case "card":
                 add(node, group: group)
@@ -244,11 +252,35 @@ public enum SharedShelf {
             }
         }
 
+        // The author named the items: those, in tree order, and nothing else.
+        let marked = markedItems(in: tree)
+        if !marked.isEmpty {
+            for item in marked.prefix(maximumParts) { add(item.node, group: item.group) }
+            return parts
+        }
         walk(tree, group: nil)
         if parts.isEmpty {
             for row in rows(of: tree) { add(row, group: nil) }
         }
         return parts
+    }
+
+    /// Nodes marked `"desktopRole": "item"`, with the titled section each
+    /// sits in.
+    static func markedItems(in tree: UINode) -> [(node: UINode, group: String?)] {
+        var found: [(UINode, String?)] = []
+        func walk(_ node: UINode, group: String?) {
+            guard node.hidden != true, node.desktopRole != "hide" else { return }
+            if node.desktopRole == "item" {
+                found.append((node, group))
+                return
+            }
+            let title = node.type == "section" ? node.title?.trimmingCharacters(in: .whitespacesAndNewlines) : nil
+            let inner = (title?.isEmpty == false) ? title : group
+            for child in children(of: node) { walk(child, group: inner) }
+        }
+        walk(tree, group: nil)
+        return found
     }
 
     /// Whether a node holds a card, a section, or a list somewhere inside.
@@ -360,6 +392,53 @@ public enum SharedShelf {
         for folder in (try? FileManager.default.contentsOfDirectory(atPath: images.path)) ?? [] where !keepImages.contains(folder) {
             try? FileManager.default.removeItem(at: images.appendingPathComponent(folder))
         }
+    }
+
+    // MARK: - Refresh requests
+
+    /// Posted (as a Darwin notification, which a sandboxed extension may
+    /// send) after the widget extension asks for a refresh. It carries no
+    /// data: BarShelf reads the request files, which only apps of this team
+    /// can write.
+    public static let refreshRequestNotification = appGroupID + ".refresh-request"
+    static let requestsDirectoryName = "requests"
+    /// How long a request shows as pending before the widget gives up on it.
+    public static let refreshRequestLifetime: TimeInterval = 60
+
+    /// The widget extension asks BarShelf to refresh one widget now.
+    public static func requestRefresh(widgetID: String, in container: URL, now: Date = Date()) throws {
+        guard let name = snapshotFileName(for: widgetID) else { return }
+        try write(now, to: container
+            .appendingPathComponent(requestsDirectoryName, isDirectory: true)
+            .appendingPathComponent(name))
+    }
+
+    /// Widgets with a refresh asked for and not yet answered, with when.
+    /// Requests older than `refreshRequestLifetime` are dropped.
+    public static func pendingRefreshRequests(in container: URL, now: Date = Date()) -> [String: Date] {
+        let directory = container.appendingPathComponent(requestsDirectoryName, isDirectory: true)
+        var pending: [String: Date] = [:]
+        for file in (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? [] where file.hasSuffix(".json") {
+            let id = String(file.dropLast(5))
+            let url = directory.appendingPathComponent(file)
+            guard snapshotFileName(for: id) == file,
+                  let asked = read(Date.self, from: url),
+                  now.timeIntervalSince(asked) < refreshRequestLifetime
+            else {
+                try? FileManager.default.removeItem(at: url)
+                continue
+            }
+            pending[id] = asked
+        }
+        return pending
+    }
+
+    /// BarShelf has answered (or given up on) a widget's refresh request.
+    public static func clearRefreshRequest(widgetID: String, in container: URL) {
+        guard let name = snapshotFileName(for: widgetID) else { return }
+        try? FileManager.default.removeItem(at: container
+            .appendingPathComponent(requestsDirectoryName, isDirectory: true)
+            .appendingPathComponent(name))
     }
 
     private static func write<Value: Encodable>(_ value: Value, to url: URL) throws {

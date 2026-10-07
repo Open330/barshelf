@@ -331,6 +331,14 @@ final class WidgetRuntime: ObservableObject {
         loadWidgets()
         startHotReload()
         startMenuBarStalenessTicker()
+        // The refresh button on a desktop widget.
+        sharedShelf.onRefreshRequest = { [weak self] widgetID in
+            guard let self,
+                  let widget = self.desktopWidgetCandidates().first(where: { $0.id == widgetID })
+            else { return }
+            self.refresh(widget, manual: true)
+        }
+        sharedShelf.observeRefreshRequests()
     }
 
     private func applyAppPreferences(_ preferences: AppPreferences) {
@@ -2863,6 +2871,14 @@ final class WidgetRuntime: ObservableObject {
 
     private func persistSnapshot(_ snapshot: WidgetSnapshot) {
         let id = snapshot.widgetID
+        if sharedShelf.isAnswering(id) {
+            // Someone pressed refresh on a desktop widget: this render goes
+            // out now, and the cache is written with it.
+            cancelPendingPersist(id)
+            Self.persistQueue.async { Self.writeCachedSnapshot(snapshot) }
+            publishToDesktopWidgets(snapshot)
+            return
+        }
         unpersistedSnapshots[id] = snapshot
         guard pendingPersists[id] == nil else { return }
         let item = DispatchWorkItem { [weak self] in
@@ -2886,7 +2902,10 @@ final class WidgetRuntime: ObservableObject {
     /// Widgets a desktop widget may mirror: everything switched on that is
     /// not sensitive, by manifest or by what it last rendered.
     private func desktopWidgetCandidates() -> [LoadedWidget] {
-        widgets.filter { !$0.isSensitive && !sensitiveRenderIDs.contains($0.id) && !prefs.isDisabled($0.id) }
+        widgets.filter {
+            !$0.isSensitive && !sensitiveRenderIDs.contains($0.id) && !prefs.isDisabled($0.id)
+                && $0.manifest.desktop?.offer != false
+        }
     }
 
     func publishDesktopWidgetIndex() {
@@ -2934,7 +2953,9 @@ final class WidgetRuntime: ObservableObject {
                 updatedAt: snapshot.updatedAt,
                 interval: widget.manifest.refresh?.interval.map { $0 * appPrefs.preferences.refreshMultiplier },
                 fallback: widget.manifest.refresh?.staleAfterSec ?? 3600
-            )
+            ),
+            preferredStyle: widget.manifest.desktop?.style
+                .flatMap(SharedShelf.Template.init(rawValue:))?.rawValue
         ))
     }
 
