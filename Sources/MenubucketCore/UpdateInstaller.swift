@@ -184,7 +184,7 @@ public enum UpdateInstaller {
     /// failure that made it necessary was refused by the kernel for the
     /// destination path specifically, so the same bundle launched from a
     /// staging directory came up perfectly.
-    public struct Installed {
+    public struct Installed: Sendable {
         public let app: URL
         public let version: String?
         /// The previous bundle, parked next to `app`. Nil when there was
