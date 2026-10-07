@@ -104,7 +104,26 @@ struct ShelfView: View {
 
     // MARK: - Board
 
+    /// Dismissed for good once closed; desktop widgets are easy to miss.
+    @AppStorage("desktopWidgetTipDismissed") private var desktopTipDismissed = false
+
     private var board: some View {
+        VStack(spacing: 0) {
+            if !desktopTipDismissed, runtime.sharedShelf.isEnabled {
+                StatusBanner(
+                    tone: .info,
+                    message: String(localized: "Put these widgets on your desktop too: right-click the desktop, choose Edit Widgets, and find BarShelf."),
+                    symbol: "macwindow.on.rectangle"
+                ) {
+                    Button("Dismiss") { desktopTipDismissed = true }
+                }
+                .padding([.horizontal, .top], Spacing.m)
+            }
+            shelfColumns
+        }
+    }
+
+    private var shelfColumns: some View {
         ScrollView([.horizontal, .vertical]) {
             HStack(alignment: .top, spacing: Spacing.m) {
                 let pages = shelfPages

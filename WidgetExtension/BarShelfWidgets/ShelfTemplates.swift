@@ -26,6 +26,8 @@ enum WidgetMetrics {
         case (.bigValue, _): return 1
         case (.grid, .systemSmall): return 4
         case (.grid, .systemMedium): return 4
+        case (.grid, .systemExtraLarge): return 12
+        case (_, .systemExtraLarge): return 14
         case (.grid, _): return 12
         case (.meters, .systemSmall): return 3
         case (_, .systemSmall): return 3
@@ -34,6 +36,13 @@ enum WidgetMetrics {
         default: return 7
         }
     }
+}
+
+extension WidgetFamily {
+    /// Large and extra large: room for headings and a line of detail.
+    var isRoomy: Bool { self == .systemLarge || self == .systemExtraLarge }
+    /// Extra large lays rows out in two columns.
+    var columnCount: Int { self == .systemExtraLarge ? 2 : 1 }
 }
 
 // MARK: - Big value
@@ -100,7 +109,10 @@ struct MetersTemplate: View {
         if family == .systemSmall, items.allSatisfy({ $0.summary.fraction != nil }) {
             rings
         } else {
-            VStack(alignment: .leading, spacing: family == .systemLarge ? 10 : 7) {
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.flexible(), spacing: 18, alignment: .top), count: family.columnCount),
+                alignment: .leading, spacing: family.isRoomy ? 10 : 7
+            ) {
                 ForEach(items) { item in row(item.summary) }
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -170,15 +182,25 @@ struct ListTemplate: View {
     let family: WidgetFamily
 
     var body: some View {
-        VStack(alignment: .leading, spacing: family == .systemLarge ? 8 : 6) {
-            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                if family == .systemLarge, let group = item.group, index == 0 || items[index - 1].group != group {
-                    Text(group)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .padding(.top, index == 0 ? 0 : 2)
+        // Extra large: the same list in two columns, split in the middle.
+        let half = (items.count + 1) / 2
+        let columns = family.columnCount == 2 && items.count > 4
+            ? [Array(items.prefix(half)), Array(items.dropFirst(half))]
+            : [items]
+        HStack(alignment: .top, spacing: 18) {
+            ForEach(Array(columns.enumerated()), id: \.offset) { _, column in
+                VStack(alignment: .leading, spacing: family.isRoomy ? 8 : 6) {
+                    ForEach(Array(column.enumerated()), id: \.element.id) { index, item in
+                        if family.isRoomy, let group = item.group, index == 0 || column[index - 1].group != group {
+                            Text(group)
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .padding(.top, index == 0 ? 0 : 2)
+                        }
+                        row(item.summary)
+                    }
                 }
-                row(item.summary)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -207,7 +229,7 @@ struct ListTemplate: View {
                 MeterBar(fraction: fraction, tone: tone ?? accent, height: 3)
                     .padding(.leading, 21)
             }
-            if family == .systemLarge, let line = summary.detail ?? summary.subtitle {
+            if family.isRoomy, let line = summary.detail ?? summary.subtitle {
                 Text(line)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -251,7 +273,7 @@ struct GridTemplate: View {
     let family: WidgetFamily
 
     var body: some View {
-        let columns = family == .systemSmall ? 2 : 4
+        let columns = family == .systemSmall ? 2 : family == .systemExtraLarge ? 6 : 4
         let spacing: CGFloat = family == .systemSmall ? 5 : 8
         LazyVGrid(
             columns: Array(repeating: GridItem(.flexible(), spacing: spacing, alignment: .top), count: columns),

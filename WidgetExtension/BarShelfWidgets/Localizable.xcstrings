@@ -91,6 +91,36 @@
         }
       }
     },
+    "Refresh": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "새로 고침"
+          }
+        }
+      }
+    },
+    "Refresh Widget": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯 새로 고침"
+          }
+        }
+      }
+    },
+    "Refreshing": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "새로 고치는 중"
+          }
+        }
+      }
+    },
     "Right-click here and choose Edit Widget.": {
       "localizations": {
         "ko": {

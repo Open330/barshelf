@@ -126,7 +126,7 @@ extension SharedShelf {
         var cardTone: String?
 
         func texts(in node: UINode, skipping skip: (UINode) -> Bool) -> [TextBit] {
-            if node.hidden == true || skip(node) { return [] }
+            if node.hidden == true || node.desktopRole == "hide" || skip(node) { return [] }
             if node.type == "text", let text = node.text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty {
                 return [TextBit(text: text, role: node.role, size: node.size, foreground: node.foreground)]
             }
@@ -169,7 +169,7 @@ extension SharedShelf {
         }
 
         func walk(_ node: UINode) {
-            guard node.hidden != true else { return }
+            guard node.hidden != true, node.desktopRole != "hide" else { return }
             if node.type == "card", cardTone == nil { cardTone = node.tone ?? node.tint }
             if node.type == "image", let source = node.source {
                 switch source.kind {
@@ -257,13 +257,21 @@ extension SharedShelf {
             ? rest.prefix(2).map { $0.text }.joined(separator: " · ").nilIfEmpty
             : metricContext.joined(separator: " · ")
 
+        // What the author said outranks what BarShelf read.
+        let said = authorRoles(in: node)
+        title = said["title"] ?? title
+        subtitle = said["subtitle"] ?? subtitle
+        status = said["status"] ?? status
+        if let saidValue = said["value"] { value = saidValue }
+        let saidDetail = said["detail"]
+
         return Summary(
             title: title ?? fallbackTitle,
             subtitle: subtitle,
             value: value,
             fraction: metrics.first?.fraction,
             tone: metrics.first?.tone ?? cardTone,
-            detail: detail,
+            detail: saidDetail ?? detail,
             status: status,
             metrics: metrics,
             symbol: symbol,
@@ -279,6 +287,34 @@ extension SharedShelf {
               let percent = Double(value[range]).map({ $0 / 100 })
         else { return fraction }
         return abs(fraction - percent) > 0.25 && abs(1 - fraction - percent) < 0.05 ? 1 - fraction : fraction
+    }
+
+    /// The first text under each node an author gave a `desktopRole`
+    /// (other than `item` and `hide`).
+    static func authorRoles(in node: UINode) -> [String: String] {
+        var roles: [String: String] = [:]
+        func firstText(_ node: UINode) -> String? {
+            guard node.hidden != true, node.desktopRole != "hide" else { return nil }
+            if let text = (node.type == "text" ? node.text : node.type == "badge" ? (node.text ?? node.title) : nil)?
+                .trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty {
+                return text
+            }
+            if let title = node.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty,
+               ["card", "section"].contains(node.type) {
+                return title
+            }
+            return children(of: node).lazy.compactMap(firstText).first
+        }
+        func walk(_ node: UINode) {
+            guard node.hidden != true, node.desktopRole != "hide" else { return }
+            if let role = node.desktopRole, ["title", "subtitle", "value", "detail", "status"].contains(role),
+               roles[role] == nil, let text = firstText(node) {
+                roles[role] = text
+            }
+            for child in children(of: node) { walk(child) }
+        }
+        walk(node)
+        return roles
     }
 
     static func children(of node: UINode) -> [UINode] {

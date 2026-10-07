@@ -29,6 +29,30 @@ public struct Manifest: Codable, Equatable {
     /// to update, rather than failing with "unknown function"; a host from
     /// before this field existed ignores it.
     public var minHostVersion: String?
+    /// How the widget appears as a macOS desktop widget (0.6.1). Optional;
+    /// without it BarShelf reads the view tree.
+    public var desktop: Desktop?
+
+    /// `desktop` in widget.json. Decoded leniently: a wrong value is
+    /// dropped, never a reason to refuse the widget.
+    public struct Desktop: Codable, Equatable, Sendable {
+        /// The layout to use when the user leaves Style on Automatic:
+        /// `bigValue`, `meters`, `list`, or `grid`.
+        public var style: String?
+        /// `false` keeps the widget out of the desktop widget's list.
+        public var offer: Bool?
+
+        public init(style: String? = nil, offer: Bool? = nil) {
+            self.style = style
+            self.offer = offer
+        }
+
+        public init(from decoder: Decoder) throws {
+            let container = try? decoder.container(keyedBy: CodingKeys.self)
+            style = (try? container?.decodeIfPresent(String.self, forKey: .style)) ?? nil
+            offer = (try? container?.decodeIfPresent(Bool.self, forKey: .offer)) ?? nil
+        }
+    }
 
     /// Why this widget cannot run on `hostVersion`, or nil when it can. A
     /// nil host version is a development build, which runs everything.
@@ -52,9 +76,11 @@ public struct Manifest: Codable, Equatable {
         permissions: Permissions? = nil,
         settings: [Setting]? = nil,
         appearance: WidgetAppearance? = nil,
-        minHostVersion: String? = nil
+        minHostVersion: String? = nil,
+        desktop: Desktop? = nil
     ) {
         self.minHostVersion = minHostVersion
+        self.desktop = desktop
         self.schemaVersion = schemaVersion
         self.id = id
         self.name = name

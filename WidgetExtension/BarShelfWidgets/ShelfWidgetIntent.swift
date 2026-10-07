@@ -157,6 +157,11 @@ enum SharedContainer {
         url.flatMap(SharedShelf.readIndex(from:))
     }
 
+    /// When a refresh of this widget was asked for and not answered yet.
+    static func pendingRefresh(for widgetID: String) -> Date? {
+        url.flatMap { SharedShelf.pendingRefreshRequests(in: $0)[widgetID] }
+    }
+
     static func snapshot(for widgetID: String) -> SharedShelf.Snapshot? {
         guard var snapshot = url.flatMap({ SharedShelf.readSnapshot(widgetID: widgetID, from: $0) }) else { return nil }
         // Written by a BarShelf from before items existed: split it here.
@@ -164,5 +169,34 @@ enum SharedContainer {
             snapshot.parts = SharedShelf.parts(of: tree)
         }
         return snapshot
+    }
+}
+
+/// The refresh button on a desktop widget: asks BarShelf to refresh that
+/// widget now. BarShelf answers by publishing the new render and reloading
+/// the desktop widgets; until then the widget says it is refreshing.
+struct RefreshShelfWidgetIntent: AppIntent {
+    static let title: LocalizedStringResource = "Refresh Widget"
+    static let isDiscoverable = false
+
+    @Parameter(title: "Widget")
+    var widgetID: String
+
+    init() {}
+
+    init(widgetID: String) {
+        self.widgetID = widgetID
+    }
+
+    func perform() async throws -> some IntentResult {
+        if let container = SharedContainer.url {
+            try? SharedShelf.requestRefresh(widgetID: widgetID, in: container)
+            CFNotificationCenterPostNotification(
+                CFNotificationCenterGetDarwinNotifyCenter(),
+                CFNotificationName(SharedShelf.refreshRequestNotification as CFString),
+                nil, nil, true
+            )
+        }
+        return .result()
     }
 }

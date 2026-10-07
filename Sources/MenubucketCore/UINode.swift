@@ -96,6 +96,11 @@ public struct UINode: Codable, Equatable {
     public var accessibility: Accessibility?
     /// `spacer` minimum length in points.
     public var minLength: Double?
+    /// What this node is to a macOS desktop widget, for an author who wants
+    /// to say rather than leave it to BarShelf's reading of the tree:
+    /// `item` (one choosable item), `title`, `subtitle`, `value`, `detail`,
+    /// `status`, or `hide` (left out of desktop widgets). The popup ignores it.
+    public var desktopRole: String?
 
     public struct Accessibility: Codable, Equatable, Sendable {
         public var label: String?
@@ -154,7 +159,8 @@ public struct UINode: Codable, Equatable {
         drag: DragSpec? = nil,
         accessibilityLabel: String? = nil,
         accessibility: Accessibility? = nil,
-        minLength: Double? = nil
+        minLength: Double? = nil,
+        desktopRole: String? = nil
     ) {
         self.id = id
         self.type = type
@@ -193,6 +199,7 @@ public struct UINode: Codable, Equatable {
         self.accessibilityLabel = accessibilityLabel
         self.accessibility = accessibility
         self.minLength = minLength
+        self.desktopRole = desktopRole
     }
 
     public var effectiveAccessibilityLabel: String? {

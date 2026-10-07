@@ -91,4 +91,29 @@ final class SharedShelfPublisherTests: XCTestCase {
         let folder = try XCTUnwrap(SharedShelf.imagesDirectory(for: "files", in: container))
         XCTAssertTrue(FileManager.default.fileExists(atPath: folder.appendingPathComponent(thumbnail).path))
     }
+
+    /// The refresh button on the desktop: the request reaches the runtime
+    /// once, the answer is written at once, and the request is cleared.
+    @MainActor
+    func testADesktopRefreshRequestIsAnsweredAndCleared() throws {
+        let container = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: container, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: container) }
+        let publisher = SharedShelfPublisher(container: container)
+        publisher.publishIndex([.init(id: "sys", name: "System")])
+        var asked: [String] = []
+        publisher.onRefreshRequest = { asked.append($0) }
+
+        try SharedShelf.requestRefresh(widgetID: "sys", in: container)
+        try SharedShelf.requestRefresh(widgetID: "not-offered", in: container)
+        publisher.takeRefreshRequests()
+        publisher.takeRefreshRequests()
+        XCTAssertEqual(asked, ["sys"], "once per request, and only for offered widgets")
+        XCTAssertTrue(publisher.isAnswering("sys"))
+
+        publisher.publish(SharedShelf.Snapshot(widgetID: "sys", name: "System", viewTree: UINode(type: "text", text: "CPU 3%")))
+        XCTAssertFalse(publisher.isAnswering("sys"))
+        XCTAssertNotNil(SharedShelf.readSnapshot(widgetID: "sys", from: container))
+        XCTAssertTrue(SharedShelf.pendingRefreshRequests(in: container).isEmpty)
+    }
 }

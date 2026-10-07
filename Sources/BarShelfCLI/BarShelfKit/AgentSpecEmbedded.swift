@@ -337,6 +337,35 @@ sharing) the BarShelf mark.
 
 ---
 
+## 8B. Desktop widgets (`desktop`, `desktopRole`) — BarShelf 0.6.1
+
+BarShelf mirrors widgets onto macOS desktop widgets. It reads the view tree to
+split it into items and to find each item's title, value, bar, and detail. That
+works for cards, sections, list rows, and label–value rows. When it guesses
+wrong, say what you mean. Older hosts ignore both fields.
+
+```json
+"desktop": { "style": "meters", "offer": true }
+```
+
+- `style` is the layout used while the user leaves Style on Automatic. The
+  values are `bigValue`, `meters`, `list`, and `grid`.
+- `offer: false` keeps the widget out of the desktop widget's list. Sensitive
+  widgets are never offered anyway.
+
+On any UINode, `desktopRole` marks what the node is on the desktop:
+
+- `item` marks one choosable item. Once any node is marked `item`, only the
+  marked nodes become items.
+- `title`, `subtitle`, `value`, `detail`, and `status` set that field to the
+  node's first text.
+- `hide` leaves the node out of desktop widgets entirely. It is not even
+  written to the shared folder.
+
+The popup ignores `desktopRole`.
+
+---
+
 ## 9. Permission model
 
 Declared in `permissions`; approval is **per-widget and all-at-once**: the host
@@ -401,7 +430,7 @@ an unsupported placeholder today):
 Shared/common fields: `id` (stable identity, needed for lists & action routing),
 `padding` (points), `widthFill` (bool), `tint`/`tone`/`foreground`
 (`primary`|`secondary`|`tertiary`|`accent`|`good`|`warning`|`danger`|`neutral`),
-`accessibilityLabel`.
+`accessibilityLabel`, `desktopRole` (desktop widgets only, see §8B).
 
 ### Containers
 

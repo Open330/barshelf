@@ -83,6 +83,7 @@
 | `statusItem` | 아니오 | 메뉴바 status item 표시 정책. |
 | `permissions` | 아니오 | exec, env, 파일, storage, notifications, 네트워크, Keychain 권한 선언. |
 | `settings` | 아니오 | 설정 UI를 자동 생성하기 위한 선언. 값은 workflow의 `${settings.key}`와 script context로 전달된다. |
+| `desktop` | 아니오 | macOS 데스크톱 위젯으로 보일 때의 설정(0.6.1). `style`은 사용자가 스타일을 자동으로 둘 때 쓸 레이아웃(`bigValue`, `meters`, `list`, `grid`)이고, `offer: false`면 데스크톱 위젯 목록에 나오지 않는다. 값이 틀려도 위젯을 거부하지 않고 무시한다. |
 
 ### `bucket`
 
@@ -283,6 +284,12 @@ Workflow DSL 상세 계약은 [`docs/WORKFLOW.md`](WORKFLOW.md)를 따른다.
 ```
 
 반복 row/tile에는 안정적인 `id`를 권장한다. 호스트는 identity와 액션 routing에 이 값을 사용할 수 있다.
+
+`desktopRole`(0.6.1)은 데스크톱 위젯에서 이 노드가 무엇인지 알려 준다. 팝업은 무시한다.
+
+- `item`: 사용자가 고를 수 있는 항목 하나. 하나라도 있으면 표시한 노드만 항목이 된다.
+- `title`, `subtitle`, `value`, `detail`, `status`: 그 칸에 이 노드의 첫 텍스트를 쓴다.
+- `hide`: 데스크톱 위젯에서 빼고, 공유 폴더에도 쓰지 않는다.
 `drag.filePath`는 파일 row/tile 같은 반복 노드에 붙이면 가장 자연스럽다.
 
 ### 접근성 (`accessibilityLabel`)

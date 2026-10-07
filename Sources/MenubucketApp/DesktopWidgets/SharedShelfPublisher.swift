@@ -33,11 +33,71 @@ final class SharedShelfPublisher {
     /// was taken out while it ran.
     private var generations: [String: Int] = [:]
 
+    /// Widgets whose refresh a desktop widget asked for: their next publish
+    /// goes out at once, and reloads the desktop without waiting.
+    private var answering: Set<String> = []
+
+    /// Called on the main thread with a widget id when its desktop widget's
+    /// refresh button is pressed.
+    var onRefreshRequest: ((String) -> Void)?
+
     init(container: URL? = SharedShelfPublisher.entitledContainer()) {
         self.container = container
     }
 
     var isEnabled: Bool { container != nil }
+
+    // MARK: - Refresh requests
+
+    /// Starts listening for the extension's refresh button.
+    func observeRefreshRequests() {
+        guard container != nil else { return }
+        CFNotificationCenterAddObserver(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            Unmanaged.passUnretained(self).toOpaque(),
+            { _, observer, _, _, _ in
+                guard let observer else { return }
+                let publisher = Unmanaged<SharedShelfPublisher>.fromOpaque(observer).takeUnretainedValue()
+                DispatchQueue.main.async { publisher.takeRefreshRequests() }
+            },
+            SharedShelf.refreshRequestNotification as CFString, nil, .deliverImmediately
+        )
+        takeRefreshRequests()
+    }
+
+    deinit {
+        CFNotificationCenterRemoveEveryObserver(
+            CFNotificationCenterGetDarwinNotifyCenter(), Unmanaged.passUnretained(self).toOpaque()
+        )
+    }
+
+    /// Reads the request files and hands each new one to the runtime. One
+    /// that gets no answer — the widget failed, or is not offered — is
+    /// dropped after the request lifetime so the widget stops saying
+    /// "Refreshing".
+    func takeRefreshRequests(now: Date = Date()) {
+        guard let container else { return }
+        let offered = Set(lastIndex?.entries.map(\.id) ?? [])
+        for id in SharedShelf.pendingRefreshRequests(in: container, now: now).keys where !answering.contains(id) {
+            guard offered.contains(id) else {
+                SharedShelf.clearRefreshRequest(widgetID: id, in: container)
+                continue
+            }
+            answering.insert(id)
+            onRefreshRequest?(id)
+            DispatchQueue.main.asyncAfter(deadline: .now() + SharedShelf.refreshRequestLifetime) { [weak self] in
+                guard let self, self.answering.remove(id) != nil else { return }
+                SharedShelf.clearRefreshRequest(widgetID: id, in: container)
+                self.reloadNow()
+            }
+        }
+    }
+
+    /// Whether a widget's next render answers a desktop refresh request, so
+    /// it should be published without the usual throttle.
+    func isAnswering(_ widgetID: String) -> Bool {
+        answering.contains(widgetID)
+    }
 
     /// The list a user picks from when configuring a widget. Returns whether
     /// it changed.
@@ -96,6 +156,12 @@ final class SharedShelfPublisher {
     private func write(_ snapshot: SharedShelf.Snapshot, to container: URL) {
         do {
             try SharedShelf.writeSnapshot(snapshot, to: container)
+            if answering.remove(snapshot.widgetID) != nil {
+                // The user pressed refresh on the desktop and is watching.
+                SharedShelf.clearRefreshRequest(widgetID: snapshot.widgetID, in: container)
+                reloadNow()
+                return
+            }
             scheduleReload()
         } catch {
             NSLog("barshelf: could not share \(snapshot.widgetID) with widgets: \(error)")
@@ -236,6 +302,11 @@ final class SharedShelfPublisher {
         SharedShelf.removeSnapshot(widgetID: widgetID, from: container)
         // Not left on the desktop until the reload window closes: this is
         // rare, and worth a reload from the daily budget.
+        reloadNow()
+    }
+
+    /// Reloads widgets now, folding in any reload that was waiting.
+    private func reloadNow() {
         pendingReload?.cancel()
         pendingReload = nil
         lastReload = Date()
