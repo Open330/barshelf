@@ -4,13 +4,14 @@ import AppKit
 /// share. Both menus are built from `AppMenu.sections`, so the two cannot
 /// drift apart: a command added here appears in both.
 enum AppMenuCommand: Hashable {
-    case editShelf, addWidget, menuBar, openBarShelf, settings, checkForUpdates, quit
+    case editShelf, addWidget, menuBar, dock, openBarShelf, settings, checkForUpdates, quit
 
     var title: String {
         switch self {
         case .editShelf: return String(localized: "Edit Shelf")
         case .addWidget: return String(localized: "Add Widget…")
         case .menuBar: return String(localized: "Menu Bar")
+        case .dock: return String(localized: "Dock", comment: "App menu: the BarShelf Dock submenu")
         case .openBarShelf: return String(localized: "Open BarShelf…")
         case .settings: return String(localized: "Settings…")
         case .checkForUpdates:
@@ -31,7 +32,7 @@ enum AppMenuCommand: Hashable {
         case .editShelf: return "e"
         case .settings: return ","
         case .quit: return "q"
-        case .addWidget, .menuBar, .openBarShelf, .checkForUpdates: return ""
+        case .addWidget, .menuBar, .dock, .openBarShelf, .checkForUpdates: return ""
         }
     }
 
@@ -40,6 +41,7 @@ enum AppMenuCommand: Hashable {
         case .editShelf: return "pencil"
         case .addWidget: return "plus"
         case .menuBar: return "menubar.rectangle"
+        case .dock: return "dock.rectangle"
         case .openBarShelf: return "macwindow"
         case .settings: return "gearshape"
         case .checkForUpdates: return "arrow.down.circle"
@@ -51,7 +53,7 @@ enum AppMenuCommand: Hashable {
 enum AppMenu {
     /// Groups, in order; a separator goes between groups.
     static let sections: [[AppMenuCommand]] = [
-        [.editShelf, .addWidget, .menuBar],
+        [.editShelf, .addWidget, .menuBar, .dock],
         [.openBarShelf, .settings, .checkForUpdates],
         [.quit],
     ]
@@ -99,6 +101,33 @@ enum AppMenu {
         let isOn = runtime.menuBarWidgetIDs.contains(widgetID)
         runtime.updateMenuBarPlacement(for: widgetID) { $0.enabled = !isOn }
     }
+
+    /// One row of "Dock ▸": a profile, checked while active (R15).
+    struct DockProfileRow: Identifiable, Equatable {
+        let id: String
+        let title: String
+        let symbol: String
+        let isActive: Bool
+    }
+
+    /// "Dock ▸" lists the profiles once there is more than one to pick from;
+    /// the submenu always offers the dock's settings, which is where the
+    /// feature is found in the first place.
+    static func dockProfiles(store: DockStore) -> [DockProfileRow] {
+        let config = store.configuration
+        guard config.profiles.count > 1 else { return [] }
+        return config.profiles.enumerated().map { index, profile in
+            let hotkey = config.profileHotkeysEnabled ? DockHotkeys.label(forPosition: index + 1) : nil
+            return DockProfileRow(
+                id: profile.id,
+                title: hotkey.map { "\(profile.name)  \($0)" } ?? profile.name,
+                symbol: profile.symbol,
+                isActive: profile.id == config.activeProfileID
+            )
+        }
+    }
+
+    static var dockSettingsTitle: String { String(localized: "Dock Settings…") }
 }
 
 /// The app's commands as real main-menu items, so their shortcuts work in
@@ -183,6 +212,10 @@ extension StatusItemController: NSMenuItemValidation {
                     if let item = makeMenuBarSubmenuItem() { menu.addItem(item) }
                     continue
                 }
+                if command == .dock {
+                    menu.addItem(makeDockSubmenuItem())
+                    continue
+                }
                 let item = NSMenuItem(
                     title: command.title,
                     action: #selector(performAppMenuItem(_:)),
@@ -225,6 +258,37 @@ extension StatusItemController: NSMenuItemValidation {
     @objc private func performAppMenuItem(_ sender: NSMenuItem) {
         guard let command = sender.representedObject as? AppMenuCommand else { return }
         perform(command, fromPopup: false)
+    }
+
+    private func makeDockSubmenuItem() -> NSMenuItem {
+        let item = NSMenuItem(title: AppMenuCommand.dock.title, action: nil, keyEquivalent: "")
+        item.image = NSImage(systemSymbolName: AppMenuCommand.dock.symbol, accessibilityDescription: nil)
+        let submenu = NSMenu()
+        submenu.autoenablesItems = false
+        let rows = AppMenu.dockProfiles(store: DockStore.shared)
+        for row in rows {
+            let entry = NSMenuItem(title: row.title, action: #selector(activateDockProfile(_:)), keyEquivalent: "")
+            entry.target = self
+            entry.representedObject = row.id
+            entry.state = row.isActive ? .on : .off
+            entry.image = NSImage(systemSymbolName: row.symbol, accessibilityDescription: nil)
+            submenu.addItem(entry)
+        }
+        if !rows.isEmpty { submenu.addItem(.separator()) }
+        let settings = NSMenuItem(title: AppMenu.dockSettingsTitle, action: #selector(openDockSettings(_:)), keyEquivalent: "")
+        settings.target = self
+        submenu.addItem(settings)
+        item.submenu = submenu
+        return item
+    }
+
+    @objc private func activateDockProfile(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String else { return }
+        DockStore.shared.activate(profileID: id)
+    }
+
+    @objc func openDockSettings(_ sender: Any?) {
+        perform(.dock, fromPopup: false)
     }
 
     @objc private func toggleMenuBarWidget(_ sender: NSMenuItem) {

@@ -61,7 +61,7 @@ final class AppCommandsTests: XCTestCase {
     func testTheAppMenuHasTheDocumentedCommandsAndShortcuts() {
         XCTAssertEqual(
             AppMenu.sections,
-            [[.editShelf, .addWidget, .menuBar], [.openBarShelf, .settings, .checkForUpdates], [.quit]]
+            [[.editShelf, .addWidget, .menuBar, .dock], [.openBarShelf, .settings, .checkForUpdates], [.quit]]
         )
         XCTAssertEqual(AppMenuCommand.editShelf.keyEquivalent, "e")
         // ⌘, is Settings, as everywhere on macOS; Open BarShelf opens the Shelf.

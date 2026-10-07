@@ -917,6 +917,9 @@ final class WidgetRuntime: ObservableObject {
         scheduler.configure(widgets: enabled)
         scheduler.setVisibleWidgetIDs(visibleWidgetIDs)
         syncMenuBar()
+        // `configure` may have dropped dock widgets it did not know yet.
+        dockWidgetIDs.formIntersection(seenIDs)
+        scheduler.setMenuBarWidgetIDs(menuBarWidgetIDs.union(dockWidgetIDs))
         publishDesktopWidgetIndex()
     }
 
@@ -1195,6 +1198,7 @@ final class WidgetRuntime: ObservableObject {
         scheduler.configure(widgets: widgets.filter { !prefs.isDisabled($0.id) })
         setVisibleWidgetIDs(visibleWidgetIDs)
         syncMenuBar()
+        scheduler.setMenuBarWidgetIDs(menuBarWidgetIDs.union(dockWidgetIDs))
         updateAttention()
         objectWillChange.send()
         if !flag, scriptDisableStopTokens[id] == nil {
@@ -1487,7 +1491,7 @@ final class WidgetRuntime: ObservableObject {
         scheduler.setIntervalOverrides(intervalOverrides)
         let promoted = menuBarWidgetIDs
         guard promoted != previous else { return }
-        scheduler.setMenuBarWidgetIDs(promoted)
+        scheduler.setMenuBarWidgetIDs(promoted.union(dockWidgetIDs))
         for id in promoted.subtracting(previous) {
             let widget = widgets.first { $0.id == id }
             let staleAfter = effectiveStaleAfter(widget?.manifest.refresh?.staleAfterSec)
@@ -1656,11 +1660,35 @@ final class WidgetRuntime: ObservableObject {
         refreshWidgetsAwaitingVisibility()
     }
 
+    /// Widgets showing in the BarShelf Dock (R15). Like menu bar items they
+    /// are on screen whether or not the popup is open, so they poll at their
+    /// own cadence; an auto-hidden dock reports none.
+    private(set) var dockWidgetIDs: Set<String> = []
+
+    func setDockWidgetIDs(_ ids: Set<String>) {
+        let normalized = ids.intersection(widgets.map(\.id))
+        guard normalized != dockWidgetIDs else { return }
+        let added = normalized.subtracting(dockWidgetIDs)
+        dockWidgetIDs = normalized
+        scheduler.setMenuBarWidgetIDs(menuBarWidgetIDs.union(normalized))
+        for id in added {
+            guard let widget = widgets.first(where: { $0.id == id }) else { continue }
+            let snapshot = snapshots[id] ?? WidgetSnapshot(widgetID: id)
+            if snapshot.isStale(after: effectiveStaleAfter(widget.manifest.refresh?.staleAfterSec)) {
+                refresh(widget, manual: false)
+            } else if visibilityAwareWidgetIDs.contains(id), lastRefreshVisibility[id] == false {
+                refresh(widget, manual: false)
+            }
+        }
+    }
+
     /// Whether this widget's card is on screen: the shelf is open on its page,
-    /// or it is showing in its own menu bar popover. Workflows read it as
-    /// `widget.visible` and use it to skip work nobody can see.
+    /// it is showing in its own menu bar popover, or it is in the dock.
+    /// Workflows read it as `widget.visible` and use it to skip work nobody
+    /// can see.
     func isCardVisible(_ widgetID: String) -> Bool {
         if menuBarPopoverWidgetID == widgetID { return true }
+        if dockWidgetIDs.contains(widgetID) { return true }
         return scheduler.popupIsOpen && visibleWidgetIDs.contains(widgetID)
     }
 

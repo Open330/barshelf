@@ -58,6 +58,16 @@
         }
       }
     },
+    "%@ Copy": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 사본"
+          }
+        }
+      }
+    },
     "%@ accent": {
       "localizations": {
         "ko": {
@@ -81,6 +91,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "%1$@ 및 %2$@"
+          }
+        }
+      }
+    },
+    "%@ has no Apple Dock layout saved; switching to it leaves the Apple Dock as it is.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@에 저장된 Apple Dock 레이아웃이 없습니다. 이 프로필로 바꿔도 Apple Dock은 그대로입니다."
           }
         }
       }
@@ -226,6 +246,22 @@
         }
       }
     },
+    "%@, and %lld more": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@, and %2$lld more"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 외 %lld개"
+          }
+        }
+      }
+    },
     "%lld": {
       "localizations": {
         "ko": {
@@ -248,6 +284,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "고정된 위젯 %1$lld개 더 있음 — 여기에는 %2$lld개만 표시됩니다. 보기"
+          }
+        }
+      }
+    },
+    "%lld more…": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld개 더…"
           }
         }
       }
@@ -479,6 +525,16 @@
         }
       }
     },
+    "A dock for apps, folders, and widgets, with profiles to switch between.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "앱·폴더·위젯을 올리는 독. 프로필로 구성을 바꿀 수 있습니다."
+          }
+        }
+      }
+    },
     "A graph needs the item's own place in the menu bar; sharing the BarShelf icon, it shows text only.": {
       "localizations": {
         "ko": {
@@ -515,6 +571,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "간결한 한 줄입니다."
+          }
+        }
+      }
+    },
+    "A sturdier bar with names under icons; roomy for widgets.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "아이콘 아래에 이름이 붙는 단단한 막대. 위젯을 올리기 좋습니다."
+          }
+        }
+      }
+    },
+    "A web page to open from the dock.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "독에서 열 웹 페이지입니다."
           }
         }
       }
@@ -620,6 +696,26 @@
         }
       }
     },
+    "Add Link": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "링크 추가"
+          }
+        }
+      }
+    },
+    "Add Profile…": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "프로필 추가…"
+          }
+        }
+      }
+    },
     "Add Widget": {
       "localizations": {
         "ko": {
@@ -680,12 +776,32 @@
         }
       }
     },
+    "Add to Dock": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "독에 추가"
+          }
+        }
+      }
+    },
     "Add ⌘, ⌥, ⌃, or ⇧ so the shortcut doesn't fire while you type.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "입력 중에 단축키가 실행되지 않도록 ⌘, ⌥, ⌃ 또는 ⇧를 추가하십시오."
+          }
+        }
+      }
+    },
+    "Adds the Apple Dock's apps, folders, and files to this profile.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Dock의 앱·폴더·파일을 이 프로필에 추가합니다."
           }
         }
       }
@@ -801,6 +917,16 @@
         }
       }
     },
+    "Alongside the Apple Dock": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Dock과 함께"
+          }
+        }
+      }
+    },
     "An SF Symbol name or an emoji. Uncheck for no icon.": {
       "localizations": {
         "ko": {
@@ -852,12 +978,52 @@
         }
       }
     },
+    "Apple Dock Layout": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Dock 레이아웃"
+          }
+        }
+      }
+    },
+    "Apply Now": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "지금 적용"
+          }
+        }
+      }
+    },
     "Apply Preset": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "프리셋 적용"
+          }
+        }
+      }
+    },
+    "App…": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "앱…"
+          }
+        }
+      }
+    },
+    "Arrange the Apple Dock the way you want it for this profile, then save. Switching restarts the Dock briefly; open apps and windows stay as they are. The previous layout is backed up first.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 프로필에 맞게 Apple Dock을 정리한 뒤 저장하세요. 전환할 때 Dock이 잠깐 다시 시작되지만 열린 앱과 창은 그대로입니다. 이전 레이아웃은 먼저 백업됩니다."
           }
         }
       }
@@ -938,6 +1104,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "자동은 위젯 자체의 경고 색상을 유지하고, 단색은 메뉴 막대를 따릅니다."
+          }
+        }
+      }
+    },
+    "Automatically hide and show the dock": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "독을 자동으로 숨기고 보이기"
           }
         }
       }
@@ -1045,6 +1221,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "BarShelf %1$@이(가) 공지되었지만 설치된 빌드는 %2$@(으)로 보고됩니다. 서명은 올바르며 설치는 완료되었습니다. 릴리스 파일이 잘못 올라갔을 수 있습니다."
+          }
+        }
+      }
+    },
+    "BarShelf Dock": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BarShelf Dock"
           }
         }
       }
@@ -1248,6 +1434,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "번개"
+          }
+        }
+      }
+    },
+    "Bottom": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "아래"
           }
         }
       }
@@ -1639,6 +1835,16 @@
         }
       }
     },
+    "Classic": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "클래식"
+          }
+        }
+      }
+    },
     "Clear Filters": {
       "localizations": {
         "ko": {
@@ -1888,6 +2094,16 @@
         }
       }
     },
+    "Copy Link": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "링크 복사"
+          }
+        }
+      }
+    },
     "Copy a field": {
       "localizations": {
         "ko": {
@@ -1904,6 +2120,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "brew 명령 복사"
+          }
+        }
+      }
+    },
+    "Copy from Apple Dock": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Dock에서 가져오기"
           }
         }
       }
@@ -2006,6 +2232,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "위젯을 제거할 수 없음"
+          }
+        }
+      }
+    },
+    "Couldn't save dock settings: %@": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "독 설정을 저장하지 못했습니다: %@"
           }
         }
       }
@@ -2203,12 +2439,42 @@
         }
       }
     },
+    "Delete": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "삭제"
+          }
+        }
+      }
+    },
+    "Delete %@?": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@을(를) 삭제할까요?"
+          }
+        }
+      }
+    },
     "Delete this widget from your Mac": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "이 Mac에서 위젯 삭제"
+          }
+        }
+      }
+    },
+    "Delete…": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "삭제…"
           }
         }
       }
@@ -2365,12 +2631,63 @@
         }
       }
     },
+    "Divider": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "구분선"
+          }
+        }
+      }
+    },
+    "Dock": {
+      "comment": "App menu: the BarShelf Dock submenu\nHub page: the BarShelf Dock",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "독"
+          }
+        }
+      }
+    },
+    "Dock Settings…": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "독 설정…"
+          }
+        }
+      }
+    },
+    "Dock profile: %@": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "독 프로필: %@"
+          }
+        }
+      }
+    },
     "Docker containers": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "Docker 컨테이너"
+          }
+        }
+      }
+    },
+    "Don't change": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "바꾸지 않음"
           }
         }
       }
@@ -2522,6 +2839,16 @@
         }
       }
     },
+    "Drop apps, folders, or files here": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "앱, 폴더, 파일을 여기에 놓으세요"
+          }
+        }
+      }
+    },
     "Drop here": {
       "localizations": {
         "ko": {
@@ -2612,6 +2939,16 @@
         }
       }
     },
+    "Each profile has its own dock items, and can carry an Apple Dock layout and a popup page. Drag to reorder; the first nine get ⌃⌥1–9.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "프로필마다 독 아이템이 따로 있고, Apple Dock 레이아웃과 팝업 페이지를 함께 담을 수 있습니다. 끌어서 순서를 바꾸세요. 처음 아홉 개에 ⌃⌥1–9가 붙습니다."
+          }
+        }
+      }
+    },
     "Edit": {
       "comment": "The main menu's Edit menu (Undo, Cut, Copy, Paste).",
       "localizations": {
@@ -2639,6 +2976,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "단축키와 윈도우 동작을 JavaScript로 편집합니다. 저장하면 변경 사항이 적용되고, 초안 되돌리기는 저장된 스크립트를 복원합니다."
+          }
+        }
+      }
+    },
+    "Empty Folder": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "빈 폴더"
           }
         }
       }
@@ -3106,12 +3453,42 @@
         }
       }
     },
+    "Folder icon": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "폴더 아이콘"
+          }
+        }
+      }
+    },
+    "Folder or File…": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "폴더 또는 파일…"
+          }
+        }
+      }
+    },
     "For example ⇧⌘B.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "예: ⇧⌘B"
+          }
+        }
+      }
+    },
+    "Forget": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "지우기"
           }
         }
       }
@@ -3442,6 +3819,16 @@
         }
       }
     },
+    "Hide": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "가리기"
+          }
+        }
+      }
+    },
     "Hide Details": {
       "localizations": {
         "ko": {
@@ -3558,6 +3945,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "아이콘 %@"
+          }
+        }
+      }
+    },
+    "Icon size": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "아이콘 크기"
           }
         }
       }
@@ -3919,6 +4316,16 @@
         }
       }
     },
+    "Instead of the Apple Dock": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Dock 대신"
+          }
+        }
+      }
+    },
     "It keeps refreshing while the popup is closed. At most %lld widgets are shown.": {
       "localizations": {
         "ko": {
@@ -3949,12 +4356,32 @@
         }
       }
     },
+    "Items in %@": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@의 아이템"
+          }
+        }
+      }
+    },
     "Items that share the BarShelf icon appear next to it in this order. An item of its own can be moved by holding ⌘ and dragging it in the menu bar.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "BarShelf 아이콘을 공유하는 항목은 이 순서대로 아이콘 옆에 나타납니다. 별도 항목은 ⌘를 누른 채 메뉴 막대에서 드래그하여 옮길 수 있습니다."
+          }
+        }
+      }
+    },
+    "Its items and saved Apple Dock layout are removed. Nothing on disk is touched.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "아이템과 저장된 Apple Dock 레이아웃이 지워집니다. 디스크의 파일은 그대로입니다."
           }
         }
       }
@@ -4055,6 +4482,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "다음 고정 위젯의 페이지로 이동"
+          }
+        }
+      }
+    },
+    "Keep in Dock": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "독에 유지"
           }
         }
       }
@@ -4230,6 +4667,26 @@
         }
       }
     },
+    "Left": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "왼쪽"
+          }
+        }
+      }
+    },
+    "Like the Apple Dock: icons on glass, names on hover.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Dock처럼: 유리 위의 아이콘, 가리키면 이름 표시."
+          }
+        }
+      }
+    },
     "Limit number of rows": {
       "localizations": {
         "ko": {
@@ -4246,6 +4703,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "선"
+          }
+        }
+      }
+    },
+    "Link to %@": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 링크"
+          }
+        }
+      }
+    },
+    "Link…": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "링크…"
           }
         }
       }
@@ -4321,6 +4798,16 @@
         }
       }
     },
+    "Loading…": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "불러오는 중…"
+          }
+        }
+      }
+    },
     "Look": {
       "comment": "Menu bar settings tab: appearance\nWidget inspector tab: appearance",
       "localizations": {
@@ -4368,6 +4855,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "M"
+          }
+        }
+      }
+    },
+    "Magnification": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "확대"
           }
         }
       }
@@ -4787,6 +5284,16 @@
         }
       }
     },
+    "Name": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이름"
+          }
+        }
+      }
+    },
     "Name & placement": {
       "localizations": {
         "ko": {
@@ -4877,6 +5384,16 @@
         }
       }
     },
+    "New Profile": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "새 프로필"
+          }
+        }
+      }
+    },
     "New page name": {
       "localizations": {
         "ko": {
@@ -4907,6 +5424,16 @@
         }
       }
     },
+    "No Shortcuts found": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "단축어가 없습니다"
+          }
+        }
+      }
+    },
     "No data yet": {
       "localizations": {
         "ko": {
@@ -4923,6 +5450,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "권한을 요청하는 설치된 위젯이 없습니다."
+          }
+        }
+      }
+    },
+    "No items yet. Add some below, or drop apps, folders, and files on the dock.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "아직 아이템이 없습니다. 아래에서 추가하거나 앱·폴더·파일을 독에 끌어다 놓으세요."
           }
         }
       }
@@ -5128,6 +5665,16 @@
         }
       }
     },
+    "Off": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "끔"
+          }
+        }
+      }
+    },
     "On open": {
       "comment": "Widget refresh interval: only when the popup opens",
       "localizations": {
@@ -5249,6 +5796,16 @@
         }
       }
     },
+    "Open Shortcuts": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "단축어 열기"
+          }
+        }
+      }
+    },
     "Open a field as a URL": {
       "localizations": {
         "ko": {
@@ -5285,6 +5842,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "로그인 시 열기"
+          }
+        }
+      }
+    },
+    "Open in Finder": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finder에서 열기"
           }
         }
       }
@@ -5661,6 +6228,26 @@
         }
       }
     },
+    "Popup page": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "팝업 페이지"
+          }
+        }
+      }
+    },
+    "Position on screen": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "화면상의 위치"
+          }
+        }
+      }
+    },
     "Posts notifications": {
       "localizations": {
         "ko": {
@@ -5741,6 +6328,46 @@
         }
       }
     },
+    "Profile": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "프로필"
+          }
+        }
+      }
+    },
+    "Profile name": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "프로필 이름"
+          }
+        }
+      }
+    },
+    "Profiles": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "프로필"
+          }
+        }
+      }
+    },
+    "Profiles below also work with the BarShelf Dock off: they can switch the Apple Dock's apps.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "아래 프로필은 BarShelf Dock을 꺼도 동작합니다. Apple Dock의 앱을 바꿀 수 있습니다."
+          }
+        }
+      }
+    },
     "Project Page": {
       "localizations": {
         "ko": {
@@ -5777,6 +6404,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "이 위젯들을 데스크톱에도 놓을 수 있습니다. 데스크톱을 우클릭해 위젯 편집을 고른 뒤 BarShelf를 찾으세요."
+          }
+        }
+      }
+    },
+    "Quit": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "종료"
           }
         }
       }
@@ -6251,12 +6888,32 @@
         }
       }
     },
+    "Remove from Dock": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "독에서 제거"
+          }
+        }
+      }
+    },
     "Remove from Menu Bar": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "메뉴 막대에서 제거"
+          }
+        }
+      }
+    },
+    "Remove from the dock": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "독에서 제거"
           }
         }
       }
@@ -6317,6 +6974,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ 순서 변경"
+          }
+        }
+      }
+    },
+    "Replace with Current Apple Dock": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "현재 Apple Dock으로 바꾸기"
           }
         }
       }
@@ -6511,6 +7178,16 @@
         }
       }
     },
+    "Right": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "오른쪽"
+          }
+        }
+      }
+    },
     "Right-align numbers": {
       "localizations": {
         "ko": {
@@ -6583,6 +7260,16 @@
         }
       }
     },
+    "Run Shortcut": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "단축어 실행"
+          }
+        }
+      }
+    },
     "Run a JSON command or use sample JSON to auto-fill fields. You can also type field paths manually.": {
       "localizations": {
         "ko": {
@@ -6635,6 +7322,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "필드를 매핑하려면 1단계에서 명령을 실행하십시오."
+          }
+        }
+      }
+    },
+    "Running": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "실행 중"
           }
         }
       }
@@ -6710,6 +7407,16 @@
         }
       }
     },
+    "Save Current Apple Dock": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "현재 Apple Dock 저장"
+          }
+        }
+      }
+    },
     "Save Script": {
       "localizations": {
         "ko": {
@@ -6726,6 +7433,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "이 Mac에 소량의 데이터 저장"
+          }
+        }
+      }
+    },
+    "Saved in %@": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@에 저장됨"
           }
         }
       }
@@ -7122,6 +7839,16 @@
         }
       }
     },
+    "Show Trash": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "휴지통 보기"
+          }
+        }
+      }
+    },
     "Show Widget": {
       "localizations": {
         "ko": {
@@ -7278,6 +8005,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "다음 이하일 때만 표시"
+          }
+        }
+      }
+    },
+    "Show open apps that aren't in the dock": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "독에 없는 열린 앱 보기"
           }
         }
       }
@@ -7556,6 +8293,16 @@
         }
       }
     },
+    "Starts empty. Add apps, folders, and widgets below.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "빈 상태로 시작합니다. 아래에서 앱·폴더·위젯을 추가하세요."
+          }
+        }
+      }
+    },
     "Static text": {
       "localizations": {
         "ko": {
@@ -7674,6 +8421,36 @@
         }
       }
     },
+    "Switch": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "전환"
+          }
+        }
+      }
+    },
+    "Switch profiles with ⌃⌥1–9": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⌃⌥1–9로 프로필 전환"
+          }
+        }
+      }
+    },
+    "Switch the Apple Dock's apps with the profile": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "프로필에 따라 Apple Dock의 앱 바꾸기"
+          }
+        }
+      }
+    },
     "Switches": {
       "comment": "Menu bar icon choice",
       "localizations": {
@@ -7701,6 +8478,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "절반 너비로 전환"
+          }
+        }
+      }
+    },
+    "Switching": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "전환"
+          }
+        }
+      }
+    },
+    "Symbol": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "기호"
           }
         }
       }
@@ -7841,6 +8638,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "그 키는 사용할 수 없습니다. 문자, 숫자, 스페이스, 탭 또는 return 키를 사용해 보십시오."
+          }
+        }
+      }
+    },
+    "The Apple Dock is hidden while BarShelf runs and comes back when you quit BarShelf or turn this off. If it ever stays hidden, run barshelf dock restore-apple-dock in Terminal.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BarShelf가 실행되는 동안 Apple Dock은 숨겨지고, BarShelf를 종료하거나 이 옵션을 끄면 돌아옵니다. 계속 숨겨져 있다면 터미널에서 barshelf dock restore-apple-dock을 실행하세요."
+          }
+        }
+      }
+    },
+    "The Apple Dock is on the same edge. The BarShelf Dock sits just above it; another position, or auto-hide, keeps them apart.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Dock이 같은 가장자리에 있습니다. BarShelf Dock은 그 바로 위에 놓입니다. 위치를 바꾸거나 자동 숨기기를 켜면 겹치지 않습니다."
           }
         }
       }
@@ -8342,12 +9159,32 @@
         }
       }
     },
+    "To follow a Focus: in Shortcuts, add a personal automation for when the Focus turns on, with the Open URLs action and this link. From Terminal: barshelf dock use \"%@\".": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "집중 모드에 맞추려면: 단축어 앱에서 집중 모드가 켜질 때 실행되는 개인용 자동화를 만들고 ‘URL 열기’ 동작에 이 링크를 넣으세요. 터미널에서는: barshelf dock use \"%@\"."
+          }
+        }
+      }
+    },
     "Trailing value": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "후행 값"
+          }
+        }
+      }
+    },
+    "Trash": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "휴지통"
           }
         }
       }
@@ -9047,6 +9884,16 @@
         }
       }
     },
+    "Widget not installed": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "설치되지 않은 위젯"
+          }
+        }
+      }
+    },
     "Widget search": {
       "localizations": {
         "ko": {
@@ -9073,6 +9920,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "위젯 설정 섹션"
+          }
+        }
+      }
+    },
+    "Widget size": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯 크기"
           }
         }
       }
@@ -9175,6 +10032,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "노란색"
+          }
+        }
+      }
+    },
+    "You can also swipe sideways with two fingers on the dock, or scroll over it holding ⌘, or pick a profile from the BarShelf menu.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "독 위에서 두 손가락으로 옆으로 쓸거나, ⌘를 누른 채 스크롤하거나, BarShelf 메뉴에서 프로필을 고를 수도 있습니다."
           }
         }
       }
@@ -9362,6 +10229,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "https://api.example.com/status.json"
+          }
+        }
+      }
+    },
+    "https://example.com": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "https://example.com"
           }
         }
       }

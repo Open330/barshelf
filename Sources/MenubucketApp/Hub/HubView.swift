@@ -76,6 +76,8 @@ struct HubView: View {
             ShelfView(runtime: runtime, model: model)
         case .menuBar:
             MenuBarPage(appPrefs: appPrefs, runtime: runtime)
+        case .dock:
+            DockSettingsPage(store: DockStore.shared, runtime: runtime)
         case .gallery:
             GalleryView(model: galleryModel, runtime: runtime)
                 .onAppear { galleryModel.onWindowShown() }
