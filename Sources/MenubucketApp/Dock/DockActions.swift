@@ -20,12 +20,20 @@ final class RunningApps: ObservableObject {
     /// Apps opened from the dock that have not finished launching; their
     /// icons bounce until they have, as on the Apple Dock.
     @Published private(set) var launching: Set<String> = []
+    /// Apps brought forward lately, most recent first, kept across launches
+    /// for the dock's recent-apps section.
+    @Published private(set) var recent: [String] = []
+    private static let recentKey = "BarShelfDockRecentApps"
+    private static let recentKept = 12
+    private let defaults: UserDefaults
     /// Longest a bounce lasts if an app never reports that it launched.
     static let launchTimeout: TimeInterval = 15
 
     private var observers: [NSObjectProtocol] = []
 
-    init() {
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        recent = defaults.stringArray(forKey: Self.recentKey) ?? []
         let center = NSWorkspace.shared.notificationCenter
         for name in [
             NSWorkspace.didLaunchApplicationNotification,
@@ -50,7 +58,10 @@ final class RunningApps: ObservableObject {
         observers.forEach(NSWorkspace.shared.notificationCenter.removeObserver)
     }
 
+    private var hasLooked = false
+
     func reload() {
+        defer { hasLooked = true }
         let running = NSWorkspace.shared.runningApplications
             .filter { $0.activationPolicy == .regular && !$0.isTerminated }
             .sorted { ($0.launchDate ?? .distantPast) < ($1.launchDate ?? .distantPast) }
@@ -60,7 +71,26 @@ final class RunningApps: ObservableObject {
             }
         if running != apps { apps = running }
         let front = NSWorkspace.shared.frontmostApplication?.bundleURL.map { Self.key($0.path) }
-        if front != frontmostPath { frontmostPath = front }
+        if front != frontmostPath {
+            let isFirstLook = !hasLooked
+            frontmostPath = front
+            // Whatever is frontmost when BarShelf starts was not just used.
+            if !isFirstLook, let front, NSWorkspace.shared.frontmostApplication?.activationPolicy == .regular,
+               front != Bundle.main.bundleURL.standardizedFileURL.path {
+                noteUsed(front)
+            }
+        }
+    }
+
+    /// Moves an app to the front of the recent list.
+    func noteUsed(_ path: String) {
+        let key = Self.key(path)
+        var list = recent.filter { $0 != key }
+        list.insert(key, at: 0)
+        list = Array(list.prefix(Self.recentKept))
+        guard list != recent else { return }
+        recent = list
+        defaults.set(list, forKey: Self.recentKey)
     }
 
     /// Starts an icon bouncing, unless the app is already up.

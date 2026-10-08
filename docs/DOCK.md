@@ -34,9 +34,12 @@ screen edge.
 
 - **Apps**: click to open or bring forward. Drop files on an app to open them
   with it. A dot means the app is running. Apps that are open but not in the
-  profile come after a divider (optional).
-- **Folders**: click for a menu of the folder's contents, with subfolders as
-  submenus. A folder can be a coloured tile with a letter or two.
+  profile come after a divider (optional), and up to three recently used
+  apps after those (**Show recent apps**).
+- **Folders**: click for a grid of the folder's contents, newest first, as
+  the Apple Dock shows a stack: subfolders open in place, and files drag out.
+  **Open folders as ▸ List** shows a menu instead. A folder can be a coloured
+  tile with a letter or two.
 - **Files** and **links**: open on click.
 - **Shortcuts**: run on click, through the `shortcuts` tool.
 - **Widgets**: any BarShelf widget, live. A dock widget refreshes on its own

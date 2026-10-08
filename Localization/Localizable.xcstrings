@@ -5979,6 +5979,16 @@
         }
       }
     },
+    "Open folders as": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "폴더 열기 방식"
+          }
+        }
+      }
+    },
     "Open in Finder": {
       "localizations": {
         "ko": {
@@ -8192,6 +8202,16 @@
         }
       }
     },
+    "Show recent apps": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "최근 앱 보기"
+          }
+        }
+      }
+    },
     "Show the card": {
       "localizations": {
         "ko": {
@@ -9571,6 +9591,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "지원되지 않는 자동화 동작: %@."
+          }
+        }
+      }
+    },
+    "Up to three apps you used lately that aren't in the dock or open.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "독에 없고 열려 있지도 않은, 최근에 쓴 앱을 세 개까지 보여 줍니다."
           }
         }
       }

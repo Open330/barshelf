@@ -207,6 +207,12 @@ struct DockSettingsPage: View {
             Toggle("Animate opening apps", isOn: binding(\.animateOpening))
             Toggle("Show indicators for open apps", isOn: binding(\.showIndicators))
             Toggle("Show open apps that aren't in the dock", isOn: binding(\.showRunningApps))
+            Toggle("Show recent apps", isOn: binding(\.showRecentApps))
+                .help("Up to three apps you used lately that aren't in the dock or open.")
+            Picker("Open folders as", selection: binding(\.folderView)) {
+                Text("Grid").tag(DockConfiguration.FolderView.grid)
+                Text("List").tag(DockConfiguration.FolderView.list)
+            }
             Toggle("Show Trash", isOn: binding(\.showTrash))
         }
         .disabled(!config.mode.showsDock)

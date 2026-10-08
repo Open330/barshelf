@@ -73,6 +73,8 @@ final class DockConfigurationTests: XCTestCase {
         config.showIndicators = false
         config.animateOpening = false
         config.display = .pointer
+        config.folderView = .list
+        config.showRecentApps = true
         config.normalize()
         XCTAssertEqual(config.magnificationAmount, DockConfiguration.magnificationAmountRange.upperBound)
         XCTAssertEqual(config.autoHideDelay, 0)
@@ -85,6 +87,8 @@ final class DockConfigurationTests: XCTestCase {
         XCTAssertTrue(old.showIndicators)
         XCTAssertTrue(old.animateOpening)
         XCTAssertEqual(old.display, .main)
+        XCTAssertEqual(old.folderView, .grid)
+        XCTAssertFalse(old.showRecentApps)
         XCTAssertEqual(old.magnificationAmount, DockConfiguration.defaultMagnificationAmount)
     }
 

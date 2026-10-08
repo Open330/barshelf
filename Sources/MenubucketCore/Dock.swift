@@ -60,6 +60,20 @@ public struct DockConfiguration: Codable, Equatable, Sendable {
     public var autoHideDelay: Double = DockConfiguration.defaultAutoHideDelay
     /// Which display the dock is on.
     public var display: Display = .main
+    /// How a folder opens: a grid of its contents, or a menu.
+    public var folderView: FolderView = .grid
+    /// Recently used apps that are neither in the profile nor open, after
+    /// the open ones — the Apple Dock's "suggested and recent apps".
+    public var showRecentApps: Bool = false
+    /// How many recent apps that section shows.
+    public static let recentAppLimit = 3
+
+    public enum FolderView: String, Codable, CaseIterable, Sendable {
+        /// A grid of icons above the dock, like the Apple Dock's stacks.
+        case grid
+        /// A menu, with subfolders as submenus.
+        case list
+    }
 
     public enum Display: String, Codable, CaseIterable, Sendable {
         /// The display with the menu bar.
@@ -200,6 +214,7 @@ public struct DockConfiguration: Codable, Equatable, Sendable {
         case showRunningApps, showTrash, profiles, activeProfileID
         case profileHotkeysEnabled, appleDockLayouts, appleDockBackup
         case magnificationAmount, showIndicators, animateOpening, autoHideDelay, display
+        case folderView, showRecentApps
     }
 
     public init(from decoder: Decoder) throws {
@@ -225,6 +240,8 @@ public struct DockConfiguration: Codable, Equatable, Sendable {
         animateOpening = (try? c.decodeIfPresent(Bool.self, forKey: .animateOpening)) ?? defaults.animateOpening
         autoHideDelay = (try? c.decodeIfPresent(Double.self, forKey: .autoHideDelay)) ?? defaults.autoHideDelay
         display = (try? c.decodeIfPresent(Display.self, forKey: .display)) ?? defaults.display
+        folderView = (try? c.decodeIfPresent(FolderView.self, forKey: .folderView)) ?? defaults.folderView
+        showRecentApps = (try? c.decodeIfPresent(Bool.self, forKey: .showRecentApps)) ?? defaults.showRecentApps
         normalize()
     }
 

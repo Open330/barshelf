@@ -151,6 +151,52 @@ final class DockStoreTests: XCTestCase {
         XCTAssertEqual(DockView.tiles(for: config, running: running).map(\.id), ["mail"])
     }
 
+    func testRecentAppsSkipWhatIsAlreadyShown() {
+        var config = DockConfiguration(mode: .alongside)
+        config.profiles[0].items = [DockItem(id: "mail", kind: .app(path: "/Applications/Mail.app"))]
+        config.showTrash = false
+        config.showRecentApps = true
+        let running = [RunningApps.App(path: "/Applications/Notes.app", bundleID: "com.apple.Notes", processID: 1)]
+        let recent = ["/Applications/Mail.app", "/Applications/Notes.app", "/Applications/Gone.app",
+                      "/Applications/A.app", "/Applications/B.app", "/Applications/C.app", "/Applications/D.app"]
+        let ids = DockView.tiles(for: config, running: running, recent: recent, exists: { !$0.contains("Gone") }).map(\.id)
+        XCTAssertEqual(ids, [
+            "mail", "divider:running", "running:/Applications/Notes.app", "divider:recent",
+            "recent:/Applications/A.app", "recent:/Applications/B.app", "recent:/Applications/C.app",
+        ])
+    }
+
+    func testRecentListIsMostRecentFirstAndKept() throws {
+        let suite = "dock-recent-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let apps = RunningApps(defaults: defaults)
+        apps.noteUsed("/Applications/A.app")
+        apps.noteUsed("/Applications/B.app")
+        apps.noteUsed("/Applications/A.app")
+        // Real app switches may land in between; the order of these holds.
+        let a = try XCTUnwrap(apps.recent.firstIndex(of: "/Applications/A.app"))
+        let b = try XCTUnwrap(apps.recent.firstIndex(of: "/Applications/B.app"))
+        XCTAssertLessThan(a, b)
+        XCTAssertEqual(apps.recent.filter { $0 == "/Applications/A.app" }.count, 1)
+        XCTAssertEqual(RunningApps(defaults: defaults).recent, apps.recent)
+    }
+
+    func testFolderStackIsNewestFirstAndOpensFoldersInPlace() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("stack-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try FileManager.default.createDirectory(at: dir.appendingPathComponent("Sub"), withIntermediateDirectories: true)
+        let old = dir.appendingPathComponent("old.txt")
+        let new = dir.appendingPathComponent("new.txt")
+        try Data().write(to: old)
+        try Data().write(to: new)
+        try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: 0)], ofItemAtPath: old.path)
+        let entries = DockFolderStack.entries(in: dir)
+        XCTAssertEqual(Set(entries.map(\.name)), ["old.txt", "new.txt", "Sub"])
+        XCTAssertTrue(entries.first { $0.name == "Sub" }!.opensInPlace)
+        XCTAssertFalse(entries.first { $0.name == "new.txt" }!.opensInPlace)
+    }
+
     // MARK: URL
 
     func testDockDeepLinkRoutesToHook() {

@@ -8,6 +8,8 @@ import UniformTypeIdentifiers
 enum DockTile: Identifiable, Equatable {
     case item(DockItem)
     case running(RunningApps.App)
+    /// Used lately, not in the profile and not open.
+    case recent(String)
     case divider(String)
     case trash
 
@@ -15,6 +17,7 @@ enum DockTile: Identifiable, Equatable {
         switch self {
         case .item(let item): return item.id
         case .running(let app): return "running:\(app.path)"
+        case .recent(let path): return "recent:\(path)"
         case .divider(let id): return "divider:\(id)"
         case .trash: return "trash"
         }
@@ -28,7 +31,7 @@ enum DockTile: Identifiable, Equatable {
             case .widget, .spacer, .separator: return false
             default: return true
             }
-        case .running, .trash: return true
+        case .running, .recent, .trash: return true
         case .divider: return false
         }
     }
@@ -46,6 +49,8 @@ struct DockView: View {
 
     @State private var hoveredID: String?
     @State private var dropTargetID: String?
+    /// The folder whose grid is open above the dock.
+    @State private var openFolderID: String?
 
     static let dragPrefix = "barshelf-dock-item:"
 
@@ -58,13 +63,22 @@ struct DockView: View {
     // MARK: Tiles
 
     var tiles: [DockTile] {
-        Self.tiles(for: store.configuration, running: running.apps)
+        Self.tiles(for: store.configuration, running: running.apps, recent: running.recent)
     }
 
     /// The profile's items, then running apps not among them, then the Trash.
-    static func tiles(for config: DockConfiguration, running: [RunningApps.App]) -> [DockTile] {
+    static func tiles(
+        for config: DockConfiguration,
+        running: [RunningApps.App],
+        recent: [String] = [],
+        exists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
+    ) -> [DockTile] {
         let items = config.activeProfile.items
         var tiles = items.map(DockTile.item)
+        var shownApps = Set(items.compactMap { item -> String? in
+            if case .app(let path) = item.kind { return RunningApps.key(path) }
+            return nil
+        })
         if config.showRunningApps {
             let pinned = Set(items.compactMap { item -> String? in
                 if case .app(let path) = item.kind { return RunningApps.key(path) }
@@ -74,6 +88,16 @@ struct DockView: View {
             if !extra.isEmpty {
                 if !tiles.isEmpty { tiles.append(.divider("running")) }
                 tiles += extra.map(DockTile.running)
+            }
+        }
+        shownApps.formUnion(running.map(\.path))
+        if config.showRecentApps {
+            let recents = recent
+                .filter { !shownApps.contains($0) && exists($0) }
+                .prefix(DockConfiguration.recentAppLimit)
+            if !recents.isEmpty {
+                if !tiles.isEmpty { tiles.append(.divider("recent")) }
+                tiles += recents.map { DockTile.recent($0) }
             }
         }
         if config.showTrash {
@@ -212,6 +236,17 @@ struct DockView: View {
                 dropFiles: { urls in DockActions.open(urls, withAppAt: app.path) },
                 menu: { runningAppMenu(app) }
             )
+        case .recent(let path):
+            iconTile(
+                id: tile.id,
+                title: DockActions.fileDisplayName(at: path),
+                image: DockActions.fileIcon(at: path),
+                isRunning: false, scale: scale,
+                isLaunching: running.isLaunching(path: path),
+                action: { DockActions.openApp(path: path) },
+                dropFiles: { urls in DockActions.open(urls, withAppAt: path) },
+                menu: { recentAppMenu(path) }
+            )
         case .divider:
             divider
         case .trash:
@@ -255,13 +290,30 @@ struct DockView: View {
                     id: item.id, title: DockActions.displayName(for: item),
                     image: color == nil ? DockActions.icon(for: item) : nil,
                     isRunning: false, scale: scale,
-                    action: { Self.showFolderMenu(path: path) },
+                    action: {
+                        if config.folderView == .grid {
+                            openFolderID = openFolderID == item.id ? nil : item.id
+                        } else {
+                            Self.showFolderMenu(path: path)
+                        }
+                    },
                     dropFiles: nil,
                     custom: color.map { color in
                         AnyView(FolderBadge(color: color, label: label ?? DockActions.displayName(for: item)))
                     },
                     menu: { itemMenu(item) }
                 )
+                .popover(
+                    isPresented: Binding(
+                        get: { openFolderID == item.id },
+                        set: { if !$0, openFolderID == item.id { openFolderID = nil } }
+                    ),
+                    arrowEdge: edge == .bottom ? .top : edge == .left ? .trailing : .leading
+                ) {
+                    DockFolderStack(root: URL(fileURLWithPath: path, isDirectory: true)) {
+                        openFolderID = nil
+                    }
+                }
             case .link(let url, _):
                 iconTile(
                     id: item.id, title: DockActions.displayName(for: item),
@@ -538,6 +590,15 @@ struct DockView: View {
         }
         entries.append(.action(String(localized: "Show in Finder")) { DockActions.revealInFinder(path: app.path) })
         return DockMenuEntry.tidy(entries + [.divider] + barMenu)
+    }
+
+    private func recentAppMenu(_ path: String) -> [DockMenuEntry] {
+        DockMenuEntry.tidy([
+            .action(String(localized: "Open")) { DockActions.openApp(path: path) },
+            .action(String(localized: "Keep in Dock")) { store.addItems([DockItem(kind: .app(path: path))]) },
+            .action(String(localized: "Show in Finder")) { DockActions.revealInFinder(path: path) },
+            .divider,
+        ] + barMenu)
     }
 
     private var trashMenu: [DockMenuEntry] {
