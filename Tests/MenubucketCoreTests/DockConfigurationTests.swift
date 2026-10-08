@@ -89,6 +89,7 @@ final class DockConfigurationTests: XCTestCase {
         XCTAssertEqual(old.display, .main)
         XCTAssertEqual(old.folderView, .grid)
         XCTAssertFalse(old.showRecentApps)
+        XCTAssertTrue(old.showInFullScreen)
         XCTAssertEqual(old.magnificationAmount, DockConfiguration.defaultMagnificationAmount)
     }
 

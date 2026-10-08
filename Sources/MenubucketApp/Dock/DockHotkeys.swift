@@ -3,16 +3,19 @@ import Combine
 import Foundation
 import MenubucketCore
 
+/// Which ⌃⌥ numbers the dock could not take, for settings to show.
+/// Positions are 1-based.
+final class DockHotkeyStatus: ObservableObject {
+    static let shared = DockHotkeyStatus()
+    /// Owned by another app.
+    @Published fileprivate(set) var unavailable: Set<Int> = []
+    /// Used by the Automation script, which wins.
+    @Published fileprivate(set) var heldByAutomation: Set<Int> = []
+}
+
 /// ⌃⌥1…9: switch to the first nine dock profiles (R15). Carbon hot keys, like
 /// the popup shortcut, so no Accessibility permission is needed. Its own
 /// signature keeps its presses apart from the popup shortcut's handler.
-/// Which ⌃⌥ numbers another shortcut already owns — another app, or an
-/// Automation shortcut — for settings to show. Positions are 1-based.
-final class DockHotkeyStatus: ObservableObject {
-    static let shared = DockHotkeyStatus()
-    @Published fileprivate(set) var unavailable: Set<Int> = []
-}
-
 final class DockHotkeys {
     static let signature: OSType = 0x4253_444B // 'BSDK'
     static let modifiers = UInt32(controlKey | optionKey)
@@ -25,14 +28,23 @@ final class DockHotkeys {
     private let store: DockStore
     private var refs: [EventHotKeyRef] = []
     private var handler: EventHandlerRef?
-    private var registeredCount = 0
+    private var desiredCount = 0
     private var unavailable: Set<Int> = [] {
         didSet { DockHotkeyStatus.shared.unavailable = unavailable }
     }
+    private var heldByAutomation: Set<Int> = [] {
+        didSet { DockHotkeyStatus.shared.heldByAutomation = heldByAutomation }
+    }
     private var cancellable: AnyCancellable?
+    private var automationObserver: UUID?
 
     init(store: DockStore) {
         self.store = store
+        // Automation claiming or releasing keys: register again around them.
+        automationObserver = InAppHotkeys.shared.observe { [weak self] in
+            guard let self else { return }
+            self.register(count: self.desiredCount)
+        }
         cancellable = store.$configuration
             .map { $0.profileHotkeysEnabled ? min($0.profiles.count, DockConfiguration.hotkeyProfileLimit) : 0 }
             .removeDuplicates()
@@ -41,6 +53,7 @@ final class DockHotkeys {
     }
 
     deinit {
+        if let automationObserver { InAppHotkeys.shared.removeObserver(automationObserver) }
         unregisterAll()
         if let handler { RemoveEventHandler(handler) }
     }
@@ -51,35 +64,41 @@ final class DockHotkeys {
         return "⌃⌥\(position)"
     }
 
+    /// Registers the first `count` ⌃⌥ numbers, leaving out the ones the
+    /// Automation script uses. Called again whenever either side changes; a
+    /// key another app held is retried each time.
     private func register(count: Int) {
-        // Same count and nothing failed last time: nothing to do. A failure
-        // is retried, since whatever held the key may have let it go.
-        guard count != registeredCount || !unavailable.isEmpty else { return }
+        desiredCount = count
         unregisterAll()
         guard count > 0 else { return }
         installHandlerIfNeeded()
+        let automation = InAppHotkeys.shared.automation
         var failed: Set<Int> = []
+        var held: Set<Int> = []
         for (index, keyCode) in Self.digitKeyCodes.prefix(count).enumerated() {
+            let position = index + 1
+            if automation.contains(InAppHotkeys.Key(keyCode: keyCode, modifiers: Self.modifiers)) {
+                held.insert(position)
+                continue
+            }
             var ref: EventHotKeyRef?
-            let id = EventHotKeyID(signature: Self.signature, id: UInt32(index + 1))
+            let id = EventHotKeyID(signature: Self.signature, id: UInt32(position))
             if RegisterEventHotKey(keyCode, Self.modifiers, id, GetApplicationEventTarget(), 0, &ref) == noErr,
                let ref {
                 refs.append(ref)
             } else {
-                failed.insert(index + 1)
+                failed.insert(position)
             }
         }
-        registeredCount = count
         unavailable = failed
+        heldByAutomation = held
     }
-
-
 
     private func unregisterAll() {
         refs.forEach { UnregisterEventHotKey($0) }
         refs.removeAll()
-        registeredCount = 0
         unavailable = []
+        heldByAutomation = []
     }
 
     private func installHandlerIfNeeded() {

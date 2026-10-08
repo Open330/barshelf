@@ -170,6 +170,12 @@ final class DockPanelController {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.setNeedsMeasure() }
             .store(in: &cancellables)
+        for name in [NSWorkspace.activeSpaceDidChangeNotification, NSWorkspace.didActivateApplicationNotification] {
+            NSWorkspace.shared.notificationCenter.publisher(for: name)
+                .receive(on: RunLoop.main)
+                .sink { [weak self] _ in self?.scheduleFullScreenCheck() }
+                .store(in: &cancellables)
+        }
         NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)
             .receive(on: RunLoop.main)
             // Displays coming and going change whether the pointer matters.
@@ -198,11 +204,71 @@ final class DockPanelController {
         } else {
             removeMouseMonitors()
         }
-        if !config.autoHide { isRevealed = true }
+        panel.collectionBehavior = config.showInFullScreen
+            ? [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
+            : [.canJoinAllSpaces, .stationary, .ignoresCycle]
+        if !hidesAutomatically { isRevealed = true }
         setNeedsMeasure()
         placePanel(animated: false)
         if isRevealed { panel.orderFrontRegardless() }
         reportVisibleWidgets()
+    }
+
+    // MARK: Full-screen Spaces
+
+    /// The dock's display is showing a full-screen app.
+    private var inFullScreenSpace = false
+
+    /// Auto-hide by choice, or because a full-screen app has the display.
+    private var hidesAutomatically: Bool {
+        config.autoHide || (inFullScreenSpace && config.showInFullScreen)
+    }
+
+    /// Looks again after a Space switch or app change settles.
+    private func scheduleFullScreenCheck() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+            self?.checkFullScreen()
+        }
+    }
+
+    private func checkFullScreen() {
+        guard config.mode.showsDock, let screen else { return }
+        let windows = (CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+            as? [[String: Any]]) ?? []
+        let primaryHeight = NSScreen.screens.first?.frame.height ?? screen.frame.height
+        let full = Self.isFullScreen(
+            windows: windows,
+            screenFrame: Self.windowServerFrame(of: screen.frame, primaryHeight: primaryHeight),
+            ownPID: ProcessInfo.processInfo.processIdentifier
+        )
+        guard full != inFullScreenSpace else { return }
+        inFullScreenSpace = full
+        if full, config.showInFullScreen {
+            setRevealed(false)
+        }
+        configurationChanged()
+    }
+
+    /// A screen frame in window-server coordinates (origin at the top left
+    /// of the main display, y down), the space window bounds come in.
+    static func windowServerFrame(of frame: NSRect, primaryHeight: CGFloat) -> CGRect {
+        CGRect(x: frame.minX, y: primaryHeight - frame.maxY, width: frame.width, height: frame.height)
+    }
+
+    /// Whether another app has an ordinary window covering the whole screen,
+    /// menu bar area included. Only a full-screen window does that: zoomed
+    /// and tiled windows stop below the menu bar. Reads window bounds only,
+    /// which needs no permission.
+    static func isFullScreen(windows: [[String: Any]], screenFrame: CGRect, ownPID: pid_t) -> Bool {
+        windows.contains { window in
+            guard (window[kCGWindowLayer as String] as? Int) == 0,
+                  (window[kCGWindowOwnerPID as String] as? pid_t) != ownPID,
+                  let dict = window[kCGWindowBounds as String] as? NSDictionary,
+                  let bounds = CGRect(dictionaryRepresentation: dict)
+            else { return false }
+            return abs(bounds.minX - screenFrame.minX) < 1 && abs(bounds.minY - screenFrame.minY) < 1
+                && abs(bounds.width - screenFrame.width) < 1 && abs(bounds.height - screenFrame.height) < 1
+        }
     }
 
     private func hoverChanged(_ hovering: Bool) {
@@ -321,7 +387,7 @@ final class DockPanelController {
     /// stepping aside when the Apple Dock moves onto this display (which
     /// only happens with more than one display).
     private var needsPointerTracking: Bool {
-        config.autoHide || config.display == .pointer
+        hidesAutomatically || config.display == .pointer
             || (config.mode == .alongside && NSScreen.screens.count > 1)
     }
 
@@ -349,7 +415,7 @@ final class DockPanelController {
         let point = NSEvent.mouseLocation
         followPointerIfNeeded(point)
         replaceIfAppleDockMoved()
-        guard config.autoHide, let screen else { return }
+        guard hidesAutomatically, let screen else { return }
         let atEdge = isAtEdge(point, of: screen)
         if !isRevealed {
             // Out only after the pointer has rested at the edge a moment, so
@@ -417,7 +483,7 @@ final class DockPanelController {
                   self.isAtEdge(NSEvent.mouseLocation, of: target) else { return }
             self.pointerDisplayID = targetID
             self.placePanel(animated: false)
-            if self.config.autoHide { self.setRevealed(true) }
+            if self.hidesAutomatically { self.setRevealed(true) }
         }
         moveWorkItem = work
         DispatchQueue.main.asyncAfter(deadline: .now() + max(0.3, config.autoHideDelay), execute: work)

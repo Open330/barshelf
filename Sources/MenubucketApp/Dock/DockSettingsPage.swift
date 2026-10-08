@@ -204,6 +204,8 @@ struct DockSettingsPage: View {
                     }
                 }
             }
+            Toggle("Show in full-screen apps", isOn: binding(\.showInFullScreen))
+                .help("In a full-screen app the dock waits at the edge and slides out when the pointer rests there.")
             Toggle("Animate opening apps", isOn: binding(\.animateOpening))
             Toggle("Show indicators for open apps", isOn: binding(\.showIndicators))
             Toggle("Show open apps that aren't in the dock", isOn: binding(\.showRunningApps))
@@ -271,7 +273,12 @@ struct DockSettingsPage: View {
             }
             Spacer()
             if config.profileHotkeysEnabled, let label = DockHotkeys.label(forPosition: position) {
-                if hotkeyStatus.unavailable.contains(position) {
+                if hotkeyStatus.heldByAutomation.contains(position) {
+                    Label("\(label) used by Automation", systemImage: "keyboard")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .help("Your Automation script uses \(label), so it goes there instead of switching profiles.")
+                } else if hotkeyStatus.unavailable.contains(position) {
                     Label("\(label) is taken", systemImage: "exclamationmark.triangle.fill")
                         .font(.caption)
                         .foregroundStyle(.orange)

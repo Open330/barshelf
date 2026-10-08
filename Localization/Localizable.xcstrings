@@ -166,6 +166,16 @@
         }
       }
     },
+    "%@ used by Automation": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: Automation에서 사용 중"
+          }
+        }
+      }
+    },
     "%@ was found on your Mac": {
       "localizations": {
         "ko": {
@@ -4113,6 +4123,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "BarShelf에서"
+          }
+        }
+      }
+    },
+    "In a full-screen app the dock waits at the edge and slides out when the pointer rests there.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "전체 화면 앱에서는 독이 가장자리에서 기다리다가 포인터를 대면 나옵니다."
           }
         }
       }
@@ -8092,6 +8112,16 @@
         }
       }
     },
+    "Show in full-screen apps": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "전체 화면 앱에서도 보기"
+          }
+        }
+      }
+    },
     "Show in the menu bar": {
       "localizations": {
         "ko": {
@@ -10285,6 +10315,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "최신 상태입니다"
+          }
+        }
+      }
+    },
+    "Your Automation script uses %@, so it goes there instead of switching profiles.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automation 스크립트가 %@을(를) 쓰고 있어 프로필 전환 대신 그쪽으로 갑니다."
           }
         }
       }

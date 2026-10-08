@@ -24,6 +24,9 @@ barshelf dock restore-apple-dock
 With BarShelf running, this asks the app to put the Apple Dock back and leave
 "Instead of the Apple Dock"; otherwise it restores the saved settings itself.
 
+In a full-screen app the dock waits at the edge and slides out when the
+pointer rests there, as the Apple Dock does (**Show in full-screen apps**).
+
 macOS has no public way to make other apps' windows stay clear of a dock that
 isn't Apple's. Windows can go under the BarShelf Dock, as they do under an
 auto-hidden Apple Dock. Turn on **Automatically hide and show the dock** if
@@ -76,7 +79,8 @@ Each profile has its own items. It can also carry:
 Ways to switch:
 
 - **⌃⌥1–9** for the first nine profiles (turn on in **Switching**). A number
-  another app or an Automation shortcut already uses is marked as taken.
+  another app already uses is marked as taken; one your Automation script uses
+  stays with Automation, and comes back to the dock when Automation stops.
 - A **two-finger sideways swipe** on the dock, or **⌘-scroll** over it.
 - **BarShelf menu ▸ Dock**, or right-click the dock.
 - A link: `barshelf://dock?profile=Work` (name, id, or number; the link

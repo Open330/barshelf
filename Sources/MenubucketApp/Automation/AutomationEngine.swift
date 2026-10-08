@@ -73,6 +73,11 @@ final class AutomationEngine: AutomationRunning {
         guard !active else { return }
         guard AXIsProcessTrusted() else { throw AutomationFailure(String(localized: "Allow BarShelf in System Settings → Privacy & Security → Accessibility, then enable the extension again.")) }
         do {
+            // Take these keys from other BarShelf features (the dock's ⌃⌥
+            // profile keys) before registering, rather than failing on them.
+            InAppHotkeys.shared.setAutomationKeys(Set(script.bindings.map {
+                InAppHotkeys.Key(keyCode: $0.combination.keyCode, modifiers: $0.combination.modifiers)
+            }))
             if !script.bindings.isEmpty { try registerHotkeys() }
             if script.remap != nil { try installTap() }
             active = true
@@ -102,6 +107,7 @@ final class AutomationEngine: AutomationRunning {
         releaseHeldKeys()
         for key in hotkeys { UnregisterEventHotKey(key) }
         hotkeys.removeAll()
+        InAppHotkeys.shared.setAutomationKeys([])
         if let handler { RemoveEventHandler(handler) }
         handler = nil
     }

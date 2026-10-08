@@ -1,0 +1,14 @@
+{
+  "name": "barshelf_dock_folder_grid",
+  "target": "com.barshelf.app",
+  "steps": [
+    { "action": "click",
+      "selector": { "role": "Button", "desc": "Dl" },
+      "intent_text": "독의 다운로드 폴더를 그리드로 열기",
+      "postcondition": { "contains": "Open in Finder" },
+      "captures": [ { "name": "files", "many": true, "limit": 8, "optional": true,
+                      "field": { "role": "Button", "ancestor": "Open in Finder" }, "attribute": "Description" } ],
+      "safety": { "effects": ["read"], "reversibility": "reversible",
+                  "resource": { "object_type": "폴더 보기", "scope": "item" } } }
+  ]
+}

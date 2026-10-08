@@ -197,6 +197,48 @@ final class DockStoreTests: XCTestCase {
         XCTAssertFalse(entries.first { $0.name == "new.txt" }!.opensInPlace)
     }
 
+    // MARK: Full screen
+
+    func testFullScreenMeansAWindowCoveringTheWholeScreen() {
+        let main = DockPanelController.windowServerFrame(of: NSRect(x: 0, y: 0, width: 2560, height: 1440), primaryHeight: 1440)
+        let below = DockPanelController.windowServerFrame(of: NSRect(x: 0, y: -1440, width: 2560, height: 1440), primaryHeight: 1440)
+        XCTAssertEqual(below, CGRect(x: 0, y: 1440, width: 2560, height: 1440))
+        func window(_ rect: CGRect, layer: Int = 0, pid: pid_t = 42) -> [String: Any] {
+            [kCGWindowLayer as String: layer, kCGWindowOwnerPID as String: pid,
+             kCGWindowBounds as String: rect.dictionaryRepresentation]
+        }
+        // A zoomed window stops below the menu bar.
+        XCTAssertFalse(DockPanelController.isFullScreen(
+            windows: [window(CGRect(x: 0, y: 30, width: 2560, height: 1410))], screenFrame: main, ownPID: 1))
+        XCTAssertTrue(DockPanelController.isFullScreen(
+            windows: [window(main)], screenFrame: main, ownPID: 1))
+        // Not on this display, not an ordinary window, or our own: no.
+        XCTAssertFalse(DockPanelController.isFullScreen(windows: [window(below)], screenFrame: main, ownPID: 1))
+        XCTAssertFalse(DockPanelController.isFullScreen(windows: [window(main, layer: 25)], screenFrame: main, ownPID: 1))
+        XCTAssertFalse(DockPanelController.isFullScreen(windows: [window(main, pid: 1)], screenFrame: main, ownPID: 1))
+    }
+
+    // MARK: Hotkeys
+
+    /// The Automation script wins a ⌃⌥ number over the dock, and gives it
+    /// back when it stops.
+    func testAutomationKeysAreLeftToAutomation() {
+        let store = makeStore()
+        _ = store.addProfile(named: "Work")
+        store.update { $0.profileHotkeysEnabled = true }
+        let hotkeys = DockHotkeys(store: store)
+        let expectation = expectation(description: "registered")
+        DispatchQueue.main.async { expectation.fulfill() }
+        wait(for: [expectation], timeout: 2)
+
+        let one = InAppHotkeys.Key(keyCode: DockHotkeys.digitKeyCodes[0], modifiers: DockHotkeys.modifiers)
+        InAppHotkeys.shared.setAutomationKeys([one])
+        XCTAssertEqual(DockHotkeyStatus.shared.heldByAutomation, [1])
+        InAppHotkeys.shared.setAutomationKeys([])
+        XCTAssertEqual(DockHotkeyStatus.shared.heldByAutomation, [])
+        _ = hotkeys
+    }
+
     // MARK: URL
 
     func testDockDeepLinkRoutesToHook() {

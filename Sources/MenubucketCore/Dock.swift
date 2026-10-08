@@ -65,6 +65,9 @@ public struct DockConfiguration: Codable, Equatable, Sendable {
     /// Recently used apps that are neither in the profile nor open, after
     /// the open ones — the Apple Dock's "suggested and recent apps".
     public var showRecentApps: Bool = false
+    /// In a full-screen app the dock waits at the edge, as the Apple Dock
+    /// does, instead of staying out of the full-screen Space altogether.
+    public var showInFullScreen: Bool = true
     /// How many recent apps that section shows.
     public static let recentAppLimit = 3
 
@@ -214,7 +217,7 @@ public struct DockConfiguration: Codable, Equatable, Sendable {
         case showRunningApps, showTrash, profiles, activeProfileID
         case profileHotkeysEnabled, appleDockLayouts, appleDockBackup
         case magnificationAmount, showIndicators, animateOpening, autoHideDelay, display
-        case folderView, showRecentApps
+        case folderView, showRecentApps, showInFullScreen
     }
 
     public init(from decoder: Decoder) throws {
@@ -242,6 +245,7 @@ public struct DockConfiguration: Codable, Equatable, Sendable {
         display = (try? c.decodeIfPresent(Display.self, forKey: .display)) ?? defaults.display
         folderView = (try? c.decodeIfPresent(FolderView.self, forKey: .folderView)) ?? defaults.folderView
         showRecentApps = (try? c.decodeIfPresent(Bool.self, forKey: .showRecentApps)) ?? defaults.showRecentApps
+        showInFullScreen = (try? c.decodeIfPresent(Bool.self, forKey: .showInFullScreen)) ?? defaults.showInFullScreen
         normalize()
     }
 
