@@ -8,6 +8,7 @@ struct ShelfMoreMenu: View {
     let onCommand: (AppMenuCommand) -> Void
     /// So "Check for Updates…" turns into "Update to BarShelf X…".
     @ObservedObject private var updates = UpdateStatus.shared
+    @ObservedObject private var dockStore = DockStore.shared
 
     var body: some View {
         Menu {
@@ -43,6 +44,22 @@ struct ShelfMoreMenu: View {
                 } label: {
                     Label(command.title, systemImage: command.symbol)
                 }
+            }
+        } else if command == .dock {
+            Menu {
+                let rows = AppMenu.dockProfiles(store: dockStore)
+                ForEach(rows) { row in
+                    Toggle(isOn: Binding(
+                        get: { row.isActive },
+                        set: { _ in dockStore.activate(profileID: row.id) }
+                    )) {
+                        Label(row.title, systemImage: row.symbol)
+                    }
+                }
+                if !rows.isEmpty { Divider() }
+                Button(AppMenu.dockSettingsTitle) { onCommand(.dock) }
+            } label: {
+                Label(command.title, systemImage: command.symbol)
             }
         } else {
             Button { onCommand(command) } label: {

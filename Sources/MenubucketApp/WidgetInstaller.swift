@@ -274,6 +274,8 @@ final class WidgetInstaller {
     /// argument is the optional `widget` query item (`nil` → refresh all
     /// url-trigger widgets).
     var onRefreshRequest: ((_ widgetID: String?) -> Void)?
+    /// `barshelf://dock?profile=<id|name|number>`, `?next`, `?previous` (R15).
+    var onDockRequest: ((_ query: [URLQueryItem]) -> Void)?
 
     /// Menu entry point: "Install Widget from URL…".
     func promptForURL() {
@@ -301,6 +303,10 @@ final class WidgetInstaller {
             } else {
                 onOpenPopup?()
             }
+            return
+        }
+        if route == "dock" {
+            onDockRequest?(components?.queryItems ?? [])
             return
         }
         if route == "refresh" {

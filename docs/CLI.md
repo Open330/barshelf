@@ -18,6 +18,7 @@ barshelf new <name> [--kind exec|workflow|script] [--dir <path>]   # 기본 kind
 barshelf validate <path>                # widget.json(+workflow.json 있으면) Core 디코더로 검증, 오류를 파일:필드 단위로 출력
 barshelf pack <dir> [-o <name>.mbw]     # zip(.mbw) 생성 + 아카이브에 manifest.sha256 포함(widget.json의 sha256)
 barshelf list                           # 설치된 위젯 나열 (id, name, version, kind)
+barshelf dock list|use <profile>|next|previous|restore-apple-dock   # 독 프로필 전환, Apple Dock 복구
 barshelf agent-spec                     # 위젯 작성 스펙(docs/AGENTS.md)을 stdout으로 출력 (LLM 에이전트용)
 barshelf upgrade [--check] [--yes] [--restart] [--app <path>]   # CLI와 BarShelf.app을 최신 릴리스로 갱신
 barshelf --version / --help
@@ -32,6 +33,7 @@ barshelf --version / --help
 | `barshelf validate <path>` | 위젯 디렉터리 또는 pack된 `.mbw` 파일 | `widget.json`(그리고 `workflow.json`이 있으면 함께)을 Core 디코더로 검증하고, 오류를 파일:필드 단위로 출력한다. `.mbw`를 받으면 안전 추출 후 검증한다. |
 | `barshelf pack <dir>` | `-o <name>.mbw` (출력 파일명) | 위젯 디렉터리를 zip(`.mbw`)으로 패키징하고, 아카이브에 `manifest.sha256`(widget.json의 sha256)을 포함한다. |
 | `barshelf list` | — | 설치된 위젯을 id, name, version, kind로 나열한다. |
+| `barshelf dock` | `list`, `use <프로필>`, `next`, `previous`, `restore-apple-dock` | 독 프로필([`docs/DOCK.md`](DOCK.md))을 나열하고 전환한다. `use`는 이름·id·번호를 받아 `barshelf://dock?profile=`로 실행 중인 앱에 전달한다. `restore-apple-dock`은 앱 없이도 숨겨진 Apple Dock을 되돌린다. |
 | `barshelf agent-spec` | — | 위젯 작성 스펙([`docs/AGENTS.md`](AGENTS.md))을 stdout으로 출력한다. LLM 에이전트에게 위젯 제작 계약 전체를 한 번에 넘길 때 쓴다. 개발 체크아웃에서는 디스크의 `docs/AGENTS.md`를, 단독 배포 바이너리에서는 빌드시 내장된 사본을 출력한다(내용 동일). |
 | `barshelf upgrade` | `--check`(확인만), `--yes`(확인 프롬프트 생략), `--restart`(앱 재시작), `--app <path>` | CLI(`barshelf`·`bsf`)와 `BarShelf.app`을 최신 GitHub 릴리스로 갱신한다. 자세한 내용은 아래 [자가 업데이트](#자가-업데이트). |
 | `barshelf --version` / `barshelf --help` | — | 버전/도움말 출력. |

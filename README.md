@@ -37,6 +37,9 @@ new SDK to learn.
 - **🪟 One icon, many widgets** — bucket pages, trackpad swipe, pinned row, ⌘F search.
 - **📊 Live in the menu bar** — opt a widget in and its value updates right on
   the bar (`✦ 42% · 61% · 58°`), sharing the BarShelf icon or on its own.
+- **🧭 A dock, if you want one** — put apps, folders, links, Shortcuts, and live
+  widgets on a screen-edge dock, alongside the Apple Dock or instead of it, and
+  switch profiles (⌃⌥1–9, swipe, Focus) — the Apple Dock's apps can follow.
 - **⚡ CLI is the API** — `aas usage --json`, `otpeek`, `gh`, `kubectl`… pipe them straight in.
 - **🎨 Native, not web** — SwiftUI rendering, dark mode, SF Symbols, vibrancy. No Electron.
 - **🧩 Three ways to build** — declarative workflows, a Shortcuts-style visual builder, or full scripts.
@@ -113,6 +116,14 @@ Import the supported `init.lua` profile to preserve Fn arrow mappings, monitor
 shortcuts, and window cycling, then customize the generated JavaScript.
 Requires Accessibility access; no additional runtime is needed.
 See [setup, import scope, and scripting API](docs/AUTOMATION.md).
+
+## BarShelf Dock
+
+Optional and off by default: **BarShelf ▸ Dock** adds a dock on the bottom,
+left, or right edge with apps, folders, files, links, Shortcuts, and any
+BarShelf widget. Run it alongside the Apple Dock or instead of it, keep several
+profiles, and let each one rearrange the Apple Dock too.
+See [the Dock guide](docs/DOCK.md).
 
 ## Gallery widgets
 

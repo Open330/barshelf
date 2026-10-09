@@ -1,0 +1,13 @@
+{
+  "name": "barshelf_dock_menu_probe",
+  "target": "com.barshelf.app",
+  "steps": [
+    { "action": "secondary_action",
+      "selector": { "role": "Button", "desc": "Calendar" },
+      "params": { "action": "AXShowMenu" },
+      "intent_text": "독의 캘린더 우클릭 메뉴 열기",
+      "unverified_ok": true,
+      "safety": { "effects": ["read"], "reversibility": "reversible",
+                  "resource": { "object_type": "컨텍스트 메뉴", "scope": "entry" } } }
+  ]
+}

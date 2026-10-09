@@ -1,0 +1,96 @@
+{
+ "name": "barshelf_dock_mode",
+ "target": "com.barshelf.app",
+ "params": {
+  "mode": "Alongside the Apple Dock"
+ },
+ "steps": [
+  {
+   "action": "menu",
+   "params": {
+    "path": [
+     "BarShelf",
+     [
+      "Settings…",
+      "설정…"
+     ]
+    ]
+   },
+   "postcondition": {
+    "contains": "Shelf"
+   },
+   "intent_text": "BarShelf 설정 창 열기",
+   "safety": {
+    "effects": [
+     "read"
+    ],
+    "reversibility": "reversible",
+    "resource": {
+     "object_type": "설정 창",
+     "scope": "entry"
+    }
+   }
+  },
+  {
+   "action": "click",
+   "selector": {
+    "role": "Button",
+    "desc": "Dock",
+    "ancestor": "Sidebar"
+   },
+   "intent_text": "Dock 페이지로 이동",
+   "postcondition": {
+    "contains": "Instead of the Apple Dock"
+   },
+   "safety": {
+    "effects": [
+     "read"
+    ],
+    "reversibility": "reversible",
+    "resource": {
+     "object_type": "설정 페이지",
+     "scope": "entry"
+    }
+   }
+  },
+  {
+   "action": "click",
+   "selector": {
+    "role": "RadioButton",
+    "desc": "{{mode}}"
+   },
+   "intent_text": "BarShelf Dock 모드: {{mode}}",
+   "postcondition": {
+    "field": {
+     "role": "RadioButton",
+     "desc": "{{mode}}"
+    },
+    "equals": "1",
+    "attribute": "Value"
+   },
+   "safety": {
+    "effects": [
+     "write_persistent"
+    ],
+    "reversibility": "reversible",
+    "resource": {
+     "object_type": "독 설정",
+     "scope": "item"
+    },
+    "evidence": [
+     {
+      "source": "user_intent",
+      "field": "asked",
+      "value": "실제로 테스트도해주세요 … 다른것들도 다 개선합시다"
+     }
+    ]
+   },
+   "binding": {
+    "bundle_id": "com.barshelf.app",
+    "role": "RadioButton",
+    "desc": "{{mode}}",
+    "operation": "click"
+   }
+  }
+ ]
+}

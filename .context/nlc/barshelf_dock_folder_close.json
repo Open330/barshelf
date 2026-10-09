@@ -1,0 +1,27 @@
+{
+ "name": "barshelf_dock_folder_close",
+ "target": "com.barshelf.app",
+ "steps": [
+  {
+   "action": "click",
+   "selector": {
+    "role": "Button",
+    "desc": "Dl"
+   },
+   "intent_text": "그리드 닫기",
+   "postcondition": {
+    "absent": "Open in Finder"
+   },
+   "safety": {
+    "effects": [
+     "read"
+    ],
+    "reversibility": "reversible",
+    "resource": {
+     "object_type": "폴더 보기",
+     "scope": "item"
+    }
+   }
+  }
+ ]
+}

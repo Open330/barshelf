@@ -9,14 +9,14 @@ import SwiftUI
 /// `widgets` keeps the Shelf's historical one.
 enum HubTab: String, CaseIterable, Identifiable {
     case shelf = "widgets"
-    case menuBar, gallery, create, automation
+    case menuBar, dock, gallery, create, automation
     case general, shortcuts, updates, privacy, advanced
 
     /// Former names, kept so existing callers read naturally.
     static let widgets = HubTab.shelf
     static let settings = HubTab.general
 
-    static let workspace: [HubTab] = [.shelf, .menuBar, .gallery, .create, .automation]
+    static let workspace: [HubTab] = [.shelf, .menuBar, .dock, .gallery, .create, .automation]
     static let settingsPages: [HubTab] = [.general, .shortcuts, .updates, .privacy, .advanced]
 
     var id: String { rawValue }
@@ -25,6 +25,7 @@ enum HubTab: String, CaseIterable, Identifiable {
         switch self {
         case .shelf: return String(localized: "Shelf", comment: "Hub page: the widget shelf")
         case .menuBar: return String(localized: "Menu Bar")
+        case .dock: return String(localized: "Dock", comment: "Hub page: the BarShelf Dock")
         case .gallery: return String(localized: "Gallery")
         case .create: return String(localized: "Create", comment: "Hub page: build a widget")
         case .automation: return String(localized: "Automation")
@@ -40,6 +41,7 @@ enum HubTab: String, CaseIterable, Identifiable {
         switch self {
         case .shelf: return "square.grid.2x2"
         case .menuBar: return "menubar.rectangle"
+        case .dock: return "dock.rectangle"
         case .gallery: return "sparkles.rectangle.stack"
         case .create: return "wand.and.stars"
         case .automation: return "keyboard"
@@ -55,6 +57,7 @@ enum HubTab: String, CaseIterable, Identifiable {
         switch self {
         case .shelf: return String(localized: "Arrange your pages and widgets.")
         case .menuBar: return String(localized: "Choose what shows in the menu bar and how it looks.")
+        case .dock: return String(localized: "A dock for apps, folders, and widgets, with profiles to switch between.")
         case .gallery: return String(localized: "Find and install widgets.")
         case .create: return String(localized: "Build a widget from a command, a URL, a folder, or text.")
         case .automation: return String(localized: "Keyboard shortcuts and window control, imported from Hammerspoon.")

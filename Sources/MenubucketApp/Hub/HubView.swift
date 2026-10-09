@@ -40,6 +40,10 @@ struct HubView: View {
     private func sidebarRow(_ tab: HubTab) -> some View {
         Label(tab.title, systemImage: tab.symbol)
             .tag(tab)
+            // A press as well as a selection, so accessibility clients that
+            // press rather than select (automation, Switch Control) can
+            // change pages; the row did not answer AXPress before.
+            .accessibilityAction { model.tab = tab }
     }
 
     private var sidebarHeader: some View {
@@ -76,6 +80,8 @@ struct HubView: View {
             ShelfView(runtime: runtime, model: model)
         case .menuBar:
             MenuBarPage(appPrefs: appPrefs, runtime: runtime)
+        case .dock:
+            DockSettingsPage(store: DockStore.shared, runtime: runtime)
         case .gallery:
             GalleryView(model: galleryModel, runtime: runtime)
                 .onAppear { galleryModel.onWindowShown() }

@@ -26,6 +26,8 @@ public enum BarShelfMain {
           barshelf pack <dir> [-o <name>.mbw] Pack a widget directory into a .mbw
                                          archive (includes manifest.sha256).
           barshelf list                       List installed widgets.
+          barshelf dock list|use <profile>|next|previous|restore-apple-dock
+                                         Dock profiles and the Apple Dock.
           barshelf agent-spec                 Print the widget-authoring spec
                                          (docs/AGENTS.md) for LLM agents.
           barshelf upgrade [--check]          Update the barshelf CLI and
@@ -61,6 +63,8 @@ public enum BarShelfMain {
             return runPack(arguments: rest)
         case "list":
             return runList(arguments: rest)
+        case "dock":
+            return DockCommand.run(arguments: rest)
         case "agent-spec":
             return runAgentSpec(arguments: rest)
         // "update" is what people type first; accept it rather than printing

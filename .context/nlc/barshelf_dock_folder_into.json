@@ -1,0 +1,74 @@
+{
+ "name": "barshelf_dock_folder_into",
+ "target": "com.barshelf.app",
+ "params": {
+  "folder": "output"
+ },
+ "steps": [
+  {
+   "action": "click",
+   "selector": {
+    "role": "Button",
+    "desc": "{{folder}}",
+    "ancestor": "Dl"
+   },
+   "intent_text": "그리드에서 {{folder}} 폴더로 들어가기",
+   "postcondition": {
+    "contains": "Back"
+   },
+   "safety": {
+    "effects": [
+     "read"
+    ],
+    "reversibility": "reversible",
+    "resource": {
+     "object_type": "폴더 보기",
+     "scope": "item"
+    }
+   }
+  },
+  {
+   "action": "click",
+   "selector": {
+    "role": "Button",
+    "desc": "Back",
+    "ancestor": "Dl"
+   },
+   "intent_text": "상위 폴더로 돌아가기",
+   "postcondition": {
+    "contains": "{{folder}}"
+   },
+   "safety": {
+    "effects": [
+     "read"
+    ],
+    "reversibility": "reversible",
+    "resource": {
+     "object_type": "폴더 보기",
+     "scope": "item"
+    }
+   }
+  },
+  {
+   "action": "click",
+   "selector": {
+    "role": "Button",
+    "desc": "Dl"
+   },
+   "intent_text": "그리드 닫기",
+   "postcondition": {
+    "absent": "Open in Finder"
+   },
+   "safety": {
+    "effects": [
+     "read"
+    ],
+    "reversibility": "reversible",
+    "resource": {
+     "object_type": "폴더 보기",
+     "scope": "item"
+    }
+   }
+  }
+ ]
+}

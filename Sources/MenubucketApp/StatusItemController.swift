@@ -21,6 +21,9 @@ final class StatusItemController: NSObject {
     /// Draws the live strip into the main item and owns the extra status items
     /// of widgets the user split out.
     private var menuBar: MenuBarController!
+    /// The BarShelf Dock on the screen edge, and its profile hotkeys (R15).
+    private var dockPanel: DockPanelController!
+    private var dockHotkeys: DockHotkeys!
     private var keyboardMonitor: Any?
     private var scrollMonitor: Any?
     private var cancellables: Set<AnyCancellable> = []
@@ -79,6 +82,20 @@ final class StatusItemController: NSObject {
         WidgetInstaller.shared.onRefreshRequest = { [weak self] widgetID in
             self?.runtime.handleURLRefreshTrigger(widgetID: widgetID)
         }
+
+        // barshelf://dock?profile=Work — Shortcuts' Focus automations use it.
+        WidgetInstaller.shared.onDockRequest = { [weak self] query in
+            self?.handleDockRequest(query)
+        }
+        let dockStore = DockStore.shared
+        dockStore.onProfileActivated = { [weak self] profile in
+            self?.showPopupPage(named: profile.popupPage)
+        }
+        dockPanel = DockPanelController(store: dockStore, runtime: runtime)
+        dockPanel.onOpenSettings = {
+            Task { @MainActor in HubWindowController.shared.show(tab: .dock) }
+        }
+        dockHotkeys = DockHotkeys(store: dockStore)
 
         // Register the app's single runtime so runtime-less hub shims work.
         // Construction is guaranteed on the main thread (applicationDidFinishLaunching).
@@ -294,6 +311,10 @@ final class StatusItemController: NSObject {
             Task { @MainActor in HubWindowController.shared.show(tab: .gallery) }
         case .menuBar:
             break // a submenu, not an action
+        case .dock:
+            // The submenu's "Dock Settings…" row.
+            popup.hide()
+            Task { @MainActor in HubWindowController.shared.show(runtime: runtime, tab: .dock) }
         case .openBarShelf:
             openHub(nil)
         case .settings:
@@ -440,6 +461,38 @@ final class StatusItemController: NSObject {
     @objc private func demotePromotedWidget(_ sender: NSMenuItem) {
         guard let widgetID = sender.representedObject as? String else { return }
         runtime.updateMenuBarPlacement(for: widgetID) { $0.enabled = false }
+    }
+
+    // MARK: - Dock (R15)
+
+    private func handleDockRequest(_ query: [URLQueryItem]) {
+        let store = DockStore.shared
+        for item in query {
+            switch item.name.lowercased() {
+            case "profile":
+                if let value = item.value, !store.activate(matching: value) {
+                    NSLog("BarShelf: no dock profile matches \(value)")
+                }
+            case "next":
+                store.activate(offset: 1)
+            case "previous", "prev":
+                store.activate(offset: -1)
+            case "restore-apple-dock":
+                store.restoreAppleDockOnRequest()
+            default:
+                continue
+            }
+            return
+        }
+    }
+
+    /// A profile's popup page, selected for the next time the popup opens
+    /// (or right away while it is open).
+    private func showPopupPage(named page: String?) {
+        guard let page else { return }
+        let pages = runtime.pages
+        guard let index = pages.firstIndex(where: { $0.group == page }) else { return }
+        pager.jump(to: index, pageCount: pages.count)
     }
 
     // MARK: - Global hotkey (Carbon RegisterEventHotKey — no a11y permission)

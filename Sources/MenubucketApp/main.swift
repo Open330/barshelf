@@ -23,6 +23,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             OnboardingWindowController.shared.showIfNeeded(runtime: runtime)
         }
         AutomationController.shared.startAtLaunch()
+        // `replace` hides the Apple Dock again; a crash's leftover backup is
+        // put back otherwise.
+        DockStore.shared.reconcileAppleDockAtLaunch()
         // Record that this build genuinely came up — after the status item
         // exists, so the receipt attests to the thing a user would look for
         // rather than to a process having been created. An updater waits for
@@ -40,6 +43,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         AutomationController.shared.stopForTermination()
+        // Never leave the Mac without a dock while BarShelf is not running.
+        DockStore.shared.restoreAppleDockForTermination()
     }
 
     /// Minimal main menu carrying only the standard Edit commands. Not shown
