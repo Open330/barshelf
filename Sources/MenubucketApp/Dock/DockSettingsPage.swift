@@ -141,22 +141,27 @@ struct DockSettingsPage: View {
                 Text("Right").tag(DockConfiguration.Edge.right)
             }
             .pickerStyle(.segmented)
-            LabeledContent("Size") {
-                HStack {
-                    Slider(value: binding(\.tileSize), in: DockConfiguration.tileSizeRange) {
-                        Text("Size")
-                    } minimumValueLabel: {
-                        Text("Small").font(.caption)
-                    } maximumValueLabel: {
-                        Text("Large").font(.caption)
-                    }
-                    .labelsHidden()
-                    .frame(maxWidth: 260)
-                    if let apple = store.appleDock.tileSize, abs(apple - config.tileSize) >= 1 {
-                        Button("Match Apple Dock") { store.update { $0.tileSize = apple } }
-                            .controlSize(.small)
-                    }
+            Toggle("Same size as the Apple Dock", isOn: Binding(
+                get: { config.matchAppleDockSize },
+                set: { on in
+                    store.update { $0.matchAppleDockSize = on }
+                    if on { store.syncSizeWithAppleDock() }
                 }
+            ))
+            LabeledContent("Size") {
+                // Moving the slider is choosing a size of one's own.
+                Slider(value: Binding(
+                    get: { config.tileSize },
+                    set: { size in store.update { $0.tileSize = size; $0.matchAppleDockSize = false } }
+                ), in: DockConfiguration.tileSizeRange) {
+                    Text("Size")
+                } minimumValueLabel: {
+                    Text("Small").font(.caption)
+                } maximumValueLabel: {
+                    Text("Large").font(.caption)
+                }
+                .labelsHidden()
+                .frame(maxWidth: 260)
             }
             if config.style == .shelf {
                 LabeledContent("Widget size") {

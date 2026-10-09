@@ -85,6 +85,9 @@ final class RunningApps: ObservableObject {
     /// Moves an app to the front of the recent list.
     func noteUsed(_ path: String) {
         let key = Self.key(path)
+        // Only app bundles: a bare executable with a window (a test tool, a
+        // script) has no icon or place in a dock.
+        guard key.hasSuffix(".app") else { return }
         var list = recent.filter { $0 != key }
         list.insert(key, at: 0)
         list = Array(list.prefix(Self.recentKept))

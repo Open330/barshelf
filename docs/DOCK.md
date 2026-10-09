@@ -54,7 +54,8 @@ Drag apps, folders, files, or web links onto the dock to add them. Drag an
 item onto another to move it. Right-click any item for its menu, including
 **Remove from Dock**.
 
-The Apple Dock's own settings are there too: size, magnification and how
+The Apple Dock's own settings are there too: size (by default the same as
+the Apple Dock's, following it when it changes), magnification and how
 much, which display (the main one, or the one the pointer rests at the edge
 of), auto-hide and how long the pointer waits at the edge, opening
 animation, and indicators for open apps.

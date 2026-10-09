@@ -5043,6 +5043,7 @@
       }
     },
     "Match Apple Dock": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -7556,6 +7557,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "S"
+          }
+        }
+      }
+    },
+    "Same size as the Apple Dock": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Dock과 같은 크기"
           }
         }
       }

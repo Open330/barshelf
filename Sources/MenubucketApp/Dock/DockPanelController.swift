@@ -182,6 +182,7 @@ final class DockPanelController {
             .sink { [weak self] _ in self?.configurationChanged() }
             .store(in: &cancellables)
         configurationChanged()
+        store.syncSizeWithAppleDock()
     }
 
     deinit {
@@ -228,6 +229,7 @@ final class DockPanelController {
     private func scheduleFullScreenCheck() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
             self?.checkFullScreen()
+            self?.store.syncSizeWithAppleDock()
         }
     }
 
@@ -239,6 +241,7 @@ final class DockPanelController {
         let full = Self.isFullScreen(
             windows: windows,
             screenFrame: Self.windowServerFrame(of: screen.frame, primaryHeight: primaryHeight),
+            topInset: screen.safeAreaInsets.top,
             ownPID: ProcessInfo.processInfo.processIdentifier
         )
         guard full != inFullScreenSpace else { return }
@@ -256,18 +259,32 @@ final class DockPanelController {
     }
 
     /// Whether another app has an ordinary window covering the whole screen,
-    /// menu bar area included. Only a full-screen window does that: zoomed
-    /// and tiled windows stop below the menu bar. Reads window bounds only,
-    /// which needs no permission.
-    static func isFullScreen(windows: [[String: Any]], screenFrame: CGRect, ownPID: pid_t) -> Bool {
-        windows.contains { window in
+    /// menu bar area included, which only a full-screen window does: zoomed
+    /// and tiled windows stop below the menu bar. On a display with a camera
+    /// housing a full-screen window starts below it instead (`topInset`, the
+    /// screen's top safe-area inset), which a zoomed window still does not
+    /// reach, since the menu bar there is taller than the housing area it
+    /// shares. Reads window bounds only, which needs no permission.
+    static func isFullScreen(
+        windows: [[String: Any]], screenFrame: CGRect, topInset: CGFloat = 0, ownPID: pid_t
+    ) -> Bool {
+        var targets = [screenFrame]
+        if topInset > 0 {
+            targets.append(CGRect(
+                x: screenFrame.minX, y: screenFrame.minY + topInset,
+                width: screenFrame.width, height: screenFrame.height - topInset
+            ))
+        }
+        return windows.contains { window in
             guard (window[kCGWindowLayer as String] as? Int) == 0,
                   (window[kCGWindowOwnerPID as String] as? pid_t) != ownPID,
                   let dict = window[kCGWindowBounds as String] as? NSDictionary,
                   let bounds = CGRect(dictionaryRepresentation: dict)
             else { return false }
-            return abs(bounds.minX - screenFrame.minX) < 1 && abs(bounds.minY - screenFrame.minY) < 1
-                && abs(bounds.width - screenFrame.width) < 1 && abs(bounds.height - screenFrame.height) < 1
+            return targets.contains { target in
+                abs(bounds.minX - target.minX) < 1 && abs(bounds.minY - target.minY) < 1
+                    && abs(bounds.width - target.width) < 1 && abs(bounds.height - target.height) < 1
+            }
         }
     }
 

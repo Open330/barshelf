@@ -220,6 +220,15 @@ final class DockStore: ObservableObject {
         return others.isEmpty ? apps : apps + [DockItem(kind: .separator)] + others
     }
 
+    /// Follows the Apple Dock's icon size when that is turned on. Its size
+    /// changes in System Settings without telling anyone, so this is called
+    /// at launch and whenever apps or Spaces change.
+    func syncSizeWithAppleDock() {
+        guard configuration.matchAppleDockSize, let size = appleDock.tileSize,
+              abs(size - configuration.tileSize) >= 0.5 else { return }
+        update { $0.tileSize = size }
+    }
+
     // MARK: Hiding the Apple Dock (`replace`)
 
     private func hideAppleDock() {

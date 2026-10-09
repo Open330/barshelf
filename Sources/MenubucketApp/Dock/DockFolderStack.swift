@@ -10,10 +10,29 @@ struct DockFolderStack: View {
     let onClose: () -> Void
 
     @State private var trail: [URL] = []
-    @State private var entries: [Entry] = []
+    @State private var entries: [Entry]
+
+    init(root: URL, onClose: @escaping () -> Void) {
+        self.root = root
+        self.onClose = onClose
+        // Read before the popover opens: it is placed for its first size, and
+        // contents arriving later made it grow down over the dock.
+        _entries = State(initialValue: Self.entries(in: root))
+    }
 
     /// Enough to find a recent download; the rest is a click away in Finder.
     static let limit = 60
+    static let columns = 4
+    static let cellWidth: CGFloat = 96
+    static let rowHeight: CGFloat = 92
+    static let rowSpacing: CGFloat = 10
+
+    /// Every row when they fit, else four and a half, so it reads as more.
+    static func gridHeight(count: Int) -> CGFloat {
+        let rows = max(1, (count + columns - 1) / columns)
+        let shown = min(CGFloat(rows), 4.5)
+        return shown * rowHeight + (shown.rounded(.up) - 1) * rowSpacing + 24
+    }
 
     struct Entry: Identifiable, Equatable {
         let url: URL
@@ -34,16 +53,19 @@ struct DockFolderStack: View {
                     .frame(maxWidth: .infinity, minHeight: 120)
             } else {
                 ScrollView {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 84), spacing: 8)], spacing: 10) {
+                    LazyVGrid(columns: Array(repeating: GridItem(.fixed(Self.cellWidth), spacing: 8), count: Self.columns),
+                              spacing: Self.rowSpacing) {
                         ForEach(entries) { entry in cell(entry) }
                     }
                     .padding(12)
                 }
-                .frame(maxHeight: 380)
+                // A scroll view has no height of its own, and the popover
+                // took the smallest it could: one row. Rows decide it, up to
+                // a screenful.
+                .frame(height: Self.gridHeight(count: entries.count))
             }
         }
-        .frame(width: 452)
-        .onAppear { load() }
+        .frame(width: CGFloat(Self.columns) * Self.cellWidth + CGFloat(Self.columns - 1) * 8 + 24)
         .onChange(of: trail) { _, _ in load() }
     }
 
@@ -92,7 +114,7 @@ struct DockFolderStack: View {
                     .lineLimit(2)
                     .multilineTextAlignment(.center)
                     .truncationMode(.middle)
-                    .frame(width: 80)
+                    .frame(width: Self.cellWidth - 8)
             }
             .contentShape(Rectangle())
         }

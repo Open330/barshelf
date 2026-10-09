@@ -46,6 +46,20 @@ final class DockStoreTests: XCTestCase {
         XCTAssertEqual(restarts, 2)
     }
 
+    func testSizeFollowsTheAppleDockUntilChosen() {
+        defaults.values["tilesize"] = 29.0
+        let store = makeStore()
+        store.syncSizeWithAppleDock()
+        XCTAssertEqual(store.configuration.tileSize, 29)
+        defaults.values["tilesize"] = 48.0
+        store.syncSizeWithAppleDock()
+        XCTAssertEqual(store.configuration.tileSize, 48)
+        store.update { $0.matchAppleDockSize = false; $0.tileSize = 60 }
+        defaults.values["tilesize"] = 20.0
+        store.syncSizeWithAppleDock()
+        XCTAssertEqual(store.configuration.tileSize, 60)
+    }
+
     func testOtherEditsDoNotTouchTheAppleDock() {
         let store = makeStore()
         store.update { $0.mode = .alongside }
@@ -180,6 +194,8 @@ final class DockStoreTests: XCTestCase {
         XCTAssertLessThan(a, b)
         XCTAssertEqual(apps.recent.filter { $0 == "/Applications/A.app" }.count, 1)
         XCTAssertEqual(RunningApps(defaults: defaults).recent, apps.recent)
+        apps.noteUsed("/tmp/scratch/fstest")
+        XCTAssertFalse(apps.recent.contains("/tmp/scratch/fstest"), "bare executables are not apps")
     }
 
     func testFolderStackIsNewestFirstAndOpensFoldersInPlace() throws {
@@ -216,6 +232,16 @@ final class DockStoreTests: XCTestCase {
         XCTAssertFalse(DockPanelController.isFullScreen(windows: [window(below)], screenFrame: main, ownPID: 1))
         XCTAssertFalse(DockPanelController.isFullScreen(windows: [window(main, layer: 25)], screenFrame: main, ownPID: 1))
         XCTAssertFalse(DockPanelController.isFullScreen(windows: [window(main, pid: 1)], screenFrame: main, ownPID: 1))
+
+        // A notched laptop: full screen starts below the camera housing (38 pt),
+        // and a zoomed window starts below the taller menu bar (49 pt here).
+        let laptop = CGRect(x: 0, y: 0, width: 1710, height: 1112)
+        XCTAssertTrue(DockPanelController.isFullScreen(
+            windows: [window(CGRect(x: 0, y: 38, width: 1710, height: 1074))],
+            screenFrame: laptop, topInset: 38, ownPID: 1))
+        XCTAssertFalse(DockPanelController.isFullScreen(
+            windows: [window(CGRect(x: 0, y: 49, width: 1710, height: 1014))],
+            screenFrame: laptop, topInset: 38, ownPID: 1))
     }
 
     // MARK: Hotkeys
