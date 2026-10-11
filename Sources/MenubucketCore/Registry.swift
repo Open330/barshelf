@@ -442,16 +442,29 @@ public final class RegistryClient: @unchecked Sendable {
     }
 
     public static let urlSessionFetcher: Fetcher = { url in
+        try await fetchIndex(from: url)
+    }
+
+    static func fetchIndex(from url: URL, session: URLSession = .shared) async throws -> Data {
         var request = URLRequest(url: url)
         request.timeoutInterval = 30
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (bytes, response) = try await session.bytes(for: request)
+        defer { bytes.task.cancel() }
         if let http = response as? HTTPURLResponse, http.statusCode != 200 {
             throw RegistryError.httpStatus(http.statusCode, url)
         }
-        guard data.count <= RegistryClient.maxResponseBytes else {
+        guard response.expectedContentLength <= Int64(maxResponseBytes) else {
             throw RegistryError.responseTooLarge(
-                limitBytes: RegistryClient.maxResponseBytes
+                limitBytes: maxResponseBytes
             )
+        }
+        var data = Data()
+        data.reserveCapacity(response.expectedContentLength > 0 ? Int(response.expectedContentLength) : 64 * 1024)
+        for try await byte in bytes {
+            guard data.count < maxResponseBytes else {
+                throw RegistryError.responseTooLarge(limitBytes: maxResponseBytes)
+            }
+            data.append(byte)
         }
         return data
     }
@@ -641,7 +654,12 @@ public final class RegistryClient: @unchecked Sendable {
         guard FileManager.default.fileExists(atPath: file.path) else {
             throw RegistryError.fileNotFound(file.path)
         }
-        let data = try Data(contentsOf: file)
+        let handle = try FileHandle(forReadingFrom: file)
+        defer { try? handle.close() }
+        let data = try handle.read(upToCount: maxResponseBytes + 1) ?? Data()
+        guard data.count <= maxResponseBytes else {
+            throw RegistryError.responseTooLarge(limitBytes: maxResponseBytes)
+        }
         return try parse(validating: data)
     }
 

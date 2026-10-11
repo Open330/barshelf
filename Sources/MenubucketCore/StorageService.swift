@@ -23,6 +23,7 @@ public final class StorageService: @unchecked Sendable {
     private let quotaBytes: Int
     private let lock = NSLock()
     private var cache: [String: Namespace] = [:]
+    private var retainedWidgetIDs: Set<String>?
 
     public init(directory: URL, quotaBytes: Int = StorageService.quotaBytes) {
         self.directory = directory
@@ -31,6 +32,21 @@ public final class StorageService: @unchecked Sendable {
 
     // MARK: - API
 
+    /// Evict memory for removed widgets; their saved data stays on disk so
+    /// reinstalling a widget can restore its namespace.
+    public func retain(widgetIDs: Set<String>) {
+        lock.lock()
+        retainedWidgetIDs = widgetIDs
+        cache = cache.filter { widgetIDs.contains($0.key) }
+        lock.unlock()
+    }
+
+    var cachedWidgetIDs: Set<String> {
+        lock.lock()
+        defer { lock.unlock() }
+        return Set(cache.keys)
+    }
+
     public func get(widgetId: String, key: String, nowMs: Double = Date().timeIntervalSince1970 * 1000) -> JSONValue? {
         lock.lock()
         defer { lock.unlock() }
@@ -38,7 +54,7 @@ public final class StorageService: @unchecked Sendable {
         guard let entry = namespace.entries[key] else { return nil }
         if let expiresAt = entry.expiresAt, expiresAt <= nowMs {
             namespace.entries.removeValue(forKey: key)
-            cache[widgetId] = namespace
+            cacheLocked(namespace, widgetId: widgetId)
             return nil
         }
         return entry.value
@@ -117,10 +133,10 @@ public final class StorageService: @unchecked Sendable {
               let namespace = try? JSONDecoder().decode(Namespace.self, from: data)
         else {
             let empty = Namespace()
-            cache[widgetId] = empty
+            cacheLocked(empty, widgetId: widgetId)
             return empty
         }
-        cache[widgetId] = namespace
+        cacheLocked(namespace, widgetId: widgetId)
         return namespace
     }
 
@@ -131,6 +147,10 @@ public final class StorageService: @unchecked Sendable {
         }
     }
 
+    private func cacheLocked(_ namespace: Namespace, widgetId: String) {
+        if retainedWidgetIDs?.contains(widgetId) != false { cache[widgetId] = namespace }
+    }
+
     private func serialize(_ namespace: Namespace) throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
@@ -138,9 +158,9 @@ public final class StorageService: @unchecked Sendable {
     }
 
     private func persistLocked(widgetId: String, namespace: Namespace, data: Data) throws {
-        cache[widgetId] = namespace
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try data.write(to: fileURL(widgetId: widgetId), options: .atomic)
+        cacheLocked(namespace, widgetId: widgetId)
     }
 
     private func fileURL(widgetId: String) -> URL {

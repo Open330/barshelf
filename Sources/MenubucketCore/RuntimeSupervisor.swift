@@ -91,6 +91,9 @@ public struct RuntimeSupervisorConfiguration: @unchecked Sendable {
     public var minTimerIntervalMs: Double = SchedulePolicy.minForegroundIntervalSec * 1000
     /// stdout line limit (1 MB per the contract).
     public var maxStdoutLineBytes = 1_048_576
+    /// Bound queued protocol messages when a script produces faster than the host.
+    public var maxBufferedStdoutEvents = 128
+    public var maxTimersPerWidget = 128
     /// Crash loop: `crashLoopThreshold` crashes within `crashLoopWindowSec` → disabled.
     public var crashLoopWindowSec: TimeInterval = 300
     public var crashLoopThreshold = 3
@@ -164,12 +167,7 @@ public actor RuntimeSupervisor {
         }
     }
 
-    private enum StdoutEvent {
-        case line(Data)
-        case overflow
-    }
-
-    private final class LineBuffer: @unchecked Sendable {
+    final class LineBuffer: @unchecked Sendable {
         private let lock = NSLock()
         private var data = Data()
 
@@ -177,16 +175,22 @@ public actor RuntimeSupervisor {
             lock.withLock {
                 data.append(chunk)
                 var lines: [Data] = []
+                var overflow = false
                 while let newlineIndex = data.firstIndex(of: UInt8(ascii: "\n")) {
-                    let line = data.subdata(in: data.startIndex..<newlineIndex)
+                    let length = data.distance(from: data.startIndex, to: newlineIndex)
+                    if let maxBytes, length > maxBytes {
+                        overflow = true
+                    } else {
+                        let line = data.subdata(in: data.startIndex..<newlineIndex)
+                        if !line.isEmpty { lines.append(line) }
+                    }
                     data.removeSubrange(data.startIndex...newlineIndex)
-                    if !line.isEmpty { lines.append(line) }
                 }
                 if let maxBytes, data.count > maxBytes {
                     data.removeAll(keepingCapacity: false)
                     return (lines, true)
                 }
-                return (lines, false)
+                return (lines, overflow)
             }
         }
 
@@ -312,14 +316,7 @@ public actor RuntimeSupervisor {
         instance.stopping = true
         instance.readTask?.cancel()
         try? instance.stdinHandle.close()
-        let process = instance.process
-        if process.isRunning {
-            process.terminate()
-            Task.detached {
-                try? await Task.sleep(nanoseconds: 2_000_000_000)
-                if process.isRunning { kill(process.processIdentifier, SIGKILL) }
-            }
-        }
+        ExecService.terminate(instance.process)
         cancelTimers(widgetId: widgetId)
         descriptors.removeValue(forKey: widgetId)
     }
@@ -351,7 +348,7 @@ public actor RuntimeSupervisor {
         instance.stopping = true
         instance.readTask?.cancel()
         try? instance.stdinHandle.close()
-        if instance.process.isRunning { instance.process.terminate() }
+        ExecService.terminate(instance.process)
     }
 
     /// "Restart Widget": clears the crash-loop `disabled` state and reloads.
@@ -416,6 +413,10 @@ public actor RuntimeSupervisor {
         do {
             try process.run()
         } catch {
+            // A failed launch has no termination callback to break the
+            // process → handler → instance ownership cycle.
+            process.terminationHandler = nil
+            for pipe in [stdinPipe, stdoutPipe, stderrPipe] { ExecService.closePipe(pipe) }
             throw JsonRpcError.internalError("failed to launch script runtime: \(error.localizedDescription)")
         }
 
@@ -433,9 +434,15 @@ public actor RuntimeSupervisor {
         widgetId: String, instance: ScriptInstance, handle: FileHandle
     ) -> Task<Void, Never> {
         let maxLineBytes = configuration.maxStdoutLineBytes
-        let stream = AsyncStream<StdoutEvent> { continuation in
+        let maximumEvents = max(1, configuration.maxBufferedStdoutEvents)
+        let stream = AsyncStream<Data>(bufferingPolicy: .bufferingOldest(maximumEvents)) { continuation in
             let buffer = LineBuffer()
-            handle.readabilityHandler = { readHandle in
+            continuation.onTermination = { _ in
+                // Cancellation must detach the producer even when a
+                // descendant still holds the script's stdout pipe open.
+                handle.readabilityHandler = nil
+            }
+            handle.readabilityHandler = { [weak self] readHandle in
                 let chunk = readHandle.availableData
                 if chunk.isEmpty {
                     readHandle.readabilityHandler = nil
@@ -443,19 +450,33 @@ public actor RuntimeSupervisor {
                     return
                 }
                 let result = buffer.append(chunk, maxBytes: maxLineBytes)
-                for line in result.lines { continuation.yield(.line(line)) }
-                if result.overflow { continuation.yield(.overflow) }
+                if result.overflow {
+                    readHandle.readabilityHandler = nil
+                    continuation.finish()
+                    Task { [weak self] in
+                        await self?.handleLineOverflow(widgetId: widgetId, instance: instance)
+                    }
+                    return
+                }
+                for line in result.lines {
+                    if case .dropped = continuation.yield(line) {
+                        // Dropping RPC messages silently would strand SDK
+                        // requests. Stop the producer and report the overflow.
+                        readHandle.readabilityHandler = nil
+                        continuation.finish()
+                        Task { [weak self] in
+                            await self?.handleLineOverflow(widgetId: widgetId, instance: instance,
+                                reason: "stdout event buffer exceeded \(maximumEvents) messages — terminating script")
+                        }
+                        return
+                    }
+                }
             }
         }
         return Task { [weak self] in
-            for await event in stream {
+            for await line in stream {
                 guard let self else { break }
-                switch event {
-                case let .line(data):
-                    await self.handleLine(widgetId: widgetId, instance: instance, line: data)
-                case .overflow:
-                    await self.handleLineOverflow(widgetId: widgetId, instance: instance)
-                }
+                await self.handleLine(widgetId: widgetId, instance: instance, line: line)
             }
         }
     }
@@ -478,7 +499,7 @@ public actor RuntimeSupervisor {
                 readHandle.readabilityHandler = nil
                 return
             }
-            for line in buffer.append(chunk).lines {
+            for line in buffer.append(chunk, maxBytes: ExecService.maxStderrBytes).lines {
                 guard let text = String(data: line, encoding: .utf8), !text.isEmpty else { continue }
                 logs?.append(widgetId: widgetId, level: "stderr", message: text)
                 onWidgetLog(widgetId, "stderr", text)
@@ -506,13 +527,13 @@ public actor RuntimeSupervisor {
         }
     }
 
-    private func handleLineOverflow(widgetId: String, instance: ScriptInstance) {
+    private func handleLineOverflow(widgetId: String, instance: ScriptInstance, reason: String? = nil) {
         guard instances[widgetId] === instance, !instance.stopping else { return }
         widgetLog(
             widgetId, "error",
-            "stdout line exceeded \(configuration.maxStdoutLineBytes) bytes — terminating script"
+            reason ?? "stdout line exceeded \(configuration.maxStdoutLineBytes) bytes — terminating script"
         )
-        instances[widgetId]?.process.terminate() // counts as a crash
+        ExecService.terminate(instance.process) // counts as a crash
     }
 
     private func processTerminated(widgetId: String, instance: ScriptInstance, status: Int32) {
@@ -849,6 +870,14 @@ public actor RuntimeSupervisor {
 
     private func handleTimer(widgetId: String, params: JSONValue?, kind: TimerKind) async throws -> JSONValue {
         let timer = try decodeParams(TimerParams.self, from: params)
+        switch kind {
+        case .clear: break
+        default:
+            if timers[widgetId]?[timer.id] == nil,
+               (timers[widgetId]?.count ?? 0) >= max(1, configuration.maxTimersPerWidget) {
+                throw JsonRpcError.quotaExceeded("timer quota exceeded for \(widgetId)")
+            }
+        }
         switch kind {
         case .once:
             guard let atMs = timer.atMs else { throw JsonRpcError.protocolError("timer.once requires atMs") }

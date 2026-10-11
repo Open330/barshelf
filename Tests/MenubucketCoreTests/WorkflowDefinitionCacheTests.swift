@@ -67,4 +67,20 @@ final class WorkflowDefinitionCacheTests: XCTestCase {
         try FileManager.default.removeItem(at: url)
         XCTAssertThrowsError(try cache.load(url))
     }
+
+    func testRemovedDefinitionsAreEvictedAndLateLoadsCannotRepopulateThem() throws {
+        let cache = WorkflowDefinitionCache()
+        let kept = try write("keep", to: "kept.json")
+        let removed = try write("remove", to: "removed.json")
+        _ = try cache.load(kept)
+        _ = try cache.load(removed)
+        cache.retain(fileURLs: [kept])
+        XCTAssertEqual(cache.count, 1)
+        _ = try cache.load(removed)
+        XCTAssertEqual(cache.count, 1, "an in-flight old refresh may finish reading but must not retain an orphan")
+        XCTAssertEqual(text(try cache.load(kept)), "keep")
+        cache.retain(fileURLs: [kept, removed])
+        XCTAssertEqual(text(try cache.load(removed)), "remove")
+        XCTAssertEqual(cache.count, 2)
+    }
 }

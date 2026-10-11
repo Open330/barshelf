@@ -1,3 +1,4 @@
+import Darwin
 import XCTest
 @testable import MenubucketCore
 
@@ -109,6 +110,103 @@ final class RuntimeSupervisorTests: XCTestCase {
     }
 
     // MARK: - Scenarios
+
+    func testRepeatedLaunchFailuresDoNotRetainPipeHandles() async throws {
+        let missing = tempDir.appendingPathComponent("missing-runtime")
+        let configuration = RuntimeSupervisorConfiguration(
+            makeLaunchPlan: { _ in ScriptLaunchPlan(executable: missing, arguments: []) },
+            storage: StorageService(directory: tempDir.appendingPathComponent("storage")),
+            secrets: InMemorySecretStore()
+        )
+        let supervisor = RuntimeSupervisor(configuration: configuration, events: RuntimeSupervisorEvents())
+        let descriptor = ScriptWidgetDescriptor(manifest: try makeManifest(), directory: tempDir)
+        let initialHandles = try FileManager.default.contentsOfDirectory(atPath: "/dev/fd").count
+        for _ in 0..<64 {
+            do {
+                try await supervisor.load(descriptor, reason: "manual")
+                XCTFail("missing executable must fail to launch")
+            } catch {}
+        }
+        let finalHandles = try FileManager.default.contentsOfDirectory(atPath: "/dev/fd").count
+        XCTAssertLessThanOrEqual(finalHandles, initialHandles + 4,
+                                 "failed launches must release their process and pipe handles")
+        await supervisor.stopAll()
+    }
+
+    func testRepeatedPackageReloadKillsReplacedProcessesThatIgnoreTermination() async throws {
+        let capture = RenderCapture()
+        let (supervisor, original) = try makeSupervisor(
+            scenario: "stubborn", manifest: makeManifest(), capture: capture
+        )
+        defer {
+            for text in capture.captured {
+                if let pid = Int32(text), kill(pid, 0) == 0 { kill(pid, SIGKILL) }
+            }
+        }
+        for revision in 0..<4 {
+            var widget = original
+            widget.revision = String(revision)
+            try await supervisor.load(widget, reason: "manual")
+            let rendered = await capture.waitForCount(revision + 1, timeout: 3)
+            XCTAssertTrue(rendered)
+        }
+        let pids = capture.captured.compactMap(Int32.init)
+        XCTAssertEqual(Set(pids).count, 4, "each package revision must launch a fresh process")
+        let deadline = Date().addingTimeInterval(5)
+        while Date() < deadline, pids.dropLast().contains(where: { kill($0, 0) == 0 }) {
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        XCTAssertTrue(pids.dropLast().allSatisfy { kill($0, 0) != 0 }, "obsolete processes must not survive reload")
+        let running = await supervisor.isRunning(widgetId: original.id)
+        XCTAssertTrue(running, "late termination must preserve the newest instance")
+        await supervisor.stopAll()
+        let stopDeadline = Date().addingTimeInterval(5)
+        while Date() < stopDeadline, pids.contains(where: { kill($0, 0) == 0 }) {
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        XCTAssertTrue(pids.allSatisfy { kill($0, 0) != 0 }, "stop must also terminate scripts ignoring SIGTERM")
+    }
+
+    func testTimerRegistrationsAreBoundedPerWidget() async throws {
+        let rendered = expectation(description: "timer quota reported through RPC")
+        let capture = RenderCapture(rendered)
+        let stub = stubURL
+        var configuration = RuntimeSupervisorConfiguration(
+            makeLaunchPlan: { _ in ScriptLaunchPlan(executable: URL(fileURLWithPath: "/bin/bash"),
+                                                  arguments: [stub.path, "timer-quota"]) },
+            storage: StorageService(directory: tempDir.appendingPathComponent("storage")),
+            secrets: InMemorySecretStore()
+        )
+        configuration.maxTimersPerWidget = 1
+        let supervisor = RuntimeSupervisor(configuration: configuration,
+            events: RuntimeSupervisorEvents(onRender: { _, params, _ in capture.record(params) }))
+        let descriptor = ScriptWidgetDescriptor(manifest: try makeManifest(), directory: tempDir)
+        try await supervisor.load(descriptor, reason: "manual")
+        await fulfillment(of: [rendered], timeout: 3)
+        XCTAssertEqual(capture.captured, ["timer-quota"])
+        await supervisor.stopAll()
+    }
+
+    func testStdoutBurstReportsBackpressureRatherThanSilentlyDroppingMessages() async throws {
+        let reported = expectation(description: "bounded stdout queue reports overflow")
+        reported.assertForOverFulfill = false
+        let stub = stubURL
+        var configuration = RuntimeSupervisorConfiguration(
+            makeLaunchPlan: { _ in ScriptLaunchPlan(executable: URL(fileURLWithPath: "/bin/bash"),
+                                                  arguments: [stub.path, "stdout-burst"]) },
+            storage: StorageService(directory: tempDir.appendingPathComponent("storage")),
+            secrets: InMemorySecretStore()
+        )
+        configuration.maxBufferedStdoutEvents = 1
+        let events = RuntimeSupervisorEvents(onWidgetLog: { _, level, message in
+            if level == "error", message.contains("stdout event buffer exceeded") { reported.fulfill() }
+        })
+        let supervisor = RuntimeSupervisor(configuration: configuration, events: events)
+        let descriptor = ScriptWidgetDescriptor(manifest: try makeManifest(), directory: tempDir)
+        try await supervisor.load(descriptor, reason: "manual")
+        await fulfillment(of: [reported], timeout: 3)
+        await supervisor.stopAll()
+    }
 
     func testDescriptorUsesExplicitInstanceID() throws {
         let manifest = try makeManifest()
