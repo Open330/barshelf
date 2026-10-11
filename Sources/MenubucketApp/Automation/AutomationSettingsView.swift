@@ -21,7 +21,14 @@ struct AutomationSettingsView: View {
                         else { controller.disable() }
                     }
                 ))
-                Text("Global shortcuts, Fn arrow keys, and window navigation. Quit Hammerspoon before enabling to avoid duplicate shortcuts.")
+                Label {
+                    Text(controller.isRunning ? String(localized: "Active") : String(localized: "Inactive"))
+                } icon: {
+                    Image(systemName: controller.isRunning ? "checkmark.circle.fill" : "circle")
+                }
+                .font(.caption)
+                .foregroundStyle(controller.isRunning ? Color.green : Color.secondary)
+                Text("Global shortcuts, key remapping, and window navigation. Quit Hammerspoon and disable matching Karabiner rules before enabling.")
                     .font(.caption).foregroundStyle(.secondary)
                 Button("Grant Accessibility Access…") { controller.requestAccessibility() }
                 if let message = controller.message {
@@ -31,13 +38,22 @@ struct AutomationSettingsView: View {
 
             SwiftUI.Section {
                 HStack {
-                    Button("Import Hammerspoon Settings") {
-                        let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".hammerspoon/init.lua")
-                        if let imported = controller.importFile(url) { draft = imported }
+                    Menu("Import Settings") {
+                        Button("Hammerspoon") {
+                            importSettings(path: ".hammerspoon/init.lua")
+                        }
+                        Button("Karabiner-Elements") {
+                            let base = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"].map {
+                                URL(fileURLWithPath: $0, isDirectory: true)
+                            } ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".config")
+                            if let imported = controller.importFile(base.appendingPathComponent("karabiner/karabiner.json")) {
+                                draft = imported
+                            }
+                        }
                     }
                     Button("Choose File…") { chooseFile() }
                 }
-                Text("Imports the supported Fn / monitor / window-cycle Lua profile or a JavaScript extension. Import fills the editor; Save applies it. Unsupported Lua logic is reported instead of discarded.")
+                Text("Import Hammerspoon navigation, Karabiner key mappings, or JavaScript. Import fills the editor; Save applies it. Unsupported behavior is reported before importing. Disable the original tool's matching rules before enabling.")
                     .font(.caption).foregroundStyle(.secondary)
                 if let summary = controller.importSummary {
                     Text(summary).font(.caption).textSelection(.enabled)
@@ -59,7 +75,7 @@ struct AutomationSettingsView: View {
                 Text("Edit shortcuts and window actions in JavaScript. Save applies your changes; Revert Draft restores the saved script.")
                     .font(.caption).foregroundStyle(.secondary)
             } header: { Text("Extension Script") }
-            footer: { Text("Saved separately from the original file. No Hammerspoon settings are modified.") }
+            footer: { Text("Saved separately from the original file. Original tool settings are unchanged.") }
 
             SwiftUI.Section {
                 ForEach(Array(displays.enumerated()), id: \.element.id) { index, display in
@@ -80,10 +96,15 @@ struct AutomationSettingsView: View {
 
     private func chooseFile() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [UTType(filenameExtension: "lua"), UTType(filenameExtension: "js")].compactMap { $0 }
+        panel.allowedContentTypes = [UTType(filenameExtension: "lua"), UTType(filenameExtension: "js"), .json].compactMap { $0 }
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        if let imported = controller.importFile(url) { draft = imported }
+    }
+
+    private func importSettings(path: String) {
+        let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(path)
         if let imported = controller.importFile(url) { draft = imported }
     }
 

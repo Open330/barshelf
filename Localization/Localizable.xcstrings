@@ -1636,11 +1636,22 @@
       }
     },
     "Cannot start Fn-key monitoring. Check Accessibility permission for this BarShelf build; if macOS requests Input Monitoring, allow it and restart BarShelf.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "Fn 키 모니터링을 시작할 수 없습니다. 이 BarShelf 빌드의 손쉬운 사용 권한을 확인하십시오. macOS가 입력 모니터링을 요청하면 허용한 후 BarShelf를 다시 시작하십시오."
+          }
+        }
+      }
+    },
+    "Cannot start keyboard monitoring. Check Accessibility permission for this BarShelf build; if macOS requests Input Monitoring, allow it and restart BarShelf.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "키보드 모니터링을 시작할 수 없습니다. 이 BarShelf 빌드의 손쉬운 사용 권한을 확인하세요. macOS가 입력 모니터링 권한을 요청하면 허용하고 BarShelf를 재시작하세요."
           }
         }
       }
@@ -1856,6 +1867,16 @@
         }
       }
     },
+    "Choose Hammerspoon Lua, Karabiner JSON, or a JavaScript extension.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hammerspoon Lua, Karabiner JSON 또는 JavaScript 확장 파일을 선택하세요."
+          }
+        }
+      }
+    },
     "Choose a page to show": {
       "localizations": {
         "ko": {
@@ -1867,6 +1888,7 @@
       }
     },
     "Choose an init.lua navigation profile or a .js extension.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -3678,11 +3700,22 @@
       }
     },
     "Global shortcuts, Fn arrow keys, and window navigation. Quit Hammerspoon before enabling to avoid duplicate shortcuts.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "전역 단축키, Fn 화살표 키, 윈도우 탐색입니다. 단축키가 중복되지 않도록 켜기 전에 Hammerspoon을 종료하십시오."
+          }
+        }
+      }
+    },
+    "Global shortcuts, key remapping, and window navigation. Quit Hammerspoon and disable matching Karabiner rules before enabling.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "전역 단축키, 키 리매핑 및 창 탐색을 지원합니다. 활성화 전에 Hammerspoon을 종료하고 같은 Karabiner 규칙을 끄세요."
           }
         }
       }
@@ -3836,6 +3869,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "절반 너비로, 두 개가 한 행을 나눠 씁니다."
+          }
+        }
+      }
+    },
+    "Hammerspoon": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hammerspoon"
           }
         }
       }
@@ -4082,11 +4125,32 @@
       }
     },
     "Import Hammerspoon Settings": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "Hammerspoon 설정 가져오기"
+          }
+        }
+      }
+    },
+    "Import Hammerspoon navigation, Karabiner key mappings, or JavaScript. Import fills the editor; Save applies it. Unsupported behavior is reported before importing. Disable the original tool's matching rules before enabling.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hammerspoon 탐색 설정, Karabiner 키 매핑 또는 JavaScript를 가져옵니다. 가져온 내용을 저장하면 적용됩니다. 지원하지 않는 동작은 가져오기 전에 안내합니다. 활성화 전에 원래 도구의 같은 규칙을 끄세요."
+          }
+        }
+      }
+    },
+    "Import Settings": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "설정 가져오기"
           }
         }
       }
@@ -4108,6 +4172,7 @@
       }
     },
     "Imports the supported Fn / monitor / window-cycle Lua profile or a JavaScript extension. Import fills the editor; Save applies it. Unsupported Lua logic is reported instead of discarded.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -4598,6 +4663,16 @@
         }
       }
     },
+    "Karabiner-Elements": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Karabiner-Elements"
+          }
+        }
+      }
+    },
     "Keep in Dock": {
       "localizations": {
         "ko": {
@@ -4628,7 +4703,18 @@
         }
       }
     },
+    "Keyboard shortcuts and window control, imported from Hammerspoon or Karabiner.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hammerspoon 또는 Karabiner에서 가져온 단축키와 창 제어 설정입니다."
+          }
+        }
+      }
+    },
     "Keyboard shortcuts and window control, imported from Hammerspoon.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -7622,11 +7708,22 @@
       }
     },
     "Saved separately from the original file. No Hammerspoon settings are modified.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "원본 파일과 별도로 저장됩니다. Hammerspoon 설정은 수정되지 않습니다."
+          }
+        }
+      }
+    },
+    "Saved separately from the original file. Original tool settings are unchanged.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "원본 파일과 별도로 저장합니다. 원래 도구의 설정은 변경하지 않습니다."
           }
         }
       }

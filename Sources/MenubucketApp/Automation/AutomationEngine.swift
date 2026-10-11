@@ -40,6 +40,7 @@ final class AutomationEngine: AutomationRunning {
     private var watchdog: Timer?
     private var wakeObserver: NSObjectProtocol?
     private var remapState = AutomationRemapState()
+    private var keyRemapState = AutomationKeyRemapState()
     private var generation = 0
     private var active = false
     var report: ((String) -> Void)?
@@ -79,9 +80,11 @@ final class AutomationEngine: AutomationRunning {
                 InAppHotkeys.Key(keyCode: $0.combination.keyCode, modifiers: $0.combination.modifiers)
             }))
             if !script.bindings.isEmpty { try registerHotkeys() }
-            if script.remap != nil { try installTap() }
+            if script.remap != nil || !script.keyRemaps.isEmpty { try installTap() }
             active = true
-            watchdog = Timer(timeInterval: 30, repeats: true) { [weak self] _ in self?.recoverTap(resetKeys: true) }
+            // A healthy tap must retain held-key state across polling. Reset
+            // only after missed events (disabled tap or wake), or on shutdown.
+            watchdog = Timer(timeInterval: 30, repeats: true) { [weak self] _ in self?.recoverTap() }
             RunLoop.main.add(watchdog!, forMode: .common)
             wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
                 forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
@@ -162,7 +165,7 @@ final class AutomationEngine: AutomationRunning {
                 engine.remap(type: type, event: event)
                 return Unmanaged.passUnretained(event)
             }, userInfo: Unmanaged.passUnretained(self).toOpaque()) else {
-                throw AutomationFailure(String(localized: "Cannot start Fn-key monitoring. Check Accessibility permission for this BarShelf build; if macOS requests Input Monitoring, allow it and restart BarShelf."))
+                throw AutomationFailure(String(localized: "Cannot start keyboard monitoring. Check Accessibility permission for this BarShelf build; if macOS requests Input Monitoring, allow it and restart BarShelf."))
             }
         tap = newTap
         guard let runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, newTap, 0) else {
@@ -174,6 +177,16 @@ final class AutomationEngine: AutomationRunning {
     }
 
     private func remap(type: CGEventType, event: CGEvent) {
+        if !script.keyRemaps.isEmpty, type == .keyDown || type == .keyUp {
+            if let rule = keyRemapState.target(code: event.getIntegerValueField(.keyboardEventKeycode),
+                keyboard: event.getIntegerValueField(.keyboardEventKeyboardType), down: type == .keyDown,
+                flags: event.flags.rawValue, rules: script.keyRemaps) {
+                event.setIntegerValueField(.keyboardEventKeycode, value: rule.to)
+                event.keyboardSetUnicodeString(stringLength: 0, unicodeString: nil)
+                event.flags = CGEventFlags(rawValue: event.flags.rawValue & ~rule.mandatory)
+            }
+            return
+        }
         guard let config = script.remap else { return }
         if type == .flagsChanged {
             remapState.fnDown = event.flags.contains(.maskSecondaryFn)
@@ -200,9 +213,10 @@ final class AutomationEngine: AutomationRunning {
     }
 
     private func releaseHeldKeys() {
-        for code in Set(remapState.held.values) {
+        for code in Set(Array(remapState.held.values) + keyRemapState.held.values.map(\.to)) {
             CGEvent(keyboardEventSource: nil, virtualKey: CGKeyCode(code), keyDown: false)?.post(tap: .cghidEventTap)
         }
         remapState = AutomationRemapState()
+        keyRemapState = AutomationKeyRemapState()
     }
 }
