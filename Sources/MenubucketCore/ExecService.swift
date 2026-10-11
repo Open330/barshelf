@@ -267,12 +267,12 @@ public final class ExecService {
             return .failure(.launchFailed(error.localizedDescription))
         }
 
-        let deadline = DispatchTime.now() + .milliseconds(max(timeoutMs, 1))
+        let deadline = ReadDeadline(DispatchTime.now() + .milliseconds(max(timeoutMs, 1)))
         readGroup.enter()
         readQueue.async {
             defer { readGroup.leave() }
             let handle = stdoutPipe.fileHandleForReading
-            Self.drain(handle, until: deadline, timedOut: { captureState.markTimedOut() }) { chunk in
+            Self.drain(handle, until: deadline.value, timedOut: { captureState.markTimedOut() }) { chunk in
                 if captureState.appendStdout(chunk, limit: stdoutLimit) {
                     Self.terminate(process)
                     return true
@@ -286,7 +286,7 @@ public final class ExecService {
         readQueue.async {
             defer { readGroup.leave() }
             let handle = stderrPipe.fileHandleForReading
-            Self.drain(handle, until: deadline, timedOut: { captureState.markTimedOut() }) { chunk in
+            Self.drain(handle, until: deadline.value, timedOut: { captureState.markTimedOut() }) { chunk in
                 captureState.appendStderr(chunk, limit: maxStderrBytes)
                 return false
             }
@@ -303,8 +303,16 @@ public final class ExecService {
         )
 
         process.waitUntilExit()
-        readGroup.wait()
+        // Exited in time: the timer has nothing left to stop, and the readers
+        // get a moment past the deadline to drain what is already buffered.
+        // A process ending at 995 ms of 1000 was reported as timed out while
+        // its output was still being read. A descendant that keeps the pipe
+        // open is still cut off, a second later.
         timeoutItem.cancel()
+        if !captureState.snapshot().timedOut {
+            deadline.extend(to: DispatchTime.now() + .seconds(1))
+        }
+        readGroup.wait()
 
         let capture = captureState.snapshot()
 
@@ -344,10 +352,11 @@ public final class ExecService {
     /// A descendant may inherit a pipe after the launched process exits.
     /// Poll for readable bytes/EOF with the same deadline as the process,
     /// rather than blocking indefinitely in FileHandle.availableData.
-    private static func drain(_ handle: FileHandle, until deadline: DispatchTime,
+    private static func drain(_ handle: FileHandle, until currentDeadline: () -> DispatchTime,
                               timedOut: () -> Void, onChunk: (Data) -> Bool) {
         var buffer = [UInt8](repeating: 0, count: 8192)
         while true {
+            let deadline = currentDeadline()
             let now = DispatchTime.now().uptimeNanoseconds
             guard now < deadline.uptimeNanoseconds else { timedOut(); return }
             let remaining = (deadline.uptimeNanoseconds - now) / 1_000_000 + 1
@@ -492,5 +501,28 @@ public final class ExecService {
             }
         }
         return nil
+    }
+}
+
+/// The readers' deadline: the timeout, moved later once the process has
+/// exited in time so buffered output can still be read.
+private final class ReadDeadline: @unchecked Sendable {
+    private let lock = NSLock()
+    private var deadline: DispatchTime
+
+    init(_ deadline: DispatchTime) { self.deadline = deadline }
+
+    var value: () -> DispatchTime {
+        { [self] in
+            lock.lock()
+            defer { lock.unlock() }
+            return deadline
+        }
+    }
+
+    func extend(to later: DispatchTime) {
+        lock.lock()
+        if later > deadline { deadline = later }
+        lock.unlock()
     }
 }

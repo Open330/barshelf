@@ -11,30 +11,66 @@ enum KarabinerImporter {
     static func convert(_ source: String) throws -> Result {
         guard let data = source.data(using: .utf8),
               let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw AutomationFailure("Choose a Karabiner JSON configuration or rules file.")
+            throw AutomationFailure(String(localized: "Choose a Karabiner JSON configuration or rules file."))
         }
         var remaps: [[String: Any]] = []
         var profileName: String?
+        var ignoredFunctionKeys = false
         let container: [String: Any]
         if root["profiles"] != nil {
-            try allowed(root, ["profiles", "global"], at: "configuration")
+            // `global` and `machine_specific` hold app-wide preferences (menu
+            // bar icon, notifications), not key behavior.
+            try allowed(root, ["profiles", "global", "machine_specific"], at: "configuration")
             guard let profiles = root["profiles"] as? [[String: Any]], !profiles.isEmpty else {
-                throw AutomationFailure("Karabiner configuration needs at least one profile.")
+                throw AutomationFailure(String(localized: "Karabiner configuration needs at least one profile."))
             }
             let selected = profiles.filter { ($0["selected"] as? Bool) == true }
             guard selected.count == 1 || (selected.isEmpty && profiles.count == 1) else {
-                throw AutomationFailure("Select exactly one Karabiner profile before importing.")
+                throw AutomationFailure(String(localized: "Select exactly one Karabiner profile before importing."))
             }
             container = selected.first ?? profiles[0]
             profileName = container["name"] as? String
             try allowed(container, ["name", "selected", "simple_modifications", "complex_modifications",
                 "fn_function_keys", "devices", "virtual_hid_keyboard", "parameters"], at: "profile")
-            // These affect keyboard behavior and cannot be discarded during migration.
-            for key in ["fn_function_keys", "devices", "parameters"] {
-                try empty(container[key], at: "profile.\(key)")
+            // What Karabiner writes into every configuration on its own is
+            // accepted; only settings that change keys are refused.
+            // `fn_function_keys` maps F1–F12 to media keys the way macOS
+            // already does, so it is left out and said so in the summary.
+            if let functionKeys = container["fn_function_keys"] {
+                guard let entries = functionKeys as? [[String: Any]] else { throw unsupported("profile.fn_function_keys") }
+                for (index, entry) in entries.enumerated() {
+                    // Media keys (brightness, volume…) are what macOS does
+                    // anyway; F1 sent as another key is a real remap.
+                    let outputs = entry["to"] as? [[String: Any]] ?? []
+                    let mediaOnly = !outputs.isEmpty && outputs.allSatisfy { output in
+                        Set(output.keys).isSubset(of: ["consumer_key_code", "apple_vendor_keyboard_key_code",
+                                                       "apple_vendor_top_case_key_code"])
+                    }
+                    guard mediaOnly else { throw unsupported("profile.fn_function_keys[\(index)]") }
+                }
+                ignoredFunctionKeys = !entries.isEmpty
+            }
+            if let parameters = container["parameters"] {
+                guard let parameters = parameters as? [String: Any] else { throw unsupported("profile.parameters") }
+                try allowed(parameters, ["delay_milliseconds_before_open_device"], at: "profile.parameters")
+            }
+            if let devices = container["devices"] {
+                guard let devices = devices as? [[String: Any]] else { throw unsupported("profile.devices") }
+                for (index, device) in devices.enumerated() {
+                    let path = "profile.devices[\(index)]"
+                    // Per-keyboard remaps, or ignoring a keyboard, change which
+                    // keys do what; the rest is how Karabiner talks to it.
+                    try empty(device["simple_modifications"], at: path + ".simple_modifications")
+                    try empty(device["fn_function_keys"], at: path + ".fn_function_keys")
+                    if device["ignore"] as? Bool == true { throw unsupported(path + ".ignore") }
+                    if device["disable_built_in_keyboard_if_exists"] as? Bool == true {
+                        throw unsupported(path + ".disable_built_in_keyboard_if_exists")
+                    }
+                }
             }
             if let virtual = container["virtual_hid_keyboard"] as? [String: Any] {
-                try allowed(virtual, ["keyboard_type", "country_code"], at: "virtual_hid_keyboard")
+                try allowed(virtual, ["keyboard_type", "keyboard_type_v2", "country_code",
+                    "mouse_key_xy_scale", "indicate_sticky_modifier_keys_state"], at: "virtual_hid_keyboard")
             } else if container["virtual_hid_keyboard"] != nil {
                 throw unsupported("virtual_hid_keyboard")
             }
@@ -59,8 +95,9 @@ enum KarabinerImporter {
         if root["profiles"] != nil {
             if let value = container["complex_modifications"] {
                 guard let complex = value as? [String: Any] else { throw unsupported("complex_modifications") }
+                // `parameters` are the basic.* timeouts the GUI writes; they
+                // tune to_if_alone and held keys, which are not imported.
                 try allowed(complex, ["rules", "parameters"], at: "complex_modifications")
-                try empty(complex["parameters"], at: "complex_modifications.parameters")
                 guard let items = (complex["rules"] ?? [[String: Any]]()) as? [[String: Any]] else {
                     throw unsupported("complex_modifications.rules")
                 }
@@ -76,7 +113,9 @@ enum KarabinerImporter {
 
         for (ruleIndex, rule) in rules.enumerated() {
             let path = "rules[\(ruleIndex)]"
-            try allowed(rule, ["description", "manipulators"], at: path)
+            try allowed(rule, ["description", "manipulators", "enabled"], at: path)
+            // A rule switched off in Karabiner stays off.
+            if rule["enabled"] as? Bool == false { continue }
             guard let manipulators = rule["manipulators"] as? [[String: Any]], !manipulators.isEmpty else {
                 throw unsupported(path + ".manipulators")
             }
@@ -101,9 +140,16 @@ enum KarabinerImporter {
             }
         }
         // Simple and complex remaps can form a pipeline in Karabiner; the host
-        // deliberately applies one rule per physical event.
-        let sources = Set(remaps.compactMap { $0["from"] as? String })
-        guard !remaps.contains(where: { sources.contains($0["to"] as? String ?? "") }) else {
+        // deliberately applies one rule per physical event. A rule's output
+        // (a bare key) chains only into a rule that needs no modifier for it.
+        let unmodifiedSources = Set(remaps.compactMap { remap -> String? in
+            guard ((remap["mandatory"] as? [String]) ?? []).isEmpty else { return nil }
+            return remap["from"] as? String
+        })
+        guard !remaps.contains(where: { remap in
+            let target = remap["to"] as? String ?? ""
+            return unmodifiedSources.contains(target) || target == remap["from"] as? String
+        }) else {
             throw unsupported("chained or self-referencing key remaps")
         }
         _ = try AutomationKeyRemap.decode(remaps)
@@ -112,7 +158,11 @@ enum KarabinerImporter {
         let script = "// Imported from Karabiner-Elements. Original settings are unchanged.\nbarshelf.remapKeys(\(json));"
         _ = try AutomationScript(source: script)
         let profile = profileName.map { " (\($0))" } ?? ""
-        return Result(script: script, summary: "Imported \(remaps.count) key remaps from Karabiner-Elements\(profile). Rules apply to all keyboards. Disable the original Karabiner rules before enabling this extension.")
+        var summary = String(localized: "Imported \(remaps.count) key remaps from Karabiner-Elements\(profile). Rules apply to all keyboards. Disable the original Karabiner rules before enabling this extension.")
+        if ignoredFunctionKeys {
+            summary += " " + String(localized: "Function key settings were not imported; macOS handles F1–F12 itself.")
+        }
+        return Result(script: script, summary: summary)
     }
 
     private static func allowed(_ object: [String: Any], _ keys: Set<String>, at path: String) throws {
@@ -127,6 +177,6 @@ enum KarabinerImporter {
     }
 
     private static func unsupported(_ path: String) -> AutomationFailure {
-        AutomationFailure("Unsupported Karabiner behavior at \(path). Nothing was imported. Supported: global key-to-key mappings with command/control/option/shift/fn/caps_lock modifiers. Device/app conditions, modifier keys, macros and shell actions need manual migration.")
+        AutomationFailure(String(localized: "Unsupported Karabiner behavior at \(path). Nothing was imported. Supported: global key-to-key mappings with command/control/option/shift/fn/caps_lock modifiers. Device/app conditions, modifier keys, macros and shell actions need manual migration."))
     }
 }

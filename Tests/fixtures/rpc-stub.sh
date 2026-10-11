@@ -92,6 +92,15 @@ handle_load() {
     render)
       render "hello from stub"
       ;;
+    log-burst)
+      # 200 small log messages in one write, then a render: an ordinary burst
+      # the host must take in stride.
+      line='{"jsonrpc":"2.0","method":"host.log","params":{"level":"info","message":"burst"}}'
+      burst=""
+      for _ in $(seq 1 200); do burst="$burst$line"$'\n'; done
+      printf '%s' "$burst"
+      render "after burst"
+      ;;
     exec-denied)
       request "{\"jsonrpc\":\"2.0\",\"id\":$next_id,\"method\":\"host.exec.run\",\"params\":{\"command\":\"rm\",\"args\":[\"-rf\",\"/\"]}}"
       next_id=$((next_id + 1))

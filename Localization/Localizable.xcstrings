@@ -1877,6 +1877,16 @@
         }
       }
     },
+    "Choose a Karabiner JSON configuration or rules file.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Karabiner JSON 설정 파일이나 규칙 파일을 고르세요."
+          }
+        }
+      }
+    },
     "Choose a page to show": {
       "localizations": {
         "ko": {
@@ -3637,6 +3647,16 @@
         }
       }
     },
+    "Function key settings were not imported; macOS handles F1–F12 itself.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "기능 키 설정은 가져오지 않았습니다. F1–F12는 macOS가 직접 처리합니다."
+          }
+        }
+      }
+    },
     "Gallery": {
       "localizations": {
         "ko": {
@@ -4155,6 +4175,22 @@
         }
       }
     },
+    "Imported %lld key remaps from Karabiner-Elements%@. Rules apply to all keyboards. Disable the original Karabiner rules before enabling this extension.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Imported %1$lld key remaps from Karabiner-Elements%2$@. Rules apply to all keyboards. Disable the original Karabiner rules before enabling this extension."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Karabiner-Elements%2$@에서 키 매핑 %1$lld개를 가져왔습니다. 규칙은 모든 키보드에 적용됩니다. 이 확장을 켜기 전에 원래 Karabiner 규칙을 끄세요."
+          }
+        }
+      }
+    },
     "Imported %lld shortcuts and Fn mappings for keyboard types %@. Window focus uses top-to-bottom, then left-to-right order. The native host restores input monitoring after sleep.": {
       "localizations": {
         "en": {
@@ -4663,6 +4699,16 @@
         }
       }
     },
+    "Karabiner configuration needs at least one profile.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Karabiner 설정에 프로필이 하나 이상 있어야 합니다."
+          }
+        }
+      }
+    },
     "Karabiner-Elements": {
       "localizations": {
         "ko": {
@@ -4689,6 +4735,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "값이 9에서 10이 되어도 항목 너비를 유지합니다. 더 긴 값이 나오면 한 번 넓어진 뒤 그 너비를 유지합니다."
+          }
+        }
+      }
+    },
+    "Key remaps require supported from/to key names.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "키 매핑에는 지원하는 from/to 키 이름이 필요합니다."
+          }
+        }
+      }
+    },
+    "Key-remap modifiers must be unique strings.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "키 매핑의 보조 키는 겹치지 않는 문자열이어야 합니다."
           }
         }
       }
@@ -5114,6 +5180,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "이 카드를 절반 너비로"
+          }
+        }
+      }
+    },
+    "Mandatory and optional modifiers must not overlap.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "필수 보조 키와 선택 보조 키가 겹치면 안 됩니다."
           }
         }
       }
@@ -7048,6 +7124,16 @@
         }
       }
     },
+    "Register between 1 and 128 key remaps.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "키 매핑은 1개에서 128개까지 등록할 수 있습니다."
+          }
+        }
+      }
+    },
     "Regular": {
       "localizations": {
         "ko": {
@@ -7905,6 +7991,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "설정을 변경할 위젯을 선택하십시오."
+          }
+        }
+      }
+    },
+    "Select exactly one Karabiner profile before importing.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "가져오기 전에 Karabiner 프로필을 하나만 선택하세요."
           }
         }
       }
@@ -9697,6 +9793,16 @@
         }
       }
     },
+    "Unsupported Karabiner behavior at %@. Nothing was imported. Supported: global key-to-key mappings with command/control/option/shift/fn/caps_lock modifiers. Device/app conditions, modifier keys, macros and shell actions need manual migration.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@의 Karabiner 동작은 지원하지 않아 아무것도 가져오지 않았습니다. 지원: command/control/option/shift/fn/caps_lock 보조 키를 쓰는 전역 키 대 키 매핑. 기기·앱 조건, 보조 키 자체의 변경, 매크로, 셸 동작은 직접 옮겨야 합니다."
+          }
+        }
+      }
+    },
     "Unsupported Lua callback: %@. Nothing was imported.": {
       "localizations": {
         "ko": {
@@ -9729,6 +9835,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "지원되지 않는 자동화 동작: %@."
+          }
+        }
+      }
+    },
+    "Unsupported key-remap modifier: %@.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "지원하지 않는 키 매핑 보조 키: %@."
           }
         }
       }
@@ -10539,6 +10655,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "필드"
+          }
+        }
+      }
+    },
+    "fn cannot be required on %@: macOS reports that key with fn either way.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@에는 fn을 필수로 지정할 수 없습니다. macOS는 이 키를 항상 fn과 함께 보고합니다."
           }
         }
       }

@@ -91,8 +91,10 @@ public struct RuntimeSupervisorConfiguration: @unchecked Sendable {
     public var minTimerIntervalMs: Double = SchedulePolicy.minForegroundIntervalSec * 1000
     /// stdout line limit (1 MB per the contract).
     public var maxStdoutLineBytes = 1_048_576
-    /// Bound queued protocol messages when a script produces faster than the host.
-    public var maxBufferedStdoutEvents = 128
+    /// Bound the protocol messages waiting for the host, by size: a script
+    /// may print a burst of small messages (logs) at once, which a count limit
+    /// treated as runaway output and killed.
+    public var maxBufferedStdoutBytes = 8 * 1_048_576
     public var maxTimersPerWidget = 128
     /// Crash loop: `crashLoopThreshold` crashes within `crashLoopWindowSec` → disabled.
     public var crashLoopWindowSec: TimeInterval = 300
@@ -434,8 +436,9 @@ public actor RuntimeSupervisor {
         widgetId: String, instance: ScriptInstance, handle: FileHandle
     ) -> Task<Void, Never> {
         let maxLineBytes = configuration.maxStdoutLineBytes
-        let maximumEvents = max(1, configuration.maxBufferedStdoutEvents)
-        let stream = AsyncStream<Data>(bufferingPolicy: .bufferingOldest(maximumEvents)) { continuation in
+        let maximumBytes = max(1, configuration.maxBufferedStdoutBytes)
+        let queued = QueuedBytes()
+        let stream = AsyncStream<Data>(bufferingPolicy: .unbounded) { continuation in
             let buffer = LineBuffer()
             continuation.onTermination = { _ in
                 // Cancellation must detach the producer even when a
@@ -450,25 +453,27 @@ public actor RuntimeSupervisor {
                     return
                 }
                 let result = buffer.append(chunk, maxBytes: maxLineBytes)
-                if result.overflow {
-                    readHandle.readabilityHandler = nil
-                    continuation.finish()
-                    Task { [weak self] in
-                        await self?.handleLineOverflow(widgetId: widgetId, instance: instance)
-                    }
-                    return
-                }
+                // Complete lines ahead of an oversized one are delivered
+                // first: they may be the render or reply the host waits for.
                 for line in result.lines {
-                    if case .dropped = continuation.yield(line) {
+                    guard queued.add(line.count, limit: maximumBytes) else {
                         // Dropping RPC messages silently would strand SDK
                         // requests. Stop the producer and report the overflow.
                         readHandle.readabilityHandler = nil
                         continuation.finish()
                         Task { [weak self] in
                             await self?.handleLineOverflow(widgetId: widgetId, instance: instance,
-                                reason: "stdout event buffer exceeded \(maximumEvents) messages — terminating script")
+                                reason: "stdout messages waiting for the host exceeded \(maximumBytes) bytes — terminating script")
                         }
                         return
+                    }
+                    continuation.yield(line)
+                }
+                if result.overflow {
+                    readHandle.readabilityHandler = nil
+                    continuation.finish()
+                    Task { [weak self] in
+                        await self?.handleLineOverflow(widgetId: widgetId, instance: instance)
                     }
                 }
             }
@@ -477,6 +482,7 @@ public actor RuntimeSupervisor {
             for await line in stream {
                 guard let self else { break }
                 await self.handleLine(widgetId: widgetId, instance: instance, line: line)
+                queued.remove(line.count)
             }
         }
     }
@@ -1119,5 +1125,27 @@ public enum DenoRuntime {
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         try encoder.encode(map).write(to: importMapURL, options: .atomic)
         return importMapURL
+    }
+}
+
+/// Bytes of stdout messages read but not yet handled, shared by the pipe
+/// reader and the task handling them.
+private final class QueuedBytes: @unchecked Sendable {
+    private let lock = NSLock()
+    private var bytes = 0
+
+    /// False, adding nothing, when this would pass `limit`.
+    func add(_ count: Int, limit: Int) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard bytes + count <= limit else { return false }
+        bytes += count
+        return true
+    }
+
+    func remove(_ count: Int) {
+        lock.lock()
+        bytes -= count
+        lock.unlock()
     }
 }

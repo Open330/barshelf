@@ -848,7 +848,12 @@ final class WidgetRuntime: ObservableObject {
     func loadWidgets() {
         let loaded = Self.discoverWidgets(in: Self.widgetSearchDirectories)
         let seenIDs = Set(loaded.map(\.id))
-        nativeRefreshes.reload(keeping: seenIDs)
+        let previous = Dictionary(widgets.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let changedIDs = Set(loaded.filter { widget in
+            guard let before = previous[widget.id] else { return true }
+            return before.manifest != widget.manifest || before.directory != widget.directory
+        }.map(\.id))
+        nativeRefreshes.reload(keeping: seenIDs, changed: changedIDs)
         storage.retain(widgetIDs: seenIDs)
         let workflowURLs = Set(loaded.filter { $0.manifest.entry.kind == "workflow" }.compactMap {
             try? WidgetEntryResolver.resolve(directory: $0.directory, main: $0.manifest.entry.main, defaultName: "workflow.json")

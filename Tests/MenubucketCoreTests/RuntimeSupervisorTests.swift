@@ -197,9 +197,10 @@ final class RuntimeSupervisorTests: XCTestCase {
             storage: StorageService(directory: tempDir.appendingPathComponent("storage")),
             secrets: InMemorySecretStore()
         )
-        configuration.maxBufferedStdoutEvents = 1
+        // Four ~85-byte messages in one write against a 100-byte queue.
+        configuration.maxBufferedStdoutBytes = 100
         let events = RuntimeSupervisorEvents(onWidgetLog: { _, level, message in
-            if level == "error", message.contains("stdout event buffer exceeded") { reported.fulfill() }
+            if level == "error", message.contains("stdout messages waiting for the host exceeded") { reported.fulfill() }
         })
         let supervisor = RuntimeSupervisor(configuration: configuration, events: events)
         let descriptor = ScriptWidgetDescriptor(manifest: try makeManifest(), directory: tempDir)
@@ -228,6 +229,19 @@ final class RuntimeSupervisorTests: XCTestCase {
         try await supervisor.load(widget, reason: "open")
         await fulfillment(of: [capture.expectation!], timeout: 15)
         XCTAssertEqual(capture.captured, ["hello from stub"])
+        await supervisor.stopAll()
+    }
+
+    /// A burst of small messages is not runaway output: a count limit used
+    /// to kill the script over 200 log lines in one write.
+    func testABurstOfSmallMessagesDoesNotStopTheScript() async throws {
+        let capture = RenderCapture(expectation(description: "render after burst"))
+        let (supervisor, widget) = try makeSupervisor(
+            scenario: "log-burst", manifest: makeManifest(), capture: capture
+        )
+        try await supervisor.load(widget, reason: "open")
+        await fulfillment(of: [capture.expectation!], timeout: 15)
+        XCTAssertEqual(capture.captured, ["after burst"])
         await supervisor.stopAll()
     }
 

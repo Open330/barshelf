@@ -23,26 +23,36 @@ struct AutomationKeyRemap: Equatable {
         "left_arrow": 123, "right_arrow": 124, "down_arrow": 125, "up_arrow": 126
     ]) { first, _ in first }
 
+    /// Keys macOS always reports with the fn flag: arrows, Home/End,
+    /// Page Up/Down, Forward Delete, Help and the function keys. On these fn
+    /// says nothing about whether fn was held, so it is left out of matching;
+    /// otherwise `control+left_arrow` never matched (the event carries
+    /// control|fn) and a rule requiring fn fired on every plain arrow.
+    static let fnImpliedKeys: Set<Int64> = [
+        123, 124, 125, 126, 115, 119, 116, 121, 117, 114,
+        122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111, 105, 107, 113,
+    ]
+
     static func decode(_ values: [[String: Any]]) throws -> [Self] {
         guard !values.isEmpty, values.count <= 128 else {
-            throw AutomationFailure("Register between 1 and 128 key remaps.")
+            throw AutomationFailure(String(localized: "Register between 1 and 128 key remaps."))
         }
         return try values.map { value in
             guard Set(value.keys).isSubset(of: ["from", "to", "mandatory", "optional"]),
                   let source = value["from"] as? String, let from = keys[source],
                   let destination = value["to"] as? String, let to = keys[destination] else {
-                throw AutomationFailure("Key remaps require supported from/to key names.")
+                throw AutomationFailure(String(localized: "Key remaps require supported from/to key names."))
             }
             func flags(_ name: String) throws -> (UInt64, Bool) {
                 guard let names = (value[name] ?? [String]()) as? [String],
                       Set(names).count == names.count else {
-                    throw AutomationFailure("Key-remap modifiers must be unique strings.")
+                    throw AutomationFailure(String(localized: "Key-remap modifiers must be unique strings."))
                 }
                 if names == ["any"], name == "optional" { return (0, true) }
                 var flags: UInt64 = 0
                 for name in names {
                     guard let flag = modifierFlags[name] else {
-                        throw AutomationFailure("Unsupported key-remap modifier: \(name).")
+                        throw AutomationFailure(String(localized: "Unsupported key-remap modifier: \(name)."))
                     }
                     flags |= flag.rawValue
                 }
@@ -51,7 +61,10 @@ struct AutomationKeyRemap: Equatable {
             let mandatory = try flags("mandatory")
             let optional = try flags("optional")
             guard mandatory.0 & optional.0 == 0 else {
-                throw AutomationFailure("Mandatory and optional modifiers must not overlap.")
+                throw AutomationFailure(String(localized: "Mandatory and optional modifiers must not overlap."))
+            }
+            if fnImpliedKeys.contains(from), mandatory.0 & CGEventFlags.maskSecondaryFn.rawValue != 0 {
+                throw AutomationFailure(String(localized: "fn cannot be required on \(source): macOS reports that key with fn either way."))
             }
             return Self(from: from, to: to, mandatory: mandatory.0,
                         optional: optional.0, anyOptional: optional.1)
@@ -59,7 +72,8 @@ struct AutomationKeyRemap: Equatable {
     }
 
     func matches(code: Int64, flags: UInt64) -> Bool {
-        let modifiers = flags & Self.modifierMask
+        var modifiers = flags & Self.modifierMask
+        if Self.fnImpliedKeys.contains(code) { modifiers &= ~CGEventFlags.maskSecondaryFn.rawValue }
         return code == from && modifiers & mandatory == mandatory &&
             (anyOptional || modifiers & ~(mandatory | optional) == 0)
     }

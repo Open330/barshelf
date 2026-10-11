@@ -67,7 +67,8 @@ final class KarabinerImporterTests: XCTestCase {
             fnRule.replacingOccurrences(of: "\"to\":[{\"key_code\":\"up_arrow\"}]", with: "\"to\":[{\"shell_command\":\"echo dangerous\"}]"),
             fnRule.replacingOccurrences(of: "\"type\":\"basic\"", with: "\"type\":\"basic\",\"to_if_alone\":[{\"key_code\":\"escape\"}]"),
             fnRule.replacingOccurrences(of: "\"key_code\":\"up_arrow\"", with: "\"key_code\":\"up_arrow\",\"repeat\":false"),
-            #"{"profiles":[{"selected":true,"devices":[{"identifiers":{"is_keyboard":true}}]}]}"#,
+            // Karabiner leaves this keyboard alone, so remapping it would change it.
+            #"{"profiles":[{"selected":true,"devices":[{"identifiers":{"is_keyboard":true},"ignore":true}]}]}"#,
             #"{"profiles":[{"selected":true,"fn_function_keys":[{"from":{"key_code":"f1"},"to":[{"key_code":"f2"}]}]}]}"#,
             #"{"profiles":[{"selected":true},{"selected":true}]}"#,
             #"{"rules":[]}"#,
@@ -103,5 +104,56 @@ final class KarabinerImporterTests: XCTestCase {
         XCTAssertNil(controller.importSummary)
         XCTAssertEqual(controller.source, saved)
         XCTAssertEqual(AutomationController(fileURL: directory.appendingPathComponent("automation.json")).source, saved)
+    }
+
+    /// What current Karabiner-Elements writes into karabiner.json by itself
+    /// must not block the import.
+    func testATypicalCurrentConfigurationImports() throws {
+        let source = #"""
+        {"global":{"show_in_menu_bar":true},"machine_specific":{"krbn-1":{"enable_multitouch_extension":false}},
+         "profiles":[{"name":"Default","selected":true,
+          "parameters":{"delay_milliseconds_before_open_device":1000},
+          "virtual_hid_keyboard":{"keyboard_type_v2":"ansi","country_code":0},
+          "fn_function_keys":[{"from":{"key_code":"f1"},"to":[{"consumer_key_code":"display_brightness_decrement"}]}],
+          "devices":[{"identifiers":{"is_keyboard":true,"product_id":834,"vendor_id":1452},"manipulate_caps_lock_led":true}],
+          "complex_modifications":{"parameters":{"basic.to_if_alone_timeout_milliseconds":1000},"rules":[
+            {"description":"off","enabled":false,"manipulators":[{"type":"basic","from":{"key_code":"a"},"to":[{"key_code":"b"}]}]},
+            {"description":"Home","manipulators":[{"type":"basic",
+              "from":{"key_code":"left_arrow","modifiers":{"mandatory":["control"]}},"to":[{"key_code":"home"}]}]}
+          ]}}]}
+        """#
+        let result = try KarabinerImporter.convert(source)
+        let script = try AutomationScript(source: result.script)
+        XCTAssertEqual(script.keyRemaps.count, 1, "the disabled rule stays off")
+        XCTAssertTrue(result.summary.contains("F1"), "says function keys were left out")
+    }
+
+    /// macOS reports arrows with fn set; control+left_arrow must still match.
+    func testArrowRulesIgnoreTheFnFlagMacOSAlwaysSets() throws {
+        let rule = try XCTUnwrap(AutomationKeyRemap.decode([
+            ["from": "left_arrow", "to": "home", "mandatory": ["control"]],
+        ]).first)
+        let flags = CGEventFlags.maskControl.rawValue | CGEventFlags.maskSecondaryFn.rawValue
+        XCTAssertTrue(rule.matches(code: 123, flags: flags))
+        XCTAssertFalse(rule.matches(code: 123, flags: CGEventFlags.maskSecondaryFn.rawValue))
+        XCTAssertThrowsError(try AutomationKeyRemap.decode([
+            ["from": "left_arrow", "to": "home", "mandatory": ["fn"]],
+        ]), "fn cannot be told apart on an arrow")
+    }
+
+    /// Only a real chain is refused: an output that some rule would take
+    /// without any modifier.
+    func testOnlyRealChainsAreRefused() throws {
+        func rules(_ manipulators: String) -> String {
+            #"{"rules":[{"description":"x","manipulators":["# + manipulators + "]}]}"
+        }
+        XCTAssertNoThrow(try KarabinerImporter.convert(rules(#"""
+        {"type":"basic","from":{"key_code":"h","modifiers":{"mandatory":["control"]}},"to":[{"key_code":"delete_or_backspace"}]},
+        {"type":"basic","from":{"key_code":"delete_or_backspace","modifiers":{"mandatory":["fn"]}},"to":[{"key_code":"delete_forward"}]}
+        """#)))
+        XCTAssertThrowsError(try KarabinerImporter.convert(rules(#"""
+        {"type":"basic","from":{"key_code":"a"},"to":[{"key_code":"b"}]},
+        {"type":"basic","from":{"key_code":"b"},"to":[{"key_code":"c"}]}
+        """#)))
     }
 }

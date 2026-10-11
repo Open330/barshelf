@@ -24,4 +24,24 @@ final class MetricSampleCacheTests: XCTestCase {
         }
         XCTAssertEqual(reads, 1)
     }
+
+    /// A slow key does not hold up another: before, one lock covered every
+    /// collection, so a hung volume stalled every disk sample.
+    func testASlowKeyDoesNotBlockAnotherKey() {
+        let cache = MetricSampleCache<Int>()
+        let slowStarted = DispatchSemaphore(value: 0)
+        let releaseSlow = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async {
+            _ = cache.sample(key: "/Volumes/hung") {
+                slowStarted.signal()
+                releaseSlow.wait()
+                return 1
+            }
+        }
+        slowStarted.wait()
+        let started = Date()
+        XCTAssertEqual(cache.sample(key: "/") { 2 }, 2)
+        XCTAssertLessThan(Date().timeIntervalSince(started), 0.5)
+        releaseSlow.signal()
+    }
 }
