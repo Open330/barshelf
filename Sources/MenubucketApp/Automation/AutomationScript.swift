@@ -22,6 +22,7 @@ final class AutomationScript {
     private let context: JSContext
     private(set) var bindings: [Binding] = []
     private(set) var remap: Remap?
+    private(set) var keyRemaps: [AutomationKeyRemap] = []
     private var invoking = false
     var command: ((String, JSValue) throws -> Void)?
     var report: ((String) -> Void)?
@@ -82,7 +83,16 @@ final class AutomationScript {
             }
             remap = Remap(keyboardTypes: Set(types.map(\.int64Value)), keys: keys)
         }
-        guard !bindings.isEmpty || remap != nil else {
+        if let value = context.objectForKeyedSubscript("__keyRemaps"), !value.isNull {
+            guard let rules = value.toArray() as? [[String: Any]] else {
+                throw AutomationFailure("Key remaps must be an array of rule objects.")
+            }
+            keyRemaps = try AutomationKeyRemap.decode(rules)
+        }
+        guard remap == nil || keyRemaps.isEmpty else {
+            throw AutomationFailure("Use remapFn or remapKeys in one extension, not both.")
+        }
+        guard !bindings.isEmpty || remap != nil || !keyRemaps.isEmpty else {
             throw AutomationFailure(String(localized: "The script did not register any shortcuts or Fn mappings."))
         }
     }
@@ -117,6 +127,7 @@ final class AutomationScript {
     "use strict";
     var __bindings = [];
     var __remap = null;
+    var __keyRemaps = null;
     const barshelf = Object.freeze({
       bind(modifiers, key, run) {
         if (!Array.isArray(modifiers) || !modifiers.every(x => typeof x === 'string') ||
@@ -132,6 +143,11 @@ final class AutomationScript {
             !options.keys || typeof options.keys !== 'object' || Array.isArray(options.keys))
           throw new Error('remapFn expects keyboardTypes (integer array) and keys (object)');
         __remap = options;
+      },
+      remapKeys(rules) {
+        if (__keyRemaps) throw new Error('Declare key remaps once');
+        if (!Array.isArray(rules)) throw new Error('remapKeys expects an array');
+        __keyRemaps = rules;
       },
       moveMouseToScreen(index) { __command('mouse', index); },
       moveWindowToScreen(index) { __command('window', index); },

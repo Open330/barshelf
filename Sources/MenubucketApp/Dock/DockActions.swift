@@ -129,25 +129,19 @@ final class RunningApps: ObservableObject {
 
 /// What clicking, dropping on, and right-clicking a dock tile does.
 enum DockActions {
-    // Icons and names, once per path. The dock's body runs on every hover
+    // Icons and names, once per path for a minute (so an updated app's icon
+    // shows up), at most 256 paths. The dock's body runs on every hover
     // change while magnifying, and asking LaunchServices for every tile's
     // icon each time stuttered the animation.
-    private static let iconCache = NSCache<NSString, NSImage>()
-    private static let nameCache = NSCache<NSString, NSString>()
+    private static let filePresentations = DockFilePresentationCache()
 
     static func fileIcon(at path: String) -> NSImage {
-        if let cached = iconCache.object(forKey: path as NSString) { return cached }
-        let icon = NSWorkspace.shared.icon(forFile: path)
-        iconCache.setObject(icon, forKey: path as NSString)
-        return icon
+        filePresentations.presentation(at: path).icon ?? NSWorkspace.shared.icon(forFile: path)
     }
 
     static func fileDisplayName(at path: String) -> String {
-        if let cached = nameCache.object(forKey: path as NSString) { return cached as String }
-        let name = FileManager.default.displayName(atPath: path)
+        filePresentations.presentation(at: path).name
             .replacingOccurrences(of: ".app", with: "", options: [.anchored, .backwards])
-        nameCache.setObject(name as NSString, forKey: path as NSString)
-        return name
     }
 
     static var trashURL: URL {

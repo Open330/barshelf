@@ -23,6 +23,9 @@
 # '"method":"widget.load"' etc. is deterministic.
 
 scenario="${1:-render}"
+if [ "$scenario" = "stubborn" ]; then
+  trap '' TERM
+fi
 next_id=1
 load_generation=""
 load_error=""
@@ -61,8 +64,42 @@ fi
 
 handle_load() {
   case "$scenario" in
+    stubborn)
+      render "$$"
+      ;;
+    timer-quota)
+      request '{"jsonrpc":"2.0","id":1,"method":"host.timer.every","params":{"id":"one","intervalMs":60000}}'
+      request '{"jsonrpc":"2.0","id":2,"method":"host.timer.every","params":{"id":"one","intervalMs":60000}}'
+      case "$resp" in *'"error"'*) render "replacement rejected"; return ;; esac
+      request '{"jsonrpc":"2.0","id":2,"method":"host.timer.every","params":{"id":"two","intervalMs":60000}}'
+      case "$resp" in
+        *'"code":-32004'*)
+          request '{"jsonrpc":"2.0","id":3,"method":"host.timer.clear","params":{"id":"one"}}'
+          request '{"jsonrpc":"2.0","id":4,"method":"host.timer.every","params":{"id":"two","intervalMs":60000}}'
+          case "$resp" in *'"error"'*) render "slot not released" ;; *) render "timer-quota" ;; esac
+          ;;
+        *) render "unexpected: $resp" ;;
+      esac
+      ;;
+    stdout-burst)
+      # One write supplies more messages than a deliberately tiny host queue.
+      printf '%s\n' '{"jsonrpc":"2.0","method":"host.log","params":{"level":"info","message":"burst"}}' \
+        '{"jsonrpc":"2.0","method":"host.log","params":{"level":"info","message":"burst"}}' \
+        '{"jsonrpc":"2.0","method":"host.log","params":{"level":"info","message":"burst"}}' \
+        '{"jsonrpc":"2.0","method":"host.log","params":{"level":"info","message":"burst"}}'
+      sleep 5
+      ;;
     render)
       render "hello from stub"
+      ;;
+    log-burst)
+      # 200 small log messages in one write, then a render: an ordinary burst
+      # the host must take in stride.
+      line='{"jsonrpc":"2.0","method":"host.log","params":{"level":"info","message":"burst"}}'
+      burst=""
+      for _ in $(seq 1 200); do burst="$burst$line"$'\n'; done
+      printf '%s' "$burst"
+      render "after burst"
       ;;
     exec-denied)
       request "{\"jsonrpc\":\"2.0\",\"id\":$next_id,\"method\":\"host.exec.run\",\"params\":{\"command\":\"rm\",\"args\":[\"-rf\",\"/\"]}}"
@@ -140,3 +177,8 @@ while IFS= read -r line; do
     *'"method":"widget.action"'*) render "action-received" ;;
   esac
 done
+
+# Keep the same PID alive after stdin EOF, with SIGTERM still ignored.
+if [ "$scenario" = "stubborn" ]; then
+  exec /bin/sleep 30
+fi

@@ -83,10 +83,10 @@ public enum SystemMetrics {
             object["cpu"] = cpuSampler.sample(detail: detail).json
         }
         if metrics.contains(.memory) {
-            object["memory"] = memory().json
+            object["memory"] = memorySamples.sample { memory() }.json
         }
         if metrics.contains(.disk) {
-            var diskObject = disk(mountPoint: mountPoint)?.json ?? .null
+            var diskObject = diskSamples.sample(key: mountPoint) { disk(mountPoint: mountPoint) }?.json ?? .null
             // Throughput only when asked: it is a registry walk per sample.
             if diskIO, case var .object(fields) = diskObject {
                 let rates = DiskIOMetrics.Sampler.shared.sample()
@@ -110,6 +110,8 @@ public enum SystemMetrics {
     }
 
     static let cpuSampler = CPUSampler()
+    private static let memorySamples = MetricSampleCache<MemoryUsage>()
+    private static let diskSamples = MetricSampleCache<DiskUsage?>()
 
     // MARK: - CPU
 

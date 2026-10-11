@@ -14,7 +14,9 @@ private final class RemoteImageURLProtocol: URLProtocol {
     nonisolated(unsafe) static var activeRequests = 0
     nonisolated(unsafe) static var peakActiveRequests = 0
     nonisolated(unsafe) static var stoppedRequests = 0
+    nonisolated(unsafe) static var stalledPath: String?
     private static let stateLock = NSLock()
+    private var finished = false
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -29,25 +31,38 @@ private final class RemoteImageURLProtocol: URLProtocol {
         let body = Self.body
         let delay = Self.delay
         let advertisedContentLength = Self.advertisedContentLength ?? body.count
+        let stalled = url.path == Self.stalledPath
         Self.stateLock.unlock()
         DispatchQueue.global().asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self else { return }
+            Self.stateLock.lock()
+            guard !self.finished else { Self.stateLock.unlock(); return }
+            if !stalled {
+                self.finished = true
+                Self.activeRequests -= 1
+            }
+            Self.stateLock.unlock()
             let response = HTTPURLResponse(
                 url: url, statusCode: statusCode, httpVersion: "HTTP/1.1",
-                headerFields: ["Content-Length": "\(advertisedContentLength)"]
+                headerFields: ["Content-Length": "\(stalled ? 128 * 1024 : advertisedContentLength)"]
             )!
             self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            if stalled {
+                self.client?.urlProtocol(self, didLoad: Data(repeating: 0, count: 8192))
+                return
+            }
             self.client?.urlProtocol(self, didLoad: body)
             self.client?.urlProtocolDidFinishLoading(self)
-            Self.stateLock.lock()
-            Self.activeRequests -= 1
-            Self.stateLock.unlock()
         }
     }
 
     override func stopLoading() {
         Self.stateLock.lock()
         Self.stoppedRequests += 1
+        if !finished {
+            finished = true
+            Self.activeRequests -= 1
+        }
         Self.stateLock.unlock()
     }
 
@@ -61,11 +76,67 @@ private final class RemoteImageURLProtocol: URLProtocol {
         activeRequests = 0
         peakActiveRequests = 0
         stoppedRequests = 0
+        stalledPath = nil
         stateLock.unlock()
     }
 }
 
 final class RemoteImageRetryTests: XCTestCase {
+    func testStalledDownloadReleasesSlotAndAllowsNextImageToLoad() throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        RemoteImageURLProtocol.reset(body: rasterData())
+        RemoteImageURLProtocol.stalledPath = "/stalled.png"
+        let service = RemoteImageService(diskDirectory: directory,
+            sessionConfiguration: protocolConfiguration(), maximumConcurrentDownloads: 1,
+            // The healthy image is held to the same deadline. 0.15 s cut it off
+            // too on a loaded CI runner; a second still proves the stall ends.
+            downloadTimeout: 1)
+        let stalled = expectation(description: "absolute deadline cancels stalled body")
+        let next = expectation(description: "queued image gets released slot")
+        service.image(forURL: "https://images.example.test/stalled.png") { image in
+            XCTAssertNil(image)
+            stalled.fulfill()
+        }
+        service.image(forURL: "https://images.example.test/next.png") { image in
+            XCTAssertNotNil(image)
+            next.fulfill()
+        }
+        wait(for: [stalled, next], timeout: 6)
+        XCTAssertEqual(RemoteImageURLProtocol.requests.count, 2)
+        // The loader hears of the cancel on its own thread, after the
+        // completion has already run.
+        waitUntil { RemoteImageURLProtocol.activeRequests == 0 && RemoteImageURLProtocol.stoppedRequests > 0 }
+        XCTAssertEqual(RemoteImageURLProtocol.activeRequests, 0)
+        XCTAssertGreaterThan(RemoteImageURLProtocol.stoppedRequests, 0)
+    }
+
+    func testHTTPFailureIsCancelledWithoutWaitingForItsStalledBody() throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        RemoteImageURLProtocol.reset(body: rasterData())
+        RemoteImageURLProtocol.statusCode = 503
+        RemoteImageURLProtocol.stalledPath = "/unavailable.png"
+        let service = RemoteImageService(diskDirectory: directory, sessionConfiguration: protocolConfiguration())
+        let failed = expectation(description: "reject status before downloading error body")
+        service.image(forURL: "https://images.example.test/unavailable.png") { image in
+            XCTAssertNil(image)
+            failed.fulfill()
+        }
+        wait(for: [failed], timeout: 1)
+        waitUntil { RemoteImageURLProtocol.stoppedRequests > 0 }
+        XCTAssertGreaterThan(RemoteImageURLProtocol.stoppedRequests, 0)
+    }
+
+    /// Polls until `condition` holds or `timeout` passes; the assertion that
+    /// follows reports a timeout.
+    private func waitUntil(timeout: TimeInterval = 2, _ condition: () -> Bool) {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !condition(), Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.01))
+        }
+    }
+
     private func temporaryDirectory() throws -> URL {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

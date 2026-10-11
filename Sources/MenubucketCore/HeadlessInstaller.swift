@@ -500,6 +500,7 @@ public enum HeadlessInstaller {
         let (bytes, response) = try await URLSession.shared.bytes(
             for: request, delegate: redirectGuard
         )
+        defer { bytes.task.cancel() }
         guard let http = response as? HTTPURLResponse else {
             throw HeadlessInstallError.notHTTP(url)
         }

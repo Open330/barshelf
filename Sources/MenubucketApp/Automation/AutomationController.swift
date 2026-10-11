@@ -114,20 +114,10 @@ final class AutomationController: ObservableObject {
                 throw AutomationFailure(String(localized: "Extension files must be smaller than 256 KB."))
             }
             let contents = try String(contentsOf: url, encoding: .utf8)
-            let imported: String
-            let summary: String
-            if url.pathExtension.lowercased() == "lua" {
-                let result = try HammerspoonImporter.convert(contents)
-                imported = result.script
-                summary = result.summary
-            } else if url.pathExtension.lowercased() == "js" {
-                _ = try AutomationScript(source: contents)
-                imported = contents
-                summary = String(localized: "JavaScript loaded into the editor. Save to apply it.")
-            } else { throw AutomationFailure(String(localized: "Choose an init.lua navigation profile or a .js extension.")) }
-            importSummary = summary
+            let result = try AutomationImporter.convert(contents, fileExtension: url.pathExtension)
+            importSummary = result.summary
             message = nil
-            return imported
+            return result.script
         } catch {
             message = error.localizedDescription
             return nil

@@ -1,5 +1,6 @@
 import AppKit
 import CryptoKit
+import MenubucketCore
 import QuickLookThumbnailing
 
 /// File thumbnails for `fileThumbnail` image nodes — file-stack's layered
@@ -19,6 +20,10 @@ final class ThumbnailService: @unchecked Sendable {
     static let maximumConcurrentGenerations = 4
     static let maximumQueuedGenerations = 128
     static let maximumCallbacksPerGeneration = 256
+    static let generationTimeout: TimeInterval = 15
+    static let failureRetryDelay: TimeInterval = 15
+    static let maximumFailureEntries = 512
+    typealias Generator = (String, CGFloat, @escaping (NSImage?) -> Void) -> (() -> Void)
 
     private let cache = NSCache<NSString, NSImage>()
     private let diskDirectory: URL
@@ -28,11 +33,28 @@ final class ThumbnailService: @unchecked Sendable {
     private var pendingRequests: [(key: String, path: String, pointSize: CGFloat)] = []
     private var activeGenerations = 0
     private var generationStartScheduled = false
+    private var failures: [String: TimeInterval] = [:]
+    private let now: () -> TimeInterval
+    private let generator: Generator
+    private let generationTimeout: TimeInterval
+    private struct Generation {
+        let id: UUID
+        let deadline: DispatchSourceTimer
+        var cancel: (() -> Void)?
+    }
+    /// Owned by the serial queue. IDs reject late callbacks after cancellation.
+    private var generations: [String: Generation] = [:]
     /// Writes are often bursty while a grid appears. Coalesce maintenance so
     /// long-running sessions are bounded without scanning the directory per tile.
     private var pruneScheduled = false
 
-    init(diskDirectory: URL? = nil) {
+    init(diskDirectory: URL? = nil, now: @escaping () -> TimeInterval = SleepAwareClock.now,
+         generationTimeout: TimeInterval = ThumbnailService.generationTimeout,
+         generator: Generator? = nil) {
+        self.now = now
+        self.generator = generator ?? Self.generate
+        self.generationTimeout = generationTimeout.isFinite
+            ? min(Self.generationTimeout, max(0.001, generationTimeout)) : Self.generationTimeout
         cache.countLimit = Self.memoryCountLimit
         cache.totalCostLimit = Self.memoryCostLimitBytes
         self.diskDirectory = diskDirectory ?? FileManager.default
@@ -42,8 +64,15 @@ final class ThumbnailService: @unchecked Sendable {
         queue.async { [weak self] in self?.pruneDiskCache() }
     }
 
+    deinit {
+        for generation in generations.values {
+            generation.deadline.cancel()
+            generation.cancel?()
+        }
+    }
+
     func icon(forPath path: String) -> NSImage {
-        NSWorkspace.shared.icon(forFile: path)
+        DockActions.fileIcon(at: path)
     }
 
     /// Completion always lands on the main queue. Returns the cached image
@@ -62,6 +91,14 @@ final class ThumbnailService: @unchecked Sendable {
         }
 
         lock.lock()
+        if let retryAt = failures[key] {
+            if now() < retryAt {
+                lock.unlock()
+                DispatchQueue.main.async { completion(nil) }
+                return nil
+            }
+            failures.removeValue(forKey: key)
+        }
         if var callbacks = inFlight[key] {
             if callbacks.count < Self.maximumCallbacksPerGeneration {
                 callbacks.append(completion)
@@ -146,16 +183,33 @@ final class ThumbnailService: @unchecked Sendable {
             completeGeneration(key: request.key, image: image)
             return
         }
-        generate(path: request.path, pointSize: request.pointSize) { [weak self] image in
+        let id = UUID()
+        let deadline = DispatchSource.makeTimerSource(queue: queue)
+        deadline.schedule(deadline: .now() + generationTimeout)
+        deadline.setEventHandler { [weak self] in
+            self?.finishGeneration(key: request.key, id: id, image: nil, timedOut: true)
+        }
+        generations[request.key] = Generation(id: id, deadline: deadline)
+        deadline.resume()
+        let cancel = generator(request.path, request.pointSize) { [weak self] image in
             guard let self else { return }
-            self.queue.async {
-                if let image {
-                    self.saveToDisk(key: request.key, image: image)
-                    self.scheduleDiskPrune()
-                }
-                self.completeGeneration(key: request.key, image: image)
+            self.queue.async { [weak self] in
+                self?.finishGeneration(key: request.key, id: id, image: image, timedOut: false)
             }
         }
+        generations[request.key]?.cancel = cancel
+    }
+
+    private func finishGeneration(key: String, id: UUID, image: NSImage?, timedOut: Bool) {
+        guard let generation = generations[key], generation.id == id else { return }
+        generations.removeValue(forKey: key)
+        generation.deadline.cancel()
+        if timedOut { generation.cancel?() }
+        if let image {
+            saveToDisk(key: key, image: image)
+            scheduleDiskPrune()
+        }
+        completeGeneration(key: key, image: image)
     }
 
     /// Runs only on `queue` after disk lookup or Quick Look generation.
@@ -164,6 +218,15 @@ final class ThumbnailService: @unchecked Sendable {
             cache.setObject(image, forKey: key as NSString, cost: Self.cacheCost(of: image))
         }
         lock.lock()
+        if image == nil {
+            if failures[key] == nil, failures.count >= Self.maximumFailureEntries,
+               let oldest = failures.min(by: { $0.value < $1.value })?.key {
+                failures.removeValue(forKey: oldest)
+            }
+            failures[key] = now() + Self.failureRetryDelay
+        } else {
+            failures.removeValue(forKey: key)
+        }
         let callbacks = inFlight.removeValue(forKey: key) ?? []
         lock.unlock()
         DispatchQueue.main.async {
@@ -175,7 +238,7 @@ final class ThumbnailService: @unchecked Sendable {
         schedulePendingGenerations()
     }
 
-    private func generate(path: String, pointSize: CGFloat, completion: @escaping (NSImage?) -> Void) {
+    private static func generate(path: String, pointSize: CGFloat, completion: @escaping (NSImage?) -> Void) -> (() -> Void) {
         let boundedPointSize = Self.boundedPointSize(pointSize)
         let request = QLThumbnailGenerator.Request(
             fileAt: URL(fileURLWithPath: path),
@@ -188,6 +251,7 @@ final class ThumbnailService: @unchecked Sendable {
                 NSImage(cgImage: rep.cgImage, size: CGSize(width: boundedPointSize, height: boundedPointSize))
             })
         }
+        return { QLThumbnailGenerator.shared.cancel(request) }
     }
 
     private func diskURL(key: String) -> URL {

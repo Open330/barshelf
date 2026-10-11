@@ -125,7 +125,7 @@ struct HubCreateView: View {
 
     var body: some View {
         WidgetBuilderView(model: model)
-            .onAppear {
+            .onAppear { [weak runtime] in
                 model.onCreated = { [weak runtime] in runtime?.loadWidgets() }
                 model.onClose = { onFinished() }
             }

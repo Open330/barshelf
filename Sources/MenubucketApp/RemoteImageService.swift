@@ -30,6 +30,7 @@ final class RemoteImageService: @unchecked Sendable {
     private let now: () -> Date
     private let sessionConfiguration: URLSessionConfiguration
     private let maximumConcurrentDownloads: Int
+    private let downloadTimeout: TimeInterval
     private var inFlight: [String: [(NSImage?) -> Void]] = [:]
     private var pendingKeys: [String] = []
     private var activeDownloads = 0
@@ -47,6 +48,7 @@ final class RemoteImageService: @unchecked Sendable {
         var response: HTTPURLResponse?
         var exceededLimit = false
         var session: URLSession?
+        var deadline: DispatchSourceTimer?
         init(origin: URL, limit: Int, completed: @escaping (Data?, HTTPURLResponse?, Error?) -> Void) {
             self.origin = origin
             self.limit = limit
@@ -57,6 +59,10 @@ final class RemoteImageService: @unchecked Sendable {
             completionHandler: @escaping (URLSession.ResponseDisposition) -> Void
         ) {
             self.response = response as? HTTPURLResponse
+            guard self.response?.statusCode == 200 else {
+                completionHandler(.cancel)
+                return
+            }
             if !RemoteImageService.responseFits(
                 limit: limit, expectedContentLength: response.expectedContentLength)
             {
@@ -91,6 +97,8 @@ final class RemoteImageService: @unchecked Sendable {
             completionHandler(request)
         }
         func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+            deadline?.cancel()
+            deadline = nil
             completed(exceededLimit ? nil : data, response, error)
             session.finishTasksAndInvalidate()
             self.session = nil
@@ -101,13 +109,16 @@ final class RemoteImageService: @unchecked Sendable {
         diskDirectory: URL? = nil,
         now: @escaping () -> Date = Date.init,
         sessionConfiguration: URLSessionConfiguration? = nil,
-        maximumConcurrentDownloads: Int = 6
+        maximumConcurrentDownloads: Int = 6,
+        downloadTimeout: TimeInterval = RemoteImageService.timeoutSec
     ) {
         cache.countLimit = Self.memoryCountLimit
         cache.totalCostLimit = Self.memoryCostLimitBytes
         self.now = now
         self.sessionConfiguration = (sessionConfiguration?.copy() as? URLSessionConfiguration) ?? .ephemeral
         self.maximumConcurrentDownloads = max(1, maximumConcurrentDownloads)
+        self.downloadTimeout = downloadTimeout.isFinite
+            ? min(Self.timeoutSec, max(0.001, downloadTimeout)) : Self.timeoutSec
         let resolvedDirectory =
             diskDirectory
             ?? FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent(
@@ -194,7 +205,7 @@ final class RemoteImageService: @unchecked Sendable {
 
     private func load(key: String) {
         let diskURL = diskFile(for: key)
-        if let data = try? Data(contentsOf: diskURL),
+        if let data = readDiskImage(at: diskURL),
             !data.isEmpty,
             data.count <= Self.maxResponseBytes,
             Self.isRasterImage(data),
@@ -211,7 +222,7 @@ final class RemoteImageService: @unchecked Sendable {
         }
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        request.timeoutInterval = Self.timeoutSec
+        request.timeoutInterval = downloadTimeout
         let download = Download(origin: url, limit: Self.maxResponseBytes) {
             [weak self] data, response, error in
             guard let self else { return }
@@ -232,7 +243,22 @@ final class RemoteImageService: @unchecked Sendable {
         }
         let session = URLSession(configuration: sessionConfiguration, delegate: download, delegateQueue: nil)
         download.session = session
-        session.dataTask(with: request).resume()
+        let task = session.dataTask(with: request)
+        // Request timeout is an inactivity limit. An absolute deadline also
+        // releases a slot when a server keeps trickling bytes indefinitely.
+        let deadline = DispatchSource.makeTimerSource(queue: queue)
+        deadline.schedule(deadline: .now() + downloadTimeout)
+        deadline.setEventHandler { [weak task] in task?.cancel() }
+        download.deadline = deadline
+        deadline.resume()
+        task.resume()
+    }
+
+    private func readDiskImage(at url: URL) -> Data? {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+        // Bound the read itself, including a file replaced after a size check.
+        return try? handle.read(upToCount: Self.maxResponseBytes + 1)
     }
 
     /// Runs only on `queue`, after a disk or network result has been resolved.

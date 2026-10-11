@@ -59,16 +59,18 @@ final class AutomationWindows {
     }
 
     func moveMouse(to number: Int) throws {
-        guard let display = Self.displays[safe: number - 1] else { return }
+        let displays = Self.displays
+        guard let display = displays[safe: number - 1] else { return }
         warp(to: display.frame)
-        if let window = visibleWindows().first(where: { screen(of: $0)?.id == display.id && !$0.title.isEmpty }) {
+        if let window = visibleWindows().first(where: { screen(of: $0, displays: displays)?.id == display.id && !$0.title.isEmpty }) {
             try focus(window)
         }
     }
 
     func moveWindow(to number: Int) throws {
-        guard let target = Self.displays[safe: number - 1], let window = focusedWindow(),
-              let source = screen(of: window) else { return }
+        let displays = Self.displays
+        guard let target = displays[safe: number - 1], let window = focusedWindow(),
+              let source = screen(of: window, displays: displays) else { return }
         if attribute(window.element, "AXFullScreen") as? Bool == true {
             throw AutomationFailure(String(localized: "Exit full screen before moving this window."))
         }
@@ -84,8 +86,9 @@ final class AutomationWindows {
     }
 
     func rotate(forward: Bool) throws {
-        guard let current = focusedWindow(), let display = screen(of: current) else { return }
-        let windows = visibleWindows().filter { screen(of: $0)?.id == display.id && !$0.title.isEmpty }
+        let displays = Self.displays
+        guard let current = focusedWindow(), let display = screen(of: current, displays: displays) else { return }
+        let windows = visibleWindows().filter { screen(of: $0, displays: displays)?.id == display.id && !$0.title.isEmpty }
             .sorted {
                 if $0.frame.minY != $1.frame.minY { return $0.frame.minY < $1.frame.minY }
                 if $0.frame.minX != $1.frame.minX { return $0.frame.minX < $1.frame.minX }
@@ -97,8 +100,7 @@ final class AutomationWindows {
         warp(to: windows[next].frame)
     }
 
-    private func screen(of window: Window) -> Display? {
-        let displays = Self.displays
+    private func screen(of window: Window, displays: [Display]) -> Display? {
         guard let index = AutomationGeometry.screenIndex(for: window.frame, screens: displays.map(\.frame)) else { return nil }
         return displays[index]
     }
@@ -121,6 +123,21 @@ final class AutomationWindows {
         guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else { return nil }
         return value
     }
+
+    private func attributes(_ element: AXUIElement, _ names: [String]) -> [CFTypeRef?] {
+        var values: CFArray?
+        let result = AXUIElementCopyMultipleAttributeValues(element, names as CFArray, [], &values)
+        if result == .success, let values = values as? [AnyObject], values.count == names.count {
+            return values.map { value in
+                if CFGetTypeID(value) == CFNullGetTypeID() { return nil }
+                if CFGetTypeID(value) == AXValueGetTypeID(),
+                   AXValueGetType(unsafeBitCast(value, to: AXValue.self)) == .axError { return nil }
+                return value
+            }
+        }
+        // Some apps implement individual reads but not the batch API.
+        return names.map { attribute(element, $0) }
+    }
     private func focusedWindow() -> Window? {
         guard let app = NSWorkspace.shared.frontmostApplication else { return nil }
         let element = AXUIElementCreateApplication(app.processIdentifier)
@@ -128,9 +145,15 @@ final class AutomationWindows {
         guard let value = attribute(element, kAXFocusedWindowAttribute), CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
         return describe(unsafeBitCast(value, to: AXUIElement.self), pid: app.processIdentifier)
     }
-    private func describe(_ element: AXUIElement, pid: pid_t) -> Window? {
-        guard let p = attribute(element, kAXPositionAttribute), CFGetTypeID(p) == AXValueGetTypeID(),
-              let s = attribute(element, kAXSizeAttribute), CFGetTypeID(s) == AXValueGetTypeID() else { return nil }
+    private func describe(_ element: AXUIElement, pid: pid_t, visibleOnly: Bool = false) -> Window? {
+        // One cross-process request rather than 3–5 per window. This is on
+        // the main event loop, so the saved round trips also shorten input stalls.
+        let names = [kAXPositionAttribute, kAXSizeAttribute, kAXTitleAttribute]
+            + (visibleOnly ? [kAXMinimizedAttribute, kAXRoleAttribute] : [])
+        let values = attributes(element, names)
+        if visibleOnly, values[3] as? Bool == true || values[4] as? String != kAXWindowRole { return nil }
+        guard let p = values[0], CFGetTypeID(p) == AXValueGetTypeID(),
+              let s = values[1], CFGetTypeID(s) == AXValueGetTypeID() else { return nil }
         var point = CGPoint.zero
         var size = CGSize.zero
         guard AXValueGetValue(unsafeBitCast(p, to: AXValue.self), .cgPoint, &point),
@@ -143,7 +166,7 @@ final class AutomationWindows {
             identities.append((element, id))
         }
         return Window(element: element, pid: pid, id: id, frame: CGRect(origin: point, size: size),
-                      title: attribute(element, kAXTitleAttribute) as? String ?? "")
+                      title: values[2] as? String ?? "")
     }
 
     private func visibleWindows() -> [Window] {
@@ -161,10 +184,7 @@ final class AutomationWindows {
                 let app = AXUIElementCreateApplication(pid)
                 AXUIElementSetMessagingTimeout(app, 0.2)
                 let windows = attribute(app, kAXWindowsAttribute) as? [AXUIElement] ?? []
-                byPID[pid] = windows.filter {
-                    attribute($0, kAXMinimizedAttribute) as? Bool != true &&
-                    attribute($0, kAXRoleAttribute) as? String == kAXWindowRole
-                }.compactMap { describe($0, pid: pid) }
+                byPID[pid] = windows.compactMap { describe($0, pid: pid, visibleOnly: true) }
             }
             // Public AX doesn't expose a CGWindowID. Match bounds within one
             // point and remove each match so equal-frame windows stay distinct.
