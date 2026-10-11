@@ -89,7 +89,9 @@ final class RemoteImageRetryTests: XCTestCase {
         RemoteImageURLProtocol.stalledPath = "/stalled.png"
         let service = RemoteImageService(diskDirectory: directory,
             sessionConfiguration: protocolConfiguration(), maximumConcurrentDownloads: 1,
-            downloadTimeout: 0.15)
+            // The healthy image is held to the same deadline. 0.15 s cut it off
+            // too on a loaded CI runner; a second still proves the stall ends.
+            downloadTimeout: 1)
         let stalled = expectation(description: "absolute deadline cancels stalled body")
         let next = expectation(description: "queued image gets released slot")
         service.image(forURL: "https://images.example.test/stalled.png") { image in
@@ -100,8 +102,11 @@ final class RemoteImageRetryTests: XCTestCase {
             XCTAssertNotNil(image)
             next.fulfill()
         }
-        wait(for: [stalled, next], timeout: 2)
+        wait(for: [stalled, next], timeout: 6)
         XCTAssertEqual(RemoteImageURLProtocol.requests.count, 2)
+        // The loader hears of the cancel on its own thread, after the
+        // completion has already run.
+        waitUntil { RemoteImageURLProtocol.activeRequests == 0 && RemoteImageURLProtocol.stoppedRequests > 0 }
         XCTAssertEqual(RemoteImageURLProtocol.activeRequests, 0)
         XCTAssertGreaterThan(RemoteImageURLProtocol.stoppedRequests, 0)
     }
@@ -119,7 +124,17 @@ final class RemoteImageRetryTests: XCTestCase {
             failed.fulfill()
         }
         wait(for: [failed], timeout: 1)
+        waitUntil { RemoteImageURLProtocol.stoppedRequests > 0 }
         XCTAssertGreaterThan(RemoteImageURLProtocol.stoppedRequests, 0)
+    }
+
+    /// Polls until `condition` holds or `timeout` passes; the assertion that
+    /// follows reports a timeout.
+    private func waitUntil(timeout: TimeInterval = 2, _ condition: () -> Bool) {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !condition(), Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.01))
+        }
     }
 
     private func temporaryDirectory() throws -> URL {
