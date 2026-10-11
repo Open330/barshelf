@@ -16,6 +16,7 @@ final class DirectoryWatcher {
     private let eventHandler: () -> Void
     private let debounceInterval: TimeInterval
     private var pendingWork: DispatchWorkItem?
+    private var cancelled = false
     private let fsQueue = DispatchQueue(label: "dev.barshelf.directorywatcher")
 
     private class WeakBox {
@@ -105,16 +106,19 @@ final class DirectoryWatcher {
     }
 
     /// Coalesces bursts of FSEvents into a single trailing-edge callback.
-    private func fireDebounced() {
+    func fireDebounced() {
+        guard !cancelled else { return }
         pendingWork?.cancel()
         let work = DispatchWorkItem { [weak self] in
-            self?.eventHandler()
+            guard let self, !self.cancelled else { return }
+            self.eventHandler()
         }
         pendingWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + debounceInterval, execute: work)
     }
 
     func cancel() {
+        cancelled = true
         pendingWork?.cancel()
         pendingWork = nil
         descriptorSource?.cancel()

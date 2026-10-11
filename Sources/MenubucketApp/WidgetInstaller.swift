@@ -150,6 +150,7 @@ enum WidgetInstallFlow {
         let (bytes, response) = try await URLSession.shared.bytes(
             for: request, delegate: redirectGuard
         )
+        defer { bytes.task.cancel() }
         guard let http = response as? HTTPURLResponse else {
             throw WidgetInstallFlowError.notHTTP(url)
         }

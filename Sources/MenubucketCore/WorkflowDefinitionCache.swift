@@ -28,8 +28,19 @@ public final class WorkflowDefinitionCache: @unchecked Sendable {
     private let lock = NSLock()
     private var entries: [URL: (stamp: Stamp, entry: Entry)] = [:]
     private var decodes = 0
+    private var retainedURLs: Set<URL>?
 
     public init() {}
+
+    /// Drop definitions for uninstalled widgets without changing files. A
+    /// later reinstall must load its current file, not retain the old tree.
+    public func retain(fileURLs: Set<URL>) {
+        let kept = Set(fileURLs.map(\.standardizedFileURL))
+        lock.lock()
+        retainedURLs = kept
+        entries = entries.filter { kept.contains($0.key) }
+        lock.unlock()
+    }
 
     public func load(_ url: URL) throws -> Entry {
         var key = url.standardizedFileURL
@@ -55,7 +66,7 @@ public final class WorkflowDefinitionCache: @unchecked Sendable {
             readsWidgetVisibility: definition.readsWidgetVisibility
         )
         lock.lock()
-        entries[key] = (stamp, entry)
+        if retainedURLs?.contains(key) != false { entries[key] = (stamp, entry) }
         lock.unlock()
         return entry
     }

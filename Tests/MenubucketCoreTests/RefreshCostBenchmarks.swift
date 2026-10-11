@@ -55,6 +55,21 @@ final class RefreshCostBenchmarks: XCTestCase {
 
     // MARK: Sensors
 
+    func testSystemMenuBarSamplingCost() {
+        print("SYSTEM — sampling groups while the card is closed")
+        report("previous full system sample", runs: 2000) {
+            _ = JSONValue.object([
+                "cpu": SystemMetrics.cpuSampler.sample().json,
+                "memory": SystemMetrics.memory().json,
+                "disk": SystemMetrics.disk()?.json ?? .null,
+                "sampledAt": .number(Date().timeIntervalSince1970 * 1000)
+            ])
+        }
+        report("coalesced full system sample", runs: 2000) {
+            _ = SystemMetrics.sample(metrics: [.cpu, .memory, .disk])
+        }
+    }
+
     /// Every SMC key is its own IOKit round trip, so the sensor sample is
     /// priced in keys. This is the measurement the `sensors` source parameter
     /// exists for.

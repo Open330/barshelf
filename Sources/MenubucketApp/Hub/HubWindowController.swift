@@ -60,7 +60,7 @@ enum HubTab: String, CaseIterable, Identifiable {
         case .dock: return String(localized: "A dock for apps, folders, and widgets, with profiles to switch between.")
         case .gallery: return String(localized: "Find and install widgets.")
         case .create: return String(localized: "Build a widget from a command, a URL, a folder, or text.")
-        case .automation: return String(localized: "Keyboard shortcuts and window control, imported from Hammerspoon.")
+        case .automation: return String(localized: "Keyboard shortcuts and window control, imported from Hammerspoon or Karabiner.")
         case .general: return String(localized: "Icon, login, and sounds.")
         case .shortcuts: return String(localized: "Keyboard shortcuts for BarShelf.")
         case .updates: return String(localized: "How BarShelf keeps itself up to date.")

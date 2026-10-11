@@ -262,20 +262,22 @@ public final class ExecService {
         do {
             try process.run()
         } catch {
+            Self.closePipe(stdoutPipe)
+            Self.closePipe(stderrPipe)
             return .failure(.launchFailed(error.localizedDescription))
         }
 
+        let deadline = DispatchTime.now() + .milliseconds(max(timeoutMs, 1))
         readGroup.enter()
         readQueue.async {
             defer { readGroup.leave() }
             let handle = stdoutPipe.fileHandleForReading
-            while true {
-                let chunk = handle.availableData
-                if chunk.isEmpty { break }
+            Self.drain(handle, until: deadline, timedOut: { captureState.markTimedOut() }) { chunk in
                 if captureState.appendStdout(chunk, limit: stdoutLimit) {
-                    if process.isRunning { process.terminate() }
-                    break
+                    Self.terminate(process)
+                    return true
                 }
+                return false
             }
             try? handle.close()
         }
@@ -284,21 +286,16 @@ public final class ExecService {
         readQueue.async {
             defer { readGroup.leave() }
             let handle = stderrPipe.fileHandleForReading
-            while true {
-                let chunk = handle.availableData
-                if chunk.isEmpty { break }
+            Self.drain(handle, until: deadline, timedOut: { captureState.markTimedOut() }) { chunk in
                 captureState.appendStderr(chunk, limit: maxStderrBytes)
+                return false
             }
             try? handle.close()
         }
 
         let timeoutItem = DispatchWorkItem {
             captureState.markTimedOut()
-            if process.isRunning { process.terminate() }
-            let pid = process.processIdentifier
-            DispatchQueue.global().asyncAfter(deadline: .now() + 2) {
-                if process.isRunning { kill(pid, SIGKILL) }
-            }
+            Self.terminate(process)
         }
         DispatchQueue.global().asyncAfter(
             deadline: .now() + .milliseconds(max(timeoutMs, 1)),
@@ -306,16 +303,16 @@ public final class ExecService {
         )
 
         process.waitUntilExit()
-        timeoutItem.cancel()
         readGroup.wait()
+        timeoutItem.cancel()
 
         let capture = captureState.snapshot()
 
-        if capture.timedOut {
-            return .failure(.timeout(ms: timeoutMs))
-        }
         if capture.overflowed {
             return .failure(.outputTooLarge(limit: stdoutLimit))
+        }
+        if capture.timedOut {
+            return .failure(.timeout(ms: timeoutMs))
         }
         return .success(Capture(
             exitCode: process.terminationStatus,
@@ -325,7 +322,53 @@ public final class ExecService {
         ))
     }
 
+    /// Every resource-limit and lifecycle exit gets the same bounded grace
+    /// period, including scripts that deliberately ignore SIGTERM.
+    static func terminate(_ process: Process) {
+        guard process.isRunning else { return }
+        process.terminate()
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 2) {
+            if process.isRunning { kill(process.processIdentifier, SIGKILL) }
+        }
+    }
+
+    /// Foundation can retain pipe endpoints after a failed Process launch.
+    /// Close both ends explicitly instead of relying on object destruction.
+    static func closePipe(_ pipe: Pipe) {
+        try? pipe.fileHandleForReading.close()
+        try? pipe.fileHandleForWriting.close()
+    }
+
     // MARK: - Binary discovery
+
+    /// A descendant may inherit a pipe after the launched process exits.
+    /// Poll for readable bytes/EOF with the same deadline as the process,
+    /// rather than blocking indefinitely in FileHandle.availableData.
+    private static func drain(_ handle: FileHandle, until deadline: DispatchTime,
+                              timedOut: () -> Void, onChunk: (Data) -> Bool) {
+        var buffer = [UInt8](repeating: 0, count: 8192)
+        while true {
+            let now = DispatchTime.now().uptimeNanoseconds
+            guard now < deadline.uptimeNanoseconds else { timedOut(); return }
+            let remaining = (deadline.uptimeNanoseconds - now) / 1_000_000 + 1
+            var descriptor = pollfd(fd: handle.fileDescriptor, events: Int16(POLLIN), revents: 0)
+            let ready = poll(&descriptor, 1, Int32(min(remaining, UInt64(Int32.max))))
+            if ready == 0 { timedOut(); return }
+            if ready < 0 {
+                if errno == EINTR { continue }
+                return
+            }
+            let count = buffer.withUnsafeMutableBytes { bytes in
+                Darwin.read(handle.fileDescriptor, bytes.baseAddress, bytes.count)
+            }
+            if count == 0 { return }
+            if count < 0 {
+                if errno == EINTR { continue }
+                return
+            }
+            if onChunk(Data(buffer.prefix(count))) { return }
+        }
+    }
 
     public static func resolveExecutable(
         command0: String,

@@ -76,6 +76,18 @@ final class RegistryTests: XCTestCase {
 
     // MARK: Parsing
 
+    func testOversizedValidLocalRegistryFallsBackWithoutLoadingTheWholeFile() async throws {
+        let oversized = tempDir.appendingPathComponent("oversized.json")
+        var data = Data(Self.validIndexJSON.utf8)
+        data.append(Data(repeating: UInt8(ascii: " "), count: RegistryClient.maxResponseBytes))
+        try data.write(to: oversized)
+        let fallback = try write(Self.validIndexJSON, name: "fallback.json")
+        let result = try await makeClient(env: ["BARSHELF_REGISTRY": oversized.path],
+                                          bundled: [fallback]).load()
+        XCTAssertEqual(result.source, .bundled(fallback))
+        XCTAssertFalse(result.warnings.isEmpty)
+    }
+
     func testParsesValidIndex() throws {
         let (index, warnings) = try RegistryIndex.parse(Data(Self.validIndexJSON.utf8))
 

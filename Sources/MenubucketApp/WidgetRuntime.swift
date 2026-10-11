@@ -226,6 +226,7 @@ final class WidgetRuntime: ObservableObject {
     private let refreshStatsStore: RefreshStatsStore
     private var cancellables: Set<AnyCancellable> = []
     private var inFlight: Set<String> = []
+    private var nativeRefreshes = NativeRefreshGate()
     private var scriptRefreshes = ScriptRefreshCoalescer()
     private let scriptCallbackGate = ScriptCallbackGate()
     /// Shutdowns started by Disable. Re-enable waits for this task so a late
@@ -847,6 +848,12 @@ final class WidgetRuntime: ObservableObject {
     func loadWidgets() {
         let loaded = Self.discoverWidgets(in: Self.widgetSearchDirectories)
         let seenIDs = Set(loaded.map(\.id))
+        nativeRefreshes.reload(keeping: seenIDs)
+        storage.retain(widgetIDs: seenIDs)
+        let workflowURLs = Set(loaded.filter { $0.manifest.entry.kind == "workflow" }.compactMap {
+            try? WidgetEntryResolver.resolve(directory: $0.directory, main: $0.manifest.entry.main, defaultName: "workflow.json")
+        })
+        workflowDefinitions.retain(fileURLs: workflowURLs)
 
         // A rescan replaces every script descriptor/process, even when the id
         // stays the same. Release only those script generations here; their
@@ -1173,6 +1180,8 @@ final class WidgetRuntime: ObservableObject {
         prefs.setDisabled(id, flag)
         publishDesktopWidgetIndex()
         if flag {
+            nativeRefreshes.cancel(id)
+            updateSnapshot(id) { $0.isLoading = false }
             scriptCallbackGate.invalidate(widgetID: id)
             if scriptRefreshes.cancel(widgetID: id) {
                 updateSnapshot(id) { $0.isLoading = false }
@@ -1344,11 +1353,16 @@ final class WidgetRuntime: ObservableObject {
     private static let menuBarStalenessTickSec: TimeInterval = 15
 
     private func startMenuBarStalenessTicker() {
-        menuBarStalenessTimer?.invalidate()
+        guard !ownedMenuBarEntries.isEmpty else {
+            menuBarStalenessTimer?.invalidate()
+            menuBarStalenessTimer = nil
+            return
+        }
+        guard menuBarStalenessTimer == nil else { return }
         let timer = Timer.scheduledTimer(
             withTimeInterval: Self.menuBarStalenessTickSec, repeats: true
         ) { [weak self] _ in
-            guard let self, !self.menuBar.entries.isEmpty else { return }
+            guard let self else { return }
             self.syncMenuBar()
         }
         timer.tolerance = Self.menuBarStalenessTickSec / 3
@@ -1486,6 +1500,8 @@ final class WidgetRuntime: ObservableObject {
         ownedMenuBarEntries = owned
         dormantMenuBarWidgetIDs = dormant
         menuBar.apply(owned.filter { !dormant.contains($0.widgetID) })
+        startMenuBarStalenessTicker()
+        startChartHistorySaver()
         // Before the promoted-set check: a changed cadence re-arms timers even
         // when the set of promoted widgets is the same.
         scheduler.setIntervalOverrides(intervalOverrides)
@@ -1814,6 +1830,7 @@ final class WidgetRuntime: ObservableObject {
         }
 
         let startedAt = markRefreshStarted(widgetID: id)
+        let token = nativeRefreshes.begin(id)
         inFlight.insert(id)
         updateSnapshot(id) { $0.isLoading = true }
 
@@ -1822,7 +1839,7 @@ final class WidgetRuntime: ObservableObject {
             let outcome = await self.performRefresh(
                 widget: widget, source: source, command: command, permission: permission
             )
-            self.finishRefresh(widget: widget, outcome: outcome, startedAt: startedAt)
+            self.finishRefresh(widget: widget, outcome: outcome, startedAt: startedAt, token: token)
         }
     }
 
@@ -1994,6 +2011,7 @@ final class WidgetRuntime: ObservableObject {
         ])
 
         let startedAt = markRefreshStarted(widgetID: id)
+        let token = nativeRefreshes.begin(id)
         inFlight.insert(id)
         updateSnapshot(id) { $0.isLoading = true }
 
@@ -2004,10 +2022,10 @@ final class WidgetRuntime: ObservableObject {
                 settings: settings, widgetContext: widgetContext
             )
             // Before `finishRefresh`, whose catch-up reads this.
-            if let reads = outcome.readsWidgetVisibility {
+            if self.nativeRefreshes.isCurrent(id, token: token), let reads = outcome.readsWidgetVisibility {
                 self.recordVisibilityUse(widgetID: id, reads: reads, visible: visible)
             }
-            self.finishRefresh(widget: widget, outcome: outcome.result, startedAt: startedAt)
+            self.finishRefresh(widget: widget, outcome: outcome.result, startedAt: startedAt, token: token)
         }
     }
 
@@ -2514,9 +2532,22 @@ final class WidgetRuntime: ObservableObject {
     private func finishRefresh(
         widget: LoadedWidget,
         outcome: Result<RefreshSuccess, Error>,
-        startedAt: Date
+        startedAt: Date,
+        token: NativeRefreshGate.Token
     ) {
         let id = widget.id
+        switch nativeRefreshes.finish(id, token: token) {
+        case .superseded: return
+        case .staleConfiguration:
+            inFlight.remove(id)
+            refreshStartedAt.removeValue(forKey: id)
+            if let current = widgets.first(where: { $0.id == id }), !prefs.isDisabled(id) {
+                updateSnapshot(id) { $0.isLoading = false }
+                refresh(current, manual: false)
+            }
+            return
+        case .current: break
+        }
         inFlight.remove(id)
 
         var snapshot = snapshots[id] ?? WidgetSnapshot(widgetID: id)
@@ -2778,14 +2809,31 @@ final class WidgetRuntime: ObservableObject {
     /// snapshot is unchanged; otherwise only the affected card model publishes.
     private func setSnapshot(_ snapshot: WidgetSnapshot, for id: String) {
         guard snapshots[id] != snapshot else { return }
-        let errorChanged = snapshots[id]?.error != snapshot.error
+        let previous = snapshots[id]
+        let errorChanged = previous?.error != snapshot.error
         snapshots[id] = snapshot
         cardModels[id]?.snapshot = snapshot
         if errorChanged { updateAttention() }
-        if menuBarWidgetIDs.contains(id) {
-            chartPending.insert(id)
+        if menuBarWidgetIDs.contains(id), Self.menuBarStateChanged(from: previous, to: snapshot) {
+            // Loading/error-only changes are not new measurements. Inserting
+            // those into chart history repeated the previous reading.
+            if previous?.updatedAt != snapshot.updatedAt || previous?.statusMetrics != snapshot.statusMetrics
+                || previous?.statusLabel != snapshot.statusLabel {
+                chartPending.insert(id)
+            }
             syncMenuBar()
         }
+    }
+
+    /// Card loading/layout changes do not affect a status item. Avoid rebuilding
+    /// every promoted entry (including symbol lookup and chart policy) for them.
+    static func menuBarStateChanged(from previous: WidgetSnapshot?, to current: WidgetSnapshot) -> Bool {
+        guard let previous else { return true }
+        return previous.updatedAt != current.updatedAt || previous.error != current.error
+            || previous.statusLabel != current.statusLabel || previous.statusMetrics != current.statusMetrics
+            || previous.statusPrefix != current.statusPrefix || previous.statusIcon != current.statusIcon
+            || previous.statusTint != current.statusTint || previous.statusPresentation != current.statusPresentation
+            || previous.statusTooltip != current.statusTooltip
     }
 
     /// Single write path for overlay cards (`nil` removes), same suppression.
@@ -2854,11 +2902,23 @@ final class WidgetRuntime: ObservableObject {
         let sensitive = Set(widgets.filter(\.isSensitive).map(\.id)).union(sensitiveRenderIDs)
         let kept = menuBarHistory.filter { !sensitive.contains($0.key) }
         guard kept != lastSavedChartHistory else { return }
-        try? MenuBarChartHistoryStore.save(kept, to: url)
-        lastSavedChartHistory = kept
+        do {
+            try MenuBarChartHistoryStore.save(kept, to: url)
+            lastSavedChartHistory = kept
+        } catch {
+            // Leave it dirty: transient I/O failures must retry at the next
+            // maintenance tick rather than being mistaken for a saved history.
+        }
     }
 
     private func startChartHistorySaver() {
+        guard !menuBarHistory.isEmpty else {
+            chartHistoryTimer?.invalidate()
+            chartHistoryTimer = nil
+            saveChartHistory()
+            return
+        }
+        guard chartHistoryTimer == nil else { return }
         let timer = Timer(timeInterval: MenuBarChartHistoryStore.saveInterval, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.saveChartHistory() }
         }

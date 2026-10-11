@@ -1195,6 +1195,7 @@ public enum HttpSource {
 
         let guardDelegate = RedirectGuard(origin: url)
         let (bytes, response) = try await session.bytes(for: request, delegate: guardDelegate)
+        defer { bytes.task.cancel() }
         guard let http = response as? HTTPURLResponse else {
             throw HttpSourceError.notHTTP
         }
