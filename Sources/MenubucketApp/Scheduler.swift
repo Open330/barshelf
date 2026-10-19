@@ -38,7 +38,8 @@ final class Scheduler {
     /// the popup is open is restricted to this set.
     private var visibleWidgetIDs: Set<String> = []
     private var backoff: [String: BackoffState] = [:]
-    private var intervalTimers: [String: Timer] = [:]
+    private var intervalTimers: [TimeInterval: Timer] = [:]
+    private var intervalMembers: [TimeInterval: [String]] = [:]
     private var deadlineTimers: [String: Timer] = [:]
     /// Pending adapter deadlines (epoch ms), survives popup close.
     private var deadlines: [String: Double] = [:]
@@ -219,7 +220,15 @@ final class Scheduler {
     /// Test/diagnostic surface for verifying that offscreen widgets do not own
     /// interval timers. Kept internal so it is not part of the public API.
     var activeIntervalWidgetIDs: Set<String> {
-        Set(intervalTimers.keys)
+        Set(intervalMembers.values.flatMap { $0 })
+    }
+
+    var activeIntervalTimerCount: Int { intervalTimers.count }
+
+    func intervalTimerIdentity(for widgetID: String) -> ObjectIdentifier? {
+        guard let interval = intervalMembers.first(where: { $0.value.contains(widgetID) })?.key,
+              let timer = intervalTimers[interval] else { return nil }
+        return ObjectIdentifier(timer)
     }
 
     // MARK: - Popup lifecycle
@@ -266,9 +275,7 @@ final class Scheduler {
     // MARK: - Interval trigger
 
     private func rebuildIntervalTimers() {
-        for timer in intervalTimers.values { timer.invalidate() }
-        intervalTimers.removeAll()
-
+        var desired: [TimeInterval: [String]] = [:]
         for widget in widgets {
             if widget.manifest.refresh?.popupOnly == true { continue }
             let promoted = menuBarWidgetIDs.contains(widget.id)
@@ -285,13 +292,24 @@ final class Scheduler {
                 menuBarPromoted: promoted
             ) else { continue }
 
-            let id = widget.id
+            desired[interval, default: []].append(widget.id)
+        }
+
+        for interval in Array(intervalTimers.keys) where desired[interval] == nil {
+            intervalTimers.removeValue(forKey: interval)?.invalidate()
+        }
+        intervalMembers = desired
+        for interval in desired.keys where intervalTimers[interval] == nil {
+            // One timer per cadence, retained across visibility/configuration
+            // changes that do not alter that cadence. Members are read at fire
+            // time so replaced widgets never leave stale callbacks behind.
             let timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-                self?.fireAutomatic(id)
+                guard let self else { return }
+                for id in self.intervalMembers[interval] ?? [] { self.fireAutomatic(id) }
             }
             timer.fireDate = Self.alignedFireDate(interval: interval)
             timer.tolerance = interval * 0.1
-            intervalTimers[id] = timer
+            intervalTimers[interval] = timer
         }
     }
 

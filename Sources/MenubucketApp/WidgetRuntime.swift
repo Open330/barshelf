@@ -1356,6 +1356,9 @@ final class WidgetRuntime: ObservableObject {
 
     /// How often promoted entries are re-evaluated for staleness.
     private static let menuBarStalenessTickSec: TimeInterval = 15
+    private lazy var menuBarUpdateBatch = MenuBarUpdateBatch { [weak self] in
+        self?.syncMenuBar()
+    }
 
     private func startMenuBarStalenessTicker() {
         guard !ownedMenuBarEntries.isEmpty else {
@@ -1380,6 +1383,7 @@ final class WidgetRuntime: ObservableObject {
     /// Newly promoted widgets are refreshed once so the strip fills in without
     /// waiting a whole interval for the first tick.
     func syncMenuBar() {
+        menuBarUpdateBatch.cancel()
         let previous = menuBarWidgetIDs
         let multiplier = SchedulePolicy.normalizedRefreshMultiplier(
             appPrefs.preferences.refreshMultiplier
@@ -2826,7 +2830,7 @@ final class WidgetRuntime: ObservableObject {
                 || previous?.statusLabel != snapshot.statusLabel {
                 chartPending.insert(id)
             }
-            syncMenuBar()
+            menuBarUpdateBatch.request()
         }
     }
 

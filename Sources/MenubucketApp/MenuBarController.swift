@@ -27,6 +27,35 @@ final class MenuBarStatusStore: ObservableObject {
     }
 }
 
+/// Main-queue batch for nearby sample completions. Batch before deriving
+/// entries so formatting, chart policy and scheduler reconciliation also run
+/// once. A fixed window cannot be postponed forever by a busy producer.
+final class MenuBarUpdateBatch {
+    private var pending: DispatchWorkItem?
+    private let update: () -> Void
+
+    init(update: @escaping () -> Void) { self.update = update }
+
+    func request() {
+        guard pending == nil else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.pending = nil
+            self.update()
+        }
+        pending = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(30), execute: work)
+    }
+
+    /// An immediate settings/reload sync supersedes any queued sample sync.
+    func cancel() {
+        pending?.cancel()
+        pending = nil
+    }
+
+    deinit { pending?.cancel() }
+}
+
 /// Owns every menu-bar status item: the main BarShelf item, whose title is the
 /// shared live strip, and one extra item per widget the user split out.
 ///
