@@ -4789,6 +4789,16 @@
         }
       }
     },
+    "Keyboard monitoring could not be restored. Enable the extension again.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "키보드 모니터링을 복구하지 못했습니다. 확장을 다시 활성화하세요."
+          }
+        }
+      }
+    },
     "Keyboard shortcuts and window control, imported from Hammerspoon or Karabiner.": {
       "localizations": {
         "ko": {

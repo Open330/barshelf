@@ -140,7 +140,9 @@ bounds differ from their Quartz bounds may be omitted from focus cycling.
 Fn remapping runs natively without executing JavaScript on the keyboard event
 tap. Key-up still reaches the remapped arrow when Fn is released first. The tap
 is re-enabled after timeout, and a 30-second watchdog plus wake notifications
-recover disabled monitoring. Disable/reload cleans up held arrows, event taps,
+recover disabled monitoring and recreate missing or invalid event taps. If
+recovery fails, the active indicator is cleared and the error is reported;
+saved enabled intent remains available for the next launch. Disable/reload cleans up held arrows, event taps,
 shortcut registrations, and observers.
 
 Save & Reload validates a candidate first. Registration or persistence failure
