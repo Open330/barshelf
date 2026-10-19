@@ -87,6 +87,10 @@ final class StatusItemController: NSObject {
         WidgetInstaller.shared.onDockRequest = { [weak self] query in
             self?.handleDockRequest(query)
         }
+        // barshelf://accessibility — `barshelf accessibility`, e.g. over ssh.
+        WidgetInstaller.shared.onAccessibilityRequest = {
+            AutomationController.shared.requestAccessibility()
+        }
         let dockStore = DockStore.shared
         dockStore.onProfileActivated = { [weak self] profile in
             self?.showPopupPage(named: profile.popupPage)

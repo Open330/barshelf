@@ -122,8 +122,14 @@ like other in-process scripting, unbounded loops must be avoided.
 
 ## Permissions, displays, and recovery
 
-Accessibility access is required to enable the extension. The settings button
-opens the macOS permission pane. If keyboard event tap creation fails, BarShelf
+Accessibility access is required to enable the extension. **Allow in
+Accessibility…** opens System Settings ▸ Privacy & Security ▸ Accessibility
+with a small panel beside it: drag the BarShelf icon from the panel into the
+list and turn it on. The panel notices when macOS allows BarShelf and starts an
+extension saved as enabled. If BarShelf is listed and on but still not
+allowed (an old copy of the app was added), remove it with − and drag it in
+again. `barshelf accessibility` (or `open barshelf://accessibility`) opens the
+same panel, so a Mac set up over ssh needs only the drag. If keyboard event tap creation fails, BarShelf
 reports it; follow any Input Monitoring request from macOS and restart the app.
 Permission cannot be granted by an extension itself.
 

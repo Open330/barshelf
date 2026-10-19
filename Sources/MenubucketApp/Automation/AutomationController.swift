@@ -151,11 +151,14 @@ final class AutomationController: ObservableObject {
         }
     }
 
+    /// Opens the drag-in helper beside Accessibility settings. Once macOS
+    /// allows BarShelf, an extension saved as enabled starts without another
+    /// click.
     func requestAccessibility() {
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-        _ = AXIsProcessTrustedWithOptions(options)
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-            NSWorkspace.shared.open(url)
+        AccessibilityHelper.shared.show { [weak self] in
+            guard let self else { return }
+            self.message = nil
+            if !self.isRunning { self.startAtLaunch() }
         }
     }
 

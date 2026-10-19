@@ -28,6 +28,8 @@ public enum BarShelfMain {
           barshelf list                       List installed widgets.
           barshelf dock list|use <profile>|next|previous|restore-apple-dock
                                          Dock profiles and the Apple Dock.
+          barshelf accessibility              Open the helper for allowing BarShelf
+                                         in Accessibility (drag its icon in).
           barshelf agent-spec                 Print the widget-authoring spec
                                          (docs/AGENTS.md) for LLM agents.
           barshelf upgrade [--check]          Update the barshelf CLI and
@@ -65,6 +67,13 @@ public enum BarShelfMain {
             return runList(arguments: rest)
         case "dock":
             return DockCommand.run(arguments: rest)
+        case "accessibility":
+            guard let url = URL(string: "barshelf://accessibility"), DockCommand.openInApp(url) else {
+                printError("barshelf: couldn't reach BarShelf (is it installed?)")
+                return 1
+            }
+            print("opened the Accessibility helper in BarShelf")
+            return 0
         case "agent-spec":
             return runAgentSpec(arguments: rest)
         // "update" is what people type first; accept it rather than printing

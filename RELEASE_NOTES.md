@@ -2,19 +2,13 @@
 
 > Unreleased. Requires macOS 14+ on Apple Silicon.
 
-BarShelf 0.7.1 makes ⌘Space input switching reliable and warns when an
-Automation shortcut is also a macOS shortcut.
+BarShelf 0.7.2 makes allowing Accessibility a drag.
 
 ## Changes
 
-- **Input source switching that sticks.** `barshelf.selectNextInputSource()`
-  now hands the switch to macOS when the system's "Select next source in Input
-  menu" shortcut is set to a key with no modifier, such as F18: BarShelf sends
-  that key and macOS switches at once, in the app you are typing in. Before,
-  switching directly could change the menu bar while the focused app kept
-  typing in the old language with Korean, Japanese, or Chinese input. Without
-  such a shortcut it switches directly, as before. See AUTOMATION.md.
-- **Shortcut conflicts are shown.** The Automation page warns when one of your
-  bindings uses the same keys as an enabled macOS shortcut — both would run, so
-  ⌘Space would switch twice and end where it started — and opens Keyboard
-  Shortcuts in System Settings.
+- **Allowing Accessibility is a drag.** **Allow in Accessibility…** on the
+  Automation page opens the Accessibility list in System Settings with a panel
+  holding BarShelf's icon: drag it into the list and turn it on. The panel says
+  when macOS allows BarShelf and starts your Automation extension if it was
+  enabled. `barshelf accessibility` opens the same panel, so a Mac set up over
+  ssh needs only the drag. See AUTOMATION.md.

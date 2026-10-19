@@ -278,6 +278,16 @@ final class DockStoreTests: XCTestCase {
         XCTAssertEqual(received[1].first?.name, "next")
     }
 
+    /// `barshelf accessibility` opens this link; it must never fall through
+    /// to the installer.
+    func testAccessibilityDeepLinkRoutesToHook() {
+        let installer = WidgetInstaller()
+        var opened = 0
+        installer.onAccessibilityRequest = { opened += 1 }
+        installer.handleDeepLink(URL(string: "barshelf://accessibility")!)
+        XCTAssertEqual(opened, 1)
+    }
+
     /// The copyable link names the profile by id, so renaming it does not
     /// quietly break a Focus automation.
     func testSwitchURLUsesTheStableID() {

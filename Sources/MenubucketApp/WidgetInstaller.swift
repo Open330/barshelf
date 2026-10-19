@@ -277,6 +277,8 @@ final class WidgetInstaller {
     var onRefreshRequest: ((_ widgetID: String?) -> Void)?
     /// `barshelf://dock?profile=<id|name|number>`, `?next`, `?previous` (R15).
     var onDockRequest: ((_ query: [URLQueryItem]) -> Void)?
+    /// `barshelf://accessibility` — the Accessibility drag-in helper.
+    var onAccessibilityRequest: (() -> Void)?
 
     /// Menu entry point: "Install Widget from URL…".
     func promptForURL() {
@@ -291,6 +293,7 @@ final class WidgetInstaller {
     ///   query item → refresh all url-trigger widgets).
     /// - `barshelf://show?widget=<id>` → open the popup on that widget (a
     ///   click on a desktop widget).
+    /// - `barshelf://accessibility` → the Accessibility drag-in helper.
     /// - anything else (`barshelf://install?url=…`, bare URLs) → install.
     func handleDeepLink(_ url: URL) {
         let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
@@ -308,6 +311,10 @@ final class WidgetInstaller {
         }
         if route == "dock" {
             onDockRequest?(components?.queryItems ?? [])
+            return
+        }
+        if route == "accessibility" {
+            onAccessibilityRequest?()
             return
         }
         if route == "refresh" {
