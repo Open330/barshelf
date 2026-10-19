@@ -1635,6 +1635,16 @@
         }
       }
     },
+    "Cannot select input source %@ (%d).": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "입력 소스 %1$@을(를) 선택할 수 없습니다 (%2$d)."
+          }
+        }
+      }
+    },
     "Cannot start Fn-key monitoring. Check Accessibility permission for this BarShelf build; if macOS requests Input Monitoring, allow it and restart BarShelf.": {
       "extractionState": "stale",
       "localizations": {
@@ -3119,6 +3129,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "키보드 및 윈도우 확장 켜기"
+          }
+        }
+      }
+    },
+    "Enable at least two keyboard input sources to switch between them.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "전환하려면 키보드 입력 소스를 두 개 이상 켜세요."
           }
         }
       }

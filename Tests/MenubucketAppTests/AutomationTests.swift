@@ -59,6 +59,23 @@ final class AutomationTests: XCTestCase {
         XCTAssertTrue(called)
     }
 
+    func testSelectNextInputSourceDispatchesOnlyInsideCallback() throws {
+        let script = try AutomationScript(source: "barshelf.bind(['cmd'], 'space', () => barshelf.selectNextInputSource());")
+        var commands: [String] = []
+        script.command = { name, _ in commands.append(name) }
+        script.invoke(0)
+        XCTAssertEqual(commands, ["inputSource"])
+        XCTAssertThrowsError(try AutomationScript(source: "barshelf.selectNextInputSource()"))
+    }
+
+    func testNextInputSourceWrapsAndRecoversFromUnlistedCurrent() {
+        let ids = ["com.apple.keylayout.ABC", "com.apple.inputmethod.Korean.2SetKorean"]
+        XCTAssertEqual(AutomationInputSource.next(after: ids[0], in: ids), ids[1])
+        XCTAssertEqual(AutomationInputSource.next(after: ids[1], in: ids), ids[0])
+        XCTAssertEqual(AutomationInputSource.next(after: "com.apple.CharacterPaletteIM", in: ids), ids[0])
+        XCTAssertNil(AutomationInputSource.next(after: ids[0], in: [ids[0]]))
+    }
+
     func testNativeActionFailureReachesJavaScriptErrorHandler() throws {
         let script = try AutomationScript(source: "barshelf.bind(['alt'], 'i', () => barshelf.moveMouseToScreen(2));")
         script.command = { _, _ in throw AutomationFailure("Native operation failed") }

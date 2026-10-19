@@ -64,6 +64,7 @@ final class AutomationEngine: AutomationRunning {
                     throw AutomationFailure(String(localized: "Rotation direction must be forward or backward."))
                 }
                 try self.windows.rotate(forward: direction == "forward")
+            case "inputSource": try AutomationInputSource.selectNext()
             case "log": self.report?(value.toString() ?? "")
             default: throw AutomationFailure(String(localized: "Unsupported automation action: \(name)."))
             }
