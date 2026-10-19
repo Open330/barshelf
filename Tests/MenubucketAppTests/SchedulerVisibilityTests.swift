@@ -3,6 +3,34 @@ import MenubucketCore
 @testable import MenubucketApp
 
 final class SchedulerVisibilityTests: XCTestCase {
+    func testSameCadenceSharesOneTimerAndUnchangedCadenceIsRetained() throws {
+        let scheduler = Scheduler()
+        let cpu = widget("cpu", interval: 2)
+        let ram = widget("ram", interval: 2)
+        let power = widget("power", interval: 3)
+        scheduler.configure(widgets: [cpu, ram, power])
+        scheduler.setIntervalOverrides([cpu.id: 5, ram.id: 5, power.id: 5])
+        scheduler.setMenuBarWidgetIDs([cpu.id, ram.id, power.id])
+        let shared = try XCTUnwrap(scheduler.intervalTimerIdentity(for: cpu.id))
+        XCTAssertEqual(scheduler.activeIntervalTimerCount, 1)
+        XCTAssertEqual(scheduler.intervalTimerIdentity(for: ram.id), shared)
+        XCTAssertEqual(scheduler.intervalTimerIdentity(for: power.id), shared)
+        scheduler.popupOpened()
+        scheduler.popupClosed()
+        scheduler.configure(widgets: [cpu, ram, power])
+        XCTAssertEqual(scheduler.intervalTimerIdentity(for: cpu.id), shared,
+                       "popup toggles and reloads must not recreate an unchanged periodic timer")
+        scheduler.setIntervalOverrides([cpu.id: 5, ram.id: 10, power.id: 5])
+        XCTAssertEqual(scheduler.activeIntervalTimerCount, 2)
+        XCTAssertEqual(scheduler.intervalTimerIdentity(for: power.id), shared)
+        XCTAssertNotEqual(scheduler.intervalTimerIdentity(for: ram.id), shared)
+        scheduler.configure(widgets: [cpu, power])
+        XCTAssertEqual(scheduler.activeIntervalTimerCount, 1)
+        XCTAssertEqual(scheduler.activeIntervalWidgetIDs, [cpu.id, power.id])
+        scheduler.setMenuBarWidgetIDs([])
+        XCTAssertEqual(scheduler.activeIntervalTimerCount, 0)
+    }
+
     private func widget(
         _ id: String,
         interval: Double? = nil,

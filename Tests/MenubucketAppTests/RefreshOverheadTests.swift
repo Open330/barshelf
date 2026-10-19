@@ -5,6 +5,51 @@ import XCTest
 
 final class RefreshOverheadTests: XCTestCase {
     @MainActor
+    func testMenuBarBatchCalculatesOnceFromLatestSamplesAndAllowsTheNextBatch() async {
+        let first = expectation(description: "one calculation for the refresh burst")
+        let next = expectation(description: "later samples still produce another calculation")
+        var samples: [String: Int] = [:]
+        var calculated: [[String: Int]] = []
+        let batch = MenuBarUpdateBatch {
+            calculated.append(samples)
+            if calculated.count == 1 { first.fulfill() }
+            else if calculated.count == 2 { next.fulfill() }
+            else { XCTFail("unexpected extra menu-bar calculation") }
+        }
+        for index in 0..<1000 {
+            samples["cpu"] = index
+            batch.request()
+        }
+        samples["ram"] = 77
+        batch.request()
+        samples["power"] = 14
+        batch.request()
+        await fulfillment(of: [first], timeout: 1)
+        XCTAssertEqual(calculated, [["cpu": 999, "ram": 77, "power": 14]])
+        samples["cpu"] = 12
+        batch.request()
+        await fulfillment(of: [next], timeout: 1)
+        XCTAssertEqual(calculated.count, 2)
+        XCTAssertEqual(calculated.last?["cpu"], 12)
+    }
+
+    @MainActor
+    func testImmediateSyncCancellationAndOwnerReleaseDoNotLeaveExtraCalculations() async {
+        let cancelled = expectation(description: "superseded batch must not run")
+        let abandoned = expectation(description: "released owner must not run")
+        cancelled.isInverted = true
+        abandoned.isInverted = true
+        let keptBatch = MenuBarUpdateBatch { cancelled.fulfill() }
+        keptBatch.request()
+        keptBatch.cancel()
+        var releasedBatch: MenuBarUpdateBatch? = MenuBarUpdateBatch { abandoned.fulfill() }
+        releasedBatch?.request()
+        releasedBatch = nil
+        await fulfillment(of: [cancelled, abandoned], timeout: 0.15)
+        withExtendedLifetime(keptBatch) {}
+    }
+
+    @MainActor
     func testMeasureDockFileServiceCostWhenRequested() throws {
         try XCTSkipUnless(ProcessInfo.processInfo.environment["BARSHELF_BENCH"] == "1")
         let path = "/Applications/BarShelf.app"
