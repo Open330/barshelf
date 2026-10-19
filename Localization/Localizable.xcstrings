@@ -105,6 +105,22 @@
         }
       }
     },
+    "%@ is also the macOS shortcut “%@”. Both run on every press — switching input sources this way switches twice and ends where it started. Turn that shortcut off in System Settings.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ is also the macOS shortcut “%2$@”. Both run on every press — switching input sources this way switches twice and ends where it started. Turn that shortcut off in System Settings."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@는 macOS 단축키 “%2$@”이기도 합니다. 누를 때마다 둘 다 실행돼서, 입력 소스 전환이라면 두 번 바뀌어 제자리로 돌아옵니다. 시스템 설정에서 그 단축키를 끄세요."
+          }
+        }
+      }
+    },
     "%@ is included more than once.": {
       "localizations": {
         "ko": {
@@ -1045,6 +1061,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Apple Dock 레이아웃"
+          }
+        }
+      }
+    },
+    "Application windows": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "응용 프로그램 윈도우"
           }
         }
       }
@@ -4789,6 +4815,16 @@
         }
       }
     },
+    "Keyboard Shortcuts…": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "키보드 단축키…"
+          }
+        }
+      }
+    },
     "Keyboard monitoring could not be restored. Enable the extension again.": {
       "localizations": {
         "ko": {
@@ -5410,6 +5446,16 @@
         }
       }
     },
+    "Mission Control": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mission Control"
+          }
+        }
+      }
+    },
     "Monochrome": {
       "localizations": {
         "ko": {
@@ -5570,6 +5616,16 @@
         }
       }
     },
+    "Move focus to next window": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "다음 윈도우로 초점 이동"
+          }
+        }
+      }
+    },
     "Move left": {
       "localizations": {
         "ko": {
@@ -5580,12 +5636,32 @@
         }
       }
     },
+    "Move left a space": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "왼쪽 스페이스로 이동"
+          }
+        }
+      }
+    },
     "Move right": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "오른쪽으로 이동"
+          }
+        }
+      }
+    },
+    "Move right a space": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "오른쪽 스페이스로 이동"
           }
         }
       }
@@ -7803,6 +7879,26 @@
         }
       }
     },
+    "Save picture of screen as a file": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "화면 사진을 파일로 저장"
+          }
+        }
+      }
+    },
+    "Save picture of selected area as a file": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "선택한 영역의 사진을 파일로 저장"
+          }
+        }
+      }
+    },
     "Save small amounts of data on this Mac": {
       "localizations": {
         "ko": {
@@ -7860,6 +7956,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "화면 번호는 1부터 시작합니다."
+          }
+        }
+      }
+    },
+    "Screenshot and recording options": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "스크린샷 및 기록 옵션"
           }
         }
       }
@@ -8031,6 +8137,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "가져오기 전에 Karabiner 프로필을 하나만 선택하세요."
+          }
+        }
+      }
+    },
+    "Select next source in Input menu": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "입력 메뉴에서 다음 소스 선택"
+          }
+        }
+      }
+    },
+    "Select the previous input source": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이전 입력 소스 선택"
           }
         }
       }
@@ -8226,12 +8352,42 @@
         }
       }
     },
+    "Show Desktop": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "데스크탑 보기"
+          }
+        }
+      }
+    },
+    "Show Finder search window": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finder 검색 윈도우 보기"
+          }
+        }
+      }
+    },
     "Show Inspector": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "속성 패널 보기"
+          }
+        }
+      }
+    },
+    "Show Spotlight search": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotlight 검색 보기"
           }
         }
       }
@@ -10599,6 +10755,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "선반이 비어 있음"
+          }
+        }
+      }
+    },
+    "a macOS keyboard shortcut": {
+      "comment": "Fallback name of a system shortcut BarShelf has no name for",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS 키보드 단축키"
           }
         }
       }
