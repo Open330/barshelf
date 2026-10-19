@@ -5,6 +5,57 @@ import XCTest
 @testable import MenubucketApp
 
 final class AutomationTests: XCTestCase {
+    func testTapRecoveryReplacesMissingPortButKeepsHealthyHeldKeys() throws {
+        var enabled = false
+        var releases = 0
+        var replacements = 0
+        var enables = 0
+        try AutomationTapRecovery.recover(valid: false, enabled: { enabled },
+            releaseKeys: { releases += 1 }, replace: { replacements += 1; enabled = true },
+            enable: { enables += 1 })
+        XCTAssertEqual(replacements, 1)
+        XCTAssertEqual(releases, 1)
+        try AutomationTapRecovery.recover(valid: true, enabled: { enabled },
+            releaseKeys: { releases += 1 }, replace: { replacements += 1 },
+            enable: { enables += 1 })
+        XCTAssertEqual(releases, 1, "healthy watchdog checks must preserve held key-up routing")
+        XCTAssertEqual(replacements, 1)
+        XCTAssertEqual(enables, 0)
+        enabled = false
+        try AutomationTapRecovery.recover(valid: true, enabled: { enabled },
+            releaseKeys: { releases += 1 }, replace: { replacements += 1 },
+            enable: { enables += 1; enabled = true })
+        XCTAssertEqual(releases, 2)
+        XCTAssertEqual(replacements, 1)
+        XCTAssertEqual(enables, 1)
+    }
+
+    func testTapRecoveryReportsReplacementFailureAndUnsuccessfulReenable() {
+        XCTAssertThrowsError(try AutomationTapRecovery.recover(valid: false, enabled: { false },
+            releaseKeys: {}, replace: { throw AutomationFailure("tap creation failed") }, enable: {}))
+        XCTAssertThrowsError(try AutomationTapRecovery.recover(valid: true, enabled: { false },
+            releaseKeys: {}, replace: {}, enable: {}))
+    }
+
+    func testRuntimeFailureClearsActiveIndicatorAndPreservesSavedEnabledIntent() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let url = folder.appendingPathComponent("automation.json")
+        let engine = StubEngine()
+        let controller = AutomationController(fileURL: url, makeEngine: { _ in engine },
+            isTrusted: { true }, hammerspoonRunning: { false })
+        XCTAssertTrue(controller.apply(source: AutomationScript.example, enabled: true))
+        engine.runtimeFailed?("tap recovery failed")
+        XCTAssertFalse(controller.isRunning)
+        XCTAssertEqual(controller.message, "tap recovery failed")
+        let config = try JSONDecoder().decode(AutomationController.Configuration.self, from: Data(contentsOf: url))
+        XCTAssertTrue(config.enabled)
+        controller.startAtLaunch()
+        XCTAssertTrue(controller.isRunning)
+        XCTAssertNil(controller.message)
+        controller.disable()
+    }
+
     func testExampleCompilesAndCallbacksPreserveScreenAndDirection() throws {
         let script = try AutomationScript(source: AutomationScript.example)
         XCTAssertEqual(script.bindings.count, 6)
@@ -201,6 +252,7 @@ final class AutomationTests: XCTestCase {
     private final class StubEngine: AutomationRunning {
         var report: ((String) -> Void)?
         var permissionLost: (() -> Void)?
+        var runtimeFailed: ((String) -> Void)?
         var starts = 0
         var stops = 0
         var failure = false

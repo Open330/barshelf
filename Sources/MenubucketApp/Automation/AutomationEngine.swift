@@ -25,8 +25,27 @@ struct AutomationRemapState {
 protocol AutomationRunning: AnyObject {
     var report: ((String) -> Void)? { get set }
     var permissionLost: (() -> Void)? { get set }
+    var runtimeFailed: ((String) -> Void)? { get set }
     func start() throws
     func stop()
+}
+
+/// Keep held keys on a healthy tap; release them only when events may have
+/// been lost. A dead Mach port must be replaced, not merely enabled again.
+enum AutomationTapRecovery {
+    static func recover(valid: Bool, enabled: () -> Bool, releaseKeys: () -> Void,
+                        replace: () throws -> Void, enable: () -> Void) throws {
+        if !valid {
+            releaseKeys()
+            try replace()
+        } else if !enabled() {
+            releaseKeys()
+            enable()
+        }
+        guard enabled() else {
+            throw AutomationFailure(String(localized: "Keyboard monitoring could not be restored. Enable the extension again."))
+        }
+    }
 }
 
 final class AutomationEngine: AutomationRunning {
@@ -45,6 +64,7 @@ final class AutomationEngine: AutomationRunning {
     private var active = false
     var report: ((String) -> Void)?
     var permissionLost: (() -> Void)?
+    var runtimeFailed: ((String) -> Void)?
 
     init(script: AutomationScript) {
         self.script = script
@@ -103,11 +123,7 @@ final class AutomationEngine: AutomationRunning {
         watchdog = nil
         if let wakeObserver { NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver) }
         wakeObserver = nil
-        if let tap { CGEvent.tapEnable(tap: tap, enable: false) }
-        if let source { CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes) }
-        if let tap { CFMachPortInvalidate(tap) }
-        source = nil
-        tap = nil
+        removeTap()
         releaseHeldKeys()
         for key in hotkeys { UnregisterEventHotKey(key) }
         hotkeys.removeAll()
@@ -207,10 +223,27 @@ final class AutomationEngine: AutomationRunning {
         guard active else { return }
         guard AXIsProcessTrusted() else { permissionLost?(); return }
         if resetKeys { releaseHeldKeys() }
-        if let tap, !CGEvent.tapIsEnabled(tap: tap) {
-            releaseHeldKeys()
-            CGEvent.tapEnable(tap: tap, enable: true)
+        guard script.remap != nil || !script.keyRemaps.isEmpty else { return }
+        let valid = tap.map { CFMachPortIsValid($0) } == true
+            && source.map { CFRunLoopSourceIsValid($0) } == true
+        do {
+            try AutomationTapRecovery.recover(valid: valid,
+                enabled: { self.tap.map { CGEvent.tapIsEnabled(tap: $0) } == true },
+                releaseKeys: { self.releaseHeldKeys() },
+                replace: { self.removeTap(); try self.installTap() },
+                enable: { if let tap = self.tap { CGEvent.tapEnable(tap: tap, enable: true) } })
+        } catch {
+            stop()
+            runtimeFailed?(error.localizedDescription)
         }
+    }
+
+    private func removeTap() {
+        if let tap, CFMachPortIsValid(tap) { CGEvent.tapEnable(tap: tap, enable: false) }
+        if let source { CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes) }
+        if let tap { CFMachPortInvalidate(tap) }
+        source = nil
+        tap = nil
     }
 
     private func releaseHeldKeys() {

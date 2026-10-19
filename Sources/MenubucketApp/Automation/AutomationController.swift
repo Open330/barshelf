@@ -63,6 +63,14 @@ final class AutomationController: ObservableObject {
                 self?.disable()
                 self?.message = String(localized: "Accessibility access was removed. Grant access and enable the extension again.")
             }
+            replacement?.runtimeFailed = { [weak self] reason in
+                // Preserve saved enabled intent for a subsequent launch, but
+                // never show a failed input monitor as currently active.
+                self?.engine = nil
+                self?.isRunning = false
+                self?.message = reason
+                NSLog("BarShelf automation stopped: %@", reason)
+            }
             let previous = engine
             previous?.stop()
             do {
@@ -86,6 +94,7 @@ final class AutomationController: ObservableObject {
             return true
         } catch {
             message = error.localizedDescription
+            NSLog("BarShelf automation could not apply settings: %@", error.localizedDescription)
             return false
         }
     }
