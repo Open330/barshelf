@@ -30,7 +30,7 @@ struct AutomationSettingsView: View {
                 .foregroundStyle(controller.isRunning ? Color.green : Color.secondary)
                 Text("Global shortcuts, key remapping, and window navigation. Quit Hammerspoon and disable matching Karabiner rules before enabling.")
                     .font(.caption).foregroundStyle(.secondary)
-                Button("Grant Accessibility Access…") { controller.requestAccessibility() }
+                Button("Allow in Accessibility…") { controller.requestAccessibility() }
                 if let message = controller.message {
                     Text(message).font(.caption).foregroundStyle(.orange).textSelection(.enabled)
                 }

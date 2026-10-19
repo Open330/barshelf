@@ -954,12 +954,32 @@
         }
       }
     },
+    "Allow BarShelf": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BarShelf 허용"
+          }
+        }
+      }
+    },
     "Allow BarShelf in System Settings → Privacy & Security → Accessibility, then enable the extension again.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "시스템 설정 → 개인정보 보호 및 보안 → 손쉬운 사용에서 BarShelf를 허용한 후 확장을 다시 켜십시오."
+          }
+        }
+      }
+    },
+    "Allow in Accessibility…": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "손쉬운 사용에서 허용…"
           }
         }
       }
@@ -980,6 +1000,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Apple Dock과 함께"
+          }
+        }
+      }
+    },
+    "Already listed? Just turn its switch on. Listed and on, but still not allowed? Select it, remove it with −, and drag it in again.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이미 목록에 있다면 스위치만 켜세요. 켜져 있는데도 허용되지 않으면 선택해 −로 지운 뒤 다시 끌어 넣으세요."
           }
         }
       }
@@ -1332,6 +1362,16 @@
         }
       }
     },
+    "BarShelf app icon, drag into the Accessibility list": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BarShelf 앱 아이콘, 손쉬운 사용 목록으로 끌어 넣기"
+          }
+        }
+      }
+    },
     "BarShelf asks you to allow these the first time the widget runs.": {
       "localizations": {
         "ko": {
@@ -1388,6 +1428,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "지금은 BarShelf가 이 위젯을 제거할 수 없습니다. 위젯 페이지에서 다시 시도하십시오."
+          }
+        }
+      }
+    },
+    "BarShelf is allowed in Accessibility.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "손쉬운 사용에서 BarShelf가 허용되었습니다."
           }
         }
       }
@@ -2938,12 +2988,32 @@
         }
       }
     },
+    "Drag BarShelf into the Accessibility list": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BarShelf를 손쉬운 사용 목록으로 끌어 넣으세요"
+          }
+        }
+      }
+    },
     "Drag it in the menu bar with ⌘ to reorder.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "⌘를 누른 채 메뉴 막대에서 드래그하여 순서를 바꾸십시오."
+          }
+        }
+      }
+    },
+    "Drag this into the list in System Settings": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "시스템 설정의 목록으로 끌어 넣으세요"
           }
         }
       }
@@ -3837,6 +3907,7 @@
       }
     },
     "Grant Accessibility Access…": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -4841,6 +4912,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "키보드 모니터링을 복구하지 못했습니다. 확장을 다시 활성화하세요."
+          }
+        }
+      }
+    },
+    "Keyboard shortcuts and key remapping can run now.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이제 키보드 단축키와 키 리매핑이 작동합니다."
           }
         }
       }
@@ -6154,6 +6235,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ 설정 열기"
+          }
+        }
+      }
+    },
+    "Open Accessibility Settings": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "손쉬운 사용 설정 열기"
           }
         }
       }
@@ -9115,6 +9206,16 @@
         }
       }
     },
+    "System Settings ▸ Privacy & Security ▸ Accessibility is open. Drag this icon into its list, then turn BarShelf on.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "시스템 설정 ▸ 개인정보 보호 및 보안 ▸ 손쉬운 사용을 열었습니다. 이 아이콘을 목록으로 끌어 넣고 BarShelf를 켜세요."
+          }
+        }
+      }
+    },
     "Table": {
       "comment": "Widget display style",
       "localizations": {
@@ -10333,6 +10434,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "잠시 기다리십시오. BarShelf가 자동으로 다시 시도합니다."
+          }
+        }
+      }
+    },
+    "Waiting for macOS to allow BarShelf…": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS가 BarShelf를 허용하기를 기다리는 중…"
           }
         }
       }
