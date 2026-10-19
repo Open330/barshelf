@@ -386,4 +386,26 @@ final class AutomationTests: XCTestCase {
             symbolicHotKeys: systemTable([999: (true, 40, 0x100000)])).isEmpty)
         XCTAssertEqual(SystemShortcutConflicts.cocoaModifiers(fromCarbon: UInt32(cmdKey | shiftKey)), 0x100000 | 0x20000)
     }
+
+    // MARK: Input source relay
+
+    /// Hot key 61 set to F18 (key code 79, function flag only): the switch is
+    /// relayed to the system. With a modifier, or off, it is not.
+    func testInputSourceRelaysOnlyToAModifierlessSystemShortcut() {
+        let f18 = systemTable([61: (true, 79, 0x800000)])
+        XCTAssertEqual(AutomationInputSource.systemTrigger(in: f18),
+                       AutomationInputSource.SystemTrigger(keyCode: 79, flags: .maskSecondaryFn))
+        XCTAssertEqual(AutomationInputSource.systemTrigger(in: systemTable([61: (true, 79, 0)]))?.keyCode, 79)
+        XCTAssertNil(AutomationInputSource.systemTrigger(in: systemTable([61: (true, 49, 0x100000)])), "⌘Space commits on release")
+        XCTAssertNil(AutomationInputSource.systemTrigger(in: systemTable([61: (false, 79, 0x800000)])))
+        XCTAssertNil(AutomationInputSource.systemTrigger(in: [:]))
+    }
+
+    /// The relay key is not a conflict: ⌘Space no longer matches 61 once 61
+    /// is F18.
+    func testF18RelayIsNotReportedAsAConflict() throws {
+        let script = try AutomationScript(source: "barshelf.bind(['cmd'], 'space', () => barshelf.selectNextInputSource());")
+        XCTAssertTrue(SystemShortcutConflicts.find(bindings: script.bindings.map(\.combination),
+                      symbolicHotKeys: systemTable([61: (true, 79, 0x800000)])).isEmpty)
+    }
 }
