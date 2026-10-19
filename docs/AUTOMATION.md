@@ -93,6 +93,7 @@ hs.hotkey.bind(["alt", "shift"], "k", () => rotateWindowFocus("forward"));
 | `barshelf.moveMouseToScreen(index)` | Move the pointer to the screen center and focus its first titled window in front-to-back order. |
 | `barshelf.moveWindowToScreen(index)` | Move the focused window, preserving proportions within usable screen bounds. |
 | `barshelf.rotateWindowFocus(direction)` | Cycle titled visible windows on the focused window's screen, ordered top-to-bottom then left-to-right; center the pointer in the new window. `direction` is `"forward"` or `"backward"`. |
+| `barshelf.selectNextInputSource()` | Select the next enabled keyboard input source, wrapping. Runs on key-down, while the system ⌘Space "Select next source" commits only when ⌘ is released; turn that system shortcut off before binding the same keys. |
 | `barshelf.log(message)` | Display a callback diagnostic in extension settings. |
 
 The three window-action functions also have global aliases with the same names,

@@ -152,6 +152,7 @@ final class AutomationScript {
       moveMouseToScreen(index) { __command('mouse', index); },
       moveWindowToScreen(index) { __command('window', index); },
       rotateWindowFocus(direction) { __command('rotate', direction); },
+      selectNextInputSource() { __command('inputSource', null); },
       log(message) { __command('log', String(message)); }
     });
     // Familiar aliases when moving Hammerspoon callbacks to JavaScript.
