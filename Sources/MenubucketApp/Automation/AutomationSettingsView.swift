@@ -34,7 +34,23 @@ struct AutomationSettingsView: View {
                 if let message = controller.message {
                     Text(message).font(.caption).foregroundStyle(.orange).textSelection(.enabled)
                 }
+                ForEach(controller.systemShortcutConflicts) { conflict in
+                    StatusBanner(
+                        tone: .warning,
+                        message: String(localized: "\(conflict.displayBinding) is also the macOS shortcut “\(conflict.systemName)”. Both run on every press — switching input sources this way switches twice and ends where it started. Turn that shortcut off in System Settings.")
+                    ) {
+                        Button("Keyboard Shortcuts…") {
+                            if let url = URL(string: "x-apple.systempreferences:com.apple.Keyboard-Settings.extension") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }
+                    }
+                }
             } header: { Text("Keyboard & Windows") }
+            .onAppear { controller.refreshSystemShortcutConflicts() }
+            .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+                controller.refreshSystemShortcutConflicts()
+            }
 
             SwiftUI.Section {
                 HStack {

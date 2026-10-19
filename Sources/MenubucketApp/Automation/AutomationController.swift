@@ -15,6 +15,9 @@ final class AutomationController: ObservableObject {
     @Published private(set) var isRunning = false
     @Published private(set) var message: String?
     @Published private(set) var importSummary: String?
+    /// Running bindings that macOS also uses for one of its shortcuts.
+    @Published private(set) var systemShortcutConflicts: [SystemShortcutConflicts.Conflict] = []
+    private var runningBindings: [HotkeyGrammar.Combination] = []
     private var engine: AutomationRunning?
     private var launchEnabled = false
     private let fileURL: URL
@@ -38,6 +41,13 @@ final class AutomationController: ObservableObject {
             source = config.source
             launchEnabled = config.enabled
         } catch { message = String(localized: "Could not read saved automation: \(error.localizedDescription)") }
+    }
+
+    /// Reads the system shortcuts again: they change in System Settings with
+    /// no notice to other apps.
+    func refreshSystemShortcutConflicts() {
+        let conflicts = SystemShortcutConflicts.current(bindings: runningBindings)
+        if conflicts != systemShortcutConflicts { systemShortcutConflicts = conflicts }
     }
 
     func startAtLaunch() {
@@ -91,6 +101,12 @@ final class AutomationController: ObservableObject {
             launchEnabled = enabled
             isRunning = enabled
             message = nil
+            runningBindings = enabled ? script.bindings.map(\.combination) : []
+            refreshSystemShortcutConflicts()
+            for conflict in systemShortcutConflicts {
+                NSLog("BarShelf automation: %@ is also the macOS shortcut \"%@\" (symbolic hot key %ld); both run",
+                      conflict.binding, conflict.systemName, conflict.systemID)
+            }
             return true
         } catch {
             message = error.localizedDescription
@@ -105,6 +121,8 @@ final class AutomationController: ObservableObject {
         engine?.stop()
         engine = nil
         isRunning = false
+        runningBindings = []
+        systemShortcutConflicts = []
         launchEnabled = false
         do {
             try save(Configuration(source: source, enabled: false))

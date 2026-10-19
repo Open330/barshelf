@@ -1,3 +1,4 @@
+import Carbon.HIToolbox
 import AppKit
 import JavaScriptCore
 import SwiftUI
@@ -350,5 +351,39 @@ final class AutomationTests: XCTestCase {
         XCTAssertFalse(controller.apply(source: "barshelf.bind(['alt'], 'u', () => moveMouseToScreen(1));", enabled: false))
         XCTAssertEqual(controller.source, original)
         XCTAssertNotNil(controller.message)
+    }
+
+    // MARK: System shortcut conflicts
+
+    private func systemTable(_ entries: [Int: (enabled: Bool, keyCode: Int, modifiers: Int)]) -> [String: Any] {
+        Dictionary(uniqueKeysWithValues: entries.map { id, entry in
+            (String(id), ["enabled": entry.enabled,
+                          "value": ["parameters": [32, entry.keyCode, entry.modifiers], "type": "standard"]] as [String: Any])
+        })
+    }
+
+    /// ⌘Space bound in Automation while the system's "Select next source"
+    /// (61) is on: both fire, so it is reported; with 61 off, nothing is.
+    func testCommandSpaceConflictsOnlyWhileTheSystemShortcutIsOn() throws {
+        let script = try AutomationScript(source: "barshelf.bind(['cmd'], 'space', () => barshelf.selectNextInputSource());")
+        let bindings = script.bindings.map(\.combination)
+        let on = systemTable([61: (true, 49, 0x100000), 64: (true, 49, 0x80000)])
+        let conflicts = SystemShortcutConflicts.find(bindings: bindings, symbolicHotKeys: on)
+        XCTAssertEqual(conflicts.map(\.systemID), [61], "⌥Space (Spotlight) is a different shortcut")
+        XCTAssertEqual(conflicts.first?.displayBinding, "⌘Space")
+        let off = systemTable([61: (false, 49, 0x100000)])
+        XCTAssertTrue(SystemShortcutConflicts.find(bindings: bindings, symbolicHotKeys: off).isEmpty)
+    }
+
+    func testConflictsCompareAllFourModifiers() throws {
+        let script = try AutomationScript(source: "barshelf.bind(['ctrl', 'alt', 'shift', 'cmd'], 'k', () => {});")
+        let bindings = script.bindings.map(\.combination)
+        let all = 0x100000 | 0x20000 | 0x80000 | 0x40000
+        // Key code 40 is K. The fn bit (0x800000) some entries carry is ignored.
+        XCTAssertEqual(SystemShortcutConflicts.find(bindings: bindings,
+            symbolicHotKeys: systemTable([999: (true, 40, all | 0x800000)])).count, 1)
+        XCTAssertTrue(SystemShortcutConflicts.find(bindings: bindings,
+            symbolicHotKeys: systemTable([999: (true, 40, 0x100000)])).isEmpty)
+        XCTAssertEqual(SystemShortcutConflicts.cocoaModifiers(fromCarbon: UInt32(cmdKey | shiftKey)), 0x100000 | 0x20000)
     }
 }
