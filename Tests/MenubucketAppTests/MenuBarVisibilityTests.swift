@@ -53,6 +53,20 @@ final class MenuBarVisibilityTests: XCTestCase {
         XCTAssertTrue(MenuBarVisibility.isVisible(itemFrame: item(x: 3000, y: 1410), screens: [notched, external]))
     }
 
+    /// A full-screen app or an auto-hidden menu bar slides every item above
+    /// the screen; that is not "no room".
+    func testItemAboveTheScreenIsNotReportedHidden() {
+        XCTAssertTrue(MenuBarVisibility.isVisible(itemFrame: item(x: 1200, y: 982), screens: [notched]))
+    }
+
+    func testNotchAreasRelativeToTheirScreenAreMadeGlobal() {
+        let screen = NSRect(x: 2560, y: 0, width: 1512, height: 982)
+        let relative = NSRect(x: 856, y: 950, width: 656, height: 32)
+        XCTAssertEqual(MenuBarVisibility.global(relative, on: screen).minX, 3416)
+        let alreadyGlobal = NSRect(x: 3416, y: 950, width: 656, height: 32)
+        XCTAssertEqual(MenuBarVisibility.global(alreadyGlobal, on: screen), alreadyGlobal)
+    }
+
     func testZeroWidthItemIsHidden() {
         XCTAssertFalse(MenuBarVisibility.isVisible(itemFrame: item(x: 1200, width: 0), screens: [notched]))
     }

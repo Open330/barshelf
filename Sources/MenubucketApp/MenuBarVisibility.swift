@@ -34,7 +34,12 @@ final class MenuBarVisibility: ObservableObject {
     static func isVisible(itemFrame: NSRect, screens: [ScreenArea]) -> Bool {
         guard itemFrame.width > 0 else { return false }
         let center = NSPoint(x: itemFrame.midX, y: itemFrame.midY)
-        guard let screen = screens.first(where: { $0.frame.contains(center) }) else { return false }
+        guard let screen = screens.first(where: { $0.frame.contains(center) }) else {
+            // Above the top of a screen is where every item goes while the
+            // menu bar is slid away (a full-screen app, auto-hide): nothing to
+            // tell from there. An item macOS has no room for goes elsewhere.
+            return screens.contains { center.x >= $0.frame.minX && center.x < $0.frame.maxX && itemFrame.minY >= $0.frame.maxY - 1 }
+        }
         if let left = screen.leftOfNotch, let right = screen.rightOfNotch {
             let slack: CGFloat = 1
             return itemFrame.minX >= right.minX - slack || itemFrame.maxX <= left.maxX + slack
@@ -45,9 +50,16 @@ final class MenuBarVisibility: ObservableObject {
     static func currentScreens() -> [ScreenArea] {
         NSScreen.screens.map { screen in
             ScreenArea(frame: screen.frame,
-                       leftOfNotch: screen.auxiliaryTopLeftArea,
-                       rightOfNotch: screen.auxiliaryTopRightArea)
+                       leftOfNotch: screen.auxiliaryTopLeftArea.map { global($0, on: screen.frame) },
+                       rightOfNotch: screen.auxiliaryTopRightArea.map { global($0, on: screen.frame) })
         }
+    }
+
+    /// The notch areas in global coordinates, whether AppKit reports them so
+    /// or relative to their screen (a notched display that is not the main one).
+    static func global(_ area: NSRect, on screen: NSRect) -> NSRect {
+        screen.contains(NSPoint(x: area.midX, y: area.midY))
+            ? area : area.offsetBy(dx: screen.minX, dy: screen.minY)
     }
 
     /// Re-reads the items' positions. Unknown while the menu bar itself is

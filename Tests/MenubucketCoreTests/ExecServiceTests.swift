@@ -3,6 +3,17 @@ import XCTest
 @testable import MenubucketCore
 
 final class ExecServiceTests: XCTestCase {
+    /// What the delayed SIGKILL relies on: finding a group's members, and
+    /// telling ones that started before the request from a new group that
+    /// took over the id.
+    func testGroupMembersAndStartTimesAreReadable() {
+        XCTAssertTrue(ExecService.groupMembers(getpgrp()).contains(getpid()))
+        let started = ExecService.startTime(of: getpid())
+        XCTAssertNotNil(started)
+        XCTAssertLessThan(started ?? .distantFuture, Date())
+        XCTAssertNil(ExecService.startTime(of: 0x7fff_fff0))
+    }
+
     /// The command exits on SIGTERM but leaves a descendant that ignores it;
     /// the SIGKILL that follows goes to the whole group, so nothing the
     /// command started is left running after cancel, revoke or timeout.
