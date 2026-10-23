@@ -173,6 +173,9 @@ final class MenuBarController {
         redraw()
     }
 
+    /// The widgets shown as menu bar items of their own, by widget id.
+    var separateStatusItems: [String: NSStatusItem] { separateItems }
+
     func apply(_ entries: [MenuBarEntry]) {
         guard currentEntries != entries else { return }
         currentEntries = entries

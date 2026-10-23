@@ -5997,6 +5997,16 @@
         }
       }
     },
+    "No room in the menu bar for %@. Make room by holding ⌘ and dragging other icons out, or set their placement to “Next to the BarShelf icon” on the Menu Bar page.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "메뉴 막대에 %@ 자리가 없습니다. ⌘를 누른 채 다른 아이콘을 메뉴 막대 밖으로 끌어 자리를 만들거나, 메뉴 막대 페이지에서 배치를 “BarShelf 아이콘 옆”으로 바꾸세요."
+          }
+        }
+      }
+    },
     "No special permissions": {
       "localizations": {
         "ko": {
@@ -9372,6 +9382,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Apple Dock이 같은 가장자리에 있습니다. BarShelf Dock은 그 바로 위에 놓입니다. 위치를 바꾸거나 자동 숨기기를 켜면 겹치지 않습니다."
+          }
+        }
+      }
+    },
+    "The BarShelf icon is hidden: the menu bar is full, or the icon is behind the camera notch. Hold ⌘ and drag other icons out of the menu bar to make room, or quit apps that put icons there. Opening BarShelf from Finder or Spotlight always brings back this window.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BarShelf 아이콘이 가려져 있습니다. 메뉴 막대가 가득 찼거나 아이콘이 카메라 노치 뒤에 있습니다. ⌘를 누른 채 다른 아이콘을 메뉴 막대 밖으로 끌어 자리를 만들거나, 메뉴 막대에 아이콘을 두는 앱을 종료하세요. Finder나 Spotlight에서 BarShelf를 열면 언제든 이 창이 다시 열립니다."
           }
         }
       }
