@@ -214,6 +214,7 @@ enum UpdateChecker {
         )
         let target = appURL
         let bundleID = Bundle.main.bundleIdentifier
+        let running = currentVersion
 
         let work = Task {
             do {
@@ -228,7 +229,8 @@ enum UpdateChecker {
                         archive: archive,
                         replacing: target,
                         expectedTeam: team,
-                        expectedBundleID: bundleID
+                        expectedBundleID: bundleID,
+                        upgradingFrom: running
                     )
                 }.value
                 installInFlight = false

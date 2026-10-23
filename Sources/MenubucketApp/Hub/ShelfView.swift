@@ -109,6 +109,7 @@ struct ShelfView: View {
 
     private var board: some View {
         VStack(spacing: 0) {
+            MenuBarHiddenBanner(padded: true) { id in runtime.widgets.first { $0.id == id }?.displayName }
             if !desktopTipDismissed, runtime.sharedShelf.isEnabled {
                 StatusBanner(
                     tone: .info,

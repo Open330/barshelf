@@ -411,12 +411,46 @@ public final class ExecService {
 
     /// Every resource-limit and lifecycle exit gets the same bounded grace
     /// period, including scripts that deliberately ignore SIGTERM.
+    ///
+    /// Foundation starts each command as the leader of its own process group
+    /// (measured: pgid == pid), and a SIGTERM'd shell's children went with it.
+    /// The SIGKILL that follows covers the whole group too: a descendant that
+    /// ignores SIGTERM outlives a parent that obeys it, and used to keep
+    /// running after cancel, revoke or timeout. Only members that started
+    /// before the request are killed — if the whole group has gone, its id
+    /// may already lead a new, unrelated group. A descendant that moves to a
+    /// group of its own (`setsid`, `setpgrp`) is out of reach, as it would be
+    /// for a shell.
     static func terminate(_ process: Process) {
         guard process.isRunning else { return }
+        let group = process.processIdentifier
+        let requestedAt = Date()
         process.terminate()
         DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 2) {
-            if process.isRunning { kill(process.processIdentifier, SIGKILL) }
+            for member in groupMembers(group) where startTime(of: member).map({ $0 < requestedAt }) == true {
+                _ = kill(member, SIGKILL)
+            }
         }
+    }
+
+    /// Processes whose process group is `group`.
+    static func groupMembers(_ group: pid_t) -> [pid_t] {
+        let size = proc_listpids(UInt32(PROC_PGRP_ONLY), UInt32(group), nil, 0)
+        guard size > 0 else { return [] }
+        var pids = [pid_t](repeating: 0, count: Int(size) / MemoryLayout<pid_t>.stride + 8)
+        let filled = pids.withUnsafeMutableBytes { buffer in
+            proc_listpids(UInt32(PROC_PGRP_ONLY), UInt32(group), buffer.baseAddress, Int32(buffer.count))
+        }
+        guard filled > 0 else { return [] }
+        return pids.prefix(Int(filled) / MemoryLayout<pid_t>.stride).filter { $0 > 0 }
+    }
+
+    static func startTime(of pid: pid_t) -> Date? {
+        var info = proc_bsdinfo()
+        let size = Int32(MemoryLayout<proc_bsdinfo>.stride)
+        guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return nil }
+        return Date(timeIntervalSince1970: TimeInterval(info.pbi_start_tvsec)
+            + TimeInterval(info.pbi_start_tvusec) / 1_000_000)
     }
 
     /// Foundation can retain pipe endpoints after a failed Process launch.

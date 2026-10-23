@@ -12,6 +12,7 @@ struct MenuBarPage: View {
 
     var body: some View {
         SettingsPage {
+            MenuBarHiddenBanner { id in runtime.widgets.first { $0.id == id }?.displayName }
             itemsSection
             styleSection
             overridesSection
