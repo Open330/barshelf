@@ -174,22 +174,28 @@ struct SearchOverlay: View {
     }
 
     private var hits: [SearchHit] {
+        Self.searchHits(query: query, pages: runtime.pages, snapshots: runtime.snapshots)
+    }
+
+    static func searchHits(
+        query: String, pages: [WidgetPage], snapshots: [String: WidgetSnapshot]
+    ) -> [SearchHit] {
         let needle = SearchMatcher(query)
         guard !needle.isEmpty else { return [] }
         var results: [SearchHit] = []
-        let pages = runtime.pages
         for (pageIndex, page) in pages.enumerated() {
             for widget in page.widgets {
                 let name = widget.displayName
-                if needle.matches(name, widget.manifest.name) {
+                let nameMatches = needle.matches(name, widget.manifest.name)
+                if nameMatches {
                     results.append(SearchHit(
                         id: "widget-\(widget.id)", widgetID: widget.id,
                         widgetName: name, pageIndex: pageIndex,
                         text: name, action: nil
                     ))
                 }
-                if let tree = runtime.snapshots[widget.id]?.viewTree {
-                    collect(node: tree, needle: needle, widget: widget,
+                if let tree = snapshots[widget.id]?.viewTree {
+                    collect(node: tree, needle: needle, widget: widget, nameMatches: nameMatches,
                             pageIndex: pageIndex, into: &results)
                 }
             }
@@ -197,11 +203,12 @@ struct SearchOverlay: View {
         return Array(results.prefix(30))
     }
 
-    private func collect(
-        node: UINode, needle: SearchMatcher, widget: LoadedWidget,
+    private static func collect(
+        node: UINode, needle: SearchMatcher, widget: LoadedWidget, nameMatches: Bool,
         pageIndex: Int, into results: inout [SearchHit]
     ) {
-        if let text = node.text, needle.matches(text) {
+        if let text = node.text,
+           needle.matches(text) || (!nameMatches && needle.matches(text, widget.displayName, widget.manifest.name)) {
             results.append(SearchHit(
                 id: "\(widget.id)-\(node.id ?? text)-\(results.count)",
                 widgetID: widget.id, widgetName: widget.displayName,
@@ -209,7 +216,7 @@ struct SearchOverlay: View {
             ))
         }
         for child in (node.children ?? []) + (node.items ?? []) {
-            collect(node: child, needle: needle, widget: widget,
+            collect(node: child, needle: needle, widget: widget, nameMatches: nameMatches,
                     pageIndex: pageIndex, into: &results)
         }
     }

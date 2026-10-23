@@ -1,4 +1,5 @@
 import XCTest
+import MenubucketCore
 @testable import MenubucketApp
 
 final class SearchMatcherTests: XCTestCase {
@@ -24,5 +25,29 @@ final class SearchMatcherTests: XCTestCase {
         XCTAssertTrue(SearchMatcher("   ").isEmpty)
         XCTAssertFalse(SearchMatcher("").matches("anything"))
         XCTAssertFalse(SearchMatcher("x").matches(nil))
+    }
+
+    @MainActor
+    func testOverlayMatchesWidgetNameAndReadingTogetherWithoutUnrelatedRows() {
+        let manifest = Manifest(schemaVersion: 1, id: "dev.test.weather-search", name: "Weather",
+                                entry: .init(kind: "workflow"))
+        let widget = LoadedWidget(manifest: manifest, directory: URL(fileURLWithPath: "/unused"))
+        let action = NodeAction(type: "copyText", value: "Seoul")
+        let tree = UINode(type: "stack", children: [
+            UINode(type: "text", text: "Seoul 20°C", action: action),
+            UINode(type: "text", text: "Busan 22°C")
+        ])
+        let pages = [WidgetPage(group: "Empty", widgets: []), WidgetPage(group: "Travel", widgets: [widget])]
+        let snapshots = [widget.id: WidgetSnapshot(widgetID: widget.id, viewTree: tree)]
+        let hits = SearchOverlay.searchHits(query: "weather seoul", pages: pages, snapshots: snapshots)
+        XCTAssertEqual(hits.count, 1)
+        XCTAssertEqual(hits.first?.text, "Seoul 20°C")
+        XCTAssertEqual(hits.first?.pageIndex, 1)
+        XCTAssertEqual(hits.first?.widgetID, widget.id)
+        XCTAssertEqual(hits.first?.action, action)
+        XCTAssertTrue(SearchOverlay.searchHits(query: "weather tokyo", pages: pages, snapshots: snapshots).isEmpty)
+        let names = SearchOverlay.searchHits(query: "weather", pages: pages, snapshots: snapshots)
+        XCTAssertEqual(names.count, 1, "matching a widget name must not turn every unrelated reading into a hit")
+        XCTAssertNil(names.first?.action)
     }
 }

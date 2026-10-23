@@ -411,3 +411,58 @@ extension packaging and signature integrity, not installed timeline behavior.
 An availability question is pending for the human/hardware checks above. No
 answer or elapsed wait is treated as a successful test. The goal remains active;
 there is no new numerical acceptance assessment.
+
+### Main integration and review preparation
+
+The quality snapshot was committed as `9f40fd7` on
+`improve/persona-quality-review`; local `.context` diagnostics and signing
+material are excluded. A fetch then showed main had advanced to `cee8d18`
+(merged PR #109), adding menu-bar visibility guidance, wider search matching,
+update-version checks, Korean catalog coverage tests and process-group cleanup.
+Those changes are being integrated before opening a draft PR.
+
+The only merge conflicts were the string catalog and execution tests. The
+catalog was reconciled by key across all three versions, retaining 1,188 keys;
+there were no differing same-key edits, and the additional Korean copy follows
+main's consistent register. Execution tests retain the union of both branches
+(16 tests), including cancellation and descendant cleanup. The auto-merged
+execution service retains cancellation-aware reads and locale isolation.
+SDK tests (3), widget-language tests (7) and string synchronization passed on
+the integrated tree; full Swift tests and independent integration review are
+still running at this checkpoint. The earlier signed candidate and numerical
+assessments precede this integration and do not validate the integrated source.
+
+The integrated full suite first passed **1,173 tests (1,155 passed, 18 skipped)**.
+Independent review then found two P2 edge cases: terms spanning a widget name
+and reading failed to match; cancellation during inherited-pipe draining missed
+a child after its parent naturally exited. Both were repaired before draft PR
+preparation. Search coverage now exercises the actual overlay index, including
+the selected action/page and avoidance of irrelevant name-only reading hits.
+Execution cleanup uses retained capture-pipe endpoint identity to distinguish
+inheritors from unrelated members of a reused process group, with per-process
+start-time checks before TERM/KILL; no persistent process polling was added.
+
+The subsequent integrated suite passed **1,176 tests: 1,158 passed, 18 skipped,
+zero failures** (676 Core, 427 app, 73 CLI). The new natural-parent-exit test
+also keeps an independent process alive and verifies the delayed side effect
+never occurs. Strict Core concurrency with warnings as errors passed after the
+repair. Main integration was committed separately as `0180c74`; the two
+follow-up repairs and this evidence are prepared as a separate review commit.
+The independent follow-up is still pending at this checkpoint. No release,
+hardware success or nine-point acceptance follows from these results alone.
+
+The follow-up independently closed both original integration findings and
+identified an adjacent automatic pipe-deadline path that marked timeout without
+cleaning up its surviving writer. The timeout return now terminates owned work
+before releasing pinned endpoints. A separate no-cancellation version of the
+natural-exit fixture exercises this path. **29 focused tests passed, zero
+skipped or failed** (23 Core, 6 app), including automatic deadline cleanup,
+explicit cancellation, pipe identity, action-permission checks and actual
+search indexing. The earlier 1,176-test full result predates this last timeout
+branch; fresh draft-PR CI will cover the final integrated commit.
+
+The independent bounded follow-up closed the automatic-deadline finding after
+inspecting the final control lifetime and the executed no-cancellation test.
+No further direct issue was found in that closure review. Latest strict Core
+verification also passed. The branch is prepared for a draft PR and remote CI;
+manual/hardware acceptance remains pending, so the quality goal is not complete.

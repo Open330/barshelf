@@ -108,14 +108,18 @@ public final class ExecService {
         private let lock = NSLock()
         private var cancelled = false
         private var process: Process?
+        private var leaderStarted: Date?
+        private var pipes: [CapturePipe] = []
 
         var isCancelled: Bool { lock.withLock { cancelled } }
 
-        func launch(_ process: Process) throws -> Bool {
+        func launch(_ process: Process, pipes: [CapturePipe]) throws -> Bool {
             try lock.withLock {
                 guard !cancelled else { return false }
                 try process.run()
                 self.process = process
+                self.leaderStarted = ExecService.startTime(of: process.processIdentifier)
+                self.pipes = pipes
                 return true
             }
         }
@@ -123,11 +127,47 @@ public final class ExecService {
         func cancel() {
             lock.withLock {
                 cancelled = true
-                if let process { ExecService.terminate(process) }
+                stop()
             }
         }
 
-        func finish() { lock.withLock { process = nil } }
+        func terminate() { lock.withLock { stop() } }
+
+        private func stop() {
+            guard let process else { return }
+            // A dead leader's PID/group number alone is no longer identity.
+            if let leaderStarted, ExecService.startTime(of: process.processIdentifier) == leaderStarted {
+                ExecService.terminate(process)
+            }
+            ExecService.terminatePipeInheritors(group: process.processIdentifier, pipes: pipes)
+        }
+
+        func finish() {
+            lock.withLock {
+                process = nil
+                pipes = []
+            }
+        }
+    }
+
+    /// Keep the read endpoint alive even when cancelled readers close theirs.
+    /// Its kernel identity cannot be recycled while this CLOEXEC fd is open.
+    private final class CapturePipe: @unchecked Sendable {
+        let descriptor: Int32
+        let identity: UInt64
+
+        init(_ handle: FileHandle) throws {
+            let duplicate = fcntl(handle.fileDescriptor, F_DUPFD_CLOEXEC, 0)
+            guard duplicate >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+            guard let endpoint = ExecService.pipeEndpoint(pid: getpid(), descriptor: duplicate) else {
+                _ = Darwin.close(duplicate)
+                throw POSIXError(.EIO)
+            }
+            descriptor = duplicate
+            identity = endpoint.handle
+        }
+
+        deinit { _ = Darwin.close(descriptor) }
     }
 
     // Preserve the existing result/error API while reporting cancellation.
@@ -334,7 +374,8 @@ public final class ExecService {
 
         let startedAt = Date()
         do {
-            guard try control.launch(process) else {
+            let pipes = try [CapturePipe(stdoutPipe.fileHandleForReading), CapturePipe(stderrPipe.fileHandleForReading)]
+            guard try control.launch(process, pipes: pipes) else {
                 Self.closePipe(stdoutPipe)
                 Self.closePipe(stderrPipe)
                 return .failure(cancellationError)
@@ -352,7 +393,7 @@ public final class ExecService {
             let handle = stdoutPipe.fileHandleForReading
             Self.drain(handle, until: deadline.value, cancelled: { control.isCancelled }, timedOut: { captureState.markTimedOut() }) { chunk in
                 if captureState.appendStdout(chunk, limit: stdoutLimit) {
-                    Self.terminate(process)
+                    control.terminate()
                     return true
                 }
                 return false
@@ -373,7 +414,7 @@ public final class ExecService {
 
         let timeoutItem = DispatchWorkItem {
             captureState.markTimedOut()
-            Self.terminate(process)
+            control.terminate()
         }
         DispatchQueue.global().asyncAfter(
             deadline: .now() + .milliseconds(max(timeoutMs, 1)),
@@ -399,6 +440,10 @@ public final class ExecService {
             return .failure(.outputTooLarge(limit: stdoutLimit))
         }
         if capture.timedOut {
+            // A pipe reader can reach its deadline after the leader exited
+            // and cancelled the process timer. Our pinned endpoints still
+            // identify any surviving inheritors before finish releases them.
+            control.terminate()
             return .failure(.timeout(ms: timeoutMs))
         }
         return .success(Capture(
@@ -451,6 +496,57 @@ public final class ExecService {
         guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return nil }
         return Date(timeIntervalSince1970: TimeInterval(info.pbi_start_tvsec)
             + TimeInterval(info.pbi_start_tvusec) / 1_000_000)
+    }
+
+    static func pipeEndpoint(pid: pid_t, descriptor: Int32) -> (handle: UInt64, peer: UInt64)? {
+        var info = pipe_fdinfo()
+        let size = Int32(MemoryLayout<pipe_fdinfo>.stride)
+        guard proc_pidfdinfo(pid, descriptor, PROC_PIDFDPIPEINFO, &info, size) == size,
+              info.pipeinfo.pipe_handle != 0 else { return nil }
+        return (info.pipeinfo.pipe_handle, info.pipeinfo.pipe_peerhandle)
+    }
+
+    /// A pipe-holding child can survive a naturally exited leader. Prove its
+    /// relationship via our still-open output pipe, not a possibly reused pgid.
+    /// Signal only pinned inheritors; unrelated members of a reused group are
+    /// never selected. Descendants that left the original group remain outside
+    /// the same process-group contract as normal termination.
+    private static func terminatePipeInheritors(group: pid_t, pipes: [CapturePipe]) {
+        let identities = Set(pipes.map(\.identity))
+        guard !identities.isEmpty else { return }
+        let members = groupMembers(group).compactMap { pid -> (pid_t, Date)? in
+            guard let started = startTime(of: pid),
+                  holdsPipe(pid: pid, peers: identities),
+                  getpgid(pid) == group, startTime(of: pid) == started else { return nil }
+            return (pid, started)
+        }
+        guard !members.isEmpty else { return }
+        for (pid, started) in members where startTime(of: pid) == started {
+            _ = kill(pid, SIGTERM)
+        }
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 2) {
+            for (pid, started) in members where startTime(of: pid) == started {
+                _ = kill(pid, SIGKILL)
+            }
+        }
+    }
+
+    private static func holdsPipe(pid: pid_t, peers: Set<UInt64>) -> Bool {
+        func matches(_ descriptor: Int32) -> Bool {
+            pipeEndpoint(pid: pid, descriptor: descriptor).map { peers.contains($0.peer) } ?? false
+        }
+        if matches(STDOUT_FILENO) || matches(STDERR_FILENO) { return true }
+        // An inheritor may have moved stdout/stderr to another descriptor.
+        let size = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, nil, 0)
+        guard size > 0 else { return false }
+        var descriptors = [proc_fdinfo](repeating: proc_fdinfo(),
+            count: Int(size) / MemoryLayout<proc_fdinfo>.stride + 8)
+        let filled = descriptors.withUnsafeMutableBytes {
+            proc_pidinfo(pid, PROC_PIDLISTFDS, 0, $0.baseAddress, Int32($0.count))
+        }
+        guard filled > 0 else { return false }
+        return descriptors.prefix(Int(filled) / MemoryLayout<proc_fdinfo>.stride)
+            .contains { $0.proc_fdtype == UInt32(PROX_FDTYPE_PIPE) && matches($0.proc_fd) }
     }
 
     /// Foundation can retain pipe endpoints after a failed Process launch.
