@@ -32,6 +32,7 @@ enum PopupEventRouting {
 final class PopoverSurface: NSObject, PopupSurface, NSPopoverDelegate {
     private let popover = NSPopover()
     private let closesOnEscape: Bool
+    private let makeContent: () -> NSViewController
     private var escapeMonitor: Any?
 
     var onShow: (() -> Void)?
@@ -50,15 +51,17 @@ final class PopoverSurface: NSObject, PopupSurface, NSPopoverDelegate {
         closesOnEscape: Bool = false
     ) {
         self.closesOnEscape = closesOnEscape
+        makeContent = {
+            let controller = NSHostingController(rootView: rootView)
+            if fitsContent {
+                controller.sizingOptions = [.preferredContentSize]
+            }
+            return controller
+        }
         super.init()
         popover.behavior = .transient
         popover.animates = true
         popover.contentSize = contentSize
-        let controller = NSHostingController(rootView: rootView)
-        if fitsContent {
-            controller.sizingOptions = [.preferredContentSize]
-        }
-        popover.contentViewController = controller
         popover.delegate = self
     }
 
@@ -72,6 +75,7 @@ final class PopoverSurface: NSObject, PopupSurface, NSPopoverDelegate {
 
     func show(relativeTo button: NSStatusBarButton) {
         NSApp.activate()
+        if popover.contentViewController == nil { popover.contentViewController = makeContent() }
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         // Make the popover window key so its text fields receive keyboard input
         // and standard editing key equivalents (⌘A/⌘C/⌘V/⌘X).
@@ -107,6 +111,12 @@ final class PopoverSurface: NSObject, PopupSurface, NSPopoverDelegate {
 
     func popoverDidClose(_ notification: Notification) {
         removeEscapeMonitor()
+        // A closed popover keeps its view graph, which goes on re-measuring
+        // on every widget refresh; on macOS 26 each pass also leaves a KVO
+        // dependency in AppKit's safe-area bookkeeping that is never freed
+        // (~120k and 3–10% idle CPU after four days). Built again on show;
+        // what should outlast a close lives in PagerState and the runtime.
+        popover.contentViewController = nil
         onHide?()
     }
 }
