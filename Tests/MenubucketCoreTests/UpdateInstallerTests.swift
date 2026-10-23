@@ -272,6 +272,7 @@ final class UpdateInstallerTests: XCTestCase {
             .signatureRejected("signed by a different developer"),
             .gatekeeperRejected, .replaceFailed("busy"),
             .systemTooOld(required: "14.0", running: "13.6"),
+            .notNewer(found: "0.7.3", running: "0.7.4"),
         ]
         for failure in failures {
             XCTAssertFalse(
@@ -281,6 +282,16 @@ final class UpdateInstallerTests: XCTestCase {
                 failure.recoverySuggestion?.isEmpty ?? true, "\(failure) suggests nothing"
             )
         }
+    }
+
+    /// Every old release carries a valid signature, so the version is what
+    /// keeps a stale or replayed download from replacing a newer build.
+    func testOnlyANewerBuildCountsAsAnUpgrade() {
+        XCTAssertTrue(UpdateInstaller.isUpgrade("0.7.5", over: "0.7.4"))
+        XCTAssertTrue(UpdateInstaller.isUpgrade("0.10.0", over: "0.9.9"))
+        XCTAssertFalse(UpdateInstaller.isUpgrade("0.7.4", over: "0.7.4"))
+        XCTAssertFalse(UpdateInstaller.isUpgrade("0.7.3", over: "0.7.4"))
+        XCTAssertFalse(UpdateInstaller.isUpgrade(nil, over: "0.7.4"))
     }
 
     func testTheMinimumMacOSIsComparedComponentByComponent() {

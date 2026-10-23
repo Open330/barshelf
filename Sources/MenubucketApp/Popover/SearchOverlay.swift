@@ -125,14 +125,14 @@ struct SearchOverlay: View {
     }
 
     private var hits: [SearchHit] {
-        let needle = query.trimmingCharacters(in: .whitespaces).lowercased()
+        let needle = SearchMatcher(query)
         guard !needle.isEmpty else { return [] }
         var results: [SearchHit] = []
         let pages = runtime.pages
         for (pageIndex, page) in pages.enumerated() {
             for widget in page.widgets {
                 let name = widget.displayName
-                if name.lowercased().contains(needle) {
+                if needle.matches(name, widget.manifest.name) {
                     results.append(SearchHit(
                         id: "widget-\(widget.id)", widgetID: widget.id,
                         widgetName: name, pageIndex: pageIndex,
@@ -149,10 +149,10 @@ struct SearchOverlay: View {
     }
 
     private func collect(
-        node: UINode, needle: String, widget: LoadedWidget,
+        node: UINode, needle: SearchMatcher, widget: LoadedWidget,
         pageIndex: Int, into results: inout [SearchHit]
     ) {
-        if let text = node.text, text.lowercased().contains(needle) {
+        if let text = node.text, needle.matches(text) {
             results.append(SearchHit(
                 id: "\(widget.id)-\(node.id ?? text)-\(results.count)",
                 widgetID: widget.id, widgetName: widget.displayName,

@@ -125,8 +125,10 @@ final class StatusItemController: NSObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] entries in
                 self?.menuBar.apply(entries)
+                self?.scheduleVisibilityCheck()
             }
             .store(in: &cancellables)
+        startVisibilityMonitoring()
         appPrefs.$preferences
             .receive(on: RunLoop.main)
             .sink { [weak self] preferences in
@@ -287,6 +289,53 @@ final class StatusItemController: NSObject {
         if popup.isShown { popup.hide() }
         surface.show(relativeTo: button)
         runtime.refresh(widgetID: widgetID, manual: true)
+    }
+
+    // MARK: - Menu bar visibility
+
+    /// Shown once ever: the person who hides BarShelf with a menu bar
+    /// manager on purpose is told once, then left alone.
+    private static let hiddenIconNoticeKey = "hiddenMenuBarIconNoticeShown"
+    private var visibilityCheck: DispatchWorkItem?
+
+    /// macOS moves items around without notice — another app's icon arriving,
+    /// a ⌘-drag, a display change — so the check runs on those events and
+    /// once a minute, which costs a frame lookup per item.
+    private func startVisibilityMonitoring() {
+        NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)
+            .merge(with: NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didLaunchApplicationNotification),
+                   NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didTerminateApplicationNotification))
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.scheduleVisibilityCheck() }
+            .store(in: &cancellables)
+        Timer.publish(every: 60, tolerance: 10, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in self?.checkVisibility() }
+            .store(in: &cancellables)
+        MenuBarVisibility.shared.$mainHidden
+            .removeDuplicates()
+            .filter { $0 }
+            .receive(on: RunLoop.main)
+            .sink { _ in
+                let defaults = UserDefaults.standard
+                guard !defaults.bool(forKey: Self.hiddenIconNoticeKey) else { return }
+                defaults.set(true, forKey: Self.hiddenIconNoticeKey)
+                Task { @MainActor in HubWindowController.shared.show(tab: .menuBar) }
+            }
+            .store(in: &cancellables)
+        scheduleVisibilityCheck()
+    }
+
+    /// Items settle a moment after they are added or resized.
+    private func scheduleVisibilityCheck() {
+        visibilityCheck?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.checkVisibility() }
+        visibilityCheck = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: work)
+    }
+
+    private func checkVisibility() {
+        MenuBarVisibility.shared.update(main: statusItem, widgets: menuBar.separateStatusItems)
     }
 
     private func openPopupIfNeeded() {

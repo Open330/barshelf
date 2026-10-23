@@ -116,7 +116,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$@는 macOS 단축키 “%2$@”이기도 합니다. 누를 때마다 둘 다 실행돼서, 입력 소스 전환이라면 두 번 바뀌어 제자리로 돌아옵니다. 시스템 설정에서 그 단축키를 끄세요."
+            "value": "%1$@는 macOS 단축키 “%2$@”이기도 합니다. 누를 때마다 둘 다 실행돼서, 입력 소스 전환이라면 두 번 바뀌어 제자리로 돌아옵니다. 시스템 설정에서 그 단축키를 끄십시오."
           }
         }
       }
@@ -1009,7 +1009,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "이미 목록에 있다면 스위치만 켜세요. 켜져 있는데도 허용되지 않으면 선택해 −로 지운 뒤 다시 끌어 넣으세요."
+            "value": "이미 목록에 있다면 스위치만 켜십시오. 켜져 있는데도 허용되지 않으면 선택해 −로 지운 뒤 다시 끌어 넣으십시오."
           }
         }
       }
@@ -1059,7 +1059,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "다른 앱이나 Automation 단축키가 이미 %@을(를) 쓰고 있습니다. 비운 뒤 프로필 단축키를 껐다가 다시 켜세요."
+            "value": "다른 앱이나 Automation 단축키가 이미 %@을(를) 쓰고 있습니다. 비운 뒤 프로필 단축키를 껐다가 다시 켜십시오."
           }
         }
       }
@@ -1140,7 +1140,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "이 프로필에 맞게 Apple Dock을 정리한 뒤 저장하세요. 전환할 때 Dock이 잠깐 다시 시작되지만 열린 앱과 창은 그대로입니다. 이전 레이아웃은 먼저 백업됩니다."
+            "value": "이 프로필에 맞게 Apple Dock을 정리한 뒤 저장하십시오. 전환할 때 Dock이 잠깐 다시 시작되지만 열린 앱과 창은 그대로입니다. 이전 레이아웃은 먼저 백업됩니다."
           }
         }
       }
@@ -1747,7 +1747,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "키보드 모니터링을 시작할 수 없습니다. 이 BarShelf 빌드의 손쉬운 사용 권한을 확인하세요. macOS가 입력 모니터링 권한을 요청하면 허용하고 BarShelf를 재시작하세요."
+            "value": "키보드 모니터링을 시작할 수 없습니다. 이 BarShelf 빌드의 손쉬운 사용 권한을 확인하십시오. macOS가 입력 모니터링 권한을 요청하면 허용하고 BarShelf를 재시작하십시오."
           }
         }
       }
@@ -1968,7 +1968,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hammerspoon Lua, Karabiner JSON 또는 JavaScript 확장 파일을 선택하세요."
+            "value": "Hammerspoon Lua, Karabiner JSON 또는 JavaScript 확장 파일을 선택하십시오."
           }
         }
       }
@@ -1978,7 +1978,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Karabiner JSON 설정 파일이나 규칙 파일을 고르세요."
+            "value": "Karabiner JSON 설정 파일이나 규칙 파일을 고르십시오."
           }
         }
       }
@@ -2993,7 +2993,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "BarShelf를 손쉬운 사용 목록으로 끌어 넣으세요"
+            "value": "BarShelf를 손쉬운 사용 목록으로 끌어 넣으십시오"
           }
         }
       }
@@ -3013,7 +3013,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "시스템 설정의 목록으로 끌어 넣으세요"
+            "value": "시스템 설정의 목록으로 끌어 넣으십시오"
           }
         }
       }
@@ -3073,7 +3073,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "앱, 폴더, 파일을 여기에 놓으세요"
+            "value": "앱, 폴더, 파일을 여기에 놓으십시오"
           }
         }
       }
@@ -3173,7 +3173,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "프로필마다 독 아이템이 따로 있고, Apple Dock 레이아웃과 팝업 페이지를 함께 담을 수 있습니다. 끌어서 순서를 바꾸세요. 처음 아홉 개에 ⌃⌥1–9가 붙습니다."
+            "value": "프로필마다 독 아이템이 따로 있고, Apple Dock 레이아웃과 팝업 페이지를 함께 담을 수 있습니다. 끌어서 순서를 바꾸십시오. 처음 아홉 개에 ⌃⌥1–9가 붙습니다."
           }
         }
       }
@@ -3244,7 +3244,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "전환하려면 키보드 입력 소스를 두 개 이상 켜세요."
+            "value": "전환하려면 키보드 입력 소스를 두 개 이상 켜십시오."
           }
         }
       }
@@ -3861,7 +3861,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "전역 단축키, 키 리매핑 및 창 탐색을 지원합니다. 활성화 전에 Hammerspoon을 종료하고 같은 Karabiner 규칙을 끄세요."
+            "value": "전역 단축키, 키 리매핑 및 창 탐색을 지원합니다. 활성화 전에 Hammerspoon을 종료하고 같은 Karabiner 규칙을 끄십시오."
           }
         }
       }
@@ -4287,7 +4287,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hammerspoon 탐색 설정, Karabiner 키 매핑 또는 JavaScript를 가져옵니다. 가져온 내용을 저장하면 적용됩니다. 지원하지 않는 동작은 가져오기 전에 안내합니다. 활성화 전에 원래 도구의 같은 규칙을 끄세요."
+            "value": "Hammerspoon 탐색 설정, Karabiner 키 매핑 또는 JavaScript를 가져옵니다. 가져온 내용을 저장하면 적용됩니다. 지원하지 않는 동작은 가져오기 전에 안내합니다. 활성화 전에 원래 도구의 같은 규칙을 끄십시오."
           }
         }
       }
@@ -4313,7 +4313,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Karabiner-Elements%2$@에서 키 매핑 %1$lld개를 가져왔습니다. 규칙은 모든 키보드에 적용됩니다. 이 확장을 켜기 전에 원래 Karabiner 규칙을 끄세요."
+            "value": "Karabiner-Elements%2$@에서 키 매핑 %1$lld개를 가져왔습니다. 규칙은 모든 키보드에 적용됩니다. 이 확장을 켜기 전에 원래 Karabiner 규칙을 끄십시오."
           }
         }
       }
@@ -4911,7 +4911,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "키보드 모니터링을 복구하지 못했습니다. 확장을 다시 활성화하세요."
+            "value": "키보드 모니터링을 복구하지 못했습니다. 확장을 다시 활성화하십시오."
           }
         }
       }
@@ -5972,7 +5972,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "아직 아이템이 없습니다. 아래에서 추가하거나 앱·폴더·파일을 독에 끌어다 놓으세요."
+            "value": "아직 아이템이 없습니다. 아래에서 추가하거나 앱·폴더·파일을 독에 끌어다 놓으십시오."
           }
         }
       }
@@ -5993,6 +5993,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "아직 값이 없습니다. 위젯이 새로고침되면 여기에서 경보와 행을 설정할 수 있습니다."
+          }
+        }
+      }
+    },
+    "No room in the menu bar for %@. Make room by holding ⌘ and dragging other icons out, or set their placement to “Next to the BarShelf icon” on the Menu Bar page.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "메뉴 막대에 %@ 자리가 없습니다. ⌘를 누른 채 다른 아이콘을 메뉴 막대 밖으로 끌어 자리를 만들거나, 메뉴 막대 페이지에서 배치를 “BarShelf 아이콘 옆”으로 바꾸십시오."
           }
         }
       }
@@ -6936,7 +6946,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "이 위젯들을 데스크톱에도 놓을 수 있습니다. 데스크톱을 우클릭해 위젯 편집을 고른 뒤 BarShelf를 찾으세요."
+            "value": "이 위젯들을 데스크톱에도 놓을 수 있습니다. 데스크톱을 우클릭해 위젯 편집을 고른 뒤 BarShelf를 찾으십시오."
           }
         }
       }
@@ -8237,7 +8247,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "가져오기 전에 Karabiner 프로필을 하나만 선택하세요."
+            "value": "가져오기 전에 Karabiner 프로필을 하나만 선택하십시오."
           }
         }
       }
@@ -9002,7 +9012,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "빈 상태로 시작합니다. 아래에서 앱·폴더·위젯을 추가하세요."
+            "value": "빈 상태로 시작합니다. 아래에서 앱·폴더·위젯을 추가하십시오."
           }
         }
       }
@@ -9211,7 +9221,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "시스템 설정 ▸ 개인정보 보호 및 보안 ▸ 손쉬운 사용을 열었습니다. 이 아이콘을 목록으로 끌어 넣고 BarShelf를 켜세요."
+            "value": "시스템 설정 ▸ 개인정보 보호 및 보안 ▸ 손쉬운 사용을 열었습니다. 이 아이콘을 목록으로 끌어 넣고 BarShelf를 켜십시오."
           }
         }
       }
@@ -9361,7 +9371,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "BarShelf가 실행되는 동안 Apple Dock은 숨겨지고, BarShelf를 종료하거나 이 옵션을 끄면 돌아옵니다. 계속 숨겨져 있다면 터미널에서 barshelf dock restore-apple-dock을 실행하세요."
+            "value": "BarShelf가 실행되는 동안 Apple Dock은 숨겨지고, BarShelf를 종료하거나 이 옵션을 끄면 돌아옵니다. 계속 숨겨져 있다면 터미널에서 barshelf dock restore-apple-dock을 실행하십시오."
           }
         }
       }
@@ -9372,6 +9382,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Apple Dock이 같은 가장자리에 있습니다. BarShelf Dock은 그 바로 위에 놓입니다. 위치를 바꾸거나 자동 숨기기를 켜면 겹치지 않습니다."
+          }
+        }
+      }
+    },
+    "The BarShelf icon is hidden: the menu bar is full, or the icon is behind the camera notch. Hold ⌘ and drag other icons out of the menu bar to make room, or quit apps that put icons there. Opening BarShelf from Finder or Spotlight always brings back this window.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BarShelf 아이콘이 가려져 있습니다. 메뉴 막대가 가득 찼거나 아이콘이 카메라 노치 뒤에 있습니다. ⌘를 누른 채 다른 아이콘을 메뉴 막대 밖으로 끌어 자리를 만들거나, 메뉴 막대에 아이콘을 두는 앱을 종료하십시오. Finder나 Spotlight에서 BarShelf를 열면 언제든 이 창이 다시 열립니다."
           }
         }
       }
@@ -9878,7 +9898,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "집중 모드에 맞추려면: 단축어 앱에서 집중 모드가 켜질 때 실행되는 개인용 자동화를 만들고 ‘URL 열기’ 동작에 이 링크를 넣으세요. 터미널에서는: barshelf dock use \"%@\"."
+            "value": "집중 모드에 맞추려면: 단축어 앱에서 집중 모드가 켜질 때 실행되는 개인용 자동화를 만들고 ‘URL 열기’ 동작에 이 링크를 넣으십시오. 터미널에서는: barshelf dock use \"%@\"."
           }
         }
       }
