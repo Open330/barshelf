@@ -13,6 +13,23 @@ const DEFAULT_MINUTES = 25;
 
 type TimerStatus = "idle" | "running" | "paused" | "completed";
 
+/**
+ * The app's language at the last load. Actions and timers carry no locale,
+ * so they speak the language the widget was last loaded in.
+ */
+let language: "en" | "ko" = "en";
+
+function setLanguage(locale: unknown): void {
+  language = typeof locale === "string" && /^ko(?:[-_]|$)/i.test(locale)
+    ? "ko"
+    : "en";
+}
+
+/** Fixed text: Korean when the app is in Korean, else the English. */
+function t(english: string, korean: string): string {
+  return language === "ko" ? korean : english;
+}
+
 interface FocusState {
   status: TimerStatus;
   configuredDurationMs: number;
@@ -90,10 +107,10 @@ function formatDuration(durationMs: number): string {
 }
 
 function statusTitle(status: TimerStatus): string {
-  if (status === "running") return "Focusing";
-  if (status === "paused") return "Paused";
-  if (status === "completed") return "Complete";
-  return "Ready";
+  if (status === "running") return t("Focusing", "집중 중");
+  if (status === "paused") return t("Paused", "일시 정지됨");
+  if (status === "completed") return t("Complete", "완료");
+  return t("Ready", "준비");
 }
 
 function remainingAt(state: FocusState, nowMs: number): number {
@@ -106,8 +123,11 @@ function remainingAt(state: FocusState, nowMs: number): number {
 async function notifyComplete(): Promise<void> {
   try {
     await barshelf.notify.show({
-      title: "Focus session complete",
-      body: "Nice work. Take a moment before your next session.",
+      title: t("Focus session complete", "집중 세션 완료"),
+      body: t(
+        "Nice work. Take a moment before your next session.",
+        "수고하셨습니다. 다음 세션 전에 잠시 쉬어 가세요.",
+      ),
     });
   } catch (error) {
     await barshelf.log(
@@ -149,7 +169,7 @@ function timerProgress(state: FocusState, nowMs: number): UINode {
       ],
       size: 72,
       accessibility: {
-        label: "Focus time remaining",
+        label: t("Focus time remaining", "남은 집중 시간"),
         value: formatDuration(remainingAt(state, nowMs)),
       },
     });
@@ -173,34 +193,36 @@ function timerProgress(state: FocusState, nowMs: number): UINode {
 async function render(state: FocusState, nowMs: number): Promise<void> {
   const controls: UINode[] = [];
   if (state.status === "running") {
-    controls.push(ui.button("Pause", ui.action.event("pause"), {
+    controls.push(ui.button(t("Pause", "일시 정지"), ui.action.event("pause"), {
       id: "pause-focus",
       icon: "pause.fill",
     }));
   } else {
     const startTitle = state.status === "completed"
-      ? "Start again"
+      ? t("Start again", "다시 시작")
       : state.status === "paused"
-      ? "Resume"
-      : "Start";
+      ? t("Resume", "재개")
+      : t("Start", "시작");
     controls.push(ui.button(startTitle, ui.action.event("start"), {
       id: "start-focus",
       icon: "play.fill",
     }));
   }
-  controls.push(ui.button("Reset", ui.action.event("reset"), {
+  controls.push(ui.button(t("Reset", "재설정"), ui.action.event("reset"), {
     id: "reset-focus",
     icon: "arrow.counterclockwise",
   }));
 
+  const endsAt = state.endsAtMs === undefined ? "" : new Intl.DateTimeFormat(
+    language === "ko" ? "ko-KR" : undefined,
+    { hour: "2-digit", minute: "2-digit" },
+  ).format(new Date(state.endsAtMs));
+  const minutes = Math.round(state.durationMs / 60_000);
   const detail = state.status === "running" && state.endsAtMs !== undefined
-    ? `Ends at ${
-      new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" })
-        .format(new Date(state.endsAtMs))
-    }`
+    ? t(`Ends at ${endsAt}`, `${endsAt}에 끝남`)
     : state.status === "completed"
-    ? "Session finished"
-    : `${Math.round(state.durationMs / 60_000)} minute session`;
+    ? t("Session finished", "세션 끝남")
+    : t(`${minutes} minute session`, `${minutes}분 세션`);
 
   await barshelf.render(
     ui.vstack([
@@ -210,11 +232,17 @@ async function render(state: FocusState, nowMs: number): Promise<void> {
           ui.vstack([
             ui.text(statusTitle(state.status), { role: "title" }),
             ui.text(detail, { role: "caption", foreground: "secondary" }),
-            ui.text(`${state.completedSessions} completed`, {
-              role: "caption",
-              foreground: "secondary",
-              monospacedDigit: true,
-            }),
+            ui.text(
+              t(
+                `${state.completedSessions} completed`,
+                `완료 ${state.completedSessions}회`,
+              ),
+              {
+                role: "caption",
+                foreground: "secondary",
+                monospacedDigit: true,
+              },
+            ),
           ], { spacing: 4 }),
         ], { spacing: 12 }),
       ], {
@@ -223,19 +251,33 @@ async function render(state: FocusState, nowMs: number): Promise<void> {
         padding: 10,
       }),
       state.status === "completed"
-        ? ui.banner("Focus session complete. Ready for another?", {
-          tone: "good",
-        })
-        : ui.text("The countdown ring updates live while the popup is open.", {
-          role: "caption",
-          foreground: "secondary",
-        }),
+        ? ui.banner(
+          t(
+            "Focus session complete. Ready for another?",
+            "집중 세션을 마쳤습니다. 한 번 더 할까요?",
+          ),
+          {
+            tone: "good",
+          },
+        )
+        : ui.text(
+          t(
+            "The countdown ring updates live while the popup is open.",
+            "팝업이 열려 있는 동안 카운트다운 링이 실시간으로 줄어듭니다.",
+          ),
+          {
+            role: "caption",
+            foreground: "secondary",
+          },
+        ),
       ui.hstack(controls, { id: "focus-controls", spacing: 6 }),
     ], { id: "focus-timer-root", spacing: 8 }),
     {
       status: {
         label: statusTitle(state.status),
-        tooltip: `Focus Timer · ${statusTitle(state.status)}`,
+        tooltip: `${t("Focus Timer", "집중 타이머")} · ${
+          statusTitle(state.status)
+        }`,
       },
       nextRefreshAt: state.status === "running" ? state.endsAtMs : undefined,
       cacheTtlMs: 60_000,
@@ -244,6 +286,7 @@ async function render(state: FocusState, nowMs: number): Promise<void> {
 }
 
 async function load(ctx: WidgetLoadContext): Promise<void> {
+  setLanguage(ctx.locale);
   const requestedDuration = configuredDuration(ctx.settings);
   let state = await readState(requestedDuration);
 

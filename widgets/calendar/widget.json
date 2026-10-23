@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.calendar",
   "name": "Calendar",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "icon": "calendar",
   "bucket": { "group": "Demo", "order": 13, "size": "M" },
 
@@ -24,5 +24,19 @@
 
   "appearance": {
     "accent": "red"
+  },
+
+  "localizations": {
+    "ko": {
+      "Calendar": "달력",
+      "Su": "일",
+      "Mo": "월",
+      "Tu": "화",
+      "We": "수",
+      "Th": "목",
+      "Fr": "금",
+      "Sa": "토",
+      "${sources.data.month} ${string(sources.data.today)}": "${sources.data.month} ${string(sources.data.today)}일"
+    }
   }
 }

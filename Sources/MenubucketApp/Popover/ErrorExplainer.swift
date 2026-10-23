@@ -9,6 +9,7 @@ struct ErrorExplanation: Equatable {
         case networkUnreachable
         case invalidJSON
         case permissionDenied
+        case manifestPermissionDenied
         case exitCode(Int)
         case generic
     }
@@ -30,6 +31,25 @@ struct ErrorExplanation: Equatable {
 enum ErrorExplainer {
     static func explain(_ raw: String) -> ErrorExplanation {
         let text = raw.lowercased()
+
+        if text.contains("deno runtime not found") {
+            return ErrorExplanation(kind: .commandNotFound("deno"),
+                cause: String(localized: "This script widget needs Deno, which isn’t installed."),
+                fix: String(localized: "Install Deno with “brew install deno”, then retry. Workflow and Command widgets do not need Deno."))
+        }
+
+        if text.contains("not covered by permissions.readpaths") {
+            return ErrorExplanation(kind: .manifestPermissionDenied,
+                cause: String(localized: "This folder is outside the widget’s allowed folders."),
+                fix: String(localized: "Open this widget’s Settings and choose a folder listed under Allowed folders. Choosing another folder in macOS Privacy settings does not change the widget’s permissions."))
+        }
+
+        if text.contains("not permitted by manifest") || text.contains("not allowed by manifest")
+            || text.contains("not covered by permissions.") || text.contains("requires manifest permissions.") {
+            return ErrorExplanation(kind: .manifestPermissionDenied,
+                cause: String(localized: "This widget’s declared permissions do not allow this action."),
+                fix: String(localized: "Check for a widget update or ask its author to declare this capability. macOS Privacy settings cannot grant a missing widget capability."))
+        }
 
         if let command = commandNotFound(in: raw, lowercased: text) {
             let cause = command.map { String(localized: "The command “\($0)” isn’t installed on this Mac.") }
@@ -61,19 +81,19 @@ enum ErrorExplainer {
             )
         }
 
-        if jsonMarkers.contains(where: text.contains) {
-            return ErrorExplanation(
-                kind: .invalidJSON,
-                cause: String(localized: "The widget got data it couldn’t read."),
-                fix: String(localized: "The source may have changed its format. Check for a widget update.")
-            )
-        }
-
         if permissionMarkers.contains(where: text.contains) {
             return ErrorExplanation(
                 kind: .permissionDenied,
                 cause: String(localized: "macOS or the widget’s permissions blocked this."),
                 fix: String(localized: "Review the widget’s permissions in Settings, or allow access in System Settings › Privacy & Security.")
+            )
+        }
+
+        if jsonMarkers.contains(where: text.contains) {
+            return ErrorExplanation(
+                kind: .invalidJSON,
+                cause: String(localized: "The widget got data it couldn’t read."),
+                fix: String(localized: "The source may have changed its format. Check for a widget update.")
             )
         }
 
@@ -101,13 +121,14 @@ enum ErrorExplainer {
     ]
 
     private static let jsonMarkers = [
-        "not valid json", "invalid json", "json", "isn’t in the correct format",
+        "not valid json", "invalid json", "json parse", "json error", "jsonserialization", "isn’t in the correct format",
         "isn't in the correct format", "unexpected character", "decod",
     ]
 
     private static let permissionMarkers = [
         "permission denied", "operation not permitted", "not permitted by manifest",
         "not allowed", "eacces", "eperm", "access denied",
+        "not covered by permissions.",
     ]
 
     /// `'gh' not found (searched: …)`, `zsh: command not found: gh`,

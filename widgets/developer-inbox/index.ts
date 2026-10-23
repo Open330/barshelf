@@ -15,6 +15,35 @@ const PR_ARGS = [
 ];
 const NOTIFICATION_ARGS = ["api", "notifications?per_page=30"];
 
+/** The app's language, set at the start of each load. */
+let language: "en" | "ko" = "en";
+
+/** Fixed text: Korean when the app is in Korean, else the English. */
+function t(english: string, korean: string): string {
+  return language === "ko" ? korean : english;
+}
+
+/** GitHub's notification reasons (a fixed vocabulary); others as sent. */
+const KOREAN_REASONS: Record<string, string> = {
+  assign: "할당됨",
+  author: "작성자",
+  comment: "댓글",
+  ci_activity: "CI 활동",
+  invitation: "초대",
+  manual: "구독함",
+  mention: "멘션",
+  review_requested: "리뷰 요청",
+  security_alert: "보안 알림",
+  state_change: "상태 변경",
+  subscribed: "지켜보는 중",
+  team_mention: "팀 멘션",
+};
+
+function reasonLabel(reason: string): string {
+  if (!reason) return t("unread", "읽지 않음");
+  return language === "ko" ? KOREAN_REASONS[reason] ?? reason : reason;
+}
+
 interface PullRequest {
   number: number;
   title: string;
@@ -116,10 +145,11 @@ function relativeDate(value: string, now: number): string {
   const timestamp = Date.parse(value);
   if (!Number.isFinite(timestamp)) return "";
   const minutes = Math.max(0, Math.round((now - timestamp) / 60_000));
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 60) return t(`${minutes}m ago`, `${minutes}분 전`);
   const hours = Math.round(minutes / 60);
-  if (hours < 48) return `${hours}h ago`;
-  return `${Math.round(hours / 24)}d ago`;
+  if (hours < 48) return t(`${hours}h ago`, `${hours}시간 전`);
+  const days = Math.round(hours / 24);
+  return t(`${days}d ago`, `${days}일 전`);
 }
 
 async function findGh(ctx: WidgetLoadContext): Promise<string | undefined> {
@@ -146,10 +176,13 @@ function placeholder(title: string, subtitle: string, icon = "tray"): UINode {
 
 async function renderState(root: UINode, label?: string): Promise<void> {
   await barshelf.render(root, {
-    status: { label, tooltip: "Developer Inbox" },
+    status: { label, tooltip: t("Developer Inbox", "개발자 받은편지함") },
     cacheRoot: placeholder(
-      "Developer Inbox",
-      "Open to load private GitHub activity.",
+      t("Developer Inbox", "개발자 받은편지함"),
+      t(
+        "Open to load private GitHub activity.",
+        "열면 비공개 GitHub 활동을 불러옵니다.",
+      ),
       "tray.full",
     ),
     cacheTtlMs: 0,
@@ -160,20 +193,23 @@ async function renderState(root: UINode, label?: string): Promise<void> {
 function prRow(pr: PullRequest, now: number): UINode {
   return ui.card([
     ui.hstack([
-      ui.text(pr.repository || "Repository", {
+      ui.text(pr.repository || t("Repository", "저장소"), {
         role: "caption",
         foreground: "secondary",
         lineLimit: 1,
       }),
       ui.spacer(),
       pr.draft
-        ? ui.badge("Draft", { tone: "neutral" })
+        ? ui.badge(t("Draft", "초안"), { tone: "neutral" })
         : ui.badge(`#${pr.number}`, { tone: "accent" }),
     ], { spacing: 5 }),
     ui.text(pr.title, { lineLimit: 2 }),
     ui.hstack([
       ui.text(
-        [pr.author ? `by ${pr.author}` : "", relativeDate(pr.updatedAt, now)]
+        [
+          pr.author ? t(`by ${pr.author}`, `${pr.author} 작성`) : "",
+          relativeDate(pr.updatedAt, now),
+        ]
           .filter(Boolean).join(" · "),
         {
           role: "caption",
@@ -182,7 +218,7 @@ function prRow(pr: PullRequest, now: number): UINode {
         },
       ),
       ui.spacer(),
-      ui.button("Review", ui.action.openURL(pr.url), {
+      ui.button(t("Review", "리뷰"), ui.action.openURL(pr.url), {
         icon: "arrow.up.right.square",
       }),
     ], { spacing: 5 }),
@@ -198,7 +234,7 @@ function notificationRow(notification: InboxNotification, now: number): UINode {
         lineLimit: 1,
       }),
       ui.spacer(),
-      ui.badge(notification.reason || "unread", {
+      ui.badge(reasonLabel(notification.reason), {
         tone: notification.reason === "review_requested"
           ? "warning"
           : "neutral",
@@ -211,9 +247,11 @@ function notificationRow(notification: InboxNotification, now: number): UINode {
     }),
   ];
   if (notification.url) {
-    content.push(ui.button("Open", ui.action.openURL(notification.url), {
-      icon: "arrow.up.right.square",
-    }));
+    content.push(
+      ui.button(t("Open", "열기"), ui.action.openURL(notification.url), {
+        icon: "arrow.up.right.square",
+      }),
+    );
   }
   return ui.card(content, {
     id: `notification-${notification.id}`,
@@ -223,11 +261,17 @@ function notificationRow(notification: InboxNotification, now: number): UINode {
 }
 
 async function load(ctx: WidgetLoadContext): Promise<void> {
+  language = typeof ctx.locale === "string" && /^ko(?:[-_]|$)/i.test(ctx.locale)
+    ? "ko"
+    : "en";
   const gh = await findGh(ctx);
   if (!gh) {
     await renderState(placeholder(
-      "GitHub CLI not found",
-      "Install gh with Homebrew, then reopen this widget.",
+      t("GitHub CLI not found", "GitHub CLI를 찾을 수 없습니다"),
+      t(
+        "Install gh with Homebrew, then reopen this widget.",
+        "Homebrew로 gh를 설치한 뒤 이 위젯을 다시 여세요.",
+      ),
       "terminal",
     ));
     return;
@@ -243,13 +287,22 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
     });
   } catch {
     await renderState(ui.vstack([
-      ui.banner("Run `gh auth login` in Terminal, then refresh.", {
-        title: "GitHub sign-in required",
-        tone: "warning",
-      }),
+      ui.banner(
+        t(
+          "Run `gh auth login` in Terminal, then refresh.",
+          "터미널에서 `gh auth login`을 실행한 뒤 새로 고치세요.",
+        ),
+        {
+          title: t("GitHub sign-in required", "GitHub 로그인 필요"),
+          tone: "warning",
+        },
+      ),
       placeholder(
-        "No authenticated account",
-        "Developer Inbox uses your existing gh session.",
+        t("No authenticated account", "로그인된 계정 없음"),
+        t(
+          "Developer Inbox uses your existing gh session.",
+          "개발자 받은편지함은 이미 로그인된 gh 세션을 사용합니다.",
+        ),
         "person.crop.circle.badge.exclamationmark",
       ),
     ], { spacing: 8 }));
@@ -290,11 +343,11 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
 
   const children: UINode[] = [
     ui.hstack([
-      ui.stat("Review requests", prs.length, {
+      ui.stat(t("Review requests", "리뷰 요청"), prs.length, {
         icon: "arrow.triangle.pull",
         tone: prs.length > 0 ? "warning" : "good",
       }),
-      ui.stat("Unread", notifications.length, {
+      ui.stat(t("Unread", "읽지 않음"), notifications.length, {
         icon: "bell.fill",
         tone: notifications.length > 0 ? "accent" : "good",
       }),
@@ -303,16 +356,22 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
 
   if (failed) {
     children.push(
-      ui.banner("Some GitHub data could not be loaded. Refresh to retry.", {
-        title: "Partial results",
-        tone: "warning",
-      }),
+      ui.banner(
+        t(
+          "Some GitHub data could not be loaded. Refresh to retry.",
+          "일부 GitHub 데이터를 불러오지 못했습니다. 새로 고쳐 다시 시도하세요.",
+        ),
+        {
+          title: t("Partial results", "일부 결과"),
+          tone: "warning",
+        },
+      ),
     );
   }
   if (prs.length > 0) {
     children.push(
       ui.section(
-        "Review requested",
+        t("Review requested", "리뷰 요청됨"),
         prs.slice(0, limit).map((pr) => prRow(pr, ctx.now)),
         { spacing: 6 },
       ),
@@ -321,7 +380,7 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
   if (showNotifications && notifications.length > 0) {
     children.push(
       ui.section(
-        "Notifications",
+        t("Notifications", "알림"),
         notifications.slice(0, limit).map((item) =>
           notificationRow(item, ctx.now)
         ),
@@ -332,8 +391,11 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
   if (total === 0 && !failed) {
     children.push(
       placeholder(
-        "Inbox zero",
-        "No open review requests or unread notifications.",
+        t("Inbox zero", "모두 확인함"),
+        t(
+          "No open review requests or unread notifications.",
+          "열린 리뷰 요청도, 읽지 않은 알림도 없습니다.",
+        ),
         "checkmark.circle.fill",
       ),
     );

@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.project-status",
   "name": "Project Status",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "icon": "point.3.connected.trianglepath.dotted",
   "bucket": { "group": "Developer", "order": 30, "size": "M" },
 
@@ -44,5 +44,12 @@
   "appearance": {
     "accent": "purple",
     "cardStyle": "tinted"
+  },
+
+  "localizations": {
+    "ko": {
+      "Project Status": "프로젝트 상태",
+      "Project directory": "프로젝트 폴더"
+    }
   }
 }

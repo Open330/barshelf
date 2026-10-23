@@ -88,6 +88,14 @@ final class SchedulePolicyTests: XCTestCase {
         XCTAssertNil(SchedulePolicy.effectiveStaleAfter(configured: nil, multiplier: 4))
     }
 
+    func testSlowerUserIntervalAlsoControlsAutomaticOpenStaleness() {
+        XCTAssertEqual(SchedulePolicy.effectiveStaleAfter(configured: 30, multiplier: 1, intervalOverride: 1800), 1800)
+        XCTAssertEqual(SchedulePolicy.effectiveStaleAfter(configured: 30, multiplier: 2, intervalOverride: 1800), 3600)
+        XCTAssertEqual(SchedulePolicy.effectiveStaleAfter(configured: nil, multiplier: 1, intervalOverride: 600), 600)
+        XCTAssertEqual(SchedulePolicy.effectiveStaleAfter(configured: 60, multiplier: 1, intervalOverride: 5), 60)
+        XCTAssertNil(SchedulePolicy.effectiveStaleAfter(configured: nil, multiplier: 1, intervalOverride: .nan))
+    }
+
     // MARK: - Event trigger debounce / spacing (R12)
 
     func testTriggerAllowedWhenNeverRefreshed() {

@@ -12,6 +12,8 @@ import UniformTypeIdentifiers
 /// screen allows (`PagerState.maxHeight`).
 struct RootView: View {
     @Environment(\.undoManager) private var undoManager
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorSchemeContrast) private var contrast
     @ObservedObject var runtime: WidgetRuntime
     @ObservedObject var pager: PagerState
     /// Runs an app-menu command (⋯ menu, edit mode's Add Widget).
@@ -101,7 +103,7 @@ struct RootView: View {
             }
         }
         .overlay { ToastOverlay(bottomInset: pages.count > 1 ? 46 : Spacing.s) }
-        .animation(.easeInOut(duration: 0.2), value: pager.isEditing)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: pager.isEditing)
         // ⌘F arrives as the Edit ▸ Find menu command (`AppCommands`).
         .onChange(of: pager.searchRequests) { searchPresented = true }
         .onChange(of: pager.isEditing) { _, editing in
@@ -316,7 +318,7 @@ struct RootView: View {
                             // The pager first moves this page onscreen. Deferring one
                             // run-loop lets ScrollViewReader resolve its card anchor.
                             DispatchQueue.main.async {
-                                withAnimation(.easeInOut(duration: 0.2)) {
+                                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
                                     proxy.scrollTo(id, anchor: .center)
                                 }
                             }
@@ -339,8 +341,10 @@ struct RootView: View {
                 }
             }
             .offset(x: offset)
+            // Reduce Motion: pages switch in place instead of sliding. A
+            // swipe still tracks the fingers, which is the user's own motion.
             .animation(
-                pager.isSwiping ? nil : .spring(response: 0.32, dampingFraction: 0.85),
+                pager.isSwiping || reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.85),
                 value: offset
             )
             .onAppear { pager.pageWidth = width }
@@ -457,7 +461,7 @@ struct RootView: View {
             .fixedSize(horizontal: true, vertical: false)
             .onChange(of: index) { _, newIndex in
                 guard pages.indices.contains(newIndex) else { return }
-                withAnimation(.easeOut(duration: 0.15)) {
+                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) {
                     proxy.scrollTo(pages[newIndex].id, anchor: .center)
                 }
             }
@@ -473,22 +477,30 @@ struct RootView: View {
     private func pageDot(page: WidgetPage, pageIndex: Int, index: Int, pageCount: Int) -> some View {
         let isCurrent = pageIndex == index
         let isDropTarget = dropTargetPageID == page.id
+        let diameter = Self.pageDotDiameter(isCurrent: isCurrent, isDropTarget: isDropTarget)
         // Size + fill cue (not hue alone) marks the current page.
         return Button {
             pager.jump(to: pageIndex, pageCount: pageCount)
         } label: {
             Circle()
                 .fill(isDropTarget ? Color.accentColor
-                    : isCurrent ? Color.primary : Color.secondary.opacity(0.35))
-                .frame(width: isDropTarget ? 10 : isCurrent ? 7 : 6,
-                       height: isDropTarget ? 10 : isCurrent ? 7 : 6)
+                    : isCurrent ? Color.primary
+                    : Color.secondary.opacity(Self.inactivePageDotOpacity(increasedContrast: contrast == .increased)))
+                .overlay {
+                    // Increase Contrast: ring the current dot so it differs by
+                    // shape, not only by a 1–2 pt size step.
+                    if isCurrent, !isDropTarget, contrast == .increased {
+                        Circle().strokeBorder(Color.primary, lineWidth: 1.5).padding(-3)
+                    }
+                }
+                .frame(width: diameter, height: diameter)
                 .frame(width: 24, height: 24)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .id(page.id)
-        .help(page.group)
-        .accessibilityLabel(page.group)
+        .help(PageName.label(page.group))
+        .accessibilityLabel(PageName.label(page.group))
         .accessibilityAddTraits(isCurrent ? [.isSelected] : [])
         .onDrop(of: CardDrag.types, isTargeted: Binding(
             get: { dropTargetPageID == page.id },
@@ -505,9 +517,20 @@ struct RootView: View {
                 runtime.changeLayout(String(localized: "Move Widget"), undoManager: undoManager) {
                     runtime.moveWidget(id: widgetID, toGroup: page.group)
                 }
-                ToastCenter.shared.show(String(localized: "Moved to \(page.group)"))
+                ToastCenter.shared.show(String(localized: "Moved to \(PageName.label(page.group))"))
             }
         }
+    }
+
+    /// Large enough to see at a glance; the 24 pt hit area is separate.
+    static func pageDotDiameter(isCurrent: Bool, isDropTarget: Bool) -> CGFloat {
+        isDropTarget ? 11 : isCurrent ? 8 : 7
+    }
+
+    /// The other pages' dots. At 0.35 they nearly vanished on a light popup;
+    /// with Increase Contrast they are drawn in full secondary.
+    static func inactivePageDotOpacity(increasedContrast: Bool) -> Double {
+        increasedContrast ? 1 : 0.6
     }
 
     // MARK: - Empty state

@@ -1,5 +1,33 @@
 import { barshelf, ui, type WidgetLoadContext } from "barshelf";
 
+/** Fixed text in the app's language: Korean, else the English as written. */
+type Language = "en" | "ko";
+
+function languageOf(locale: unknown): Language {
+  return typeof locale === "string" && /^ko(?:[-_]|$)/i.test(locale)
+    ? "ko"
+    : "en";
+}
+
+const KOREAN: Record<string, string> = {
+  "Charge": "충전량",
+  "Source": "전원",
+  "State": "상태",
+  // pmset's own words, shown as reported in English.
+  "Battery": "배터리",
+  "Battery Power": "배터리",
+  "AC Power": "전원 어댑터",
+  "Charging": "충전 중",
+  "Discharging": "방전 중",
+  "Charged": "충전 완료",
+  "Finishing Charge": "충전 마무리 중",
+  "AC Attached": "전원 연결됨",
+};
+
+function word(text: string, language: Language): string {
+  return language === "ko" ? KOREAN[text] ?? text : text;
+}
+
 interface BatteryState {
   percent: number;
   source: string;
@@ -45,9 +73,12 @@ function symbolFor(percent: number, status: string): string {
 
 function parsePmset(output: string): BatteryState {
   const source = output.match(/Now drawing from '([^']+)'/)?.[1] ?? "Battery";
-  const batteryLine = output.split(/\r?\n/).find((line) => line.includes("%")) ?? output;
+  const batteryLine =
+    output.split(/\r?\n/).find((line) => line.includes("%")) ?? output;
   const percent = Number(batteryLine.match(/(\d+(?:\.\d+)?)%/)?.[1] ?? 0);
-  const parts = batteryLine.split(";").map((part) => part.trim()).filter(Boolean);
+  const parts = batteryLine.split(";").map((part) => part.trim()).filter(
+    Boolean,
+  );
   const status = parts[1] ?? source;
   const detail = (parts[2] ?? "")
     .replace(/\s*present:\s*(true|false).*/i, "")
@@ -67,29 +98,45 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
     parse: "text",
     timeoutMs: 5_000,
   });
+  const language = languageOf(ctx.locale);
   const battery = parsePmset(result.stdout);
   const tone = toneFor(battery.percent, battery.status);
   const symbol = symbolFor(battery.percent, battery.status);
-  const caption = [battery.source, battery.detail].filter(Boolean).join(" · ");
+  // Tone and symbol read pmset's English; only what is shown is translated.
+  const source = word(battery.source, language);
+  const state = word(battery.status, language);
+  const caption = [source, battery.detail].filter(Boolean).join(" · ");
 
   await ctx.render(
     ui.vstack([
-      ui.metricCard("Charge", `${Math.round(battery.percent)}%`, {
-        icon: symbol,
-        tone,
-        caption,
-        progress: battery.percent / 100,
-        progressLabel: `${Math.round(battery.percent)}%`,
-      }),
+      ui.metricCard(
+        word("Charge", language),
+        `${Math.round(battery.percent)}%`,
+        {
+          icon: symbol,
+          tone,
+          caption,
+          progress: battery.percent / 100,
+          progressLabel: `${Math.round(battery.percent)}%`,
+        },
+      ),
       ui.hstack([
-        ui.stat("Source", battery.source, { icon: "powerplug.fill", tone: "accent" }),
-        ui.stat("State", battery.status, { icon: "waveform.path.ecg", tone }),
+        ui.stat(word("Source", language), source, {
+          icon: "powerplug.fill",
+          tone: "accent",
+        }),
+        ui.stat(word("State", language), state, {
+          icon: "waveform.path.ecg",
+          tone,
+        }),
       ], { spacing: 6 }),
     ], { spacing: 8 }),
     {
       status: {
         label: `${Math.round(battery.percent)}%`,
-        tooltip: `Battery ${Math.round(battery.percent)}% · ${battery.status}`,
+        tooltip: language === "ko"
+          ? `배터리 ${Math.round(battery.percent)}% · ${state}`
+          : `Battery ${Math.round(battery.percent)}% · ${battery.status}`,
       },
       cacheTtlMs: 300_000,
     },

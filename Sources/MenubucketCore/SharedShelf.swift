@@ -318,6 +318,39 @@ public enum SharedShelf {
         return texts >= 2 || (texts >= 1 && meters >= 1)
     }
 
+    /// What a desktop widget shows of a widget's parts.
+    public enum PartSelection: Equatable, Sendable {
+        /// Nothing picked: the widget's own items, without the sections that
+        /// hold items (so nothing shows twice).
+        case automatic([Part])
+        /// The picked parts that are still there, in the order they were
+        /// picked. Picked parts that are gone are left out; nothing else is
+        /// added in their place.
+        case picked([Part])
+        /// Parts were picked and none of them is there any more — the user
+        /// is told, rather than shown items they did not choose.
+        case missing(keys: [String])
+    }
+
+    /// Resolves the part keys a user picked against a widget's current parts.
+    public static func selection(keys: [String], from parts: [Part]) -> PartSelection {
+        guard !keys.isEmpty else { return .automatic(parts.filter { !$0.isGroup }) }
+        let picked = keys.compactMap { key in parts.first { $0.key == key } }
+        return picked.isEmpty ? .missing(keys: keys) : .picked(picked)
+    }
+
+    /// A readable name for a picked part that is no longer there, from its
+    /// key alone: `Codex/chatgpt@codex#2` → `chatgpt@codex`.
+    public static func title(ofMissingPartKey key: String) -> String {
+        var name = key.components(separatedBy: "/").last ?? key
+        if name.hasPrefix("id:") { name.removeFirst(3) }
+        if let hash = name.lastIndex(of: "#"), name[name.index(after: hash)...].allSatisfy(\.isNumber),
+           name.index(after: hash) < name.endIndex {
+            name = String(name[..<hash])
+        }
+        return name.isEmpty ? key : name
+    }
+
     /// The name a piece goes by: its title, else its first line of text.
     static func displayTitle(of node: UINode) -> String? {
         func clean(_ text: String?) -> String? {
@@ -387,6 +420,11 @@ public enum SharedShelf {
         for file in files where file.hasSuffix(".json") && !keep.contains(file) {
             try? FileManager.default.removeItem(at: directory.appendingPathComponent(file))
         }
+        // The extension's ask records go with their widgets.
+        let asked = container.appendingPathComponent(askedDirectoryName, isDirectory: true)
+        for file in (try? FileManager.default.contentsOfDirectory(atPath: asked.path)) ?? [] where !keep.contains(file) {
+            try? FileManager.default.removeItem(at: asked.appendingPathComponent(file))
+        }
         let images = container.appendingPathComponent(imagesDirectoryName, isDirectory: true)
         let keepImages = Set(keep.map { String($0.dropLast(5)) })
         for folder in (try? FileManager.default.contentsOfDirectory(atPath: images.path)) ?? [] where !keepImages.contains(folder) {
@@ -405,12 +443,78 @@ public enum SharedShelf {
     /// How long a request shows as pending before the widget gives up on it.
     public static let refreshRequestLifetime: TimeInterval = 60
 
+    /// When the extension last asked, kept after BarShelf clears or drops
+    /// the request itself, so an unanswered request can still be told apart
+    /// from one that was answered. BarShelf never reads these.
+    static let askedDirectoryName = "requests-asked"
+
+    /// `requests-asked/<id>.json`. The ask time to the sub-second, unlike the
+    /// request file's ISO-8601 date: a snapshot written earlier in the same
+    /// second must not pass for the answer.
+    struct AskedRecord: Codable {
+        /// Seconds since 1970, fractional.
+        var askedAt: Double
+    }
+
     /// The widget extension asks BarShelf to refresh one widget now.
     public static func requestRefresh(widgetID: String, in container: URL, now: Date = Date()) throws {
         guard let name = snapshotFileName(for: widgetID) else { return }
+        try write(AskedRecord(askedAt: now.timeIntervalSince1970), to: container
+            .appendingPathComponent(askedDirectoryName, isDirectory: true)
+            .appendingPathComponent(name))
+        // Unchanged format: BarShelf reads this one.
         try write(now, to: container
             .appendingPathComponent(requestsDirectoryName, isDirectory: true)
             .appendingPathComponent(name))
+    }
+
+    /// Where a desktop widget's refresh request stands.
+    public enum RefreshRequestState: Equatable, Sendable {
+        case none
+        /// Asked, and BarShelf may still answer.
+        case pending(since: Date)
+        /// Asked, and no new render came: BarShelf is not running, or gave up
+        /// on the request. Lasts until BarShelf writes this widget again or
+        /// the user asks again, so the widget can say so instead of going
+        /// quiet.
+        case unanswered(since: Date)
+    }
+
+    /// When BarShelf last wrote this widget's snapshot.
+    public static func snapshotWrittenAt(widgetID: String, in container: URL) -> Date? {
+        guard let name = snapshotFileName(for: widgetID) else { return nil }
+        var url = container
+            .appendingPathComponent(snapshotsDirectoryName, isDirectory: true)
+            .appendingPathComponent(name)
+        url.removeAllCachedResourceValues()
+        return (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+    }
+
+    /// The state of this widget's latest refresh request at `now`. Answered
+    /// means BarShelf wrote the snapshot after the request was made — with a
+    /// new reading or with the error it got. Read-only, so a timeline can ask
+    /// what a later moment will look like.
+    public static func refreshRequestState(widgetID: String, in container: URL, now: Date = Date()) -> RefreshRequestState {
+        guard let name = snapshotFileName(for: widgetID) else { return .none }
+        let request = read(Date.self, from: container
+            .appendingPathComponent(requestsDirectoryName, isDirectory: true)
+            .appendingPathComponent(name))
+        let record = read(AskedRecord.self, from: container
+            .appendingPathComponent(askedDirectoryName, isDirectory: true)
+            .appendingPathComponent(name))
+        let asked = record.map { Date(timeIntervalSince1970: $0.askedAt) } ?? request
+        guard let asked else { return .none }
+        // Without a precise record, only the request's whole second is known:
+        // a write counts as the answer once that second has passed.
+        let answeredFrom = record == nil ? asked.addingTimeInterval(1) : asked
+        if let written = snapshotWrittenAt(widgetID: widgetID, in: container),
+           written >= answeredFrom {
+            return .none
+        }
+        if let request, now.timeIntervalSince(request) < refreshRequestLifetime {
+            return .pending(since: request)
+        }
+        return .unanswered(since: asked)
     }
 
     /// Widgets with a refresh asked for and not yet answered, with when.

@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.weather",
   "name": "Weather",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "icon": "cloud.sun.fill",
   "bucket": { "group": "Demo", "order": 12, "size": "S" },
 
@@ -23,5 +23,18 @@
 
   "appearance": {
     "accent": "blue"
+  },
+
+  "localizations": {
+    "ko": {
+      "Weather": "날씨",
+      "Place name": "장소 이름",
+      "Latitude": "위도",
+      "Longitude": "경도",
+      "Clear": "맑음",
+      "Cloudy": "흐림",
+      "Rain": "비",
+      "Storm": "폭풍우"
+    }
   }
 }

@@ -21,7 +21,7 @@ final class GalleryModelTests: XCTestCase {
         try FileManager.default.createDirectory(
             at: initialDirectory, withIntermediateDirectories: true
         )
-        try Data("{ \"version\": \"1.0\" }".utf8)
+        try Self.manifest(id: alreadyInstalled.id, version: "1.0")
             .write(to: initialDirectory.appendingPathComponent("widget.json"))
         model.setEntries(forPreview: [alreadyInstalled, entry])
         model.onWindowShown()
@@ -32,7 +32,7 @@ final class GalleryModelTests: XCTestCase {
 
         let directory = widgets.appendingPathComponent(entry.id, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        try Data("{ \"version\": \"1.0\" }".utf8)
+        try Self.manifest(id: entry.id, version: "1.0")
             .write(to: directory.appendingPathComponent("widget.json"))
 
         try await waitUntil(timeout: 3) {
@@ -49,7 +49,7 @@ final class GalleryModelTests: XCTestCase {
         let entry = makeEntry(id: "dev.test.version", version: "2.0")
         let directory = widgets.appendingPathComponent(entry.id, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        try Data("{ \"version\": \"1.0\" }".utf8)
+        try Self.manifest(id: entry.id, version: "1.0")
             .write(to: directory.appendingPathComponent("widget.json"))
 
         let model = GalleryModel(widgetsDirectory: widgets)
@@ -190,6 +190,8 @@ final class GalleryModelTests: XCTestCase {
 
         let directory = widgets.appendingPathComponent(entry.id, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try Self.manifest(id: entry.id, version: "1.0")
+            .write(to: directory.appendingPathComponent("widget.json"))
         model.refreshInstalledStates()
         try await Task.sleep(nanoseconds: 300_000_000)
         XCTAssertTrue(model.installedIDs.isEmpty, "no scan while the window is hidden")
@@ -260,6 +262,64 @@ final class GalleryModelTests: XCTestCase {
         XCTAssertEqual(model.detailEntry?.id, entry.id)
         model.closeDetail()
         XCTAssertNil(model.detailEntry)
+    }
+
+    /// A valid `widget.json`: installed state is read from the manifest's id.
+    private static func manifest(id: String, version: String) -> Data {
+        Data("""
+        { "schemaVersion": 1, "id": "\(id)", "name": "\(id)", "version": "\(version)",
+          "entry": { "kind": "workflow" } }
+        """.utf8)
+    }
+
+    /// Starters seeded on first run sit in folders named after the bundled
+    /// folder (`today`), not the manifest id — the Hub showed them installed
+    /// while the Gallery offered to install them again.
+    func testSeededFoldersCountAsInstalledByTheirManifestID() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("barshelf-gallery-seeded-\(UUID().uuidString)")
+        let widgets = root.appendingPathComponent("widgets", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let seeded = [
+            ("today", "dev.barshelf.today"),
+            ("recent-files-grid", "dev.barshelf.recent-files-grid"),
+            ("quick-shelf", "dev.barshelf.quick-shelf"),
+        ]
+        for (folder, id) in seeded {
+            let directory = widgets.appendingPathComponent(folder, isDirectory: true)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try Self.manifest(id: id, version: "0.1.0").write(to: directory.appendingPathComponent("widget.json"))
+        }
+        // A folder named after a registry id whose manifest is something else,
+        // and one whose manifest does not decode, install nothing.
+        let mismatched = widgets.appendingPathComponent("dev.barshelf.clock", isDirectory: true)
+        try FileManager.default.createDirectory(at: mismatched, withIntermediateDirectories: true)
+        try Self.manifest(id: "dev.someone.else", version: "1").write(to: mismatched.appendingPathComponent("widget.json"))
+        let broken = widgets.appendingPathComponent("dev.barshelf.weather", isDirectory: true)
+        try FileManager.default.createDirectory(at: broken, withIntermediateDirectories: true)
+        try Data("{ \"version\": \"1.0\" }".utf8).write(to: broken.appendingPathComponent("widget.json"))
+
+        // A package that is a link to a project folder is installed too:
+        // BarShelf runs it (the installer only refuses to update through it).
+        let project = root.appendingPathComponent("projects/stock", isDirectory: true)
+        try FileManager.default.createDirectory(at: project, withIntermediateDirectories: true)
+        try Self.manifest(id: "dev.barshelf.stock", version: "2").write(to: project.appendingPathComponent("widget.json"))
+        try FileManager.default.createSymbolicLink(at: widgets.appendingPathComponent("stock"), withDestinationURL: project)
+
+        let entries = seeded.map { makeEntry(id: $0.1, version: "0.1.1") }
+            + [makeEntry(id: "dev.barshelf.clock", version: "1"), makeEntry(id: "dev.barshelf.weather", version: "1"),
+               makeEntry(id: "dev.barshelf.stock", version: "2")]
+        let model = GalleryModel(widgetsDirectory: widgets)
+        model.setEntries(forPreview: entries)
+        model.onWindowShown()
+        try await waitUntil { model.installedIDs.count == 4 }
+        XCTAssertEqual(model.installedIDs, Set(seeded.map(\.1) + ["dev.barshelf.stock"]))
+        XCTAssertEqual(model.installedVersions["dev.barshelf.stock"], "2")
+        for (_, id) in seeded {
+            XCTAssertEqual(model.installedVersions[id], "0.1.0")
+            let entry = try XCTUnwrap(entries.first { $0.id == id })
+            XCTAssertTrue(model.updateAvailable(for: entry), "an older seeded copy offers Update, not Install")
+        }
     }
 
     private func makeEntry(id: String, version: String) -> RegistryWidgetEntry {

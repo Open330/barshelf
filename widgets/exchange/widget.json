@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.exchange",
   "name": "Exchange",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "icon": "dollarsign.circle.fill",
   "bucket": { "group": "Demo", "order": 14, "size": "S" },
 
@@ -17,5 +17,13 @@
 
   "appearance": {
     "accent": "green"
+  },
+
+  "localizations": {
+    "ko": {
+      "Exchange": "환율",
+      "per $1": "1달러당",
+      "USD to KRW: ${string(sources.data.rates.KRW)}": "달러-원 환율: ${string(sources.data.rates.KRW)}"
+    }
   }
 }

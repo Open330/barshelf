@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.recent-files",
   "name": "Recent Files",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "icon": "folder.fill",
   "bucket": { "group": "Files", "order": 30, "size": "M" },
 
@@ -18,5 +18,17 @@
   "settings": [
     { "key": "folder", "title": "Folder", "type": "directory", "default": "~/Downloads" },
     { "key": "limit", "title": "Maximum files", "type": "integer", "default": 12, "min": 4, "max": 48 }
-  ]
+  ],
+
+  "localizations": {
+    "ko": {
+      "Recent Files": "최근 파일",
+      "Folder": "폴더",
+      "Maximum files": "최대 파일 수",
+      "${count(transforms.visible)} items": "항목 ${count(transforms.visible)}개",
+      "No files": "파일 없음",
+      "Choose another folder in widget settings.": "위젯 설정에서 다른 폴더를 고르세요.",
+      "Recent files: ${count(transforms.visible)} items": "최근 파일: 항목 ${count(transforms.visible)}개"
+    }
+  }
 }

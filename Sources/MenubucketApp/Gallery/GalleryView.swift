@@ -129,7 +129,7 @@ struct GalleryView: View {
                     Text("All Categories").tag(String?.none)
                     Divider()
                     ForEach(categories, id: \.self) { category in
-                        Text(category).tag(String?.some(category))
+                        Text(GalleryEntryText.categoryLabel(category)).tag(String?.some(category))
                     }
                 }
                 .pickerStyle(.menu)

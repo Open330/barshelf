@@ -3,6 +3,112 @@ import XCTest
 @testable import MenubucketCore
 
 final class ExecServiceTests: XCTestCase {
+    func testCancelledCapturePreventsDelayedSideEffect() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let ready = directory.appendingPathComponent("ready")
+        let sideEffect = directory.appendingPathComponent("side-effect")
+        let task = Task {
+            await ExecService.capture(
+                command: ["/bin/sh", "-c", "printf ready > ready; /bin/sleep 1; printf forbidden > side-effect"],
+                discover: nil, timeoutMs: 5_000, workingDirectory: directory
+            )
+        }
+        defer { task.cancel() }
+        let readyDeadline = Date().addingTimeInterval(3)
+        while !FileManager.default.fileExists(atPath: ready.path), Date() < readyDeadline {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: ready.path), "process must launch before cancellation")
+        let cancelledAt = Date()
+        task.cancel()
+        let result = await task.value
+        guard case .failure(.launchFailed("cancelled")) = result else {
+            return XCTFail("Expected cancellation failure, got \(result)")
+        }
+        XCTAssertLessThan(Date().timeIntervalSince(cancelledAt), 2.5)
+        // Wait past the original command's write, including an inherited pipe.
+        try await Task.sleep(nanoseconds: 1_200_000_000)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: sideEffect.path))
+    }
+
+    func testAlreadyCancelledCaptureNeverLaunches() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let task = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return await ExecService.capture(
+                command: ["/bin/sh", "-c", "printf forbidden > side-effect"],
+                discover: nil, timeoutMs: 5_000, workingDirectory: directory
+            )
+        }
+        guard case .failure(.launchFailed("cancelled")) = await task.value else {
+            return XCTFail("Expected cancellation before launch")
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("side-effect").path))
+    }
+
+    func testCancellationEscalatesForProcessIgnoringTermination() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let ready = directory.appendingPathComponent("ready")
+        let task = Task {
+            await ExecService.capture(
+                command: ["/bin/sh", "-c", "trap '' TERM; printf ready > ready; exec /bin/sleep 20"],
+                discover: nil, timeoutMs: 8_000, workingDirectory: directory
+            )
+        }
+        defer { task.cancel() }
+        let readyDeadline = Date().addingTimeInterval(3)
+        while !FileManager.default.fileExists(atPath: ready.path), Date() < readyDeadline {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: ready.path))
+        let cancelledAt = Date()
+        task.cancel()
+        guard case .failure(.launchFailed("cancelled")) = await task.value else {
+            return XCTFail("Expected cancellation after SIGKILL escalation")
+        }
+        XCTAssertLessThan(Date().timeIntervalSince(cancelledAt), 4)
+    }
+
+    func testLaunchdEnvironmentUsesAppLocaleWithoutLeakingHostVariables() throws {
+        let environment = ExecService.childEnvironment(
+            hostEnvironment: ["HOME": "/tmp/quality", "PRIVATE_TOKEN": "must-not-leak"],
+            locale: Locale(identifier: "ko_KR")
+        )
+        XCTAssertEqual(environment["LANG"], "ko_KR.UTF-8")
+        XCTAssertEqual(environment["LC_NUMERIC"], "C")
+        XCTAssertEqual(ExecService.childEnvironment(hostEnvironment: [:], locale: Locale(identifier: "ko_US"))["LANG"], "ko_KR.UTF-8")
+        XCTAssertNil(environment["PRIVATE_TOKEN"])
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/date")
+        process.arguments = ["-u", "-r", "0", "+%A %b"]
+        process.environment = environment
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        try process.run()
+        let output = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        process.waitUntilExit()
+        XCTAssertEqual(process.terminationStatus, 0)
+        XCTAssertTrue(output.contains("목요일"), output)
+        XCTAssertTrue(output.contains("1월"), output)
+    }
+
+    func testExplicitLocaleEnvironmentTakesPrecedence() {
+        let environment = ExecService.childEnvironment(
+            extraEnvironment: ["LANG": "fr_FR.UTF-8"],
+            hostEnvironment: ["LANG": "en_US.UTF-8", "LC_ALL": "C", "LC_TIME": "ja_JP.UTF-8"],
+            locale: Locale(identifier: "ko_KR")
+        )
+        XCTAssertEqual(environment["LANG"], "fr_FR.UTF-8")
+        XCTAssertEqual(environment["LC_ALL"], "C")
+        XCTAssertEqual(environment["LC_TIME"], "ja_JP.UTF-8")
+    }
+
     func testDiscoveryRejectsExecutableWithDifferentBareCommandIdentity() {
         var searched: [String] = []
 

@@ -7,6 +7,8 @@ import SwiftUI
 /// plus Remove… once installed. Back (or Esc) returns to the grid.
 struct GalleryDetailView: View {
     let entry: RegistryWidgetEntry
+    /// The entry's name as the shelf shows it (`GalleryEntryText.title`).
+    private var displayName: String { GalleryEntryText.title(for: entry) }
     @ObservedObject var model: GalleryModel
     /// False lays the page out flat, for `ImageRenderer` (screenshots).
     var scrolls = true
@@ -31,9 +33,9 @@ struct GalleryDetailView: View {
                         StatusBanner(tone: .critical, message: error)
                     }
                     if let url = GalleryLinks.screenshotURL(entry) {
-                        GalleryScreenshot(url: url, name: entry.name, height: 240)
+                        GalleryScreenshot(url: url, name: displayName, height: 240)
                     }
-                    if let description = entry.description, !description.isEmpty {
+                    if let description = GalleryEntryText.description(for: entry), !description.isEmpty {
                         Text(description)
                             .font(.body)
                             .textSelection(.enabled)
@@ -55,7 +57,7 @@ struct GalleryDetailView: View {
         }
         .onExitCommand { model.closeDetail() }
         .confirmationDialog(
-            "Remove “\(entry.name)”?",
+            "Remove “\(displayName)”?",
             isPresented: $confirmingRemove
         ) {
             Button("Remove", role: .destructive) { model.remove(entry) }
@@ -97,7 +99,7 @@ struct GalleryDetailView: View {
         HStack(alignment: .top, spacing: Spacing.m) {
             GalleryIconTile(entry: entry, size: 64)
             VStack(alignment: .leading, spacing: Spacing.xxs) {
-                Text(entry.name)
+                Text(displayName)
                     .font(.title2.weight(.semibold))
                     .textSelection(.enabled)
                     .accessibilityAddTraits(.isHeader)
@@ -151,7 +153,7 @@ struct GalleryDetailView: View {
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
                     .help("Install the newer version from the registry")
-                    .accessibilityLabel("Update \(entry.name)")
+                    .accessibilityLabel("Update \(displayName)")
             } else if isInstalled {
                 Button("Open") {
                     HubWindowController.shared.showWidgetSettings(widgetID: entry.id)
@@ -159,17 +161,17 @@ struct GalleryDetailView: View {
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
                 .help("Show this widget’s settings")
-                .accessibilityLabel("Open \(entry.name) settings")
+                .accessibilityLabel("Open \(displayName) settings")
             } else {
                 Button("Install") { model.install(entry) }
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
-                    .accessibilityLabel("Install \(entry.name)")
+                    .accessibilityLabel("Install \(displayName)")
             }
             if isInstalled {
                 Button("Remove…", role: .destructive) { confirmingRemove = true }
                     .help("Delete this widget from your Mac")
-                    .accessibilityLabel("Remove \(entry.name)")
+                    .accessibilityLabel("Remove \(displayName)")
             }
         }
         .controlSize(.large)
@@ -299,7 +301,7 @@ struct GalleryDetailView: View {
                     infoRow("Installed", installed)
                 }
                 if let category = entry.category, !category.isEmpty {
-                    infoRow("Category", category)
+                    infoRow("Category", GalleryEntryText.categoryLabel(category))
                 }
                 if let tags = entry.tags, !tags.isEmpty {
                     infoRow("Tags", tags.joined(separator: ", "))

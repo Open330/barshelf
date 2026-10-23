@@ -19,6 +19,7 @@ struct WidgetSettingsView: View {
     /// style: its preview and the values its setters compare against both
     /// include it.
     @ObservedObject private var appPrefs: AppPrefs
+    @ObservedObject private var widgetPrefs: WidgetPrefs
     @Environment(\.dismiss) private var dismiss
 
     init(
@@ -36,6 +37,7 @@ struct WidgetSettingsView: View {
         _menuBarTab = State(initialValue: initialTab)
         _page = State(initialValue: page)
         _appPrefs = ObservedObject(wrappedValue: runtime.appPrefs)
+        _widgetPrefs = ObservedObject(wrappedValue: runtime.prefs)
     }
 
     /// The inspector's four pages.
@@ -68,6 +70,7 @@ struct WidgetSettingsView: View {
     }
 
     @State private var values: [String: JSONValue] = [:]
+    @State private var hostDirectoryKeys: Set<String> = []
     /// The theming override being edited (R12). Loaded from the effective
     /// appearance so the controls reflect the widget's current look.
     @State private var appearanceDraft = WidgetAppearance()
@@ -89,8 +92,10 @@ struct WidgetSettingsView: View {
     /// screenshot test can render the whole pane rather than its first screen.
     static var scrollMaxHeight: CGFloat = 420
 
+    /// Titles in the app's language; keys and stored option values unchanged.
     private var entries: [Manifest.Setting] {
-        (widget.manifest.settings ?? []).filter { $0.key != nil }
+        let settings = (widget.manifest.settings ?? []).filter { $0.key != nil }
+        return widget.manifest.localization()?.settings(settings) ?? settings
     }
 
     /// The widget's author default (manifest appearance over neutral). Editing
@@ -207,7 +212,7 @@ struct WidgetSettingsView: View {
                     }
                 }
             )) {
-                ForEach(pageOptions, id: \.self) { Text($0).tag($0) }
+                ForEach(pageOptions, id: \.self) { Text(PageName.label($0)).tag($0) }
                 Divider()
                 Text("New Page…").tag(Self.newPageTag)
             }
@@ -232,6 +237,38 @@ struct WidgetSettingsView: View {
             .fixedSize()
         }
         settingsHint(LayoutSizeName.description(runtime.effectiveSize(for: widget.id)))
+
+        if widget.manifest.refresh?.popupOnly != true {
+            LabeledContent("Update interval") {
+                Picker("Update interval", selection: Binding(
+                    get: { widgetPrefs.refreshIntervals[widget.id].map { max($0, SchedulePolicy.minForegroundIntervalSec) } ?? 0 },
+                    set: { seconds in
+                        runtime.prefs.setRefreshInterval(seconds == 0 ? nil : seconds, for: widget.id)
+                        runtime.syncMenuBar()
+                    }
+                )) {
+                    Text(widgetIntervalTitle).tag(0.0)
+                    ForEach(Self.intervalOptions(current: runtime.prefs.refreshIntervals[widget.id], minimum: SchedulePolicy.minForegroundIntervalSec), id: \.self) { seconds in
+                        Text(Self.intervalTitle(seconds)).tag(seconds)
+                    }
+                }
+                .labelsHidden()
+                .fixedSize()
+            }
+            if let seconds = effectiveDisplayedInterval(promoted: false) {
+                settingsHint(String(localized: "While its shelf page is visible: \(Self.intervalTitle(seconds).lowercased())."))
+            }
+            settingsHint(String(localized: "Slower updates use less battery. Background and energy-saving rules still apply. A menu bar interval overrides this choice while promoted."))
+        }
+
+        if !widget.isSensitive, widget.manifest.desktop?.offer != false {
+            DisclosureGroup("Desktop widget updates") {
+                Text("Desktop widgets show BarShelf’s last result. Placing one on the desktop does not keep its source running. Open its shelf page or use Refresh to update it. To keep updating while the shelf is closed, show the source in the menu bar or Dock while BarShelf runs.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
 
         Divider()
 
@@ -329,6 +366,13 @@ struct WidgetSettingsView: View {
     }
 
     private func load() {
+        if widget.manifest.entry.kind == "workflow",
+           let url = try? WidgetEntryResolver.resolve(directory: widget.directory, main: widget.manifest.entry.main, defaultName: "workflow.json"),
+           let data = try? Data(contentsOf: url), let workflow = try? WorkflowDefinition.decode(from: data) {
+            hostDirectoryKeys = DirectorySettingPolicy.constrainedKeys(in: workflow)
+        } else {
+            hostDirectoryKeys = []
+        }
         values = runtime.prefs.effectiveSettings(
             for: widget.manifest, widgetID: widget.id
         ).objectValue ?? [:]
@@ -365,7 +409,11 @@ struct WidgetSettingsView: View {
     private func commit() {
         pendingCommit = nil
         guard let previous = committed, previous != snapshot else { return }
-        let current = snapshot
+        var current = snapshot
+        current.values = DirectorySettingPolicy.saving(current.values, over: previous.values,
+            settings: entries.filter { hostDirectoryKeys.contains($0.key ?? "") },
+            roots: widget.manifest.permissions?.readPaths ?? [])
+        guard current != previous else { return }
         Self.apply(current, over: previous, widget: widget, runtime: runtime, undoManager: undoManager)
         menuBarLoaded = current.menuBar
         committed = current
@@ -796,14 +844,17 @@ struct WidgetSettingsView: View {
                         settingsRowLabel("Update")
                         VStack(alignment: .leading, spacing: 4) {
                             Picker("Update interval", selection: intervalBinding) {
-                                Text(widgetIntervalTitle).tag(0.0)
+                                Text(menuBarInheritedIntervalTitle).tag(0.0)
                                 Divider()
-                                ForEach(MenuBarPlacement.intervalChoices, id: \.self) { seconds in
+                                ForEach(Self.intervalOptions(current: menuBarDraft.interval), id: \.self) { seconds in
                                     Text(Self.intervalTitle(seconds)).tag(seconds)
                                 }
                             }
                             .labelsHidden()
                             .frame(width: 180)
+                            if let seconds = effectiveDisplayedInterval(promoted: true) {
+                                settingsHint(String(localized: "Effective interval: \(Self.intervalTitle(seconds).lowercased())."))
+                            }
                             settingsHint(String(localized: "How often this item refreshes while it is in the menu bar. Slower is lighter on battery."))
                         }
                     }
@@ -1065,17 +1116,38 @@ struct WidgetSettingsView: View {
         )
     }
 
+    static func intervalOptions(current: Double?, minimum: Double = 1) -> [Double] {
+        var choices = Set(MenuBarPlacement.intervalChoices + [300, 600, 900, 1800, 3600])
+        if let current, current.isFinite, current > 0 { choices.insert(max(current, minimum)) }
+        return choices.filter { $0 >= minimum }.sorted()
+    }
+
+    private var menuBarInheritedIntervalTitle: String {
+        String(localized: "Follow widget interval")
+    }
+
     private var widgetIntervalTitle: String {
-        guard let seconds = widget.manifest.refresh?.interval else { return String(localized: "Default", comment: "Refresh interval: the widget's own") }
-        return String(localized: "Default (\(Self.intervalTitle(seconds).lowercased()))", comment: "Refresh interval: the widget's own, e.g. Default (every 5 s)")
+        String(localized: "Default", comment: "Refresh interval: the widget's own")
+    }
+
+    private func effectiveDisplayedInterval(promoted: Bool) -> Double? {
+        SchedulePolicy.effectiveInterval(
+            configured: (promoted ? menuBarDraft.interval : nil)
+                ?? widgetPrefs.refreshIntervals[widget.id] ?? widget.manifest.refresh?.interval,
+            popupOpen: true, runInBackground: false,
+            multiplier: appPrefs.preferences.refreshMultiplier,
+            pauseWhenClosed: appPrefs.preferences.pauseWhenClosed, menuBarPromoted: promoted)
     }
 
     static func intervalTitle(_ seconds: Double) -> String {
-        seconds >= 60 && seconds.truncatingRemainder(dividingBy: 60) == 0
+        guard seconds.isFinite, seconds > 0, seconds < Double(Int.max) else {
+            return String(localized: "Custom interval")
+        }
+        return seconds >= 60 && seconds.truncatingRemainder(dividingBy: 60) == 0
             ? String(localized: "Every \(Int(seconds / 60)) min")
             : seconds == seconds.rounded()
                 ? String(localized: "Every \(Int(seconds)) s", comment: "Refresh interval in seconds")
-                : String(localized: "Every \(seconds) s", comment: "Refresh interval in seconds")
+                : String(localized: "Every \(seconds.formatted(.number.precision(.fractionLength(0...3)))) s", comment: "Refresh interval in seconds")
     }
 
     private func metricHiddenBinding(_ key: String) -> Binding<Bool> {
@@ -1434,6 +1506,22 @@ struct WidgetSettingsView: View {
                     Button("Choose…") { chooseDirectory(for: key) }
                         .controlSize(.small)
                 }
+                let roots = hostDirectoryKeys.contains(key) ? widget.manifest.permissions?.readPaths ?? [] : []
+                if !roots.isEmpty {
+                    let allowed = roots.joined(separator: ", ")
+                    Text("Allowed folders: \(allowed)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if !DirectorySettingPolicy.allows(values[key]?.stringValue ?? "", roots: roots) {
+                        Label("This folder wasn’t saved. Choose a folder inside the allowed folders.", systemImage: "exclamationmark.triangle")
+                            .font(.caption)
+                            .foregroundStyle(StatusTone.warning.color)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Button("Use Allowed Folder") { values[key] = .string(roots[0]) }
+                            .controlSize(.small)
+                    }
+                }
             }
         default: // "string"
             VStack(alignment: .leading, spacing: 4) {
@@ -1674,6 +1762,9 @@ struct WidgetSettingsView: View {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
+        if hostDirectoryKeys.contains(key), let root = widget.manifest.permissions?.readPaths?.first {
+            panel.directoryURL = URL(fileURLWithPath: (root as NSString).expandingTildeInPath)
+        }
         if panel.runModal() == .OK, let url = panel.url {
             values[key] = .string(url.path)
         }

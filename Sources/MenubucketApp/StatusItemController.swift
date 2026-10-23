@@ -92,6 +92,10 @@ final class StatusItemController: NSObject {
             AutomationController.shared.requestAccessibility()
         }
         let dockStore = DockStore.shared
+        dockStore.$lastError
+            .receive(on: RunLoop.main)
+            .sink { [weak runtime] error in runtime?.attention.set(.dockNeedsAttention, error != nil) }
+            .store(in: &cancellables)
         dockStore.onProfileActivated = { [weak self] profile in
             self?.showPopupPage(named: profile.popupPage)
         }
@@ -319,6 +323,10 @@ final class StatusItemController: NSObject {
             // The submenu's "Dock Settings…" row.
             popup.hide()
             Task { @MainActor in HubWindowController.shared.show(runtime: runtime, tab: .dock) }
+        case .focusDock:
+            popup.hide()
+            // After the popup has given up key, or it would take it back.
+            DispatchQueue.main.async { [weak self] in self?.dockPanel.focusDock() }
         case .openBarShelf:
             openHub(nil)
         case .settings:

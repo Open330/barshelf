@@ -42,6 +42,15 @@ jobs:
       - name: Toolchain
         run: swift --version && xcodebuild -version
 
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: "2.9.7"
+
+      - name: Test widget SDK and language behavior
+        run: |
+          deno test sdk/mod_test.ts
+          deno test --import-map=sdk/tests/import_map.json sdk/tests/
+
       - name: Build
         run: swift build
 
@@ -49,7 +58,10 @@ jobs:
         run: swift build --target MenubucketCore -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
 
       - name: Test
-        run: swift test
+        run: |
+          quality_test_home=$(mktemp -d "${RUNNER_TEMP}/barshelf-quality-home-XXXXXX")
+          trap 'rm -rf "$quality_test_home"' EXIT
+          CFFIXED_USER_HOME="$quality_test_home" swift test
 
       # The desktop widget extension is the one Xcode-built part of the app;
       # building it here keeps a Swift-only change from breaking it unseen.

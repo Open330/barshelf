@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.today",
   "name": "Today",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "icon": "calendar",
   "bucket": { "group": "Demo", "order": 10, "size": "M" },
 
@@ -24,5 +24,13 @@
 
   "appearance": {
     "accent": "red"
+  },
+
+  "localizations": {
+    "ko": {
+      "Today": "오늘",
+      "${sources.data.month} ${sources.data.year}": "${sources.data.year}년 ${sources.data.month}",
+      "${sources.data.weekday}, ${sources.data.month} ${sources.data.day}": "${sources.data.month} ${sources.data.day}일 ${sources.data.weekday}"
+    }
   }
 }

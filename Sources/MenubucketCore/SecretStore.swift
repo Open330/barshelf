@@ -8,6 +8,9 @@ import Security
 public protocol SecretStoring: Sendable {
     func get(widgetId: String, key: String) throws -> String?
     func set(widgetId: String, key: String, value: String) throws
+    /// Deletes every secret of exactly this widget instance (`<widgetId>/…`),
+    /// never another instance's or another app's.
+    func removeAll(widgetId: String) throws
 }
 
 /// Keychain-backed secrets: generic passwords under service `dev.barshelf`
@@ -24,6 +27,16 @@ public struct KeychainSecretStore: SecretStoring {
 
     static func account(widgetId: String, key: String) -> String {
         "\(widgetId)/\(key)"
+    }
+
+    /// The account prefix owning one instance's secrets. The `/` boundary
+    /// keeps `pkg` from matching `pkg--copy/…`; an id with a `/` of its own
+    /// could reach into another id's accounts, so it is refused.
+    static func accountPrefix(widgetId: String) throws -> String {
+        guard !widgetId.isEmpty, !widgetId.contains("/") else {
+            throw JsonRpcError.internalError("invalid widget id for secret removal: \(widgetId)")
+        }
+        return account(widgetId: widgetId, key: "")
     }
 
     public func get(widgetId: String, key: String) throws -> String? {
@@ -62,6 +75,37 @@ public struct KeychainSecretStore: SecretStoring {
             throw JsonRpcError.internalError("keychain write failed (status \(status))")
         }
     }
+
+    /// Lists account names only (no secret data, so no access prompt) under
+    /// this store's service, then deletes each matching item by its exact
+    /// service + account.
+    public func removeAll(widgetId: String) throws {
+        let prefix = try Self.accountPrefix(widgetId: widgetId)
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecReturnAttributes as String: true,
+            kSecMatchLimit as String: kSecMatchLimitAll,
+        ]
+        var items: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &items)
+        if status == errSecItemNotFound { return }
+        guard status == errSecSuccess, let records = items as? [[String: Any]] else {
+            throw JsonRpcError.internalError("keychain list failed (status \(status))")
+        }
+        let accounts = records.compactMap { $0[kSecAttrAccount as String] as? String }
+        for account in Set(accounts) where account.hasPrefix(prefix) {
+            let item: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: service,
+                kSecAttrAccount as String: account,
+            ]
+            let deleted = SecItemDelete(item as CFDictionary)
+            guard deleted == errSecSuccess || deleted == errSecItemNotFound else {
+                throw JsonRpcError.internalError("keychain delete failed (status \(deleted))")
+            }
+        }
+    }
 }
 
 /// Test double: process-local secret map.
@@ -81,5 +125,12 @@ public final class InMemorySecretStore: SecretStoring, @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         values["\(widgetId)/\(key)"] = value
+    }
+
+    public func removeAll(widgetId: String) throws {
+        let prefix = try KeychainSecretStore.accountPrefix(widgetId: widgetId)
+        lock.lock()
+        defer { lock.unlock() }
+        values = values.filter { !$0.key.hasPrefix(prefix) }
     }
 }

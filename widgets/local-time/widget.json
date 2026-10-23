@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.local-time",
   "name": "Local Time",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "icon": "clock.fill",
   "bucket": { "group": "Demo", "order": 40, "size": "S" },
 
@@ -24,5 +24,12 @@
 
   "appearance": {
     "accent": "blue"
+  },
+
+  "localizations": {
+    "ko": {
+      "Local Time": "현지 시간",
+      "Local time: ${string(transforms.time)}": "현지 시간: ${string(transforms.time)}"
+    }
   }
 }

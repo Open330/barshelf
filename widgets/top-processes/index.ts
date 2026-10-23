@@ -1,5 +1,13 @@
 import { barshelf, ui, type UINode, type WidgetLoadContext } from "barshelf";
 
+/** The app's language, set at the start of each load. */
+let language: "en" | "ko" = "en";
+
+/** Fixed text: Korean when the app is in Korean, else the English. */
+function t(english: string, korean: string): string {
+  return language === "ko" ? korean : english;
+}
+
 interface ProcessUsage {
   name: string;
   cpu: number;
@@ -58,6 +66,9 @@ function processRow(item: ProcessUsage, index: number): UINode {
 }
 
 async function load(ctx: WidgetLoadContext): Promise<void> {
+  language = typeof ctx.locale === "string" && /^ko(?:[-_]|$)/i.test(ctx.locale)
+    ? "ko"
+    : "en";
   const result = await ctx.exec.run({
     command: "/bin/ps",
     args: ["-axo", "comm,%cpu", "-r"],
@@ -71,10 +82,15 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
     await ctx.render(
       ui.empty({
         icon: "cpu",
-        title: "No active processes",
-        subtitle: "CPU usage is idle.",
+        title: t("No active processes", "활성 프로세스 없음"),
+        subtitle: t("CPU usage is idle.", "CPU가 거의 쉬고 있습니다."),
       }),
-      { status: { label: "Idle", tooltip: "No CPU-heavy processes" } },
+      {
+        status: {
+          label: t("Idle", "유휴"),
+          tooltip: t("No CPU-heavy processes", "CPU를 많이 쓰는 프로세스 없음"),
+        },
+      },
     );
     return;
   }
@@ -83,7 +99,7 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
   const topTone = toneFor(top.cpu);
   await ctx.render(
     ui.vstack([
-      ui.metricCard("Peak CPU", `${top.cpu.toFixed(1)}%`, {
+      ui.metricCard(t("Peak CPU", "최고 CPU"), `${top.cpu.toFixed(1)}%`, {
         icon: "flame.fill",
         tone: topTone,
         caption: top.name,
@@ -91,8 +107,14 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
         progressLabel: top.name,
       }),
       ui.hstack([
-        ui.stat("Top total", `${total.toFixed(1)}%`, { icon: "sum", tone: "accent" }),
-        ui.stat("Samples", processes.length, { icon: "list.number", tone: "neutral" }),
+        ui.stat(t("Top total", "상위 합계"), `${total.toFixed(1)}%`, {
+          icon: "sum",
+          tone: "accent",
+        }),
+        ui.stat(t("Samples", "표본 수"), processes.length, {
+          icon: "list.number",
+          tone: "neutral",
+        }),
       ], { spacing: 6 }),
       ui.list(processes.map(processRow), { spacing: 6 }),
     ], { spacing: 8 }),

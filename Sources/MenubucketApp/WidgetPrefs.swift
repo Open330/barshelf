@@ -35,6 +35,8 @@ final class WidgetPrefs: ObservableObject {
     /// Menu-bar promotion, keyed by widget id. A widget with no entry falls
     /// back to its manifest's `statusItem.mode`.
     @Published private(set) var menuBarPlacements: [String: MenuBarPlacement] = [:]
+    /// Cadence overrides for every surface; menu bar overrides take precedence.
+    @Published private(set) var refreshIntervals: [String: Double] = [:]
 
     private let fileURL: URL
 
@@ -51,6 +53,14 @@ final class WidgetPrefs: ObservableObject {
         var groupOrder: [String: Double]?
         /// Optional for backward compatibility with pre-menu-bar prefs files.
         var menuBarPlacements: [String: MenuBarPlacement]?
+        var refreshIntervals: [String: Double]?
+    }
+
+    func setRefreshInterval(_ interval: Double?, for id: String) {
+        let normalized = interval.flatMap { $0.isFinite && $0 > 0 ? $0 : nil }
+        guard refreshIntervals[id] != normalized else { return }
+        refreshIntervals[id] = normalized
+        save()
     }
 
     // MARK: - Group order
@@ -190,6 +200,7 @@ final class WidgetPrefs: ObservableObject {
         if disabled.remove(id) != nil { changed = true }
         if appearanceOverrides.removeValue(forKey: id) != nil { changed = true }
         if menuBarPlacements.removeValue(forKey: id) != nil { changed = true }
+        if refreshIntervals.removeValue(forKey: id) != nil { changed = true }
         if changed { save() }
     }
 
@@ -320,6 +331,7 @@ final class WidgetPrefs: ObservableObject {
         appearanceOverrides = persisted.appearanceOverrides ?? [:]
         groupOrder = persisted.groupOrder ?? [:]
         menuBarPlacements = persisted.menuBarPlacements ?? [:]
+        refreshIntervals = (persisted.refreshIntervals ?? [:]).filter { $0.value.isFinite && $0.value > 0 }
     }
 
     private func save() {
@@ -329,7 +341,8 @@ final class WidgetPrefs: ObservableObject {
             bucketOverrides: bucketOverrides.isEmpty ? nil : bucketOverrides,
             appearanceOverrides: appearanceOverrides.isEmpty ? nil : appearanceOverrides,
             groupOrder: groupOrder.isEmpty ? nil : groupOrder,
-            menuBarPlacements: menuBarPlacements.isEmpty ? nil : menuBarPlacements
+            menuBarPlacements: menuBarPlacements.isEmpty ? nil : menuBarPlacements,
+            refreshIntervals: refreshIntervals.isEmpty ? nil : refreshIntervals
         )
         guard let data = try? JSONEncoder().encode(persisted) else { return }
         try? FileManager.default.createDirectory(

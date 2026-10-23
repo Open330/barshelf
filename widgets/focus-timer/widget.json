@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.focus-timer",
   "name": "Focus Timer",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "icon": "timer",
   "bucket": { "group": "Productivity", "order": 20, "size": "S" },
 
@@ -34,5 +34,12 @@
   "appearance": {
     "accent": "orange",
     "cardStyle": "tinted"
+  },
+
+  "localizations": {
+    "ko": {
+      "Focus Timer": "집중 타이머",
+      "Focus duration (minutes)": "집중 시간(분)"
+    }
   }
 }

@@ -328,9 +328,11 @@ public enum HeadlessInstaller {
 
     /// Recursively writes a GitHub directory's files into `dest`. Bounded by
     /// `maxSubdirFiles`/`maxSubdirDepth` and the per-file download cap.
-    private static func downloadContents(
+    static func downloadContents(
         owner: String, repo: String, path: String, ref: String,
-        into dest: URL, depth: Int, fileCount: inout Int
+        into dest: URL, depth: Int, fileCount: inout Int,
+        fetch: (URLRequest) async throws -> (Data, URLResponse) = { try await URLSession.shared.data(for: $0) },
+        downloadFile: (URL) async throws -> Data = { try await download(from: $0) }
     ) async throws {
         guard depth <= maxSubdirDepth else {
             throw HeadlessInstallError.noWidgetsFound(details: ["subdirectory nesting too deep"])
@@ -346,7 +348,7 @@ public enum HeadlessInstaller {
         request.timeoutInterval = 30
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("barshelf", forHTTPHeaderField: "User-Agent")
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await fetch(request)
         guard let http = response as? HTTPURLResponse else { throw HeadlessInstallError.notHTTP(apiURL) }
         guard http.statusCode == 200 else { throw HeadlessInstallError.httpStatus(http.statusCode, apiURL) }
         let entries = try JSONDecoder().decode([ContentsEntry].self, from: data)
@@ -357,15 +359,16 @@ public enum HeadlessInstaller {
                 try await downloadContents(
                     owner: owner, repo: repo, path: "\(path)/\(entry.name)", ref: ref,
                     into: dest.appendingPathComponent(entry.name, isDirectory: true),
-                    depth: depth + 1, fileCount: &fileCount
+                    depth: depth + 1, fileCount: &fileCount,
+                    fetch: fetch, downloadFile: downloadFile
                 )
             } else if entry.type == "file", let downloadURL = entry.downloadURL {
                 fileCount += 1
                 guard fileCount <= maxSubdirFiles else {
                     throw HeadlessInstallError.noWidgetsFound(details: ["subdirectory has too many files"])
                 }
-                let bytes = try await download(from: downloadURL)
-                try bytes.write(to: dest.appendingPathComponent(entry.name), options: .atomic)
+                let bytes = try await downloadFile(downloadURL)
+                try SafeZipExtractor.writeWidgetFile(bytes, to: dest.appendingPathComponent(entry.name))
             }
         }
     }
@@ -405,10 +408,38 @@ public enum HeadlessInstaller {
         }
         return try installDirectory(
             from: candidate.sourceDirectory,
-            to: widgetsDir.appendingPathComponent(
-                candidate.manifest.id, isDirectory: true
-            )
+            to: installDestination(for: candidate.manifest.id, in: widgetsDir)
         )
+    }
+
+    /// Where an install of `id` may write, or why it may not.
+    ///
+    /// An update replaces the copy BarShelf runs, wherever it lives: first-run
+    /// seeding names starters by folder (`today`), not by id. Writing `<id>/`
+    /// beside it would leave two copies of one package, and removing the one
+    /// shown would bring the other back. Refused, with the existing tree left
+    /// exactly as it is:
+    /// - an id that is not a plain widget id (`../x` must not leave the folder);
+    /// - an installed copy that is a symbolic link — replacing it would
+    ///   replace the link, and following it would write outside the folder;
+    /// - a new install whose `<id>` path is already taken by something that is
+    ///   not this widget (a file, a link, a broken or foreign package).
+    public static func installDestination(for id: String, in widgetsDir: URL) throws -> URL {
+        guard WidgetDiscovery.isValidWidgetID(id) else {
+            throw HeadlessInstallError.invalidWidgetID(id)
+        }
+        if let installed = installedPackages(in: widgetsDir)[id] {
+            guard !installed.isSymbolicLink else {
+                throw HeadlessInstallError.symbolicLinkInstall(installed.directory.path)
+            }
+            return installed.directory
+        }
+        let destination = widgetsDir.appendingPathComponent(id, isDirectory: true)
+        // lstat, not fileExists: a dangling link occupies the name too.
+        if (try? FileManager.default.attributesOfItem(atPath: destination.path)) != nil {
+            throw HeadlessInstallError.destinationOccupied(destination.path)
+        }
+        return destination
     }
 
     /// The install transaction itself: copy `source` to a hidden sibling of
@@ -463,10 +494,60 @@ public enum HeadlessInstaller {
         return destination
     }
 
+    /// Installed means a valid manifest with this id — not a folder name.
     public static func isInstalled(id: String, in widgetsDir: URL) -> Bool {
-        FileManager.default.fileExists(
-            atPath: widgetsDir.appendingPathComponent(id).path
-        )
+        installedPackages(in: widgetsDir)[id] != nil
+    }
+
+    /// The copy of a package BarShelf loads.
+    public struct InstalledPackage: Equatable, Sendable {
+        public let directory: URL
+        /// Read for identity (BarShelf loads through links too), but never
+        /// replaced by an install: see `installDestination`.
+        public let isSymbolicLink: Bool
+    }
+
+    /// The installed package for each manifest id, from one scan of
+    /// `widgetsDir`'s immediate children — not a recursive walk.
+    ///
+    /// Chosen the way BarShelf loads widgets: entries in name order, links
+    /// followed, the first whose `widget.json` decodes as that id wins,
+    /// whatever the entry is called (`today` holds `dev.barshelf.today`).
+    /// Never chosen:
+    /// - hidden entries (install staging and backups);
+    /// - `<id>--<label>` entries, folders or links, which are extra instances
+    ///   of a package, not the package;
+    /// - entries whose manifest is missing or invalid.
+    /// A link that is the package is reported as one (`isSymbolicLink`), so
+    /// the Gallery shows it installed while installs refuse to write to it.
+    public static func installedPackages(
+        in widgetsDir: URL, isCancelled: () -> Bool = { false }
+    ) -> [String: InstalledPackage] {
+        let fm = FileManager.default
+        guard let children = try? fm.contentsOfDirectory(
+            at: widgetsDir,
+            includingPropertiesForKeys: [.isSymbolicLinkKey],
+            options: [.skipsHiddenFiles]
+        ) else { return [:] }
+        var found: [String: InstalledPackage] = [:]
+        for child in children.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
+            if isCancelled() { break }
+            guard let data = try? Data(contentsOf: child.appendingPathComponent(WidgetDiscovery.manifestFileName)),
+                  let manifest = try? Manifest.decode(from: data),
+                  WidgetDiscovery.isValidWidgetID(manifest.id),
+                  found[manifest.id] == nil
+            else { continue }
+            let name = child.lastPathComponent
+            let aliasPrefix = manifest.id + "--"
+            if name.hasPrefix(aliasPrefix), name.count > aliasPrefix.count { continue }
+            let isLink = (try? child.resourceValues(forKeys: [.isSymbolicLinkKey]))?.isSymbolicLink == true
+            // Foundation may rewrite /private/var as /var while enumerating.
+            // Keep the caller's URL spelling stable across first install and
+            // update, while the resource checks above use the same object.
+            let directory = widgetsDir.appendingPathComponent(child.lastPathComponent, isDirectory: true)
+            found[manifest.id] = InstalledPackage(directory: directory, isSymbolicLink: isLink)
+        }
+        return found
     }
 
     // MARK: Download
@@ -578,11 +659,23 @@ public enum HeadlessInstallError: Error, LocalizedError, Equatable {
     case downloadTooLarge(limitBytes: Int)
     case noWidgetsFound(details: [String])
     case needsNewerHost(String)
+    case invalidWidgetID(String)
+    /// The installed copy is a symbolic link; BarShelf does not update
+    /// through links.
+    case symbolicLinkInstall(String)
+    /// The `<id>` folder exists but does not hold this widget.
+    case destinationOccupied(String)
 
     public var errorDescription: String? {
         switch self {
         case let .needsNewerHost(reason):
             return reason
+        case let .invalidWidgetID(id):
+            return "\"\(id)\" is not a valid widget id; nothing was installed"
+        case let .symbolicLinkInstall(path):
+            return "\(path) is a symbolic link, which BarShelf does not update automatically. Update the folder it points to, or replace the link with the widget's folder; nothing was changed"
+        case let .destinationOccupied(path):
+            return "\(path) already exists but does not hold this widget. Move or remove it, then install again; nothing was changed"
         case .noDownloadCandidates:
             return "no download URL could be derived from the input"
         case let .notHTTP(url):

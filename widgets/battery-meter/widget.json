@@ -3,7 +3,8 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.battery-meter",
   "name": "Battery",
-  "version": "0.1.1",
+  "version": "0.1.2",
+  "minHostVersion": "0.3.11",
   "icon": "battery.100percent",
   "bucket": { "group": "System", "order": 12, "size": "S" },
 
@@ -24,5 +25,12 @@
 
   "appearance": {
     "accent": "green"
+  },
+
+  "localizations": {
+    "ko": {
+      "Battery": "배터리",
+      "Battery ${string(sources.data.pct)}% — ${transforms.state}": "배터리 ${string(sources.data.pct)}% — ${transforms.state}"
+    }
   }
 }

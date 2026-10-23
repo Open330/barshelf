@@ -219,6 +219,35 @@ final class AppleDockTests: XCTestCase {
         XCTAssertEqual(restarts, 2)
     }
 
+    func testHideRequiresSuccessfulPreservationBeforeChangingPreferences() {
+        let defaults = FakeDefaults()
+        defaults.values[AppleDock.autohideKey] = false
+        defaults.values[AppleDock.autohideDelayKey] = 0.5
+        var restarts = 0
+        let dock = AppleDock(defaults: defaults) { restarts += 1 }
+        let original = dock.visibility
+
+        XCTAssertThrowsError(try dock.hide(preserving: { before in
+            XCTAssertEqual(before, original)
+            XCTAssertEqual(dock.visibility, original, "preservation runs before any system mutation")
+            throw CocoaError(.fileWriteNoPermission)
+        }))
+        XCTAssertEqual(dock.visibility, original)
+        XCTAssertEqual(restarts, 0)
+    }
+
+    func testPreservationKeepsUnsetValuesAndDoesNotReplaceAnExistingBackup() throws {
+        let defaults = FakeDefaults()
+        let dock = AppleDock(defaults: defaults) {}
+        var backups: [AppleDockVisibility] = []
+        let before = try dock.hide(preserving: { backups.append($0) })
+        XCTAssertEqual(before, AppleDockVisibility(autohide: nil, autohideDelay: nil))
+        XCTAssertNil(try dock.hide(preserving: { backups.append($0) }))
+        XCTAssertEqual(backups, [AppleDockVisibility(autohide: nil, autohideDelay: nil)])
+        try dock.restoreChecked(XCTUnwrap(before))
+        XCTAssertEqual(dock.visibility, AppleDockVisibility(autohide: nil, autohideDelay: nil))
+    }
+
     func testUnhideWithoutBackupKeepsAutohide() {
         let defaults = FakeDefaults()
         defaults.values[AppleDock.autohideKey] = true

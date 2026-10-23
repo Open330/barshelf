@@ -22,6 +22,14 @@
     "$schema": {
       "type": "string"
     },
+    "localizations": {
+      "description": "Display text in other languages: language code (\"ko\", \"ko-KR\") → exact English text → translation. Applies to the name, setting titles/option titles, and workflow view text, titles, labels, placeholders, accessibility labels and status label/tooltip. A translated template must use the same ${…} expressions. Commands, actions, paths, URLs and setting values are never translated. Hosts without support show the English text.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": { "$ref": "#/definitions/nonEmptyString" }
+      }
+    },
     "schemaVersion": {
       "const": 1
     },

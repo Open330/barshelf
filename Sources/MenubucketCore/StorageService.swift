@@ -24,6 +24,10 @@ public final class StorageService: @unchecked Sendable {
     private let lock = NSLock()
     private var cache: [String: Namespace] = [:]
     private var retainedWidgetIDs: Set<String>?
+    /// Namespaces erased by `removeAll`. A process still shutting down could
+    /// otherwise write one back; writes are refused until the id is loaded
+    /// again (`retain` lists it, e.g. after a reinstall).
+    private var purgedWidgetIDs: Set<String> = []
 
     public init(directory: URL, quotaBytes: Int = StorageService.quotaBytes) {
         self.directory = directory
@@ -37,8 +41,33 @@ public final class StorageService: @unchecked Sendable {
     public func retain(widgetIDs: Set<String>) {
         lock.lock()
         retainedWidgetIDs = widgetIDs
+        purgedWidgetIDs.subtract(widgetIDs)
         cache = cache.filter { widgetIDs.contains($0.key) }
         lock.unlock()
+    }
+
+    /// A removal failed after purging data, so this installed instance is
+    /// active again. Keep the purge, but allow fresh writes for this id only.
+    public func retain(widgetID: String) {
+        lock.lock()
+        purgedWidgetIDs.remove(widgetID)
+        retainedWidgetIDs?.insert(widgetID)
+        lock.unlock()
+    }
+
+    /// Erases exactly this widget's namespace, in memory and on disk, for a
+    /// widget the user removed. Other widgets — another instance of the same
+    /// package included — keep theirs.
+    public func removeAll(widgetId: String) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        purgedWidgetIDs.insert(widgetId)
+        cache.removeValue(forKey: widgetId)
+        do {
+            try FileManager.default.removeItem(at: fileURL(widgetId: widgetId))
+        } catch CocoaError.fileNoSuchFile {
+            // Nothing was ever stored.
+        }
     }
 
     var cachedWidgetIDs: Set<String> {
@@ -158,6 +187,9 @@ public final class StorageService: @unchecked Sendable {
     }
 
     private func persistLocked(widgetId: String, namespace: Namespace, data: Data) throws {
+        guard !purgedWidgetIDs.contains(widgetId) else {
+            throw JsonRpcError.internalError("storage for \(widgetId) was removed with the widget")
+        }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try data.write(to: fileURL(widgetId: widgetId), options: .atomic)
         cacheLocked(namespace, widgetId: widgetId)

@@ -28,6 +28,21 @@ final class WidgetPrefsTests: XCTestCase {
         XCTAssertEqual(reloaded.override(for: "c"), BucketOverride(group: nil, order: 7))
     }
 
+    func testRefreshIntervalRoundTripResetAndRemoval() {
+        let prefs = WidgetPrefs(fileURL: fileURL)
+        prefs.setRefreshInterval(1800, for: "weather")
+        XCTAssertEqual(WidgetPrefs(fileURL: fileURL).refreshIntervals["weather"], 1800)
+        prefs.setRefreshInterval(nil, for: "weather")
+        XCTAssertTrue(WidgetPrefs(fileURL: fileURL).refreshIntervals.isEmpty)
+        for invalid in [Double.nan, .infinity, -5, 0] {
+            prefs.setRefreshInterval(invalid, for: "weather")
+            XCTAssertTrue(prefs.refreshIntervals.isEmpty)
+        }
+        prefs.setRefreshInterval(60, for: "weather")
+        prefs.removeAllState(for: "weather")
+        XCTAssertTrue(WidgetPrefs(fileURL: fileURL).refreshIntervals.isEmpty)
+    }
+
     func testDecodesOldPrefsWithoutNewFields() throws {
         let legacy = #"{"pinned":["x"],"settings":{}}"#
         try FileManager.default.createDirectory(
@@ -40,6 +55,7 @@ final class WidgetPrefsTests: XCTestCase {
         XCTAssertFalse(prefs.isDisabled("x"))
         XCTAssertNil(prefs.override(for: "x"))
         XCTAssertNil(prefs.appearanceOverride(for: "x"))
+        XCTAssertTrue(prefs.refreshIntervals.isEmpty)
     }
 
     func testSetOverrideWithBothNilClearsEntry() {

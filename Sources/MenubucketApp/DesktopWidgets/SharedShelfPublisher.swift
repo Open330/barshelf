@@ -22,6 +22,8 @@ final class SharedShelfPublisher {
     static let minimumReloadInterval: TimeInterval = 15 * 60
 
     private let container: URL?
+    private let reloadTimelines: () -> Void
+    private let scheduleRefreshTimeout: (@escaping () -> Void) -> Void
     private var lastReload: Date?
     private var pendingReload: DispatchWorkItem?
     private var lastIndex: SharedShelf.Index?
@@ -35,14 +37,20 @@ final class SharedShelfPublisher {
 
     /// Widgets whose refresh a desktop widget asked for: their next publish
     /// goes out at once, and reloads the desktop without waiting.
-    private var answering: Set<String> = []
+    private var answering: [String: UUID] = [:]
 
     /// Called on the main thread with a widget id when its desktop widget's
     /// refresh button is pressed.
     var onRefreshRequest: ((String) -> Void)?
 
-    init(container: URL? = SharedShelfPublisher.entitledContainer()) {
+    init(container: URL? = SharedShelfPublisher.entitledContainer(),
+         reload: @escaping () -> Void = { WidgetCenter.shared.reloadTimelines(ofKind: SharedShelf.widgetKind) },
+         scheduleRefreshTimeout: @escaping (@escaping () -> Void) -> Void = { work in
+             DispatchQueue.main.asyncAfter(deadline: .now() + SharedShelf.refreshRequestLifetime, execute: work)
+         }) {
         self.container = container
+        self.reloadTimelines = reload
+        self.scheduleRefreshTimeout = scheduleRefreshTimeout
     }
 
     var isEnabled: Bool { container != nil }
@@ -78,15 +86,17 @@ final class SharedShelfPublisher {
     func takeRefreshRequests(now: Date = Date()) {
         guard let container else { return }
         let offered = Set(lastIndex?.entries.map(\.id) ?? [])
-        for id in SharedShelf.pendingRefreshRequests(in: container, now: now).keys where !answering.contains(id) {
+        for id in SharedShelf.pendingRefreshRequests(in: container, now: now).keys where answering[id] == nil {
             guard offered.contains(id) else {
                 SharedShelf.clearRefreshRequest(widgetID: id, in: container)
                 continue
             }
-            answering.insert(id)
+            let token = UUID()
+            answering[id] = token
             onRefreshRequest?(id)
-            DispatchQueue.main.asyncAfter(deadline: .now() + SharedShelf.refreshRequestLifetime) { [weak self] in
-                guard let self, self.answering.remove(id) != nil else { return }
+            scheduleRefreshTimeout { [weak self] in
+                guard let self, self.answering[id] == token else { return }
+                self.answering.removeValue(forKey: id)
                 SharedShelf.clearRefreshRequest(widgetID: id, in: container)
                 self.reloadNow()
             }
@@ -96,7 +106,7 @@ final class SharedShelfPublisher {
     /// Whether a widget's next render answers a desktop refresh request, so
     /// it should be published without the usual throttle.
     func isAnswering(_ widgetID: String) -> Bool {
-        answering.contains(widgetID)
+        answering[widgetID] != nil
     }
 
     /// The list a user picks from when configuring a widget. Returns whether
@@ -107,6 +117,7 @@ final class SharedShelfPublisher {
         let index = SharedShelf.Index(entries: entries)
         guard index != lastIndex else { return false }
         let kept = Set(entries.map(\.id))
+        let removed = Set(lastIndex?.entries.map(\.id) ?? []).subtracting(kept)
         for id in Set(exports.keys).subtracting(kept) {
             invalidate(id)
         }
@@ -115,6 +126,13 @@ final class SharedShelfPublisher {
             SharedShelf.pruneSnapshots(keeping: kept, in: container)
             // Only once it is written: a failed write is tried again next time.
             lastIndex = index
+            for id in removed {
+                answering.removeValue(forKey: id)
+                SharedShelf.clearRefreshRequest(widgetID: id, in: container)
+            }
+            // Removing the final candidate produces no later snapshot publish
+            // to invalidate the extension's cached timeline.
+            if !removed.isEmpty { reloadNow() }
         } catch {
             NSLog("barshelf: could not write the widget index: \(error)")
         }
@@ -124,6 +142,7 @@ final class SharedShelfPublisher {
     func publish(_ snapshot: SharedShelf.Snapshot) {
         guard let container else { return }
         let id = snapshot.widgetID
+        if let lastIndex, !lastIndex.entries.contains(where: { $0.id == id }) { return }
         let generation = invalidate(id)
         let paths = Self.imagePaths(in: snapshot)
         guard let folder = SharedShelf.imagesDirectory(for: id, in: container) else { return }
@@ -156,7 +175,7 @@ final class SharedShelfPublisher {
     private func write(_ snapshot: SharedShelf.Snapshot, to container: URL) {
         do {
             try SharedShelf.writeSnapshot(snapshot, to: container)
-            if answering.remove(snapshot.widgetID) != nil {
+            if answering.removeValue(forKey: snapshot.widgetID) != nil {
                 // The user pressed refresh on the desktop and is watching.
                 SharedShelf.clearRefreshRequest(widgetID: snapshot.widgetID, in: container)
                 reloadNow()
@@ -299,6 +318,8 @@ final class SharedShelfPublisher {
     func withdraw(widgetID: String) {
         guard let container else { return }
         invalidate(widgetID)
+        answering.removeValue(forKey: widgetID)
+        SharedShelf.clearRefreshRequest(widgetID: widgetID, in: container)
         SharedShelf.removeSnapshot(widgetID: widgetID, from: container)
         // Not left on the desktop until the reload window closes: this is
         // rare, and worth a reload from the daily budget.
@@ -310,7 +331,7 @@ final class SharedShelfPublisher {
         pendingReload?.cancel()
         pendingReload = nil
         lastReload = Date()
-        WidgetCenter.shared.reloadTimelines(ofKind: SharedShelf.widgetKind)
+        reloadTimelines()
     }
 
     private func scheduleReload(now: Date = Date()) {
@@ -320,7 +341,7 @@ final class SharedShelfPublisher {
             guard let self else { return }
             self.pendingReload = nil
             self.lastReload = Date()
-            WidgetCenter.shared.reloadTimelines(ofKind: SharedShelf.widgetKind)
+            self.reloadTimelines()
         }
         pendingReload = item
         DispatchQueue.main.asyncAfter(deadline: .now() + wait, execute: item)

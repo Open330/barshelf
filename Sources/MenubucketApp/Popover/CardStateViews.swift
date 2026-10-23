@@ -71,6 +71,9 @@ struct CardErrorView: View {
                     .buttonStyle(.borderedProminent)
                 Button(showsDetails ? "Hide Details" : "Details") { showsDetails.toggle() }
                 Button("Settings…", action: onSettings)
+                if explanation.kind == .permissionDenied {
+                    PrivacySettingsButton()
+                }
             }
             .controlSize(.small)
             if showsDetails {
@@ -128,6 +131,9 @@ struct CachedBadge: View {
                     .fixedSize(horizontal: false, vertical: true)
                 RawErrorText(error: error)
                 HStack {
+                    if explanation.kind == .permissionDenied {
+                        PrivacySettingsButton()
+                    }
                     Spacer()
                     Button("Retry") {
                         showsPopover = false
@@ -139,6 +145,16 @@ struct CachedBadge: View {
             }
             .padding(Spacing.m)
             .frame(width: 280)
+        }
+    }
+}
+
+private struct PrivacySettingsButton: View {
+    var body: some View {
+        Button("Privacy Settings…") {
+            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy") {
+                NSWorkspace.shared.open(url)
+            }
         }
     }
 }

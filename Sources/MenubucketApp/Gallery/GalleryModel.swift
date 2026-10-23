@@ -199,12 +199,19 @@ final class GalleryModel: ObservableObject {
         return categories(of: entry).contains(category)
     }
 
+    /// Every word of the query must appear in some field — the registry's own
+    /// or the app's words for it (`GalleryEntryText`) — ignoring case and
+    /// accents, so "battery menu" and "배터리" both work.
     private func matchesQuery(_ entry: RegistryWidgetEntry, _ query: String) -> Bool {
-        guard !query.isEmpty else { return true }
-        var fields = [entry.name, entry.description, entry.category, entry.author]
+        let words = query.split(whereSeparator: \.isWhitespace)
+        guard !words.isEmpty else { return true }
+        var fields = [entry.name, entry.description, entry.category, entry.author].compactMap { $0 }
         if let kind = entry.kind { fields.append(WidgetTypeName.name(kind)) }
-        fields.append(contentsOf: (entry.tags ?? []).map(Optional.some))
-        return fields.contains { $0?.lowercased().contains(query) == true }
+        fields.append(contentsOf: entry.tags ?? [])
+        fields.append(contentsOf: GalleryEntryText.searchTerms(for: entry))
+        return words.allSatisfy { word in
+            fields.contains { $0.localizedStandardContains(word) }
+        }
     }
 
     /// Category chip labels for an entry: its curated `category` plus its tags.
@@ -237,7 +244,11 @@ final class GalleryModel: ObservableObject {
                 if seen.insert(key).inserted { ordered.append(value) }
             }
         }
-        return ordered.sorted { $0.lowercased() < $1.lowercased() }
+        // In the order the picker shows them: by label, not registry value.
+        return ordered.sorted {
+            GalleryEntryText.categoryLabel($0)
+                .localizedStandardCompare(GalleryEntryText.categoryLabel($1)) == .orderedAscending
+        }
     }
 
     /// True when the registry advertises a strictly newer version than the
@@ -396,24 +407,24 @@ final class GalleryModel: ObservableObject {
     var resolvedRuntime: WidgetRuntime? { runtime }
 
     /// Removes an installed widget through the runtime (directory, cached
-    /// snapshot, permissions, preferences). Failures land in `removeError`.
-    @discardableResult
-    func remove(_ entry: RegistryWidgetEntry) -> Bool {
+    /// snapshot, permissions, preferences). Failures land in `removeError`;
+    /// the entry stays installed until the runtime has finished.
+    func remove(_ entry: RegistryWidgetEntry) {
         removeError = nil
         guard let runtime = resolvedRuntime else {
             removeError = String(localized: "BarShelf couldn’t remove this widget right now. Try again from the Widgets page.")
-            return false
+            return
         }
-        do {
-            try runtime.removeWidget(id: entry.id)
-            installedIDs.remove(entry.id)
-            installedVersions[entry.id] = nil
-            refreshInstalledStates()
-            return true
-        } catch {
-            removeError = (error as? LocalizedError)?.errorDescription
-                ?? error.localizedDescription
-            return false
+        Task { @MainActor in
+            do {
+                try await runtime.removeWidget(id: entry.id)
+                installedIDs.remove(entry.id)
+                installedVersions[entry.id] = nil
+                refreshInstalledStates()
+            } catch {
+                removeError = (error as? LocalizedError)?.errorDescription
+                    ?? error.localizedDescription
+            }
         }
     }
 
@@ -440,8 +451,11 @@ final class GalleryModel: ObservableObject {
         }
     }
 
-    /// Installed = the widget's install directory exists (same rule as the
-    /// installer's update detection). File access runs at utility priority, so
+    /// Installed = an entry in the widgets directory holds a valid manifest
+    /// with the entry's id (`HeadlessInstaller.installedPackages`, the
+    /// installer's own rule), whatever it is called. A package that is a
+    /// symbolic link counts too: BarShelf runs it, though it is not updated
+    /// through the link. File access runs at utility priority, so
     /// a registry with many entries never blocks the gallery's main actor.
     /// A generation check drops late results when another filesystem event or
     /// registry refresh supersedes the scan.
@@ -539,15 +553,19 @@ final class GalleryModel: ObservableObject {
     private nonisolated static func readInstalledState(
         for entries: [RegistryWidgetEntry], widgetsDirectory: URL
     ) -> InstalledState {
-        let fm = FileManager.default
+        // By the manifest inside, not the folder name: starters seeded on
+        // first run live in `today/`, not `dev.barshelf.today/`. One scan of
+        // the folder's children, the same choice the installer updates.
+        let packages = HeadlessInstaller.installedPackages(
+            in: widgetsDirectory, isCancelled: { Task.isCancelled }
+        )
         var installed: Set<String> = []
         var versions: [String: String] = [:]
         for entry in entries {
             guard !Task.isCancelled else {
                 return InstalledState(ids: installed, versions: versions)
             }
-            let directory = widgetsDirectory.appendingPathComponent(entry.id)
-            guard fm.fileExists(atPath: directory.path) else { continue }
+            guard let directory = packages[entry.id]?.directory else { continue }
             installed.insert(entry.id)
             if let version = installedVersion(inWidgetDirectory: directory) {
                 versions[entry.id] = version

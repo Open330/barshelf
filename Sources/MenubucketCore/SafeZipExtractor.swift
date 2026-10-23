@@ -105,16 +105,20 @@ public enum SafeZipExtractor {
                 at: target.deletingLastPathComponent(),
                 withIntermediateDirectories: true
             )
-            try contents.write(to: target, options: [.atomic])
-            // zip strips POSIX permissions on many producers; exec widgets
-            // ship shell scripts, so restore +x on shebang files.
-            if contents.starts(with: Array("#!".utf8)) {
-                try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: target.path)
-            }
+            try writeWidgetFile(contents, to: target)
             written.append(components.joined(separator: "/"))
         }
 
         return written
+    }
+
+    /// Archives and GitHub's raw-file API do not reliably carry POSIX modes.
+    /// Restore executable scripts identically for both installation paths.
+    static func writeWidgetFile(_ contents: Data, to target: URL) throws {
+        try contents.write(to: target, options: [.atomic])
+        if contents.starts(with: Array("#!".utf8)) {
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: target.path)
+        }
     }
 }
 

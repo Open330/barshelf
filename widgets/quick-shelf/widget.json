@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.quick-shelf",
   "name": "Quick Shelf",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "icon": "square.grid.2x2.fill",
   "bucket": { "group": "Productivity", "order": 20, "size": "M" },
 
@@ -23,5 +23,26 @@
   "appearance": {
     "accent": "purple",
     "density": "compact"
+  },
+
+  "localizations": {
+    "ko": {
+      "Quick Shelf": "빠른 선반",
+      "Favorite app label": "즐겨 쓰는 앱 이름",
+      "Favorite app bundle ID or name": "즐겨 쓰는 앱의 번들 ID 또는 이름",
+      "Favorite folder label": "즐겨 쓰는 폴더 이름",
+      "Favorite folder path": "즐겨 쓰는 폴더 경로",
+      "Favorite website label": "즐겨 쓰는 웹사이트 이름",
+      "Favorite website URL": "즐겨 쓰는 웹사이트 URL",
+      "6 shortcuts": "바로가기 6개",
+      "Find a shortcut": "바로가기 찾기",
+      "App": "앱",
+      "Calendar": "캘린더",
+      "Favorite app": "즐겨 쓰는 앱",
+      "Folder": "폴더",
+      "Applications": "응용 프로그램",
+      "Website": "웹사이트",
+      "Open apps, folders, and websites": "앱, 폴더, 웹사이트 열기"
+    }
   }
 }

@@ -27,6 +27,24 @@ if let style = ProcessInfo.processInfo.environment["PREVIEW_STYLE"].flatMap(Shel
 }
 entries.append(ShelfEntry(date: Date(), widgetID: nil, snapshot: nil))
 entries.append(ShelfEntry(date: Date(), widgetID: "sample", snapshot: ShelfProvider.sample))
+// The states that explain themselves (PREVIEW_STATES=1): picked items that
+// are gone, a failed refresh with and without a last reading, and a refresh
+// BarShelf never answered. Written as state-<name>-<size>.png.
+if ProcessInfo.processInfo.environment["PREVIEW_STATES"] == "1" {
+    var failed = ShelfProvider.sample
+    failed.error = "'gh' not found (searched: /opt/homebrew/bin, /usr/local/bin)"
+    var failedEmpty = SharedShelf.Snapshot(widgetID: "state-error-empty", name: "Developer Inbox", icon: "tray")
+    failedEmpty.error = failed.error
+    let asked = Date().addingTimeInterval(-120)
+    entries += [
+        ShelfEntry(date: Date(), widgetID: "state-missing", snapshot: ShelfProvider.sample, partKeys: ["/Codex"]),
+        ShelfEntry(date: Date(), widgetID: "state-error", snapshot: failed),
+        ShelfEntry(date: Date(), widgetID: "state-error-empty", snapshot: failedEmpty),
+        ShelfEntry(date: Date(), widgetID: "state-unanswered", snapshot: ShelfProvider.sample, refresh: .unanswered(since: asked)),
+        ShelfEntry(date: Date(), widgetID: "state-unanswered-empty", snapshot: nil, refresh: .unanswered(since: asked)),
+        ShelfEntry(date: Date(), widgetID: "state-gone", snapshot: nil, offered: false),
+    ]
+}
 // A pick: the given part keys of the given widget (PREVIEW_PICK=<id>|<key>|<key>…).
 if let pick = ProcessInfo.processInfo.environment["PREVIEW_PICK"]?.components(separatedBy: "|"), pick.count > 1 {
     entries.append(ShelfEntry(date: Date(), widgetID: pick[0], snapshot: SharedContainer.snapshot(for: pick[0]), partKeys: Array(pick.dropFirst())))

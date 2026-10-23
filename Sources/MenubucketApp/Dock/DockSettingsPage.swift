@@ -37,7 +37,13 @@ struct DockSettingsPage: View {
             modeSection
             if let error = store.lastError {
                 Section {
-                    StatusBanner(tone: .critical, message: String(localized: "Couldn't save dock settings: \(error)"))
+                    // The store words the problem; a kept copy of the Apple
+                    // Dock's settings can be put back from here.
+                    StatusBanner(tone: .critical, message: String(localized: "The Dock needs attention. \(error)")) {
+                        if store.hasAppleDockBackup {
+                            Button("Restore Apple Dock") { store.restoreAppleDockOnRequest() }
+                        }
+                    }
                 }
             }
             appearanceSection
@@ -340,7 +346,7 @@ struct DockSettingsPage: View {
                 set: { page in store.updateProfile(profile.id) { $0.popupPage = page.isEmpty ? nil : page } }
             )) {
                 Text("Don't change").tag("")
-                ForEach(runtime.allGroups, id: \.self) { Text($0).tag($0) }
+                ForEach(runtime.allGroups, id: \.self) { Text(PageName.label($0)).tag($0) }
             }
             if profile.items.isEmpty {
                 Text("No items yet. Add some below, or drop apps, folders, and files on the dock.")

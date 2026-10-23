@@ -138,6 +138,25 @@ public protocol AppleDockDefaults: AnyObject {
     func value(forKey key: String) -> Any?
     func set(_ value: Any?, forKey key: String)
     func synchronize()
+    func synchronizeChanges() throws
+}
+
+public extension AppleDockDefaults {
+    /// Existing injected stores remain source-compatible. Live stores can
+    /// report a failed durable preference write instead of hiding the error.
+    func synchronizeChanges() throws { synchronize() }
+}
+
+public enum AppleDockError: Error, LocalizedError {
+    case preferenceWriteFailed
+    case rollbackFailed
+
+    public var errorDescription: String? {
+        switch self {
+        case .preferenceWriteFailed: return "Couldn't save the Apple Dock's settings."
+        case .rollbackFailed: return "Couldn't restore the Apple Dock's settings; the recovery backup was kept."
+        }
+    }
 }
 
 public final class SystemAppleDockDefaults: AppleDockDefaults {
@@ -155,6 +174,10 @@ public final class SystemAppleDockDefaults: AppleDockDefaults {
 
     public func synchronize() {
         CFPreferencesAppSynchronize(domain)
+    }
+
+    public func synchronizeChanges() throws {
+        guard CFPreferencesAppSynchronize(domain) else { throw AppleDockError.preferenceWriteFailed }
     }
 }
 
@@ -264,29 +287,56 @@ public final class AppleDock {
     /// Hides the Apple Dock and returns its settings from before, to hand
     /// back to `restore`. Already hidden → nil, nothing changes.
     public func hide() -> AppleDockVisibility? {
+        try? hide(preserving: { _ in })
+    }
+
+    /// The recovery record must reach durable storage before any preference
+    /// mutation or restart. A failed hide attempts to restore the exact prior
+    /// optional values; callers keep the saved recovery record on failure.
+    public func hide(preserving preserve: (AppleDockVisibility) throws -> Void) throws -> AppleDockVisibility? {
         guard !isHidden else { return nil }
         let before = visibility
-        defaults.set(true, forKey: Self.autohideKey)
-        defaults.set(Self.hiddenDelay, forKey: Self.autohideDelayKey)
-        defaults.synchronize()
+        try preserve(before)
+        do {
+            defaults.set(true, forKey: Self.autohideKey)
+            defaults.set(Self.hiddenDelay, forKey: Self.autohideDelayKey)
+            try defaults.synchronizeChanges()
+            guard visibility == AppleDockVisibility(autohide: true, autohideDelay: Self.hiddenDelay) else {
+                throw AppleDockError.preferenceWriteFailed
+            }
+        } catch {
+            do { try restoreChecked(before) }
+            catch { throw AppleDockError.rollbackFailed }
+            throw error
+        }
         restart()
         return before
     }
 
     /// Puts back the hide settings `hide` found.
     public func restore(_ backup: AppleDockVisibility) {
+        try? restoreChecked(backup)
+    }
+
+    public func restoreChecked(_ backup: AppleDockVisibility) throws {
         defaults.set(backup.autohide, forKey: Self.autohideKey)
         defaults.set(backup.autohideDelay, forKey: Self.autohideDelayKey)
-        defaults.synchronize()
+        try defaults.synchronizeChanges()
+        guard visibility == backup else { throw AppleDockError.preferenceWriteFailed }
         restart()
     }
 
     /// Shows the Dock when there is no backup to go by: whatever hid it, the
     /// long delay goes. Autohide itself stays as the user had it.
     public func unhideWithoutBackup() {
+        try? unhideWithoutBackupChecked()
+    }
+
+    public func unhideWithoutBackupChecked() throws {
         guard isHidden else { return }
         defaults.set(nil, forKey: Self.autohideDelayKey)
-        defaults.synchronize()
+        try defaults.synchronizeChanges()
+        guard !isHidden else { throw AppleDockError.preferenceWriteFailed }
         restart()
     }
 

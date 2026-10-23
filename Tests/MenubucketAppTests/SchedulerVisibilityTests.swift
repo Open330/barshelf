@@ -3,6 +3,29 @@ import MenubucketCore
 @testable import MenubucketApp
 
 final class SchedulerVisibilityTests: XCTestCase {
+    func testShelfIntervalOverrideRespectsVisibilityEnergyFloorAndPromotionPrecedence() throws {
+        let scheduler = Scheduler()
+        let weather = widget("weather", interval: 300)
+        let reference = widget("reference", interval: 1800)
+        scheduler.configure(widgets: [weather, reference])
+        scheduler.setVisibleWidgetIDs([weather.id, reference.id])
+        scheduler.setWidgetIntervalOverrides([weather.id: 1800])
+        XCTAssertTrue(scheduler.activeIntervalWidgetIDs.isEmpty, "an override does not enable background refresh")
+        scheduler.popupOpened()
+        XCTAssertEqual(scheduler.intervalTimerIdentity(for: weather.id), scheduler.intervalTimerIdentity(for: reference.id))
+        scheduler.setIntervalOverrides([weather.id: 10])
+        XCTAssertEqual(scheduler.activeIntervalTimerCount, 1, "menu bar override does not affect unpromoted widgets")
+        scheduler.setMenuBarWidgetIDs([weather.id])
+        XCTAssertEqual(scheduler.activeIntervalTimerCount, 2, "promoted widget uses its menu bar cadence")
+        scheduler.setMenuBarWidgetIDs([])
+        scheduler.setWidgetIntervalOverrides([weather.id: 0.1, reference.id: 5])
+        XCTAssertEqual(scheduler.activeIntervalTimerCount, 1, "ordinary widgets retain the 5 second energy floor")
+        scheduler.setVisibleWidgetIDs([reference.id])
+        XCTAssertEqual(scheduler.activeIntervalWidgetIDs, [reference.id])
+        scheduler.popupClosed()
+        XCTAssertTrue(scheduler.activeIntervalWidgetIDs.isEmpty)
+    }
+
     func testSameCadenceSharesOneTimerAndUnchangedCadenceIsRetained() throws {
         let scheduler = Scheduler()
         let cpu = widget("cpu", interval: 2)

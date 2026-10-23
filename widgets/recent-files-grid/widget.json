@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.recent-files-grid",
   "name": "Recent Files",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "icon": "square.grid.2x2",
   "bucket": { "group": "Files", "order": 31, "size": "M" },
 
@@ -24,5 +24,21 @@
 
   "appearance": {
     "accent": "blue"
+  },
+
+  "localizations": {
+    "ko": {
+      "Recent Files": "최근 파일",
+      "Folder": "폴더",
+      "Maximum files": "최대 파일 수",
+      "View": "보기",
+      "Grid": "격자",
+      "List": "목록",
+      "Thumbnail size": "썸네일 크기",
+      "${count(sources.files.items)} files": "파일 ${count(sources.files.items)}개",
+      "${count(sources.files.items)} files in ${file.basename(settings.folder)}": "${file.basename(settings.folder)}의 파일 ${count(sources.files.items)}개",
+      "No files": "파일 없음",
+      "Files added to this folder appear here.": "이 폴더에 추가된 파일이 여기에 표시됩니다."
+    }
   }
 }

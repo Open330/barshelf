@@ -11,17 +11,22 @@ public struct ScriptWidgetDescriptor: Sendable {
     /// Host-provided package generation. A changed value forces the existing
     /// resident process to be terminated before the new descriptor is used.
     public var revision: String?
+    /// Host-owned lifetime approval. Invalidating it also blocks a queued load
+    /// that reaches the supervisor after its widget was disabled or replaced.
+    public var authorization: ScriptRequestAuthorization?
 
     public init(
         manifest: Manifest,
         directory: URL,
         instanceID: String? = nil,
-        revision: String? = nil
+        revision: String? = nil,
+        authorization: ScriptRequestAuthorization? = nil
     ) {
         self.manifest = manifest
         self.directory = directory
         self.instanceID = instanceID ?? manifest.id
         self.revision = revision
+        self.authorization = authorization
     }
 
     public var id: String { instanceID }
@@ -70,6 +75,19 @@ public enum ScriptWidgetState: Equatable, Sendable {
 
 // MARK: - Configuration / events
 
+/// A sink that suspends (for example on the macOS notification prompt) must
+/// recheck this permit immediately before submitting its side effect.
+public final class ScriptRequestAuthorization: @unchecked Sendable {
+    private let lock = NSLock()
+    private var active = true
+    private let approved: @Sendable () -> Bool
+
+    public init(isApproved: @escaping @Sendable () -> Bool) { approved = isApproved }
+
+    public var isValid: Bool { lock.withLock { active && approved() } }
+    func invalidate() { lock.withLock { active = false } }
+}
+
 public struct RuntimeSupervisorConfiguration: @unchecked Sendable {
     /// Builds the process invocation for a widget (injectable: deno in
     /// production, bash stubs in tests).
@@ -78,12 +96,18 @@ public struct RuntimeSupervisorConfiguration: @unchecked Sendable {
     public var secrets: SecretStoring
     /// `host.notify.show` sink; nil → notifications unavailable.
     public var notify: (@Sendable (_ title: String, _ body: String?) async throws -> Void)?
+    public var notifyAuthorized: (@Sendable (String, String?, ScriptRequestAuthorization) async throws -> Void)?
     public var audit: AuditLog?
     public var widgetLogs: WidgetLogStore?
     public var locale: @Sendable () -> String
     /// "light" | "dark"
     public var appearance: @Sendable () -> String
     public var now: @Sendable () -> Date
+    /// Rechecked for every script request and before launching or acting.
+    /// Hosts with a permission store must supply its current approval decision.
+    public var isApproved: @Sendable (Manifest) -> Bool
+    /// Injectable scheduler boundary for deterministic request-ownership tests.
+    var beforeRequest: (@Sendable (String) async -> Void)?
 
     /// Default `host.exec.run` timeout (contract: unanswered-request cap 20 s).
     public var defaultExecTimeoutMs = 20_000
@@ -109,7 +133,9 @@ public struct RuntimeSupervisorConfiguration: @unchecked Sendable {
         widgetLogs: WidgetLogStore? = nil,
         locale: @escaping @Sendable () -> String = { Locale.current.identifier },
         appearance: @escaping @Sendable () -> String = { "light" },
-        now: @escaping @Sendable () -> Date = { Date() }
+        now: @escaping @Sendable () -> Date = { Date() },
+        isApproved: @escaping @Sendable (Manifest) -> Bool = { _ in true },
+        notifyAuthorized: (@Sendable (String, String?, ScriptRequestAuthorization) async throws -> Void)? = nil
     ) {
         self.makeLaunchPlan = makeLaunchPlan
         self.storage = storage
@@ -117,6 +143,8 @@ public struct RuntimeSupervisorConfiguration: @unchecked Sendable {
         self.notify = notify
         self.audit = audit
         self.widgetLogs = widgetLogs
+        self.isApproved = isApproved
+        self.notifyAuthorized = notifyAuthorized
         self.locale = locale
         self.appearance = appearance
         self.now = now
@@ -159,13 +187,20 @@ public actor RuntimeSupervisor {
         let process: Process
         let stdinHandle: FileHandle
         let dispatcher: JsonRpcDispatcher
+        let epoch: UUID
+        let authorization: ScriptRequestAuthorization
         var readTask: Task<Void, Never>?
-        var stopping = false
+        var stopping = false {
+            didSet { if stopping { authorization.invalidate() } }
+        }
+        var executions: [UUID: Task<Result<ExecService.Capture, ExecService.ExecError>, Never>] = [:]
 
-        init(process: Process, stdinHandle: FileHandle, dispatcher: JsonRpcDispatcher) {
+        init(process: Process, stdinHandle: FileHandle, dispatcher: JsonRpcDispatcher, epoch: UUID, authorization: ScriptRequestAuthorization) {
             self.process = process
             self.stdinHandle = stdinHandle
             self.dispatcher = dispatcher
+            self.epoch = epoch
+            self.authorization = authorization
         }
     }
 
@@ -213,17 +248,17 @@ public actor RuntimeSupervisor {
         weak var supervisor: RuntimeSupervisor?
         let widgetId: String
         let timerId: String
-        let repeats: Bool
+        let armID: UUID
         let epoch: UInt
 
         init(
             supervisor: RuntimeSupervisor, widgetId: String, timerId: String,
-            repeats: Bool, epoch: UInt
+            armID: UUID, epoch: UInt
         ) {
             self.supervisor = supervisor
             self.widgetId = widgetId
             self.timerId = timerId
-            self.repeats = repeats
+            self.armID = armID
             self.epoch = epoch
         }
 
@@ -233,7 +268,7 @@ public actor RuntimeSupervisor {
                 await supervisor.timerFired(
                     widgetId: widgetId,
                     timerId: timerId,
-                    repeats: repeats,
+                    armID: armID,
                     epoch: epoch
                 )
             }
@@ -248,7 +283,29 @@ public actor RuntimeSupervisor {
     private var revisions: [String: Int] = [:]
     private var crashTimes: [String: [Date]] = [:]
     private var disabledReasons: [String: String] = [:]
-    private var timers: [String: [String: DispatchSourceTimer]] = [:]
+    /// Registrations outlive their GCD sources while a widget is inactive.
+    private final class TimerRegistration {
+        var deadline: DispatchTime
+        let repeatingSec: Double?
+        var source: DispatchSourceTimer?
+        var armID: UUID?
+
+        init(delaySec: Double, repeatingSec: Double?) {
+            deadline = .now() + delaySec
+            self.repeatingSec = repeatingSec
+        }
+
+        func disarm() {
+            armID = nil
+            source?.cancel()
+            source = nil
+        }
+    }
+
+    private var timers: [String: [String: TimerRegistration]] = [:]
+    private var activeTimerWidgetIDs: Set<String>?
+    private var timerActivityRevision: UInt = 0
+    private var pendingShutdowns: [String: (epoch: UUID, task: Task<Void, Never>)] = [:]
     /// Invalidates callbacks already queued by a cancelled timer. A callback
     /// may reach the actor after `DispatchSourceTimer.cancel()`; it must not
     /// deliver to a freshly reloaded descriptor with the same widget id.
@@ -261,6 +318,32 @@ public actor RuntimeSupervisor {
 
     // MARK: - Public API
 
+    /// nil preserves unrestricted timer activity; a finite set allows only
+    /// visible/promoted widgets. Inactive registrations keep their deadlines
+    /// without keeping a DispatchSource alive or respawning script processes.
+    public func setTimerActivity(allowing widgetIDs: Set<String>?, revision: UInt? = nil) {
+        if let revision {
+            guard revision >= timerActivityRevision else { return }
+            timerActivityRevision = revision
+        }
+        activeTimerWidgetIDs = widgetIDs
+        for (widgetId, registrations) in timers {
+            for (timerId, registration) in registrations {
+                if timerActivityAllowed(widgetId: widgetId) {
+                    if registration.source == nil {
+                        armTimer(widgetId: widgetId, timerId: timerId, registration: registration)
+                    }
+                } else {
+                    registration.disarm()
+                }
+            }
+        }
+    }
+
+    private func timerActivityAllowed(widgetId: String) -> Bool {
+        activeTimerWidgetIDs?.contains(widgetId) ?? true
+    }
+
     /// Ensures the widget process runs and sends `widget.load`.
     public func load(
         _ widget: ScriptWidgetDescriptor,
@@ -268,6 +351,9 @@ public actor RuntimeSupervisor {
         settings: JSONValue? = nil,
         loadGeneration: String? = nil
     ) async throws {
+        guard isApproved(widget) else {
+            throw JsonRpcError.permissionDenied("widget permissions are not approved")
+        }
         if let previous = descriptors[widget.id],
            previous.revision != widget.revision
             || previous.manifest != widget.manifest
@@ -279,11 +365,16 @@ public actor RuntimeSupervisor {
             throw RuntimeSupervisorError.widgetDisabled(reason)
         }
         let instance = try ensureRunning(widget)
+        // Foundation's ko_KR/en_US identifiers are not valid Intl locales in
+        // Deno. Send BCP-47 spelling and omit Foundation-only @ extensions.
+        let locale = configuration.locale().trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(separator: "@", maxSplits: 1).first.map(String.init)?
+            .replacingOccurrences(of: "_", with: "-") ?? "en"
         let params = WidgetLoadParams(
             widgetId: widget.id,
             reason: reason,
             now: nowMs(),
-            locale: configuration.locale(),
+            locale: locale,
             appearance: configuration.appearance(),
             settings: settings ?? widget.manifest.settingsDefaults(),
             lastRenderRevision: revisions[widget.id],
@@ -297,6 +388,7 @@ public actor RuntimeSupervisor {
         guard let widget = descriptors[widgetId] else {
             throw RuntimeSupervisorError.unknownWidget(widgetId)
         }
+        try requireApproval(widgetId: widgetId)
         if let reason = disabledReasons[widgetId] {
             throw RuntimeSupervisorError.widgetDisabled(reason)
         }
@@ -316,11 +408,43 @@ public actor RuntimeSupervisor {
             return
         }
         instance.stopping = true
+        rememberShutdown(widgetId: widgetId, instance: instance)
+        for task in instance.executions.values { task.cancel() }
         instance.readTask?.cancel()
         try? instance.stdinHandle.close()
         ExecService.terminate(instance.process)
         cancelTimers(widgetId: widgetId)
         descriptors.removeValue(forKey: widgetId)
+    }
+
+    /// `stop`, then waits for the host commands the instance had running.
+    /// Includes commands a prior `stop` already cancelled but which have not
+    /// exited yet. No new request can enter the stopped instance; suspending
+    /// sinks must additionally check their invalidated authorization permit.
+    public func stopAndWait(widgetId: String) async {
+        stop(widgetId: widgetId)
+        await pendingShutdowns[widgetId]?.task.value
+    }
+
+    private func rememberShutdown(widgetId: String, instance: ScriptInstance) {
+        let executions = Array(instance.executions.values)
+        guard !executions.isEmpty else { return }
+        let previous = pendingShutdowns[widgetId]?.task
+        let epoch = UUID()
+        let completion = Task {
+            await previous?.value
+            for execution in executions { _ = await execution.value }
+        }
+        pendingShutdowns[widgetId] = (epoch, completion)
+        Task { [weak self] in
+            await completion.value
+            await self?.retireShutdown(widgetId: widgetId, epoch: epoch)
+        }
+    }
+
+    private func retireShutdown(widgetId: String, epoch: UUID) {
+        guard pendingShutdowns[widgetId]?.epoch == epoch else { return }
+        pendingShutdowns.removeValue(forKey: widgetId)
     }
 
     /// Stops every widget not in `keeping` (hot-reload cleanup).
@@ -340,7 +464,10 @@ public actor RuntimeSupervisor {
     }
 
     public func stopAll() {
-        for id in Array(instances.keys) { stop(widgetId: id) }
+        // A crashed process may still own dormant timer registrations.
+        for id in Set(instances.keys).union(descriptors.keys).union(timers.keys) {
+            stop(widgetId: id)
+        }
     }
 
     private func terminateAndDiscard(widgetId: String) {
@@ -348,6 +475,8 @@ public actor RuntimeSupervisor {
         descriptors.removeValue(forKey: widgetId)
         guard let instance = instances.removeValue(forKey: widgetId) else { return }
         instance.stopping = true
+        rememberShutdown(widgetId: widgetId, instance: instance)
+        for task in instance.executions.values { task.cancel() }
         instance.readTask?.cancel()
         try? instance.stdinHandle.close()
         ExecService.terminate(instance.process)
@@ -375,10 +504,16 @@ public actor RuntimeSupervisor {
     // MARK: - Process lifecycle
 
     private func ensureRunning(_ widget: ScriptWidgetDescriptor) throws -> ScriptInstance {
+        guard isApproved(widget) else {
+            throw JsonRpcError.permissionDenied("widget permissions are not approved")
+        }
         if let instance = instances[widget.id], instance.process.isRunning {
             return instance
         }
         if let stale = instances.removeValue(forKey: widget.id) {
+            rememberShutdown(widgetId: widget.id, instance: stale)
+            stale.authorization.invalidate()
+            for task in stale.executions.values { task.cancel() }
             stale.readTask?.cancel()
             try? stale.stdinHandle.close()
         }
@@ -398,10 +533,16 @@ public actor RuntimeSupervisor {
         process.standardError = stderrPipe
 
         let widgetId = widget.id
+        let epoch = UUID()
+        let isApproved = configuration.isApproved
         let instance = ScriptInstance(
             process: process,
             stdinHandle: stdinPipe.fileHandleForWriting,
-            dispatcher: makeDispatcher(widgetId: widgetId)
+            dispatcher: makeDispatcher(widgetId: widgetId, epoch: epoch),
+            epoch: epoch,
+            authorization: ScriptRequestAuthorization(isApproved: {
+                isApproved(widget.manifest) && widget.authorization?.isValid != false
+            })
         )
         // Strong capture of `instance` is intentional; the handler clears
         // itself on invocation (and the stub/script exits on stdin EOF), so
@@ -523,6 +664,7 @@ public actor RuntimeSupervisor {
                 throw JsonRpcError.protocolError("host expects requests, not responses")
             }
             if let response = await instance.dispatcher.dispatch(request) {
+                guard instances[widgetId] === instance, !instance.stopping else { return }
                 try send(response: response, to: instance)
             }
         } catch let error as JsonRpcError {
@@ -546,10 +688,13 @@ public actor RuntimeSupervisor {
         // Only evict the registry entry if it is still *this* instance — a
         // dead process may already have been replaced by a respawn.
         let wasCurrentInstance = instances[widgetId] === instance
+        rememberShutdown(widgetId: widgetId, instance: instance)
+        instance.authorization.invalidate()
         if wasCurrentInstance {
             instances.removeValue(forKey: widgetId)
         }
         instance.readTask?.cancel()
+        for task in instance.executions.values { task.cancel() }
         try? instance.stdinHandle.close()
 
         // A package reload can replace a process before its termination
@@ -621,34 +766,53 @@ public actor RuntimeSupervisor {
 
     // MARK: - Request routing (script → host)
 
-    private func makeDispatcher(widgetId: String) -> JsonRpcDispatcher {
+    private func makeDispatcher(widgetId: String, epoch: UUID) -> JsonRpcDispatcher {
         let dispatcher = JsonRpcDispatcher()
-        let methods: [String: @Sendable (RuntimeSupervisor, String, JSONValue?) async throws -> JSONValue] = [
-            ScriptMethod.hostRender: { supervisor, id, params in try await supervisor.handleRender(widgetId: id, params: params) },
-            ScriptMethod.hostLoadComplete: { supervisor, id, params in try await supervisor.handleLoadComplete(widgetId: id, params: params) },
-            ScriptMethod.hostExecRun: { supervisor, id, params in try await supervisor.handleExecRun(widgetId: id, params: params) },
-            ScriptMethod.hostStorageGet: { supervisor, id, params in try await supervisor.handleStorageGet(widgetId: id, params: params) },
-            ScriptMethod.hostStorageSet: { supervisor, id, params in try await supervisor.handleStorageSet(widgetId: id, params: params) },
-            ScriptMethod.hostStorageDelete: { supervisor, id, params in try await supervisor.handleStorageDelete(widgetId: id, params: params) },
-            ScriptMethod.hostStorageList: { supervisor, id, params in try await supervisor.handleStorageList(widgetId: id, params: params) },
-            ScriptMethod.hostSecretGet: { supervisor, id, params in try await supervisor.handleSecretGet(widgetId: id, params: params) },
-            ScriptMethod.hostSecretSet: { supervisor, id, params in try await supervisor.handleSecretSet(widgetId: id, params: params) },
-            ScriptMethod.hostTimerOnce: { supervisor, id, params in try await supervisor.handleTimer(widgetId: id, params: params, kind: .once) },
-            ScriptMethod.hostTimerAfter: { supervisor, id, params in try await supervisor.handleTimer(widgetId: id, params: params, kind: .after) },
-            ScriptMethod.hostTimerEvery: { supervisor, id, params in try await supervisor.handleTimer(widgetId: id, params: params, kind: .every) },
-            ScriptMethod.hostTimerClear: { supervisor, id, params in try await supervisor.handleTimer(widgetId: id, params: params, kind: .clear) },
-            ScriptMethod.hostNotifyShow: { supervisor, id, params in try await supervisor.handleNotify(widgetId: id, params: params) },
-            ScriptMethod.hostLog: { supervisor, id, params in try await supervisor.handleLog(widgetId: id, params: params) },
+        let beforeRequest = configuration.beforeRequest
+        let methods = [
+            ScriptMethod.hostRender, ScriptMethod.hostLoadComplete, ScriptMethod.hostExecRun,
+            ScriptMethod.hostStorageGet, ScriptMethod.hostStorageSet, ScriptMethod.hostStorageDelete,
+            ScriptMethod.hostStorageList, ScriptMethod.hostSecretGet, ScriptMethod.hostSecretSet,
+            ScriptMethod.hostTimerOnce, ScriptMethod.hostTimerAfter, ScriptMethod.hostTimerEvery,
+            ScriptMethod.hostTimerClear, ScriptMethod.hostNotifyShow, ScriptMethod.hostLog,
         ]
-        for (method, handler) in methods {
+        for method in methods {
             dispatcher.register(method: method) { [weak self] params in
                 guard let self else {
                     throw JsonRpcError.internalError("runtime supervisor is gone")
                 }
-                return try await handler(self, widgetId, params)
+                await beforeRequest?(method)
+                return try await self.handleRequest(method: method, widgetId: widgetId, epoch: epoch, params: params)
             }
         }
         return dispatcher
+    }
+
+    /// One actor entry checks ownership and approval immediately before routing.
+    /// No nonisolated handler closure can yield between approval and execution.
+    private func handleRequest(method: String, widgetId: String, epoch: UUID, params: JSONValue?) async throws -> JSONValue {
+        guard let instance = instances[widgetId], instance.epoch == epoch, !instance.stopping else {
+            throw JsonRpcError.permissionDenied("request belongs to a stopped script instance")
+        }
+        try requireApproval(widgetId: widgetId)
+        switch method {
+        case ScriptMethod.hostRender: return try await handleRender(widgetId: widgetId, params: params)
+        case ScriptMethod.hostLoadComplete: return try await handleLoadComplete(widgetId: widgetId, params: params)
+        case ScriptMethod.hostExecRun: return try await handleExecRun(widgetId: widgetId, params: params)
+        case ScriptMethod.hostStorageGet: return try await handleStorageGet(widgetId: widgetId, params: params)
+        case ScriptMethod.hostStorageSet: return try await handleStorageSet(widgetId: widgetId, params: params)
+        case ScriptMethod.hostStorageDelete: return try await handleStorageDelete(widgetId: widgetId, params: params)
+        case ScriptMethod.hostStorageList: return try await handleStorageList(widgetId: widgetId, params: params)
+        case ScriptMethod.hostSecretGet: return try await handleSecretGet(widgetId: widgetId, params: params)
+        case ScriptMethod.hostSecretSet: return try await handleSecretSet(widgetId: widgetId, params: params)
+        case ScriptMethod.hostTimerOnce: return try await handleTimer(widgetId: widgetId, params: params, kind: .once)
+        case ScriptMethod.hostTimerAfter: return try await handleTimer(widgetId: widgetId, params: params, kind: .after)
+        case ScriptMethod.hostTimerEvery: return try await handleTimer(widgetId: widgetId, params: params, kind: .every)
+        case ScriptMethod.hostTimerClear: return try await handleTimer(widgetId: widgetId, params: params, kind: .clear)
+        case ScriptMethod.hostNotifyShow: return try await handleNotify(widgetId: widgetId, params: params)
+        case ScriptMethod.hostLog: return try await handleLog(widgetId: widgetId, params: params)
+        default: throw JsonRpcError.protocolError("unknown host method")
+        }
     }
 
     private func decodeParams<T: Decodable>(_ type: T.Type, from params: JSONValue?) throws -> T {
@@ -667,6 +831,17 @@ public actor RuntimeSupervisor {
             throw JsonRpcError.internalError("no descriptor for widget \(widgetId)")
         }
         return descriptor.manifest
+    }
+
+    private func requireApproval(widgetId: String) throws {
+        guard let descriptor = descriptors[widgetId], isApproved(descriptor) else {
+            configuration.audit?.record("permission.blocked", widgetId: widgetId)
+            throw JsonRpcError.permissionDenied("widget permissions are not approved")
+        }
+    }
+
+    private func isApproved(_ widget: ScriptWidgetDescriptor) -> Bool {
+        configuration.isApproved(widget.manifest) && widget.authorization?.isValid != false
     }
 
     // MARK: host.render
@@ -723,14 +898,31 @@ public actor RuntimeSupervisor {
         let discover = (argv.first == source?.command?.first) ? source?.discover : nil
         let sensitive = exec.sensitive == true || permission.sensitiveOutput == true
 
-        let outcome = await ExecService.capture(
-            command: argv,
-            discover: discover,
-            timeoutMs: exec.timeoutMs ?? configuration.defaultExecTimeoutMs,
-            workingDirectory: descriptors[widgetId]?.directory,
-            extraEnvironment: extraEnvironment.isEmpty ? nil : extraEnvironment,
-            stdoutLimit: permission.maxOutputBytes ?? ExecService.maxStdoutBytes
-        )
+        guard let instance = instances[widgetId], !instance.stopping else {
+            throw JsonRpcError.permissionDenied("script instance has stopped")
+        }
+        let timeoutMs = exec.timeoutMs ?? configuration.defaultExecTimeoutMs
+        let directory = descriptors[widgetId]?.directory
+        let environment = extraEnvironment.isEmpty ? nil : extraEnvironment
+        let stdoutLimit = permission.maxOutputBytes ?? ExecService.maxStdoutBytes
+        let execution = Task {
+            await ExecService.capture(
+                command: argv, discover: discover, timeoutMs: timeoutMs,
+                workingDirectory: directory, extraEnvironment: environment, stdoutLimit: stdoutLimit
+            )
+        }
+        let executionID = UUID()
+        instance.executions[executionID] = execution
+        defer { instance.executions.removeValue(forKey: executionID) }
+        let outcome = await withTaskCancellationHandler {
+            await execution.value
+        } onCancel: {
+            execution.cancel()
+        }
+        guard instances[widgetId] === instance, !instance.stopping, !Task.isCancelled else {
+            throw JsonRpcError.permissionDenied("script instance stopped during command execution")
+        }
+        try requireApproval(widgetId: widgetId)
 
         switch outcome {
         case let .failure(error):
@@ -904,44 +1096,60 @@ public actor RuntimeSupervisor {
                 delaySec: clampedMs / 1000, repeatingSec: clampedMs / 1000
             )
         case .clear:
-            timers[widgetId]?.removeValue(forKey: timer.id)?.cancel()
+            timers[widgetId]?.removeValue(forKey: timer.id)?.disarm()
         }
         return .null
     }
 
     private func scheduleTimer(widgetId: String, timerId: String, delaySec: Double, repeatingSec: Double?) {
-        timers[widgetId]?[timerId]?.cancel()
+        timers[widgetId]?[timerId]?.disarm()
+        let registration = TimerRegistration(delaySec: delaySec, repeatingSec: repeatingSec)
+        timers[widgetId, default: [:]][timerId] = registration
+        armTimer(widgetId: widgetId, timerId: timerId, registration: registration)
+    }
+
+    private func armTimer(widgetId: String, timerId: String, registration: TimerRegistration) {
+        guard timerActivityAllowed(widgetId: widgetId),
+              disabledReasons[widgetId] == nil, let widget = descriptors[widgetId],
+              configuration.isApproved(widget.manifest) else { return }
+        registration.disarm()
         let source = DispatchSource.makeTimerSource(queue: .global())
-        if let repeatingSec {
-            source.schedule(deadline: .now() + delaySec, repeating: repeatingSec)
-        } else {
-            source.schedule(deadline: .now() + delaySec)
-        }
-        let repeats = repeatingSec != nil
+        // One pending delivery per registration: overdue repeating ticks are
+        // coalesced into one event, then scheduled from the delivery time.
+        source.schedule(deadline: max(.now(), registration.deadline))
+        let armID = UUID()
         let callback = TimerCallback(
             supervisor: self,
             widgetId: widgetId,
             timerId: timerId,
-            repeats: repeats,
+            armID: armID,
             epoch: timerEpochs[widgetId, default: 0]
         )
         source.setEventHandler {
             callback.fire()
         }
-        timers[widgetId, default: [:]][timerId] = source
+        registration.armID = armID
+        registration.source = source
         source.resume()
     }
 
     /// Timer metadata lives host-side: firing respawns a dead script process
     /// before delivering `widget.timer` (unless the widget is disabled).
     private func timerFired(
-        widgetId: String, timerId: String, repeats: Bool, epoch: UInt
+        widgetId: String, timerId: String, armID: UUID, epoch: UInt
     ) async {
-        guard timerEpochs[widgetId, default: 0] == epoch else { return }
-        if !repeats {
-            timers[widgetId]?.removeValue(forKey: timerId)?.cancel()
+        guard timerEpochs[widgetId, default: 0] == epoch,
+              timerActivityAllowed(widgetId: widgetId),
+              let registration = timers[widgetId]?[timerId], registration.armID == armID else { return }
+        registration.disarm()
+        guard disabledReasons[widgetId] == nil, let widget = descriptors[widgetId],
+              configuration.isApproved(widget.manifest) else { return }
+        if let interval = registration.repeatingSec {
+            registration.deadline = .now() + interval
+            armTimer(widgetId: widgetId, timerId: timerId, registration: registration)
+        } else {
+            timers[widgetId]?.removeValue(forKey: timerId)
         }
-        guard disabledReasons[widgetId] == nil, let widget = descriptors[widgetId] else { return }
         do {
             let instance = try ensureRunning(widget)
             let params = WidgetTimerParams(id: timerId, now: nowMs())
@@ -954,7 +1162,7 @@ public actor RuntimeSupervisor {
     private func cancelTimers(widgetId: String) {
         timerEpochs[widgetId, default: 0] &+= 1
         if let widgetTimers = timers[widgetId] {
-            for timer in widgetTimers.values { timer.cancel() }
+            for timer in widgetTimers.values { timer.disarm() }
         }
         timers.removeValue(forKey: widgetId)
     }
@@ -967,11 +1175,17 @@ public actor RuntimeSupervisor {
             throw JsonRpcError.permissionDenied("notifications require manifest permissions.notifications: true")
         }
         let notify = try decodeParams(NotifyParams.self, from: params)
-        guard let sink = configuration.notify else {
+        guard let instance = instances[widgetId],
+              configuration.notifyAuthorized != nil || configuration.notify != nil else {
             throw JsonRpcError.internalError("notifications unavailable in this host")
         }
         do {
-            try await sink(notify.title, notify.body)
+            if let sink = configuration.notifyAuthorized {
+                try await sink(notify.title, notify.body, instance.authorization)
+            } else if let sink = configuration.notify {
+                try Task.checkCancellation()
+                try await sink(notify.title, notify.body)
+            }
         } catch let error as JsonRpcError {
             throw error
         } catch {

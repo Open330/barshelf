@@ -15,6 +15,14 @@ interface LastCommit {
   timestampMs: number;
 }
 
+/** The app's language, set at the start of each load. */
+let language: "en" | "ko" = "en";
+
+/** Fixed text: Korean when the app is in Korean, else the English. */
+function t(english: string, korean: string): string {
+  return language === "ko" ? korean : english;
+}
+
 function settingString(settings: Record<string, unknown>, key: string): string {
   const value = settings[key];
   return typeof value === "string" ? value.trim() : "";
@@ -28,7 +36,7 @@ function directoryName(path: string): string {
 function parseStatus(output: string): GitStatus {
   const lines = output.split(/\r?\n/).filter(Boolean);
   const head = lines.find((line) => line.startsWith("# branch.head "))
-    ?.slice("# branch.head ".length) ?? "Unknown";
+    ?.slice("# branch.head ".length);
   const oid = lines.find((line) => line.startsWith("# branch.oid "))
     ?.slice("# branch.oid ".length, "# branch.oid ".length + 7);
   const upstream = lines.find((line) => line.startsWith("# branch.upstream "))
@@ -38,7 +46,9 @@ function parseStatus(output: string): GitStatus {
   const detached = head === "(detached)";
 
   return {
-    branch: detached && oid ? `Detached @ ${oid}` : head,
+    branch: detached && oid
+      ? t(`Detached @ ${oid}`, `분리된 HEAD @ ${oid}`)
+      : head ?? t("Unknown", "알 수 없음"),
     upstream,
     ahead: Number(divergence?.[1] ?? 0),
     behind: Number(divergence?.[2] ?? 0),
@@ -97,23 +107,36 @@ function setupView(message: string): UINode {
   return ui.vstack([
     ui.empty({
       icon: "folder.badge.gearshape",
-      title: "Choose a project",
+      title: t("Choose a project", "프로젝트 선택"),
       subtitle: message,
     }),
   ], { id: "project-status-setup", spacing: 8 });
 }
 
 async function load(ctx: WidgetLoadContext): Promise<void> {
+  language = typeof ctx.locale === "string" && /^ko(?:[-_]|$)/i.test(ctx.locale)
+    ? "ko"
+    : "en";
   const directory = settingString(ctx.settings, "projectDirectory");
   if (!directory) {
     await ctx.render(
-      setupView("Open widget settings and select a Git repository."),
+      setupView(
+        t(
+          "Open widget settings and select a Git repository.",
+          "위젯 설정을 열고 Git 저장소를 고르세요.",
+        ),
+      ),
     );
     return;
   }
   if (!directory.startsWith("/")) {
     await ctx.render(
-      setupView("Select an absolute path with the directory picker."),
+      setupView(
+        t(
+          "Select an absolute path with the directory picker.",
+          "폴더 선택기로 절대 경로를 고르세요.",
+        ),
+      ),
     );
     return;
   }
@@ -153,15 +176,22 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
     await ctx.render(
       ui.vstack([
         ui.banner(
-          "The selected directory is unavailable or is not a Git repository.",
+          t(
+            "The selected directory is unavailable or is not a Git repository.",
+            "선택한 폴더를 열 수 없거나 Git 저장소가 아닙니다.",
+          ),
           {
-            title: "Unable to read repository",
+            title: t("Unable to read repository", "저장소를 읽을 수 없음"),
             tone: "warning",
           },
         ),
-        ui.button("Open in Finder", ui.action.openFile(directory), {
-          icon: "folder",
-        }),
+        ui.button(
+          t("Open in Finder", "Finder에서 열기"),
+          ui.action.openFile(directory),
+          {
+            icon: "folder",
+          },
+        ),
       ], { id: "project-status-error", spacing: 8 }),
       { sensitive: true },
     );
@@ -176,9 +206,14 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
     ? webRemote(remoteResult.stdout)
     : null;
   const clean = status.dirtyFiles === 0;
+  const cleanText = t("Clean", "깨끗함");
+  const changedText = t(
+    `${status.dirtyFiles} changed`,
+    `${status.dirtyFiles}개 변경됨`,
+  );
   const syncText = status.upstream
     ? `↑${status.ahead}  ↓${status.behind}`
-    : "No upstream";
+    : t("No upstream", "업스트림 없음");
   const syncTone = status.behind > 0
     ? "warning"
     : status.ahead > 0
@@ -193,13 +228,15 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
   ];
   if (remote) {
     actions.push(ui.button(
-      remote.host.toLowerCase() === "github.com" ? "GitHub" : "Remote",
+      remote.host.toLowerCase() === "github.com"
+        ? "GitHub"
+        : t("Remote", "원격"),
       ui.action.openURL(remote.url),
       { id: "open-remote", icon: "arrow.up.right.square" },
     ));
   }
   actions.push(
-    ui.button("Refresh", ui.action.refresh(), {
+    ui.button(t("Refresh", "새로 고침"), ui.action.refresh(), {
       id: "refresh-project",
       icon: "arrow.clockwise",
     }),
@@ -209,33 +246,38 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
     ui.vstack([
       ui.header(directoryName(directory), {
         subtitle: status.branch,
-        badge: clean ? "Clean" : `${status.dirtyFiles} changed`,
+        badge: clean ? cleanText : changedText,
         badgeTone: clean ? "good" : "warning",
       }),
       ui.hstack([
-        ui.stat("Branch", status.branch, {
+        ui.stat(t("Branch", "브랜치"), status.branch, {
           icon: status.detached ? "link.badge.plus" : "arrow.triangle.branch",
           tone: "accent",
         }),
         ui.stat(
-          "Working tree",
-          clean ? "Clean" : `${status.dirtyFiles} files`,
+          t("Working tree", "작업 트리"),
+          clean
+            ? cleanText
+            : t(`${status.dirtyFiles} files`, `파일 ${status.dirtyFiles}개`),
           {
             icon: clean ? "checkmark.circle.fill" : "pencil.circle.fill",
             tone: clean ? "good" : "warning",
           },
         ),
       ], { spacing: 6 }),
-      ui.stat("Upstream", syncText, {
+      ui.stat(t("Upstream", "업스트림"), syncText, {
         icon: "arrow.up.arrow.down",
         caption: status.upstream ??
-          "This branch is not tracking a remote branch.",
+          t(
+            "This branch is not tracking a remote branch.",
+            "이 브랜치는 원격 브랜치를 추적하지 않습니다.",
+          ),
         tone: syncTone,
       }),
       commit
         ? ui.card([
           ui.hstack([
-            ui.text("Last commit", {
+            ui.text(t("Last commit", "마지막 커밋"), {
               role: "caption",
               foreground: "secondary",
             }),
@@ -248,7 +290,13 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
             foreground: "secondary",
           }),
         ], { id: "last-commit", spacing: 4, tone: "neutral" })
-        : ui.banner("This repository has no commits yet.", { tone: "neutral" }),
+        : ui.banner(
+          t(
+            "This repository has no commits yet.",
+            "이 저장소에는 아직 커밋이 없습니다.",
+          ),
+          { tone: "neutral" },
+        ),
       ui.hstack(actions, { id: "project-actions", spacing: 6 }),
     ], { id: "project-status-root", spacing: 8 }),
     {
@@ -257,7 +305,7 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
           ? status.branch
           : `${status.branch} • ${status.dirtyFiles}`,
         tooltip: `${directoryName(directory)} · ${
-          clean ? "clean" : `${status.dirtyFiles} changed`
+          clean ? t("clean", "깨끗함") : changedText
         }`,
       },
       cacheTtlMs: 60_000,

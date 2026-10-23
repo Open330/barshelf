@@ -3,6 +3,45 @@ import MenubucketCore
 @testable import MenubucketApp
 
 final class SharedShelfPublisherTests: XCTestCase {
+    @MainActor
+    func testAnOldTimeoutCannotClearANewerRefreshRequest() throws {
+        let container = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: container) }
+        var timeouts: [() -> Void] = []
+        let publisher = SharedShelfPublisher(container: container, reload: {},
+            scheduleRefreshTimeout: { timeouts.append($0) })
+        publisher.publishIndex([.init(id: "sys", name: "System")])
+        try SharedShelf.requestRefresh(widgetID: "sys", in: container)
+        publisher.takeRefreshRequests()
+        publisher.publish(.init(widgetID: "sys", name: "System"))
+        try SharedShelf.requestRefresh(widgetID: "sys", in: container)
+        publisher.takeRefreshRequests()
+        XCTAssertEqual(timeouts.count, 2)
+        timeouts[0]()
+        XCTAssertTrue(publisher.isAnswering("sys"))
+        XCTAssertNotNil(SharedShelf.pendingRefreshRequests(in: container)["sys"])
+        timeouts[1]()
+        XCTAssertFalse(publisher.isAnswering("sys"))
+        XCTAssertNil(SharedShelf.pendingRefreshRequests(in: container)["sys"])
+    }
+
+    @MainActor
+    func testRemovingFinalEntryReloadsImmediatelyAndRejectsLateRepublish() throws {
+        let container = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: container) }
+        var reloads = 0
+        let publisher = SharedShelfPublisher(container: container, reload: { reloads += 1 })
+        publisher.publishIndex([.init(id: "private", name: "Private")])
+        publisher.publish(.init(widgetID: "private", name: "Private", viewTree: UINode(type: "text", text: "old reading")))
+        try SharedShelf.requestRefresh(widgetID: "private", in: container)
+        publisher.publishIndex([])
+        XCTAssertEqual(reloads, 1, "index pruning must not wait for another snapshot to invalidate WidgetKit")
+        XCTAssertNil(SharedShelf.readSnapshot(widgetID: "private", from: container))
+        XCTAssertTrue(SharedShelf.pendingRefreshRequests(in: container).isEmpty)
+        publisher.publish(.init(widgetID: "private", name: "Private", viewTree: UINode(type: "text", text: "late reading")))
+        XCTAssertNil(SharedShelf.readSnapshot(widgetID: "private", from: container))
+    }
+
     /// macOS budgets widget reloads; changes inside 15 minutes wait.
     func testReloadsAreAtLeastFifteenMinutesApart() {
         let now = Date()

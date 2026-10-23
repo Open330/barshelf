@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.reminders",
   "name": "Reminders",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "icon": "checklist",
   "bucket": { "group": "Media", "order": 11, "size": "S" },
 
@@ -24,5 +24,13 @@
 
   "appearance": {
     "accent": "orange"
+  },
+
+  "localizations": {
+    "ko": {
+      "Reminders": "미리 알림",
+      "open": "남음",
+      "${string(sources.data.count)} open reminders": "남은 미리 알림 ${string(sources.data.count)}개"
+    }
   }
 }

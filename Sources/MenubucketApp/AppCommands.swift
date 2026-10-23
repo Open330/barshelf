@@ -5,6 +5,8 @@ import AppKit
 /// drift apart: a command added here appears in both.
 enum AppMenuCommand: Hashable {
     case editShelf, addWidget, menuBar, dock, openBarShelf, settings, checkForUpdates, quit
+    /// "Dock ▸ Focus Dock": the keyboard's way into the dock.
+    case focusDock
 
     var title: String {
         switch self {
@@ -21,6 +23,7 @@ enum AppMenuCommand: Hashable {
             if let available { return String(localized: "Update to BarShelf \(available)…") }
             return String(localized: "Check for Updates…")
         case .quit: return String(localized: "Quit BarShelf")
+        case .focusDock: return String(localized: "Focus Dock", comment: "App menu: move keyboard focus to the BarShelf Dock")
         }
     }
 
@@ -32,7 +35,7 @@ enum AppMenuCommand: Hashable {
         case .editShelf: return "e"
         case .settings: return ","
         case .quit: return "q"
-        case .addWidget, .menuBar, .dock, .openBarShelf, .checkForUpdates: return ""
+        case .addWidget, .menuBar, .dock, .openBarShelf, .checkForUpdates, .focusDock: return ""
         }
     }
 
@@ -46,6 +49,7 @@ enum AppMenuCommand: Hashable {
         case .settings: return "gearshape"
         case .checkForUpdates: return "arrow.down.circle"
         case .quit: return "power"
+        case .focusDock: return "keyboard"
         }
     }
 }
@@ -275,6 +279,11 @@ extension StatusItemController: NSMenuItemValidation {
             submenu.addItem(entry)
         }
         if !rows.isEmpty { submenu.addItem(.separator()) }
+        let focus = NSMenuItem(title: AppMenuCommand.focusDock.title, action: #selector(performAppMenuItem(_:)), keyEquivalent: "")
+        focus.target = self
+        focus.representedObject = AppMenuCommand.focusDock
+        focus.isEnabled = DockStore.shared.configuration.mode.showsDock
+        submenu.addItem(focus)
         let settings = NSMenuItem(title: AppMenu.dockSettingsTitle, action: #selector(openDockSettings(_:)), keyEquivalent: "")
         settings.target = self
         submenu.addItem(settings)

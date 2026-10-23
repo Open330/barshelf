@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.battery",
   "name": "Battery",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "icon": "battery.100percent",
   "bucket": { "group": "System", "order": 10, "size": "M" },
 
@@ -26,5 +26,11 @@
   "appearance": {
     "accent": "green",
     "density": "compact"
+  },
+
+  "localizations": {
+    "ko": {
+      "Battery": "배터리"
+    }
   }
 }

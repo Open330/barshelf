@@ -60,7 +60,7 @@ extension WidgetRuntime {
     }
 
     func permissionState(for widget: LoadedWidget) -> PermissionState {
-        guard !WidgetPermissionSummary.lines(for: widget.manifest).isEmpty else { return .notNeeded }
+        guard PermissionStore.requiresApproval(for: widget.manifest) else { return .notNeeded }
         switch permissionStore.status(for: widget.manifest) {
         case .approved: return .allowed
         case .denied: return .denied
@@ -74,10 +74,10 @@ extension WidgetRuntime {
         // Decisions are stored per package, so a copy and its original share
         // one; revoking either revokes both, which the Privacy page says.
         permissionStore.reset(widgetId: widget.manifest.id)
+        stopForPermissionChange(packageID: widget.manifest.id, denied: false)
         auditLog.record("permission.revoked", widgetId: widgetID, detail: [
             "hash": .string(PermissionStore.permissionsHash(of: widget.manifest)),
         ])
-        refresh(widget, manual: true)
         objectWillChange.send()
     }
 }

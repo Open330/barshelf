@@ -20,6 +20,10 @@
     }
   },
   "transforms": {
+    "ko": {
+      "use": "assign",
+      "from": "or(eq(coalesce(widget.locale, ''), 'ko'), or(eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko-…'), eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko_…')))"
+    },
     "fahrenheit": {
       "use": "assign",
       "from": "eq(settings.unit,'fahrenheit')"
@@ -58,11 +62,11 @@
     },
     "label1": {
       "use": "assign",
-      "from": "if(transforms.isKey1, coalesce(transforms.picked1.name, 'Sensor'), switch(transforms.sel1, 'power', 'Power', 'fan', 'Fan speed', 'fanUsage', 'Fan load', 'gpu', if(eq(settings.aggregate,'hottest'), 'Hottest GPU', 'GPU temperature'), 'battery', if(eq(settings.aggregate,'hottest'), 'Hottest battery', 'Battery temperature'), 'peak', 'Hottest sensor', 'none', '', if(eq(settings.aggregate,'hottest'), 'Hottest CPU', 'CPU temperature')))"
+      "from": "if(transforms.ko, if(transforms.isKey1, coalesce(transforms.picked1.name, '센서'), switch(transforms.sel1, 'power', '전력', 'fan', '팬 속도', 'fanUsage', '팬 부하', 'gpu', if(eq(settings.aggregate,'hottest'), '가장 뜨거운 GPU', 'GPU 온도'), 'battery', if(eq(settings.aggregate,'hottest'), '가장 뜨거운 배터리', '배터리 온도'), 'peak', '가장 뜨거운 센서', 'none', '', if(eq(settings.aggregate,'hottest'), '가장 뜨거운 CPU', 'CPU 온도'))), if(transforms.isKey1, coalesce(transforms.picked1.name, 'Sensor'), switch(transforms.sel1, 'power', 'Power', 'fan', 'Fan speed', 'fanUsage', 'Fan load', 'gpu', if(eq(settings.aggregate,'hottest'), 'Hottest GPU', 'GPU temperature'), 'battery', if(eq(settings.aggregate,'hottest'), 'Hottest battery', 'Battery temperature'), 'peak', 'Hottest sensor', 'none', '', if(eq(settings.aggregate,'hottest'), 'Hottest CPU', 'CPU temperature'))))"
     },
     "prefix1": {
       "use": "assign",
-      "from": "if(transforms.isKey1, switch(transforms.kind1, 'power', 'Power', 'fan', 'Fan', coalesce(transforms.picked1.key, 'Sensor')), switch(transforms.sel1, 'power', 'Power', 'fan', 'Fan', 'fanUsage', 'Fan', 'gpu', 'GPU', 'battery', 'Batt', 'peak', 'Peak', 'none', '', 'CPU'))"
+      "from": "if(transforms.ko, if(transforms.isKey1, switch(transforms.kind1, 'power', '전력', 'fan', '팬', coalesce(transforms.picked1.key, '센서')), switch(transforms.sel1, 'power', '전력', 'fan', '팬', 'fanUsage', '팬', 'gpu', 'GPU', 'battery', '배터리', 'peak', '최고', 'none', '', 'CPU')), if(transforms.isKey1, switch(transforms.kind1, 'power', 'Power', 'fan', 'Fan', coalesce(transforms.picked1.key, 'Sensor')), switch(transforms.sel1, 'power', 'Power', 'fan', 'Fan', 'fanUsage', 'Fan', 'gpu', 'GPU', 'battery', 'Batt', 'peak', 'Peak', 'none', '', 'CPU')))"
     },
     "sel2": {
       "use": "assign",
@@ -98,11 +102,11 @@
     },
     "label2": {
       "use": "assign",
-      "from": "if(transforms.isKey2, coalesce(transforms.picked2.name, 'Sensor'), switch(transforms.sel2, 'power', 'Power', 'fan', 'Fan speed', 'fanUsage', 'Fan load', 'gpu', if(eq(settings.aggregate,'hottest'), 'Hottest GPU', 'GPU temperature'), 'battery', if(eq(settings.aggregate,'hottest'), 'Hottest battery', 'Battery temperature'), 'peak', 'Hottest sensor', 'none', '', if(eq(settings.aggregate,'hottest'), 'Hottest CPU', 'CPU temperature')))"
+      "from": "if(transforms.ko, if(transforms.isKey2, coalesce(transforms.picked2.name, '센서'), switch(transforms.sel2, 'power', '전력', 'fan', '팬 속도', 'fanUsage', '팬 부하', 'gpu', if(eq(settings.aggregate,'hottest'), '가장 뜨거운 GPU', 'GPU 온도'), 'battery', if(eq(settings.aggregate,'hottest'), '가장 뜨거운 배터리', '배터리 온도'), 'peak', '가장 뜨거운 센서', 'none', '', if(eq(settings.aggregate,'hottest'), '가장 뜨거운 CPU', 'CPU 온도'))), if(transforms.isKey2, coalesce(transforms.picked2.name, 'Sensor'), switch(transforms.sel2, 'power', 'Power', 'fan', 'Fan speed', 'fanUsage', 'Fan load', 'gpu', if(eq(settings.aggregate,'hottest'), 'Hottest GPU', 'GPU temperature'), 'battery', if(eq(settings.aggregate,'hottest'), 'Hottest battery', 'Battery temperature'), 'peak', 'Hottest sensor', 'none', '', if(eq(settings.aggregate,'hottest'), 'Hottest CPU', 'CPU temperature'))))"
     },
     "prefix2": {
       "use": "assign",
-      "from": "if(transforms.isKey2, switch(transforms.kind2, 'power', 'Power', 'fan', 'Fan', coalesce(transforms.picked2.key, 'Sensor')), switch(transforms.sel2, 'power', 'Power', 'fan', 'Fan', 'fanUsage', 'Fan', 'gpu', 'GPU', 'battery', 'Batt', 'peak', 'Peak', 'none', '', 'CPU'))"
+      "from": "if(transforms.ko, if(transforms.isKey2, switch(transforms.kind2, 'power', '전력', 'fan', '팬', coalesce(transforms.picked2.key, '센서')), switch(transforms.sel2, 'power', '전력', 'fan', '팬', 'fanUsage', '팬', 'gpu', 'GPU', 'battery', '배터리', 'peak', '최고', 'none', '', 'CPU')), if(transforms.isKey2, switch(transforms.kind2, 'power', 'Power', 'fan', 'Fan', coalesce(transforms.picked2.key, 'Sensor')), switch(transforms.sel2, 'power', 'Power', 'fan', 'Fan', 'fanUsage', 'Fan', 'gpu', 'GPU', 'battery', 'Batt', 'peak', 'Peak', 'none', '', 'CPU')))"
     },
     "decimals": {
       "use": "assign",
@@ -307,7 +311,7 @@
                         "role": "caption",
                         "foreground": "secondary",
                         "monospacedDigit": true,
-                        "text": "${concat(string(count(sources.data.sensors.list)), ' readings')}"
+                        "text": "${string(count(sources.data.sensors.list))} readings"
                       }
                     ]
                   },
@@ -365,7 +369,7 @@
   },
   "status": {
     "label": "${if(or(not(sources.data.sensors.available), eq(transforms.raw1, null)), '', concat(string(round(transforms.shown1, transforms.decimals)), transforms.suffix1))}",
-    "tooltip": "${if(not(sources.data.sensors.available), 'No sensors available', concat(if(eq(transforms.raw1, null), concat(transforms.label1, ' unavailable'), concat(transforms.label1, ' ', concat(string(round(transforms.shown1, transforms.decimals)), if(eq(transforms.kind1,'fan'), ' ', ''), transforms.unit1))), if(transforms.hasSecond, concat(' · ', transforms.label2, ' ', concat(string(round(transforms.shown2, transforms.decimals)), if(eq(transforms.kind2,'fan'), ' ', ''), transforms.unit2)), '')))}",
+    "tooltip": "${if(transforms.ko, if(not(sources.data.sensors.available), '사용할 수 있는 센서 없음', concat(if(eq(transforms.raw1, null), concat(transforms.label1, ' 값 없음'), concat(transforms.label1, ' ', concat(string(round(transforms.shown1, transforms.decimals)), if(eq(transforms.kind1,'fan'), ' ', ''), transforms.unit1))), if(transforms.hasSecond, concat(' · ', transforms.label2, ' ', concat(string(round(transforms.shown2, transforms.decimals)), if(eq(transforms.kind2,'fan'), ' ', ''), transforms.unit2)), ''))), if(not(sources.data.sensors.available), 'No sensors available', concat(if(eq(transforms.raw1, null), concat(transforms.label1, ' unavailable'), concat(transforms.label1, ' ', concat(string(round(transforms.shown1, transforms.decimals)), if(eq(transforms.kind1,'fan'), ' ', ''), transforms.unit1))), if(transforms.hasSecond, concat(' · ', transforms.label2, ' ', concat(string(round(transforms.shown2, transforms.decimals)), if(eq(transforms.kind2,'fan'), ' ', ''), transforms.unit2)), ''))))}",
     "prefix": "${transforms.prefix1}",
     "tint": "${if(and(transforms.isTemp1, gt(number(transforms.raw1), 90)), 'danger', if(and(transforms.isTemp1, gt(number(transforms.raw1), 75)), 'warning', ''))}",
     "metrics": [

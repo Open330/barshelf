@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.downloads-watch",
   "name": "Downloads Watch",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "icon": "arrow.down.circle.fill",
   "bucket": { "group": "Files", "order": 40, "size": "M" },
 
@@ -22,5 +22,15 @@
 
   "appearance": {
     "accent": "orange"
+  },
+
+  "localizations": {
+    "ko": {
+      "Downloads Watch": "다운로드 지켜보기",
+      "${count(transforms.visible)} recent": "최근 ${count(transforms.visible)}개",
+      "No downloads": "다운로드 없음",
+      "Files added to Downloads will refresh this widget.": "다운로드 폴더에 파일이 추가되면 이 위젯이 새로 고쳐집니다.",
+      "Downloads: ${count(transforms.visible)} recent files": "다운로드: 최근 파일 ${count(transforms.visible)}개"
+    }
   }
 }

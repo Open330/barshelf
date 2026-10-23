@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.next-meeting",
   "name": "Next Meeting",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "icon": "calendar.badge.clock",
   "bucket": { "group": "Productivity", "order": 10, "size": "M" },
 
@@ -48,5 +48,13 @@
   "appearance": {
     "accent": "blue",
     "cardStyle": "tinted"
+  },
+
+  "localizations": {
+    "ko": {
+      "Next Meeting": "다음 회의",
+      "Look ahead (days)": "미리 볼 기간(일)",
+      "Include all-day events": "종일 이벤트 포함"
+    }
   }
 }

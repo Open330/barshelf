@@ -10,8 +10,22 @@ struct ShelfEntry: TimelineEntry {
     /// Part keys the user picked, in their order; empty lets the widget pick.
     var partKeys: [String] = []
     var style: ShelfWidgetStyle = .automatic
-    /// A refresh was asked for from this widget and is not answered yet.
-    var refreshing = false
+    /// Where a refresh asked for from this widget stands.
+    var refresh: SharedShelf.RefreshRequestState = .none
+    /// False once BarShelf no longer offers the chosen widget.
+    var offered = true
+
+    /// Asked for and not answered yet.
+    var refreshing: Bool {
+        if case .pending = refresh { return true }
+        return false
+    }
+
+    /// Asked for, and BarShelf never sent anything back.
+    var unanswered: Bool {
+        if case .unanswered = refresh { return true }
+        return false
+    }
 }
 
 struct ShelfProvider: AppIntentTimelineProvider {
@@ -33,18 +47,18 @@ struct ShelfProvider: AppIntentTimelineProvider {
     func timeline(for configuration: SelectShelfWidgetIntent, in context: Context) async -> Timeline<ShelfEntry> {
         let now = Date()
         var entries = [entry(for: configuration, at: now)]
-        // A refresh BarShelf never answers (it is not running) stops showing
-        // as pending when the request lapses.
-        if let id = configuration.widget?.id, let asked = SharedContainer.pendingRefresh(for: id) {
-            var settled = entry(for: configuration, at: asked.addingTimeInterval(SharedShelf.refreshRequestLifetime))
-            settled.refreshing = false
-            entries.append(settled)
+        // When a pending refresh lapses, the widget says BarShelf did not
+        // answer (it is not running, or gave up) instead of going quiet. An
+        // answer reloads the timeline first, so this entry is never shown then.
+        if case let .pending(since) = entries[0].refresh {
+            entries.append(entry(for: configuration, at: since.addingTimeInterval(SharedShelf.refreshRequestLifetime)))
         }
         // A second entry at the moment the reading turns old, so the widget
         // says so without BarShelf spending a reload on it.
         if let staleAfter = entries[0].snapshot?.staleAfter, staleAfter > now {
             entries.append(entry(for: configuration, at: staleAfter))
         }
+        entries.sort { $0.date < $1.date }
         // BarShelf asks for a reload when the data changes; the fallback
         // below only covers a BarShelf that is not running.
         return Timeline(entries: entries, policy: .after(now.addingTimeInterval(30 * 60)))
@@ -58,7 +72,8 @@ struct ShelfProvider: AppIntentTimelineProvider {
         return ShelfEntry(
             date: date, widgetID: id, snapshot: SharedContainer.snapshot(for: id),
             partKeys: keys, style: configuration.style,
-            refreshing: SharedContainer.pendingRefresh(for: id) != nil
+            refresh: SharedContainer.refreshState(for: id, at: date),
+            offered: SharedContainer.isOffered(id)
         )
     }
 
@@ -102,7 +117,7 @@ struct ShelfWidget: Widget {
                 .containerBackground(.fill.tertiary, for: .widget)
         }
         .configurationDisplayName("BarShelf Widget")
-        .description("Shows one of your BarShelf widgets, or just the items you pick from it.")
+        .description("Shows BarShelf’s latest result. Desktop placement does not keep the source running. Open its shelf page or use Refresh to update; show the source in the menu bar or Dock for updates while the shelf is closed.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .systemExtraLarge])
     }
 }
@@ -119,13 +134,34 @@ struct ShelfWidgetView: View {
 
     var body: some View {
         Group {
-            if let snapshot = entry.snapshot {
-                content(snapshot)
-            } else if entry.widgetID == nil {
+            if entry.widgetID == nil {
                 placeholder(
                     symbol: "square.grid.2x2",
                     title: String(localized: "Choose a widget"),
                     text: String(localized: "Right-click here and choose Edit Widget.")
+                )
+            } else if !entry.offered {
+                placeholder(
+                    symbol: "square.dashed",
+                    title: String(localized: "Not available"),
+                    text: String(localized: "BarShelf no longer offers this widget. Right-click here and choose Edit Widget.")
+                )
+            } else if let snapshot = entry.snapshot, snapshot.viewTree != nil || !snapshot.parts.isEmpty {
+                content(snapshot)
+            } else if let error = entry.snapshot?.error, !entry.unanswered {
+                // Failed before it ever had a reading: the reason, and a retry.
+                placeholder(
+                    symbol: "exclamationmark.triangle",
+                    title: String(localized: "Couldn’t refresh"),
+                    text: error,
+                    retry: !entry.refreshing
+                )
+            } else if entry.unanswered {
+                placeholder(
+                    symbol: Self.noAnswerSymbol,
+                    title: String(localized: "BarShelf didn’t respond"),
+                    text: String(localized: "Click to open BarShelf, then refresh again."),
+                    retry: true
                 )
             } else {
                 placeholder(
@@ -155,22 +191,61 @@ struct ShelfWidgetView: View {
         let plan = layout(for: snapshot)
         return VStack(alignment: .leading, spacing: 8) {
             header(snapshot, title: plan.heading, accent: accent)
-            Group {
-                switch plan.template {
-                case .bigValue:
-                    BigValueTemplate(summary: plan.headline ?? SharedShelf.Summary(title: snapshot.name), accent: accent, family: family)
-                case .meters:
-                    MetersTemplate(items: plan.items, accent: accent, family: family)
-                case .list:
-                    ListTemplate(items: plan.items, accent: accent, family: family)
-                case .grid:
-                    GridTemplate(items: plan.items, family: family)
+            if !plan.missingKeys.isEmpty {
+                missingSelection(plan.missingKeys)
+            } else {
+                Group {
+                    switch plan.template {
+                    case .bigValue:
+                        BigValueTemplate(summary: plan.headline ?? SharedShelf.Summary(title: snapshot.name), accent: accent, family: family)
+                    case .meters:
+                        MetersTemplate(items: plan.items, accent: accent, family: family)
+                    case .list:
+                        ListTemplate(items: plan.items, accent: accent, family: family)
+                    case .grid:
+                        GridTemplate(items: plan.items, family: family)
+                    }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .clipped()
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .clipped()
+            // The small size has the header icon alone; larger ones say why.
+            if family != .systemSmall, let notice = notice(snapshot) {
+                Label {
+                    Text(notice).lineLimit(2)
+                } icon: {
+                    Image(systemName: entry.unanswered ? Self.noAnswerSymbol : "exclamationmark.triangle.fill")
+                }
+                .font(.caption2)
+                .foregroundStyle(.orange)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    static let noAnswerSymbol = "exclamationmark.arrow.triangle.2.circlepath"
+
+    /// Why what is shown may not be current: BarShelf never answered the
+    /// refresh asked for here, or its last refresh failed (the last good
+    /// reading stays). Nil while a refresh is still pending.
+    private func notice(_ snapshot: SharedShelf.Snapshot) -> String? {
+        if entry.refreshing { return nil }
+        if entry.unanswered {
+            return String(localized: "BarShelf didn’t respond. Click to open it, then refresh.")
+        }
+        if let error = snapshot.error, !error.isEmpty {
+            return String(localized: "Couldn’t refresh. Showing the last reading: \(error)")
+        }
+        return nil
+    }
+
+    /// The picked items are all gone (renamed, removed, or the widget shows
+    /// different ones now). Says which, and how to pick again.
+    private func missingSelection(_ keys: [String]) -> some View {
+        let text = keys.count == 1
+            ? String(localized: "“\(SharedShelf.title(ofMissingPartKey: keys[0]))” isn’t in this widget right now. Right-click here and choose Edit Widget to pick again.")
+            : String(localized: "The \(keys.count) items you picked aren’t in this widget right now. Right-click here and choose Edit Widget to pick again.")
+        return placeholder(symbol: "questionmark.square.dashed", title: String(localized: "Picked item not available"), text: text)
     }
 
     private struct Plan {
@@ -180,6 +255,8 @@ struct ShelfWidgetView: View {
         var headline: SharedShelf.Summary?
         /// What the header names: the widget, or the one item shown.
         var heading: String?
+        /// Items were picked and none of them is in the widget any more.
+        var missingKeys: [String] = []
     }
 
     /// Which items, in which layout. Picked items in the picked order;
@@ -187,8 +264,14 @@ struct ShelfWidgetView: View {
     /// out, so nothing shows twice). The small size shows one item large
     /// unless the items are a few readings that fit as rings.
     private func layout(for snapshot: SharedShelf.Snapshot) -> Plan {
-        let picked = entry.partKeys.compactMap { key in snapshot.parts.first { $0.key == key } }
-        let pool = picked.isEmpty ? snapshot.parts.filter { !$0.isGroup } : picked
+        let pool: [SharedShelf.Part]
+        switch SharedShelf.selection(keys: entry.partKeys, from: snapshot.parts) {
+        case let .automatic(parts), let .picked(parts):
+            pool = parts
+        case let .missing(keys):
+            // Never someone else's items in place of the ones picked.
+            return Plan(template: .list, items: [], headline: nil, heading: nil, missingKeys: keys)
+        }
         let all = pool.map { part in
             TemplateItem(
                 id: part.key,
@@ -249,6 +332,24 @@ struct ShelfWidgetView: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .accessibilityLabel(Text("Refreshing"))
+            } else if let notice = notice(snapshot) {
+                let symbol = entry.unanswered ? Self.noAnswerSymbol : "exclamationmark.triangle.fill"
+                if family == .systemSmall, let id = entry.widgetID {
+                    // The only control the small size has room for: a retry.
+                    Button(intent: RefreshShelfWidgetIntent(widgetID: id)) {
+                        Image(systemName: symbol)
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Text(notice))
+                    .accessibilityHint(Text("Refresh"))
+                } else {
+                    Image(systemName: symbol)
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                        .accessibilityLabel(Text(notice))
+                }
             } else if stale, family == .systemSmall, let id = entry.widgetID {
                 // The small size has room for the clock alone, which is also
                 // its refresh button.
@@ -282,18 +383,31 @@ struct ShelfWidgetView: View {
         }
     }
 
-    private func placeholder(symbol: String, title: String?, text: String) -> some View {
+    private func placeholder(symbol: String, title: String?, text: String, retry: Bool = false) -> some View {
         VStack(spacing: 6) {
             Image(systemName: symbol)
                 .font(.title2)
                 .foregroundStyle(.secondary)
-            if let title {
-                Text(title).font(.callout.weight(.semibold))
+                .accessibilityHidden(true)
+            VStack(spacing: 6) {
+                if let title {
+                    Text(title).font(.callout.weight(.semibold))
+                }
+                Text(text)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(family == .systemSmall ? 3 : 5)
             }
-            Text(text)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+            .accessibilityElement(children: .combine)
+            if retry, let id = entry.widgetID {
+                Button(intent: RefreshShelfWidgetIntent(widgetID: id)) {
+                    Label("Try Again", systemImage: "arrow.clockwise")
+                        .font(.caption.weight(.semibold))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

@@ -31,6 +31,10 @@ struct WidgetCardView: View {
     @State private var isHovering = false
     @FocusState private var controlsFocused: Bool
     @State private var isDropTarget = false
+    /// Set by a refresh someone asked for here: what the card showed before
+    /// it, so the finished load can be announced as worked or failed, and a
+    /// load that changed nothing (stopped, cancelled) announces nothing.
+    @State private var pendingRefreshOutcome: RefreshBaseline?
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.shelfIsEditing) private var shelfIsEditing
 
@@ -119,6 +123,15 @@ struct WidgetCardView: View {
             withAnimation(.easeInOut(duration: 0.15)) { isHovering = hovering }
         }
         .modifier(CardAccessibilityActions(card: self))
+        .onChange(of: model.snapshot.isLoading) { _, loading in
+            guard !loading, let before = pendingRefreshOutcome else { return }
+            pendingRefreshOutcome = nil
+            if let message = Self.refreshOutcomeAnnouncement(
+                widgetName: widget.displayName, before: before, after: model.snapshot
+            ) {
+                AccessibilityAnnouncer.shared.announce(message)
+            }
+        }
         .contextMenu { cardContextMenu }
         .alert("Move to a new page", isPresented: $showNewBucket) {
             TextField("Page name", text: $newBucketName)
@@ -138,8 +151,10 @@ struct WidgetCardView: View {
         .alert("Remove \(widget.displayName)?", isPresented: $showRemoveConfirm) {
             Button("Cancel", role: .cancel) {}
             Button("Remove", role: .destructive) {
-                do { try runtime.removeWidget(id: widget.id) }
-                catch { removeError = error.localizedDescription }
+                Task { @MainActor in
+                    do { try await runtime.removeWidget(id: widget.id) }
+                    catch { removeError = error.localizedDescription }
+                }
             }
         } message: {
             Text("This deletes the widget's files and settings and cannot be undone.")
@@ -256,7 +271,40 @@ struct WidgetCardView: View {
     // MARK: - Actions
 
     fileprivate func retry() {
+        pendingRefreshOutcome = RefreshBaseline(model.snapshot)
         runtime.refresh(widgetID: widget.id)
+        // Loading starts synchronously. A refresh turned away (disabled,
+        // waiting for approval, too new for this BarShelf) never loads, so
+        // nothing is pending — the next automatic load is not announced.
+        if !model.snapshot.isLoading { pendingRefreshOutcome = nil }
+    }
+
+    /// What a card showed when a refresh was asked for.
+    struct RefreshBaseline: Equatable {
+        let updatedAt: Date?
+        let error: String?
+
+        init(updatedAt: Date?, error: String?) {
+            self.updatedAt = updatedAt
+            self.error = error
+        }
+
+        init(_ snapshot: WidgetSnapshot) {
+            self.init(updatedAt: snapshot.updatedAt, error: snapshot.error)
+        }
+    }
+
+    /// What VoiceOver hears when a refresh asked for here finishes: failed
+    /// (with why), worked (a new reading), or nothing when the load ended
+    /// without either — stopped by Disable or a permission change.
+    static func refreshOutcomeAnnouncement(
+        widgetName: String, before: RefreshBaseline, after: WidgetSnapshot
+    ) -> String? {
+        if let error = after.error, !error.isEmpty {
+            return AccessibilityMessages.refreshOutcome(widgetName: widgetName, error: error)
+        }
+        guard after.updatedAt != before.updatedAt else { return nil }
+        return AccessibilityMessages.refreshOutcome(widgetName: widgetName, error: nil)
     }
 
     /// The one route to a widget's settings: the hub, on this widget.
@@ -292,27 +340,14 @@ struct WidgetCardView: View {
         Button("Refresh", action: retry)
 
         if placement == .shelf {
-            Button("Move Up") { moveWithinPanel(by: -1) }
-                .disabled(adjacentWidget(by: -1) == nil)
-            Button("Move Down") { moveWithinPanel(by: 1) }
-                .disabled(adjacentWidget(by: 1) == nil)
+            moveWithinPanelButtons
 
             Divider()
 
             Button(runtime.prefs.isDisabled(widget.id) ? "Enable" : "Disable") {
                 runtime.setWidgetDisabled(widget.id, !runtime.prefs.isDisabled(widget.id))
             }
-            Menu("Move to Page") {
-                ForEach(runtime.allGroups, id: \.self) { group in
-                    Button(group) {
-                        runtime.changeLayout(String(localized: "Move Widget"), undoManager: undoManager) {
-                            runtime.moveWidget(id: widget.id, toGroup: group)
-                        }
-                    }
-                }
-                Divider()
-                Button("New Page…") { showNewBucket = true }
-            }
+            moveToPageMenu
         }
         Button("Reveal in Finder") {
             if let directory = runtime.widgetDirectory(for: widget.id) {
@@ -323,6 +358,34 @@ struct WidgetCardView: View {
         if placement == .shelf {
             Divider()
             Button("Remove Widget…", role: .destructive) { showRemoveConfirm = true }
+        }
+    }
+
+    /// Shared by the context menu and the edit bar's Move menu.
+    @ViewBuilder
+    private var moveWithinPanelButtons: some View {
+        Button("Move Up") { moveWithinPanel(by: -1) }
+            .disabled(adjacentWidget(by: -1) == nil)
+        Button("Move Down") { moveWithinPanel(by: 1) }
+            .disabled(adjacentWidget(by: 1) == nil)
+    }
+
+    private var moveToPageMenu: some View {
+        let current = runtime.effectiveGroup(for: widget.id)
+        return Menu("Move to Page") {
+            ForEach(runtime.allGroups, id: \.self) { group in
+                Button(PageName.label(group)) {
+                    runtime.changeLayout(String(localized: "Move Widget"), undoManager: undoManager) {
+                        runtime.moveWidget(id: widget.id, toGroup: group)
+                    }
+                    // Same confirmation as dropping a card on a page dot;
+                    // it is also what VoiceOver hears.
+                    ToastCenter.shared.show(String(localized: "Moved to \(PageName.label(group))"))
+                }
+                .disabled(group == current)
+            }
+            Divider()
+            Button("New Page…") { showNewBucket = true }
         }
     }
 
@@ -343,6 +406,10 @@ struct WidgetCardView: View {
             }
         }
         runtime.reveal(widgetID: widget.id)
+        // The flash shows where the card went; VoiceOver needs it said.
+        AccessibilityAnnouncer.shared.announce(offset < 0
+            ? String(localized: "Moved \(widget.displayName) up")
+            : String(localized: "Moved \(widget.displayName) down"))
     }
 
     private var actionContext: ActionContext {
@@ -400,7 +467,9 @@ struct WidgetCardView: View {
                 .contentShape(Rectangle())
                 .onDrag { CardDrag.provider(for: widget.id) } preview: { dragPreview }
                 .help("Drag to reorder, or onto a page dot to move it to that page")
-                .accessibilityLabel("Reorder \(widget.displayName)")
+                // Pointer-only. VoiceOver and the keyboard get the Move menu
+                // beside it, which does the same moves.
+                .accessibilityHidden(true)
             if !showsHeader {
                 Text(widget.displayName)
                     .font(.caption)
@@ -408,6 +477,21 @@ struct WidgetCardView: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 0)
+            // Dragging is pointer-only. This menu is the keyboard route to the
+            // same reorder and page moves (Tab to it, Space to open).
+            Menu {
+                moveWithinPanelButtons
+                Divider()
+                moveToPageMenu
+            } label: {
+                Image(systemName: "arrow.up.arrow.down")
+                    .font(.callout)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("Move Up, Move Down, or Move to Page")
+            .accessibilityLabel("Move \(widget.displayName)")
             Button(LayoutSizeName.name(isHalf ? "S" : "M")) {
                 // Back to the widget's own size when that is a full-width
                 // one (Strip, Full Width, Tall), so the switch does not lose it.
@@ -459,7 +543,9 @@ struct WidgetCardView: View {
                     .frame(width: 22, height: 20)
                     .onDrag { CardDrag.provider(for: widget.id) } preview: { dragPreview }
                     .help("Drag to move")
-                    .accessibilityLabel("Move \(widget.displayName)")
+                    // Pointer-only; the card's Move up / Move down actions and
+                    // its context menu are the accessible route.
+                    .accessibilityHidden(true)
             }
             Button(action: openSettings) {
                 Image(systemName: "slider.horizontal.3")

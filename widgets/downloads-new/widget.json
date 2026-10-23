@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.downloads-new",
   "name": "Downloads",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "icon": "arrow.down.circle.fill",
   "bucket": { "group": "Files", "order": 35, "size": "S" },
 
@@ -22,5 +22,15 @@
 
   "appearance": {
     "accent": "green"
+  },
+
+  "localizations": {
+    "ko": {
+      "Downloads": "다운로드",
+      "Folder": "폴더",
+      "${count(transforms.items)} files": "파일 ${count(transforms.items)}개",
+      "${count(transforms.items)} files in ${file.basename(settings.folder)}": "${file.basename(settings.folder)}의 파일 ${count(transforms.items)}개",
+      "${if(gte(sub(count(transforms.items), coalesce(storage.count, count(transforms.items))), 0), '+', '')}${string(sub(count(transforms.items), coalesce(storage.count, count(transforms.items))))} since last check": "지난 확인 이후 ${if(gte(sub(count(transforms.items), coalesce(storage.count, count(transforms.items))), 0), '+', '')}${string(sub(count(transforms.items), coalesce(storage.count, count(transforms.items))))}"
+    }
   }
 }

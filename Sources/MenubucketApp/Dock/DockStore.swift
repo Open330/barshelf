@@ -26,14 +26,17 @@ final class DockStore: ObservableObject {
 
     let appleDock: AppleDock
     private let fileURL: URL
+    private let persistConfiguration: (DockConfiguration, URL) throws -> Void
     private var announceTask: Task<Void, Never>?
 
     init(
         fileURL: URL = DockStore.defaultFileURL,
-        appleDock: AppleDock = AppleDock(backupDirectory: DockStore.backupDirectory)
+        appleDock: AppleDock = AppleDock(backupDirectory: DockStore.backupDirectory),
+        persistConfiguration: @escaping (DockConfiguration, URL) throws -> Void = { try $0.save(to: $1) }
     ) {
         self.fileURL = fileURL
         self.appleDock = appleDock
+        self.persistConfiguration = persistConfiguration
         var configuration = DockConfiguration.load(from: fileURL)
         // A first dock starts at the Apple Dock's own icon size.
         if !FileManager.default.fileExists(atPath: fileURL.path), let size = appleDock.tileSize {
@@ -53,12 +56,25 @@ final class DockStore: ObservableObject {
         var copy = configuration
         change(&copy)
         copy.normalize()
-        let oldMode = configuration.mode
+        let previous = configuration
         configuration = copy
-        if oldMode != .replace, copy.mode == .replace {
-            hideAppleDock()
-        } else if oldMode == .replace, copy.mode != .replace {
-            restoreAppleDock()
+        do {
+            if previous.mode != .replace, copy.mode == .replace {
+                try hideAppleDock()
+            } else if previous.mode == .replace, copy.mode != .replace {
+                try restoreAppleDock()
+            }
+        } catch {
+            let backup = configuration.appleDockBackup
+            configuration = previous
+            // A failed system write may also have failed its rollback. Keep
+            // the recovery record even though replacement mode was rejected.
+            if let backup {
+                configuration.appleDockBackup = backup
+                try? persistConfiguration(configuration, fileURL)
+            }
+            lastError = Self.message(for: error)
+            return
         }
         save()
     }
@@ -190,10 +206,15 @@ final class DockStore: ObservableObject {
         if configuration.mode == .replace {
             update { $0.mode = .alongside }
         } else if configuration.appleDockBackup != nil {
-            restoreAppleDock()
-            save()
+            do {
+                try restoreAppleDock()
+                save()
+            } catch { lastError = Self.message(for: error) }
         } else {
-            appleDock.unhideWithoutBackup()
+            do {
+                try appleDock.unhideWithoutBackupChecked()
+                lastError = nil
+            } catch { lastError = Self.message(for: error) }
         }
     }
 
@@ -231,17 +252,27 @@ final class DockStore: ObservableObject {
 
     // MARK: Hiding the Apple Dock (`replace`)
 
-    private func hideAppleDock() {
-        guard let before = appleDock.hide() else { return }
-        // Only the first backup counts: it holds the user's own settings.
-        if configuration.appleDockBackup == nil {
-            configuration.appleDockBackup = before
+    private func hideAppleDock() throws {
+        let previousBackup = configuration.appleDockBackup
+        var saved = false
+        do {
+            _ = try appleDock.hide(preserving: { before in
+                // Only the first backup counts: it holds the user's settings.
+                if configuration.appleDockBackup == nil {
+                    configuration.appleDockBackup = before
+                }
+                try persistConfiguration(configuration, fileURL)
+                saved = true
+            })
+        } catch {
+            if !saved { configuration.appleDockBackup = previousBackup }
+            throw error
         }
     }
 
-    private func restoreAppleDock() {
+    private func restoreAppleDock() throws {
         guard let backup = configuration.appleDockBackup else { return }
-        appleDock.restore(backup)
+        try appleDock.restoreChecked(backup)
         configuration.appleDockBackup = nil
     }
 
@@ -250,10 +281,15 @@ final class DockStore: ObservableObject {
     /// behind by a crash.
     func reconcileAppleDockAtLaunch() {
         let before = configuration
-        if configuration.mode == .replace {
-            hideAppleDock()
-        } else {
-            restoreAppleDock()
+        do {
+            if configuration.mode == .replace {
+                try hideAppleDock()
+            } else {
+                try restoreAppleDock()
+            }
+        } catch {
+            lastError = Self.message(for: error)
+            return
         }
         // Someone who never opened the Dock page gets no dock.json.
         if configuration != before { save() }
@@ -263,18 +299,38 @@ final class DockStore: ObservableObject {
     /// dock while BarShelf is not running. Launch hides it again.
     func restoreAppleDockForTermination() {
         guard configuration.mode == .replace, configuration.appleDockBackup != nil else { return }
-        restoreAppleDock()
-        save()
+        do {
+            try restoreAppleDock()
+            save()
+        } catch { lastError = Self.message(for: error) }
+    }
+
+    /// Whether settings were kept to put the Apple Dock back with: the
+    /// Restore Apple Dock action has something to restore.
+    var hasAppleDockBackup: Bool { configuration.appleDockBackup != nil }
+
+    /// What went wrong, in the app's language. Core's errors carry English
+    /// text only (the CLI has no string catalog), so the app words them.
+    static func message(for error: Error) -> String {
+        switch error as? AppleDockError {
+        case .preferenceWriteFailed:
+            return String(localized: "macOS couldn’t confirm the Apple Dock settings change. Try Restore Apple Dock again.")
+        case .rollbackFailed:
+            return String(localized: "The Apple Dock’s settings couldn’t be put back. BarShelf kept a copy of them; choose Restore Apple Dock to try again.")
+        case nil:
+            let detail = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            return String(localized: "Couldn't save dock settings: \(detail)")
+        }
     }
 
     // MARK: Persistence
 
     private func save() {
         do {
-            try configuration.save(to: fileURL)
+            try persistConfiguration(configuration, fileURL)
             lastError = nil
         } catch {
-            lastError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            lastError = Self.message(for: error)
         }
     }
 }

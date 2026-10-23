@@ -47,6 +47,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DockStore.shared.restoreAppleDockForTermination()
     }
 
+    /// Opening an already-running menu bar app from Finder should reveal it.
+    /// Accessory apps have no default document window for AppKit to reopen.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        HubWindowController.shared.reopen()
+        return false
+    }
+
     /// Minimal main menu carrying only the standard Edit commands. Not shown
     /// (accessory app has no visible menu bar) but its key equivalents are
     /// dispatched to the first responder while the app is active — the standard

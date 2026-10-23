@@ -24,6 +24,26 @@ struct SearchOverlay: View {
     @Binding var isPresented: Bool
     @State private var query = ""
     @State private var selection = 0
+    /// True while an input method (Korean, Japanese, …) has uncommitted text.
+    @State private var isComposing = false
+    /// Focus stays in the field, so VoiceOver would otherwise hear neither the
+    /// result count nor which row ↑/↓ selected.
+    @State private var announcements: SearchAnnouncements
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    init(
+        runtime: WidgetRuntime,
+        pager: PagerState,
+        isPresented: Binding<Bool>,
+        announcer: AccessibilityAnnouncing? = nil
+    ) {
+        self.runtime = runtime
+        self.pager = pager
+        _isPresented = isPresented
+        _announcements = State(initialValue: SearchAnnouncements(
+            announcer: announcer ?? AccessibilityAnnouncer.shared
+        ))
+    }
 
     var body: some View {
         let hits = self.hits
@@ -36,6 +56,7 @@ struct SearchOverlay: View {
                 SearchField(text: $query,
                             placeholder: String(localized: "Search widgets and items…"),
                             autofocus: true,
+                            isComposing: $isComposing,
                             onSubmit: { execute(hits: hits) },
                             onCancel: { isPresented = false },
                             onMoveSelection: { moveSelection($0, hits: hits) })
@@ -48,7 +69,9 @@ struct SearchOverlay: View {
                         .foregroundColor(.secondary)
                 }
                 .buttonStyle(.borderless)
-                .keyboardShortcut(.cancelAction)
+                // Not while an input method is composing: there Escape
+                // cancels the composition, not the search.
+                .keyboardShortcut(isComposing ? nil : .cancelAction)
                 .accessibilityLabel("Close search")
             }
             .padding(10)
@@ -72,7 +95,7 @@ struct SearchOverlay: View {
                     .frame(maxHeight: 220)
                     .onChange(of: selection) { _, newValue in
                         guard hits.indices.contains(newValue) else { return }
-                        withAnimation(.easeOut(duration: 0.12)) {
+                        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.12)) {
                             proxy.scrollTo(hits[newValue].id, anchor: .center)
                         }
                     }
@@ -85,7 +108,12 @@ struct SearchOverlay: View {
         // result rows from being interleaved with background controls.
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Widget search")
-        .onChange(of: query) { selection = 0 }
+        .onChange(of: query) {
+            selection = 0
+            announceResults()
+        }
+        .onChange(of: isComposing) { announceResults() }
+        .onDisappear { announcements.cancelAll() }
         // ↑/↓ move the highlighted result and ⏎ activates it: the search
         // field's delegate turns them into moveUp/moveDown/insertNewline.
     }
@@ -121,7 +149,28 @@ struct SearchOverlay: View {
 
     private func moveSelection(_ delta: Int, hits: [SearchHit]) {
         guard !hits.isEmpty else { return }
-        selection = min(max(selection + delta, 0), hits.count - 1)
+        let target = min(max(selection + delta, 0), hits.count - 1)
+        guard target != selection else { return }
+        selection = target
+        let hit = hits[target]
+        announcements.selectionMoved(AccessibilityMessages.searchSelection(
+            text: hit.text, widgetName: hit.widgetName, index: target, count: hits.count
+        ))
+    }
+
+    /// The count and the row Return would now activate (the first, since a
+    /// new query resets the selection). Nothing for an empty query.
+    private func announceResults() {
+        guard !query.trimmingCharacters(in: .whitespaces).isEmpty else {
+            announcements.resultsChanged(nil, isComposing: isComposing)
+            return
+        }
+        let hits = self.hits
+        announcements.resultsChanged(AccessibilityMessages.searchResults(
+            count: hits.count,
+            firstText: hits.first?.text,
+            firstWidgetName: hits.first?.widgetName
+        ), isComposing: isComposing)
     }
 
     private var hits: [SearchHit] {
@@ -179,6 +228,53 @@ struct SearchOverlay: View {
     }
 }
 
+/// What search says to VoiceOver, and when.
+///
+/// The results shown are announced once typing pauses. While an input method
+/// holds uncommitted text the pause must be longer: Korean keeps the last
+/// syllable marked until the next key, so a query can rest mid-composition
+/// indefinitely — it must still be announced, but not on every jamo. Each
+/// keystroke restarts the wait, so a burst says only its last state.
+@MainActor
+final class SearchAnnouncements {
+    private let settled: AnnouncementDebouncer
+    private let composing: AnnouncementDebouncer
+    private let selection: AnnouncementDebouncer
+
+    init(
+        announcer: AccessibilityAnnouncing,
+        settledDelay: Duration = .milliseconds(500),
+        composingDelay: Duration = .milliseconds(1200),
+        selectionDelay: Duration = .milliseconds(150)
+    ) {
+        settled = AnnouncementDebouncer(announcer: announcer, delay: settledDelay)
+        composing = AnnouncementDebouncer(announcer: announcer, delay: composingDelay)
+        selection = AnnouncementDebouncer(announcer: announcer, delay: selectionDelay)
+    }
+
+    /// The results changed. `message` is nil for an empty query: nothing to say.
+    func resultsChanged(_ message: String?, isComposing: Bool) {
+        selection.cancel()
+        settled.cancel()
+        composing.cancel()
+        guard let message else { return }
+        (isComposing ? composing : settled).schedule(message)
+    }
+
+    /// ↑/↓ chose another row. A pending count would describe the first row.
+    func selectionMoved(_ message: String) {
+        settled.cancel()
+        composing.cancel()
+        selection.schedule(message)
+    }
+
+    func cancelAll() {
+        settled.cancel()
+        composing.cancel()
+        selection.cancel()
+    }
+}
+
 /// `NSSearchField` that guarantees the standard editing shortcuts even when the
 /// popover isn't the key window and the (`.accessory`) app has no Edit menu —
 /// the usual reason ⌘A/⌘C/⌘V do nothing in a menu-bar app's text fields.
@@ -212,6 +308,8 @@ struct SearchField: NSViewRepresentable {
     @Binding var text: String
     var placeholder: String = String(localized: "Search")
     var autofocus: Bool = false
+    /// Set while the field editor holds marked (uncommitted IME) text.
+    var isComposing: Binding<Bool>?
     var onSubmit: () -> Void = {}
     var onCancel: () -> Void = {}
     var onMoveSelection: ((Int) -> Void)?
@@ -267,11 +365,20 @@ struct SearchField: NSViewRepresentable {
         }
 
         func controlTextDidChange(_ note: Notification) {
-            if let f = note.object as? NSSearchField { parent.text = f.stringValue }
+            guard let f = note.object as? NSSearchField else { return }
+            if let isComposing = parent.isComposing {
+                let composing = (f.currentEditor() as? NSTextView)?.hasMarkedText() ?? false
+                if isComposing.wrappedValue != composing { isComposing.wrappedValue = composing }
+            }
+            parent.text = f.stringValue
         }
 
         func control(_ control: NSControl, textView: NSTextView,
                      doCommandBy selector: Selector) -> Bool {
+            // Uncommitted input-method text: Return, Escape and the arrows
+            // belong to the input method (commit, cancel, choose), not to
+            // search. Search sees them again once the text is committed.
+            if textView.hasMarkedText() { return false }
             switch selector {
             case #selector(NSResponder.insertNewline(_:)): parent.onSubmit(); return true
             case #selector(NSResponder.cancelOperation(_:)): parent.onCancel(); return true

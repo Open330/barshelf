@@ -60,6 +60,7 @@ struct GeneralSettingsPage: View {
                             .tag(appPrefs.preferences.menuBarSymbol)
                     }
                 }
+                .accessibilityLabel("Menu bar icon")
             } footer: {
                 Text("The icon BarShelf shows in the menu bar.")
                     .formFooter()
@@ -77,6 +78,7 @@ struct GeneralSettingsPage: View {
                     Text("Popup height")
                     Text("How tall the popup grows before its pages scroll. It is shorter when there is less to show.")
                 }
+                .accessibilityLabel("Popup height")
             }
 
             Section {
@@ -87,6 +89,7 @@ struct GeneralSettingsPage: View {
                     Text("Open at login")
                     Text("Start BarShelf when you sign in to your Mac.")
                 }
+                .accessibilityLabel("Open at login")
                 if let launchError {
                     StatusBanner(tone: .critical, message: launchError)
                 }
@@ -98,6 +101,7 @@ struct GeneralSettingsPage: View {
                     Text("Play a sound when copying")
                     Text("A confirmation always appears; this adds a sound.")
                 }
+                .accessibilityLabel("Play a sound when copying")
             }
 
             PrefsErrorSection(appPrefs: appPrefs)
@@ -238,6 +242,7 @@ struct UpdatesSettingsPage: View {
                     Text("Check for updates automatically")
                     Text("Look for a new version each time BarShelf starts.")
                 }
+                .accessibilityLabel("Check for updates automatically")
 
                 LabeledContent {
                     Button("Check Now") { UpdateChecker.check(explicit: true) }
@@ -432,14 +437,19 @@ struct AdvancedSettingsPage: View {
                     Text("Refresh speed")
                     Text("Faster halves the wait between refreshes; Slower and Slowest double and quadruple it, saving battery and network.")
                 }
+                .accessibilityLabel("Refresh speed")
 
                 Toggle(isOn: Binding(
                     get: { appPrefs.preferences.pauseWhenClosed },
                     set: { value in appPrefs.update { $0.pauseWhenClosed = value } }
                 )) {
                     Text("Pause while the popup is closed")
-                    Text("Widgets stop refreshing until you open the popup. Menu bar values freeze too, and dim once they're out of date.")
+                    Text("Hidden widgets stop refreshing until you open the popup. Menu bar and Dock widgets keep updating; remove them from those surfaces to stop their background updates.")
                 }
+                .accessibilityLabel("Pause while the popup is closed")
+                Text("Script timers can keep running in the background when this option is off. Turning it on also pauses hidden script timers; overdue callbacks resume once when the widget becomes visible.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             } header: {
                 Text("Battery and Network")
             }
