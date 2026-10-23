@@ -3,6 +3,39 @@ import XCTest
 @testable import MenubucketCore
 
 final class ExecServiceTests: XCTestCase {
+    /// The command exits on SIGTERM but leaves a descendant that ignores it;
+    /// the SIGKILL that follows goes to the whole group, so nothing the
+    /// command started is left running after cancel, revoke or timeout.
+    func testCancellationKillsDescendantThatIgnoresTermination() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let pidFile = directory.appendingPathComponent("descendant")
+        let task = Task {
+            await ExecService.capture(
+                command: ["/bin/sh", "-c", "(trap '' TERM; exec /bin/sleep 30) & echo $! > descendant; wait"],
+                discover: nil, timeoutMs: 10_000, workingDirectory: directory
+            )
+        }
+        var descendant: pid_t = 0
+        let readyDeadline = Date().addingTimeInterval(3)
+        while descendant == 0, Date() < readyDeadline {
+            let text = (try? String(contentsOf: pidFile, encoding: .utf8)) ?? ""
+            descendant = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
+            if descendant == 0 { try await Task.sleep(nanoseconds: 10_000_000) }
+        }
+        XCTAssertNotEqual(descendant, 0, "descendant must start before cancellation")
+        defer { if descendant != 0 { kill(descendant, SIGKILL) } }
+        task.cancel()
+        _ = await task.value
+        // SIGTERM ends the shell at once; the group's SIGKILL follows 2 s later.
+        let deadline = Date().addingTimeInterval(4)
+        while kill(descendant, 0) == 0, Date() < deadline {
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+        XCTAssertNotEqual(kill(descendant, 0), 0, "descendant ignoring SIGTERM must not outlive cancellation")
+    }
+
     func testDiscoveryRejectsExecutableWithDifferentBareCommandIdentity() {
         var searched: [String] = []
 

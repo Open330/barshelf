@@ -332,11 +332,21 @@ public final class ExecService {
 
     /// Every resource-limit and lifecycle exit gets the same bounded grace
     /// period, including scripts that deliberately ignore SIGTERM.
+    ///
+    /// Foundation starts each command as the leader of its own process group
+    /// and `terminate()` sends SIGTERM to that group. The SIGKILL goes to the
+    /// group too: a descendant that ignores SIGTERM outlives a parent that
+    /// obeys it, and used to keep running after cancel, revoke or timeout. A
+    /// group id is never reused while any member is alive, so the signal
+    /// reaches only what this command started. A descendant that moves to a
+    /// group of its own (`setsid`, `setpgrp`) is out of reach, as it would be
+    /// for a shell.
     static func terminate(_ process: Process) {
         guard process.isRunning else { return }
+        let group = process.processIdentifier
         process.terminate()
         DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 2) {
-            if process.isRunning { kill(process.processIdentifier, SIGKILL) }
+            _ = kill(-group, SIGKILL)
         }
     }
 
