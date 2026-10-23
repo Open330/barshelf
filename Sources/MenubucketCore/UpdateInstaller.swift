@@ -24,6 +24,9 @@ public enum UpdateInstaller {
         /// The build is genuine but needs a newer macOS than this Mac runs;
         /// installing it would leave an app that refuses to open.
         case systemTooOld(required: String, running: String)
+        /// The build is genuine but not newer than the running one: an old
+        /// release served in place of the latest would quietly undo fixes.
+        case notNewer(found: String, running: String)
         case replaceFailed(String)
 
         public var errorDescription: String? {
@@ -51,6 +54,9 @@ public enum UpdateInstaller {
             case let .systemTooOld(required, running):
                 return "This update needs macOS \(required) or later; this Mac runs"
                     + " macOS \(running)."
+            case let .notNewer(found, running):
+                return "The downloaded build is BarShelf \(found), which is not newer"
+                    + " than the BarShelf \(running) you are running."
             case let .replaceFailed(detail):
                 return "The update could not be moved into place: \(detail)"
             }
@@ -69,6 +75,9 @@ public enum UpdateInstaller {
                 return "Try again, or download the release manually."
             case .systemTooOld:
                 return "Update macOS to install it. The installed BarShelf keeps working."
+            case .notNewer:
+                return "Nothing was changed. Check again later, or download the"
+                    + " release you want manually and verify its checksum."
             }
         }
     }
@@ -241,6 +250,7 @@ public enum UpdateInstaller {
         expectedTeam: String,
         expectedBundleID: String?,
         checkGatekeeper: Bool = true,
+        upgradingFrom runningVersion: String? = nil,
         runningSystem: OperatingSystemVersion = ProcessInfo.processInfo.operatingSystemVersion
     ) throws -> Installed {
         let fileManager = FileManager.default
@@ -293,6 +303,11 @@ public enum UpdateInstaller {
         }
 
         let version = installedVersion(of: app)
+        // A signature proves who built it, not when: any earlier release is
+        // signed just as well. Only forward.
+        if let runningVersion, !isUpgrade(version, over: runningVersion) {
+            throw Failure.notNewer(found: version ?? "of unknown version", running: runningVersion)
+        }
         // A backup from a run that died before confirming would otherwise be
         // restored later as if it were this update's predecessor.
         let backup = target.deletingLastPathComponent()
@@ -385,6 +400,13 @@ public enum UpdateInstaller {
     public static func installedVersion(of app: URL) -> String? {
         let version = infoDictionary(of: app)?["CFBundleShortVersionString"] as? String
         return (version?.isEmpty == false) ? version : nil
+    }
+
+    /// Whether a bundle reporting `found` moves forward from `running`. A
+    /// bundle that does not say its version is not an upgrade.
+    public static func isUpgrade(_ found: String?, over running: String) -> Bool {
+        guard let found else { return false }
+        return ReleaseFeed.isNewer(found, than: running)
     }
 
     /// `LSMinimumSystemVersion` of a bundle, if it declares one.
