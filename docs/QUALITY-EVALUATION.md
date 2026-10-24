@@ -497,3 +497,29 @@ Still unexecuted, needing a person or hardware:
 - **Physical Fn+IJKL:** the remap filters on the physical keyboard type, which synthetic events do not carry.
 - **Two displays:** only one is attached.
 - **Placing a desktop widget:** this changes the person's desktop.
+
+### Live desktop-widget check (2026-10-25, june-mba, installed 0.7.5)
+
+Driven through Notification Center and AX. The person's notification content
+was not read or recorded.
+
+| Journey | Action | Observed | Result |
+| --- | --- | --- | --- |
+| Extension registered | Notification Center ▸ Edit Widgets | BarShelf is listed, with Small, Medium, Large and Extra Large previews | pass |
+| Add a widget | Added the Small size to Notification Center | The widget appears; "Edit “BarShelf Widget”…", sizes and Remove are offered | pass |
+| Existing desktop widget freshness | Read the aas Usage desktop widget | Stale badge "14 days, 9 hr", while the shared snapshot was 4 days old and then republished | **fail** |
+| Refresh answered by BarShelf | Wrote the extension's refresh request and posted its Darwin notification | BarShelf refreshed and republished within 4 s (`updatedAt` = now). The widget did not change | app pass, widget **fail** |
+| Root cause | Inspected the extension process | Running since boot on 10-11 (old inode), while the 0.7.5 binary on disk has a new inode: updates do not restart a running widget extension | — |
+| After ending the stale process | `kill` on it | macOS started the 0.7.5 extension; the desktop widget showed current readings with no stale badge within 5 s | pass |
+| Cleanup | Removed the added widget, closed Notification Center | Back as it was | done |
+
+**Fix:** at launch, BarShelf ends any extension process that runs this
+bundle's extension path but started before that binary was written, then
+reloads timelines (`StaleWidgetExtension`). This covers Homebrew upgrades and
+the in-app updater, both of which relaunch BarShelf.
+
+An AX press on the widget's own Refresh button did not reach its App Intent:
+no `requests-asked` record was written, which is a limit of AX on remote
+widget views. The request path was therefore exercised by writing the same
+request file the intent writes. A pointer click by a person remains
+unverified.
