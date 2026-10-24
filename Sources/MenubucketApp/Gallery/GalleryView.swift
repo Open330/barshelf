@@ -158,7 +158,7 @@ struct GalleryView: View {
                 if model.filtersAreActive {
                     Text("\(shown) of \(total) widgets")
                 } else {
-                    Text("\(total) widgets")
+                    Text("^[\(total) widget](inflect: true)")
                 }
             }
             .font(.caption)
@@ -285,7 +285,7 @@ struct GalleryView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
-                    .accessibilityLabel("\(section.entries.count) widgets")
+                    .accessibilityLabel(Text("^[\(section.entries.count) widget](inflect: true)"))
             }
             Text(section.subtitle)
                 .font(.caption)

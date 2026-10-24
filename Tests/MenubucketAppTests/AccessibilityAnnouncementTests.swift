@@ -39,13 +39,24 @@ final class AccessibilityAnnouncementTests: XCTestCase {
         XCTAssertEqual(spy.messages, ["Copied", "Moved to Work"])
     }
 
+    /// A delay is a lower bound, not a deadline: a busy CI runner fires it
+    /// late. Wait until `count` messages arrive (or 2 s pass), then a little
+    /// longer so an extra, wrong announcement would still be caught.
+    private func waitForMessages(_ spy: AnnouncementSpy, count: Int) async throws {
+        let deadline = ContinuousClock.now + .seconds(2)
+        while spy.messages.count < count, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        try await Task.sleep(for: .milliseconds(150))
+    }
+
     func testDebouncerSpeaksOnlyTheLastOfABurst() async throws {
         let spy = AnnouncementSpy()
         let debouncer = AnnouncementDebouncer(announcer: spy, delay: .milliseconds(50))
         debouncer.schedule("1 results")
         debouncer.schedule("2 results")
         debouncer.schedule("3 results")
-        try await Task.sleep(for: .milliseconds(300))
+        try await waitForMessages(spy, count: 1)
         XCTAssertEqual(spy.messages, ["3 results"])
 
         debouncer.schedule("stale")
@@ -118,7 +129,7 @@ final class AccessibilityAnnouncementTests: XCTestCase {
         search.resultsChanged("1 results. 날", isComposing: true)
         try await Task.sleep(for: .milliseconds(60))
         XCTAssertEqual(spy.messages, [], "not mid-burst, and not at the settled pace")
-        try await Task.sleep(for: .milliseconds(300))
+        try await waitForMessages(spy, count: 1)
         XCTAssertEqual(spy.messages, ["1 results. 날"], "the paused composition is announced once")
     }
 
@@ -129,12 +140,12 @@ final class AccessibilityAnnouncementTests: XCTestCase {
         )
         search.resultsChanged("2 results. 나", isComposing: true)
         search.resultsChanged("1 results. 날씨", isComposing: false)
-        try await Task.sleep(for: .milliseconds(300))
+        try await waitForMessages(spy, count: 1)
         XCTAssertEqual(spy.messages, ["1 results. 날씨"])
 
         search.resultsChanged("4 results", isComposing: false)
         search.selectionMoved("Rain, Weather, 2 of 4")
-        try await Task.sleep(for: .milliseconds(300))
+        try await waitForMessages(spy, count: 2)
         XCTAssertEqual(spy.messages, ["1 results. 날씨", "Rain, Weather, 2 of 4"], "a pending count would name the wrong row")
 
         search.resultsChanged("stale", isComposing: true)

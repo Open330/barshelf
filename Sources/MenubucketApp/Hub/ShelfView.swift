@@ -165,7 +165,7 @@ struct ShelfView: View {
             }
             .padding(.horizontal, Spacing.xxs)
             .accessibilityElement(children: .contain)
-            .accessibilityLabel("Page \(PageName.label(page.name)), \(page.widgets.count) widgets")
+            .accessibilityLabel(Text("Page \(PageName.label(page.name)), ^[\(page.widgets.count) widget](inflect: true)"))
 
             ForEach(page.widgets) { widget in
                 chip(widget, in: page)

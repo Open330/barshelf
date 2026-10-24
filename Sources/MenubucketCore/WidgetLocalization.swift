@@ -32,6 +32,12 @@ public struct WidgetLocalizations: Codable, Equatable, Sendable {
         self.tables = tables
     }
 
+    /// Every translation of `text`, one per language that has one — what a
+    /// person might type for it whatever language BarShelf is shown in.
+    public func allTranslations(of text: String) -> [String] {
+        Array(Set(tables.values.compactMap { $0[text] })).sorted()
+    }
+
     public init(from decoder: Decoder) throws {
         let raw = (try? decoder.singleValueContainer().decode([String: JSONValue].self)) ?? [:]
         var tables: [String: [String: String]] = [:]

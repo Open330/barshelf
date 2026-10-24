@@ -183,10 +183,16 @@ struct SearchOverlay: View {
         let needle = SearchMatcher(query)
         guard !needle.isEmpty else { return [] }
         var results: [SearchHit] = []
+        // A reading shown twice (a list and its summary) is one result.
+        var seen: Set<String> = []
         for (pageIndex, page) in pages.enumerated() {
             for widget in page.widgets {
                 let name = widget.displayName
-                let nameMatches = needle.matches(name, widget.manifest.name)
+                // The name in every language the widget carries, so "시스템"
+                // finds System while BarShelf is shown in English.
+                let names: [String?] = [name, widget.manifest.name]
+                    + (widget.manifest.localizations?.allTranslations(of: widget.manifest.name) ?? [])
+                let nameMatches = needle.matches(any: names)
                 if nameMatches {
                     results.append(SearchHit(
                         id: "widget-\(widget.id)", widgetID: widget.id,
@@ -195,8 +201,8 @@ struct SearchOverlay: View {
                     ))
                 }
                 if let tree = snapshots[widget.id]?.viewTree {
-                    collect(node: tree, needle: needle, widget: widget, nameMatches: nameMatches,
-                            pageIndex: pageIndex, into: &results)
+                    collect(node: tree, needle: needle, widget: widget, names: names, nameMatches: nameMatches,
+                            pageIndex: pageIndex, seen: &seen, into: &results)
                 }
             }
         }
@@ -204,11 +210,12 @@ struct SearchOverlay: View {
     }
 
     private static func collect(
-        node: UINode, needle: SearchMatcher, widget: LoadedWidget, nameMatches: Bool,
-        pageIndex: Int, into results: inout [SearchHit]
+        node: UINode, needle: SearchMatcher, widget: LoadedWidget, names: [String?], nameMatches: Bool,
+        pageIndex: Int, seen: inout Set<String>, into results: inout [SearchHit]
     ) {
         if let text = node.text,
-           needle.matches(text) || (!nameMatches && needle.matches(text, widget.displayName, widget.manifest.name)) {
+           needle.matches(text) || (!nameMatches && needle.matches(any: [text] + names)),
+           seen.insert("\(widget.id)\u{0}\(text)").inserted {
             results.append(SearchHit(
                 id: "\(widget.id)-\(node.id ?? text)-\(results.count)",
                 widgetID: widget.id, widgetName: widget.displayName,
@@ -216,8 +223,8 @@ struct SearchOverlay: View {
             ))
         }
         for child in (node.children ?? []) + (node.items ?? []) {
-            collect(node: child, needle: needle, widget: widget, nameMatches: nameMatches,
-                    pageIndex: pageIndex, into: &results)
+            collect(node: child, needle: needle, widget: widget, names: names, nameMatches: nameMatches,
+                    pageIndex: pageIndex, seen: &seen, into: &results)
         }
     }
 
