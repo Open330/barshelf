@@ -1,0 +1,5 @@
+{
+  "imports": {
+    "barshelf": "./host_stub.ts"
+  }
+}

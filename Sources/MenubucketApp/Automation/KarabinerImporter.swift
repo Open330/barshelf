@@ -8,14 +8,14 @@ enum KarabinerImporter {
         let summary: String
     }
 
-    static func convert(_ source: String) throws -> Result {
+    static func convert(_ source: String, excludingFunctionKeys: Bool = false) throws -> Result {
         guard let data = source.data(using: .utf8),
               let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw AutomationFailure(String(localized: "Choose a Karabiner JSON configuration or rules file."))
         }
         var remaps: [[String: Any]] = []
         var profileName: String?
-        var ignoredFunctionKeys = false
+        var omittedFunctionKeys = false
         let container: [String: Any]
         if root["profiles"] != nil {
             // `global` and `machine_specific` hold app-wide preferences (menu
@@ -34,21 +34,13 @@ enum KarabinerImporter {
                 "fn_function_keys", "devices", "virtual_hid_keyboard", "parameters"], at: "profile")
             // What Karabiner writes into every configuration on its own is
             // accepted; only settings that change keys are refused.
-            // `fn_function_keys` maps F1–F12 to media keys the way macOS
-            // already does, so it is left out and said so in the summary.
-            if let functionKeys = container["fn_function_keys"] {
-                guard let entries = functionKeys as? [[String: Any]] else { throw unsupported("profile.fn_function_keys") }
-                for (index, entry) in entries.enumerated() {
-                    // Media keys (brightness, volume…) are what macOS does
-                    // anyway; F1 sent as another key is a real remap.
-                    let outputs = entry["to"] as? [[String: Any]] ?? []
-                    let mediaOnly = !outputs.isEmpty && outputs.allSatisfy { output in
-                        Set(output.keys).isSubset(of: ["consumer_key_code", "apple_vendor_keyboard_key_code",
-                                                       "apple_vendor_top_case_key_code"])
-                    }
-                    guard mediaOnly else { throw unsupported("profile.fn_function_keys[\(index)]") }
-                }
-                ignoredFunctionKeys = !entries.isEmpty
+            // Media outputs are behavior too. Even a familiar F-key table
+            // cannot be assumed to match this keyboard's native macOS layout.
+            // Refuse partial migration; users can export supported rules alone.
+            if excludingFunctionKeys, let value = container["fn_function_keys"] {
+                omittedFunctionKeys = (value as? [Any])?.isEmpty != true
+            } else {
+                try empty(container["fn_function_keys"], at: "profile.fn_function_keys")
             }
             if let parameters = container["parameters"] {
                 guard let parameters = parameters as? [String: Any] else { throw unsupported("profile.parameters") }
@@ -155,12 +147,14 @@ enum KarabinerImporter {
         _ = try AutomationKeyRemap.decode(remaps)
         let json = String(decoding: try JSONSerialization.data(withJSONObject: remaps,
             options: [.sortedKeys, .withoutEscapingSlashes]), as: UTF8.self)
-        let script = "// Imported from Karabiner-Elements. Original settings are unchanged.\nbarshelf.remapKeys(\(json));"
+        let omission = omittedFunctionKeys
+            ? "// Function/media customizations omitted at your request. Verify native key behavior before quitting Karabiner.\n" : ""
+        let script = "// Imported from Karabiner-Elements. Original settings are unchanged.\n" + omission + "barshelf.remapKeys(\(json));"
         _ = try AutomationScript(source: script)
         let profile = profileName.map { " (\($0))" } ?? ""
         var summary = String(localized: "Imported \(remaps.count) key remaps from Karabiner-Elements\(profile). Rules apply to all keyboards. Disable the original Karabiner rules before enabling this extension.")
-        if ignoredFunctionKeys {
-            summary += " " + String(localized: "Function key settings were not imported; macOS handles F1–F12 itself.")
+        if omittedFunctionKeys {
+            summary += " " + String(localized: "Function and media key customizations were not imported. After quitting Karabiner, those keys use native macOS behavior, which may differ.")
         }
         return Result(script: script, summary: summary)
     }
@@ -177,6 +171,9 @@ enum KarabinerImporter {
     }
 
     private static func unsupported(_ path: String) -> AutomationFailure {
-        AutomationFailure(String(localized: "Unsupported Karabiner behavior at \(path). Nothing was imported. Supported: global key-to-key mappings with command/control/option/shift/fn/caps_lock modifiers. Device/app conditions, modifier keys, macros and shell actions need manual migration."))
+        if path == "profile.fn_function_keys" {
+            return AutomationFailure(String(localized: "Function and media key settings (profile.fn_function_keys) cannot be preserved. Nothing was imported. Choose Import Settings › Karabiner Key Mappings Only… to review the supported mappings separately."))
+        }
+        return AutomationFailure(String(localized: "Unsupported Karabiner behavior at \(path). Nothing was imported. Supported: global key-to-key mappings with command/control/option/shift/fn/caps_lock modifiers. Device/app conditions, modifier keys, macros and shell actions need manual migration."))
     }
 }

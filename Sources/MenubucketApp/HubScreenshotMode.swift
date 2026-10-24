@@ -1,4 +1,5 @@
 import AppKit
+import MenubucketCore
 import SwiftUI
 
 /// `barshelf-app screenshot-hub <dir>` renders every page of the BarShelf
@@ -35,6 +36,20 @@ enum HubScreenshotMode {
             ok = render(HubView(runtime: runtime, appPrefs: prefs, model: model),
                         size: NSSize(width: 1040, height: 720), name: "hub-\(tab.rawValue)", to: dir) && ok
         }
+        // A deterministic loaded gallery as well as its real loading state.
+        // Bundled registry data exercises the actual cards and Korean search
+        // without depending on network timing or writing gallery installs.
+        if let registry = Bundle.main.resourceURL?.appendingPathComponent("registry/index.json"),
+           let data = try? Data(contentsOf: registry),
+           let index = try? RegistryIndex.parse(data).index {
+            let gallery = GalleryModel(widgetsDirectory: WidgetRuntime.userWidgetsRoot)
+            gallery.setEntries(forPreview: index.widgets)
+            ok = render(GalleryView(model: gallery, runtime: runtime),
+                        size: NSSize(width: 840, height: 720), name: "gallery-loaded", to: dir) && ok
+            gallery.searchText = "날씨"
+            ok = render(GalleryView(model: gallery, runtime: runtime),
+                        size: NSSize(width: 840, height: 720), name: "gallery-korean-search", to: dir) && ok
+        }
         if let first = runtime.widgets.first {
             let model = HubModel(tab: .shelf)
             model.settingsWidgetID = first.id
@@ -52,7 +67,8 @@ enum HubScreenshotMode {
 
     @MainActor
     private static func render<Content: View>(_ view: Content, size: NSSize, name: String, to dir: URL) -> Bool {
-        let hosting = NSHostingView(rootView: view.frame(width: size.width, height: size.height))
+        let hosting = NSHostingView(rootView: view.frame(width: size.width, height: size.height)
+            .background(Color(nsColor: .windowBackgroundColor)))
         hosting.frame = NSRect(origin: .zero, size: size)
         let window = NSWindow(contentRect: hosting.frame, styleMask: [.titled], backing: .buffered, defer: false)
         window.contentView = hosting

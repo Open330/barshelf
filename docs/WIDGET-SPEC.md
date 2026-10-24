@@ -83,7 +83,33 @@
 | `statusItem` | 아니오 | 메뉴바 status item 표시 정책. |
 | `permissions` | 아니오 | exec, env, 파일, storage, notifications, 네트워크, Keychain 권한 선언. |
 | `settings` | 아니오 | 설정 UI를 자동 생성하기 위한 선언. 값은 workflow의 `${settings.key}`와 script context로 전달된다. |
+| `localizations` | 아니오 | 0.7.5부터 지원하는 표시 문구 번역표. 언어 코드 아래에 원문과 번역을 넣는다. 이름·설정 제목·workflow 표시 템플릿에 적용되며 명령, 액션, 설정 값, 권한은 바꾸지 않는다. |
 | `desktop` | 아니오 | macOS 데스크톱 위젯으로 보일 때의 설정(0.6.1). `style`은 사용자가 스타일을 자동으로 둘 때 쓸 레이아웃(`bigValue`, `meters`, `list`, `grid`)이고, `offer: false`면 데스크톱 위젯 목록에 나오지 않는다. 값이 틀려도 위젯을 거부하지 않고 무시한다. |
+
+### 표시 문구 번역 (`localizations`)
+
+```json
+{
+  "localizations": {
+    "ko": {
+      "Recent Files": "최근 파일",
+      "${count(sources.files.items)} files": "파일 ${count(sources.files.items)}개"
+    }
+  }
+}
+```
+
+앱의 표시 언어와 일치하는 지역 코드(예: `ko-KR`), 기본 언어(`ko`) 순서로 찾고,
+같은 언어의 지역별 표가 있으면 그 표로 대체한다. 해당 언어의 번역이 없으면 원문을 쓴다.
+workflow의 문구는 `${…}`를 계산하기 **전에** 번역하며, 번역이 표현식을 추가·제거·변경하면
+그 번역을 무시한다. 표현식 순서는 바꿀 수 있다. 이미 읽어 온 사용자 파일명·본문 등은
+번역 대상으로 처리하지 않는다. exec/script 위젯의 출력은 위젯이 직접 현지화한다.
+설정 선택지의 표시 제목은 번역해도 저장된 선택지 값과 기본값은 유지된다.
+
+0.7.5부터 workflow는 `widget.locale`에서 앱의 표시 언어(`ko`, `en` 등)를 읽을 수 있다.
+변환에서 만드는 상태 이름처럼 고정된 표시 어휘를 분기할 때 사용한다. 사용자·외부 서비스의
+데이터나 액션 식별자는 번역하지 않는다. 이 값이 없거나 알 수 없는 언어이면 원문으로
+표시하도록 작성하면 이전 호스트에서도 동작한다.
 
 ### `bucket`
 

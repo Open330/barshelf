@@ -31,7 +31,15 @@
         ]
       },
       { "type": "text", "text": "${string(round(number(sources.data.current.temperature_2m), 0))}°", "size": 44, "role": "title", "monospacedDigit": true },
-      { "type": "text", "text": "${if(lt(number(sources.data.current.weather_code), 3), 'Clear', if(lt(number(sources.data.current.weather_code), 50), 'Cloudy', if(lt(number(sources.data.current.weather_code), 70), 'Rain', 'Storm')))}", "role": "caption", "foreground": "secondary" }
+      {
+        "switch": "${if(lt(number(sources.data.current.weather_code), 3), 'clear', if(lt(number(sources.data.current.weather_code), 50), 'cloudy', if(lt(number(sources.data.current.weather_code), 70), 'rain', 'storm')))}",
+        "cases": {
+          "clear": { "type": "text", "text": "Clear", "role": "caption", "foreground": "secondary" },
+          "cloudy": { "type": "text", "text": "Cloudy", "role": "caption", "foreground": "secondary" },
+          "rain": { "type": "text", "text": "Rain", "role": "caption", "foreground": "secondary" }
+        },
+        "default": { "type": "text", "text": "Storm", "role": "caption", "foreground": "secondary" }
+      }
     ]
   },
 

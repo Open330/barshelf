@@ -134,6 +134,33 @@ final class WidgetValidatorTests: XCTestCase {
         XCTAssertTrue(report.issues.contains { $0.field == "entry.kind" })
     }
 
+    func testScriptRuntimeValidationMatchesTheHostForDirectoriesAndArchives() throws {
+        for runtime in [nil, "deno-ts@1", "python@3"] as [String?] {
+            let runtimeField = runtime.map { ", \"runtime\": \"\($0)\"" } ?? ""
+            let directory = try writeWidget("""
+            { "schemaVersion": 1, "id": "runtime-check", "name": "Runtime",
+              "entry": { "kind": "script"\(runtimeField) } }
+            """, extra: ["index.ts": "export default {};"])
+            // Use zip directly: pack correctly refuses invalid manifests.
+            let archive = workDir.appendingPathComponent(UUID().uuidString + ".mbw")
+            let zip = Process()
+            zip.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
+            zip.arguments = ["-q", archive.path, "widget.json", "index.ts"]
+            zip.currentDirectoryURL = directory
+            try zip.run()
+            zip.waitUntilExit()
+            XCTAssertEqual(zip.terminationStatus, 0)
+            for report in [WidgetValidator.validate(directory: directory), try WidgetValidator.validate(path: archive)] {
+                XCTAssertEqual(report.isValid, runtime != "python@3")
+                if runtime == "python@3" {
+                    XCTAssertTrue(report.issues.contains {
+                        $0.field == "entry.runtime" && $0.message.contains("deno-ts@1")
+                    })
+                }
+            }
+        }
+    }
+
     func testExecWithoutCommand() throws {
         let dir = try writeWidget("""
         { "schemaVersion": 1, "id": "no-cmd", "name": "No Command",

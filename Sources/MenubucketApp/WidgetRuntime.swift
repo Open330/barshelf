@@ -34,10 +34,12 @@ struct LoadedWidget: Identifiable {
 
     var id: String { instanceID }
     var displayName: String {
+        // In the app's language when the manifest carries a translation.
+        let name = manifest.localizedName()
         let prefix = manifest.id + "--"
-        guard instanceID.hasPrefix(prefix) else { return manifest.name }
+        guard instanceID.hasPrefix(prefix) else { return name }
         let label = String(instanceID.dropFirst(prefix.count))
-        return label.isEmpty ? manifest.name : "\(manifest.name) · \(label)"
+        return label.isEmpty ? name : "\(name) · \(label)"
     }
     var group: String { manifest.bucket?.group ?? "General" }
     var order: Int { manifest.bucket?.order ?? 0 }
@@ -196,7 +198,7 @@ final class ScriptCallbackGate: @unchecked Sendable {
 final class WidgetRuntime: ObservableObject {
     @Published private(set) var widgets: [LoadedWidget] = []
     /// Feeds the macOS widget extension (R14).
-    let sharedShelf = SharedShelfPublisher()
+    let sharedShelf: SharedShelfPublisher
     /// Source of truth for renders. Deliberately *not* `@Published`: updates
     /// are routed to the affected widget's `WidgetCardModel` only (publish
     /// suppressed when the snapshot is unchanged, `Equatable`).
@@ -227,11 +229,20 @@ final class WidgetRuntime: ObservableObject {
     private var cancellables: Set<AnyCancellable> = []
     private var inFlight: Set<String> = []
     private var nativeRefreshes = NativeRefreshGate()
+    /// The task behind each in-flight exec/workflow refresh. Revoke, Deny,
+    /// Disable and reload cancel it, so the process it is waiting on is
+    /// cancelled too instead of only having its result ignored.
+    private var nativeRefreshTasks: [String: (token: NativeRefreshGate.Token, task: Task<Void, Never>)] = [:]
+    private var runActionTasks: [String: [UUID: Task<Void, Never>]] = [:]
     private var scriptRefreshes = ScriptRefreshCoalescer()
     private let scriptCallbackGate = ScriptCallbackGate()
     /// Shutdowns started by Disable. Re-enable waits for this task so a late
     /// stop cannot terminate the newly launched process.
     private var scriptDisableStopTokens: [String: UInt] = [:]
+    private var scriptReloadBarrier: Task<Void, Never>?
+    private var scriptTimerPolicyRevision: UInt = 0
+    private var scriptTimerPolicyInitialized = false
+    private var lastScriptTimerAllowedIDs: Set<String>?
     /// Selected-page widgets plus pinned widgets. Automatic refresh and
     /// permission-triggering work is lazy outside this set.
     private(set) var visibleWidgetIDs: Set<String> = []
@@ -249,6 +260,7 @@ final class WidgetRuntime: ObservableObject {
     var menuBarPopoverWidgetID: String? {
         didSet {
             guard menuBarPopoverWidgetID != oldValue else { return }
+            syncScriptTimerActivity()
             refreshWidgetsAwaitingVisibility()
         }
     }
@@ -262,12 +274,14 @@ final class WidgetRuntime: ObservableObject {
     // MARK: Script runtime + permission enforcement (M2)
 
     let auditLog = AuditLog()
-    let permissionStore = PermissionStore(
-        fileURL: WidgetRuntime.applicationSupportDirectory
-            .appendingPathComponent("permissions.json")
-    )
+    let permissionStore: PermissionStore
     private let notificationService = NotificationService()
     private var scriptSupervisorStorage: RuntimeSupervisor?
+    /// `host.secret.*` values, per widget instance. Removing a widget erases
+    /// that instance's entries.
+    private let secretStore: SecretStoring
+    /// Widgets `removeWidget` is waiting to stop and purge.
+    private var removingWidgetIDs: Set<String> = []
 
     /// Per-widget persistent KV store, shared by the script runtime
     /// (`host.storage.*`) and workflow persistence (`storage.*` reads +
@@ -292,9 +306,19 @@ final class WidgetRuntime: ObservableObject {
 
     init(
         appPrefs: AppPrefs = .shared,
-        refreshStatsStore: RefreshStatsStore? = nil
+        refreshStatsStore: RefreshStatsStore? = nil,
+        permissionStore: PermissionStore? = nil,
+        scriptSupervisor: RuntimeSupervisor? = nil,
+        secretStore: SecretStoring = KeychainSecretStore(),
+        sharedShelf: SharedShelfPublisher? = nil
     ) {
         self.appPrefs = appPrefs
+        self.secretStore = secretStore
+        self.sharedShelf = sharedShelf ?? SharedShelfPublisher()
+        self.permissionStore = permissionStore ?? PermissionStore(
+            fileURL: Self.applicationSupportDirectory.appendingPathComponent("permissions.json")
+        )
+        self.scriptSupervisorStorage = scriptSupervisor
         self.refreshStatsStore = refreshStatsStore ?? RefreshStatsStore(
             fileURL: Self.applicationSupportDirectory
                 .appendingPathComponent(RefreshStatsStore.defaultFileName)
@@ -333,13 +357,13 @@ final class WidgetRuntime: ObservableObject {
         startHotReload()
         startMenuBarStalenessTicker()
         // The refresh button on a desktop widget.
-        sharedShelf.onRefreshRequest = { [weak self] widgetID in
+        self.sharedShelf.onRefreshRequest = { [weak self] widgetID in
             guard let self,
                   let widget = self.desktopWidgetCandidates().first(where: { $0.id == widgetID })
             else { return }
             self.refresh(widget, manual: true)
         }
-        sharedShelf.observeRefreshRequests()
+        self.sharedShelf.observeRefreshRequests()
     }
 
     private func applyAppPreferences(_ preferences: AppPreferences) {
@@ -427,6 +451,7 @@ final class WidgetRuntime: ObservableObject {
         if let existing = scriptSupervisorStorage { return existing }
         let appSupport = Self.applicationSupportDirectory
         let notificationService = self.notificationService
+        let permissionStore = self.permissionStore
         let weakRuntime = WeakWidgetRuntimeBox(self)
         let configuration = RuntimeSupervisorConfiguration(
             makeLaunchPlan: { widget in
@@ -436,16 +461,18 @@ final class WidgetRuntime: ObservableObject {
                 )
             },
             storage: storage,
-            secrets: KeychainSecretStore(),
-            notify: { title, body in
-                try await notificationService.show(title: title, body: body)
-            },
+            secrets: secretStore,
             audit: auditLog,
             widgetLogs: WidgetLogStore(),
+            locale: { WidgetLocalization.appLanguage },
             appearance: {
                 UserDefaults.standard.string(forKey: "AppleInterfaceStyle") == "Dark"
                     ? "dark"
                     : "light"
+            },
+            isApproved: { permissionStore.status(for: $0) == .approved },
+            notifyAuthorized: { title, body, authorization in
+                try await notificationService.show(title: title, body: body, authorization: authorization)
             }
         )
         let events = RuntimeSupervisorEvents(
@@ -490,7 +517,27 @@ final class WidgetRuntime: ObservableObject {
         )
         let supervisor = RuntimeSupervisor(configuration: configuration, events: events)
         scriptSupervisorStorage = supervisor
+        syncScriptTimerActivity(force: true)
         return supervisor
+    }
+
+    private var allowedScriptTimerWidgetIDs: Set<String>? {
+        guard appPrefs.preferences.pauseWhenClosed else { return nil }
+        var allowed = menuBarWidgetIDs.union(dockWidgetIDs)
+        if scheduler.popupIsOpen { allowed.formUnion(visibleWidgetIDs) }
+        if let id = menuBarPopoverWidgetID { allowed.insert(id) }
+        return allowed.subtracting(prefs.disabled)
+    }
+
+    private func syncScriptTimerActivity(force: Bool = false) {
+        let allowed = allowedScriptTimerWidgetIDs
+        guard force || !scriptTimerPolicyInitialized || lastScriptTimerAllowedIDs != allowed else { return }
+        scriptTimerPolicyInitialized = true
+        lastScriptTimerAllowedIDs = allowed
+        scriptTimerPolicyRevision &+= 1
+        guard let supervisor = scriptSupervisorStorage else { return }
+        let revision = scriptTimerPolicyRevision
+        Task { await supervisor.setTimerActivity(allowing: allowed, revision: revision) }
     }
 
     private func handleScriptRender(
@@ -499,7 +546,8 @@ final class WidgetRuntime: ObservableObject {
         guard scriptCallbackGate.accepts(widgetID: widgetId, token: callbackToken),
               scriptDisableStopTokens[widgetId] == nil,
               !prefs.isDisabled(widgetId),
-              let widget = widgets.first(where: { $0.id == widgetId }) else { return }
+              let widget = widgets.first(where: { $0.id == widgetId }),
+              permissionStore.status(for: widget.manifest) == .approved else { return }
         if let generation = params.loadGeneration {
             guard scriptRefreshes.markRendered(widgetID: widgetId, generation: generation) else { return }
         }
@@ -557,6 +605,7 @@ final class WidgetRuntime: ObservableObject {
                 $0.isLoading = false
                 $0.error = error
             }
+            persistShareableSnapshot(widgetID: widgetId)
             scheduler.noteRefreshFailed(widgetID: widgetId)
             recordRefreshFailure(widgetID: widgetId, error: error)
             return
@@ -564,7 +613,8 @@ final class WidgetRuntime: ObservableObject {
         // A script may intentionally retain its last-good render. Completion
         // still ends loading/backoff and records the successful no-change load.
         if !rendered {
-            updateSnapshot(widgetId) { $0.isLoading = false }
+            updateSnapshot(widgetId) { $0.isLoading = false; $0.error = nil }
+            persistShareableSnapshot(widgetID: widgetId)
             scheduler.noteRefreshSucceeded(widgetID: widgetId, nextRefreshAtMs: nil)
             recordRefreshSuccess(widgetID: widgetId)
         }
@@ -586,6 +636,7 @@ final class WidgetRuntime: ObservableObject {
                     $0.isLoading = false
                     $0.error = "script exited unexpectedly"
                 }
+                persistShareableSnapshot(widgetID: widgetId)
                 inFlight.remove(widgetId)
                 scheduler.noteRefreshFailed(widgetID: widgetId)
                 recordRefreshFailure(
@@ -599,6 +650,7 @@ final class WidgetRuntime: ObservableObject {
                 $0.isLoading = false
                 $0.error = "Widget disabled: \(reason)"
             }
+            persistShareableSnapshot(widgetID: widgetId)
             _ = scriptRefreshes.cancel(widgetID: widgetId)
             inFlight.remove(widgetId)
             scheduler.noteRefreshFailed(widgetID: widgetId)
@@ -632,6 +684,11 @@ final class WidgetRuntime: ObservableObject {
     private var scriptDisabledReasonCache: [String: String] = [:]
 
     private func presentApprovalCard(for widget: LoadedWidget, denied: Bool) {
+        // A permission overlay replaces the shelf card, but Dock glances and
+        // menu-bar values also observe this snapshot. Withdraw their last
+        // reading immediately, including a cache restored during a rescan.
+        cancelPendingPersist(widget.id)
+        setSnapshot(WidgetSnapshot(widgetID: widget.id), for: widget.id)
         if overlayCards[widget.id] == nil {
             auditLog.record("permission.requested", widgetId: widget.id, detail: [
                 "hash": .string(PermissionStore.permissionsHash(of: widget.manifest)),
@@ -647,7 +704,14 @@ final class WidgetRuntime: ObservableObject {
         auditLog.record("permission.approved", widgetId: widgetID, detail: [
             "hash": .string(PermissionStore.permissionsHash(of: widget.manifest)),
         ])
-        setOverlay(nil, for: widgetID)
+        for copy in widgets where copy.manifest.id == widget.manifest.id && scriptDisabledReasonCache[copy.id] == nil {
+            setOverlay(nil, for: copy.id)
+        }
+        publishDesktopWidgetIndex()
+        // Revocation removes promoted items and can stop the staleness timer.
+        // Approval must restore their placement without waiting for a render
+        // or an unrelated menu-bar refresh.
+        syncMenuBar()
         if widget.manifest.permissions?.notifications == true {
             NotificationService.requestAuthorization()
         }
@@ -657,14 +721,27 @@ final class WidgetRuntime: ObservableObject {
     func denyPermissions(widgetID: String) {
         guard let widget = widgets.first(where: { $0.id == widgetID }) else { return }
         permissionStore.deny(widget.manifest)
+        stopForPermissionChange(packageID: widget.manifest.id, denied: true)
         auditLog.record("permission.denied", widgetId: widgetID, detail: [
             "hash": .string(PermissionStore.permissionsHash(of: widget.manifest)),
         ])
-        setOverlay(.denied(Self.permissionRequests(for: widget)), for: widgetID)
+    }
+
+    /// Decisions belong to a package, so every running copy must stop too.
+    func stopForPermissionChange(packageID: String, denied: Bool) {
+        for widget in widgets where widget.manifest.id == packageID {
+            stopWidgetExecution(widget.id)
+            sharedShelf.withdraw(widgetID: widget.id)
+            presentApprovalCard(for: widget, denied: denied)
+        }
+        publishDesktopWidgetIndex()
+        syncMenuBar()
+        objectWillChange.send()
     }
 
     /// "Restart Widget" after a crash-loop disable.
     func restartScriptWidget(widgetID: String) {
+        guard !removingWidgetIDs.contains(widgetID) else { return }
         setOverlay(nil, for: widgetID)
         scriptDisabledReasonCache.removeValue(forKey: widgetID)
         updateSnapshot(widgetID) { $0.error = nil }
@@ -773,6 +850,12 @@ final class WidgetRuntime: ObservableObject {
     /// case: instead of printing the whole script we surface the tools it calls.
     static func describeExec(command: String, args: [String]) -> String {
         let name = friendlyCommandName(command)
+        // The starter clock only reads a formatted date. Its JSON format is
+        // not useful permission context; do not apply this description to
+        // date-setting arguments or an unrelated executable named date.
+        if command == "/bin/date", args.isEmpty || (args.count == 1 && args[0].hasPrefix("+")) {
+            return String(localized: "Read the current date and time using the macOS date tool")
+        }
         let shells: Set<String> = ["sh", "bash", "zsh", "dash", "ksh"]
         if shells.contains(name.lowercased()),
            let flag = args.firstIndex(of: "-c"), flag + 1 < args.count {
@@ -853,6 +936,13 @@ final class WidgetRuntime: ObservableObject {
             guard let before = previous[widget.id] else { return true }
             return before.manifest != widget.manifest || before.directory != widget.directory
         }.map(\.id))
+        for (id, entry) in nativeRefreshTasks where !seenIDs.contains(id) || changedIDs.contains(id) {
+            entry.task.cancel()
+            nativeRefreshTasks.removeValue(forKey: id)
+        }
+        for id in Array(runActionTasks.keys) where !seenIDs.contains(id) || changedIDs.contains(id) {
+            for task in runActionTasks.removeValue(forKey: id)?.values ?? [:].values { task.cancel() }
+        }
         nativeRefreshes.reload(keeping: seenIDs, changed: changedIDs)
         storage.retain(widgetIDs: seenIDs)
         let workflowURLs = Set(loaded.filter { $0.manifest.entry.kind == "workflow" }.compactMap {
@@ -864,6 +954,10 @@ final class WidgetRuntime: ObservableObject {
         // stays the same. Release only those script generations here; their
         // late SDK acknowledgements are ignored by generation matching.
         let cancelledScriptIDs = scriptRefreshes.cancelAll()
+        for id in Set(previous.values.filter { $0.manifest.entry.kind == "script" }.map(\.id))
+            .union(loaded.filter { $0.manifest.entry.kind == "script" }.map(\.id)) {
+            scriptCallbackGate.invalidate(widgetID: id)
+        }
         inFlight.subtract(cancelledScriptIDs)
         for id in cancelledScriptIDs where seenIDs.contains(id) {
             updateSnapshot(id) { $0.isLoading = false }
@@ -921,7 +1015,7 @@ final class WidgetRuntime: ObservableObject {
         // would let old code continue under the previous descriptor.
         scriptDisabledReasonCache = scriptDisabledReasonCache.filter { seenIDs.contains($0.key) }
         if let supervisor = scriptSupervisorStorage {
-            Task { await supervisor.retain(widgetIds: []) }
+            scriptReloadBarrier = Task { await supervisor.retain(widgetIds: []) }
         }
 
         let enabled = loaded.filter { !prefs.isDisabled($0.id) }
@@ -1008,12 +1102,14 @@ final class WidgetRuntime: ObservableObject {
         return target != root && target.hasPrefix(root + "/")
     }
 
-    /// Deletes the widget's directory and scrubs every per-widget trace
-    /// (cached snapshot, permissions, prefs), then rescans — which drops the
+    /// Stops the widget, waits for its running work, then deletes its storage,
+    /// secrets and directory and scrubs every per-widget trace (cached
+    /// snapshot, permissions, prefs), then rescans — which drops the
     /// in-memory snapshot, card model, refresh stats, and scheduler timers.
     /// Throws (deleting nothing) for unknown ids or directories outside the
-    /// user widgets root.
-    func removeWidget(id: String) throws {
+    /// user widgets root; throws with the widget still installed when its
+    /// data cannot be erased.
+    func removeWidget(id: String) async throws {
         guard let widget = widgets.first(where: { $0.id == id }) else {
             throw RuntimeError.widgetNotFound(id)
         }
@@ -1035,12 +1131,49 @@ final class WidgetRuntime: ObservableObject {
                 )
             }
         }
-        try FileManager.default.removeItem(at: widget.directory)
+        // Refresh, restart and duplicate stay off this widget until it is
+        // gone or the removal failed.
+        guard removingWidgetIDs.insert(id).inserted else {
+            throw RuntimeError.notRemovable(
+                String(localized: "\"\(widget.manifest.name)\" is already being removed.")
+            )
+        }
+        do {
+            // Wait for everything that could write the widget's storage or a
+            // secret: its native refresh (and the command it runs), then the
+            // script and its host commands. Only then is the purge final.
+            let nativeRefresh = nativeRefreshTasks[id]?.task
+            let actions = Array(runActionTasks[id]?.values ?? [:].values)
+            stopWidgetExecution(id)
+            await nativeRefresh?.value
+            for action in actions { await action.value }
+            await scriptSupervisorStorage?.stopAndWait(widgetId: id)
+            // Purging before the files go means a failure leaves the widget
+            // installed, not reported as removed with its data still on disk.
+            try purgeInstanceData(id)
+            try FileManager.default.removeItem(at: widget.directory)
+        } catch {
+            removingWidgetIDs.remove(id)
+            storage.retain(widgetID: id)
+            refresh(widgetID: id, manual: true) // resume what the stop halted
+            throw error
+        }
+        removingWidgetIDs.remove(id)
         cancelPendingPersist(id) // no queued write may re-create the cache
         Self.removeCachedSnapshot(widgetID: id)
-        permissionStore.reset(widgetId: id)
+        // Decisions belong to the package, which other loaded copies still use.
+        if !widgets.contains(where: { $0.id != id && $0.manifest.id == widget.manifest.id }) {
+            permissionStore.reset(widgetId: widget.manifest.id)
+        }
         prefs.removeAllState(for: id)
         loadWidgets()
+    }
+
+    /// Storage and secrets of exactly this instance; another instance of the
+    /// same package keeps its own.
+    private func purgeInstanceData(_ id: String) throws {
+        try storage.removeAll(widgetId: id)
+        try secretStore.removeAll(widgetId: id)
     }
 
     /// Creates a second independently configurable instance of an installed
@@ -1052,6 +1185,16 @@ final class WidgetRuntime: ObservableObject {
         guard let widget = widgets.first(where: { $0.id == id }) else {
             throw RuntimeError.widgetNotFound(id)
         }
+        guard !removingWidgetIDs.contains(id), !removingWidgetIDs.contains(widget.manifest.id) else {
+            throw RuntimeError.notRemovable(
+                String(localized: "\"\(widget.manifest.name)\" is being removed.")
+            )
+        }
+        guard WidgetDiscovery.isValidWidgetID(widget.manifest.id) else {
+            throw RuntimeError.invalidInstanceName(
+                String(localized: "This widget has an invalid ID. Fix the id in widget.json before adding an instance.")
+            )
+        }
         let normalized = Self.normalizedInstanceLabel(label)
         guard !normalized.isEmpty else {
             throw RuntimeError.invalidInstanceName(
@@ -1059,17 +1202,15 @@ final class WidgetRuntime: ObservableObject {
             )
         }
 
-        let canonical = Self.userWidgetsRoot.appendingPathComponent(
-            widget.manifest.id, isDirectory: true
-        )
-        var canonicalIsDirectory: ObjCBool = false
-        guard FileManager.default.fileExists(
-            atPath: canonical.path, isDirectory: &canonicalIsDirectory
-        ), canonicalIsDirectory.boolValue else {
+        guard Self.isRemovableWidgetDirectory(widget.directory),
+              let installed = HeadlessInstaller.installedPackages(
+                in: Self.userWidgetsRoot
+              )[widget.manifest.id] else {
             throw RuntimeError.notRemovable(
                 String(localized: "Install \"\(widget.manifest.name)\" before adding another instance.")
             )
         }
+        let canonical = installed.directory
 
         let instanceID = widget.manifest.id + "--" + normalized
         let destination = Self.userWidgetsRoot.appendingPathComponent(instanceID)
@@ -1094,6 +1235,7 @@ final class WidgetRuntime: ObservableObject {
         if let appearance = prefs.appearanceOverride(for: id) {
             prefs.setAppearanceOverride(appearance, for: instanceID)
         }
+        prefs.setRefreshInterval(prefs.refreshIntervals[id], for: instanceID)
         if let placement = prefs.override(for: id) {
             prefs.setOverride(
                 group: placement.group,
@@ -1185,29 +1327,7 @@ final class WidgetRuntime: ObservableObject {
         prefs.setDisabled(id, flag)
         publishDesktopWidgetIndex()
         if flag {
-            nativeRefreshes.cancel(id)
-            updateSnapshot(id) { $0.isLoading = false }
-            scriptCallbackGate.invalidate(widgetID: id)
-            if scriptRefreshes.cancel(widgetID: id) {
-                updateSnapshot(id) { $0.isLoading = false }
-            }
-            inFlight.remove(id)
-            if let supervisor = scriptSupervisorStorage {
-                let stopToken = scriptCallbackGate.token(for: id)
-                let stop = Task { await supervisor.stop(widgetId: id) }
-                scriptDisableStopTokens[id] = stopToken
-                Task { @MainActor [weak self] in
-                    await stop.value
-                    guard let self, self.scriptDisableStopTokens[id] == stopToken else { return }
-                    // Callbacks emitted after Disable invalidated the first
-                    // epoch but before the supervisor finished stopping used
-                    // that new epoch. Invalidate once more before allowing a
-                    // quick re-enable to start its replacement process.
-                    self.scriptCallbackGate.invalidate(widgetID: id)
-                    self.scriptDisableStopTokens.removeValue(forKey: id)
-                    if !self.prefs.isDisabled(id) { self.refresh(widgetID: id, manual: true) }
-                }
-            }
+            stopWidgetExecution(id)
         }
         scheduler.configure(widgets: widgets.filter { !prefs.isDisabled($0.id) })
         setVisibleWidgetIDs(visibleWidgetIDs)
@@ -1217,6 +1337,34 @@ final class WidgetRuntime: ObservableObject {
         objectWillChange.send()
         if !flag, scriptDisableStopTokens[id] == nil {
             refresh(widgetID: id, manual: true)
+        }
+    }
+
+    /// Immediately invalidate callbacks, then stop the resident process. Both
+    /// disabling and permission withdrawal use this path, including rapid
+    /// re-enabling while the previous process is still shutting down.
+    private func stopWidgetExecution(_ id: String) {
+        for task in runActionTasks.removeValue(forKey: id)?.values ?? [:].values { task.cancel() }
+        nativeRefreshTasks.removeValue(forKey: id)?.task.cancel()
+        nativeRefreshes.cancel(id)
+        updateSnapshot(id) { $0.isLoading = false }
+        scriptCallbackGate.invalidate(widgetID: id)
+        _ = scriptRefreshes.cancel(widgetID: id)
+        inFlight.remove(id)
+        guard let supervisor = scriptSupervisorStorage else { return }
+        let stopToken = scriptCallbackGate.token(for: id)
+        let stop = Task { await supervisor.stop(widgetId: id) }
+        scriptDisableStopTokens[id] = stopToken
+        Task { @MainActor [weak self] in
+            await stop.value
+            guard let self, self.scriptDisableStopTokens[id] == stopToken else { return }
+            self.scriptCallbackGate.invalidate(widgetID: id)
+            self.scriptDisableStopTokens.removeValue(forKey: id)
+            if !self.prefs.isDisabled(id),
+               let widget = self.widgets.first(where: { $0.id == id }),
+               self.permissionStore.status(for: widget.manifest) == .approved {
+                self.refresh(widgetID: id, manual: true)
+            }
         }
     }
 
@@ -1393,6 +1541,7 @@ final class WidgetRuntime: ObservableObject {
         var charting = Set<String>()
 
         for widget in widgets where !prefs.isDisabled(widget.id) {
+            guard permissionStore.status(for: widget.manifest) == .approved else { continue }
             let placement = prefs.menuBarPlacement(
                 for: widget.manifest, widgetID: widget.id
             )
@@ -1448,7 +1597,7 @@ final class WidgetRuntime: ObservableObject {
                 // who slows it to 30 s must not see it dimmed as stale after 2.
                 isStale: MenuBarPolicy.isStale(
                     updatedAt: snapshot?.updatedAt,
-                    interval: (placement.interval ?? widget.manifest.refresh?.interval)
+                    interval: (placement.interval ?? prefs.refreshIntervals[widget.id] ?? widget.manifest.refresh?.interval)
                         .map { $0 * multiplier }
                 ),
                 separate: separate,
@@ -1513,13 +1662,15 @@ final class WidgetRuntime: ObservableObject {
         startChartHistorySaver()
         // Before the promoted-set check: a changed cadence re-arms timers even
         // when the set of promoted widgets is the same.
+        scheduler.setWidgetIntervalOverrides(prefs.refreshIntervals)
         scheduler.setIntervalOverrides(intervalOverrides)
+        syncScriptTimerActivity()
         let promoted = menuBarWidgetIDs
         guard promoted != previous else { return }
         scheduler.setMenuBarWidgetIDs(promoted.union(dockWidgetIDs))
         for id in promoted.subtracting(previous) {
             let widget = widgets.first { $0.id == id }
-            let staleAfter = effectiveStaleAfter(widget?.manifest.refresh?.staleAfterSec)
+            let staleAfter = widget.flatMap { effectiveStaleAfter(for: $0) }
             let snapshot = snapshots[id] ?? WidgetSnapshot(widgetID: id)
             if snapshot.isStale(after: staleAfter) {
                 refresh(widgetID: id, manual: false)
@@ -1674,6 +1825,7 @@ final class WidgetRuntime: ObservableObject {
         let changed = normalized != visibleWidgetIDs
         visibleWidgetIDs = normalized
         scheduler.setVisibleWidgetIDs(normalized)
+        syncScriptTimerActivity()
         guard changed, scheduler.popupIsOpen else { return }
         refreshVisibleWidgetsIfNeeded()
         refreshWidgetsAwaitingVisibility()
@@ -1681,6 +1833,7 @@ final class WidgetRuntime: ObservableObject {
 
     func popupOpened() {
         scheduler.popupOpened()
+        syncScriptTimerActivity()
         refreshVisibleWidgetsIfNeeded()
         refreshWidgetsAwaitingVisibility()
     }
@@ -1696,10 +1849,11 @@ final class WidgetRuntime: ObservableObject {
         let added = normalized.subtracting(dockWidgetIDs)
         dockWidgetIDs = normalized
         scheduler.setMenuBarWidgetIDs(menuBarWidgetIDs.union(normalized))
+        syncScriptTimerActivity()
         for id in added {
             guard let widget = widgets.first(where: { $0.id == id }) else { continue }
             let snapshot = snapshots[id] ?? WidgetSnapshot(widgetID: id)
-            if snapshot.isStale(after: effectiveStaleAfter(widget.manifest.refresh?.staleAfterSec)) {
+            if snapshot.isStale(after: effectiveStaleAfter(for: widget)) {
                 refresh(widget, manual: false)
             } else if visibilityAwareWidgetIDs.contains(id), lastRefreshVisibility[id] == false {
                 refresh(widget, manual: false)
@@ -1735,7 +1889,7 @@ final class WidgetRuntime: ObservableObject {
             let refresh = widget.manifest.refresh
             let snapshot = snapshots[widget.id] ?? WidgetSnapshot(widgetID: widget.id)
             if refresh?.onOpen == true,
-               snapshot.isStale(after: effectiveStaleAfter(refresh?.staleAfterSec)) {
+               snapshot.isStale(after: effectiveStaleAfter(for: widget)) {
                 self.refresh(widget, manual: false)
             }
         }
@@ -1743,6 +1897,7 @@ final class WidgetRuntime: ObservableObject {
 
     func popupClosed() {
         scheduler.popupClosed()
+        syncScriptTimerActivity()
     }
 
     // MARK: - Refresh
@@ -1766,16 +1921,17 @@ final class WidgetRuntime: ObservableObject {
             if backgroundOnly, widget.manifest.refresh?.runInBackground != true { continue }
             if scheduler.popupIsOpen, !visibleWidgetIDs.contains(widget.id) { continue }
             let snapshot = snapshots[widget.id] ?? WidgetSnapshot(widgetID: widget.id)
-            if snapshot.isStale(after: effectiveStaleAfter(widget.manifest.refresh?.staleAfterSec)) {
+            if snapshot.isStale(after: effectiveStaleAfter(for: widget)) {
                 refresh(widget, manual: false)
             }
         }
     }
 
-    private func effectiveStaleAfter(_ configured: Double?) -> Double? {
+    private func effectiveStaleAfter(for widget: LoadedWidget) -> Double? {
         SchedulePolicy.effectiveStaleAfter(
-            configured: configured,
-            multiplier: appPrefs.preferences.refreshMultiplier
+            configured: widget.manifest.refresh?.staleAfterSec,
+            multiplier: appPrefs.preferences.refreshMultiplier,
+            intervalOverride: prefs.refreshIntervals[widget.id]
         )
     }
 
@@ -1783,6 +1939,7 @@ final class WidgetRuntime: ObservableObject {
         let id = widget.id
         guard !prefs.isDisabled(id) else { return } // disabled widgets never run
         guard scriptDisableStopTokens[id] == nil else { return }
+        guard !removingWidgetIDs.contains(id) else { return }
         if manual { RemoteImageService.shared.retryFailedImages() }
         guard !inFlight.contains(id) else { return } // in-flight coalescing
         if !manual, !scheduler.allowsAutomaticRefresh(widgetID: id) {
@@ -1843,13 +2000,30 @@ final class WidgetRuntime: ObservableObject {
         inFlight.insert(id)
         updateSnapshot(id) { $0.isLoading = true }
 
-        Task { @MainActor [weak self] in
+        let task = Task { @MainActor [weak self] in
             guard let self else { return }
             let outcome = await self.performRefresh(
-                widget: widget, source: source, command: command, permission: permission
+                widget: widget, source: source, command: command,
+                permission: permission, token: token
             )
             self.finishRefresh(widget: widget, outcome: outcome, startedAt: startedAt, token: token)
         }
+        nativeRefreshTasks[id] = (token, task)
+    }
+
+    /// Whether a native refresh started under `token` may launch its next
+    /// command or perform its next side effect. The refresh task starts on a
+    /// later main-actor turn and suspends between sources, so a Revoke, Deny,
+    /// Disable or reload can land before the first launch or between two.
+    private func nativeRefreshMayContinue(_ widget: LoadedWidget, token: NativeRefreshGate.Token) -> Bool {
+        !Task.isCancelled
+            && nativeRefreshes.isCurrent(widget.id, token: token)
+            && !prefs.isDisabled(widget.id)
+            && permissionStore.status(for: widget.manifest) == .approved
+    }
+
+    private func checkNativeRefresh(_ widget: LoadedWidget, token: NativeRefreshGate.Token) throws {
+        guard nativeRefreshMayContinue(widget, token: token) else { throw CancellationError() }
     }
 
     /// Script widgets: ensure the resident process runs and (re)send
@@ -1861,18 +2035,29 @@ final class WidgetRuntime: ObservableObject {
         inFlight.insert(id)
         markRefreshStarted(widgetID: id)
         updateSnapshot(id) { $0.isLoading = true }
+        let callbackGate = scriptCallbackGate
+        let callbackToken = callbackGate.token(for: id)
+        let authorization = ScriptRequestAuthorization(isApproved: {
+            callbackGate.accepts(widgetID: id, token: callbackToken)
+        })
         let descriptor = ScriptWidgetDescriptor(
             manifest: widget.manifest,
             directory: widget.directory,
             instanceID: widget.id,
-            revision: widget.loadRevision
+            revision: widget.loadRevision,
+            authorization: authorization
         )
         let isFirstLoad = snapshots[id]?.viewTree == nil
         let reason = manual ? "manual" : (isFirstLoad ? "install" : "open")
         Task { @MainActor [weak self] in
-            guard let self else { return }
+            guard let self, authorization.isValid else { return }
             do {
-                try await self.scriptSupervisor.load(
+                await self.scriptReloadBarrier?.value
+                guard authorization.isValid else { return }
+                let supervisor = self.scriptSupervisor
+                await supervisor.setTimerActivity(allowing: self.allowedScriptTimerWidgetIDs, revision: self.scriptTimerPolicyRevision)
+                guard authorization.isValid else { return }
+                try await supervisor.load(
                     descriptor,
                     reason: reason,
                     settings: self.prefs.effectiveSettings(
@@ -1890,6 +2075,7 @@ final class WidgetRuntime: ObservableObject {
                     $0.isLoading = false
                     $0.error = message // e.g. "Deno runtime not found. Install Deno: brew install deno"
                 }
+                self.persistShareableSnapshot(widgetID: id)
                 self.inFlight.remove(id)
                 self.scheduler.noteRefreshFailed(widgetID: id)
                 self.recordRefreshFailure(widgetID: id, error: message)
@@ -1916,8 +2102,10 @@ final class WidgetRuntime: ObservableObject {
         widget: LoadedWidget,
         source: Manifest.Source,
         command: [String],
-        permission: Manifest.ExecPermission
+        permission: Manifest.ExecPermission,
+        token: NativeRefreshGate.Token
     ) async -> Result<RefreshSuccess, Error> {
+        guard nativeRefreshMayContinue(widget, token: token) else { return .failure(CancellationError()) }
         auditLog.record("exec.run", widgetId: widget.id, detail: [
             "command": .string(
                 permission.sensitiveOutput == true
@@ -1938,6 +2126,8 @@ final class WidgetRuntime: ObservableObject {
             return .failure(error)
         case let .success(data):
             do {
+                // An adapter may run more commands of its own.
+                try checkNativeRefresh(widget, token: token)
                 if source.output == "data" {
                     guard let adapterName = source.adapter else {
                         throw RuntimeError.missingAdapter("source.output is \"data\" but no adapter is set")
@@ -2012,6 +2202,7 @@ final class WidgetRuntime: ObservableObject {
         // recording which workflows use it, raced.
         let visible = isCardVisible(id)
         let widgetContext: JSONValue = .object([
+            "locale": .string(WidgetLocalization.appLanguage),
             // `size` lets a workflow switch layout per bucket size; `visible`
             // lets it do less while nothing is on screen (the sensors widget
             // reads 46 SMC keys instead of 129 with its card closed).
@@ -2024,11 +2215,11 @@ final class WidgetRuntime: ObservableObject {
         inFlight.insert(id)
         updateSnapshot(id) { $0.isLoading = true }
 
-        Task { @MainActor [weak self] in
+        let task = Task { @MainActor [weak self] in
             guard let self else { return }
             let outcome = await self.performWorkflowRefresh(
                 widget: widget, workflowURL: workflowURL,
-                settings: settings, widgetContext: widgetContext
+                settings: settings, widgetContext: widgetContext, token: token
             )
             // Before `finishRefresh`, whose catch-up reads this.
             if self.nativeRefreshes.isCurrent(id, token: token), let reads = outcome.readsWidgetVisibility {
@@ -2036,6 +2227,7 @@ final class WidgetRuntime: ObservableObject {
             }
             self.finishRefresh(widget: widget, outcome: outcome.result, startedAt: startedAt, token: token)
         }
+        nativeRefreshTasks[id] = (token, task)
     }
 
     /// What one workflow refresh produced, plus whether the workflow reads
@@ -2060,7 +2252,8 @@ final class WidgetRuntime: ObservableObject {
         widget: LoadedWidget,
         workflowURL: URL,
         settings: JSONValue,
-        widgetContext: JSONValue
+        widgetContext: JSONValue,
+        token: NativeRefreshGate.Token
     ) async -> WorkflowRefreshOutcome {
         let cached: WorkflowDefinitionCache.Entry
         do {
@@ -2068,9 +2261,12 @@ final class WidgetRuntime: ObservableObject {
         } catch {
             return WorkflowRefreshOutcome(result: .failure(error), readsWidgetVisibility: nil)
         }
+        // Display text only, from the cached decode; widgets without a table
+        // for the app's language use the cached tree as is.
+        let definition = widget.manifest.localization()?.workflow(cached.definition) ?? cached.definition
         let result = await evaluateWorkflow(
-            widget: widget, definition: cached.definition,
-            settings: settings, widgetContext: widgetContext
+            widget: widget, definition: definition,
+            settings: settings, widgetContext: widgetContext, token: token
         )
         return WorkflowRefreshOutcome(
             result: result, readsWidgetVisibility: cached.readsWidgetVisibility
@@ -2081,7 +2277,8 @@ final class WidgetRuntime: ObservableObject {
         widget: LoadedWidget,
         definition: WorkflowDefinition,
         settings: JSONValue,
-        widgetContext: JSONValue
+        widgetContext: JSONValue,
+        token: NativeRefreshGate.Token
     ) async -> Result<RefreshSuccess, Error> {
         do {
             // Storage is opt-in: only widgets that declare `permissions.storage`
@@ -2097,6 +2294,8 @@ final class WidgetRuntime: ObservableObject {
 
             var sourceValues: [String: JSONValue] = [:]
             for (sourceID, source) in definition.sources {
+                // Each source runs after the previous one's suspension.
+                try checkNativeRefresh(widget, token: token)
                 let value = params[sourceID] ?? .object([:])
                 switch source.use {
                 case "fs.directory":
@@ -2117,6 +2316,7 @@ final class WidgetRuntime: ObservableObject {
                         )
                     }
                     sourceValues[sourceID] = listing.value
+                    try checkNativeRefresh(widget, token: token)
                     if fsParams.watch {
                         registerWorkflowWatch(widgetID: widget.id, directory: listing.directory)
                     }
@@ -2141,6 +2341,7 @@ final class WidgetRuntime: ObservableObject {
                 }
             }
 
+            try checkNativeRefresh(widget, token: token)
             let output = try WorkflowEngine.evaluate(
                 definition, sources: sourceValues, settings: settings,
                 storage: storageSnapshot, widget: widgetContext
@@ -2545,6 +2746,7 @@ final class WidgetRuntime: ObservableObject {
         token: NativeRefreshGate.Token
     ) {
         let id = widget.id
+        if nativeRefreshTasks[id]?.token == token { nativeRefreshTasks.removeValue(forKey: id) }
         switch nativeRefreshes.finish(id, token: token) {
         case .superseded: return
         case .staleConfiguration:
@@ -2558,6 +2760,13 @@ final class WidgetRuntime: ObservableObject {
         case .current: break
         }
         inFlight.remove(id)
+        // Stopped by a permission change or Disable, not failed: nothing
+        // to publish and no backoff.
+        if case let .failure(error) = outcome, error is CancellationError {
+            refreshStartedAt.removeValue(forKey: id)
+            updateSnapshot(id) { $0.isLoading = false }
+            return
+        }
 
         var snapshot = snapshots[id] ?? WidgetSnapshot(widgetID: id)
         snapshot.isLoading = false
@@ -2586,6 +2795,9 @@ final class WidgetRuntime: ObservableObject {
             // Last-good render stays; only the error banner changes.
             let message = Self.describe(error: error, widget: widget)
             snapshot.error = message
+            if !widget.isSensitive, !sensitiveRenderIDs.contains(id) {
+                persistSnapshot(snapshot)
+            }
             scheduler.noteRefreshFailed(widgetID: id)
             recordRefreshFailure(
                 widgetID: id, error: message,
@@ -2704,12 +2916,14 @@ final class WidgetRuntime: ObservableObject {
 
     /// Executes a `run` action's command iff it matches the widget's
     /// `permissions.exec` allowlist; mismatches are blocked and logged.
-    func performRun(action: NodeAction, widgetID: String) {
-        guard let widget = widgets.first(where: { $0.id == widgetID }) else { return }
-        guard gatePermissions(for: widget) else { return }
+    @discardableResult
+    func performRun(action: NodeAction, widgetID: String) -> Task<Void, Never>? {
+        guard let widget = widgets.first(where: { $0.id == widgetID }) else { return nil }
+        guard !prefs.isDisabled(widgetID), !removingWidgetIDs.contains(widgetID) else { return nil }
+        guard gatePermissions(for: widget) else { return nil }
         guard let command = action.command, !command.isEmpty else {
             NSLog("barshelf: run action from %@ has no command", widgetID)
-            return
+            return nil
         }
         guard let permission = ExecAllowlist.match(
             command: command, permissions: widget.manifest.permissions?.exec
@@ -2722,7 +2936,7 @@ final class WidgetRuntime: ObservableObject {
                 "command": .string(command.joined(separator: " ")),
                 "reason": .string("run action not in permissions.exec allowlist"),
             ])
-            return
+            return nil
         }
         auditLog.record("exec.run", widgetId: widgetID, detail: [
             "command": .string(
@@ -2733,14 +2947,26 @@ final class WidgetRuntime: ObservableObject {
         ])
 
         let thenRefresh = action.thenRefresh ?? false
-        Task { @MainActor [weak self] in
+        let actionID = UUID()
+        let callbackGate = scriptCallbackGate
+        let callbackToken = callbackGate.token(for: widgetID)
+        let task = Task { @MainActor [weak self] in
             guard let self else { return }
+            defer {
+                self.runActionTasks[widgetID]?.removeValue(forKey: actionID)
+                if self.runActionTasks[widgetID]?.isEmpty == true { self.runActionTasks.removeValue(forKey: widgetID) }
+            }
+            guard !Task.isCancelled, callbackGate.accepts(widgetID: widgetID, token: callbackToken),
+                  !self.prefs.isDisabled(widgetID), !self.removingWidgetIDs.contains(widgetID),
+                  self.permissionStore.status(for: widget.manifest) == .approved else { return }
             let result = await Self.dispatchRunActionExec(
                 execService: self.execService,
                 widget: widget,
                 command: command,
                 permission: permission
             )
+            guard !Task.isCancelled, callbackGate.accepts(widgetID: widgetID, token: callbackToken),
+                  self.permissionStore.status(for: widget.manifest) == .approved else { return }
             switch result {
             case .success:
                 if thenRefresh {
@@ -2750,8 +2976,11 @@ final class WidgetRuntime: ObservableObject {
                 self.updateSnapshot(widgetID) {
                     $0.error = "run action failed: \(error.localizedDescription)"
                 }
+                self.persistShareableSnapshot(widgetID: widgetID)
             }
         }
+        runActionTasks[widgetID, default: [:]][actionID] = task
+        return task
     }
 
     /// Declarative run-action launch seam, also used by the production action
@@ -2966,6 +3195,14 @@ final class WidgetRuntime: ObservableObject {
     private var pendingPersists: [String: DispatchWorkItem] = [:]
     private var unpersistedSnapshots: [String: WidgetSnapshot] = [:]
 
+    private func persistShareableSnapshot(widgetID: String) {
+        guard let widget = widgets.first(where: { $0.id == widgetID }),
+              !widget.isSensitive, !sensitiveRenderIDs.contains(widgetID),
+              permissionStore.status(for: widget.manifest) == .approved,
+              let snapshot = snapshots[widgetID] else { return }
+        persistSnapshot(snapshot)
+    }
+
     private func persistSnapshot(_ snapshot: WidgetSnapshot) {
         let id = snapshot.widgetID
         if sharedShelf.isAnswering(id) {
@@ -3002,6 +3239,7 @@ final class WidgetRuntime: ObservableObject {
         widgets.filter {
             !$0.isSensitive && !sensitiveRenderIDs.contains($0.id) && !prefs.isDisabled($0.id)
                 && $0.manifest.desktop?.offer != false
+                && permissionStore.status(for: $0.manifest) == .approved
         }
     }
 
@@ -3034,7 +3272,7 @@ final class WidgetRuntime: ObservableObject {
         guard sharedShelf.isEnabled, snapshot.safeForSensitiveCache != true,
               !sensitiveRenderIDs.contains(snapshot.widgetID),
               let widget = widgets.first(where: { $0.id == snapshot.widgetID }),
-              !widget.isSensitive
+              !widget.isSensitive, permissionStore.status(for: widget.manifest) == .approved
         else { return }
         sharedShelf.publish(SharedShelf.Snapshot(
             widgetID: widget.id,
@@ -3048,7 +3286,8 @@ final class WidgetRuntime: ObservableObject {
             statusTint: snapshot.statusTint,
             staleAfter: SharedShelf.staleAfter(
                 updatedAt: snapshot.updatedAt,
-                interval: widget.manifest.refresh?.interval.map { $0 * appPrefs.preferences.refreshMultiplier },
+                interval: (prefs.refreshIntervals[widget.id] ?? widget.manifest.refresh?.interval)
+                    .map { $0 * appPrefs.preferences.refreshMultiplier },
                 fallback: widget.manifest.refresh?.staleAfterSec ?? 3600
             ),
             preferredStyle: widget.manifest.desktop?.style

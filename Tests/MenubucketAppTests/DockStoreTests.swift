@@ -8,9 +8,20 @@ import XCTest
 final class DockStoreTests: XCTestCase {
     private final class FakeDefaults: AppleDockDefaults {
         var values: [String: Any] = [:]
+        var beforeSet: ((String, Any?) -> Void)?
+        var synchronizationFailures = 0
         func value(forKey key: String) -> Any? { values[key] }
-        func set(_ value: Any?, forKey key: String) { values[key] = value }
+        func set(_ value: Any?, forKey key: String) {
+            beforeSet?(key, value)
+            values[key] = value
+        }
         func synchronize() {}
+        func synchronizeChanges() throws {
+            if synchronizationFailures > 0 {
+                synchronizationFailures -= 1
+                throw AppleDockError.preferenceWriteFailed
+            }
+        }
     }
 
     private var fileURL: URL!
@@ -44,6 +55,148 @@ final class DockStoreTests: XCTestCase {
         XCTAssertNil(defaults.values[AppleDock.autohideDelayKey])
         XCTAssertNil(store.configuration.appleDockBackup)
         XCTAssertEqual(restarts, 2)
+    }
+
+    func testRecoveryBackupIsOnDiskBeforeFirstPreferenceMutationOrRestart() throws {
+        let original = AppleDockVisibility(autohide: false, autohideDelay: 0.75)
+        defaults.values[AppleDock.autohideKey] = original.autohide
+        defaults.values[AppleDock.autohideDelayKey] = original.autohideDelay
+        let file = try XCTUnwrap(fileURL)
+        var mutations = 0
+        defaults.beforeSet = { _, _ in
+            mutations += 1
+            XCTAssertTrue(FileManager.default.fileExists(atPath: file.path))
+            XCTAssertEqual(DockConfiguration.load(from: file).appleDockBackup, original)
+        }
+        let dock = AppleDock(defaults: defaults) {
+            XCTAssertEqual(DockConfiguration.load(from: file).appleDockBackup, original)
+        }
+        var store: DockStore? = DockStore(fileURL: file, appleDock: dock)
+        store?.update { $0.mode = .replace }
+        XCTAssertNil(store?.lastError)
+        XCTAssertEqual(mutations, 2)
+        XCTAssertTrue(dock.isHidden)
+        defaults.beforeSet = nil
+        store = nil // abrupt app exit: no termination restoration
+
+        let recovered = DockStore(fileURL: file, appleDock: dock)
+        recovered.reconcileAppleDockAtLaunch()
+        XCTAssertEqual(recovered.configuration.appleDockBackup, original)
+        recovered.restoreAppleDockOnRequest()
+        XCTAssertEqual(dock.visibility, original)
+        XCTAssertNil(DockConfiguration.load(from: file).appleDockBackup)
+    }
+
+    func testFailedBackupSaveLeavesAppleDockAndModeUnchanged() {
+        defaults.values[AppleDock.autohideKey] = false
+        defaults.values[AppleDock.autohideDelayKey] = 0.25
+        var mutations = 0
+        defaults.beforeSet = { _, _ in mutations += 1 }
+        let store = DockStore(fileURL: fileURL,
+            appleDock: AppleDock(defaults: defaults) { [weak self] in self?.restarts += 1 },
+            persistConfiguration: { _, _ in throw CocoaError(.fileWriteNoPermission) })
+        store.update { $0.mode = .replace }
+
+        XCTAssertEqual(mutations, 0)
+        XCTAssertEqual(restarts, 0)
+        XCTAssertEqual(store.configuration.mode, .off)
+        XCTAssertNil(store.configuration.appleDockBackup)
+        XCTAssertNotNil(store.lastError)
+        XCTAssertEqual(store.appleDock.visibility, AppleDockVisibility(autohide: false, autohideDelay: 0.25))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fileURL.path))
+    }
+
+    func testFailedHideRollsBackExactlyAndKeepsDurableRecoveryRecord() {
+        let original = AppleDockVisibility(autohide: nil, autohideDelay: 0.125)
+        defaults.values[AppleDock.autohideDelayKey] = original.autohideDelay
+        defaults.synchronizationFailures = 1
+        let store = makeStore()
+        store.update { $0.mode = .replace }
+
+        XCTAssertEqual(store.configuration.mode, .off)
+        XCTAssertNotNil(store.lastError)
+        XCTAssertEqual(store.appleDock.visibility, original)
+        XCTAssertEqual(DockConfiguration.load(from: fileURL).appleDockBackup, original)
+        let relaunched = makeStore()
+        relaunched.reconcileAppleDockAtLaunch()
+        XCTAssertEqual(relaunched.appleDock.visibility, original)
+        XCTAssertNil(relaunched.configuration.appleDockBackup)
+        XCTAssertNil(DockConfiguration.load(from: fileURL).appleDockBackup)
+    }
+
+    func testFailedRollbackRetainsBackupForNextLaunch() {
+        let original = AppleDockVisibility(autohide: false, autohideDelay: nil)
+        defaults.values[AppleDock.autohideKey] = false
+        defaults.synchronizationFailures = 2
+        let store = makeStore()
+        store.update { $0.mode = .replace }
+        XCTAssertNotNil(store.lastError)
+        XCTAssertEqual(store.configuration.mode, .off)
+        XCTAssertEqual(DockConfiguration.load(from: fileURL).appleDockBackup, original)
+
+        // Model a partial system write surviving both failed synchronizations.
+        defaults.values[AppleDock.autohideKey] = true
+        defaults.values[AppleDock.autohideDelayKey] = AppleDock.hiddenDelay
+        let relaunched = makeStore()
+        relaunched.reconcileAppleDockAtLaunch()
+        XCTAssertEqual(relaunched.appleDock.visibility, original)
+        XCTAssertNil(DockConfiguration.load(from: fileURL).appleDockBackup)
+    }
+
+    /// A failed rollback says what happened in the app's own words and offers
+    /// the kept copy; Restore Apple Dock (the settings banner's action) then
+    /// puts it back and clears the warning, without waiting for a relaunch.
+    func testAFailedRollbackOffersRestoreAndRestoreClearsTheWarning() {
+        let original = AppleDockVisibility(autohide: false, autohideDelay: nil)
+        defaults.values[AppleDock.autohideKey] = false
+        defaults.synchronizationFailures = 2
+        let store = makeStore()
+        store.update { $0.mode = .replace }
+
+        XCTAssertEqual(store.lastError, DockStore.message(for: AppleDockError.rollbackFailed))
+        XCTAssertNotEqual(store.lastError, AppleDockError.rollbackFailed.errorDescription, "not Core's English text")
+        XCTAssertTrue(store.hasAppleDockBackup, "the banner offers Restore Apple Dock")
+
+        // The half-written hide survived; the action puts the user's settings back.
+        defaults.values[AppleDock.autohideKey] = true
+        defaults.values[AppleDock.autohideDelayKey] = AppleDock.hiddenDelay
+        store.restoreAppleDockOnRequest()
+        XCTAssertNil(store.lastError)
+        XCTAssertFalse(store.hasAppleDockBackup)
+        XCTAssertEqual(store.appleDock.visibility, original)
+        XCTAssertNil(DockConfiguration.load(from: fileURL).appleDockBackup)
+        XCTAssertEqual(store.configuration.mode, .off)
+    }
+
+    func testEveryFailureIsWordedByTheApp() {
+        let rejected = DockStore.message(for: AppleDockError.preferenceWriteFailed)
+        let rollback = DockStore.message(for: AppleDockError.rollbackFailed)
+        struct DiskFull: LocalizedError { var errorDescription: String? { "The disk is full." } }
+        let save = DockStore.message(for: DiskFull())
+        XCTAssertNotEqual(rejected, AppleDockError.preferenceWriteFailed.errorDescription)
+        XCTAssertTrue(rollback.contains("Restore Apple Dock"))
+        XCTAssertTrue(save.contains("The disk is full."), "keeps the underlying reason")
+        XCTAssertEqual(Set([rejected, rollback, save]).count, 3)
+    }
+
+    func testFailedRestoreKeepsBackupAndAllowsRetry() {
+        let original = AppleDockVisibility(autohide: false, autohideDelay: 0.375)
+        defaults.values[AppleDock.autohideKey] = original.autohide
+        defaults.values[AppleDock.autohideDelayKey] = original.autohideDelay
+        let store = makeStore()
+        store.update { $0.mode = .replace }
+        defaults.synchronizationFailures = 1
+        store.restoreAppleDockOnRequest()
+        XCTAssertNotNil(store.lastError)
+        XCTAssertEqual(store.configuration.mode, .replace)
+        XCTAssertEqual(store.configuration.appleDockBackup, original)
+        XCTAssertEqual(DockConfiguration.load(from: fileURL).appleDockBackup, original)
+
+        store.restoreAppleDockOnRequest()
+        XCTAssertNil(store.lastError)
+        XCTAssertEqual(store.configuration.mode, .alongside)
+        XCTAssertEqual(store.appleDock.visibility, original)
+        XCTAssertNil(DockConfiguration.load(from: fileURL).appleDockBackup)
     }
 
     func testSizeFollowsTheAppleDockUntilChosen() {

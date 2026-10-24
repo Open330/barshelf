@@ -10,6 +10,9 @@ import Foundation
 /// - `timeoutMs` enforced (SIGTERM, escalating to SIGKILL after 2s).
 /// - stdout capped at 1 MB; stderr drained on a separate pipe (capped at 64 KB).
 public final class ExecService {
+    private static let posixUTF8Locales: [String] =
+        ((try? FileManager.default.contentsOfDirectory(atPath: "/usr/share/locale")) ?? [])
+            .filter { $0.hasSuffix(".UTF-8") }.sorted()
     public static let maxStdoutBytes = 1_048_576
     public static let maxStderrBytes = 65_536
     public static let fallbackPathDirectories = [
@@ -20,12 +23,27 @@ public final class ExecService {
 
     /// Minimal process environment plus explicitly authorized/injected values.
     public static func childEnvironment(
-        extraEnvironment: [String: String]? = nil
+        extraEnvironment: [String: String]? = nil,
+        hostEnvironment: [String: String] = ProcessInfo.processInfo.environment,
+        locale: Locale = .current
     ) -> [String: String] {
-        let hostEnvironment = ProcessInfo.processInfo.environment
         var environment: [String: String] = [:]
-        for key in ["HOME", "TMPDIR", "USER", "LOGNAME", "LANG", "LC_ALL", "LC_CTYPE"] {
+        for key in ["HOME", "TMPDIR", "USER", "LOGNAME", "LANG", "LC_ALL", "LC_CTYPE", "LC_TIME", "LC_NUMERIC"] {
             if let value = hostEnvironment[key], !value.isEmpty { environment[key] = value }
+        }
+        // GUI apps launched by launchd usually have no LANG. Commands such as
+        // /bin/date would otherwise produce English inside a localized app.
+        if environment["LANG"] == nil {
+            let base = locale.identifier.components(separatedBy: "@")[0].replacingOccurrences(of: "-", with: "_")
+            let candidate = base.contains(".") ? base : base + ".UTF-8"
+            let language = locale.language.languageCode?.identifier ?? String(base.prefix { $0 != "_" })
+            // ICU locales such as ko_US do not necessarily exist as POSIX
+            // locales. Use an installed locale of the same language instead.
+            environment["LANG"] = Self.posixUTF8Locales.contains(candidate) ? candidate
+                : Self.posixUTF8Locales.first { $0.hasPrefix(language + "_") } ?? "en_US.UTF-8"
+            // Shell widgets emit JSON numbers; localize dates without turning
+            // printf's decimal point into a comma on a German-language Mac.
+            if environment["LC_NUMERIC"] == nil { environment["LC_NUMERIC"] = "C" }
         }
         let systemPath = "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin"
         environment["PATH"] = (hostEnvironment["PATH"].map { $0.isEmpty ? nil : $0 } ?? nil)
@@ -83,6 +101,77 @@ public final class ExecService {
     }
 
     private let queue = DispatchQueue(label: "dev.barshelf.exec", qos: .utility, attributes: .concurrent)
+
+    /// Serializes launch with cancellation, including cancellation before the
+    /// dispatch queue starts. The handle is cleared before capture returns.
+    private final class ProcessControl: @unchecked Sendable {
+        private let lock = NSLock()
+        private var cancelled = false
+        private var process: Process?
+        private var leaderStarted: Date?
+        private var pipes: [CapturePipe] = []
+
+        var isCancelled: Bool { lock.withLock { cancelled } }
+
+        func launch(_ process: Process, pipes: [CapturePipe]) throws -> Bool {
+            try lock.withLock {
+                guard !cancelled else { return false }
+                try process.run()
+                self.process = process
+                self.leaderStarted = ExecService.startTime(of: process.processIdentifier)
+                self.pipes = pipes
+                return true
+            }
+        }
+
+        func cancel() {
+            lock.withLock {
+                cancelled = true
+                stop()
+            }
+        }
+
+        func terminate() { lock.withLock { stop() } }
+
+        private func stop() {
+            guard let process else { return }
+            // A dead leader's PID/group number alone is no longer identity.
+            if let leaderStarted, ExecService.startTime(of: process.processIdentifier) == leaderStarted {
+                ExecService.terminate(process)
+            }
+            ExecService.terminatePipeInheritors(group: process.processIdentifier, pipes: pipes)
+        }
+
+        func finish() {
+            lock.withLock {
+                process = nil
+                pipes = []
+            }
+        }
+    }
+
+    /// Keep the read endpoint alive even when cancelled readers close theirs.
+    /// Its kernel identity cannot be recycled while this CLOEXEC fd is open.
+    private final class CapturePipe: @unchecked Sendable {
+        let descriptor: Int32
+        let identity: UInt64
+
+        init(_ handle: FileHandle) throws {
+            let duplicate = fcntl(handle.fileDescriptor, F_DUPFD_CLOEXEC, 0)
+            guard duplicate >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+            guard let endpoint = ExecService.pipeEndpoint(pid: getpid(), descriptor: duplicate) else {
+                _ = Darwin.close(duplicate)
+                throw POSIXError(.EIO)
+            }
+            descriptor = duplicate
+            identity = endpoint.handle
+        }
+
+        deinit { _ = Darwin.close(descriptor) }
+    }
+
+    // Preserve the existing result/error API while reporting cancellation.
+    private static var cancellationError: ExecError { .launchFailed("cancelled") }
 
     private final class CaptureState: @unchecked Sendable {
         private let lock = NSLock()
@@ -143,7 +232,7 @@ public final class ExecService {
         }
     }
 
-    /// async/await wrapper around `run`.
+    /// Cancellable async execution, using the same stdout mapping as `runSync`.
     public func run(
         command: [String],
         discover: [String]?,
@@ -152,18 +241,14 @@ public final class ExecService {
         extraEnvironment: [String: String]? = nil,
         stdoutLimit: Int = ExecService.maxStdoutBytes
     ) async -> Result<Data, ExecError> {
-        await withCheckedContinuation { continuation in
-            run(
-                command: command,
-                discover: discover,
-                timeoutMs: timeoutMs,
-                workingDirectory: workingDirectory,
-                extraEnvironment: extraEnvironment,
-                stdoutLimit: stdoutLimit
-            ) { result in
-                continuation.resume(returning: result)
-            }
-        }
+        Self.stdoutResult(await Self.capture(
+            command: command,
+            discover: discover,
+            timeoutMs: timeoutMs,
+            workingDirectory: workingDirectory,
+            extraEnvironment: extraEnvironment,
+            stdoutLimit: stdoutLimit
+        ))
     }
 
     public static func runSync(
@@ -174,14 +259,18 @@ public final class ExecService {
         extraEnvironment: [String: String]? = nil,
         stdoutLimit: Int = ExecService.maxStdoutBytes
     ) -> Result<Data, ExecError> {
-        switch captureSync(
+        stdoutResult(captureSync(
             command: command,
             discover: discover,
             timeoutMs: timeoutMs,
             workingDirectory: workingDirectory,
             extraEnvironment: extraEnvironment,
             stdoutLimit: stdoutLimit
-        ) {
+        ))
+    }
+
+    private static func stdoutResult(_ result: Result<Capture, ExecError>) -> Result<Data, ExecError> {
+        switch result {
         case let .failure(error):
             return .failure(error)
         case let .success(capture):
@@ -193,7 +282,8 @@ public final class ExecService {
         }
     }
 
-    /// async/await wrapper around `captureSync` (runs off the caller's executor).
+    /// Runs off the caller's executor; task cancellation terminates the child
+    /// and returns `launchFailed("cancelled")` after bounded cleanup.
     public static func capture(
         command: [String],
         discover: [String]?,
@@ -202,17 +292,23 @@ public final class ExecService {
         extraEnvironment: [String: String]? = nil,
         stdoutLimit: Int = ExecService.maxStdoutBytes
     ) async -> Result<Capture, ExecError> {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .utility).async {
-                continuation.resume(returning: captureSync(
-                    command: command,
-                    discover: discover,
-                    timeoutMs: timeoutMs,
-                    workingDirectory: workingDirectory,
-                    extraEnvironment: extraEnvironment,
-                    stdoutLimit: stdoutLimit
-                ))
+        let control = ProcessControl()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                DispatchQueue.global(qos: .utility).async {
+                    continuation.resume(returning: captureSync(
+                        command: command,
+                        discover: discover,
+                        timeoutMs: timeoutMs,
+                        workingDirectory: workingDirectory,
+                        extraEnvironment: extraEnvironment,
+                        stdoutLimit: stdoutLimit,
+                        control: control
+                    ))
+                }
             }
+        } onCancel: {
+            control.cancel()
         }
     }
 
@@ -224,6 +320,24 @@ public final class ExecService {
         extraEnvironment: [String: String]? = nil,
         stdoutLimit: Int = ExecService.maxStdoutBytes
     ) -> Result<Capture, ExecError> {
+        captureSync(
+            command: command, discover: discover, timeoutMs: timeoutMs,
+            workingDirectory: workingDirectory, extraEnvironment: extraEnvironment,
+            stdoutLimit: stdoutLimit, control: ProcessControl()
+        )
+    }
+
+    private static func captureSync(
+        command: [String],
+        discover: [String]?,
+        timeoutMs: Int,
+        workingDirectory: URL?,
+        extraEnvironment: [String: String]?,
+        stdoutLimit: Int,
+        control: ProcessControl
+    ) -> Result<Capture, ExecError> {
+        defer { control.finish() }
+        guard !control.isCancelled else { return .failure(cancellationError) }
         guard let executableName = command.first, !executableName.isEmpty else {
             return .failure(.emptyCommand)
         }
@@ -260,7 +374,12 @@ public final class ExecService {
 
         let startedAt = Date()
         do {
-            try process.run()
+            let pipes = try [CapturePipe(stdoutPipe.fileHandleForReading), CapturePipe(stderrPipe.fileHandleForReading)]
+            guard try control.launch(process, pipes: pipes) else {
+                Self.closePipe(stdoutPipe)
+                Self.closePipe(stderrPipe)
+                return .failure(cancellationError)
+            }
         } catch {
             Self.closePipe(stdoutPipe)
             Self.closePipe(stderrPipe)
@@ -272,9 +391,9 @@ public final class ExecService {
         readQueue.async {
             defer { readGroup.leave() }
             let handle = stdoutPipe.fileHandleForReading
-            Self.drain(handle, until: deadline.value, timedOut: { captureState.markTimedOut() }) { chunk in
+            Self.drain(handle, until: deadline.value, cancelled: { control.isCancelled }, timedOut: { captureState.markTimedOut() }) { chunk in
                 if captureState.appendStdout(chunk, limit: stdoutLimit) {
-                    Self.terminate(process)
+                    control.terminate()
                     return true
                 }
                 return false
@@ -286,7 +405,7 @@ public final class ExecService {
         readQueue.async {
             defer { readGroup.leave() }
             let handle = stderrPipe.fileHandleForReading
-            Self.drain(handle, until: deadline.value, timedOut: { captureState.markTimedOut() }) { chunk in
+            Self.drain(handle, until: deadline.value, cancelled: { control.isCancelled }, timedOut: { captureState.markTimedOut() }) { chunk in
                 captureState.appendStderr(chunk, limit: maxStderrBytes)
                 return false
             }
@@ -295,7 +414,7 @@ public final class ExecService {
 
         let timeoutItem = DispatchWorkItem {
             captureState.markTimedOut()
-            Self.terminate(process)
+            control.terminate()
         }
         DispatchQueue.global().asyncAfter(
             deadline: .now() + .milliseconds(max(timeoutMs, 1)),
@@ -316,10 +435,15 @@ public final class ExecService {
 
         let capture = captureState.snapshot()
 
+        if control.isCancelled { return .failure(cancellationError) }
         if capture.overflowed {
             return .failure(.outputTooLarge(limit: stdoutLimit))
         }
         if capture.timedOut {
+            // A pipe reader can reach its deadline after the leader exited
+            // and cancelled the process timer. Our pinned endpoints still
+            // identify any surviving inheritors before finish releases them.
+            control.terminate()
             return .failure(.timeout(ms: timeoutMs))
         }
         return .success(Capture(
@@ -374,6 +498,57 @@ public final class ExecService {
             + TimeInterval(info.pbi_start_tvusec) / 1_000_000)
     }
 
+    static func pipeEndpoint(pid: pid_t, descriptor: Int32) -> (handle: UInt64, peer: UInt64)? {
+        var info = pipe_fdinfo()
+        let size = Int32(MemoryLayout<pipe_fdinfo>.stride)
+        guard proc_pidfdinfo(pid, descriptor, PROC_PIDFDPIPEINFO, &info, size) == size,
+              info.pipeinfo.pipe_handle != 0 else { return nil }
+        return (info.pipeinfo.pipe_handle, info.pipeinfo.pipe_peerhandle)
+    }
+
+    /// A pipe-holding child can survive a naturally exited leader. Prove its
+    /// relationship via our still-open output pipe, not a possibly reused pgid.
+    /// Signal only pinned inheritors; unrelated members of a reused group are
+    /// never selected. Descendants that left the original group remain outside
+    /// the same process-group contract as normal termination.
+    private static func terminatePipeInheritors(group: pid_t, pipes: [CapturePipe]) {
+        let identities = Set(pipes.map(\.identity))
+        guard !identities.isEmpty else { return }
+        let members = groupMembers(group).compactMap { pid -> (pid_t, Date)? in
+            guard let started = startTime(of: pid),
+                  holdsPipe(pid: pid, peers: identities),
+                  getpgid(pid) == group, startTime(of: pid) == started else { return nil }
+            return (pid, started)
+        }
+        guard !members.isEmpty else { return }
+        for (pid, started) in members where startTime(of: pid) == started {
+            _ = kill(pid, SIGTERM)
+        }
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 2) {
+            for (pid, started) in members where startTime(of: pid) == started {
+                _ = kill(pid, SIGKILL)
+            }
+        }
+    }
+
+    private static func holdsPipe(pid: pid_t, peers: Set<UInt64>) -> Bool {
+        func matches(_ descriptor: Int32) -> Bool {
+            pipeEndpoint(pid: pid, descriptor: descriptor).map { peers.contains($0.peer) } ?? false
+        }
+        if matches(STDOUT_FILENO) || matches(STDERR_FILENO) { return true }
+        // An inheritor may have moved stdout/stderr to another descriptor.
+        let size = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, nil, 0)
+        guard size > 0 else { return false }
+        var descriptors = [proc_fdinfo](repeating: proc_fdinfo(),
+            count: Int(size) / MemoryLayout<proc_fdinfo>.stride + 8)
+        let filled = descriptors.withUnsafeMutableBytes {
+            proc_pidinfo(pid, PROC_PIDLISTFDS, 0, $0.baseAddress, Int32($0.count))
+        }
+        guard filled > 0 else { return false }
+        return descriptors.prefix(Int(filled) / MemoryLayout<proc_fdinfo>.stride)
+            .contains { $0.proc_fdtype == UInt32(PROX_FDTYPE_PIPE) && matches($0.proc_fd) }
+    }
+
     /// Foundation can retain pipe endpoints after a failed Process launch.
     /// Close both ends explicitly instead of relying on object destruction.
     static func closePipe(_ pipe: Pipe) {
@@ -387,16 +562,18 @@ public final class ExecService {
     /// Poll for readable bytes/EOF with the same deadline as the process,
     /// rather than blocking indefinitely in FileHandle.availableData.
     private static func drain(_ handle: FileHandle, until currentDeadline: () -> DispatchTime,
-                              timedOut: () -> Void, onChunk: (Data) -> Bool) {
+                              cancelled: () -> Bool, timedOut: () -> Void, onChunk: (Data) -> Bool) {
         var buffer = [UInt8](repeating: 0, count: 8192)
         while true {
+            guard !cancelled() else { return }
             let deadline = currentDeadline()
             let now = DispatchTime.now().uptimeNanoseconds
             guard now < deadline.uptimeNanoseconds else { timedOut(); return }
             let remaining = (deadline.uptimeNanoseconds - now) / 1_000_000 + 1
             var descriptor = pollfd(fd: handle.fileDescriptor, events: Int16(POLLIN), revents: 0)
-            let ready = poll(&descriptor, 1, Int32(min(remaining, UInt64(Int32.max))))
-            if ready == 0 { timedOut(); return }
+            // Recheck cancellation even if a descendant keeps the pipe open.
+            let ready = poll(&descriptor, 1, Int32(min(remaining, 100)))
+            if ready == 0 { continue }
             if ready < 0 {
                 if errno == EINTR { continue }
                 return

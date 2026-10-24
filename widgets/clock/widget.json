@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.clock",
   "name": "Clock",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "icon": "clock.fill",
   "bucket": { "group": "Demo", "order": 11, "size": "M" },
 
@@ -24,5 +24,11 @@
 
   "appearance": {
     "accent": "blue"
+  },
+
+  "localizations": {
+    "ko": {
+      "Clock": "시계"
+    }
   }
 }

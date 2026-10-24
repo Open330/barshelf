@@ -58,6 +58,15 @@ Unknown top-level keys are tolerated (ignored by the decoder), so `$schema` and
 `version` are safe to include and recommended. Every field below is optional
 except `schemaVersion`, `id`, `name`, and `entry`.
 
+From BarShelf 0.7.5, optional `localizations` maps language codes to exact
+display-text translations, for example `{"ko":{"My Widget":"내 위젯"}}`.
+It translates the widget name, setting titles/options' display titles, and
+workflow UI templates before expansion. `${…}` expressions must be preserved
+exactly (reordering is allowed). Commands, source definitions, action payloads,
+stored setting values, ids and permissions stay unchanged. Missing or malformed
+translations fall back to the original text. Exec/script widgets localize their
+own output; the host never translates rendered user data.
+
 ```jsonc
 {
   "$schema": "https://barshelf.jiun.dev/schema/widget-0.1.json",  // optional, tolerated
@@ -184,6 +193,12 @@ Host APIs (all `async`, reachable via `barshelf.*`, the short alias `bsf.*`, or 
 - `barshelf.storage.get/set/delete/list(prefix?)` — per-widget KV store, ~1 MB quota. **No permission needed.**
 - `barshelf.secret.get/set(key[, value])` — Keychain-backed; account `<widgetId>/<key>`. Needs `permissions.keychain`.
 - `barshelf.timer.once(id, atMs) / after(id, delayMs) / every(id, intervalMs) / clear(id)` — schedule callbacks into your `timer` handler.
+  Script timers are explicitly scheduled work and remain active in the background
+  unless the user enables **Pause while the popup is closed**. With that option,
+  hidden script timers have no active timer source; overdue callbacks resume once
+  on visibility, without replaying every missed interval. Visible menu-bar and
+  Dock widgets continue running. `refresh.runInBackground` governs the host's
+  interval refreshes, not these script-created timers.
 - `barshelf.notify.show({ title, body? })` — system notification. Needs `permissions.notifications`.
 - `barshelf.log(level, message)` — `"debug" | "info" | "warn" | "error"`.
 - `ui.*` / `action.*` — typed UINode / NodeAction builders plus higher-level UI components (`header`, `metricCard`, `meterRow`, `stat`) for production-looking widgets (see §10).
@@ -333,7 +348,8 @@ sharing) the BarShelf mark.
   popup is closed** — it is exempt from the `runInBackground` requirement and
   from the 5 s / 60 s interval floors (its own floor is 1 s). Give it an
   interval it can actually sustain. The app-wide "pause when closed" battery
-  saver still stops it, and the menu bar then dims the frozen value.
+  saver pauses hidden shelf work; menu bar and Dock widgets keep refreshing.
+  Remove a widget from those surfaces to stop its visible background updates.
 
 ---
 
@@ -671,7 +687,11 @@ Workflow sources: `use` is `"exec"`, `"fs.directory"`, `"http"`, `"system"`, or
 `"value"`. Values flow
 into `${...}` expressions in `transforms`/`view`: reference source output as
 `$.sources.<id>.<path>`, transforms as `transforms.<id>`, settings as
-`settings.<key>`. Built-in expression functions: `string`, `concat`, `now`, `count`,
+`settings.<key>`. From 0.7.5, `widget.locale` is the app's display language
+(`ko`, `en`, etc.). Use it only for fixed display vocabulary produced by
+transforms; preserve user/provider data and action identifiers. Missing or
+unknown language should retain the original text for older hosts.
+Built-in expression functions: `string`, `concat`, `now`, `count`,
 `coalesce`, `date.relative`, `file.basename`, `file.extension`, `text.truncate`,
 `if`, `and`, `or`, `not`, comparisons and arithmetic, plus (BarShelf 0.3.11+)
 `switch(value, case1, result1, …, fallback)` — pick one of many readings by a

@@ -21,6 +21,7 @@ struct AutomationSettingsView: View {
                         else { controller.disable() }
                     }
                 ))
+                .accessibilityLabel("Enable Keyboard & Window Extension")
                 Label {
                     Text(controller.isRunning ? String(localized: "Active") : String(localized: "Inactive"))
                 } icon: {
@@ -66,6 +67,14 @@ struct AutomationSettingsView: View {
                                 draft = imported
                             }
                         }
+                        Button("Karabiner Key Mappings Only…") {
+                            let alert = NSAlert()
+                            alert.messageText = String(localized: "Import key mappings without function key settings?")
+                            alert.informativeText = String(localized: "Function and media key customizations will not be migrated. After quitting Karabiner, those keys use native macOS behavior, which may differ. Other unsupported behavior still blocks import. This only creates an editor draft.")
+                            alert.addButton(withTitle: String(localized: "Review Key Mappings"))
+                            alert.addButton(withTitle: String(localized: "Cancel"))
+                            if alert.runModal() == .alertFirstButtonReturn { chooseFile(keyMappingsOnly: true) }
+                        }
                     }
                     Button("Choose File…") { chooseFile() }
                 }
@@ -110,13 +119,14 @@ struct AutomationSettingsView: View {
         }
     }
 
-    private func chooseFile() {
+    private func chooseFile(keyMappingsOnly: Bool = false) {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [UTType(filenameExtension: "lua"), UTType(filenameExtension: "js"), .json].compactMap { $0 }
+        panel.allowedContentTypes = keyMappingsOnly ? [.json]
+            : [UTType(filenameExtension: "lua"), UTType(filenameExtension: "js"), .json].compactMap { $0 }
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        if let imported = controller.importFile(url) { draft = imported }
+        if let imported = controller.importFile(url, excludingFunctionKeys: keyMappingsOnly) { draft = imported }
     }
 
     private func importSettings(path: String) {

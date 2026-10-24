@@ -8,13 +8,13 @@ enum AutomationImporter {
         let summary: String
     }
 
-    static func convert(_ source: String, fileExtension: String) throws -> Result {
+    static func convert(_ source: String, fileExtension: String, excludingFunctionKeys: Bool = false) throws -> Result {
         switch fileExtension.lowercased() {
         case "lua":
             let result = try HammerspoonImporter.convert(source)
             return Result(script: result.script, summary: result.summary)
         case "json":
-            let result = try KarabinerImporter.convert(source)
+            let result = try KarabinerImporter.convert(source, excludingFunctionKeys: excludingFunctionKeys)
             return Result(script: result.script, summary: result.summary)
         case "js":
             _ = try AutomationScript(source: source)

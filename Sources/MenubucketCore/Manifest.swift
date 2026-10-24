@@ -32,6 +32,10 @@ public struct Manifest: Codable, Equatable {
     /// How the widget appears as a macOS desktop widget (0.6.1). Optional;
     /// without it BarShelf reads the view tree.
     public var desktop: Desktop?
+    /// Display text in other languages (`WidgetLocalizations`). Optional and
+    /// lenient: a malformed table is dropped, never a reason to refuse the
+    /// widget, and a host that predates it shows the English text.
+    public var localizations: WidgetLocalizations?
 
     /// `desktop` in widget.json. Decoded leniently: a wrong value is
     /// dropped, never a reason to refuse the widget.
@@ -77,10 +81,12 @@ public struct Manifest: Codable, Equatable {
         settings: [Setting]? = nil,
         appearance: WidgetAppearance? = nil,
         minHostVersion: String? = nil,
-        desktop: Desktop? = nil
+        desktop: Desktop? = nil,
+        localizations: WidgetLocalizations? = nil
     ) {
         self.minHostVersion = minHostVersion
         self.desktop = desktop
+        self.localizations = localizations
         self.schemaVersion = schemaVersion
         self.id = id
         self.name = name

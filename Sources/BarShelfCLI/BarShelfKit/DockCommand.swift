@@ -27,7 +27,8 @@ public enum DockCommand {
         configurationURL: URL = DockCommand.configurationURL,
         openURL: (URL) -> Bool = DockCommand.openInApp,
         appleDock: () -> AppleDock = { AppleDock() },
-        appIsRunning: () -> Bool = DockCommand.appIsRunning
+        appIsRunning: () -> Bool = DockCommand.appIsRunning,
+        saveConfiguration: (DockConfiguration, URL) throws -> Void = { try $0.save(to: $1) }
     ) -> Int32 {
         guard let subcommand = arguments.first else {
             BarShelfMain.printError(usage)
@@ -66,20 +67,25 @@ public enum DockCommand {
             }
             let dock = appleDock()
             var config = DockConfiguration.load(from: configurationURL)
-            if let backup = config.appleDockBackup {
-                dock.restore(backup)
-                config.appleDockBackup = nil
-                // "Instead of the Apple Dock" would hide it again at launch.
-                if config.mode == .replace { config.mode = .alongside }
-                try? config.save(to: configurationURL)
-                print("restored the Apple Dock's own settings")
-            } else if dock.isHidden {
-                dock.unhideWithoutBackup()
-                print("the Apple Dock shows again")
-            } else {
-                print("the Apple Dock is not hidden")
+            do {
+                if let backup = config.appleDockBackup {
+                    try dock.restoreChecked(backup)
+                    config.appleDockBackup = nil
+                    // "Instead of the Apple Dock" would hide it again at launch.
+                    if config.mode == .replace { config.mode = .alongside }
+                    try saveConfiguration(config, configurationURL)
+                    print("restored the Apple Dock's own settings")
+                } else if dock.isHidden {
+                    try dock.unhideWithoutBackupChecked()
+                    print("the Apple Dock shows again")
+                } else {
+                    print("the Apple Dock is not hidden")
+                }
+                return 0
+            } catch {
+                BarShelfMain.printError("barshelf: couldn't restore the Apple Dock: \(error.localizedDescription)")
+                return 1
             }
-            return 0
         default:
             BarShelfMain.printError("barshelf: unknown dock command \"\(subcommand)\"")
             BarShelfMain.printError(usage)

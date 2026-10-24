@@ -12,9 +12,10 @@
   },
 
   "transforms": {
+    "ko": { "use": "assign", "from": "or(eq(coalesce(widget.locale, ''), 'ko'), or(eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko-…'), eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko_…')))" },
     "status": { "use": "assign", "from": "$.sources.github.status" },
     "page": { "use": "assign", "from": "$.sources.github.page" },
-    "label": { "use": "assign", "from": "if(eq(transforms.status.indicator,'none'),'OK',if(eq(transforms.status.indicator,'minor'),'Minor',if(eq(transforms.status.indicator,'major'),'Major',if(eq(transforms.status.indicator,'critical'),'Critical',coalesce(transforms.status.indicator,'Unknown')))))" },
+    "label": { "use": "assign", "from": "if(transforms.ko, if(eq(transforms.status.indicator,'none'),'정상',if(eq(transforms.status.indicator,'minor'),'경미',if(eq(transforms.status.indicator,'major'),'주요 장애',if(eq(transforms.status.indicator,'critical'),'심각',coalesce(transforms.status.indicator,'알 수 없음'))))), if(eq(transforms.status.indicator,'none'),'OK',if(eq(transforms.status.indicator,'minor'),'Minor',if(eq(transforms.status.indicator,'major'),'Major',if(eq(transforms.status.indicator,'critical'),'Critical',coalesce(transforms.status.indicator,'Unknown'))))))" },
     "tone": { "use": "assign", "from": "if(eq(transforms.status.indicator,'none'),'good',if(eq(transforms.status.indicator,'minor'),'warning',if(or(eq(transforms.status.indicator,'major'),eq(transforms.status.indicator,'critical')),'danger','secondary')))" }
   },
 

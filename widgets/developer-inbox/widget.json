@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.developer-inbox",
   "name": "Developer Inbox",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "icon": "tray.full.fill",
   "bucket": { "group": "Developer", "order": 20, "size": "L" },
 
@@ -66,5 +66,13 @@
     "accent": "blue",
     "density": "compact",
     "cardStyle": "plain"
+  },
+
+  "localizations": {
+    "ko": {
+      "Developer Inbox": "개발자 받은편지함",
+      "Items per section": "섹션별 항목 수",
+      "Show GitHub notifications": "GitHub 알림 보기"
+    }
   }
 }

@@ -11,6 +11,26 @@
         }
       }
     },
+    "\"%@\" is already being removed.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@”을(를) 이미 삭제하고 있습니다."
+          }
+        }
+      }
+    },
+    "\"%@\" is being removed.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@”을(를) 삭제하고 있습니다."
+          }
+        }
+      }
+    },
     "\"%@\" is not a supported shortcut key.": {
       "localizations": {
         "ko": {
@@ -95,6 +115,23 @@
         }
       }
     },
+    "%@ couldn't refresh. %@": {
+      "comment": "VoiceOver: a manual refresh failed; the error follows",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ couldn't refresh. %2$@"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 새로고침에 실패했습니다. %@"
+          }
+        }
+      }
+    },
     "%@ has no Apple Dock layout saved; switching to it leaves the Apple Dock as it is.": {
       "localizations": {
         "ko": {
@@ -158,6 +195,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ 준비됨"
+          }
+        }
+      }
+    },
+    "%@ refreshed": {
+      "comment": "VoiceOver: a manual refresh finished",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 새로고침 완료"
           }
         }
       }
@@ -271,6 +319,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "%1$@, %2$@"
+          }
+        }
+      }
+    },
+    "%@, %@, %lld of %lld": {
+      "comment": "VoiceOver: the selected search result, its widget, and its position",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@, %2$@, %3$lld of %4$lld"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@, %@, %lld번째, 전체 %lld개"
           }
         }
       }
@@ -414,6 +479,23 @@
         }
       }
     },
+    "%lld results. %@": {
+      "comment": "VoiceOver: number of search results, then the selected one",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld results. %2$@"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "검색 결과 %lld개. %@"
+          }
+        }
+      }
+    },
     "%lld widgets": {
       "localizations": {
         "ko": {
@@ -551,6 +633,16 @@
         }
       }
     },
+    "A Git project at a glance: branch, uncommitted changes and latest commit. Needs Deno.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Git 프로젝트의 브랜치, 커밋하지 않은 변경 사항, 최근 커밋을 확인합니다. Deno가 필요합니다."
+          }
+        }
+      }
+    },
     "A command this widget needs isn’t installed on this Mac.": {
       "localizations": {
         "ko": {
@@ -581,12 +673,42 @@
         }
       }
     },
+    "A focus countdown you can start, pause and reset, with a notification when it ends. Needs Deno.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "시작·일시 정지·초기화할 수 있는 집중 타이머입니다. 종료 시 알림을 보냅니다. Deno가 필요합니다."
+          }
+        }
+      }
+    },
     "A graph needs the item's own place in the menu bar; sharing the BarShelf icon, it shows text only.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "그래프는 메뉴 막대에 별도 항목이 있어야 표시됩니다. BarShelf 아이콘을 공유하면 텍스트만 표시됩니다."
+          }
+        }
+      }
+    },
+    "A large digital clock with seconds and the date.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "초 단위 시간과 날짜를 보여 주는 큰 디지털 시계입니다."
+          }
+        }
+      }
+    },
+    "A live stock price and today’s change for any ticker symbol.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "선택한 종목의 현재 주가와 오늘의 등락을 보여 줍니다."
           }
         }
       }
@@ -607,6 +729,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "오른쪽 클릭은 항상 항목의 메뉴를 열며, 그 메뉴에서 카드를 볼 수 있습니다."
+          }
+        }
+      }
+    },
+    "A searchable history of what you copied, kept only in memory and hiding secrets. Needs Deno.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "복사한 내용을 검색할 수 있습니다. 기록은 메모리에만 보관하며 비밀 정보는 숨깁니다. Deno가 필요합니다."
           }
         }
       }
@@ -954,6 +1086,16 @@
         }
       }
     },
+    "Allow %@": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 허용"
+          }
+        }
+      }
+    },
     "Allow BarShelf": {
       "localizations": {
         "ko": {
@@ -990,6 +1132,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "허용됨"
+          }
+        }
+      }
+    },
+    "Allowed folders: %@": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "허용된 폴더: %@"
           }
         }
       }
@@ -1040,6 +1192,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "이름이 \"%@\"인 인스턴스가 이미 있습니다."
+          }
+        }
+      }
+    },
+    "An unofficial forecast of whether the Codex quota resets in the next 48 hours, as a 0–100 score.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "앞으로 48시간 안에 Codex 한도가 초기화될 가능성을 0~100점으로 보여 주는 비공식 예측입니다."
           }
         }
       }
@@ -1625,6 +1787,16 @@
         }
       }
     },
+    "CPU, memory and disk use as colored meters. Can show a reading in the menu bar.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CPU·메모리·디스크 사용량을 색상 막대로 보여 줍니다. 메뉴 막대에도 값을 표시할 수 있습니다."
+          }
+        }
+      }
+    },
     "Cached": {
       "localizations": {
         "ko": {
@@ -1849,6 +2021,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "업데이트 확인…"
+          }
+        }
+      }
+    },
+    "Check for a widget update or ask its author to declare this capability. macOS Privacy settings cannot grant a missing widget capability.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯 업데이트를 확인하거나 제작자에게 이 기능의 권한 선언을 요청하십시오. 위젯에 선언되지 않은 권한은 macOS 개인정보 보호 설정에서 허용할 수 없습니다."
           }
         }
       }
@@ -2566,6 +2748,16 @@
         }
       }
     },
+    "Custom interval": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "사용자 지정 간격"
+          }
+        }
+      }
+    },
     "Customize…": {
       "localizations": {
         "ko": {
@@ -2619,6 +2811,7 @@
     },
     "Default (%@)": {
       "comment": "Refresh interval: the widget's own, e.g. Default (every 5 s)",
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -2698,6 +2891,16 @@
         }
       }
     },
+    "Denied. It runs nothing until you allow it.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "거부됨. 허용하기 전에는 실행하지 않습니다."
+          }
+        }
+      }
+    },
     "Density": {
       "localizations": {
         "ko": {
@@ -2728,6 +2931,36 @@
         }
       }
     },
+    "Desktop": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "데스크탑"
+          }
+        }
+      }
+    },
+    "Desktop widget updates": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "데스크톱 위젯 갱신"
+          }
+        }
+      }
+    },
+    "Desktop widgets show BarShelf’s last result. Placing one on the desktop does not keep its source running. Open its shelf page or use Refresh to update it. To keep updating while the shelf is closed, show the source in the menu bar or Dock while BarShelf runs.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "데스크톱 위젯은 BarShelf가 마지막으로 읽은 결과를 보여 줍니다. 데스크톱에 놓는 것만으로 원본 위젯이 계속 실행되지는 않습니다. 해당 선반 페이지를 열거나 새로 고침을 눌러 갱신하십시오. 선반을 닫아도 계속 갱신하려면 BarShelf를 실행한 상태에서 원본을 메뉴 막대나 Dock에 표시하십시오."
+          }
+        }
+      }
+    },
     "Details": {
       "comment": "Widget builder step title",
       "localizations": {
@@ -2735,6 +2968,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "세부사항"
+          }
+        }
+      }
+    },
+    "Developer": {
+      "comment": "Gallery category",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "개발"
           }
         }
       }
@@ -2891,6 +3135,16 @@
         }
       }
     },
+    "Documents": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "문서"
+          }
+        }
+      }
+    },
     "Don't change": {
       "localizations": {
         "ko": {
@@ -2974,6 +3228,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "다운로드 중… %1$@ / %2$@"
+          }
+        }
+      }
+    },
+    "Downloads": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "다운로드"
           }
         }
       }
@@ -3209,6 +3473,16 @@
         }
       }
     },
+    "Effective interval: %@.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "실제 갱신 간격: %@."
+          }
+        }
+      }
+    },
     "Empty Folder": {
       "localizations": {
         "ko": {
@@ -3299,8 +3573,20 @@
         }
       }
     },
+    "Every %@ s": {
+      "comment": "Refresh interval in seconds",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@초마다"
+          }
+        }
+      }
+    },
     "Every %lf s": {
       "comment": "Refresh interval in seconds",
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -3347,6 +3633,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "모든 권한 결정과 위젯이 실행한 모든 명령 및 요청입니다."
+          }
+        }
+      }
+    },
+    "Everyday": {
+      "comment": "Gallery category for clock, calendar, weather and similar widgets",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "일상"
           }
         }
       }
@@ -3562,6 +3859,17 @@
         }
       }
     },
+    "Files": {
+      "comment": "Gallery category",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "파일"
+          }
+        }
+      }
+    },
     "Files render as a thumbnail grid — drag out to Finder or click to open.": {
       "localizations": {
         "ko": {
@@ -3682,6 +3990,17 @@
         }
       }
     },
+    "Focus Dock": {
+      "comment": "App menu: move keyboard focus to the BarShelf Dock",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dock에 초점 이동"
+          }
+        }
+      }
+    },
     "Folder": {
       "localizations": {
         "ko": {
@@ -3718,6 +4037,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "폴더 또는 파일…"
+          }
+        }
+      }
+    },
+    "Follow widget interval": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯 갱신 간격 따르기"
           }
         }
       }
@@ -3773,7 +4102,38 @@
         }
       }
     },
+    "Function and media key customizations were not imported. After quitting Karabiner, those keys use native macOS behavior, which may differ.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "기능 키 및 미디어 키 사용자 설정은 가져오지 않았습니다. Karabiner를 종료하면 해당 키는 macOS 기본 동작으로 돌아가며, 기존 동작과 다를 수 있습니다."
+          }
+        }
+      }
+    },
+    "Function and media key customizations will not be migrated. After quitting Karabiner, those keys use native macOS behavior, which may differ. Other unsupported behavior still blocks import. This only creates an editor draft.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "기능 키 및 미디어 키 사용자 설정은 이전되지 않습니다. Karabiner를 종료하면 해당 키는 macOS 기본 동작으로 돌아가며, 기존 동작과 다를 수 있습니다. 그 밖의 지원하지 않는 동작이 있으면 가져올 수 없습니다. 편집기 초안만 생성됩니다."
+          }
+        }
+      }
+    },
+    "Function and media key settings (profile.fn_function_keys) cannot be preserved. Nothing was imported. Choose Import Settings › Karabiner Key Mappings Only… to review the supported mappings separately.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "기능 키 및 미디어 키 설정(profile.fn_function_keys)을 유지할 수 없어 아무 설정도 가져오지 않았습니다. 설정 가져오기 › Karabiner 키 매핑만…을 선택하면 지원되는 매핑을 따로 검토할 수 있습니다."
+          }
+        }
+      }
+    },
     "Function key settings were not imported; macOS handles F1–F12 itself.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -3831,6 +4191,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "GitHub Actions 실행"
+          }
+        }
+      }
+    },
+    "GitHub review requests and unread notifications in one list. Needs the gh command-line tool and Deno.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub 코드 검토 요청과 읽지 않은 알림을 한곳에서 확인합니다. gh 명령줄 도구와 Deno가 필요합니다."
           }
         }
       }
@@ -4100,6 +4470,16 @@
         }
       }
     },
+    "Hidden widgets stop refreshing until you open the popup. Menu bar and Dock widgets keep updating; remove them from those surfaces to stop their background updates.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "팝업을 열 때까지 숨겨진 위젯의 새로고침을 멈춥니다. 메뉴 막대와 Dock 위젯은 계속 갱신되며, 백그라운드 갱신을 멈추려면 해당 위치에서 제거하십시오."
+          }
+        }
+      }
+    },
     "Hide": {
       "localizations": {
         "ko": {
@@ -4176,6 +4556,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "각 위젯의 최근 새로고침 결과입니다."
+          }
+        }
+      }
+    },
+    "How many files a folder has, and how many were added or removed since you last looked.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "폴더의 파일 수와 마지막 확인 이후 추가·삭제된 파일 수를 보여 줍니다."
+          }
+        }
+      }
+    },
+    "How many reminders you still have to do. macOS asks once whether BarShelf may read Reminders.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "남은 미리 알림의 수를 보여 줍니다. macOS에서 미리 알림 접근 권한을 한 번 요청합니다."
+          }
+        }
+      }
+    },
+    "How much of each AI account’s usage is left and when it resets. Needs the aas command-line tool.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI 계정별 남은 사용량과 초기화 시점을 보여 줍니다. aas 명령줄 도구가 필요합니다."
           }
         }
       }
@@ -4298,6 +4708,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "설정 가져오기"
+          }
+        }
+      }
+    },
+    "Import key mappings without function key settings?": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "기능 키 설정을 제외하고 키 매핑을 가져오시겠습니까?"
           }
         }
       }
@@ -4481,6 +4901,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "먼저 이 Mac에 %@을(를) 설치하십시오. 위젯은 지금 설치할 수 있습니다."
+          }
+        }
+      }
+    },
+    "Install Deno with “brew install deno”, then retry. Workflow and Command widgets do not need Deno.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“brew install deno”로 Deno를 설치한 다음 다시 시도하십시오. 워크플로 및 명령 위젯에는 Deno가 필요하지 않습니다."
           }
         }
       }
@@ -4822,6 +5252,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "다음 고정 위젯의 페이지로 이동"
+          }
+        }
+      }
+    },
+    "Karabiner Key Mappings Only…": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Karabiner 키 매핑만…"
           }
         }
       }
@@ -5403,6 +5843,17 @@
         }
       }
     },
+    "Media": {
+      "comment": "Gallery category",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "미디어"
+          }
+        }
+      }
+    },
     "Medium": {
       "localizations": {
         "ko": {
@@ -5687,6 +6138,16 @@
         }
       }
     },
+    "Move Up, Move Down, or Move to Page": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위로 이동, 아래로 이동 또는 페이지로 이동"
+          }
+        }
+      }
+    },
     "Move Widget": {
       "localizations": {
         "ko": {
@@ -5783,6 +6244,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "위로 이동"
+          }
+        }
+      }
+    },
+    "Moved %@ down": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 아래로 이동함"
+          }
+        }
+      }
+    },
+    "Moved %@ up": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 위로 이동함"
           }
         }
       }
@@ -6107,6 +6588,16 @@
         }
       }
     },
+    "Not allowed yet. It waits on its card and runs nothing until you allow it.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "아직 허용하지 않았습니다. 허용하기 전에는 카드에서 대기하며 실행하지 않습니다."
+          }
+        }
+      }
+    },
     "Not checked yet": {
       "localizations": {
         "ko": {
@@ -6215,6 +6706,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "메뉴 막대 아이콘 하나와 위젯 팝업 하나로 사용량 미터, 코드, 파일, 그리고 명령행 도구가 출력하는 모든 것을 볼 수 있습니다."
+          }
+        }
+      }
+    },
+    "One-time sign-in codes with a countdown and one-click copy. Needs the otpeek command-line tool and a set-up vault.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "로그인용 일회용 인증 코드와 남은 시간을 보여 주고 한 번에 복사합니다. otpeek 명령줄 도구와 설정된 보관함이 필요합니다."
           }
         }
       }
@@ -6419,6 +6920,16 @@
         }
       }
     },
+    "Open the apps, folders and websites you use most. Needs no permissions.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "자주 사용하는 앱·폴더·웹사이트를 엽니다. 별도 권한이 필요 없습니다."
+          }
+        }
+      }
+    },
     "Open the release page to download it manually.": {
       "localizations": {
         "ko": {
@@ -6435,6 +6946,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "릴리스 페이지를 열어 빌드를 다운로드하고 체크섬을 확인하십시오."
+          }
+        }
+      }
+    },
+    "Open this widget’s Settings and choose a folder listed under Allowed folders. Choosing another folder in macOS Privacy settings does not change the widget’s permissions.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 위젯의 설정을 열고 허용된 폴더에 표시된 폴더를 선택하십시오. macOS 개인정보 보호 설정에서 다른 폴더를 허용해도 위젯 자체의 권한은 바뀌지 않습니다."
           }
         }
       }
@@ -6671,6 +7192,16 @@
         }
       }
     },
+    "Permissions for %@": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 권한"
+          }
+        }
+      }
+    },
     "Pin": {
       "localizations": {
         "ko": {
@@ -6871,6 +7402,27 @@
         }
       }
     },
+    "Privacy Settings…": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "개인정보 보호 설정…"
+          }
+        }
+      }
+    },
+    "Productivity": {
+      "comment": "Gallery category",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "생산성"
+          }
+        }
+      }
+    },
     "Profile": {
       "localizations": {
         "ko": {
@@ -7059,6 +7611,16 @@
         }
       }
     },
+    "Read the current date and time using the macOS date tool": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS 날짜 도구로 현재 날짜와 시간 읽기"
+          }
+        }
+      }
+    },
     "Read the environment variables %@": {
       "comment": "Permission summary: environment variables the widget may read",
       "localizations": {
@@ -7167,6 +7729,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "이 위젯을 검토하고 설치할 준비가 되었습니다."
+          }
+        }
+      }
+    },
+    "Recent files from a folder you choose, as a preview, a grid, or a searchable list. Drag files straight into other apps.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "선택한 폴더의 최근 파일을 미리보기·격자·검색 가능한 목록으로 보여 줍니다. 파일을 다른 앱으로 바로 드래그할 수 있습니다."
           }
         }
       }
@@ -7522,6 +8094,7 @@
       }
     },
     "Reorder %@": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -7651,6 +8224,16 @@
         }
       }
     },
+    "Restore Apple Dock": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Dock 복원"
+          }
+        }
+      }
+    },
     "Restore Default Style": {
       "localizations": {
         "ko": {
@@ -7697,6 +8280,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "초안 되돌리기"
+          }
+        }
+      }
+    },
+    "Review Key Mappings": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "키 매핑 검토"
           }
         }
       }
@@ -8102,6 +8695,16 @@
         }
       }
     },
+    "Script timers can keep running in the background when this option is off. Turning it on also pauses hidden script timers; overdue callbacks resume once when the widget becomes visible.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 옵션을 끄면 스크립트 타이머가 백그라운드에서 계속 실행될 수 있습니다. 켜면 숨겨진 스크립트 타이머도 일시 정지하며, 위젯이 다시 보이면 밀린 타이머 작업을 한 번씩 재개합니다."
+          }
+        }
+      }
+    },
     "Search": {
       "localizations": {
         "ko": {
@@ -8213,6 +8816,7 @@
       }
     },
     "Security": {
+      "comment": "Gallery category",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -8873,6 +9477,16 @@
         }
       }
     },
+    "Slower updates use less battery. Background and energy-saving rules still apply. A menu bar interval overrides this choice while promoted.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "갱신 간격이 길수록 배터리를 적게 사용합니다. 백그라운드·절전 규칙도 적용됩니다. 메뉴 막대에 표시하는 동안에는 메뉴 막대 갱신 간격이 우선합니다."
+          }
+        }
+      }
+    },
     "Slowest": {
       "localizations": {
         "ko": {
@@ -8899,6 +9513,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "일부 레지스트리 정보를 불러올 수 없습니다."
+          }
+        }
+      }
+    },
+    "Something that isn’t this widget is already at %@. BarShelf left it exactly as it was. Move or rename it in Finder, then install again.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@에 이 위젯이 아닌 다른 항목이 이미 있습니다. BarShelf는 그 항목을 그대로 두었습니다. Finder에서 옮기거나 이름을 바꾼 뒤 다시 설치하십시오."
           }
         }
       }
@@ -9216,6 +9840,17 @@
         }
       }
     },
+    "System": {
+      "comment": "Gallery category",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "시스템"
+          }
+        }
+      }
+    },
     "System Settings ▸ Privacy & Security ▸ Accessibility is open. Drag this icon into its list, then turn BarShelf on.": {
       "localizations": {
         "ko": {
@@ -9271,6 +9906,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "길게"
+          }
+        }
+      }
+    },
+    "Temperatures, fan speeds and power use. Can show a reading in the menu bar.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "온도·팬 속도·전력 사용량을 보여 줍니다. 메뉴 막대에도 값을 표시할 수 있습니다."
           }
         }
       }
@@ -9386,12 +10031,32 @@
         }
       }
     },
+    "The Apple Dock’s settings couldn’t be put back. BarShelf kept a copy of them; choose Restore Apple Dock to try again.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Dock 설정을 복원하지 못했습니다. BarShelf가 복구용 사본을 보관하고 있습니다. Apple Dock 복원을 선택해 다시 시도하십시오."
+          }
+        }
+      }
+    },
     "The BarShelf icon is hidden: the menu bar is full, or the icon is behind the camera notch. Hold ⌘ and drag other icons out of the menu bar to make room, or quit apps that put icons there. Opening BarShelf from Finder or Spotlight always brings back this window.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "BarShelf 아이콘이 가려져 있습니다. 메뉴 막대가 가득 찼거나 아이콘이 카메라 노치 뒤에 있습니다. ⌘를 누른 채 다른 아이콘을 메뉴 막대 밖으로 끌어 자리를 만들거나, 메뉴 막대에 아이콘을 두는 앱을 종료하십시오. Finder나 Spotlight에서 BarShelf를 열면 언제든 이 창이 다시 열립니다."
+          }
+        }
+      }
+    },
+    "The Dock needs attention. %@": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dock을 확인해 주십시오. %@"
           }
         }
       }
@@ -9422,6 +10087,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "사본은 자체 설정을 가집니다 — 예를 들어 서버나 계정마다 하나씩 둘 수 있습니다."
+          }
+        }
+      }
+    },
+    "The current US dollar to Korean won exchange rate.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "현재 미국 달러·대한민국 원 환율을 보여 줍니다."
+          }
+        }
+      }
+    },
+    "The current temperature and conditions for a place you choose. No account needed.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "선택한 지역의 현재 기온과 날씨를 보여 줍니다. 계정이 필요 없습니다."
           }
         }
       }
@@ -9528,6 +10213,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "서버가 요청을 거부했습니다(HTTP %lld)."
+          }
+        }
+      }
+    },
+    "The song playing in Music or Spotify. macOS asks once whether BarShelf may read it.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Music 또는 Spotify에서 재생 중인 곡을 보여 줍니다. macOS에서 접근 권한을 한 번 요청합니다."
           }
         }
       }
@@ -9722,6 +10417,26 @@
         }
       }
     },
+    "This folder is outside the widget’s allowed folders.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 폴더는 위젯에 허용된 범위 밖에 있습니다."
+          }
+        }
+      }
+    },
+    "This folder wasn’t saved. Choose a folder inside the allowed folders.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 폴더는 저장되지 않았습니다. 허용된 폴더 안에서 선택하십시오."
+          }
+        }
+      }
+    },
     "This is a locally built copy, so BarShelf cannot verify an update against it.": {
       "localizations": {
         "ko": {
@@ -9742,6 +10457,16 @@
         }
       }
     },
+    "This month’s calendar with today highlighted.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "오늘을 강조하여 보여 주는 이달의 달력입니다."
+          }
+        }
+      }
+    },
     "This release publishes no %@.": {
       "comment": "The argument is the expected download file name.",
       "localizations": {
@@ -9753,12 +10478,32 @@
         }
       }
     },
+    "This script widget needs Deno, which isn’t installed.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 스크립트 위젯에 필요한 Deno가 설치되어 있지 않습니다."
+          }
+        }
+      }
+    },
     "This widget couldn’t refresh.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "이 위젯을 새로고침할 수 없습니다."
+          }
+        }
+      }
+    },
+    "This widget has an invalid ID. Fix the id in widget.json before adding an instance.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 위젯의 ID가 올바르지 않습니다. 인스턴스를 추가하기 전에 widget.json의 id를 수정하십시오."
           }
         }
       }
@@ -9789,6 +10534,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "이 위젯에는 자체 옵션이 없습니다."
+          }
+        }
+      }
+    },
+    "This widget is installed as a link to a folder elsewhere (%@). BarShelf doesn’t update linked widgets and changed nothing. To update it, update the folder the link points to — for example with git pull — or remove the link and install the widget again.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 위젯은 다른 곳에 있는 폴더(%@)에 대한 링크로 설치되어 있습니다. BarShelf는 링크된 위젯을 업데이트하지 않으며 아무것도 바꾸지 않았습니다. 업데이트하려면 링크가 가리키는 폴더를 직접 업데이트하거나(예: git pull), 링크를 삭제한 뒤 위젯을 다시 설치하십시오."
           }
         }
       }
@@ -9839,6 +10594,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "이 위젯은 텍스트 값을 제공하므로 소수점 설정이 적용되지 않습니다."
+          }
+        }
+      }
+    },
+    "This widget’s declared permissions do not allow this action.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 위젯에 선언된 권한으로는 이 동작을 실행할 수 없습니다."
           }
         }
       }
@@ -9899,6 +10664,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "집중 모드에 맞추려면: 단축어 앱에서 집중 모드가 켜질 때 실행되는 개인용 자동화를 만들고 ‘URL 열기’ 동작에 이 링크를 넣으십시오. 터미널에서는: barshelf dock use \"%@\"."
+          }
+        }
+      }
+    },
+    "Today’s date with a large day number. Needs nothing else installed.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "오늘 날짜를 큰 숫자로 보여 줍니다. 다른 도구를 설치할 필요가 없습니다."
           }
         }
       }
@@ -9980,6 +10755,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "꺼짐"
+          }
+        }
+      }
+    },
+    "Turned off. It won’t ask or run.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "꺼짐. 권한을 요청하거나 실행하지 않습니다."
           }
         }
       }
@@ -10308,12 +11093,32 @@
         }
       }
     },
+    "Upload and download activity, live speeds, and this Mac’s local address.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "업로드·다운로드 활동과 현재 속도, 이 Mac의 로컬 주소를 보여 줍니다."
+          }
+        }
+      }
+    },
     "Use %@ command template": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "%@ 명령 템플릿 사용"
+          }
+        }
+      }
+    },
+    "Use Allowed Folder": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "허용된 폴더 사용"
           }
         }
       }
@@ -10509,11 +11314,22 @@
       }
     },
     "We added a few widgets to start with. Keep the ones you want.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "시작용 위젯 몇 개를 추가했습니다. 원하는 위젯만 남기십시오."
+          }
+        }
+      }
+    },
+    "We added a few widgets to start with. Keep the ones you want. Some need your permission before they run anything.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "바로 시작할 수 있도록 기본 위젯을 추가했습니다. 원하는 위젯을 선택하십시오. 일부 위젯은 실행 전에 권한 허용이 필요합니다."
           }
         }
       }
@@ -10558,6 +11374,16 @@
         }
       }
     },
+    "What each muxa coding agent is doing, on this Mac or over SSH. Needs the muxa command-line tool and Deno.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 Mac과 SSH로 연결한 컴퓨터에서 각 muxa 코딩 에이전트의 작업을 확인합니다. muxa 명령줄 도구와 Deno가 필요합니다."
+          }
+        }
+      }
+    },
     "What each widget is allowed to do.": {
       "localizations": {
         "ko": {
@@ -10598,12 +11424,32 @@
         }
       }
     },
+    "Whether GitHub is working normally, from its public status page.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "공개 상태 페이지를 통해 GitHub의 정상 작동 여부를 확인합니다."
+          }
+        }
+      }
+    },
     "Which direction is worse": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "나쁜 방향"
+          }
+        }
+      }
+    },
+    "While its shelf page is visible: %@.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "선반 페이지가 보일 때: %@."
           }
         }
       }
@@ -10729,6 +11575,7 @@
       }
     },
     "Widgets stop refreshing until you open the popup. Menu bar values freeze too, and dim once they're out of date.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -10880,12 +11727,42 @@
         }
       }
     },
+    "Your battery level as a large percentage and a colored meter.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "배터리 잔량을 큰 백분율과 색상 막대로 보여 줍니다."
+          }
+        }
+      }
+    },
     "Your installed copy was left untouched.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "설치된 복사본은 그대로 유지되었습니다."
+          }
+        }
+      }
+    },
+    "Your latest downloads as thumbnails or a list. Click to open, or drag a file into another app.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "최근 다운로드한 파일을 썸네일이나 목록으로 보여 줍니다. 클릭해서 열거나 다른 앱으로 드래그할 수 있습니다."
+          }
+        }
+      }
+    },
+    "Your next calendar event, how long until it starts, and a Join button for video calls. Needs Deno.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "다음 일정과 시작까지 남은 시간을 보여 주며 화상 회의에 바로 참가할 수 있습니다. Deno가 필요합니다."
           }
         }
       }
@@ -11068,12 +11945,32 @@
         }
       }
     },
+    "macOS couldn’t confirm the Apple Dock settings change. Try Restore Apple Dock again.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS에서 Apple Dock 설정 변경을 확인하지 못했습니다. Apple Dock 복원을 다시 시도하십시오."
+          }
+        }
+      }
+    },
     "macOS or the widget’s permissions blocked this.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "macOS 또는 위젯의 권한 설정이 이 작업을 차단했습니다."
+          }
+        }
+      }
+    },
+    "macOS will also ask once before BarShelf can open your %@ folder.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 폴더에 접근하기 전에 macOS에서도 한 번 권한을 요청합니다."
           }
         }
       }
@@ -11257,6 +12154,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "—"
+          }
+        }
+      }
+    },
+    "“%@” isn’t a valid widget ID, so nothing was installed. The widget’s author needs to fix the id in its widget.json.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@”은(는) 올바른 위젯 ID가 아니어서 아무것도 설치하지 않았습니다. 위젯 제작자가 widget.json의 id를 고쳐야 합니다."
           }
         }
       }

@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.now-playing",
   "name": "Now Playing",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "icon": "music.note",
   "bucket": { "group": "Media", "order": 10, "size": "M" },
 
@@ -24,5 +24,11 @@
 
   "appearance": {
     "accent": "pink"
+  },
+
+  "localizations": {
+    "ko": {
+      "Now Playing": "지금 재생 중"
+    }
   }
 }

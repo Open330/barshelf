@@ -14,12 +14,17 @@ final class ToastCenter: ObservableObject {
     @Published var message: String?
 
     private var clearTask: Task<Void, Never>?
+    private let announcer: AccessibilityAnnouncing
 
-    private init() {}
+    init(announcer: AccessibilityAnnouncing? = nil) {
+        self.announcer = announcer ?? AccessibilityAnnouncer.shared
+    }
 
-    /// Displays `message` and (re)arms the auto-clear timer.
+    /// Displays `message` and (re)arms the auto-clear timer. VoiceOver hears it
+    /// once, here: the capsule is never focused, so it cannot be read in place.
     func show(_ message: String) {
         self.message = message
+        announcer.announce(message)
         clearTask?.cancel()
         clearTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 1_800_000_000)

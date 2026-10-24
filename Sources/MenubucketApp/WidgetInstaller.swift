@@ -198,6 +198,23 @@ enum WidgetInstallFlow {
         return isUpdate
     }
 
+    /// An install failure in the app's language. Core keeps English text
+    /// (the command line has no string catalog); the refusals that protect
+    /// files on disk get words that say what was kept and what to do. Paths
+    /// and ids stay as they are, so they can be found and copied.
+    static func userFacingDescription(of error: Error) -> String {
+        switch error as? HeadlessInstallError {
+        case let .invalidWidgetID(id):
+            return String(localized: "“\(id)” isn’t a valid widget ID, so nothing was installed. The widget’s author needs to fix the id in its widget.json.")
+        case let .symbolicLinkInstall(path):
+            return String(localized: "This widget is installed as a link to a folder elsewhere (\(path)). BarShelf doesn’t update linked widgets and changed nothing. To update it, update the folder the link points to — for example with git pull — or remove the link and install the widget again.")
+        case let .destinationOccupied(path):
+            return String(localized: "Something that isn’t this widget is already at \(path). BarShelf left it exactly as it was. Move or rename it in Finder, then install again.")
+        default:
+            return error.localizedDescription
+        }
+    }
+
     static func isInstalled(id: String) -> Bool {
         HeadlessInstaller.isInstalled(id: id, in: widgetsInstallDirectory)
     }
@@ -410,7 +427,7 @@ final class WidgetInstaller {
                 installedIDs.append(candidate.manifest.id)
             } catch {
                 failed.append(
-                    "\(candidate.manifest.id): \(error.localizedDescription)"
+                    "\(candidate.manifest.id): \(WidgetInstallFlow.userFacingDescription(of: error))"
                 )
             }
         }
@@ -492,7 +509,7 @@ final class WidgetInstaller {
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = String(localized: "Widget install failed")
-        alert.informativeText = error.localizedDescription
+        alert.informativeText = WidgetInstallFlow.userFacingDescription(of: error)
         alert.addButton(withTitle: String(localized: "OK"))
         alert.runModal()
     }
@@ -667,8 +684,12 @@ enum WidgetInstallCLI {
                 }
                 do {
                     let wasUpdate = try WidgetInstallFlow.install(candidate: candidate)
-                    let destination = WidgetInstallFlow.widgetsInstallDirectory
-                        .appendingPathComponent(candidate.manifest.id).path
+                    // An update replaces the copy in place, which need not be
+                    // named after the id (seeded starters live in `today/`).
+                    let destination = (HeadlessInstaller.installedPackages(
+                        in: WidgetInstallFlow.widgetsInstallDirectory
+                    )[candidate.manifest.id]?.directory
+                        ?? WidgetInstallFlow.widgetsInstallDirectory.appendingPathComponent(candidate.manifest.id)).path
                     print("  \(wasUpdate ? "updated" : "installed") → \(destination)")
                     installedCount += 1
                 } catch {

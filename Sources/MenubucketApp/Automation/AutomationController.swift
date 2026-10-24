@@ -133,7 +133,7 @@ final class AutomationController: ObservableObject {
     func stopForTermination() { engine?.stop() }
 
     /// Returns a draft for review; does not replace a saved/running extension.
-    func importFile(_ url: URL) -> String? {
+    func importFile(_ url: URL, excludingFunctionKeys: Bool = false) -> String? {
         importSummary = nil
         do {
             let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
@@ -141,7 +141,7 @@ final class AutomationController: ObservableObject {
                 throw AutomationFailure(String(localized: "Extension files must be smaller than 256 KB."))
             }
             let contents = try String(contentsOf: url, encoding: .utf8)
-            let result = try AutomationImporter.convert(contents, fileExtension: url.pathExtension)
+            let result = try AutomationImporter.convert(contents, fileExtension: url.pathExtension, excludingFunctionKeys: excludingFunctionKeys)
             importSummary = result.summary
             message = nil
             return result.script

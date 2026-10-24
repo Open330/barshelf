@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.system",
   "name": "System",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "minHostVersion": "0.3.11",
   "icon": "cpu.fill",
   "bucket": {
@@ -117,5 +117,30 @@
   ],
   "appearance": {
     "accent": "purple"
+  },
+
+  "localizations": {
+    "ko": {
+      "System": "시스템",
+      "Menu bar shows": "메뉴 막대에 표시",
+      "CPU user": "CPU 사용자",
+      "CPU system": "CPU 시스템",
+      "Busiest core": "가장 바쁜 코어",
+      "Memory": "메모리",
+      "Memory pressure": "메모리 압력",
+      "Swap used": "사용 중인 스왑",
+      "Disk used": "디스크 사용률",
+      "Disk free": "디스크 여유 공간",
+      "Disk read": "디스크 읽기",
+      "Disk write": "디스크 쓰기",
+      "Also show": "함께 표시",
+      "Nothing": "없음",
+      "RAM menu bar value": "메뉴 막대의 메모리 값",
+      "Percent used": "사용률",
+      "Memory used": "사용 중인 메모리",
+      "Memory available": "사용 가능한 메모리",
+      "Disk": "디스크",
+      "${if(transforms.plainTooltip, '', concat(transforms.label1, ' ', transforms.text1, if(transforms.hasSecond, concat(' · ', transforms.label2, ' ', transforms.text2), ''), '\n'))}CPU ${string(round(number(sources.data.cpu.usage), 0))}% · Memory ${string(round(number(sources.data.memory.usage), 0))}% · Disk ${string(round(number(sources.data.disk.usage), 0))}%": "${if(transforms.plainTooltip, '', concat(transforms.label1, ' ', transforms.text1, if(transforms.hasSecond, concat(' · ', transforms.label2, ' ', transforms.text2), ''), '\n'))}CPU ${string(round(number(sources.data.cpu.usage), 0))}% · 메모리 ${string(round(number(sources.data.memory.usage), 0))}% · 디스크 ${string(round(number(sources.data.disk.usage), 0))}%"
+    }
   }
 }

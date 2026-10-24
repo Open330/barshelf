@@ -21,6 +21,17 @@ let clearAfterSec = 0;
 let sequence = 0;
 let ignoredSensitive = false;
 
+/**
+ * The app's language at the last load. Actions carry no locale, so they
+ * speak the language the widget was last loaded in.
+ */
+let language: "en" | "ko" = "en";
+
+/** Fixed text: Korean when the app is in Korean, else the English. */
+function t(english: string, korean: string): string {
+  return language === "ko" ? korean : english;
+}
+
 function integerSetting(
   value: unknown,
   fallback: number,
@@ -117,15 +128,17 @@ async function capture(ctx: WidgetLoadContext): Promise<void> {
 function redactedCache(): UINode {
   return ui.empty({
     icon: "clipboard",
-    title: "Clipboard Shelf",
-    subtitle: "Open to read your current clipboard privately.",
+    title: t("Clipboard Shelf", "클립보드 선반"),
+    subtitle: t(
+      "Open to read your current clipboard privately.",
+      "열면 현재 클립보드를 비공개로 읽습니다.",
+    ),
   });
 }
 
 function itemRow(item: ClipboardItem): UINode {
-  const copyOptions = clearAfterSec > 0
-    ? { toast: "Copied", clearAfterSec }
-    : { toast: "Copied" };
+  const toast = t("Copied", "복사됨");
+  const copyOptions = clearAfterSec > 0 ? { toast, clearAfterSec } : { toast };
   return ui.card([
     ui.hstack([
       ui.image(item.pinned ? "pin.fill" : "doc.on.clipboard", {
@@ -135,12 +148,16 @@ function itemRow(item: ClipboardItem): UINode {
       ui.text(preview(item.value), { role: "body", lineLimit: 2 }),
     ], { spacing: 6 }),
     ui.hstack([
-      ui.button("Copy", ui.action.copyText(item.value, copyOptions), {
-        id: `copy-${item.id}`,
-        icon: "doc.on.doc",
-      }),
       ui.button(
-        item.pinned ? "Unpin" : "Pin",
+        t("Copy", "복사"),
+        ui.action.copyText(item.value, copyOptions),
+        {
+          id: `copy-${item.id}`,
+          icon: "doc.on.doc",
+        },
+      ),
+      ui.button(
+        item.pinned ? t("Unpin", "고정 해제") : t("Pin", "고정"),
         ui.action.event("toggle-pin", { id: item.id }),
         { id: `pin-${item.id}`, icon: item.pinned ? "pin.slash" : "pin" },
       ),
@@ -148,7 +165,7 @@ function itemRow(item: ClipboardItem): UINode {
       ui.button(undefined, ui.action.event("delete", { id: item.id }), {
         id: `delete-${item.id}`,
         icon: "trash",
-        accessibilityLabel: "Delete clipboard item",
+        accessibilityLabel: t("Delete clipboard item", "클립보드 항목 삭제"),
       }),
     ], { spacing: 5 }),
   ], { id: item.id, spacing: 5, padding: 7 });
@@ -158,11 +175,17 @@ async function render(now: number): Promise<void> {
   const pinned = items.filter((item) => item.pinned).length;
   const children: UINode[] = [
     ui.hstack([
-      ui.text("Memory-only history · secrets are skipped", {
-        role: "caption",
-        foreground: "secondary",
-        lineLimit: 1,
-      }),
+      ui.text(
+        t(
+          "Memory-only history · secrets are skipped",
+          "메모리에만 보관 · 비밀 정보는 건너뜀",
+        ),
+        {
+          role: "caption",
+          foreground: "secondary",
+          lineLimit: 1,
+        },
+      ),
       ui.spacer(),
       ui.badge(`${items.length}/${historyLimit}`, { tone: "accent" }),
     ], { spacing: 6 }),
@@ -170,34 +193,46 @@ async function render(now: number): Promise<void> {
 
   if (ignoredSensitive) {
     children.push(
-      ui.banner("A clipboard value that looked sensitive was not captured.", {
-        title: "Protected",
-        tone: "warning",
-      }),
+      ui.banner(
+        t(
+          "A clipboard value that looked sensitive was not captured.",
+          "민감해 보이는 클립보드 값은 저장하지 않았습니다.",
+        ),
+        {
+          title: t("Protected", "보호됨"),
+          tone: "warning",
+        },
+      ),
     );
   }
 
   if (items.length === 0) {
     children.push(ui.empty({
       icon: "clipboard",
-      title: "No clipboard history yet",
-      subtitle: "Copy some text, then reopen this shelf.",
+      title: t("No clipboard history yet", "아직 클립보드 기록이 없습니다"),
+      subtitle: t(
+        "Copy some text, then reopen this shelf.",
+        "텍스트를 복사한 뒤 이 선반을 다시 여세요.",
+      ),
     }));
   } else {
     children.push(ui.list(items.map(itemRow), {
       spacing: 6,
-      searchPlaceholder: "Search clipboard history",
+      searchPlaceholder: t("Search clipboard history", "클립보드 기록 검색"),
     }));
     children.push(ui.hstack([
       ui.text(
-        pinned > 0 ? `${pinned} pinned` : "Stored only until this widget stops",
+        pinned > 0 ? t(`${pinned} pinned`, `고정 ${pinned}개`) : t(
+          "Stored only until this widget stops",
+          "이 위젯이 멈출 때까지만 보관됩니다",
+        ),
         {
           role: "caption",
           foreground: "secondary",
         },
       ),
       ui.spacer(),
-      ui.button("Clear all", ui.action.event("clear-all"), {
+      ui.button(t("Clear all", "모두 지우기"), ui.action.event("clear-all"), {
         id: "clear-all",
         icon: "trash",
       }),
@@ -207,9 +242,10 @@ async function render(now: number): Promise<void> {
   await barshelf.render(ui.vstack(children, { spacing: 8 }), {
     status: {
       label: items.length > 0 ? String(items.length) : undefined,
-      tooltip: `${items.length} recent clipboard item${
-        items.length === 1 ? "" : "s"
-      }`,
+      tooltip: t(
+        `${items.length} recent clipboard item${items.length === 1 ? "" : "s"}`,
+        `최근 클립보드 항목 ${items.length}개`,
+      ),
     },
     cacheRoot: redactedCache(),
     cacheTtlMs: 0,
@@ -219,6 +255,9 @@ async function render(now: number): Promise<void> {
 }
 
 async function load(ctx: WidgetLoadContext): Promise<void> {
+  language = typeof ctx.locale === "string" && /^ko(?:[-_]|$)/i.test(ctx.locale)
+    ? "ko"
+    : "en";
   historyLimit = integerSetting(ctx.settings.historyLimit, 8, 3, HARD_LIMIT);
   clearAfterSec = integerSetting(ctx.settings.clearAfterSec, 0, 0, 300);
   trimHistory();

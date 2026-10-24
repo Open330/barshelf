@@ -57,6 +57,8 @@ struct ShelfMoreMenu: View {
                     }
                 }
                 if !rows.isEmpty { Divider() }
+                Button(AppMenuCommand.focusDock.title) { onCommand(.focusDock) }
+                    .disabled(!dockStore.configuration.mode.showsDock)
                 Button(AppMenu.dockSettingsTitle) { onCommand(.dock) }
             } label: {
                 Label(command.title, systemImage: command.symbol)
@@ -95,7 +97,7 @@ struct PageMenu: View {
         let current = pages[index]
         Menu {
             ForEach(Array(pages.enumerated()), id: \.element.id) { pageIndex, page in
-                Toggle(page.group, isOn: Binding(
+                Toggle(PageName.label(page.group), isOn: Binding(
                     get: { pageIndex == index },
                     set: { _ in jump(pageIndex) }
                 ))
@@ -103,7 +105,7 @@ struct PageMenu: View {
             }
         } label: {
             HStack(spacing: Spacing.xxs) {
-                Text(current.group)
+                Text(PageName.label(current.group))
                     .font(.headline)
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -118,7 +120,7 @@ struct PageMenu: View {
         .menuIndicator(.hidden)
         .fixedSize()
         .help("Go to a page")
-        .accessibilityLabel("Page: \(current.group)")
+        .accessibilityLabel("Page: \(PageName.label(current.group))")
         .accessibilityHint("Choose a page to show")
     }
 }

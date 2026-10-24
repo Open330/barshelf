@@ -97,8 +97,12 @@ public enum SchedulePolicy {
     /// "fresh" twice as long. `nil` stays nil ("always stale").
     public static func effectiveStaleAfter(
         configured: Double?,
-        multiplier: Double
+        multiplier: Double,
+        intervalOverride: Double? = nil
     ) -> Double? {
+        if let intervalOverride, intervalOverride.isFinite, intervalOverride > 0 {
+            return max(configured ?? 0, intervalOverride) * normalizedRefreshMultiplier(multiplier)
+        }
         guard let configured else { return nil }
         return configured * normalizedRefreshMultiplier(multiplier)
     }

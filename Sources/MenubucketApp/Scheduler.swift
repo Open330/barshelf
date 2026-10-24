@@ -168,6 +168,14 @@ final class Scheduler {
         rebuildIntervalTimers()
     }
 
+    private(set) var widgetIntervalOverrides: [String: Double] = [:]
+
+    func setWidgetIntervalOverrides(_ overrides: [String: Double]) {
+        guard overrides != widgetIntervalOverrides else { return }
+        widgetIntervalOverrides = overrides
+        rebuildIntervalTimers()
+    }
+
     /// The first fire of a repeating timer, on a whole multiple of its interval
     /// since the reference date.
     ///
@@ -280,9 +288,8 @@ final class Scheduler {
             if widget.manifest.refresh?.popupOnly == true { continue }
             let promoted = menuBarWidgetIDs.contains(widget.id)
             if popupIsOpen, !promoted, !visibleWidgetIDs.contains(widget.id) { continue }
-            let configured = promoted
-                ? (intervalOverrides[widget.id] ?? widget.manifest.refresh?.interval)
-                : widget.manifest.refresh?.interval
+            let base = widgetIntervalOverrides[widget.id] ?? widget.manifest.refresh?.interval
+            let configured = promoted ? (intervalOverrides[widget.id] ?? base) : base
             guard let interval = SchedulePolicy.effectiveInterval(
                 configured: configured,
                 popupOpen: popupIsOpen,

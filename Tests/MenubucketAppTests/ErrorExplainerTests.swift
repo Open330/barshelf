@@ -45,9 +45,22 @@ final class ErrorExplainerTests: XCTestCase {
     }
 
     func testPermissionDenied() {
-        XCTAssertEqual(kind("command not permitted by manifest allowlist: /bin/rm"), .permissionDenied)
+        XCTAssertEqual(kind("command not permitted by manifest allowlist: /bin/rm"), .manifestPermissionDenied)
         XCTAssertEqual(kind("open: Operation not permitted"), .permissionDenied)
         XCTAssertEqual(kind("cat: /etc/secret: Permission denied"), .permissionDenied)
+        XCTAssertEqual(kind("config.json: Permission denied"), .permissionDenied)
+        XCTAssertEqual(kind("path is not covered by permissions.readPaths: ~/Downloads/config.json"), .manifestPermissionDenied)
+        let folder = ErrorExplainer.explain("path is not covered by permissions.readPaths: ~/Documents")
+        XCTAssertTrue(folder.fix.contains("Allowed folders"))
+        XCTAssertFalse(folder.fix.contains("ask its author"))
+        XCTAssertEqual(kind("exited with code 2: missing config.json"), .exitCode(2))
+    }
+
+    func testMissingScriptRuntimeGetsSpecificRecovery() {
+        let explanation = ErrorExplainer.explain("Deno runtime not found. Install Deno: brew install deno")
+        XCTAssertEqual(explanation.kind, .commandNotFound("deno"))
+        XCTAssertTrue(explanation.fix.contains("brew install deno"))
+        XCTAssertTrue(explanation.fix.contains("Workflow"))
     }
 
     func testNonZeroExitKeepsTheCode() {

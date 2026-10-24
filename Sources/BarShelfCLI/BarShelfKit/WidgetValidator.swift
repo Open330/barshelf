@@ -146,6 +146,15 @@ public enum WidgetValidator {
             ))
         }
 
+        if manifest.entry.kind == "script",
+           let runtime = manifest.entry.runtime, runtime != DenoRuntime.runtimeIdentifier {
+            report.issues.append(Issue(
+                file: manifestFile,
+                field: "entry.runtime",
+                message: RuntimeLaunchError.unsupportedRuntime(runtime).localizedDescription
+            ))
+        }
+
         // entry.main (workflow default: workflow.json) must exist and decode.
         var workflowFileName: String?
         if manifest.entry.kind == "workflow" {

@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.hello",
   "name": "Hello",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "icon": "hand.wave",
   "bucket": { "group": "Demo", "order": 10, "size": "S" },
 
@@ -16,5 +16,11 @@
   },
 
   "refresh": { "onOpen": true, "interval": 60, "staleAfterSec": 30 },
-  "permissions": { "exec": [{ "command": "./hello.sh", "allowedArgs": [[]] }] }
+  "permissions": { "exec": [{ "command": "./hello.sh", "allowedArgs": [[]] }] },
+
+  "localizations": {
+    "ko": {
+      "Hello": "안녕하세요"
+    }
+  }
 }

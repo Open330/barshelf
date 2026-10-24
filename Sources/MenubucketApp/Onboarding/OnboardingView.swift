@@ -81,6 +81,8 @@ struct OnboardingView: View {
     @ObservedObject private var hotkey = HotkeyRegistrationCoordinator.shared
     @State private var step: Step
     @State private var loginError: String?
+    /// Bumped on each Allow: the permission store is not observable.
+    @State private var approvals = 0
 
     init(runtime: WidgetRuntime, appPrefs: AppPrefs, startAt step: Step = .widgets, finish: @escaping (Bool) -> Void) {
         self.runtime = runtime
@@ -120,24 +122,106 @@ struct OnboardingView: View {
     @ViewBuilder
     private var widgetsStep: some View {
         title("Welcome to BarShelf", "One menu bar icon, and a popup of widgets: your usage meters, codes, files, and anything a command line tool can print.")
-        Text("We added a few widgets to start with. Keep the ones you want.")
+        Text("We added a few widgets to start with. Keep the ones you want. Some need your permission before they run anything.")
             .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
         VStack(spacing: 0) {
             ForEach(runtime.widgets) { widget in
+                let isOn = !runtime.prefs.isDisabled(widget.id)
                 switchRow(isOn: Binding(
-                    get: { !runtime.prefs.isDisabled(widget.id) },
+                    get: { isOn },
                     set: { runtime.setWidgetDisabled(widget.id, !$0) }
                 )) {
                     Label(widget.displayName, systemImage: widget.manifest.icon ?? "square.dashed")
+                }
+                if PermissionStore.requiresApproval(for: widget.manifest) {
+                    permissionRow(for: widget, isOn: isOn)
+                        .padding(.bottom, Spacing.xs)
                 }
                 if widget.id != runtime.widgets.last?.id { Divider() }
             }
         }
         .padding(.horizontal, Spacing.s)
         .cardSurface()
-        Text("You'll find more in the Gallery: usage meters, one-time codes, system sensors, and more.")
-            .font(.callout)
-            .foregroundStyle(.secondary)
+        HStack(alignment: .firstTextBaseline) {
+            Text("You'll find more in the Gallery: usage meters, one-time codes, system sensors, and more.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: Spacing.xs)
+            Button("Open Gallery") {
+                GalleryWindowController.shared.show()
+            }
+            .controlSize(.small)
+        }
+    }
+
+    /// What a starter asks for, and its own Allow. Keeping the widget on is
+    /// not consent: until Allow is pressed — here or on the card — it stays
+    /// pending and runs nothing.
+    @ViewBuilder
+    private func permissionRow(for widget: LoadedWidget, isOn: Bool) -> some View {
+        // Depends on `approvals` so the row re-reads the store after Allow.
+        let _ = approvals
+        let status = runtime.permissionStore.status(for: widget.manifest)
+        VStack(alignment: .leading, spacing: Spacing.xxs) {
+            PermissionList(requests: WidgetRuntime.permissionRequests(for: widget))
+            if let folder = Self.protectedFolder(in: widget.manifest) {
+                Text("macOS will also ask once before BarShelf can open your \(folder) folder.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack(spacing: Spacing.xs) {
+                switch status {
+                case .approved:
+                    Label("Allowed", systemImage: "checkmark.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(StatusTone.success.color)
+                case .denied:
+                    Text("Denied. It runs nothing until you allow it.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                case .pending:
+                    (isOn
+                        ? Text("Not allowed yet. It waits on its card and runs nothing until you allow it.")
+                        : Text("Turned off. It won’t ask or run."))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+                if status != .approved, isOn {
+                    // Never the default button: Return must not grant access.
+                    Button("Allow \(widget.displayName)") {
+                        runtime.approvePermissions(widgetID: widget.id)
+                        approvals += 1
+                    }
+                    .controlSize(.small)
+                }
+            }
+        }
+        .padding(.leading, Spacing.l)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Permissions for \(widget.displayName)")
+    }
+
+    /// The first folder macOS guards with its own prompt (Downloads,
+    /// Documents, Desktop) that the widget reads, as the user sees its name.
+    static func protectedFolder(in manifest: Manifest) -> String? {
+        for path in manifest.permissions?.readPaths ?? [] {
+            let expanded = (path as NSString).expandingTildeInPath
+            let home = FileManager.default.homeDirectoryForCurrentUser.path
+            for (name, label) in [
+                ("Downloads", String(localized: "Downloads")),
+                ("Documents", String(localized: "Documents")),
+                ("Desktop", String(localized: "Desktop")),
+            ] {
+                let folder = (home as NSString).appendingPathComponent(name)
+                if expanded == folder || expanded.hasPrefix(folder + "/") { return label }
+            }
+        }
+        return nil
     }
 
     @ViewBuilder

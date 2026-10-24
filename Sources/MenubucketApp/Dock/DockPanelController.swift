@@ -30,6 +30,19 @@ final class DockPanel: NSPanel {
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+
+    /// Sees scroll events before any scroll view inside the dock; returns
+    /// the event to deliver, or nil when it was handled.
+    var scrollRouter: ((NSEvent) -> NSEvent?)?
+
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .scrollWheel, let scrollRouter {
+            guard let routed = scrollRouter(event) else { return }
+            super.sendEvent(routed)
+            return
+        }
+        super.sendEvent(event)
+    }
 }
 
 /// First clicks act right away (the panel is never key when they arrive), and
@@ -38,6 +51,8 @@ final class DockHostingView<Content: View>: NSHostingView<Content> {
     var onSwipe: ((Int) -> Void)?
     /// The content's ideal size changed (items, sizes, running apps).
     var onIdealSizeChange: (() -> Void)?
+    /// The tiles scroll along this axis (they are longer than the display).
+    var scrollingAxis: Axis?
     private var accumulated: CGFloat = 0
     private var firedThisGesture = false
     private var commandScrollFired = false
@@ -85,7 +100,8 @@ final class DockHostingView<Content: View>: NSHostingView<Content> {
             if event.phase == .ended || event.phase == .cancelled { commandScrollFired = false }
             return
         }
-        guard event.hasPreciseScrollingDeltas, abs(event.scrollingDeltaX) > abs(event.scrollingDeltaY) else {
+        guard event.hasPreciseScrollingDeltas, scrollingAxis != .horizontal,
+              abs(event.scrollingDeltaX) > abs(event.scrollingDeltaY) else {
             super.scrollWheel(with: event)
             return
         }
@@ -104,6 +120,95 @@ final class DockHostingView<Content: View>: NSHostingView<Content> {
             firedThisGesture = false
         }
     }
+
+    enum ScrollRoute: Equatable {
+        /// Profile switching, handled here and not delivered further.
+        case host
+        /// Ordinary delivery to the view under the pointer: a widget's own
+        /// list, the scroll view of tiles that do not fit, or this view.
+        case dispatch
+        /// A mouse wheel turned over a dock that scrolls sideways: its
+        /// vertical notches scroll it, as a wheel has no other way to.
+        case tilesSideways
+    }
+
+    /// Where a scroll goes. ⌘-scroll always switches profiles; a sideways
+    /// trackpad swipe does unless the tiles scroll sideways themselves.
+    /// Everything else is delivered as usual. A mouse wheel
+    /// scrolls a sideways dock, except over a widget that scrolls up and
+    /// down (`overVerticalScroller`), which keeps its wheel; Shift-wheel,
+    /// which macOS sends sideways, scrolls the dock there too.
+    static func route(
+        command: Bool, momentum: Bool, precise: Bool,
+        deltaX: CGFloat, deltaY: CGFloat, scrollingAxis: Axis?,
+        overVerticalScroller: Bool = false
+    ) -> ScrollRoute {
+        if command { return .host }
+        if momentum { return .dispatch }
+        if abs(deltaX) > abs(deltaY) {
+            return precise && scrollingAxis != .horizontal ? .host : .dispatch
+        }
+        return scrollingAxis == .horizontal && !precise && !overVerticalScroller ? .tilesSideways : .dispatch
+    }
+
+    /// Whether a scroll view between `view` and `root` can scroll vertically:
+    /// a widget's list, not the sideways dock around it.
+    static func scrollsVertically(from view: NSView, within root: NSView) -> Bool {
+        var current: NSView? = view
+        while let candidate = current, candidate !== root {
+            if let scrollView = candidate as? NSScrollView, let document = scrollView.documentView,
+               document.frame.height > scrollView.contentView.bounds.height + 1 {
+                return true
+            }
+            current = candidate.superview
+        }
+        return false
+    }
+
+    private func isOverVerticalScroller(_ event: NSEvent) -> Bool {
+        guard scrollingAxis == .horizontal else { return false }
+        return isOverVerticalScroller(atWindowPoint: event.locationInWindow)
+    }
+
+    func isOverVerticalScroller(atWindowPoint point: NSPoint) -> Bool {
+        guard let superview, let hit = hitTest(superview.convert(point, from: nil)) else { return false }
+        return Self.scrollsVertically(from: hit, within: self)
+    }
+
+    func routeScroll(_ event: NSEvent) -> NSEvent? {
+        let precise = event.hasPreciseScrollingDeltas
+        switch Self.route(
+            command: event.modifierFlags.contains(.command), momentum: !event.momentumPhase.isEmpty,
+            precise: precise,
+            deltaX: event.scrollingDeltaX, deltaY: event.scrollingDeltaY, scrollingAxis: scrollingAxis,
+            overVerticalScroller: !precise && isOverVerticalScroller(event)
+        ) {
+        case .host:
+            scrollWheel(with: event)
+            return nil
+        case .dispatch:
+            return event
+        case .tilesSideways:
+            return Self.sideways(event) ?? event
+        }
+    }
+
+    /// The same wheel event with its vertical movement moved to the
+    /// horizontal axis (down scrolls toward the end, as on a list).
+    static func sideways(_ event: NSEvent) -> NSEvent? {
+        guard let copy = event.cgEvent?.copy() else { return nil }
+        let pairs: [(CGEventField, CGEventField)] = [
+            (.scrollWheelEventDeltaAxis1, .scrollWheelEventDeltaAxis2),
+            (.scrollWheelEventFixedPtDeltaAxis1, .scrollWheelEventFixedPtDeltaAxis2),
+            (.scrollWheelEventPointDeltaAxis1, .scrollWheelEventPointDeltaAxis2),
+        ]
+        for (vertical, horizontal) in pairs {
+            let value = copy.getDoubleValueField(vertical)
+            copy.setDoubleValueField(horizontal, value: value)
+            copy.setDoubleValueField(vertical, value: 0)
+        }
+        return NSEvent(cgEvent: copy)
+    }
 }
 
 /// Shows the BarShelf Dock on its screen edge, hides it when auto-hide says
@@ -113,6 +218,7 @@ final class DockPanelController {
     private let runtime: WidgetRuntime
     private let running = RunningApps.shared
     private let panel = DockPanel()
+    private let limits = DockLayoutLimits()
     private var hostingView: DockHostingView<DockView>!
     private var cancellables: Set<AnyCancellable> = []
     private var mouseMonitors: [Any] = []
@@ -124,6 +230,8 @@ final class DockPanelController {
     private var hideWorkItem: DispatchWorkItem?
     private var revealWorkItem: DispatchWorkItem?
     private var moveWorkItem: DispatchWorkItem?
+    /// The app that had the keyboard before Focus Dock; Esc gives it back.
+    private var appBeforeKeyboardFocus: NSRunningApplication?
 
     /// The edge band, in points, that brings an auto-hidden dock back.
     static let revealBand: CGFloat = 2
@@ -137,7 +245,7 @@ final class DockPanelController {
         self.store = store
         self.runtime = runtime
         let view = DockView(
-            store: store, runtime: runtime, running: running,
+            store: store, runtime: runtime, running: running, limits: limits,
             onHoverChange: { [weak self] hovering in self?.hoverChanged(hovering) },
             onOpenSettings: { [weak self] in self?.onOpenSettings?() }
         )
@@ -150,6 +258,11 @@ final class DockPanelController {
         hostingView.autoresizingMask = [.width, .height]
         hostingView.onSwipe = { [weak store] offset in store?.activate(offset: offset) }
         hostingView.onIdealSizeChange = { [weak self] in self?.setNeedsMeasure() }
+        panel.scrollRouter = Self.scrollRouter(for: hostingView)
+        limits.$scrollingAxis
+            .receive(on: RunLoop.main)
+            .sink { [weak hostingView] axis in hostingView?.scrollingAxis = axis }
+            .store(in: &cancellables)
         let container = NSView(frame: panel.contentLayoutRect)
         hostingView.frame = container.bounds
         container.addSubview(hostingView)
@@ -181,12 +294,66 @@ final class DockPanelController {
             // Displays coming and going change whether the pointer matters.
             .sink { [weak self] _ in self?.configurationChanged() }
             .store(in: &cancellables)
+        limits.onLeaveKeyboardFocus = { [weak self] in self?.endKeyboardFocus(returnFocus: true) }
+        NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification, object: panel)
+            .receive(on: RunLoop.main)
+            // A click elsewhere, or a tile that opened something.
+            .sink { [weak self] _ in self?.endKeyboardFocus(returnFocus: false) }
+            .store(in: &cancellables)
         configurationChanged()
         store.syncSizeWithAppleDock()
     }
 
+    // MARK: Keyboard
+
+    /// BarShelf menu ▸ Dock ▸ Focus Dock. Brings the dock out and gives it
+    /// the keyboard without activating BarShelf or any app: Tab and ⇧Tab
+    /// move between tiles, Return or Space opens one, Esc gives the
+    /// keyboard back. False (and nothing changes) when there is no dock or
+    /// nothing in it to focus.
+    @discardableResult
+    func focusDock() -> Bool {
+        let tiles = DockView.tiles(for: config, running: running.apps, recent: running.recent)
+        guard config.mode.showsDock, !DockView.focusOrder(tiles).isEmpty else { return false }
+        if !limits.keyboardActive {
+            let frontmost = NSWorkspace.shared.frontmostApplication
+            appBeforeKeyboardFocus = frontmost?.processIdentifier == ProcessInfo.processInfo.processIdentifier
+                ? nil : frontmost
+        }
+        limits.keyboardActive = true
+        hideWorkItem?.cancel()
+        hideWorkItem = nil
+        if isRevealed {
+            panel.orderFrontRegardless()
+        } else {
+            setRevealed(true)
+        }
+        panel.makeKey()
+        limits.focusRequest &+= 1
+        return true
+    }
+
+    private func endKeyboardFocus(returnFocus: Bool) {
+        guard limits.keyboardActive else { return }
+        limits.keyboardActive = false
+        let previous = appBeforeKeyboardFocus
+        appBeforeKeyboardFocus = nil
+        if returnFocus { previous?.activate() }
+        // Auto-hide picks up where it was: away unless the pointer is on it.
+        if hidesAutomatically { mouseMoved() }
+    }
+
     deinit {
         removeMouseMonitors()
+    }
+
+    /// The panel's scroll hook. Nil from the hosting view means it handled
+    /// the event (a profile switch), which must not be delivered again.
+    static func scrollRouter<Content: View>(for hostingView: DockHostingView<Content>) -> (NSEvent) -> NSEvent? {
+        { [weak hostingView] event in
+            guard let hostingView else { return event }
+            return hostingView.routeScroll(event)
+        }
     }
 
     private var config: DockConfiguration { store.configuration }
@@ -355,33 +522,59 @@ final class DockPanelController {
     /// The panel frame for the current size and edge, out on screen or slid
     /// past the edge (the current state unless `revealed` says otherwise).
     private func targetFrame(revealed: Bool? = nil) -> NSRect? {
-        let isRevealed = revealed ?? self.isRevealed
         guard let screen, restingSize != .zero else { return nil }
-        let visible = screen.visibleFrame
-        let full = screen.frame
         let room = headroom
-        switch config.edge {
+        return Self.panelFrame(
+            edge: config.edge, barSize: restingSize, headroom: (room.along, room.across),
+            visible: screen.visibleFrame, full: screen.frame, revealed: revealed ?? isRevealed
+        )
+    }
+
+    /// Room left along the edge past the bar's ends, so it never meets the
+    /// display's corners.
+    static let endMargin: CGFloat = 8
+
+    /// The longest the bar may be on a display; longer, its tiles scroll.
+    static func maxBarLength(edge: DockConfiguration.Edge, visible: NSRect) -> CGFloat {
+        (edge.isVertical ? visible.height : visible.width) - endMargin * 2
+    }
+
+    /// The panel around a bar of `barSize`: centred on the visible frame
+    /// along its edge and never longer than it, so the bar stays on its
+    /// display however many tiles it holds.
+    static func panelFrame(
+        edge: DockConfiguration.Edge, barSize: CGSize, headroom: (along: CGFloat, across: CGFloat),
+        visible: NSRect, full: NSRect, revealed: Bool
+    ) -> NSRect {
+        switch edge {
         case .bottom:
-            let width = min(restingSize.width + room.along, full.width)
-            let height = restingSize.height + room.across + Self.edgeGap
+            let width = min(barSize.width + headroom.along, visible.width)
+            let height = barSize.height + headroom.across + edgeGap
             // Above the Apple Dock when it shares the edge and stays up.
-            var y = visible.minY
-            if !isRevealed { y = full.minY - height }
+            let y = revealed ? visible.minY : full.minY - height
             return NSRect(x: visible.midX - width / 2, y: y, width: width, height: height)
         case .left, .right:
-            let width = restingSize.width + room.across + Self.edgeGap
-            let height = min(restingSize.height + room.along, visible.height)
+            let width = barSize.width + headroom.across + edgeGap
+            let height = min(barSize.height + headroom.along, visible.height)
             let y = visible.midY - height / 2
-            if config.edge == .left {
-                let x = isRevealed ? visible.minX : full.minX - width
+            if edge == .left {
+                let x = revealed ? visible.minX : full.minX - width
                 return NSRect(x: x, y: y, width: width, height: height)
             }
-            let x = isRevealed ? visible.maxX - width : full.maxX
+            let x = revealed ? visible.maxX - width : full.maxX
             return NSRect(x: x, y: y, width: width, height: height)
         }
     }
 
+    /// Tells the dock how long it may be on the display it is on now.
+    private func updateMaxBarLength() {
+        guard let screen else { return }
+        let length = Self.maxBarLength(edge: config.edge, visible: screen.visibleFrame)
+        if limits.maxBarLength != length { limits.maxBarLength = length }
+    }
+
     private func placePanel(animated: Bool, completion: (() -> Void)? = nil) {
+        updateMaxBarLength()
         guard let frame = targetFrame() else { return }
         if animated {
             NSAnimationContext.runAnimationGroup { context in
@@ -456,7 +649,8 @@ final class DockPanelController {
             }
             return
         }
-        let inside = barFrame().insetBy(dx: -12, dy: -12).contains(point) || atEdge
+        // Kept out while it has the keyboard.
+        let inside = barFrame().insetBy(dx: -12, dy: -12).contains(point) || atEdge || limits.keyboardActive
         if inside {
             hideWorkItem?.cancel()
             hideWorkItem = nil

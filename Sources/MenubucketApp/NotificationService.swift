@@ -1,4 +1,5 @@
 import Foundation
+import MenubucketCore
 import UserNotifications
 
 /// `host.notify.show` sink backed by UNUserNotificationCenter.
@@ -7,6 +8,26 @@ import UserNotifications
 /// identifier, so notifications degrade to a thrown error (surfaced to the
 /// script as an RPC error) instead of crashing the process.
 final class NotificationService: @unchecked Sendable {
+    private let authorize: @Sendable () async throws -> Bool
+    private let submit: @Sendable (String, String?) async throws -> Void
+
+    init(
+        authorize: (@Sendable () async throws -> Bool)? = nil,
+        submit: (@Sendable (String, String?) async throws -> Void)? = nil
+    ) {
+        self.authorize = authorize ?? {
+            guard Bundle.main.bundleIdentifier != nil else { throw NotificationError.unavailable }
+            return try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
+        }
+        self.submit = submit ?? { title, body in
+            let content = UNMutableNotificationContent()
+            content.title = title
+            if let body { content.body = body }
+            let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+            try await UNUserNotificationCenter.current().add(request)
+        }
+    }
+
     enum NotificationError: Error, LocalizedError {
         case unavailable
         case denied
@@ -32,20 +53,16 @@ final class NotificationService: @unchecked Sendable {
         }
     }
 
-    func show(title: String, body: String?) async throws {
-        guard Bundle.main.bundleIdentifier != nil else {
-            throw NotificationError.unavailable
-        }
-        let center = UNUserNotificationCenter.current()
-        let granted = try await center.requestAuthorization(options: [.alert, .sound])
+    func show(title: String, body: String?, authorization: ScriptRequestAuthorization? = nil) async throws {
+        try Task.checkCancellation()
+        if let authorization, !authorization.isValid { throw CancellationError() }
+        let granted = try await authorize()
+        // The widget may have been revoked, stopped, or replaced while the
+        // macOS permission prompt was open. No notification may follow then.
+        try Task.checkCancellation()
+        if let authorization, !authorization.isValid { throw CancellationError() }
         guard granted else { throw NotificationError.denied }
 
-        let content = UNMutableNotificationContent()
-        content.title = title
-        if let body { content.body = body }
-        let request = UNNotificationRequest(
-            identifier: UUID().uuidString, content: content, trigger: nil
-        )
-        try await center.add(request)
+        try await submit(title, body)
     }
 }

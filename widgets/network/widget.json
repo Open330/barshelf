@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.network",
   "name": "Network",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "icon": "arrow.up.arrow.down.circle.fill",
   "bucket": { "group": "System", "order": 13, "size": "S" },
 
@@ -19,5 +19,18 @@
 
   "appearance": {
     "accent": "blue"
+  },
+
+  "localizations": {
+    "ko": {
+      "Network": "네트워크",
+      "Menu bar shows": "메뉴 막대에 표시",
+      "Activity": "활동",
+      "Speed": "속도",
+      "Network interface": "네트워크 인터페이스",
+      "Offline": "오프라인",
+      "All interfaces": "모든 인터페이스",
+      "No local address": "로컬 주소 없음"
+    }
   }
 }

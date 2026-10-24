@@ -7,6 +7,7 @@ struct ToastOverlay: View {
     @ObservedObject private var toast = ToastCenter.shared
     /// Distance from the bottom edge; the shelf lifts it above its footer.
     var bottomInset: CGFloat = Spacing.s
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -18,9 +19,10 @@ struct ToastOverlay: View {
                     .padding(.vertical, Spacing.xs)
                     .modifier(ControlCapsule())
                     .padding(.bottom, bottomInset)
-                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .bottom)))
+                    // `ToastCenter.show` already announced it; a live-region
+                    // trait here would have VoiceOver read it a second time.
                     .accessibilityLabel(message)
-                    .accessibilityAddTraits(.updatesFrequently)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)

@@ -106,15 +106,14 @@ final class KarabinerImporterTests: XCTestCase {
         XCTAssertEqual(AutomationController(fileURL: directory.appendingPathComponent("automation.json")).source, saved)
     }
 
-    /// What current Karabiner-Elements writes into karabiner.json by itself
-    /// must not block the import.
+    /// Non-behavioral profile preferences must not block supported mappings.
     func testATypicalCurrentConfigurationImports() throws {
         let source = #"""
         {"global":{"show_in_menu_bar":true},"machine_specific":{"krbn-1":{"enable_multitouch_extension":false}},
          "profiles":[{"name":"Default","selected":true,
           "parameters":{"delay_milliseconds_before_open_device":1000},
           "virtual_hid_keyboard":{"keyboard_type_v2":"ansi","country_code":0},
-          "fn_function_keys":[{"from":{"key_code":"f1"},"to":[{"consumer_key_code":"display_brightness_decrement"}]}],
+          "fn_function_keys":[],
           "devices":[{"identifiers":{"is_keyboard":true,"product_id":834,"vendor_id":1452},"manipulate_caps_lock_led":true}],
           "complex_modifications":{"parameters":{"basic.to_if_alone_timeout_milliseconds":1000},"rules":[
             {"description":"off","enabled":false,"manipulators":[{"type":"basic","from":{"key_code":"a"},"to":[{"key_code":"b"}]}]},
@@ -125,7 +124,45 @@ final class KarabinerImporterTests: XCTestCase {
         let result = try KarabinerImporter.convert(source)
         let script = try AutomationScript(source: result.script)
         XCTAssertEqual(script.keyRemaps.count, 1, "the disabled rule stays off")
-        XCTAssertTrue(result.summary.contains("F1"), "says function keys were left out")
+    }
+
+    func testFunctionKeyBehaviorCannotBeSilentlyDroppedFromAnOtherwiseValidProfile() throws {
+        for entry in [
+            #"{"from":{"key_code":"f1"},"to":[{"consumer_key_code":"volume_increment"}]}"#,
+            #"{"from":{"key_code":"f1"},"to":[{"consumer_key_code":"display_brightness_decrement"}]}"#,
+            #"{"from":{"key_code":"a"},"to":[{"apple_vendor_keyboard_key_code":"mission_control"}]}"#,
+            #"{"from":{"key_code":"f1"},"to":[{"consumer_key_code":"mute"}],"conditions":[]}"#
+        ] {
+            let source = #"{"profiles":[{"selected":true,"simple_modifications":[{"from":{"key_code":"a"},"to":[{"key_code":"b"}]}],"fn_function_keys":[ENTRY]}]}"#
+                .replacingOccurrences(of: "ENTRY", with: entry)
+            XCTAssertThrowsError(try KarabinerImporter.convert(source)) { error in
+                XCTAssertTrue(error.localizedDescription.contains("profile.fn_function_keys"))
+                XCTAssertTrue(error.localizedDescription.contains("Nothing was imported"))
+            }
+        }
+    }
+
+    func testExplicitKeyMappingOnlyImportReportsOmissionsWithoutApplyingAnything() throws {
+        let source = #"{"profiles":[{"selected":true,"simple_modifications":[{"from":{"key_code":"a"},"to":[{"key_code":"b"}]}],"fn_function_keys":[{"from":{"key_code":"f1"},"to":[{"consumer_key_code":"volume_increment"}]}]}]}"#
+        XCTAssertThrowsError(try KarabinerImporter.convert(source))
+        let result = try KarabinerImporter.convert(source, excludingFunctionKeys: true)
+        XCTAssertEqual(try AutomationScript(source: result.script).keyRemaps.count, 1)
+        XCTAssertTrue(result.summary.contains("were not imported"))
+        XCTAssertTrue(result.summary.contains("may differ"))
+        XCTAssertTrue(result.script.contains("omitted at your request"))
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = directory.appendingPathComponent("karabiner.json")
+        try source.write(to: file, atomically: true, encoding: .utf8)
+        let controller = AutomationController(fileURL: directory.appendingPathComponent("automation.json"))
+        let saved = controller.source
+        XCTAssertNotNil(controller.importFile(file, excludingFunctionKeys: true))
+        XCTAssertEqual(controller.source, saved)
+        XCTAssertFalse(controller.isRunning)
+        XCTAssertEqual(try String(contentsOf: file, encoding: .utf8), source)
+        let conditional = fnRule.replacingOccurrences(of: "\"type\":\"basic\"", with: "\"type\":\"basic\",\"conditions\":[]")
+        XCTAssertThrowsError(try KarabinerImporter.convert(conditional, excludingFunctionKeys: true))
     }
 
     /// macOS reports arrows with fn set; control+left_arrow must still match.

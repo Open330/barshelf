@@ -17,6 +17,10 @@
     }
   },
   "transforms": {
+    "ko": {
+      "use": "assign",
+      "from": "or(eq(coalesce(widget.locale, ''), 'ko'), or(eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko-…'), eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko_…')))"
+    },
     "sel1": {
       "use": "assign",
       "from": "coalesce(settings.menuBarMetric, 'cpu')"
@@ -31,11 +35,11 @@
     },
     "prefix1": {
       "use": "assign",
-      "from": "switch(transforms.sel1, 'cpuUser', 'User', 'cpuSystem', 'Sys', 'cpuCore', 'Core', 'memory', 'RAM', 'pressure', 'RAM', 'swap', 'Swap', 'disk', 'Disk', 'diskFree', 'Free', 'diskRead', 'Read', 'diskWrite', 'Write', 'none', '', 'CPU')"
+      "from": "if(transforms.ko, switch(transforms.sel1, 'cpuUser', '사용자', 'cpuSystem', '시스템', 'cpuCore', '코어', 'memory', 'RAM', 'pressure', 'RAM', 'swap', '스왑', 'disk', '디스크', 'diskFree', '여유', 'diskRead', '읽기', 'diskWrite', '쓰기', 'none', '', 'CPU'), switch(transforms.sel1, 'cpuUser', 'User', 'cpuSystem', 'Sys', 'cpuCore', 'Core', 'memory', 'RAM', 'pressure', 'RAM', 'swap', 'Swap', 'disk', 'Disk', 'diskFree', 'Free', 'diskRead', 'Read', 'diskWrite', 'Write', 'none', '', 'CPU'))"
     },
     "label1": {
       "use": "assign",
-      "from": "switch(transforms.sel1, 'cpuUser', 'CPU user', 'cpuSystem', 'CPU system', 'cpuCore', 'Busiest core', 'memory', 'Memory', 'pressure', 'Memory pressure', 'swap', 'Swap used', 'disk', 'Disk', 'diskFree', 'Disk free', 'diskRead', 'Disk read', 'diskWrite', 'Disk write', 'none', '', 'CPU')"
+      "from": "if(transforms.ko, switch(transforms.sel1, 'cpuUser', 'CPU 사용자', 'cpuSystem', 'CPU 시스템', 'cpuCore', '가장 바쁜 코어', 'memory', '메모리', 'pressure', '메모리 압력', 'swap', '사용 중인 스왑', 'disk', '디스크', 'diskFree', '디스크 여유 공간', 'diskRead', '디스크 읽기', 'diskWrite', '디스크 쓰기', 'none', '', 'CPU'), switch(transforms.sel1, 'cpuUser', 'CPU user', 'cpuSystem', 'CPU system', 'cpuCore', 'Busiest core', 'memory', 'Memory', 'pressure', 'Memory pressure', 'swap', 'Swap used', 'disk', 'Disk', 'diskFree', 'Disk free', 'diskRead', 'Disk read', 'diskWrite', 'Disk write', 'none', '', 'CPU'))"
     },
     "precision1": {
       "use": "assign",
@@ -47,7 +51,7 @@
     },
     "text1": {
       "use": "assign",
-      "from": "if(transforms.isText1, switch(sources.data.memory.pressure, 'critical', 'Critical', 'warning', 'Warning', 'normal', 'Normal', '—'), if(eq(transforms.number1, null), '—', if(eq(transforms.format1,'percent'), concat(string(round(number(transforms.number1), 0)), '%'), if(eq(transforms.format1,'bytesPerSecond'), if(lt(number(transforms.number1), 1000000), concat(string(round(div(number(transforms.number1), 1000), 0)), ' kB/s'), concat(string(round(div(number(transforms.number1), 1000000), 1)), ' MB/s')), if(gte(number(transforms.number1), 1000000000000), concat(string(round(div(number(transforms.number1), 1000000000000), 1)), ' TB'), concat(string(round(div(number(transforms.number1), 1000000000), transforms.precision1)), ' GB'))))))"
+      "from": "if(transforms.ko, if(transforms.isText1, switch(sources.data.memory.pressure, 'critical', '위험', 'warning', '경고', 'normal', '정상', '—'), if(eq(transforms.number1, null), '—', if(eq(transforms.format1,'percent'), concat(string(round(number(transforms.number1), 0)), '%'), if(eq(transforms.format1,'bytesPerSecond'), if(lt(number(transforms.number1), 1000000), concat(string(round(div(number(transforms.number1), 1000), 0)), ' kB/s'), concat(string(round(div(number(transforms.number1), 1000000), 1)), ' MB/s')), if(gte(number(transforms.number1), 1000000000000), concat(string(round(div(number(transforms.number1), 1000000000000), 1)), ' TB'), concat(string(round(div(number(transforms.number1), 1000000000), transforms.precision1)), ' GB')))))), if(transforms.isText1, switch(sources.data.memory.pressure, 'critical', 'Critical', 'warning', 'Warning', 'normal', 'Normal', '—'), if(eq(transforms.number1, null), '—', if(eq(transforms.format1,'percent'), concat(string(round(number(transforms.number1), 0)), '%'), if(eq(transforms.format1,'bytesPerSecond'), if(lt(number(transforms.number1), 1000000), concat(string(round(div(number(transforms.number1), 1000), 0)), ' kB/s'), concat(string(round(div(number(transforms.number1), 1000000), 1)), ' MB/s')), if(gte(number(transforms.number1), 1000000000000), concat(string(round(div(number(transforms.number1), 1000000000000), 1)), ' TB'), concat(string(round(div(number(transforms.number1), 1000000000), transforms.precision1)), ' GB')))))))"
     },
     "tintBasis1": {
       "use": "assign",
@@ -71,11 +75,11 @@
     },
     "prefix2": {
       "use": "assign",
-      "from": "switch(transforms.sel2, 'cpuUser', 'User', 'cpuSystem', 'Sys', 'cpuCore', 'Core', 'memory', 'RAM', 'pressure', 'RAM', 'swap', 'Swap', 'disk', 'Disk', 'diskFree', 'Free', 'diskRead', 'Read', 'diskWrite', 'Write', 'none', '', 'CPU')"
+      "from": "if(transforms.ko, switch(transforms.sel2, 'cpuUser', '사용자', 'cpuSystem', '시스템', 'cpuCore', '코어', 'memory', 'RAM', 'pressure', 'RAM', 'swap', '스왑', 'disk', '디스크', 'diskFree', '여유', 'diskRead', '읽기', 'diskWrite', '쓰기', 'none', '', 'CPU'), switch(transforms.sel2, 'cpuUser', 'User', 'cpuSystem', 'Sys', 'cpuCore', 'Core', 'memory', 'RAM', 'pressure', 'RAM', 'swap', 'Swap', 'disk', 'Disk', 'diskFree', 'Free', 'diskRead', 'Read', 'diskWrite', 'Write', 'none', '', 'CPU'))"
     },
     "label2": {
       "use": "assign",
-      "from": "switch(transforms.sel2, 'cpuUser', 'CPU user', 'cpuSystem', 'CPU system', 'cpuCore', 'Busiest core', 'memory', 'Memory', 'pressure', 'Memory pressure', 'swap', 'Swap used', 'disk', 'Disk', 'diskFree', 'Disk free', 'diskRead', 'Disk read', 'diskWrite', 'Disk write', 'none', '', 'CPU')"
+      "from": "if(transforms.ko, switch(transforms.sel2, 'cpuUser', 'CPU 사용자', 'cpuSystem', 'CPU 시스템', 'cpuCore', '가장 바쁜 코어', 'memory', '메모리', 'pressure', '메모리 압력', 'swap', '사용 중인 스왑', 'disk', '디스크', 'diskFree', '디스크 여유 공간', 'diskRead', '디스크 읽기', 'diskWrite', '디스크 쓰기', 'none', '', 'CPU'), switch(transforms.sel2, 'cpuUser', 'CPU user', 'cpuSystem', 'CPU system', 'cpuCore', 'Busiest core', 'memory', 'Memory', 'pressure', 'Memory pressure', 'swap', 'Swap used', 'disk', 'Disk', 'diskFree', 'Disk free', 'diskRead', 'Disk read', 'diskWrite', 'Disk write', 'none', '', 'CPU'))"
     },
     "precision2": {
       "use": "assign",
@@ -87,7 +91,7 @@
     },
     "text2": {
       "use": "assign",
-      "from": "if(transforms.isText2, switch(sources.data.memory.pressure, 'critical', 'Critical', 'warning', 'Warning', 'normal', 'Normal', '—'), if(eq(transforms.number2, null), '—', if(eq(transforms.format2,'percent'), concat(string(round(number(transforms.number2), 0)), '%'), if(eq(transforms.format2,'bytesPerSecond'), if(lt(number(transforms.number2), 1000000), concat(string(round(div(number(transforms.number2), 1000), 0)), ' kB/s'), concat(string(round(div(number(transforms.number2), 1000000), 1)), ' MB/s')), if(gte(number(transforms.number2), 1000000000000), concat(string(round(div(number(transforms.number2), 1000000000000), 1)), ' TB'), concat(string(round(div(number(transforms.number2), 1000000000), transforms.precision2)), ' GB'))))))"
+      "from": "if(transforms.ko, if(transforms.isText2, switch(sources.data.memory.pressure, 'critical', '위험', 'warning', '경고', 'normal', '정상', '—'), if(eq(transforms.number2, null), '—', if(eq(transforms.format2,'percent'), concat(string(round(number(transforms.number2), 0)), '%'), if(eq(transforms.format2,'bytesPerSecond'), if(lt(number(transforms.number2), 1000000), concat(string(round(div(number(transforms.number2), 1000), 0)), ' kB/s'), concat(string(round(div(number(transforms.number2), 1000000), 1)), ' MB/s')), if(gte(number(transforms.number2), 1000000000000), concat(string(round(div(number(transforms.number2), 1000000000000), 1)), ' TB'), concat(string(round(div(number(transforms.number2), 1000000000), transforms.precision2)), ' GB')))))), if(transforms.isText2, switch(sources.data.memory.pressure, 'critical', 'Critical', 'warning', 'Warning', 'normal', 'Normal', '—'), if(eq(transforms.number2, null), '—', if(eq(transforms.format2,'percent'), concat(string(round(number(transforms.number2), 0)), '%'), if(eq(transforms.format2,'bytesPerSecond'), if(lt(number(transforms.number2), 1000000), concat(string(round(div(number(transforms.number2), 1000), 0)), ' kB/s'), concat(string(round(div(number(transforms.number2), 1000000), 1)), ' MB/s')), if(gte(number(transforms.number2), 1000000000000), concat(string(round(div(number(transforms.number2), 1000000000000), 1)), ' TB'), concat(string(round(div(number(transforms.number2), 1000000000), transforms.precision2)), ' GB')))))))"
     },
     "tintBasis2": {
       "use": "assign",

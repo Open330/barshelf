@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.codex-reset",
   "name": "Codex Reset",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "icon": "cloud.sun.fill",
   "bucket": { "group": "Developer", "order": 41, "size": "S" },
 
@@ -22,5 +22,15 @@
 
   "appearance": {
     "accent": "orange"
+  },
+
+  "localizations": {
+    "ko": {
+      "Codex Reset": "Codex 초기화",
+      "Will Codex reset?": "Codex 한도가 초기화될까요?",
+      "48H": "48시간",
+      "Last reset ${round(number(transforms.f.hoursSinceReset), 1)}h ago · alert at 70%": "마지막 초기화 ${round(number(transforms.f.hoursSinceReset), 1)}시간 전 · 70%부터 알림",
+      "${transforms.score}% chance of a Codex quota reset in the next 48 hours. ${transforms.f.aggregateAssessment.reason}": "앞으로 48시간 안에 Codex 한도가 초기화될 확률 ${transforms.score}%. ${transforms.f.aggregateAssessment.reason}"
+    }
   }
 }

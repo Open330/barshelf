@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.clock-script",
   "name": "Script Clock",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "icon": "clock",
   "bucket": { "group": "Demo", "order": 30, "size": "S" },
 
@@ -34,5 +34,11 @@
     "notifications": false
   },
 
-  "settings": []
+  "settings": [],
+
+  "localizations": {
+    "ko": {
+      "Script Clock": "스크립트 시계"
+    }
+  }
 }

@@ -54,6 +54,19 @@ Drag apps, folders, files, or web links onto the dock to add them. Drag an
 item onto another to move it. Right-click any item for its menu, including
 **Remove from Dock**.
 
+A dock with more than fits along its display edge keeps its size and
+scrolls: swipe with two fingers, or turn a mouse wheel (Shift-wheel over a
+widget that scrolls up and down; the plain wheel scrolls that widget). A side
+dock scrolls up and down. While a dock scrolls, Classic magnification is off.
+
+To use the dock from the keyboard, choose **BarShelf menu ▸ Dock ▸ Focus
+Dock**. The dock comes out (even when it hides automatically) and takes the
+keyboard without switching apps: **Tab** and **⇧Tab** move between items
+(skipping spaces and dividers; a dock that scrolls follows), **Return** or
+**Space** opens one as a click would, and **Esc** gives the keyboard back to
+the app that had it and lets the dock hide again. Clicking elsewhere does the
+same. BarShelf adds no global shortcut for this.
+
 The Apple Dock's own settings are there too: size (by default the same as
 the Apple Dock's, following it when it changes), magnification and how
 much, which display (the main one, or the one the pointer rests at the edge
@@ -82,7 +95,9 @@ Ways to switch:
 - **⌃⌥1–9** for the first nine profiles (turn on in **Switching**). A number
   another app already uses is marked as taken; one your Automation script uses
   stays with Automation, and comes back to the dock when Automation stops.
-- A **two-finger sideways swipe** on the dock, or **⌘-scroll** over it.
+- A **two-finger sideways swipe** on the dock, or **⌘-scroll** over it. On
+  a dock along the bottom that is too long for its display, the swipe scrolls
+  the dock instead (see below); ⌘-scroll still switches.
 - **BarShelf menu ▸ Dock**, or right-click the dock.
 - A link: `barshelf://dock?profile=Work` (name, id, or number; the link
   **Dock ▸ Switching** copies uses the id, so renaming the profile does not

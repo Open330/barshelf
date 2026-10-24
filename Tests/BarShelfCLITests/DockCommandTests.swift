@@ -6,9 +6,13 @@ import MenubucketCore
 final class DockCommandTests: XCTestCase {
     private final class FakeDefaults: AppleDockDefaults {
         var values: [String: Any] = [:]
+        var failWrites = false
         func value(forKey key: String) -> Any? { values[key] }
         func set(_ value: Any?, forKey key: String) { values[key] = value }
         func synchronize() {}
+        func synchronizeChanges() throws {
+            if failWrites { throw AppleDockError.preferenceWriteFailed }
+        }
     }
 
     private var fileURL: URL!
@@ -71,6 +75,24 @@ final class DockCommandTests: XCTestCase {
         let saved = DockConfiguration.load(from: fileURL)
         XCTAssertNil(saved.appleDockBackup)
         XCTAssertEqual(saved.mode, .alongside)
+    }
+
+    func testFailedRestoreOrConfigurationSaveRetainsTheRecoveryRecord() throws {
+        for failPreferences in [false, true] {
+            var config = DockConfiguration.load(from: fileURL)
+            config.mode = .replace
+            config.appleDockBackup = AppleDockVisibility(autohide: false, autohideDelay: 0.2)
+            try config.save(to: fileURL)
+            let original = try Data(contentsOf: fileURL)
+            let defaults = FakeDefaults()
+            defaults.failWrites = failPreferences
+            let status = DockCommand.run(arguments: ["restore-apple-dock"], configurationURL: fileURL,
+                appleDock: { AppleDock(defaults: defaults) {} }, appIsRunning: { false },
+                saveConfiguration: { _, _ in throw CocoaError(.fileWriteUnknown) })
+            XCTAssertEqual(status, 1)
+            XCTAssertEqual(try Data(contentsOf: fileURL), original)
+            XCTAssertEqual(DockConfiguration.load(from: fileURL).appleDockBackup, config.appleDockBackup)
+        }
     }
 
     /// With BarShelf running the app is asked, and the file is left alone.

@@ -8,6 +8,8 @@ import SwiftUI
 /// opens its detail page; the quick Install/Update button installs in place.
 struct GalleryCard: View {
     let entry: RegistryWidgetEntry
+    /// The entry's name as the shelf shows it (`GalleryEntryText.title`).
+    private var displayName: String { GalleryEntryText.title(for: entry) }
     let isInstalled: Bool
     /// Registry advertises a newer version than the installed widget.json.
     let updateAvailable: Bool
@@ -30,7 +32,7 @@ struct GalleryCard: View {
             HStack(alignment: .top, spacing: Spacing.s) {
                 GalleryIconTile(entry: entry, size: 40)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(entry.name)
+                    Text(displayName)
                         .font(.headline)
                         .lineLimit(1)
                     HStack(spacing: Spacing.xxs) {
@@ -38,7 +40,7 @@ struct GalleryCard: View {
                             GalleryTypeBadge(kind: kind)
                         }
                         if let category = entry.category, !category.isEmpty {
-                            Text(category)
+                            Text(GalleryEntryText.categoryLabel(category))
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
@@ -53,7 +55,7 @@ struct GalleryCard: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 installControl
             }
-            if let description = entry.description {
+            if let description = GalleryEntryText.description(for: entry) {
                 Text(description)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -103,9 +105,9 @@ struct GalleryCard: View {
     }
 
     private var accessibilityName: String {
-        var parts = [entry.name]
+        var parts = [displayName]
         if let kind = entry.kind { parts.append(String(localized: "\(WidgetTypeName.name(kind)) widget", comment: "Accessibility: widget type, e.g. Command widget")) }
-        if let description = entry.description { parts.append(description) }
+        if let description = GalleryEntryText.description(for: entry) { parts.append(description) }
         if let requires = entry.requires, !requires.isEmpty {
             parts.append(requirementStyle.accessibilityLabel(requires))
         }
@@ -148,7 +150,7 @@ struct GalleryCard: View {
             Button("Update", action: install)
                 .controlSize(.small)
                 .help("A newer version is available in the registry")
-                .accessibilityLabel("Update \(entry.name)")
+                .accessibilityLabel("Update \(displayName)")
         } else if isInstalled {
             Label("Installed", systemImage: "checkmark.circle.fill")
                 .font(.caption)
@@ -159,7 +161,7 @@ struct GalleryCard: View {
         } else {
             Button("Install", action: install)
                 .controlSize(.small)
-                .accessibilityLabel("Install \(entry.name)")
+                .accessibilityLabel("Install \(displayName)")
         }
     }
 
@@ -227,7 +229,7 @@ struct GalleryCard: View {
     @ViewBuilder
     private var screenshotPreview: some View {
         if let url = GalleryLinks.screenshotURL(entry) {
-            GalleryScreenshot(url: url, name: entry.name, height: 120)
+            GalleryScreenshot(url: url, name: displayName, height: 120)
         }
     }
 

@@ -108,6 +108,16 @@ final class HubWindowController: NSObject, NSWindowDelegate {
         registeredRuntime = runtime
     }
 
+    /// Finder reopen reveals the hub even when a Dock panel counts as a
+    /// visible app window. An existing hub retains its selected page.
+    func reopen() {
+        guard let window else { show(tab: .shelf); return }
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate()
+        window.deminiaturize(nil)
+        window.makeKeyAndOrderFront(nil)
+    }
+
     /// Convenience for shims that carry no runtime — uses the registered one.
     func show(tab: HubTab) {
         guard let runtime = registeredRuntime else { return }

@@ -12,6 +12,11 @@
     }
   },
 
+  "transforms": {
+    "ko": { "use": "assign", "from": "or(eq(coalesce(widget.locale, ''), 'ko'), or(eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko-…'), eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko_…')))" },
+    "state": { "use": "assign", "from": "if(transforms.ko, switch(sources.data.state, 'charged', '충전 완료', 'charging', '충전 중', 'discharging', '배터리 사용 중', sources.data.state), sources.data.state)" }
+  },
+
   "view": {
     "action": {"type": "openURL", "url": "x-apple.systempreferences:com.apple.Battery-Settings.extension"},
     "type": "vstack",
@@ -28,7 +33,7 @@
             "tint": "${if(gt(sources.data.pct, 25), 'good', if(gt(sources.data.pct, 10), 'warning', 'danger'))}"
           },
           { "type": "spacer" },
-          { "type": "text", "text": "${sources.data.state}", "role": "caption", "foreground": "secondary", "lineLimit": 1 }
+          { "type": "text", "text": "${transforms.state}", "role": "caption", "foreground": "secondary", "lineLimit": 1 }
         ]
       },
       { "type": "text", "text": "${string(sources.data.pct)}%", "size": 40, "role": "title", "monospacedDigit": true },
@@ -43,6 +48,6 @@
 
   "status": {
     "label": "${string(sources.data.pct)}%",
-    "tooltip": "Battery ${string(sources.data.pct)}% — ${sources.data.state}"
+    "tooltip": "Battery ${string(sources.data.pct)}% — ${transforms.state}"
   }
 }

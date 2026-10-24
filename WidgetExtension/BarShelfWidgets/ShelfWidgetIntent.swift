@@ -87,7 +87,7 @@ struct ShelfPartQuery: EntityQuery {
             let part = SharedContainer.snapshot(for: entity.widgetID)?.parts.first { $0.key == entity.key }
             if let part { return ShelfPartEntity(widgetID: entity.widgetID, part: part) }
             // Gone since it was chosen; keep the choice, named by its key.
-            return ShelfPartEntity(id: id, title: entity.key.components(separatedBy: "/").last ?? entity.key)
+            return ShelfPartEntity(id: id, title: SharedShelf.title(ofMissingPartKey: entity.key))
         }
     }
 
@@ -126,7 +126,7 @@ enum ShelfWidgetStyle: String, AppEnum {
 
 struct SelectShelfWidgetIntent: WidgetConfigurationIntent {
     static let title: LocalizedStringResource = "Choose a Widget"
-    static let description = IntentDescription("Show one of your BarShelf widgets, or just the items you pick from it.")
+    static let description = IntentDescription("Choose a widget or its parts. Desktop placement does not keep its source running; open its shelf page or use Refresh to update.")
 
     @Parameter(title: "Widget")
     var widget: ShelfWidgetEntity?
@@ -157,9 +157,17 @@ enum SharedContainer {
         url.flatMap(SharedShelf.readIndex(from:))
     }
 
-    /// When a refresh of this widget was asked for and not answered yet.
-    static func pendingRefresh(for widgetID: String) -> Date? {
-        url.flatMap { SharedShelf.pendingRefreshRequests(in: $0)[widgetID] }
+    /// Where this widget's refresh request stands at `date` (a timeline
+    /// asks about later moments too).
+    static func refreshState(for widgetID: String, at date: Date = Date()) -> SharedShelf.RefreshRequestState {
+        url.map { SharedShelf.refreshRequestState(widgetID: widgetID, in: $0, now: date) } ?? .none
+    }
+
+    /// False when BarShelf's list no longer has the widget (turned off,
+    /// removed, or made sensitive); true when there is no list to ask.
+    static func isOffered(_ widgetID: String) -> Bool {
+        guard let entries = index()?.entries else { return true }
+        return entries.contains { $0.id == widgetID }
     }
 
     static func snapshot(for widgetID: String) -> SharedShelf.Snapshot? {

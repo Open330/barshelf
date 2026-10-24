@@ -142,7 +142,7 @@ struct ShelfView: View {
     private func column(_ page: ShelfPage, index: Int, count: Int) -> some View {
         VStack(alignment: .leading, spacing: Spacing.xs) {
             HStack(spacing: Spacing.xxs) {
-                Text(page.name)
+                Text(PageName.label(page.name))
                     .font(.headline)
                     .lineLimit(1)
                 Text("\(page.widgets.count)")
@@ -161,11 +161,11 @@ struct ShelfView: View {
                 .menuStyle(.borderlessButton)
                 .menuIndicator(.hidden)
                 .fixedSize()
-                .accessibilityLabel("Page \(page.name) options")
+                .accessibilityLabel("Page \(PageName.label(page.name)) options")
             }
             .padding(.horizontal, Spacing.xxs)
             .accessibilityElement(children: .contain)
-            .accessibilityLabel("Page \(page.name), \(page.widgets.count) widgets")
+            .accessibilityLabel("Page \(PageName.label(page.name)), \(page.widgets.count) widgets")
 
             ForEach(page.widgets) { widget in
                 chip(widget, in: page)
@@ -264,7 +264,7 @@ struct ShelfView: View {
         }
         Menu("Move to Page") {
             ForEach(shelfPages.map(\.name), id: \.self) { name in
-                Button(name) { move(widget.id, toPage: name, before: nil) }
+                Button(PageName.label(name)) { move(widget.id, toPage: name, before: nil) }
                     .disabled(name == runtime.effectiveGroup(for: widget.id))
             }
         }
@@ -420,10 +420,12 @@ struct ShelfView: View {
     private func remove(_ widget: LoadedWidget) {
         removalTarget = nil
         if selection == widget.id { selection = nil }
-        do {
-            try runtime.removeWidget(id: widget.id)
-        } catch {
-            actionError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        Task { @MainActor in
+            do {
+                try await runtime.removeWidget(id: widget.id)
+            } catch {
+                actionError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            }
         }
     }
 

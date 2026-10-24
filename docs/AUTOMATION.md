@@ -63,6 +63,14 @@ with an error identifying its location. Nonempty device settings, function-key
 tables and custom parameters in a selected full profile also reject import;
 export a supported rules file separately to migrate only those rules.
 
+For a full configuration with a function-key table, **Import Settings → Karabiner
+Key Mappings Only…** provides an explicit alternative: review the warning, choose
+the JSON file, and inspect the generated draft. This excludes function/media-key
+customizations and reports that omission in both the summary and script comment.
+After quitting Karabiner those keys follow native macOS behavior, which may differ
+from the original configuration. Other unsupported behavior still rejects the
+import. The normal Karabiner import continues to reject partial migration.
+
 Import produces an editor draft and **replaces**, rather than merges with, the
 saved extension when applied. Disable the matching Karabiner rules before enabling
 the replacement. The importer never alters the original tool or configuration.
@@ -93,7 +101,7 @@ hs.hotkey.bind(["alt", "shift"], "k", () => rotateWindowFocus("forward"));
 | `barshelf.moveMouseToScreen(index)` | Move the pointer to the screen center and focus its first titled window in front-to-back order. |
 | `barshelf.moveWindowToScreen(index)` | Move the focused window, preserving proportions within usable screen bounds. |
 | `barshelf.rotateWindowFocus(direction)` | Cycle titled visible windows on the focused window's screen, ordered top-to-bottom then left-to-right; center the pointer in the new window. `direction` is `"forward"` or `"backward"`. |
-| `barshelf.selectNextInputSource()` | Switch to the next enabled keyboard input source on key-down, while the system ⌘Space "Select next source" commits only when ⌘ is released. When that system shortcut is set to a key with no modifier (F18 is the usual choice: no Mac keyboard has it), BarShelf sends that key and macOS switches itself, which reliably reaches the app you are typing in; otherwise it selects the source directly, which with Korean, Japanese, or Chinese input methods sometimes changes the menu bar but not the focused app. Recommended: set "Select next source in Input menu" to F18 and bind ⌘Space here. The Automation page warns while a binding and an enabled macOS shortcut share keys. |
+| `barshelf.selectNextInputSource()` | Switch to the next enabled keyboard input source on key-down, while the system ⌘Space "Select next source" commits only when ⌘ is released. When that system shortcut is set to a key with no modifier (for example F18, if that key is unused on your keyboard), BarShelf sends that key and macOS switches itself, which reliably reaches the app you are typing in; otherwise it selects the source directly, which with Korean, Japanese, or Chinese input methods sometimes changes the menu bar but not the focused app. Recommended: assign "Select next source in Input menu" an unused modifier-less key, then bind ⌘Space here. The Automation page warns while a binding and an enabled macOS shortcut share keys. |
 | `barshelf.log(message)` | Display a callback diagnostic in extension settings. |
 
 The three window-action functions also have global aliases with the same names,

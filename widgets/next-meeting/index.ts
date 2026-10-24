@@ -18,6 +18,14 @@ interface MeetingData {
   meetingURL?: string;
 }
 
+/** The app's language, set at the start of each load. */
+let language: "en" | "ko" = "en";
+
+/** Fixed text: Korean when the app is in Korean, else the English. */
+function t(english: string, korean: string): string {
+  return language === "ko" ? korean : english;
+}
+
 const openCalendar = {
   type: "openApp",
   value: "com.apple.iCal",
@@ -49,17 +57,17 @@ function isMeetingData(value: unknown): value is MeetingData {
 
 function relativeTime(startMs: number, nowMs: number): string {
   const minutes = Math.max(0, Math.ceil((startMs - nowMs) / 60_000));
-  if (minutes < 1) return "Starting now";
-  if (minutes < 60) return `In ${minutes} min`;
+  if (minutes < 1) return t("Starting now", "곧 시작");
+  if (minutes < 60) return t(`In ${minutes} min`, `${minutes}분 후`);
   const hours = Math.floor(minutes / 60);
   const remainder = minutes % 60;
   if (hours < 24) {
     return remainder === 0
-      ? `In ${hours} hr`
-      : `In ${hours} hr ${remainder} min`;
+      ? t(`In ${hours} hr`, `${hours}시간 후`)
+      : t(`In ${hours} hr ${remainder} min`, `${hours}시간 ${remainder}분 후`);
   }
   const days = Math.floor(hours / 24);
-  return `In ${days} day${days === 1 ? "" : "s"}`;
+  return t(`In ${days} day${days === 1 ? "" : "s"}`, `${days}일 후`);
 }
 
 function timeRange(data: MeetingData, locale: string): string {
@@ -70,7 +78,7 @@ function timeRange(data: MeetingData, locale: string): string {
       weekday: "short",
       month: "short",
       day: "numeric",
-    }).format(start) + " · All day";
+    }).format(start) + t(" · All day", " · 종일");
   }
   const day = new Intl.DateTimeFormat(locale, {
     weekday: "short",
@@ -86,10 +94,16 @@ function timeRange(data: MeetingData, locale: string): string {
 
 function redactedFallback(): UINode {
   return ui.vstack([
-    ui.banner("Calendar details load when the widget refreshes.", {
-      tone: "neutral",
-      icon: "lock.shield",
-    }),
+    ui.banner(
+      t(
+        "Calendar details load when the widget refreshes.",
+        "위젯이 새로 고쳐지면 일정 정보를 불러옵니다.",
+      ),
+      {
+        tone: "neutral",
+        icon: "lock.shield",
+      },
+    ),
   ], { id: "next-meeting-redacted", spacing: 8 });
 }
 
@@ -97,10 +111,15 @@ function emptyView(days: number): UINode {
   return ui.vstack([
     ui.empty({
       icon: "calendar.badge.checkmark",
-      title: "No upcoming events",
-      subtitle: `Your next ${days} day${days === 1 ? "" : "s"} are clear.`,
+      title: t("No upcoming events", "다가오는 일정 없음"),
+      subtitle: t(
+        `Your next ${days} day${days === 1 ? "" : "s"} are clear.`,
+        `앞으로 ${days}일 동안 일정이 없습니다.`,
+      ),
     }),
-    ui.button("Open Calendar", openCalendar, { icon: "calendar" }),
+    ui.button(t("Open Calendar", "캘린더 열기"), openCalendar, {
+      icon: "calendar",
+    }),
   ], { id: "next-meeting-empty", spacing: 8 });
 }
 
@@ -111,13 +130,15 @@ function meetingView(data: MeetingData, ctx: WidgetLoadContext): UINode {
   const actionButtons: UINode[] = [];
 
   if (data.meetingURL && /^https?:\/\//i.test(data.meetingURL)) {
-    actionButtons.push(ui.button("Join", ui.action.openURL(data.meetingURL), {
-      id: "join-meeting",
-      icon: "video.fill",
-      role: "normal",
-    }));
+    actionButtons.push(
+      ui.button(t("Join", "참가"), ui.action.openURL(data.meetingURL), {
+        id: "join-meeting",
+        icon: "video.fill",
+        role: "normal",
+      }),
+    );
   }
-  actionButtons.push(ui.button("Calendar", openCalendar, {
+  actionButtons.push(ui.button(t("Calendar", "캘린더"), openCalendar, {
     id: "open-calendar",
     icon: "calendar",
   }));
@@ -125,7 +146,7 @@ function meetingView(data: MeetingData, ctx: WidgetLoadContext): UINode {
   return ui.vstack([
     ui.card([
       ui.hstack([
-        ui.text(data.title ?? "Untitled event", {
+        ui.text(data.title ?? t("Untitled event", "제목 없는 일정"), {
           role: "title",
           lineLimit: 2,
         }),
@@ -151,6 +172,9 @@ function meetingView(data: MeetingData, ctx: WidgetLoadContext): UINode {
 }
 
 async function load(ctx: WidgetLoadContext): Promise<void> {
+  language = typeof ctx.locale === "string" && /^ko(?:[-_]|$)/i.test(ctx.locale)
+    ? "ko"
+    : "en";
   const days = integerSetting(ctx.settings.lookAheadDays, 7, 1, 30);
   const includeAllDay = booleanSetting(ctx.settings.includeAllDay, false);
 
@@ -180,9 +204,12 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
       : meetingView(data, ctx);
     const statusLabel = data.status === "ok" && data.startMs
       ? relativeTime(data.startMs, ctx.now)
-      : "Clear";
+      : t("Clear", "일정 없음");
     await ctx.render(root, {
-      status: { label: statusLabel, tooltip: "Next Calendar event" },
+      status: {
+        label: statusLabel,
+        tooltip: t("Next Calendar event", "다음 캘린더 일정"),
+      },
       cacheRoot: redactedFallback(),
       cacheTtlMs: 60_000,
       sensitive: true,
@@ -193,21 +220,32 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
     await ctx.render(
       ui.vstack([
         ui.banner(
-          "Allow Calendar automation for BarShelf, then refresh this widget.",
+          t(
+            "Allow Calendar automation for BarShelf, then refresh this widget.",
+            "BarShelf가 캘린더를 자동화하도록 허용한 뒤 이 위젯을 새로 고치세요.",
+          ),
           {
             tone: "warning",
             icon: "lock.open",
           },
         ),
         ui.hstack([
-          ui.button("Open Calendar", openCalendar, { icon: "calendar" }),
-          ui.button("Try Again", ui.action.refresh(), {
+          ui.button(t("Open Calendar", "캘린더 열기"), openCalendar, {
+            icon: "calendar",
+          }),
+          ui.button(t("Try Again", "다시 시도"), ui.action.refresh(), {
             icon: "arrow.clockwise",
           }),
         ], { spacing: 6 }),
       ], { id: "next-meeting-error", spacing: 8 }),
       {
-        status: { label: "Calendar", tooltip: "Calendar access is required" },
+        status: {
+          label: t("Calendar", "캘린더"),
+          tooltip: t(
+            "Calendar access is required",
+            "캘린더 접근 권한이 필요합니다",
+          ),
+        },
         cacheRoot: redactedFallback(),
         cacheTtlMs: 60_000,
         sensitive: true,

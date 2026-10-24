@@ -16,6 +16,8 @@ final class ShelfAttention: ObservableObject {
         static let widgetError = Reasons(rawValue: 1 << 1)
         /// A newer BarShelf is available.
         static let updateAvailable = Reasons(rawValue: 1 << 2)
+        /// Dock settings or restoring the Apple Dock need user attention.
+        static let dockNeedsAttention = Reasons(rawValue: 1 << 3)
     }
 
     @Published private(set) var reasons: Reasons = []

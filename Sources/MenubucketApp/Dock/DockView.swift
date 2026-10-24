@@ -42,6 +42,7 @@ struct DockView: View {
     @ObservedObject var store: DockStore
     @ObservedObject var runtime: WidgetRuntime
     @ObservedObject var running: RunningApps
+    @ObservedObject var limits: DockLayoutLimits
     /// The pointer came onto or left the icons; the panel measures the bar
     /// only at rest, since magnified sizes would make it chase the pointer.
     let onHoverChange: (Bool) -> Void
@@ -51,6 +52,10 @@ struct DockView: View {
     @State private var dropTargetID: String?
     /// The folder whose grid is open above the dock.
     @State private var openFolderID: String?
+    /// Full Keyboard Access focus; a tile scrolled out of an overflowing dock
+    /// comes into view when it gets focus.
+    @FocusState private var focusedTileID: String?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     static let dragPrefix = "barshelf-dock-item:"
 
@@ -107,8 +112,60 @@ struct DockView: View {
         return tiles
     }
 
+    // MARK: Keyboard
+
+    /// Dividers and spaces are skipped by Tab; everything else opens.
+    static func takesFocus(_ tile: DockTile) -> Bool {
+        switch tile {
+        case .divider: return false
+        case .item(let item):
+            switch item.kind {
+            case .spacer, .separator: return false
+            default: return true
+            }
+        case .running, .recent, .trash: return true
+        }
+    }
+
+    static func focusOrder(_ tiles: [DockTile]) -> [String] {
+        tiles.filter(takesFocus).map(\.id)
+    }
+
+    /// Tab order wraps at both ends; from no focus it starts at an end.
+    static func nextFocus(after current: String?, in order: [String], backward: Bool) -> String? {
+        guard !order.isEmpty else { return nil }
+        guard let current, let index = order.firstIndex(of: current) else {
+            return backward ? order.last : order.first
+        }
+        let next = (index + (backward ? -1 : 1) + order.count) % order.count
+        return order[next]
+    }
+
+    /// Return or Space on a focused tile: what a click does.
+    private func activate(_ tile: DockTile) {
+        switch tile {
+        case .item(let item):
+            if case .folder(let path, _, _) = item.kind {
+                if config.folderView == .grid {
+                    openFolderID = openFolderID == item.id ? nil : item.id
+                } else {
+                    Self.showFolderMenu(path: path)
+                }
+            } else {
+                DockActions.open(item)
+            }
+        case .running(let app): DockActions.openApp(path: app.path)
+        case .recent(let path): DockActions.openApp(path: path)
+        case .trash: DockActions.openTrash()
+        case .divider: break
+        }
+    }
+
     private func scale(at index: Int, in tiles: [DockTile]) -> CGFloat {
-        guard isClassic, config.magnification, let hoveredID,
+        // Not in a dock that scrolls: icons growing from its start push the
+        // rest along under the pointer, and the grown part past the scroll
+        // view could be seen but not clicked.
+        guard isClassic, config.magnification, limits.scrollingAxis == nil, let hoveredID,
               let hovered = tiles.firstIndex(where: { $0.id == hoveredID }),
               tiles[hovered].magnifies, tiles[index].magnifies
         else { return 1 }
@@ -130,11 +187,43 @@ struct DockView: View {
         let layout = edge.isVertical
             ? AnyLayout(VStackLayout(alignment: edge == .left ? .leading : .trailing, spacing: spacing))
             : AnyLayout(HStackLayout(alignment: .bottom, spacing: spacing))
-        layout {
+        DockOverflowStack(
+            layout: layout,
+            axis: edge.isVertical ? .vertical : .horizontal,
+            maxLength: limits.maxBarLength.map { max(tileSize, $0 - barPadding * 2) },
+            isResting: hoveredID == nil,
+            focusedID: focusedTileID,
+            onScrollingChange: { scrolls in
+                limits.scrollingAxis = scrolls ? (edge.isVertical ? .vertical : .horizontal) : nil
+            }
+        ) {
             ForEach(Array(tiles.enumerated()), id: \.element.id) { index, tile in
                 tileView(tile, scale: scale(at: index, in: tiles))
+                    .modifier(KeyboardTile(
+                        isEnabled: limits.keyboardActive && Self.takesFocus(tile),
+                        id: tile.id, focus: $focusedTileID, activate: { activate(tile) }
+                    ))
             }
             if tiles.isEmpty { emptyHint }
+        }
+        .onKeyPress(keys: [.tab, KeyEquivalent("\u{19}")]) { press in
+            guard limits.keyboardActive else { return .ignored }
+            let backward = press.modifiers.contains(.shift) || press.key == KeyEquivalent("\u{19}")
+            focusedTileID = Self.nextFocus(after: focusedTileID, in: Self.focusOrder(tiles), backward: backward)
+            return .handled
+        }
+        .onKeyPress(.escape) {
+            guard limits.keyboardActive else { return .ignored }
+            focusedTileID = nil
+            limits.onLeaveKeyboardFocus?()
+            return .handled
+        }
+        .onChange(of: limits.focusRequest) { _, _ in
+            // Next turn: the tiles turn focusable in this update.
+            Task { @MainActor in focusedTileID = Self.focusOrder(self.tiles).first }
+        }
+        .onChange(of: limits.keyboardActive) { _, active in
+            if !active { focusedTileID = nil }
         }
         .padding(barPadding)
         .background { barBackground }
@@ -146,8 +235,8 @@ struct DockView: View {
         .overlay(alignment: edge == .bottom ? .top : .center) { profileBanner }
         .fixedSize()
         .onChange(of: hoveredID == nil) { _, resting in onHoverChange(!resting) }
-        .animation(.spring(response: 0.22, dampingFraction: 0.82), value: hoveredID)
-        .animation(.easeInOut(duration: 0.2), value: tiles.map(\.id))
+        .animation(reduceMotion ? nil : .spring(response: 0.22, dampingFraction: 0.82), value: hoveredID)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: tiles.map(\.id))
         .onChange(of: tiles.map(\.id)) { _, ids in
             DockMenuRouter.shared.keep(only: Set(ids))
             if let hoveredID, !ids.contains(hoveredID) { self.hoveredID = nil }
@@ -398,7 +487,7 @@ struct DockView: View {
                 }
                 .frame(width: tileSize, height: tileSize)
                 .scaleEffect(scale, anchor: anchor)
-                .modifier(LaunchBounce(isActive: isLaunching, edge: edge, height: tileSize * 0.45))
+                .modifier(LaunchBounce(isActive: isLaunching && !reduceMotion, edge: edge, height: tileSize * 0.45))
                 .frame(
                     width: edge.isVertical ? tileSize : grown,
                     height: edge.isVertical ? grown : tileSize,
@@ -428,7 +517,8 @@ struct DockView: View {
         // On the button itself: it is the accessibility element.
         .dockMenu(id: id, menu)
         .overlay(alignment: labelAlignment) {
-            if isClassic, hoveredID == id {
+            // Focus shows the name too, as hovering does.
+            if isClassic, hoveredID == id || focusedTileID == id {
                 HoverLabel(title: title)
                     .fixedSize()
                     .offset(labelOffset(grown: grown))
@@ -506,11 +596,15 @@ struct DockView: View {
         let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
         if isClassic, let widget = runtime.widgets.first(where: { $0.id == widgetID }) {
             // Classic keeps the Apple Dock's height: a glance, not a card.
-            DockWidgetGlance(widget: widget, runtime: runtime, height: tileSize)
-                .frame(width: tileSize * DockWidgetGlance.widthFactor(size: runtime.effectiveSize(for: widgetID)))
-                .contentShape(Rectangle())
-                .onTapGesture { DockActions.open(item) }
-                .help(widget.displayName)
+            // A button, so keyboard and VoiceOver users can reach and open it.
+            Button { DockActions.open(item) } label: {
+                DockWidgetGlance(widget: widget, runtime: runtime, height: tileSize)
+                    .frame(width: tileSize * DockWidgetGlance.widthFactor(size: runtime.effectiveSize(for: widgetID)))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(widget.displayName)
+            .accessibilityLabel(Text(widget.displayName))
         } else if let widget = runtime.widgets.first(where: { $0.id == widgetID }) {
             WidgetCardView(widget: widget, runtime: runtime, compactHeight: frame.height, placement: .single)
                 .frame(width: frame.width, height: frame.height)
@@ -624,6 +718,80 @@ struct DockView: View {
 
     static func showFolderMenu(path: String) {
         DockActions.folderMenu(path: path).popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+    }
+}
+
+// MARK: - Overflow
+
+/// What the panel tells the dock about room on its display, and what the
+/// dock tells the panel back.
+final class DockLayoutLimits: ObservableObject {
+    /// The longest the bar (padding included) may be along its edge.
+    @Published var maxBarLength: CGFloat?
+    /// The axis the tiles scroll along, when they do not fit.
+    @Published var scrollingAxis: Axis?
+    /// Focus Dock is on: tiles take keyboard focus. Off, they never do, so a
+    /// click on the dock leaves the keyboard with the app that had it.
+    @Published var keyboardActive = false
+    /// Bumped by Focus Dock; the dock focuses its first tile.
+    @Published var focusRequest = 0
+    /// Esc in the dock.
+    var onLeaveKeyboardFocus: (() -> Void)?
+}
+
+/// The dock's tiles in a row or column at their chosen size. Longer than
+/// `maxLength`, they scroll along it instead of running off the display;
+/// magnified icons and labels still draw past the scroll view's bounds.
+struct DockOverflowStack<Content: View>: View {
+    let layout: AnyLayout
+    let axis: Axis
+    let maxLength: CGFloat?
+    /// Lengths are read only at rest: magnified icons are longer, and would
+    /// flip a dock near the limit in and out of scrolling under the pointer.
+    let isResting: Bool
+    let focusedID: String?
+    let onScrollingChange: (Bool) -> Void
+    @ViewBuilder let content: () -> Content
+
+    @State private var restingSize: CGSize = .zero
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    static func scrolls(contentLength: CGFloat, maxLength: CGFloat?) -> Bool {
+        guard let maxLength else { return false }
+        return contentLength > maxLength + 0.5
+    }
+
+    private var scrolls: Bool {
+        Self.scrolls(contentLength: axis == .horizontal ? restingSize.width : restingSize.height, maxLength: maxLength)
+    }
+
+    var body: some View {
+        let stack = layout { content() }
+            .fixedSize()
+            .onGeometryChange(for: CGSize.self, of: { $0.size }) { size in
+                if isResting || restingSize == .zero { restingSize = size }
+            }
+        Group {
+            if scrolls, let maxLength {
+                ScrollViewReader { proxy in
+                    ScrollView(axis == .horizontal ? .horizontal : .vertical, showsIndicators: false) {
+                        stack
+                    }
+                    .scrollClipDisabled()
+                    .frame(
+                        width: axis == .horizontal ? maxLength : restingSize.width,
+                        height: axis == .vertical ? maxLength : restingSize.height
+                    )
+                    .onChange(of: focusedID) { _, id in
+                        guard let id else { return }
+                        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { proxy.scrollTo(id) }
+                    }
+                }
+            } else {
+                stack
+            }
+        }
+        .onChange(of: scrolls, initial: true) { _, scrolls in onScrollingChange(scrolls) }
     }
 }
 
@@ -841,6 +1009,27 @@ private struct DockGlass: NSViewRepresentable {
     }
 }
 
+
+/// A tile Focus Dock can reach: focusable only while it is on, opened with
+/// Return or Space. Applied around the whole tile, where focus lands, so
+/// its key presses reach the handler.
+private struct KeyboardTile: ViewModifier {
+    let isEnabled: Bool
+    let id: String
+    let focus: FocusState<String?>.Binding
+    let activate: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .focusable(isEnabled)
+            .focused(focus, equals: id)
+            .onKeyPress(keys: [.return, .space]) { _ in
+                guard isEnabled else { return .ignored }
+                activate()
+                return .handled
+            }
+    }
+}
 
 /// Widgets, spaces, and dividers have no button of their own, so their menu
 /// hangs on the item; icon tiles carry theirs on the button.

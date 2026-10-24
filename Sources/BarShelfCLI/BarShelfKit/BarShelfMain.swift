@@ -352,6 +352,10 @@ public enum BarShelfMain {
             let result = try WidgetPacker.pack(directory: directoryURL, output: outputURL)
             print("packed \(result.fileCount) file(s) → \(result.archiveURL.path)")
             print("widget.json sha256: \(result.manifestSHA256)")
+            if !result.excludedPaths.isEmpty {
+                print("excluded private/development paths:")
+                for path in result.excludedPaths { print("  \(path)") }
+            }
             return 0
         } catch {
             printError("error: \(error.localizedDescription)")

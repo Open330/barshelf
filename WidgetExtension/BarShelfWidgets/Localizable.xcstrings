@@ -21,6 +21,36 @@
         }
       }
     },
+    "BarShelf didn’t respond": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BarShelf가 응답하지 않음"
+          }
+        }
+      }
+    },
+    "BarShelf didn’t respond. Click to open it, then refresh.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BarShelf가 응답하지 않았습니다. 클릭해 BarShelf를 연 뒤 다시 새로 고치세요."
+          }
+        }
+      }
+    },
+    "BarShelf no longer offers this widget. Right-click here and choose Edit Widget.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BarShelf에서 더 이상 이 위젯을 제공하지 않습니다. 여기를 우클릭해 위젯 편집을 선택하세요."
+          }
+        }
+      }
+    },
     "Big Number": {
       "localizations": {
         "ko": {
@@ -47,6 +77,46 @@
           "stringUnit": {
             "state": "translated",
             "value": "위젯 고르기"
+          }
+        }
+      }
+    },
+    "Choose a widget or its parts. Desktop placement does not keep its source running; open its shelf page or use Refresh to update.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯이나 표시할 항목을 선택하세요. 데스크톱에 놓는 것만으로 원본이 계속 실행되지는 않습니다. 선반 페이지를 열거나 새로 고침을 눌러 갱신하세요."
+          }
+        }
+      }
+    },
+    "Click to open BarShelf, then refresh again.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "클릭해 BarShelf를 연 뒤 다시 새로 고치세요."
+          }
+        }
+      }
+    },
+    "Couldn’t refresh": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "새로 고치지 못함"
+          }
+        }
+      }
+    },
+    "Couldn’t refresh. Showing the last reading: %@": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "새로 고치지 못해 마지막 값을 보여 줍니다: %@"
           }
         }
       }
@@ -87,6 +157,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "미터"
+          }
+        }
+      }
+    },
+    "Not available": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "사용할 수 없음"
+          }
+        }
+      }
+    },
+    "Picked item not available": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "고른 항목 없음"
           }
         }
       }
@@ -151,6 +241,16 @@
         }
       }
     },
+    "Shows BarShelf’s latest result. Desktop placement does not keep the source running. Open its shelf page or use Refresh to update; show the source in the menu bar or Dock for updates while the shelf is closed.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BarShelf의 마지막 결과를 보여 줍니다. 데스크톱에 놓는 것만으로 원본이 계속 실행되지는 않습니다. 선반 페이지를 열거나 새로 고침을 눌러 갱신하세요. 선반을 닫아도 갱신하려면 원본을 메뉴 막대나 Dock에 표시하세요."
+          }
+        }
+      }
+    },
     "Shows one of your BarShelf widgets, or just the items you pick from it.": {
       "localizations": {
         "ko": {
@@ -181,6 +281,26 @@
         }
       }
     },
+    "The %lld items you picked aren’t in this widget right now. Right-click here and choose Edit Widget to pick again.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "고른 항목 %lld개가 지금 이 위젯에 없습니다. 여기를 우클릭해 위젯 편집에서 다시 고르세요."
+          }
+        }
+      }
+    },
+    "Try Again": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "다시 시도"
+          }
+        }
+      }
+    },
     "Waiting for BarShelf to refresh this widget.": {
       "localizations": {
         "ko": {
@@ -197,6 +317,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "위젯"
+          }
+        }
+      }
+    },
+    "“%@” isn’t in this widget right now. Right-click here and choose Edit Widget to pick again.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "지금 이 위젯에 “%@” 항목이 없습니다. 여기를 우클릭해 위젯 편집에서 다시 고르세요."
           }
         }
       }
