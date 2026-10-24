@@ -50,4 +50,25 @@ final class SearchMatcherTests: XCTestCase {
         XCTAssertEqual(names.count, 1, "matching a widget name must not turn every unrelated reading into a hit")
         XCTAssertNil(names.first?.action)
     }
+
+    /// Measured live on 0.7.5 shown in English: "시스템" found nothing, though
+    /// the System widget carries that name, and one reading listed twice
+    /// came back as two results.
+    @MainActor
+    func testOtherLanguageNamesMatchAndRepeatedReadingsAreOneResult() {
+        let manifest = Manifest(schemaVersion: 1, id: "dev.test.system-search", name: "System",
+                                entry: .init(kind: "workflow"),
+                                localizations: WidgetLocalizations(["ko": ["System": "시스템"]]))
+        let widget = LoadedWidget(manifest: manifest, directory: URL(fileURLWithPath: "/unused"))
+        let tree = UINode(type: "stack", children: [
+            UINode(type: "text", text: "CPU 19%"),
+            UINode(type: "text", text: "CPU 19%"),
+        ])
+        let pages = [WidgetPage(group: "System", widgets: [widget])]
+        let snapshots = [widget.id: WidgetSnapshot(widgetID: widget.id, viewTree: tree)]
+        let byKoreanName = SearchOverlay.searchHits(query: "시스템", pages: pages, snapshots: snapshots)
+        XCTAssertEqual(byKoreanName.map(\.widgetID), [widget.id])
+        XCTAssertEqual(SearchOverlay.searchHits(query: "시스템 cpu", pages: pages, snapshots: snapshots).count, 1)
+        XCTAssertEqual(SearchOverlay.searchHits(query: "cpu", pages: pages, snapshots: snapshots).count, 1)
+    }
 }

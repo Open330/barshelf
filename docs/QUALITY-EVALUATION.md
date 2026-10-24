@@ -466,3 +466,34 @@ inspecting the final control lifetime and the executed no-cancellation test.
 No further direct issue was found in that closure review. Latest strict Core
 verification also passed. The branch is prepared for a draft PR and remote CI;
 manual/hardware acceptance remains pending, so the quality goal is not complete.
+
+### Live checks on the installed 0.7.5 (2026-10-24, june-mba)
+
+Build: notarized 0.7.5 (`57d2b96`), installed through Homebrew, the only
+registered copy. The display is a single built-in notched 1710-point screen,
+unlocked, with no Secure Input. Driven with Tacto (signed helper), plus direct
+AX and per-process key events where Tacto could not reach.
+
+| Journey | Action | Observed | Result |
+| --- | --- | --- | --- |
+| Gallery Korean search | Typed 날씨 in the Gallery search | Only Weather is listed ("1 of 26") | pass |
+| Gallery detail | Opened Weather | "Connects to these websites: api.open-meteo.com", and BarShelf asks on first run | pass |
+| Gallery install | Install, then confirm alert | The alert lists id, version and requested permissions, and says nothing runs automatically. Folder `dev.barshelf.weather` created, count 12→13, **no permission approved** | pass |
+| Gallery remove | Remove, then confirm sheet | Folder, storage, Keychain and prefs entries all gone; count back to 12; detail shows "Not installed" | pass |
+| Popup accessibility names | Opened the popup and walked the focused `AXPopover` | 27 interactive controls, 0 unlabeled | pass, with minor issues (below) |
+| Popup search by keyboard | AX-pressed Search; focus moved to the field. Typed queries | `cpu`, `memory`, `codex` and `screenshot 2026-10-18` (multi-word) matched the right items | pass |
+| Popup search, other-language name | Typed 시스템 with the app shown in English | No matches | **fail → fixed in this change** |
+| Popup search duplicates | Typed `codex` | The same reading appeared 3 times | **fail → fixed in this change** |
+| Count grammar | Gallery section and shelf page labels | "1 widgets", "Page Security, 1 widgets" | **fail → fixed in this change** |
+
+The popup is reachable to assistive apps as the app's focused `AXPopover`.
+It is not listed in `AXWindows`, which is standard for `NSPopover`; Tacto's
+observation lists windows only, so it cannot see the popup. Minor issues
+remain: thumbnail buttons repeat their file name in the label, and the System
+card and page menu each expose two elements with identical labels.
+
+Still unexecuted, needing a person or hardware:
+- **VoiceOver speech:** announcements cannot be heard by an agent.
+- **Physical Fn+IJKL:** the remap filters on the physical keyboard type, which synthetic events do not carry.
+- **Two displays:** only one is attached.
+- **Placing a desktop widget:** this changes the person's desktop.

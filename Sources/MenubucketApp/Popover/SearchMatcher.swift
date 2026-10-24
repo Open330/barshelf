@@ -17,6 +17,10 @@ struct SearchMatcher {
     /// found by its name in one language and its other name in another
     /// counts once, and "날씨 seoul" can match a name and a reading together.
     func matches(_ texts: String?...) -> Bool {
+        matches(any: texts)
+    }
+
+    func matches(any texts: [String?]) -> Bool {
         let present = texts.compactMap { $0 }
         guard !terms.isEmpty, !present.isEmpty else { return false }
         return terms.allSatisfy { term in
