@@ -704,7 +704,10 @@ final class WidgetRuntime: ObservableObject {
         auditLog.record("permission.approved", widgetId: widgetID, detail: [
             "hash": .string(PermissionStore.permissionsHash(of: widget.manifest)),
         ])
-        for copy in widgets where copy.manifest.id == widget.manifest.id && scriptDisabledReasonCache[copy.id] == nil {
+        let approvedCopies = widgets.filter {
+            $0.manifest.id == widget.manifest.id && scriptDisabledReasonCache[$0.id] == nil
+        }
+        for copy in approvedCopies {
             setOverlay(nil, for: copy.id)
         }
         publishDesktopWidgetIndex()
@@ -715,7 +718,11 @@ final class WidgetRuntime: ObservableObject {
         if widget.manifest.permissions?.notifications == true {
             NotificationService.requestAuthorization()
         }
-        refresh(widget, manual: true)
+        // Every copy was left with an empty card when the approval was taken
+        // away; one that only refreshes on open would otherwise stay blank.
+        for copy in approvedCopies {
+            refresh(copy, manual: copy.id == widget.id)
+        }
     }
 
     func denyPermissions(widgetID: String) {
@@ -1171,9 +1178,12 @@ final class WidgetRuntime: ObservableObject {
 
     /// Storage and secrets of exactly this instance; another instance of the
     /// same package keeps its own.
+    /// Secrets first: the Keychain is what can refuse (locked, or no user
+    /// interaction allowed), and failing there must leave the widget's
+    /// storage intact, as the removal error promises.
     private func purgeInstanceData(_ id: String) throws {
-        try storage.removeAll(widgetId: id)
         try secretStore.removeAll(widgetId: id)
+        try storage.removeAll(widgetId: id)
     }
 
     /// Creates a second independently configurable instance of an installed
