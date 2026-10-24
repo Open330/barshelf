@@ -34,6 +34,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             version: AppVersionInfo.current.version,
             bundlePath: Bundle.main.bundleURL.path
         )
+        // An update replaces the bundle but not a widget extension already
+        // running from it; that one would keep drawing desktop widgets with
+        // old code until the Mac restarts.
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 2) {
+            StaleWidgetExtension.restartIfStale()
+        }
         // Silent update check shortly after launch — only surfaces UI when a
         // newer release exists (menu item does an explicit check).
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
