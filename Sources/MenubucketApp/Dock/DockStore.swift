@@ -73,7 +73,7 @@ final class DockStore: ObservableObject {
                 configuration.appleDockBackup = backup
                 try? persistConfiguration(configuration, fileURL)
             }
-            lastError = Self.message(for: error)
+            lastError = Self.message(for: error, hiding: previous.mode != .replace && copy.mode == .replace)
             return
         }
         save()
@@ -311,8 +311,10 @@ final class DockStore: ObservableObject {
 
     /// What went wrong, in the app's language. Core's errors carry English
     /// text only (the CLI has no string catalog), so the app words them.
-    static func message(for error: Error) -> String {
+    static func message(for error: Error, hiding: Bool = false) -> String {
         switch error as? AppleDockError {
+        case .preferenceWriteFailed where hiding:
+            return String(localized: "macOS couldn’t confirm hiding the Apple Dock, so it is still showing. Choose Instead of the Apple Dock again to retry.")
         case .preferenceWriteFailed:
             return String(localized: "macOS couldn’t confirm the Apple Dock settings change. Try Restore Apple Dock again.")
         case .rollbackFailed:

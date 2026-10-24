@@ -329,6 +329,14 @@ final class DockPanelController {
             setRevealed(true)
         }
         panel.makeKey()
+        // Not key means no keystrokes will arrive; staying "active" would
+        // also keep auto-hide off until something else ends it.
+        guard panel.isKeyWindow else {
+            limits.keyboardActive = false
+            appBeforeKeyboardFocus = nil
+            if hidesAutomatically { mouseMoved() }
+            return false
+        }
         limits.focusRequest &+= 1
         return true
     }
@@ -338,7 +346,17 @@ final class DockPanelController {
         limits.keyboardActive = false
         let previous = appBeforeKeyboardFocus
         appBeforeKeyboardFocus = nil
-        if returnFocus { previous?.activate() }
+        if returnFocus {
+            previous?.activate()
+            // A non-activating panel keeps the keyboard for as long as it is
+            // key, and the app behind it never stopped being active, so the
+            // line above changes nothing on its own. Ordering the panel out
+            // and straight back in gives up key status without hiding it.
+            if panel.isKeyWindow {
+                panel.orderOut(nil)
+                if isRevealed { panel.orderFrontRegardless() }
+            }
+        }
         // Auto-hide picks up where it was: away unless the pointer is on it.
         if hidesAutomatically { mouseMoved() }
     }

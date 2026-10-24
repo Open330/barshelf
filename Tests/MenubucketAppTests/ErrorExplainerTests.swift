@@ -86,4 +86,11 @@ final class ErrorExplainerTests: XCTestCase {
             XCTAssertFalse(explanation.fix.contains("\n"), raw)
         }
     }
+
+    /// What a script widget's JSON.parse throws in JavaScriptCore and V8.
+    func testScriptJSONParseErrorsReadAsUnreadableData() {
+        XCTAssertEqual(ErrorExplainer.explain("SyntaxError: Unexpected end of JSON input").kind, .invalidJSON)
+        XCTAssertEqual(ErrorExplainer.explain("SyntaxError: Unexpected token } in JSON at position 5").kind, .invalidJSON)
+        XCTAssertEqual(ErrorExplainer.explain("SyntaxError: JSON.parse: unexpected character").kind, .invalidJSON)
+    }
 }

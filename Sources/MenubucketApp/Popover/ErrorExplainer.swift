@@ -121,7 +121,7 @@ enum ErrorExplainer {
     ]
 
     private static let jsonMarkers = [
-        "not valid json", "invalid json", "json parse", "json error", "jsonserialization", "isn’t in the correct format",
+        "not valid json", "invalid json", "json parse", "json.parse", "in json at position", "of json input", "json error", "jsonserialization", "isn’t in the correct format",
         "isn't in the correct format", "unexpected character", "decod",
     ]
 

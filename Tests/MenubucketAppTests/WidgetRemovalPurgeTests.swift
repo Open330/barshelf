@@ -155,6 +155,28 @@ final class WidgetRemovalPurgeTests: XCTestCase {
                        "the surviving widget must be able to save fresh state after the failed removal")
     }
 
+    /// The Keychain is the step that can refuse, so it goes first: a removal
+    /// that fails there must not have erased the widget's saved data already.
+    func testFailedSecretPurgeLeavesTheWidgetsStorageUntouched() async throws {
+        let root = try disposableRoot()
+        let (manifest, fixture) = try installFixture(root: root, name: "removal-purge-order")
+        defer { try? FileManager.default.removeItem(at: fixture) }
+        let secrets = FailingSecretStore()
+        let runtime = WidgetRuntime(appPrefs: AppPrefs(fileURL: root.appendingPathComponent("test-app-prefs.json")),
+                                    permissionStore: PermissionStore(fileURL: root.appendingPathComponent("test-permissions-order.json")),
+                                    secretStore: secrets)
+        runtime.loadWidgets()
+        let storage = StorageService(directory: root.appendingPathComponent("storage"))
+        try storage.set(widgetId: manifest.id, key: "notes", value: .string("keep me"))
+        try secrets.set(widgetId: manifest.id, key: "token", value: "kept")
+        do {
+            try await runtime.removeWidget(id: manifest.id)
+            XCTFail("removal reported success although the secrets were not erased")
+        } catch {}
+        XCTAssertEqual(StorageService(directory: root.appendingPathComponent("storage"))
+            .get(widgetId: manifest.id, key: "notes"), .string("keep me"))
+    }
+
     /// A script's `host.secret.set` is still writing when Remove is chosen:
     /// removal waits for it, then erases what it wrote.
     func testRemovalWaitsForAnInFlightSecretWriteBeforePurging() async throws {

@@ -73,7 +73,16 @@ public enum DockCommand {
                     config.appleDockBackup = nil
                     // "Instead of the Apple Dock" would hide it again at launch.
                     if config.mode == .replace { config.mode = .alongside }
-                    try saveConfiguration(config, configurationURL)
+                    do {
+                        try saveConfiguration(config, configurationURL)
+                    } catch {
+                        // The Dock is back; what failed is the note that keeps
+                        // BarShelf from hiding it again at its next launch.
+                        print("restored the Apple Dock's own settings")
+                        BarShelfMain.printError("barshelf: but couldn't update \(configurationURL.path): \(error.localizedDescription)")
+                        BarShelfMain.printError("  BarShelf may hide the Apple Dock again when it next starts; choose another Dock mode in BarShelf, or run this again.")
+                        return 1
+                    }
                     print("restored the Apple Dock's own settings")
                 } else if dock.isHidden {
                     try dock.unhideWithoutBackupChecked()

@@ -10997,7 +10997,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "업데이트 간격"
+            "value": "갱신 간격"
           }
         }
       }
@@ -11941,6 +11941,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "불일치"
+          }
+        }
+      }
+    },
+    "macOS couldn’t confirm hiding the Apple Dock, so it is still showing. Choose Instead of the Apple Dock again to retry.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS가 Apple Dock 숨기기를 확인하지 못해 Dock이 계속 표시됩니다. 다시 시도하려면 “Apple Dock 대신”을 다시 선택하십시오."
           }
         }
       }
