@@ -33,7 +33,7 @@ struct GalleryDetailView: View {
                         StatusBanner(tone: .critical, message: error)
                     }
                     if let url = GalleryLinks.screenshotURL(entry) {
-                        GalleryScreenshot(url: url, name: displayName, height: 240)
+                        GalleryScreenshot(url: url, name: displayName, height: 240) { EmptyView() }
                     }
                     if let description = GalleryEntryText.description(for: entry), !description.isEmpty {
                         Text(description)

@@ -399,6 +399,23 @@ final class WidgetRuntime: ObservableObject {
                 outcome.seededNames.joined(separator: ", ")
             )
             prefs.markWelcomePending()
+            gatherStarters(outcome.seededNames)
+        }
+    }
+
+    /// The page a new person's starters share. Their manifests file them
+    /// under Demo, Files and Productivity — sensible once there are many
+    /// widgets, but on day one it meant three pages of one card each.
+    static let starterPage = "Everyday"
+
+    private func gatherStarters(_ names: [String]) {
+        let root = Self.applicationSupportDirectory.appendingPathComponent("widgets", isDirectory: true)
+        for (index, name) in names.enumerated() {
+            let manifestURL = root.appendingPathComponent(name).appendingPathComponent("widget.json")
+            guard let data = try? Data(contentsOf: manifestURL),
+                  let manifest = try? Manifest.decode(from: data),
+                  prefs.override(for: manifest.id)?.group == nil else { continue }
+            prefs.setOverride(group: Self.starterPage, order: Double(index), size: nil, for: manifest.id)
         }
     }
 

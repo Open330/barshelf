@@ -212,8 +212,9 @@ struct ShelfView: View {
             }
             Spacer(minLength: 0)
             if let status {
-                Image(systemName: status.tone.symbol)
-                    .foregroundStyle(status.tone.color)
+                Image(systemName: status.symbol)
+                    .font(.caption)
+                    .foregroundStyle(status.color)
                     .help(status.text)
                     .accessibilityHidden(true)
             }
@@ -279,14 +280,19 @@ struct ShelfView: View {
         Button("Remove…", role: .destructive) { removalTarget = widget }
     }
 
-    private func chipStatus(_ widget: LoadedWidget, disabled: Bool) -> (text: String, tone: StatusTone)? {
-        if disabled { return (String(localized: "Turned off"), .info) }
+    /// What the row's trailing glyph says. Waiting for a first OK is the
+    /// normal state of a new widget, not a fault: a quiet lock, so the
+    /// warning colors stay reserved for something actually wrong.
+    private func chipStatus(_ widget: LoadedWidget, disabled: Bool) -> (text: String, symbol: String, color: Color)? {
+        if disabled { return (String(localized: "Turned off"), "pause.circle", .secondary) }
         switch runtime.permissionState(for: widget) {
-        case .notAsked: return (String(localized: "Waiting for your permission"), .warning)
-        case .denied: return (String(localized: "Permission denied"), .critical)
+        case .notAsked: return (String(localized: "Waiting for your permission"), "lock.fill", .secondary)
+        case .denied: return (String(localized: "Permission denied"), "hand.raised.fill", StatusTone.warning.color)
         default: break
         }
-        if runtime.snapshots[widget.id]?.error != nil { return (String(localized: "Last refresh failed"), .critical) }
+        if runtime.snapshots[widget.id]?.error != nil {
+            return (String(localized: "Last refresh failed"), StatusTone.critical.symbol, StatusTone.critical.color)
+        }
         return nil
     }
 

@@ -674,6 +674,16 @@
         }
       }
     },
+    "A few widgets to start with. Find more in the Gallery.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "처음 쓸 위젯 몇 개를 넣어 두었습니다. 더 많은 위젯은 갤러리에서 찾으십시오."
+          }
+        }
+      }
+    },
     "A focus countdown you can start, pause and reset, with a notification when it ends. Needs Deno.": {
       "localizations": {
         "ko": {
@@ -6589,7 +6599,18 @@
         }
       }
     },
+    "Not allowed yet": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "아직 허용 안 됨"
+          }
+        }
+      }
+    },
     "Not allowed yet. It waits on its card and runs nothing until you allow it.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -10667,6 +10688,7 @@
       }
     },
     "Tip: ⋯ has everything else — editing the shelf, settings, updates. Swipe with two fingers or press ←/→ to switch pages.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -10778,6 +10800,7 @@
       }
     },
     "Turned off. It won’t ask or run.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -11353,6 +11376,7 @@
       }
     },
     "We installed a couple of starter widgets so this popup isn't empty. Browse the gallery for more — like usage meters and OTP codes — or remove the starters anytime.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {

@@ -36,7 +36,10 @@ struct GalleryCard: View {
                         .font(.headline)
                         .lineLimit(1)
                     HStack(spacing: Spacing.xxs) {
-                        if let kind = entry.kind {
+                        // Most widgets are workflows; naming that on every card is
+                        // noise. A command or script runs something, which is
+                        // worth a quiet word.
+                        if let kind = entry.kind, kind != "workflow" {
                             GalleryTypeBadge(kind: kind)
                         }
                         if let category = entry.category, !category.isEmpty {
@@ -226,11 +229,26 @@ struct GalleryCard: View {
 
     /// Optional preview image (`screenshot` registry field), loaded through
     /// `GalleryScreenshot`; any failure degrades to nothing.
-    @ViewBuilder
+    /// Every card gets the same preview band, so the grid lines up: the
+    /// screenshot when there is one, the widget's icon large when not.
     private var screenshotPreview: some View {
-        if let url = GalleryLinks.screenshotURL(entry) {
-            GalleryScreenshot(url: url, name: displayName, height: 120)
-        }
+        GalleryScreenshot(
+            url: GalleryLinks.screenshotURL(entry), name: displayName, height: 120,
+            placeholder: {
+                // Artwork rather than a second copy of the tile below: the
+                // widget's color as a wash, its symbol drawn large in it.
+                ZStack {
+                    LinearGradient(
+                        colors: [accent.opacity(0.22), accent.opacity(0.06)],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    )
+                    Image(systemName: entry.icon ?? "app.dashed")
+                        .font(.system(size: 44, weight: .light))
+                        .foregroundStyle(accent.opacity(0.85))
+                }
+                .accessibilityHidden(true)
+            }
+        )
     }
 
     /// Compact permission icons; the detail page spells each one out.
@@ -314,52 +332,51 @@ struct GalleryTypeBadge: View {
 
     var body: some View {
         Text(WidgetTypeName.name(kind))
-            .font(.caption2.weight(.semibold))
+            .font(.caption2.weight(.medium))
             .padding(.horizontal, 6)
             .padding(.vertical, 1)
-            .background(color.opacity(0.18), in: Capsule())
-            .foregroundStyle(color)
-    }
-
-    private var color: Color {
-        switch kind {
-        case "exec": return .blue
-        case "script": return .purple
-        case "workflow": return .orange
-        default: return .gray
-        }
+            .background(Color.secondary.opacity(0.12), in: Capsule())
+            .foregroundStyle(.secondary)
     }
 }
 
-/// A registry screenshot; a placeholder while loading, nothing on failure.
-struct GalleryScreenshot: View {
-    let url: URL
+/// A registry screenshot, whole, in a soft band of fixed height. While it
+/// loads the band waits; without one (or on failure) it shows `placeholder`.
+/// Screenshots are pictures of a widget card, so cropping one to fill the
+/// band cut its edges into stray vertical lines.
+struct GalleryScreenshot<Placeholder: View>: View {
+    let url: URL?
     let name: String
     let height: CGFloat
+    @ViewBuilder var placeholder: () -> Placeholder
 
     var body: some View {
-        AsyncImage(url: url) { phase in
-            switch phase {
-            case let .success(image):
-                image
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: height)
-                    .clipped()
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
-                    .accessibilityLabel("Preview of \(name)")
-            case .empty:
-                RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                    .fill(Color.secondary.opacity(0.08))
-                    .frame(height: height)
-                    .overlay(ProgressView().controlSize(.small))
-                    .accessibilityHidden(true)
-            default:
-                // Graceful absence — no broken-image chrome.
-                EmptyView()
+        RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+            .fill(Color.secondary.opacity(0.07))
+            .frame(maxWidth: .infinity)
+            .frame(height: height)
+            .overlay {
+                if let url {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case let .success(image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .padding(Spacing.xs)
+                                .accessibilityLabel("Preview of \(name)")
+                        case .empty:
+                            ProgressView().controlSize(.small)
+                                .accessibilityHidden(true)
+                        default:
+                            placeholder()
+                        }
+                    }
+                } else {
+                    placeholder()
+                }
             }
-        }
+            .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
     }
 }
 

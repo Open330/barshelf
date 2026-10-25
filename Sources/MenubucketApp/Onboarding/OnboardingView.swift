@@ -183,21 +183,22 @@ struct OnboardingView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 case .pending:
-                    (isOn
-                        ? Text("Not allowed yet. It waits on its card and runs nothing until you allow it.")
-                        : Text("Turned off. It won’t ask or run."))
+                    // The intro above says what waiting means; each row only
+                    // needs its state, not the sentence again.
+                    Label(isOn ? "Not allowed yet" : "Turned off",
+                          systemImage: isOn ? "lock.fill" : "pause.circle")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 0)
                 if status != .approved, isOn {
                     // Never the default button: Return must not grant access.
-                    Button("Allow \(widget.displayName)") {
+                    Button("Allow") {
                         runtime.approvePermissions(widgetID: widget.id)
                         approvals += 1
                     }
                     .controlSize(.small)
+                    .accessibilityLabel(Text("Allow \(widget.displayName)"))
                 }
             }
         }
