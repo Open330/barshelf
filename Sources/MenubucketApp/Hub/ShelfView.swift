@@ -206,9 +206,18 @@ struct ShelfView: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(widget.displayName)
                     .lineLimit(1)
-                Text(LayoutSizeName.name(runtime.effectiveSize(for: widget.id)))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                // The widget's current reading says more about it than its
+                // size does; the size stays for widgets without one.
+                if let reading = runtime.snapshots[widget.id]?.statusLabel, !reading.isEmpty, status == nil {
+                    Text(reading)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                } else {
+                    Text(LayoutSizeName.name(runtime.effectiveSize(for: widget.id)))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             Spacer(minLength: 0)
             if let status {

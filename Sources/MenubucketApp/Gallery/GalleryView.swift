@@ -112,41 +112,54 @@ struct GalleryView: View {
         .accessibilityLabel(model.isLoading ? "Loading widget list" : "Refresh widget list")
     }
 
+    /// Categories lead, as chips: what a widget is for is the first thing a
+    /// person browses by. How it is built (Command, Workflow, Script) is for
+    /// authors, so it sits behind a small menu at the end.
     private var filters: some View {
-        HStack(spacing: Spacing.m) {
-            Picker("Type", selection: $model.kindFilter) {
+        HStack(spacing: Spacing.xs) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: Spacing.xxs) {
+                    categoryChip(nil, label: String(localized: "All", comment: "Gallery filter: every widget type"))
+                    ForEach(model.availableCategories, id: \.self) { category in
+                        categoryChip(category, label: GalleryEntryText.categoryLabel(category))
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+            Picker(selection: $model.kindFilter) {
                 ForEach(GalleryKindFilter.allCases) { kind in
                     Text(kind.label).tag(kind)
                 }
+            } label: {
+                Label("Type", systemImage: "line.3.horizontal.decrease")
             }
-            .pickerStyle(.segmented)
+            .pickerStyle(.menu)
             .fixedSize()
             .help("Command widgets run a command; Workflows are built from steps; Scripts run JavaScript")
-
-            let categories = model.availableCategories
-            if !categories.isEmpty {
-                Picker("Category", selection: $model.selectedCategory) {
-                    Text("All Categories").tag(String?.none)
-                    Divider()
-                    ForEach(categories, id: \.self) { category in
-                        Text(GalleryEntryText.categoryLabel(category)).tag(String?.some(category))
-                    }
-                }
-                .pickerStyle(.menu)
-                .fixedSize()
-            }
-
-            if model.pickerFiltersAreActive {
-                Button("Clear Filters") { model.clearPickerFilters() }
-                    .help("Show every type and category")
-            }
-
-            Spacer(minLength: 0)
             resultCount
         }
         .controlSize(.small)
         .padding(.horizontal, Spacing.m)
         .padding(.bottom, Spacing.s)
+    }
+
+    private func categoryChip(_ category: String?, label: String) -> some View {
+        let selected = model.selectedCategory == category
+        return Button {
+            model.selectedCategory = category
+        } label: {
+            Text(label)
+                .font(.callout.weight(selected ? .semibold : .regular))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .foregroundStyle(selected ? Color.white : Color.primary)
+                .background(
+                    Capsule().fill(selected ? Color.accentColor : Color.secondary.opacity(0.12))
+                )
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     @ViewBuilder
