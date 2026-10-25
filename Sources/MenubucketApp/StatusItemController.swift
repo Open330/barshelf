@@ -91,6 +91,10 @@ final class StatusItemController: NSObject {
         WidgetInstaller.shared.onAccessibilityRequest = {
             AutomationController.shared.requestAccessibility()
         }
+        AutomationController.shared.$inputSourceStatus
+            .receive(on: RunLoop.main)
+            .sink { [weak runtime] status in runtime?.attention.set(.automationNeedsAttention, status.needsAttention) }
+            .store(in: &cancellables)
         let dockStore = DockStore.shared
         dockStore.$lastError
             .receive(on: RunLoop.main)

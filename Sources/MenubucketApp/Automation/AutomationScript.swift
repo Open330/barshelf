@@ -24,6 +24,7 @@ final class AutomationScript {
     private(set) var remap: Remap?
     private(set) var keyRemaps: [AutomationKeyRemap] = []
     private var invoking = false
+    private var reportedInputExceptions: [JSValue] = []
     var command: ((String, JSValue) throws -> Void)?
     var report: ((String) -> Void)?
 
@@ -39,8 +40,11 @@ final class AutomationScript {
             }
             do { try self.command?(name, argument) }
             catch {
-                JSContext.current()?.exception = JSValue(newErrorFromMessage:
-                    error.localizedDescription, in: JSContext.current())
+                let exception = JSValue(newErrorFromMessage: error.localizedDescription, in: JSContext.current())
+                if error is AutomationInputSource.ReportedFailure, let exception {
+                    self.reportedInputExceptions.append(exception)
+                }
+                JSContext.current()?.exception = exception
             }
         }
         context.setObject(dispatch, forKeyedSubscript: "__command" as NSString)
@@ -101,9 +105,17 @@ final class AutomationScript {
         guard bindings.indices.contains(index) else { return }
         context.exception = nil
         invoking = true
-        defer { invoking = false }
+        defer { invoking = false; reportedInputExceptions.removeAll() }
         bindings[index].callback.call(withArguments: [])
-        do { try checkException() } catch { report?(error.localizedDescription) }
+        // JSValue.isEqual(_:) uses ===, preserving the exact native
+        // exception's identity. A user's catch/rethrow of a different error
+        // must still reach the generic script error channel.
+        if let exception = context.exception,
+           reportedInputExceptions.contains(where: { exception.isEqual($0) }) {
+            context.exception = nil
+        } else {
+            do { try checkException() } catch { report?(error.localizedDescription) }
+        }
     }
 
     private func checkException() throws {

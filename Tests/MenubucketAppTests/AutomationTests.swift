@@ -254,6 +254,7 @@ final class AutomationTests: XCTestCase {
         var report: ((String) -> Void)?
         var permissionLost: (() -> Void)?
         var runtimeFailed: ((String) -> Void)?
+        var inputSourceStatusChanged: ((AutomationInputSource.Status) -> Void)?
         var starts = 0
         var stops = 0
         var failure = false
@@ -330,16 +331,32 @@ final class AutomationTests: XCTestCase {
         guard let folder = ProcessInfo.processInfo.environment["BARSHELF_SHOT_DIR"] else {
             throw XCTSkip("Set BARSHELF_SHOT_DIR to inspect the extension settings")
         }
+        func render(_ controller: AutomationController, name: String) throws {
+            let view = Form { AutomationSettingsView(controller: controller) }
+                .formStyle(.grouped).frame(width: 740, height: 1000)
+            let hosting = NSHostingView(rootView: view)
+            hosting.frame = NSRect(x: 0, y: 0, width: 740, height: 1000)
+            hosting.layoutSubtreeIfNeeded()
+            let image = try XCTUnwrap(hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds))
+            hosting.cacheDisplay(in: hosting.bounds, to: image)
+            let png = try XCTUnwrap(image.representation(using: .png, properties: [:]))
+            try png.write(to: URL(fileURLWithPath: folder).appendingPathComponent(name + ".png"))
+        }
         let controller = AutomationController(fileURL: URL(fileURLWithPath: folder).appendingPathComponent("automation-shot.json"))
-        let view = Form { AutomationSettingsView(controller: controller) }
-            .formStyle(.grouped).frame(width: 740, height: 1000)
-        let hosting = NSHostingView(rootView: view)
-        hosting.frame = NSRect(x: 0, y: 0, width: 740, height: 1000)
-        hosting.layoutSubtreeIfNeeded()
-        let image = try XCTUnwrap(hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds))
-        hosting.cacheDisplay(in: hosting.bounds, to: image)
-        let png = try XCTUnwrap(image.representation(using: .png, properties: [:]))
-        try png.write(to: URL(fileURLWithPath: folder).appendingPathComponent("automation-settings.png"))
+        try render(controller, name: "automation-settings")
+        for (name, status): (String, AutomationInputSource.Status) in [
+            ("input-settings-unreadable", .needsAttention(AutomationInputSourceMonitor.settingsUnavailable)),
+            ("input-switch-unchanged", .needsAttention(AutomationInputSourceMonitor.noChangeDetected)),
+            ("input-switch-changed", .changed)
+        ] {
+            let engine = StubEngine()
+            let preview = AutomationController(fileURL: URL(fileURLWithPath: folder).appendingPathComponent(name + ".json"),
+                makeEngine: { _ in engine }, isTrusted: { true }, hammerspoonRunning: { false })
+            XCTAssertTrue(preview.apply(source: AutomationScript.example, enabled: true))
+            engine.inputSourceStatusChanged?(status)
+            try render(preview, name: name)
+            preview.disable()
+        }
     }
 
     func testSaveFailureDoesNotCommitDraft() throws {
@@ -408,4 +425,95 @@ final class AutomationTests: XCTestCase {
         XCTAssertTrue(SystemShortcutConflicts.find(bindings: script.bindings.map(\.combination),
                       symbolicHotKeys: systemTable([61: (true, 79, 0x800000)])).isEmpty)
     }
+    func testInputSwitchFailureKeepsOtherShortcutsRunningAndClearsOnlyItsOwnMessage() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let engine = StubEngine()
+        let controller = AutomationController(fileURL: folder.appendingPathComponent("automation.json"),
+            makeEngine: { _ in engine }, isTrusted: { true }, hammerspoonRunning: { false })
+        XCTAssertTrue(controller.apply(source: AutomationScript.example, enabled: true))
+        engine.inputSourceStatusChanged?(.needsAttention("input failed"))
+        engine.report?("input failed")
+        XCTAssertTrue(controller.isRunning)
+        XCTAssertEqual(controller.inputSourceStatus, .needsAttention("input failed"))
+        engine.inputSourceStatusChanged?(.checking)
+        XCTAssertNil(controller.message)
+        engine.report?("unrelated script log")
+        engine.inputSourceStatusChanged?(.changed)
+        XCTAssertEqual(controller.message, "unrelated script log")
+        controller.disable()
+        XCTAssertEqual(controller.inputSourceStatus, .idle)
+        engine.inputSourceStatusChanged?(.needsAttention("late input failure"))
+        engine.report?("late message")
+        XCTAssertEqual(controller.inputSourceStatus, .idle)
+        XCTAssertNil(controller.message)
+    }
+
+    func testReplacedOrRolledBackEnginesCannotOverwriteInputStatus() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let first = StubEngine(), failed = StubEngine(), replacement = StubEngine()
+        failed.failure = true
+        var engines = [first, failed, replacement]
+        let controller = AutomationController(fileURL: folder.appendingPathComponent("automation.json"),
+            makeEngine: { _ in engines.removeFirst() }, isTrusted: { true }, hammerspoonRunning: { false })
+        XCTAssertTrue(controller.apply(source: AutomationScript.example, enabled: true))
+        first.inputSourceStatusChanged?(.needsAttention("first"))
+        XCTAssertFalse(controller.apply(source: AutomationScript.example, enabled: true))
+        failed.inputSourceStatusChanged?(.needsAttention("failed replacement"))
+        XCTAssertEqual(controller.inputSourceStatus, .needsAttention("first"))
+        first.inputSourceStatusChanged?(.changed)
+        XCTAssertEqual(controller.inputSourceStatus, .changed)
+        XCTAssertTrue(controller.apply(source: AutomationScript.example, enabled: true))
+        XCTAssertEqual(controller.inputSourceStatus, .idle)
+        first.inputSourceStatusChanged?(.needsAttention("superseded"))
+        first.runtimeFailed?("superseded failure")
+        first.permissionLost?()
+        XCTAssertTrue(controller.isRunning)
+        XCTAssertEqual(controller.inputSourceStatus, .idle)
+        replacement.inputSourceStatusChanged?(.needsAttention("current"))
+        replacement.runtimeFailed?("current failure")
+        XCTAssertFalse(controller.isRunning)
+        XCTAssertEqual(controller.inputSourceStatus, .idle)
+    }
+
+    func testInputFailureIsNotDuplicatedByTheRealJavaScriptErrorBridge() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let engine = StubEngine()
+        let controller = AutomationController(fileURL: folder.appendingPathComponent("automation.json"),
+            makeEngine: { _ in engine }, isTrusted: { true }, hammerspoonRunning: { false })
+        XCTAssertTrue(controller.apply(source: AutomationScript.example, enabled: true))
+        let script = try AutomationScript(source: "barshelf.bind(['cmd'], 'space', () => barshelf.selectNextInputSource()); barshelf.bind(['alt'], 'i', () => { throw new Error('unrelated'); });")
+        script.command = { name, _ in
+            if name == "inputSource" {
+                engine.inputSourceStatusChanged?(.needsAttention("input failed"))
+                throw AutomationInputSource.ReportedFailure(message: "input failed")
+            }
+        }
+        script.report = { engine.report?($0) }
+        script.invoke(0)
+        XCTAssertEqual(controller.inputSourceStatus, .needsAttention("input failed"))
+        XCTAssertNil(controller.message, "the exact already-reported native exception must not be duplicated with an Error prefix or line suffix")
+        engine.inputSourceStatusChanged?(.checking)
+        engine.inputSourceStatusChanged?(.changed)
+        XCTAssertNil(controller.message)
+        script.invoke(1)
+        XCTAssertTrue(controller.message?.contains("unrelated") == true)
+        engine.inputSourceStatusChanged?(.checking)
+        engine.inputSourceStatusChanged?(.changed)
+        XCTAssertTrue(controller.message?.contains("unrelated") == true)
+        controller.disable()
+    }
+
+    func testCatchingAnInputFailureAndThrowingAnotherErrorStillReportsTheNewError() throws {
+        let script = try AutomationScript(source: "barshelf.bind(['cmd'], 'space', () => { try { barshelf.selectNextInputSource(); } catch (e) { throw new Error('custom recovery failed'); } });")
+        script.command = { _, _ in throw AutomationInputSource.ReportedFailure(message: "input failed") }
+        var messages: [String] = []
+        script.report = { messages.append($0) }
+        script.invoke(0)
+        XCTAssertEqual(messages.count, 1)
+        XCTAssertTrue(messages[0].contains("custom recovery failed"))
+    }
+
 }

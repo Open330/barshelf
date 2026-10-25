@@ -18,6 +18,8 @@ final class ShelfAttention: ObservableObject {
         static let updateAvailable = Reasons(rawValue: 1 << 2)
         /// Dock settings or restoring the Apple Dock need user attention.
         static let dockNeedsAttention = Reasons(rawValue: 1 << 3)
+        /// The keyboard extension's last input source switch did not take.
+        static let automationNeedsAttention = Reasons(rawValue: 1 << 4)
     }
 
     @Published private(set) var reasons: Reasons = []
