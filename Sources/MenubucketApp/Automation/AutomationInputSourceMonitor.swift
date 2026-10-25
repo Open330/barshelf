@@ -40,14 +40,20 @@ final class AutomationInputSourceMonitor {
     func selectNext() throws {
         stop()
         do {
-            // An absent preference domain is not proof the user disabled the
-            // relay. Never silently substitute TIS selection for a failed read.
-            guard case let .available(table) = readSettings() else {
-                throw AutomationFailure(Self.settingsUnavailable)
+            // A corrupt table is refused: it is not a choice of direct
+            // selection. No table at all is what a Mac nobody has customized
+            // looks like (and also a preferences service that returned
+            // nothing): switching directly keeps ⌘Space working, and the
+            // check below still reports direct selection's limitation, so
+            // the fallback is never silent.
+            let trigger: AutomationInputSource.SystemTrigger?
+            switch readSettings() {
+            case let .available(table): trigger = AutomationInputSource.systemTrigger(in: table)
+            case .missing: trigger = nil
+            case .unavailable: throw AutomationFailure(Self.settingsUnavailable)
             }
             let before = context()
             guard before.sourceID != nil else { throw AutomationFailure(Self.sourceUnavailable) }
-            let trigger = AutomationInputSource.systemTrigger(in: table)
             report(.checking)
             if let trigger { try relay(trigger) } else { try direct() }
             let request = UUID()

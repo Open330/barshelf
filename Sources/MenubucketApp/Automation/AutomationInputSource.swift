@@ -37,7 +37,11 @@ enum AutomationInputSource {
     }
 
     enum SystemSettings {
+        /// Present but not a shortcut table BarShelf can trust.
         case unavailable
+        /// No table at all: nobody has changed a system shortcut, or the
+        /// preferences service returned nothing. The two look the same.
+        case missing
         case available([String: Any])
     }
 
@@ -68,6 +72,7 @@ enum AutomationInputSource {
     }
 
     static func settings(from preferenceValue: Any?) -> SystemSettings {
+        guard let preferenceValue else { return .missing }
         guard let table = preferenceValue as? [String: Any] else { return .unavailable }
         // Missing overrides and explicitly disabled shortcuts are legitimate.
         // Corrupt enabled entries must not masquerade as a direct-selection

@@ -33,15 +33,61 @@ final class AutomationInputSourceMonitorTests: XCTestCase {
             }, report: { self.states.append($0) })
     }
 
-    func testUnreadableSettingsDoesNotSilentlySelectDirectlyOrSendAKey() {
+    /// No table is what an uncustomized Mac returns (and a preferences
+    /// service that answered nothing). ⌘Space still switches, directly, and
+    /// the outcome says direct selection is limited: never silent, never dead.
+    func testMissingSettingsSwitchDirectlyAndSayItIsLimited() throws {
         let f = Fixture()
         f.settings = AutomationInputSource.settings(from: nil)
+        if case .missing = f.settings {} else { XCTFail("no table must read as missing") }
+        try f.monitor.selectNext()
+        XCTAssertEqual(f.relayCount, 0)
+        XCTAssertEqual(f.directCount, 1)
+        f.context = .init(sourceID: "Korean", applicationPID: 12)
+        f.jobs[0].action()
+        XCTAssertEqual(f.states, [.checking, .needsAttention(AutomationInputSourceMonitor.directSelectionLimited)])
+    }
+
+    func testUnreadableSettingsDoesNotSilentlySelectDirectlyOrSendAKey() {
+        let f = Fixture()
+        f.settings = AutomationInputSource.settings(from: "malformed")
         XCTAssertThrowsError(try f.monitor.selectNext())
         XCTAssertEqual(f.relayCount, 0)
         XCTAssertEqual(f.directCount, 0)
         XCTAssertTrue(f.jobs.isEmpty)
         XCTAssertEqual(f.states, [.needsAttention(AutomationInputSourceMonitor.settingsUnavailable)])
-        if case .unavailable = AutomationInputSource.settings(from: "malformed") {} else { XCTFail("invalid table accepted") }
+    }
+
+    /// The setup ⌘Space depends on, as cfprefsd hands it over: `enabled` a
+    /// CFBoolean, the parameters plain numbers. It must parse and relay F18
+    /// with only the fn flag.
+    func testTheRealF18ShortcutParsesAndRelays() throws {
+        let entry: [String: Any] = [
+            "enabled": kCFBooleanTrue as Any,
+            "value": ["parameters": [NSNumber(value: 65535), NSNumber(value: 79), NSNumber(value: 8_388_608)],
+                      "type": "standard"],
+        ]
+        for enabled in [kCFBooleanTrue as Any, NSNumber(value: 1)] {
+            var table: [String: Any] = ["61": entry, "60": ["enabled": kCFBooleanFalse as Any]]
+            var copy = entry; copy["enabled"] = enabled; table["61"] = copy
+            guard case let .available(parsed) = AutomationInputSource.settings(from: table) else {
+                return XCTFail("the real F18 setup was rejected")
+            }
+            XCTAssertEqual(AutomationInputSource.systemTrigger(in: parsed),
+                           .init(keyCode: 79, flags: .maskSecondaryFn))
+        }
+    }
+
+    /// On a Mac that has the shortcut table, its real contents must not be
+    /// refused: that would stop ⌘Space outright. Skipped where there is none.
+    func testThisMacsShortcutTableIsAccepted() throws {
+        let domain = "com.apple.symbolichotkeys" as CFString
+        CFPreferencesAppSynchronize(domain)
+        let value = CFPreferencesCopyAppValue("AppleSymbolicHotKeys" as CFString, domain)
+        try XCTSkipIf(value == nil, "no symbolic hot key table on this Mac")
+        if case .unavailable = AutomationInputSource.settings(from: value) {
+            XCTFail("this Mac's real shortcut table was refused")
+        }
     }
 
     func testMalformedEnabledShortcutNeverFallsThroughToDirectSelection() {
