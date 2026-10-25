@@ -516,4 +516,14 @@ final class AutomationTests: XCTestCase {
         XCTAssertTrue(messages[0].contains("custom recovery failed"))
     }
 
+    func testUnusedAutomationEngineDeallocatesWithoutCreatingAnInputMonitor() throws {
+        let script = try AutomationScript(source: "barshelf.bind(['cmd'], 'space', () => barshelf.selectNextInputSource());")
+        weak var released: AutomationEngine?
+        do {
+            let engine = AutomationEngine(script: script)
+            released = engine
+        }
+        XCTAssertNil(released)
+    }
+
 }

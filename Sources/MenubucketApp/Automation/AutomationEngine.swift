@@ -67,8 +67,14 @@ final class AutomationEngine: AutomationRunning {
     var permissionLost: (() -> Void)?
     var runtimeFailed: ((String) -> Void)?
     var inputSourceStatusChanged: ((AutomationInputSource.Status) -> Void)?
-    private lazy var inputSourceMonitor = AutomationInputSourceMonitor { [weak self] status in
-        self?.inputSourceStatusChanged?(status)
+    private var inputSourceMonitorStorage: AutomationInputSourceMonitor?
+    private var inputSourceMonitor: AutomationInputSourceMonitor {
+        if let monitor = inputSourceMonitorStorage { return monitor }
+        let monitor = AutomationInputSourceMonitor { [weak self] status in
+            self?.inputSourceStatusChanged?(status)
+        }
+        inputSourceMonitorStorage = monitor
+        return monitor
     }
 
     init(script: AutomationScript) {
@@ -122,7 +128,7 @@ final class AutomationEngine: AutomationRunning {
     }
 
     func stop() {
-        inputSourceMonitor.stop()
+        inputSourceMonitorStorage?.stop()
         active = false
         generation += 1
         watchdog?.invalidate()
