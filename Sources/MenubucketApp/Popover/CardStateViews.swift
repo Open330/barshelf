@@ -174,20 +174,46 @@ struct PermissionApprovalView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.xs) {
-            StatusBanner(
-                tone: .info,
-                message: String(localized: "\(widgetName) needs your permission to run."),
-                symbol: "lock.shield"
-            )
-            PermissionList(requests: requests)
-            HStack(spacing: Spacing.xs) {
-                Spacer(minLength: 0)
+            HStack(alignment: .center, spacing: Spacing.xs) {
+                Image(systemName: "lock.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 26, height: 26)
+                    .background(Circle().fill(Color.accentColor.opacity(0.12)))
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Waiting for your permission")
+                        .font(.callout.weight(.medium))
+                    // One request reads as a sentence on its own; several
+                    // are listed below, where each gets its own line.
+                    if requests.count == 1, let only = requests.first {
+                        Text(only.description)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                Spacer(minLength: Spacing.xs)
                 Button("Deny", action: onDeny)
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.secondary)
                 Button("Allow", action: onAllow)
                     .buttonStyle(.borderedProminent)
             }
             .controlSize(.small)
+            if requests.count > 1 {
+                PermissionList(requests: requests)
+                    .padding(.leading, 26 + Spacing.xs)
+            }
         }
+        .padding(Spacing.xs)
+        .background(
+            RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+                .fill(Color.accentColor.opacity(0.05))
+        )
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Text("\(widgetName) needs your permission to run."))
     }
 }
 

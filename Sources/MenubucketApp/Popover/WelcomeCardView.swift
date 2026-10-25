@@ -29,7 +29,7 @@ struct WelcomeCardView: View {
                 .help("Dismiss")
                 .accessibilityLabel("Dismiss welcome card")
             }
-            Text("We installed a couple of starter widgets so this popup isn't empty. Browse the gallery for more — like usage meters and OTP codes — or remove the starters anytime.")
+            Text("A few widgets to start with. Find more in the Gallery.")
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -41,10 +41,6 @@ struct WelcomeCardView: View {
                 }
                 .controlSize(.small)
             }
-            Text("Tip: ⋯ has everything else — editing the shelf, settings, updates. Swipe with two fingers or press ←/→ to switch pages.")
-                .font(.caption2)
-                .foregroundColor(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)

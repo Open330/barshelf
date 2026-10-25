@@ -124,11 +124,16 @@ final class AccessibilityAnnouncementTests: XCTestCase {
         let search = SearchAnnouncements(
             announcer: spy, settledDelay: .milliseconds(30), composingDelay: .milliseconds(120), selectionDelay: .milliseconds(10)
         )
+        let start = ContinuousClock.now
         search.resultsChanged("5 results. ㄴ", isComposing: true)
         search.resultsChanged("3 results. 나", isComposing: true)
         search.resultsChanged("1 results. 날", isComposing: true)
         try await Task.sleep(for: .milliseconds(60))
-        XCTAssertEqual(spy.messages, [], "not mid-burst, and not at the settled pace")
+        // Only meaningful while the composing delay has not yet passed: a busy
+        // runner can oversleep past it, and then an announcement is correct.
+        if ContinuousClock.now - start < .milliseconds(110) {
+            XCTAssertEqual(spy.messages, [], "not mid-burst, and not at the settled pace")
+        }
         try await waitForMessages(spy, count: 1)
         XCTAssertEqual(spy.messages, ["1 results. 날"], "the paused composition is announced once")
     }
