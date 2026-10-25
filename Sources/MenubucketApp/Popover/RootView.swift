@@ -354,20 +354,18 @@ struct RootView: View {
     }
 
     private func pageContent(_ page: WidgetPage, pages: [WidgetPage]) -> some View {
-        VStack(spacing: 0) {
+        VStack(spacing: Self.cardGap) {
             if runtime.prefs.welcomePending, !pager.isEditing,
                page.id == Self.welcomePageID(pages: pages) {
                 WelcomeCardView(addWidget: { onCommand(.addWidget) }) {
                     runtime.prefs.dismissWelcome()
                     runtime.objectWillChange.send()
                 }
-                rowSeparator
             }
             let rows = cardRows(page.widgets)
-            ForEach(Array(rows.enumerated()), id: \.element.id) { rowIndex, row in
-                HStack(alignment: .top, spacing: 0) {
-                    ForEach(Array(row.widgets.enumerated()), id: \.element.id) { widgetIndex, widget in
-                        if widgetIndex > 0 { Divider() }
+            ForEach(Array(rows.enumerated()), id: \.element.id) { _, row in
+                HStack(alignment: .top, spacing: Self.cardGap) {
+                    ForEach(row.widgets, id: \.id) { widget in
                         WidgetCardView(
                             widget: widget,
                             runtime: runtime,
@@ -377,10 +375,8 @@ struct RootView: View {
                         .id(widget.id)
                     }
                 }
-                if rowIndex < rows.count - 1 { rowSeparator }
             }
             if pager.isEditing {
-                rowSeparator
                 Button { onCommand(.addWidget) } label: {
                     Label("Add Widget…", systemImage: "plus")
                         .frame(maxWidth: .infinity)
@@ -389,13 +385,13 @@ struct RootView: View {
                 .padding(Spacing.s)
             }
         }
-        .padding(.bottom, 6)
+        .padding(.horizontal, Self.cardGap)
+        .padding(.vertical, Self.cardGap)
     }
 
-    /// Inset hairline between widget sections — separation without boxes.
-    private var rowSeparator: some View {
-        Divider().padding(.horizontal, Spacing.s)
-    }
+    /// Space between widget cards, and around them: cards are separated by
+    /// air, not hairlines.
+    static let cardGap: CGFloat = 6
 
     // MARK: - Header and footer
 

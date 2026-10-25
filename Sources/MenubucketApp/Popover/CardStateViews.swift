@@ -207,11 +207,9 @@ struct PermissionApprovalView: View {
                     .padding(.leading, 26 + Spacing.xs)
             }
         }
-        .padding(Spacing.xs)
-        .background(
-            RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                .fill(Color.accentColor.opacity(0.05))
-        )
+        // The widget's card is the surface; a box of its own here would be
+        // a box inside a box.
+        .padding(.vertical, Spacing.xxs)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text("\(widgetName) needs your permission to run."))
     }

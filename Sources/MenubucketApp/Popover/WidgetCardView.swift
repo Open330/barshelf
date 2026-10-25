@@ -108,7 +108,7 @@ struct WidgetCardView: View {
                     .transition(.opacity)
             }
         }
-        .contentShape(Rectangle())
+        .contentShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         // Drop target: another card dropped here reorders it before this one.
         .onDrop(of: CardDrag.types, isTargeted: $isDropTarget.animation(.easeInOut(duration: 0.12))) { providers in
             guard placement == .shelf else { return false }
@@ -607,21 +607,23 @@ struct WidgetCardView: View {
         }
     }
 
-    /// Flat, edge-to-edge section fill. The popup's glass shows through at
-    /// rest; hover gets a whisper of contrast, a `tinted` widget a flat accent
-    /// wash, and the reveal flash a stronger accent — no gradients, no boxes.
+    /// Each widget sits on its own soft card, as widgets do in Notification
+    /// Center: a faint fill at rest, a little more on hover, a flat accent
+    /// wash for a `tinted` widget and a stronger one for the reveal flash.
+    /// (It used to be an edge-to-edge band split by hairlines, which read as
+    /// a text list rather than a shelf of widgets.)
     private var sectionBackground: some View {
         let tinted = appearance.cardStyle == .tinted
         let dark = colorScheme == .dark
-        return Rectangle()
+        return RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
             .fill(
                 isHighlighted
                     ? cardAccent.opacity(dark ? 0.22 : 0.16)
                     : tinted
-                        ? cardAccent.opacity(dark ? 0.12 : 0.07)
+                        ? cardAccent.opacity(dark ? 0.14 : 0.09)
                         : isHovering || isEditing
-                            ? Color.primary.opacity(dark ? 0.06 : 0.04)
-                            : Color.clear
+                            ? Color.primary.opacity(dark ? 0.09 : 0.065)
+                            : Color.primary.opacity(dark ? 0.055 : 0.035)
             )
     }
 }
