@@ -17,6 +17,10 @@ final class AutomationController: ObservableObject {
     @Published private(set) var importSummary: String?
     /// Running bindings that macOS also uses for one of its shortcuts.
     @Published private(set) var systemShortcutConflicts: [SystemShortcutConflicts.Conflict] = []
+    /// What the running extension saw after its last input source switch.
+    /// A failed switch is reported here and leaves the extension running:
+    /// its other shortcuts still work.
+    @Published private(set) var inputSourceStatus: AutomationInputSource.Status = .idle
     private var runningBindings: [HotkeyGrammar.Combination] = []
     private var engine: AutomationRunning?
     private var launchEnabled = false
@@ -68,17 +72,31 @@ final class AutomationController: ObservableObject {
                 }
             }
             let replacement = enabled ? makeEngine(script) : nil
-            replacement?.report = { [weak self] in self?.message = $0 }
-            replacement?.permissionLost = { [weak self] in
-                self?.disable()
-                self?.message = String(localized: "Accessibility access was removed. Grant access and enable the extension again.")
+            replacement?.report = { [weak self, weak replacement] message in
+                guard let self, let replacement, self.engine === replacement else { return }
+                self.message = message
             }
-            replacement?.runtimeFailed = { [weak self] reason in
+            replacement?.permissionLost = { [weak self, weak replacement] in
+                guard let self, let replacement, self.engine === replacement else { return }
+                self.disable()
+                self.message = String(localized: "Accessibility access was removed. Grant access and enable the extension again.")
+            }
+            replacement?.inputSourceStatusChanged = { [weak self, weak replacement] status in
+                // Only the engine that is running now may report: a
+                // replacement rolled back after a failed start, or one since
+                // replaced, must not overwrite the current state.
+                guard let self, let replacement, self.engine === replacement else { return }
+                if self.message == self.inputSourceStatus.message { self.message = nil }
+                self.inputSourceStatus = status
+            }
+            replacement?.runtimeFailed = { [weak self, weak replacement] reason in
+                guard let self, let replacement, self.engine === replacement else { return }
                 // Preserve saved enabled intent for a subsequent launch, but
                 // never show a failed input monitor as currently active.
-                self?.engine = nil
-                self?.isRunning = false
-                self?.message = reason
+                self.engine = nil
+                self.isRunning = false
+                self.inputSourceStatus = .idle
+                self.message = reason
                 NSLog("BarShelf automation stopped: %@", reason)
             }
             let previous = engine
@@ -92,6 +110,7 @@ final class AutomationController: ObservableObject {
                 catch {
                     engine = nil
                     isRunning = false
+                    inputSourceStatus = .idle
                     throw AutomationFailure(String(localized: "Could not restore the previous extension: \(error.localizedDescription). Enable it again after resolving the issue."))
                 }
                 throw error
@@ -101,6 +120,7 @@ final class AutomationController: ObservableObject {
             launchEnabled = enabled
             isRunning = enabled
             message = nil
+            inputSourceStatus = .idle
             runningBindings = enabled ? script.bindings.map(\.combination) : []
             refreshSystemShortcutConflicts()
             for conflict in systemShortcutConflicts {
@@ -121,6 +141,7 @@ final class AutomationController: ObservableObject {
         engine?.stop()
         engine = nil
         isRunning = false
+        inputSourceStatus = .idle
         runningBindings = []
         systemShortcutConflicts = []
         launchEnabled = false

@@ -118,7 +118,9 @@ final class DockOverflowTests: XCTestCase {
         let source = try XCTUnwrap(CGEvent(
             scrollWheelEvent2Source: nil, units: .line, wheelCount: 1, wheel1: dy, wheel2: 0, wheel3: 0
         ))
-        if command { source.flags = .maskCommand }
+        // A nil CGEvent source inherits live modifier state. Tests must not
+        // turn a user's held Command key into an unintended profile switch.
+        source.flags = command ? .maskCommand : []
         return try XCTUnwrap(NSEvent(cgEvent: source))
     }
 

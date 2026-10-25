@@ -22,19 +22,15 @@ struct AutomationSettingsView: View {
                     }
                 ))
                 .accessibilityLabel("Enable Keyboard & Window Extension")
-                Label {
-                    Text(controller.isRunning ? String(localized: "Active") : String(localized: "Inactive"))
-                } icon: {
-                    Image(systemName: controller.isRunning ? "checkmark.circle.fill" : "circle")
-                }
-                .font(.caption)
-                .foregroundStyle(controller.isRunning ? Color.green : Color.secondary)
+                statusLabel
                 Text("Global shortcuts, key remapping, and window navigation. Quit Hammerspoon and disable matching Karabiner rules before enabling.")
                     .font(.caption).foregroundStyle(.secondary)
                 Button("Allow in Accessibility…") { controller.requestAccessibility() }
-                if let message = controller.message {
+                // The input status below says it already; not twice.
+                if let message = controller.message, message != controller.inputSourceStatus.message {
                     Text(message).font(.caption).foregroundStyle(.orange).textSelection(.enabled)
                 }
+                if controller.isRunning { inputSourceStatusView }
                 ForEach(controller.systemShortcutConflicts) { conflict in
                     StatusBanner(
                         tone: .warning,
@@ -116,6 +112,52 @@ struct AutomationSettingsView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)) { _ in
             displays = AutomationWindows.displays
+        }
+    }
+
+    /// Active, Inactive, or Active with a warning when the last input source
+    /// switch did not take: the extension still runs, so not green.
+    private var statusLabel: some View {
+        let warning = controller.isRunning && controller.inputSourceStatus.needsAttention
+        return Label {
+            Text(!controller.isRunning ? String(localized: "Inactive")
+                 : warning ? String(localized: "Active — input switching needs attention")
+                 : String(localized: "Active"))
+        } icon: {
+            Image(systemName: !controller.isRunning ? "circle"
+                  : warning ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+        }
+        .font(.caption)
+        .foregroundStyle(!controller.isRunning ? Color.secondary : warning ? Color.orange : Color.green)
+    }
+
+    /// The last input source switch. "Changed" only means the selected
+    /// source changed; BarShelf cannot see whether the focused app's typing
+    /// followed, so the copy does not claim it.
+    @ViewBuilder
+    private var inputSourceStatusView: some View {
+        switch controller.inputSourceStatus {
+        case .idle:
+            EmptyView()
+        case .checking:
+            Text("Checking the last input source switch…")
+                .font(.caption).foregroundStyle(.secondary)
+        case .changed:
+            Text("The input source changed after the last switch. Check that the app you type in follows it.")
+                .font(.caption).foregroundStyle(.secondary)
+        case .needsAttention(let reason):
+            StatusBanner(
+                tone: .warning,
+                message: reason.isEmpty
+                    ? String(localized: "The last input source switch did not change the input source. Other shortcuts keep working. Check “Select next source in Input menu” in Keyboard Shortcuts.")
+                    : reason
+            ) {
+                Button("Keyboard Shortcuts…") {
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.Keyboard-Settings.extension") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+            }
         }
     }
 

@@ -101,7 +101,7 @@ hs.hotkey.bind(["alt", "shift"], "k", () => rotateWindowFocus("forward"));
 | `barshelf.moveMouseToScreen(index)` | Move the pointer to the screen center and focus its first titled window in front-to-back order. |
 | `barshelf.moveWindowToScreen(index)` | Move the focused window, preserving proportions within usable screen bounds. |
 | `barshelf.rotateWindowFocus(direction)` | Cycle titled visible windows on the focused window's screen, ordered top-to-bottom then left-to-right; center the pointer in the new window. `direction` is `"forward"` or `"backward"`. |
-| `barshelf.selectNextInputSource()` | Switch to the next enabled keyboard input source on key-down, while the system ⌘Space "Select next source" commits only when ⌘ is released. When that system shortcut is set to a key with no modifier (for example F18, if that key is unused on your keyboard), BarShelf sends that key and macOS switches itself, which reliably reaches the app you are typing in; otherwise it selects the source directly, which with Korean, Japanese, or Chinese input methods sometimes changes the menu bar but not the focused app. Recommended: assign "Select next source in Input menu" an unused modifier-less key, then bind ⌘Space here. The Automation page warns while a binding and an enabled macOS shortcut share keys. |
+| `barshelf.selectNextInputSource()` | Switch to the next enabled keyboard input source on key-down, while the system ⌘Space "Select next source" commits only when ⌘ is released. When that system shortcut is set to a key with no modifier (for example F18, if that key is unused on your keyboard), BarShelf sends that key and macOS switches itself, then checks whether the input-source ID changes while the same app remains focused; when no modifier-less shortcut is configured it selects the source directly with a warning about focused-app limitations, which with Korean, Japanese, or Chinese input methods sometimes changes the menu bar but not the focused app. Recommended: assign "Select next source in Input menu" an unused modifier-less key, then bind ⌘Space here. The Automation page warns while a binding and an enabled macOS shortcut share keys. |
 | `barshelf.log(message)` | Display a callback diagnostic in extension settings. |
 
 The three window-action functions also have global aliases with the same names,
@@ -182,3 +182,30 @@ before the letter, external-keyboard exclusion, both monitor moves, window-cycle
 wraparound, sleep/wake recovery, and disabling the extension. Automated tests
 cover conversion, JavaScript callbacks/errors, remap state, geometry, and
 persistence; they do not grant TCC permission or simulate these hardware checks.
+
+### Input-source switching feedback
+
+The extension's **Active** state means that its keyboard handler is running.
+It does not promise that macOS or the focused app accepted an input-source
+change. After a requested switch, BarShelf checks the source ID at 50, 150
+and 400 ms, stopping as soon as it observes a change. These checks do not run
+while idle. “Input source changed” reports the system source ID, not verified
+text composition in the focused app.
+
+If the shortcut preference domain cannot be read, BarShelf reports that failure
+instead of silently substituting direct input-source selection. It does not
+trust a possibly stale plist file as a replacement for the live system table.
+An explicitly empty or disabled table remains the user's setting; direct
+selection is retained with a warning that some apps may keep the old language.
+An unchanged source after a relay produces a warning without retrying or sending
+another switch. A new request cancels earlier checks; disabling/reloading the
+extension cancels pending checks. Changing the focused app ends verification
+without attributing the other app's remembered language to the request.
+
+The Automation page shows input-switching failures separately from other
+shortcuts, and the menu-bar attention dot makes the warning discoverable while
+the settings window is closed. Check Keyboard Shortcuts → Input Sources and
+ensure at least two sources are enabled. If multiple macOS settings appear
+missing, logging out and back in or restarting the Mac can restore the system
+preference service. BarShelf does not restart that service, rewrite system
+shortcuts, or collect typed characters automatically.

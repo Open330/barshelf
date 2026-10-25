@@ -26,6 +26,7 @@ protocol AutomationRunning: AnyObject {
     var report: ((String) -> Void)? { get set }
     var permissionLost: (() -> Void)? { get set }
     var runtimeFailed: ((String) -> Void)? { get set }
+    var inputSourceStatusChanged: ((AutomationInputSource.Status) -> Void)? { get set }
     func start() throws
     func stop()
 }
@@ -65,6 +66,16 @@ final class AutomationEngine: AutomationRunning {
     var report: ((String) -> Void)?
     var permissionLost: (() -> Void)?
     var runtimeFailed: ((String) -> Void)?
+    var inputSourceStatusChanged: ((AutomationInputSource.Status) -> Void)?
+    private var inputSourceMonitorStorage: AutomationInputSourceMonitor?
+    private var inputSourceMonitor: AutomationInputSourceMonitor {
+        if let monitor = inputSourceMonitorStorage { return monitor }
+        let monitor = AutomationInputSourceMonitor { [weak self] status in
+            self?.inputSourceStatusChanged?(status)
+        }
+        inputSourceMonitorStorage = monitor
+        return monitor
+    }
 
     init(script: AutomationScript) {
         self.script = script
@@ -84,7 +95,7 @@ final class AutomationEngine: AutomationRunning {
                     throw AutomationFailure(String(localized: "Rotation direction must be forward or backward."))
                 }
                 try self.windows.rotate(forward: direction == "forward")
-            case "inputSource": try AutomationInputSource.selectNext()
+            case "inputSource": try self.inputSourceMonitor.selectNext()
             case "log": self.report?(value.toString() ?? "")
             default: throw AutomationFailure(String(localized: "Unsupported automation action: \(name)."))
             }
@@ -117,6 +128,7 @@ final class AutomationEngine: AutomationRunning {
     }
 
     func stop() {
+        inputSourceMonitorStorage?.stop()
         active = false
         generation += 1
         watchdog?.invalidate()

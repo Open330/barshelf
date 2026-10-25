@@ -14,6 +14,37 @@ import CoreGraphics
 /// language. It is the same flaw Karabiner's select_input_source has, and why
 /// the common setup is a key relayed to a modifier-less system shortcut.
 enum AutomationInputSource {
+    enum Status: Equatable {
+        case idle, checking, changed
+        case needsAttention(String)
+
+        var needsAttention: Bool {
+            if case .needsAttention = self { return true }
+            return false
+        }
+        var message: String? {
+            if case let .needsAttention(message) = self { return message }
+            return nil
+        }
+    }
+
+    /// The input-status channel already displayed this native failure. The
+    /// same JS exception still reaches user code, but must not also become
+    /// a second, generic script error when left uncaught.
+    struct ReportedFailure: LocalizedError {
+        let message: String
+        var errorDescription: String? { message }
+    }
+
+    enum SystemSettings {
+        /// Present but not a shortcut table BarShelf can trust.
+        case unavailable
+        /// No table at all: nobody has changed a system shortcut, or the
+        /// preferences service returned nothing. The two look the same.
+        case missing
+        case available([String: Any])
+    }
+
     /// The "Select next source in Input menu" system shortcut.
     static let nextSourceHotKeyID = "61"
 
@@ -40,12 +71,43 @@ enum AutomationInputSource {
         return SystemTrigger(keyCode: CGKeyCode(keyCode), flags: CGEventFlags(rawValue: modifiers & function))
     }
 
-    static func currentSystemTrigger() -> SystemTrigger? {
+    static func settings(from preferenceValue: Any?) -> SystemSettings {
+        guard let preferenceValue else { return .missing }
+        guard let table = preferenceValue as? [String: Any] else { return .unavailable }
+        // Missing overrides and explicitly disabled shortcuts are legitimate.
+        // Corrupt enabled entries must not masquerade as a direct-selection
+        // preference merely because systemTrigger cannot decode them.
+        guard let rawEntry = table[nextSourceHotKeyID] else { return .available(table) }
+        guard let entry = rawEntry as? [String: Any],
+              let enabled = entry["enabled"] as? NSNumber,
+              [0.0, 1.0].contains(enabled.doubleValue) else { return .unavailable }
+        guard enabled.boolValue else { return .available(table) }
+        guard let value = entry["value"] as? [String: Any],
+              value["type"] == nil || value["type"] as? String == "standard",
+              let parameters = value["parameters"] as? [NSNumber], parameters.count >= 3,
+              parameters.prefix(3).allSatisfy({
+                  CFGetTypeID($0) != CFBooleanGetTypeID() && $0.doubleValue.isFinite &&
+                      $0.doubleValue.rounded() == $0.doubleValue
+              }),
+              (0...65535).contains(parameters[0].doubleValue),
+              (0...127).contains(parameters[1].doubleValue) || parameters[1].doubleValue == 65535,
+              (0...Double(UInt32.max)).contains(parameters[2].doubleValue)
+        else { return .unavailable }
+        return .available(table)
+    }
+
+    static func currentSystemSettings() -> SystemSettings {
         let domain = "com.apple.symbolichotkeys" as CFString
         CFPreferencesAppSynchronize(domain)
-        let table = CFPreferencesCopyAppValue("AppleSymbolicHotKeys" as CFString, domain) as? [String: Any] ?? [:]
+        return settings(from: CFPreferencesCopyAppValue("AppleSymbolicHotKeys" as CFString, domain))
+    }
+
+    static func currentSystemTrigger() -> SystemTrigger? {
+        guard case let .available(table) = currentSystemSettings() else { return nil }
         return systemTrigger(in: table)
     }
+
+    static var currentID: String? { id(of: TISCopyCurrentKeyboardInputSource().takeRetainedValue()) }
 
     /// Sends the trigger key. A private event source keeps the modifiers the
     /// user is still holding (⌘ of ⌘Space) out of the event, so it matches
@@ -69,11 +131,9 @@ enum AutomationInputSource {
         return enabled[(index + 1) % enabled.count]
     }
 
-    static func selectNext() throws {
-        if let trigger = currentSystemTrigger() {
-            try send(trigger)
-            return
-        }
+    /// Direct selection is retained for explicitly configured non-relay
+    /// setups, but the monitor reports its focused-app limitation.
+    static func selectDirect() throws {
         let sources = enabledKeyboardSources()
         let current = id(of: TISCopyCurrentKeyboardInputSource().takeRetainedValue())
         guard let target = next(after: current, in: sources.map(\.id)),
