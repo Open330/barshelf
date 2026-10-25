@@ -1088,6 +1088,7 @@
       }
     },
     "All Categories": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -2248,6 +2249,7 @@
       }
     },
     "Clear Filters": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -9267,6 +9269,7 @@
       }
     },
     "Show every type and category": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
