@@ -30,4 +30,12 @@ final class StaleWidgetExtensionTests: XCTestCase {
         let fresh = StaleWidgetExtension.Process(pid: 5, executable: path, startedAt: built.addingTimeInterval(-0.5))
         XCTAssertEqual(StaleWidgetExtension.stale([fresh], executable: path, builtAt: built), [])
     }
+
+    /// Measured on 0.7.6→0.7.7: the update unlinked the running extension's
+    /// file, `proc_pidpath` failed, and a path-only match left it running.
+    func testAnExtensionWhoseFileIsGoneIsStaleWhenOlder() {
+        let gone = StaleWidgetExtension.Process(pid: 38557, executable: nil, startedAt: built.addingTimeInterval(-55_000))
+        let freshGone = StaleWidgetExtension.Process(pid: 9, executable: nil, startedAt: built.addingTimeInterval(30))
+        XCTAssertEqual(StaleWidgetExtension.stale([gone, freshGone], executable: path, builtAt: built), [38557])
+    }
 }
