@@ -1,0 +1,162 @@
+{
+  "schemaVersion": 1,
+  "kind": "workflow",
+
+  "sources": {
+    "guard": {
+      "use": "exec",
+      "with": {
+        "command": ["/usr/bin/osascript", "-l", "JavaScript", "./keep-awake.js", "status"],
+        "timeoutMs": 5000,
+        "output": "json",
+        "maxOutputBytes": 65536
+      }
+    }
+  },
+
+  "view": {
+    "type": "vstack",
+    "spacing": 10,
+    "children": [
+      {
+        "switch": "${sources.guard.state}",
+        "cases": {
+          "missing": {
+            "type": "banner", "tone": "warning",
+            "text": "PowerDisplayGuard isn’t running, so nothing here can keep the Mac awake."
+          },
+          "stale": {
+            "type": "banner", "tone": "warning",
+            "text": "PowerDisplayGuard stopped answering ${sources.guard.ageSeconds} s ago. What shows below may be out of date."
+          },
+          "invalid": {
+            "type": "banner", "tone": "warning",
+            "text": "PowerDisplayGuard’s status couldn’t be read."
+          }
+        },
+        "default": { "type": "none" }
+      },
+      {
+        "switch": "${sources.guard.phase}",
+        "cases": {
+          "override": {
+            "type": "vstack", "spacing": 6,
+            "children": [
+              {
+                "type": "hstack", "spacing": 8,
+                "children": [
+                  { "type": "image", "source": { "kind": "sfSymbol", "name": "cup.and.saucer.fill" }, "size": 18, "tint": "accent" },
+                  { "type": "text", "role": "title", "text": "Awake for ${sources.guard.remaining}" },
+                  { "type": "spacer" },
+                  { "type": "text", "role": "caption", "foreground": "secondary", "text": "until ${sources.guard.untilText}" }
+                ]
+              },
+              {
+                "type": "progress", "style": "linear",
+                "countdown": { "from": "${sources.guard.fromMs}", "until": "${sources.guard.untilMs}" },
+                "tintRules": [{ "whenRemainingLtSeconds": 600, "tint": "warning" }]
+              },
+              {
+                "switch": "${string(sources.guard.lidClosedEffective)}",
+                "cases": { "true": { "type": "text", "role": "caption", "foreground": "secondary", "text": "Stays awake with the lid closed." } },
+                "default": { "type": "text", "role": "caption", "foreground": "secondary", "text": "Closing the lid still sleeps." }
+              },
+              {
+                "switch": "${sources.guard.note}",
+                "cases": { "": { "type": "none" } },
+                "default": { "type": "text", "role": "caption", "foreground": "warning", "text": "${sources.guard.note}" }
+              }
+            ]
+          },
+          "grace": {
+            "type": "hstack", "spacing": 8,
+            "children": [
+              { "type": "image", "source": { "kind": "sfSymbol", "name": "timer" }, "size": 18, "tint": "warning" },
+              { "type": "text", "role": "title", "text": "On battery: sleep in ${sources.guard.graceText}" }
+            ]
+          },
+          "ac": {
+            "type": "hstack", "spacing": 8,
+            "children": [
+              { "type": "image", "source": { "kind": "sfSymbol", "name": "bolt.fill" }, "size": 18, "tint": "success" },
+              { "type": "text", "role": "title", "text": "Awake on power" }
+            ]
+          },
+          "battery": {
+            "type": "hstack", "spacing": 8,
+            "children": [
+              { "type": "image", "source": { "kind": "sfSymbol", "name": "moon.zzz" }, "size": 18, "tint": "secondary" },
+              { "type": "text", "role": "title", "text": "On battery: sleep allowed" }
+            ]
+          }
+        },
+        "default": { "type": "none" }
+      },
+      {
+        "switch": "${sources.guard.requestPending}",
+        "cases": {
+          "true": { "type": "text", "role": "caption", "foreground": "secondary", "text": "Waiting for PowerDisplayGuard to pick up the request…" }
+        },
+        "default": { "type": "none" }
+      },
+      {
+        "type": "hstack", "spacing": 6,
+        "children": [
+          { "type": "button", "title": "1 h", "action": { "type": "run", "thenRefresh": true,
+            "command": ["/usr/bin/osascript", "-l", "JavaScript", "./keep-awake.js", "set", "3600", "${string(settings.lidClosed)}"] } },
+          { "type": "button", "title": "2 h", "action": { "type": "run", "thenRefresh": true,
+            "command": ["/usr/bin/osascript", "-l", "JavaScript", "./keep-awake.js", "set", "7200", "${string(settings.lidClosed)}"] } },
+          { "type": "button", "title": "4 h", "action": { "type": "run", "thenRefresh": true,
+            "command": ["/usr/bin/osascript", "-l", "JavaScript", "./keep-awake.js", "set", "14400", "${string(settings.lidClosed)}"] } },
+          { "type": "button", "title": "Until ${settings.untilTime}", "action": { "type": "run", "thenRefresh": true,
+            "command": ["/usr/bin/osascript", "-l", "JavaScript", "./keep-awake.js", "until", "${settings.untilTime}", "${string(settings.lidClosed)}"] } },
+          { "type": "spacer" },
+          {
+            "switch": "${sources.guard.phase}",
+            "cases": {
+              "override": { "type": "button", "title": "Stop", "role": "destructive", "action": { "type": "run", "thenRefresh": true,
+                "command": ["/usr/bin/osascript", "-l", "JavaScript", "./keep-awake.js", "cancel"] } }
+            },
+            "default": { "type": "none" }
+          }
+        ]
+      },
+      {
+        "switch": "${string(settings.lidClosed)}",
+        "cases": { "true": { "type": "text", "role": "caption", "foreground": "tertiary", "text": "New requests keep it awake with the lid closed. Never longer than 12 hours." } },
+        "default": { "type": "text", "role": "caption", "foreground": "tertiary", "text": "New requests let it sleep when the lid closes. Never longer than 12 hours." }
+      },
+      {
+        "switch": "${sources.guard.blockerCount}",
+        "cases": { "0": { "type": "none" } },
+        "default": {
+          "type": "section", "title": "Also keeping it awake",
+          "children": [
+            {
+              "type": "list", "spacing": 2,
+              "items": {
+                "forEach": "$.sources.guard.blockers",
+                "as": "b",
+                "template": {
+                  "type": "hstack", "id": "blocker-${b.id}", "spacing": 8,
+                  "children": [
+                    { "type": "image", "source": { "kind": "sfSymbol", "name": "app.badge" }, "size": 12, "tint": "secondary" },
+                    { "type": "text", "role": "body", "lineLimit": 1, "text": "${b.process}" },
+                    { "type": "spacer" },
+                    { "type": "text", "role": "caption", "foreground": "secondary", "lineLimit": 1, "truncation": "middle", "text": "${b.type}" }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+
+  "status": {
+    "label": "${sources.guard.menuLabel}",
+    "icon": "${sources.guard.icon}",
+    "tooltip": "${if(eq(sources.guard.phase, 'override'), concat('Awake until ', sources.guard.untilText), if(eq(sources.guard.state, 'ok'), 'Keep Awake', 'PowerDisplayGuard isn’t answering'))}"
+  }
+}

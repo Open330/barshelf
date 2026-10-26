@@ -52,6 +52,7 @@ TITLES = {
     "exchange": "USD to KRW exchange rate in the macOS menu bar",
     "stock": "Stock prices in the macOS menu bar",
     "battery-meter": "Battery percentage in the macOS menu bar",
+    "keep-awake": "Keep your Mac awake for a few hours from the menu bar",
     "now-playing": "Now playing from Music or Spotify in the macOS menu bar",
     "weather": "Weather in the macOS menu bar",
 }

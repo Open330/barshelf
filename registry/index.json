@@ -846,6 +846,39 @@
         "notifications": false
       },
       "homepage": "https://github.com/Open330/barshelf"
+    },
+    {
+      "id": "dev.barshelf.keep-awake",
+      "accent": "orange",
+      "name": "Keep Awake",
+      "description": "Keep the Mac awake for 1, 2 or 4 hours or until a set time — never indefinitely — and see what else is keeping it awake. Works with PowerDisplayGuard, which owns the power policy; BarShelf only asks.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "cup.and.saucer",
+      "kind": "workflow",
+      "tags": [
+        "system",
+        "power",
+        "sleep",
+        "caffeinate",
+        "amphetamine",
+        "workflow"
+      ],
+      "category": "System",
+      "readme": "https://github.com/Open330/barshelf/blob/main/widgets/keep-awake/README.md",
+      "install": {
+        "url": "https://github.com/Open330/barshelf/tree/main/widgets/keep-awake",
+        "bundled": "keep-awake"
+      },
+      "permissions": {
+        "exec": [
+          "/usr/bin/osascript"
+        ],
+        "keychain": false,
+        "notifications": false
+      },
+      "homepage": "https://github.com/Open330/barshelf",
+      "minHostVersion": "0.7.5"
     }
   ]
 }

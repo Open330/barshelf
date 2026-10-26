@@ -97,6 +97,7 @@ enum GalleryEntryText {
         "dev.barshelf.network": Official(installURL: repo + "network", keywords: ["network", "internet", "speed", "ip", "wi-fi", "네트워크", "인터넷", "속도", "와이파이"], names: ["ko": "네트워크"]),
         "dev.barshelf.stock": Official(installURL: repo + "stock", keywords: ["stock", "shares", "ticker", "주식", "주가", "증권"], names: ["ko": "주식"]),
         "dev.barshelf.now-playing": Official(installURL: repo + "now-playing", keywords: ["music", "song", "spotify", "음악", "노래", "재생 중"], names: ["ko": "지금 재생 중"]),
+        "dev.barshelf.keep-awake": Official(installURL: repo + "keep-awake", keywords: ["keep awake", "sleep", "caffeinate", "amphetamine", "power", "깨어 있기", "잠자기", "절전", "전원"], names: ["ko": "깨어 있기"]),
         "dev.barshelf.reminders": Official(installURL: repo + "reminders", keywords: ["reminders", "tasks", "to-do", "todo", "미리 알림", "할 일"], names: ["ko": "미리 알림"]),
         "dev.barshelf.next-meeting": Official(installURL: repo + "next-meeting", keywords: ["meeting", "calendar", "zoom", "meet", "회의", "일정", "미팅"], names: ["ko": "다음 회의"]),
         "dev.barshelf.quick-shelf": Official(installURL: repo + "quick-shelf", keywords: ["launcher", "apps", "favorites", "bookmarks", "앱", "즐겨찾기", "바로가기", "실행"], names: ["ko": "빠른 선반"]),
@@ -116,6 +117,8 @@ enum GalleryEntryText {
             return String(localized: "Your latest downloads as thumbnails or a list. Click to open, or drag a file into another app.")
         case "dev.menubucket.stashbar-recent-files":
             return String(localized: "Recent files from a folder you choose, as a preview, a grid, or a searchable list. Drag files straight into other apps.")
+        case "dev.barshelf.keep-awake":
+            return String(localized: "Keep the Mac awake for a few hours, never indefinitely, and see what else is keeping it awake. Needs PowerDisplayGuard.")
         case "dev.barshelf.battery-meter":
             return String(localized: "Your battery level as a large percentage and a colored meter.")
         case "dev.barshelf.aas-usage":

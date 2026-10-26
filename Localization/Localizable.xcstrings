@@ -5359,6 +5359,16 @@
         }
       }
     },
+    "Keep the Mac awake for a few hours, never indefinitely, and see what else is keeping it awake. Needs PowerDisplayGuard.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "몇 시간 동안 Mac을 깨워 두고(무기한은 없습니다) 무엇이 잠자기를 막고 있는지 봅니다. PowerDisplayGuard가 필요합니다."
+          }
+        }
+      }
+    },
     "Keeps the item the same width as a reading goes from 9 to 10. A longer reading widens it once and it stays that wide.": {
       "localizations": {
         "ko": {
