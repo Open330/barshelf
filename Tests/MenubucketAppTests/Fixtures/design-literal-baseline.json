@@ -1,9 +1,6 @@
 {
   "Sources\/MenubucketApp\/Builder\/WidgetBuilderView.swift" : 107,
-  "Sources\/MenubucketApp\/Dock\/DockFolderStack.swift" : 5,
-  "Sources\/MenubucketApp\/Dock\/DockSettingsPage.swift" : 4,
-  "Sources\/MenubucketApp\/Dock\/DockView.swift" : 21,
-  "Sources\/MenubucketApp\/Dock\/DockWidgetGlance.swift" : 3,
+  "Sources\/MenubucketApp\/Dock\/DockView.swift" : 8,
   "Sources\/MenubucketApp\/Hub\/ShelfView.swift" : 1,
   "Sources\/MenubucketApp\/Popover\/RootView.swift" : 2,
   "Sources\/MenubucketApp\/Renderer\/ViewTreeRenderer.swift" : 1,

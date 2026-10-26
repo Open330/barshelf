@@ -276,11 +276,7 @@ struct DockSettingsPage: View {
             Text(profile.name)
                 .fontWeight(isSelected ? .semibold : .regular)
             if isActive {
-                Text("Active")
-                    .font(.caption)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 1)
-                    .background(Color.accentColor.opacity(0.15), in: Capsule())
+                Pill(text: String(localized: "Active"), color: .accentColor)
             }
             Spacer()
             if config.profileHotkeysEnabled, let label = DockHotkeys.label(forPosition: position) {
@@ -527,7 +523,7 @@ struct DockSettingsPage: View {
             Toggle("Switch the Apple Dock's apps with the profile", isOn: binding(\.appleDockLayouts))
             if let layout = profile.appleDock {
                 LabeledContent("Saved in \(profile.name)") {
-                    VStack(alignment: .trailing, spacing: 2) {
+                    VStack(alignment: .trailing, spacing: Spacing.hair) {
                         Text(Self.summary(layout.appNames + layout.otherNames))
                             .lineLimit(2)
                             .multilineTextAlignment(.trailing)
