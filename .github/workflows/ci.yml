@@ -57,11 +57,36 @@ jobs:
       - name: Strict concurrency (core)
         run: swift build --target MenubucketCore -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
 
+      # A full run takes about two minutes. A run that stalls (seen once in
+      # 2026-10, after DockStoreTests, with nothing logged) is sampled so the
+      # hung test shows in the log, then run once more instead of holding
+      # the runner for hours.
       - name: Test
+        timeout-minutes: 30
         run: |
           quality_test_home=$(mktemp -d "${RUNNER_TEMP}/barshelf-quality-home-XXXXXX")
           trap 'rm -rf "$quality_test_home"' EXIT
-          CFFIXED_USER_HOME="$quality_test_home" swift test
+          run_tests() {
+            CFFIXED_USER_HOME="$quality_test_home" swift test &
+            local pid=$! waited=0
+            while kill -0 "$pid" 2>/dev/null; do
+              if [ "$waited" -ge 600 ]; then
+                echo "::warning::swift test stalled for 10 minutes; sampling xctest"
+                for x in $(pgrep -x xctest); do sample "$x" 5 2>/dev/null | head -120; done
+                pkill -x xctest; kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
+                return 124
+              fi
+              sleep 5; waited=$((waited + 5))
+            done
+            wait "$pid"
+          }
+          status=0
+          run_tests || status=$?
+          if [ "$status" -eq 124 ]; then
+            run_tests
+          else
+            exit "$status"
+          fi
 
       # The desktop widget extension is the one Xcode-built part of the app;
       # building it here keeps a Swift-only change from breaking it unseen.
