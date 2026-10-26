@@ -174,7 +174,7 @@ struct ShelfView: View {
             // The end of the column, so a widget can be dropped last.
             RoundedRectangle(cornerRadius: Radius.control, style: .continuous)
                 .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                .foregroundStyle(dropHighlight == page.name ? Color.accentColor : Color.secondary.opacity(0.35))
+                .foregroundStyle(dropHighlight == page.name ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.tertiary))
                 .frame(height: 30)
                 .overlay(Text("Drop here").font(.caption).foregroundStyle(.secondary))
                 .dropDestination(for: String.self) { ids, _ in
@@ -190,7 +190,7 @@ struct ShelfView: View {
         .frame(width: columnWidth, alignment: .top)
         .background(
             RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                .fill(Color.primary.opacity(0.035))
+                .fill(Fill.card)
         )
     }
 
@@ -199,11 +199,13 @@ struct ShelfView: View {
         let disabled = runtime.prefs.isDisabled(widget.id)
         let status = chipStatus(widget, disabled: disabled)
         return HStack(spacing: Spacing.xs) {
-            Image(systemName: widget.manifest.icon ?? "square.dashed")
-                .foregroundStyle(isSelected ? Color.accentColor : .secondary)
-                .frame(width: 18)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 1) {
+            // The same mark the widget's card carries in the popup.
+            CardIconTile(
+                symbol: widget.manifest.icon ?? "square.dashed",
+                color: runtime.prefs.effectiveAppearance(for: widget.manifest, widgetID: widget.id).accentColor ?? .accentColor,
+                size: 22
+            )
+            VStack(alignment: .leading, spacing: Spacing.hair / 2) {
                 Text(widget.displayName)
                     .lineLimit(1)
                 // The widget's current reading says more about it than its
@@ -229,15 +231,15 @@ struct ShelfView: View {
             }
         }
         .padding(.horizontal, Spacing.xs)
-        .padding(.vertical, 6)
+        .padding(.vertical, Spacing.stack)
         .opacity(disabled ? 0.55 : 1)
         .background(
-            RoundedRectangle(cornerRadius: Radius.control, style: .continuous)
-                .fill(isSelected ? Color.accentColor.opacity(0.16) : Color(nsColor: .controlBackgroundColor))
+            RoundedRectangle(cornerRadius: Radius.nested(in: Radius.card, inset: Spacing.xxs), style: .continuous)
+                .fill(isSelected ? AnyShapeStyle(Color.accentColor.opacity(Fill.Wash.strong)) : AnyShapeStyle(Color(nsColor: .controlBackgroundColor)))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: Radius.control, style: .continuous)
-                .strokeBorder(isSelected ? Color.accentColor : Color.primary.opacity(0.08))
+            RoundedRectangle(cornerRadius: Radius.nested(in: Radius.card, inset: Spacing.xxs), style: .continuous)
+                .strokeBorder(isSelected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(Fill.hairline), lineWidth: 1)
         )
         .contentShape(Rectangle())
         .onTapGesture { selection = widget.id }

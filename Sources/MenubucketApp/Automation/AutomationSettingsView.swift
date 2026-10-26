@@ -82,7 +82,7 @@ struct AutomationSettingsView: View {
                 TextEditor(text: $draft)
                     .font(.system(.body, design: .monospaced))
                     .frame(minHeight: 230)
-                    .border(Color.secondary.opacity(0.25))
+                    .border(Fill.hairline)
                     .accessibilityLabel("Automation JavaScript")
                 HStack {
                     Button(controller.isRunning ? String(localized: "Save & Reload") : String(localized: "Save Script")) {

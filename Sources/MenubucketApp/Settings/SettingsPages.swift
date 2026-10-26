@@ -516,7 +516,7 @@ private struct DiagnosticsRow: View {
 
     var body: some View {
         LabeledContent {
-            VStack(alignment: .trailing, spacing: 2) {
+            VStack(alignment: .trailing, spacing: Spacing.hair) {
                 if hasRun {
                     Label(outcome.text, systemImage: outcome.tone.symbol)
                         .foregroundStyle(outcome.tone.color)
