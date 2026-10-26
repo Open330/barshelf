@@ -138,7 +138,7 @@ struct GalleryDetailView: View {
         return Label(text, systemImage: symbol)
             .font(.caption)
             .foregroundStyle(tone)
-            .padding(.top, 2)
+            .padding(.top, Spacing.hair)
     }
 
     @ViewBuilder
@@ -244,7 +244,7 @@ struct GalleryDetailView: View {
             }
             if status == .missing {
                 installHint(for: requirement)
-                    .padding(.leading, 28)
+                    .padding(.leading, Spacing.l + Spacing.xxs)
             }
         }
     }
@@ -263,7 +263,7 @@ struct GalleryDetailView: View {
                         .padding(.horizontal, Spacing.xs)
                         .padding(.vertical, Spacing.xxs)
                         .background(
-                            Color.secondary.opacity(0.12),
+                            Fill.pressed,
                             in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous)
                         )
                     Button("Copy") {

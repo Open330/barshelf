@@ -230,7 +230,7 @@ struct OnboardingView: View {
         title("Open it from anywhere", "Click the BarShelf icon in the menu bar, or give it a keyboard shortcut.")
         VStack(spacing: 0) {
             HStack {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: Spacing.hair) {
                     Text("Shortcut")
                     Text("For example ⇧⌘B.").font(.caption).foregroundStyle(.secondary)
                 }
@@ -251,7 +251,7 @@ struct OnboardingView: View {
                 get: { appPrefs.preferences.launchAtLogin },
                 set: { loginError = GeneralSettingsPage.setLaunchAtLogin($0, appPrefs: appPrefs) }
             )) {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: Spacing.hair) {
                     Text("Open at login")
                     Text("Start BarShelf when you sign in.").font(.caption).foregroundStyle(.secondary)
                 }
@@ -315,7 +315,7 @@ struct OnboardingView: View {
                 .toggleStyle(.switch)
                 .labelsHidden()
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, Spacing.stack)
     }
 
     private func title(_ heading: LocalizedStringKey, _ detail: LocalizedStringKey) -> some View {
@@ -347,10 +347,10 @@ struct OnboardingView: View {
     private var footer: some View {
         HStack {
             // Where the user is, for VoiceOver as well as the eye.
-            HStack(spacing: 6) {
+            HStack(spacing: Spacing.stack) {
                 ForEach(Step.allCases, id: \.self) { dot in
                     Circle()
-                        .fill(dot == step ? Color.accentColor : Color.secondary.opacity(0.3))
+                        .fill(dot == step ? Color.accentColor : Color(nsColor: .tertiaryLabelColor))
                         .frame(width: 7, height: 7)
                 }
             }

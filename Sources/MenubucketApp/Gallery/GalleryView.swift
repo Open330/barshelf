@@ -124,7 +124,7 @@ struct GalleryView: View {
                         categoryChip(category, label: GalleryEntryText.categoryLabel(category))
                     }
                 }
-                .padding(.vertical, 2)
+                .padding(.vertical, Spacing.hair)
             }
             Picker(selection: $model.kindFilter) {
                 ForEach(GalleryKindFilter.allCases) { kind in
@@ -150,11 +150,11 @@ struct GalleryView: View {
         } label: {
             Text(label)
                 .font(.callout.weight(selected ? .semibold : .regular))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
+                .padding(.horizontal, Spacing.s)
+                .padding(.vertical, Spacing.xxs)
                 .foregroundStyle(selected ? Color.white : Color.primary)
                 .background(
-                    Capsule().fill(selected ? Color.accentColor : Color.secondary.opacity(0.12))
+                    Capsule().fill(selected ? Color.accentColor : Fill.pressed)
                 )
                 .contentShape(Capsule())
         }
