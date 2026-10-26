@@ -44,18 +44,17 @@ final class ExecServiceTests: XCTestCase {
         while [ ! -f ready ]; do /bin/sleep 0.01; done
         exit 0
         """#
-        let unrelated = Process()
-        unrelated.executableURL = URL(fileURLWithPath: "/bin/sleep")
-        unrelated.arguments = ["20"]
-        unrelated.standardInput = FileHandle.nullDevice
-        unrelated.standardOutput = FileHandle.nullDevice
-        unrelated.standardError = FileHandle.nullDevice
-        try unrelated.run()
+        // Spawned and reaped by hand, not through `Process`: this test awaits
+        // between launch and cleanup, so cleanup can run on another thread,
+        // and `Process.waitUntilExit()` there never sees the exit (it waits
+        // on the launching thread's run loop) — the whole suite stalled.
+        let unrelated = try Self.spawnSleep(seconds: 20)
         defer {
-            if unrelated.isRunning { unrelated.terminate() }
-            unrelated.waitUntilExit()
+            _ = kill(unrelated, SIGKILL)
+            var status: Int32 = 0
+            _ = waitpid(unrelated, &status, 0)
         }
-        let unrelatedStart = try XCTUnwrap(ExecService.startTime(of: unrelated.processIdentifier))
+        let unrelatedStart = try XCTUnwrap(ExecService.startTime(of: unrelated))
         let task = Task {
             let result = await ExecService.capture(command: ["/bin/sh", "-c", script], discover: nil,
                 timeoutMs: cancel ? 10_000 : 1_500, workingDirectory: directory)
@@ -104,8 +103,24 @@ final class ExecServiceTests: XCTestCase {
         try await Task.sleep(nanoseconds: 4_200_000_000)
         XCTAssertNotEqual(ExecService.startTime(of: descendant), descendantStart)
         XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("side-effect").path))
-        XCTAssertEqual(ExecService.startTime(of: unrelated.processIdentifier), unrelatedStart)
-        XCTAssertTrue(unrelated.isRunning, "independent process must not be targeted")
+        XCTAssertEqual(ExecService.startTime(of: unrelated), unrelatedStart)
+        XCTAssertEqual(kill(unrelated, 0), 0, "independent process must not be targeted")
+    }
+
+    /// `/bin/sleep <seconds>` with no stdio, for the caller to kill and reap.
+    private static func spawnSleep(seconds: Int) throws -> pid_t {
+        var actions: posix_spawn_file_actions_t?
+        posix_spawn_file_actions_init(&actions)
+        defer { posix_spawn_file_actions_destroy(&actions) }
+        for fd: Int32 in 0...2 {
+            posix_spawn_file_actions_addopen(&actions, fd, "/dev/null", fd == 0 ? O_RDONLY : O_WRONLY, 0)
+        }
+        var pid: pid_t = 0
+        let argv: [UnsafeMutablePointer<CChar>?] = [strdup("/bin/sleep"), strdup(String(seconds)), nil]
+        defer { argv.forEach { free($0) } }
+        let result = posix_spawn(&pid, "/bin/sleep", &actions, nil, argv, nil)
+        guard result == 0 else { throw POSIXError(POSIXErrorCode(rawValue: result) ?? .EINVAL) }
+        return pid
     }
 
     func testCancelledCapturePreventsDelayedSideEffect() async throws {
