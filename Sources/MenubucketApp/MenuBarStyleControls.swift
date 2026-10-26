@@ -28,7 +28,7 @@ struct MenuBarStyleControls {
     @ViewBuilder
     var width: some View {
         let presentation = shown
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: Spacing.stack) {
             Picker("Width", selection: Binding(
                 get: { presentation.effectiveWidth },
                 set: { mode in change { $0.width = keep(mode, \.effectiveWidth) } }
@@ -89,8 +89,8 @@ struct MenuBarStyleControls {
     @ViewBuilder
     var text: some View {
         let presentation = shown
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: Spacing.stack) {
+            HStack(spacing: Spacing.s) {
                 Picker("Text alignment", selection: Binding(
                     get: { presentation.effectiveAlignment },
                     set: { value in change { $0.alignment = keep(value, \.effectiveAlignment) } }
@@ -152,7 +152,7 @@ struct MenuBarStyleControls {
     @ViewBuilder
     var color: some View {
         let presentation = shown
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: Spacing.xxs) {
             Picker("Color", selection: Binding(
                 get: { presentation.color ?? "automatic" },
                 // "automatic" is stored when it differs from what is

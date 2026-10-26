@@ -111,7 +111,9 @@ extension View {
     /// in every language. A grouped form otherwise lays a wrapped footer out
     /// against the trailing edge.
     func formFooter() -> some View {
-        multilineTextAlignment(.leading)
+        font(.caption)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.leading)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

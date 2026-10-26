@@ -208,7 +208,7 @@ private struct MenuBarItemRow: View {
                 .controlSize(.small)
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, Spacing.hair)
     }
 
     /// What the item shows right now — or why a switched-on item shows

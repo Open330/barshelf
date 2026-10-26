@@ -37,6 +37,22 @@ enum HubTab: String, CaseIterable, Identifiable {
         }
     }
 
+    /// The tile colour behind the page's symbol in the sidebar.
+    var tint: Color {
+        switch self {
+        case .shelf: return .blue
+        case .menuBar: return .indigo
+        case .dock: return .teal
+        case .gallery: return .purple
+        case .create: return .pink
+        case .automation: return .orange
+        case .general, .advanced: return .gray
+        case .shortcuts: return .mint
+        case .updates: return .red
+        case .privacy: return .cyan
+        }
+    }
+
     var symbol: String {
         switch self {
         case .shelf: return "square.grid.2x2"

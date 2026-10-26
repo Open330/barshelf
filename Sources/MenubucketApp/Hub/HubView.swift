@@ -38,7 +38,13 @@ struct HubView: View {
     }
 
     private func sidebarRow(_ tab: HubTab) -> some View {
-        Label(tab.title, systemImage: tab.symbol)
+        // Symbols on coloured tiles, as in System Settings: the same mark
+        // a widget card carries in the popup.
+        Label {
+            Text(tab.title)
+        } icon: {
+            CardIconTile(symbol: tab.symbol, color: tab.tint, size: 20)
+        }
             .tag(tab)
             // A press as well as a selection, so accessibility clients that
             // press rather than select (automation, Switch Control) can
@@ -52,7 +58,7 @@ struct HubView: View {
                 Image(nsImage: BarShelfStatusIcon.logoImage(size: NSSize(width: 24, height: 18)))
                     .renderingMode(.template)
             }
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 0) {
                 Text("BarShelf")
                     .font(.headline)
                 Text("\(runtime.widgets.count) widgets installed")
