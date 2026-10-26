@@ -59,18 +59,17 @@ struct RootView: View {
             } else {
                 let index = min(max(pager.index, 0), pages.count - 1)
 
+                // No hairlines between header, pages and footer: the popup is
+                // one sheet of the system's popover material, and the cards
+                // on it are what is separated.
                 VStack(spacing: 0) {
                     header(pages: pages, index: index)
-                    Divider()
                     if !pager.isEditing { pinnedRow }
                 }
                 .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { topChromeHeight = $0 }
                 pagerStrip(pages: pages, index: index)
                 if pages.count > 1 {
-                    VStack(spacing: 0) {
-                        Divider()
-                        footer(pages: pages, index: index)
-                    }
+                    footer(pages: pages, index: index)
                     .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { footerHeight = $0 }
                 }
             }
@@ -81,8 +80,9 @@ struct RootView: View {
         .disabled(searchPresented)
         .allowsHitTesting(!searchPresented)
         .frame(width: Self.defaultSize.width, height: popupHeight(pages: pages))
-        // Solid, opaque popup surface — no popover translucency bleeding through.
-        .background(Color(nsColor: .controlBackgroundColor))
+        // Chrome is the popover's own material (Liquid Glass on macOS 26,
+        // the vibrant popover material before it, opaque under Reduce
+        // Transparency); content cards sit on it as quiet solid fills.
         .environment(\.shelfIsEditing, pager.isEditing)
         .overlay(alignment: .top) {
             if searchPresented {
@@ -95,8 +95,8 @@ struct RootView: View {
                         .contentShape(Rectangle())
                         .onTapGesture { searchPresented = false }
                     SearchOverlay(runtime: runtime, pager: pager, isPresented: $searchPresented)
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.control))
-                        .shadow(radius: 8)
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.surface, style: .continuous))
+                        .shadow(color: .black.opacity(Fill.Wash.strong), radius: Spacing.s, y: Spacing.xxs)
                         .padding(Spacing.xs)
                 }
                 .transition(.opacity)
@@ -233,17 +233,17 @@ struct RootView: View {
         let overflow = PinnedShelf.overflowIDs(pinned: runtime.prefs.pinned, enabledIDs: enabledIDs)
         let pinnedWidgets = shown.compactMap { id in runtime.widgets.first { $0.id == id } }
         if !pinnedWidgets.isEmpty {
-            VStack(spacing: 0) {
+            VStack(spacing: Self.cardGap) {
                 ForEach(pinnedWidgets) { widget in
                     WidgetCardView(widget: widget, runtime: runtime, compactHeight: 120)
                 }
                 if !overflow.isEmpty {
                     pinnedOverflow(overflowIDs: overflow)
-                        .padding(.horizontal, Spacing.s)
-                        .padding(.vertical, Spacing.xxs)
+                        .padding(.horizontal, Spacing.xxs)
                 }
             }
-            Divider()
+            .padding(.horizontal, Self.cardGap)
+            .padding(.top, Self.cardGap)
         }
     }
 
@@ -437,9 +437,8 @@ struct RootView: View {
             }
         }
         .padding(.horizontal, Spacing.s)
-        .padding(.vertical, Spacing.xs)
+        .padding(.top, Spacing.xs)
         .frame(minHeight: 36)
-        .background(Color(nsColor: .windowBackgroundColor))
     }
 
     /// Page dots. Each is also a drop target: a card dragged onto a dot moves
@@ -466,8 +465,7 @@ struct RootView: View {
         .accessibilityLabel("Page \(index + 1) of \(pages.count)")
         .frame(maxWidth: .infinity)
         .padding(.horizontal, Spacing.s)
-        .padding(.vertical, Spacing.stack)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .padding(.bottom, Spacing.stack)
     }
 
     private func pageDot(page: WidgetPage, pageIndex: Int, index: Int, pageCount: Int) -> some View {

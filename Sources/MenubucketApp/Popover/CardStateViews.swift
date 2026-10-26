@@ -345,7 +345,7 @@ struct FreshnessText: View {
     private func label(now: Date) -> some View {
         Text(CardFreshness.label(updatedAt: updatedAt, now: now))
             .font(.caption2)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.tertiary)
             .lineLimit(1)
             .monospacedDigit()
     }

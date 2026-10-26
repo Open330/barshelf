@@ -419,21 +419,20 @@ struct WidgetCardView: View {
 
     // MARK: - Header
 
-    /// Name on the left; the cached badge, a refreshing indicator and the
-    /// last-update time on the right. Quiet (`.caption`, secondary) so the
-    /// content reads first.
+    /// The widget's mark — its symbol on a small tile of its colour — and
+    /// name on the left; the cached badge, a refreshing indicator and the
+    /// last-update time on the right. The tile is the one place a widget's
+    /// colour shows at rest, so the cards on a page are told apart at a
+    /// glance and the content below stays neutral.
     private func cardHeader(snapshot: WidgetSnapshot) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: Spacing.stack) {
             if let icon = widget.manifest.icon {
-                Image(systemName: icon)
-                    .font(.caption)
-                    .foregroundStyle(cardAccent)
-                    .accessibilityHidden(true)
+                CardIconTile(symbol: icon, color: cardAccent)
             }
             Text(widget.displayName)
-                .font(.caption)
+                .font(.subheadline)
                 .fontWeight(.semibold)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.primary)
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .accessibilityAddTraits(.isHeader)
@@ -629,6 +628,26 @@ struct WidgetCardView: View {
                         .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1)
                 }
             }
+    }
+}
+
+/// A widget's symbol, white on a small rounded tile of its colour — the
+/// mark Control Center and the Settings sidebar use.
+struct CardIconTile: View {
+    let symbol: String
+    let color: Color
+    var size: CGFloat = 18
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: size * 0.56, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: size, height: size)
+            .background(
+                RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
+                    .fill(color.gradient)
+            )
+            .accessibilityHidden(true)
     }
 }
 
