@@ -235,7 +235,7 @@ struct RootView: View {
         if !pinnedWidgets.isEmpty {
             VStack(spacing: Self.cardGap) {
                 ForEach(pinnedWidgets) { widget in
-                    WidgetCardView(widget: widget, runtime: runtime, compactHeight: 120)
+                    WidgetCardView(widget: widget, runtime: runtime, compactHeight: Self.pinnedCardHeight)
                 }
                 if !overflow.isEmpty {
                     pinnedOverflow(overflowIDs: overflow)
@@ -388,6 +388,9 @@ struct RootView: View {
         .padding(.horizontal, Self.cardGap)
         .padding(.vertical, Self.cardGap)
     }
+
+    /// A pinned card's fixed height: a header and about three rows.
+    static let pinnedCardHeight: CGFloat = 130
 
     /// Space between widget cards, and around them: cards are separated by
     /// air, not hairlines.
