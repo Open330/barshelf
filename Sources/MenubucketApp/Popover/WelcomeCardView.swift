@@ -12,7 +12,7 @@ struct WelcomeCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.xs) {
-            HStack(spacing: 6) {
+            HStack(spacing: Spacing.stack) {
                 Image(systemName: "sparkles")
                     .foregroundStyle(Color.accentColor)
                     .accessibilityHidden(true)
@@ -31,9 +31,9 @@ struct WelcomeCardView: View {
             }
             Text("A few widgets to start with. Find more in the Gallery.")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: 8) {
+            HStack(spacing: Spacing.xs) {
                 Button("Add Widget…", action: addWidget)
                     .controlSize(.small)
                 Button("Getting Started") {
@@ -42,12 +42,11 @@ struct WelcomeCardView: View {
                 .controlSize(.small)
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(Spacing.cardInset)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                .fill(Color.accentColor.opacity(0.08))
+                .fill(Color.accentColor.opacity(Fill.Wash.soft))
         )
     }
 }

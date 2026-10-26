@@ -103,7 +103,7 @@ struct RootView: View {
             }
         }
         .overlay { ToastOverlay(bottomInset: pages.count > 1 ? 46 : Spacing.s) }
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: pager.isEditing)
+        .animation(Motion.respecting(reduceMotion, Motion.quick), value: pager.isEditing)
         // ⌘F arrives as the Edit ▸ Find menu command (`AppCommands`).
         .onChange(of: pager.searchRequests) { searchPresented = true }
         .onChange(of: pager.isEditing) { _, editing in
@@ -318,7 +318,7 @@ struct RootView: View {
                             // The pager first moves this page onscreen. Deferring one
                             // run-loop lets ScrollViewReader resolve its card anchor.
                             DispatchQueue.main.async {
-                                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
+                                withAnimation(Motion.respecting(reduceMotion, Motion.arrange)) {
                                     proxy.scrollTo(id, anchor: .center)
                                 }
                             }
@@ -344,7 +344,7 @@ struct RootView: View {
             // Reduce Motion: pages switch in place instead of sliding. A
             // swipe still tracks the fingers, which is the user's own motion.
             .animation(
-                pager.isSwiping || reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.85),
+                pager.isSwiping || reduceMotion ? nil : Motion.arrange,
                 value: offset
             )
             .onAppear { pager.pageWidth = width }
@@ -391,7 +391,7 @@ struct RootView: View {
 
     /// Space between widget cards, and around them: cards are separated by
     /// air, not hairlines.
-    static let cardGap: CGFloat = 6
+    static let cardGap: CGFloat = Spacing.cardGap
 
     // MARK: - Header and footer
 
@@ -457,7 +457,7 @@ struct RootView: View {
             .fixedSize(horizontal: true, vertical: false)
             .onChange(of: index) { _, newIndex in
                 guard pages.indices.contains(newIndex) else { return }
-                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) {
+                withAnimation(Motion.respecting(reduceMotion, Motion.quick)) {
                     proxy.scrollTo(pages[newIndex].id, anchor: .center)
                 }
             }
@@ -466,7 +466,7 @@ struct RootView: View {
         .accessibilityLabel("Page \(index + 1) of \(pages.count)")
         .frame(maxWidth: .infinity)
         .padding(.horizontal, Spacing.s)
-        .padding(.vertical, 6)
+        .padding(.vertical, Spacing.stack)
         .background(Color(nsColor: .windowBackgroundColor))
     }
 
@@ -566,7 +566,7 @@ struct RootView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            VStack(spacing: 6) {
+            VStack(spacing: Spacing.stack) {
                 Button { onCommand(.addWidget) } label: {
                     Label("Add Widget…", systemImage: "plus")
                         .frame(maxWidth: .infinity)
@@ -592,7 +592,7 @@ struct RootView: View {
                 }
             }
             .controlSize(.large)
-            .padding(.horizontal, 48)
+            .padding(.horizontal, Spacing.xl + Spacing.m)
             .padding(.top, Spacing.xxs)
             Spacer()
             Text("Widgets live in ~/Library/Application Support/barshelf/widgets/")
@@ -600,7 +600,7 @@ struct RootView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, Spacing.s)
-                .padding(.bottom, 10)
+                .padding(.bottom, Spacing.s)
         }
         .frame(maxWidth: .infinity)
     }
