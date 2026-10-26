@@ -27,6 +27,6 @@ struct ToastOverlay: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         .allowsHitTesting(false)
-        .animation(.easeInOut(duration: 0.2), value: toast.message)
+        .animation(Motion.respecting(reduceMotion, Motion.quick), value: toast.message)
     }
 }

@@ -26,7 +26,7 @@ struct CardSkeleton: View {
     private func bar(width fraction: CGFloat, height: CGFloat) -> some View {
         GeometryReader { geometry in
             RoundedRectangle(cornerRadius: Radius.control / 2, style: .continuous)
-                .fill(Color.secondary.opacity(0.15))
+                .fill(Fill.pressed)
                 .frame(width: geometry.size.width * fraction)
         }
         .frame(height: height)
@@ -109,12 +109,11 @@ struct CachedBadge: View {
 
     var body: some View {
         Button { showsPopover.toggle() } label: {
-            Label("Cached", systemImage: "clock.arrow.circlepath")
-                .font(.caption2)
-                .padding(.horizontal, Spacing.xxs + 2)
-                .padding(.vertical, 1)
-                .foregroundStyle(StatusTone.warning.color)
-                .background(Capsule().fill(StatusTone.warning.color.opacity(0.12)))
+            Pill(
+                text: String(localized: "Cached"),
+                symbol: "clock.arrow.circlepath",
+                color: StatusTone.warning.color
+            )
         }
         .buttonStyle(.plain)
         .help("Showing the last good result — the latest refresh failed")
@@ -179,9 +178,9 @@ struct PermissionApprovalView: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.accentColor)
                     .frame(width: 26, height: 26)
-                    .background(Circle().fill(Color.accentColor.opacity(0.12)))
+                    .background(Circle().fill(Color.accentColor.opacity(Fill.Wash.soft)))
                     .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 1) {
+                VStack(alignment: .leading, spacing: Spacing.hair) {
                     Text("Waiting for your permission")
                         .font(.callout.weight(.medium))
                     // One request reads as a sentence on its own; several
@@ -346,7 +345,7 @@ struct FreshnessText: View {
     private func label(now: Date) -> some View {
         Text(CardFreshness.label(updatedAt: updatedAt, now: now))
             .font(.caption2)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.tertiary)
             .lineLimit(1)
             .monospacedDigit()
     }

@@ -159,6 +159,7 @@ struct NodeView: View {
     @Environment(\.actionContext) private var actionContext
     @Environment(\.widgetAppearance) private var appearance
     @Environment(\.localFileReadPaths) private var localFileReadPaths
+    @Environment(\.colorSchemeContrast) private var contrast
 
     /// Custom accent color, or nil when the widget uses the system accent.
     private var accentOverride: Color? { appearance.accentColor }
@@ -167,7 +168,7 @@ struct NodeView: View {
     private var effectiveAccent: Color { appearance.accentColor ?? .accentColor }
     /// Compact density shrinks paddings, spacing and text ≈15%. Regular = 1.0
     /// so a neutral appearance renders identically.
-    private var scale: Double { (appearance.density ?? .regular) == .compact ? 0.85 : 1 }
+    private var scale: Double { (appearance.density ?? .regular) == .compact ? Typography.compactScale : 1 }
 
     var body: some View {
         // Explicit widget-author label (VoiceOver). When absent, keep the
@@ -223,11 +224,11 @@ struct NodeView: View {
     private var content: some View {
         switch UINode.KnownType(rawValue: node.type) {
         case .vstack:
-            VStack(alignment: .leading, spacing: (node.spacing ?? 6) * scale) {
+            VStack(alignment: .leading, spacing: (node.spacing ?? Spacing.stack) * scale) {
                 NodeChildrenView(nodes: node.children ?? [])
             }
         case .hstack:
-            HStack(alignment: hstackAlignment, spacing: (node.spacing ?? 6) * scale) {
+            HStack(alignment: hstackAlignment, spacing: (node.spacing ?? Spacing.stack) * scale) {
                 NodeChildrenView(nodes: node.children ?? [])
             }
         case .zstack:
@@ -242,7 +243,7 @@ struct NodeView: View {
             NodeListView(
                 items: node.items ?? node.children ?? [],
                 searchPlaceholder: node.searchPlaceholder,
-                spacing: (node.spacing ?? 4) * scale
+                spacing: (node.spacing ?? Spacing.xxs) * scale
             )
         case .grid:
             gridView
@@ -289,7 +290,7 @@ struct NodeView: View {
     /// column count; otherwise tiles wrap adaptively at `size` (tile min width).
     private var gridView: some View {
         let items = node.items ?? node.children ?? []
-        let spacing = (node.spacing ?? 8) * scale
+        let spacing = (node.spacing ?? Spacing.xs) * scale
         let gridItems: [GridItem]
         if let count = node.columns, count > 0 {
             gridItems = Array(repeating: GridItem(.flexible(), spacing: spacing), count: count)
@@ -306,31 +307,37 @@ struct NodeView: View {
     }
 
     private var sectionView: some View {
-        VStack(alignment: .leading, spacing: (node.spacing ?? 4) * scale) {
+        VStack(alignment: .leading, spacing: (node.spacing ?? Spacing.xxs) * scale) {
             if let title = node.title {
                 Text(title)
-                    .font(.system(size: 11 * scale, weight: .semibold))
-                    .foregroundColor(.secondary)
+                    .font(Typography.widget(.sectionTitle, compact: scale < 1))
+                    .foregroundStyle(.secondary)
             }
             NodeChildrenView(nodes: node.children ?? [])
         }
     }
 
     private var cardView: some View {
-        let color = nodeColor(node.tone ?? node.tint, accent: accentOverride) ?? effectiveAccent
-        return VStack(alignment: .leading, spacing: (node.spacing ?? 6) * scale) {
+        // A card inside a widget card: the hover fill, one step above the
+        // card it sits on, or a soft wash when the author gave it a tone.
+        // No border — the fill is the edge (a hairline under Increase
+        // Contrast).
+        let tone = nodeColor(node.tone ?? node.tint, accent: accentOverride)
+        return VStack(alignment: .leading, spacing: (node.spacing ?? Spacing.stack) * scale) {
             NodeChildrenView(nodes: node.children ?? [])
         }
-        .padding(node.padding ?? 8)
+        .padding(node.padding ?? Spacing.xs)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(color.opacity(0.08))
+            RoundedRectangle(cornerRadius: Radius.nested(in: Radius.card, inset: Spacing.xxs), style: .continuous)
+                .fill(tone.map { AnyShapeStyle($0.opacity(Fill.Wash.soft)) } ?? AnyShapeStyle(Fill.hover))
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(color.opacity(0.18), lineWidth: 1)
-        )
+        .overlay {
+            if contrast == .increased {
+                RoundedRectangle(cornerRadius: Radius.nested(in: Radius.card, inset: Spacing.xxs), style: .continuous)
+                    .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1)
+            }
+        }
     }
 
     @ViewBuilder
@@ -339,7 +346,7 @@ struct NodeView: View {
             // Filled-circle treatment (e.g. today in a calendar) — white text.
             styledText(overrideColor: .white)
                 .lineLimit(node.lineLimit)
-                .padding(5)
+                .padding(Spacing.xxs + 1)
                 .background(Circle().fill(fillColor))
         } else {
             styledText(overrideColor: nil)
@@ -352,23 +359,23 @@ struct NodeView: View {
         var text = Text(node.text ?? "")
         var font: Font
         var defaultColor: Color? = nil
+        let compact = scale < 1
         switch node.role {
         case "title":
-            font = .system(size: 13 * scale, weight: .semibold)
+            font = Typography.widget(.title, compact: compact)
         case "caption":
-            font = .caption
+            font = Typography.widget(.caption, compact: compact)
             defaultColor = .secondary
         case "code":
-            font = .system(size: 11 * scale, design: .monospaced)
+            font = Typography.widget(.code, compact: compact)
         default: // "body"
-            font = .system(size: 12 * scale)
+            font = Typography.widget(.body, compact: compact)
         }
         // An explicit `size` overrides the role's size — lets widgets render
-        // native-widget-style large numbers/headlines.
+        // native-widget-style large numbers/headlines. From hero size up the
+        // text is a reading (23 %, 1:42, 18°), drawn as every hero number is.
         if let size = node.size {
-            let weight: Font.Weight = node.role == "title" ? .bold : .regular
-            let design: Font.Design = node.role == "code" ? .monospaced : .default
-            font = .system(size: CGFloat(size) * scale, weight: weight, design: design)
+            font = Typography.authored(size: CGFloat(size), scale: scale, role: node.role)
         }
         if node.monospacedDigit == true {
             font = font.monospacedDigit()
@@ -433,11 +440,11 @@ struct NodeView: View {
                 diameter: CGFloat(node.size ?? 26)
             )
         } else {
-            HStack(spacing: 6) {
+            HStack(spacing: Spacing.stack) {
                 if let label = node.label {
                     Text(label)
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
                 LinearMeter(
@@ -454,7 +461,7 @@ struct NodeView: View {
                 actionContext.perform(action)
             }
         } label: {
-            HStack(spacing: 4) {
+            HStack(spacing: Spacing.xxs) {
                 if let icon = node.icon {
                     Image(systemName: icon)
                 }
@@ -462,7 +469,7 @@ struct NodeView: View {
                     Text(title)
                 }
             }
-            .font(.system(size: 12))
+            .font(.callout)
         }
         .buttonStyle(.bordered)
         .controlSize(.small)
@@ -473,51 +480,47 @@ struct NodeView: View {
         let color = nodeColor(node.tint ?? node.tone, accent: accentOverride) ?? .secondary
         // A badge is a single-line pill — never wrap; shrink instead of
         // splitting ("ACTIVE" must not become "ACTIV E" in narrow cards).
-        return Text(node.text ?? node.title ?? "")
-            .font(.system(size: 10, weight: .medium))
-            .lineLimit(1)
-            .fixedSize()
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .foregroundColor(color)
-            .background(Capsule().fill(color.opacity(0.15)))
+        return Pill(text: node.text ?? node.title ?? "", color: color)
     }
 
     private var bannerView: some View {
         let color = nodeColor(node.tone ?? node.tint, accent: accentOverride) ?? .orange
-        return HStack(alignment: .firstTextBaseline, spacing: 6) {
+        return HStack(alignment: .firstTextBaseline, spacing: Spacing.stack) {
             Image(systemName: node.icon ?? "exclamationmark.triangle.fill")
-                .foregroundColor(color)
+                .foregroundStyle(color)
             Text(node.text ?? node.title ?? "")
                 .font(.caption)
-                .foregroundColor(.primary)
+                .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(8)
+        .padding(Spacing.xs)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 6).fill(color.opacity(0.12)))
+        .background(
+            RoundedRectangle(cornerRadius: Radius.nested(in: Radius.card, inset: Spacing.xxs), style: .continuous)
+                .fill(color.opacity(Fill.Wash.soft))
+        )
     }
 
     private var emptyView: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: Spacing.stack) {
             if let icon = node.icon {
                 Image(systemName: icon)
-                    .font(.system(size: 24))
-                    .foregroundColor(.secondary)
+                    .font(.title)
+                    .foregroundStyle(.secondary)
             }
             if let title = node.title {
                 Text(title)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.callout.weight(.semibold))
             }
             if let subtitle = node.subtitle {
                 Text(subtitle)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
+        .padding(.vertical, Spacing.s)
     }
 
     /// A node type this BarShelf does not know — usually a widget written for
@@ -534,7 +537,7 @@ struct NodeView: View {
         .padding(Spacing.xxs)
         .background(
             RoundedRectangle(cornerRadius: Radius.control, style: .continuous)
-                .fill(Color.secondary.opacity(0.1))
+                .fill(Fill.card)
         )
         .accessibilityElement(children: .combine)
     }
@@ -581,11 +584,11 @@ private struct CountdownProgressView: View {
                 diameter: CGFloat(node.size ?? 26)
             )
         } else {
-            HStack(spacing: 6) {
+            HStack(spacing: Spacing.stack) {
                 if let label = node.label {
                     Text(label)
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
                 LinearMeter(fraction: fraction, tint: tint)
@@ -625,7 +628,7 @@ private struct NodeListView: View {
                 SearchField(text: $query, placeholder: searchPlaceholder,
                             onCancel: { query = "" })
                     .frame(height: 24)
-                    .padding(.trailing, 76)
+                    .padding(.trailing, Spacing.xl * 2 + Spacing.s)
                     .accessibilityLabel(searchPlaceholder)
             }
 
@@ -634,7 +637,7 @@ private struct NodeListView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
+                    .padding(.vertical, Spacing.s)
             } else {
                 NodeChildrenView(nodes: filteredItems)
             }
@@ -653,7 +656,7 @@ private struct LinearMeter: View {
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
-                Capsule().fill(Color.primary.opacity(0.12))
+                Capsule().fill(Fill.track)
                 Capsule().fill(tint)
                     .frame(width: max(height, geo.size.width * CGFloat(min(max(fraction, 0), 1))))
             }
@@ -673,7 +676,7 @@ private struct RingProgressView: View {
     var body: some View {
         ZStack {
             Circle()
-                .stroke(Color.secondary.opacity(0.25), lineWidth: 3)
+                .stroke(Fill.track, lineWidth: 3)
             Circle()
                 .trim(from: 0, to: CGFloat(min(max(fraction, 0), 1)))
                 .stroke(tint, style: StrokeStyle(lineWidth: 3, lineCap: .round))
@@ -688,7 +691,7 @@ private struct RingProgressView: View {
             }
         }
         .frame(width: diameter, height: diameter)
-        .padding(2)
+        .padding(Spacing.hair)
     }
 }
 
@@ -737,7 +740,7 @@ private struct NodeLayoutModifier: ViewModifier {
     let node: UINode
     @Environment(\.widgetAppearance) private var appearance
 
-    private var scale: Double { (appearance.density ?? .regular) == .compact ? 0.85 : 1 }
+    private var scale: Double { (appearance.density ?? .regular) == .compact ? Typography.compactScale : 1 }
 
     func body(content: Content) -> some View {
         content

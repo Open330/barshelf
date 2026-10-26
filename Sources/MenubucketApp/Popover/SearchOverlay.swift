@@ -48,7 +48,7 @@ struct SearchOverlay: View {
     var body: some View {
         let hits = self.hits
         return VStack(spacing: 0) {
-            HStack(spacing: 6) {
+            HStack(spacing: Spacing.stack) {
                 // AppKit-backed field: native ⌘A/⌘C/⌘V/⌘X via the field editor
                 // (a .accessory menu-bar app in an NSPopover has no Edit menu, so a
                 // plain SwiftUI TextField can't route those), plus autofocus and a
@@ -74,18 +74,18 @@ struct SearchOverlay: View {
                 .keyboardShortcut(isComposing ? nil : .cancelAction)
                 .accessibilityLabel("Close search")
             }
-            .padding(10)
+            .padding(Spacing.s)
             Divider()
             if hits.isEmpty {
                 Text(query.isEmpty ? "Type to search" : "No matches")
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 18)
+                    .padding(.vertical, Spacing.l)
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {
-                        VStack(spacing: 1) {
+                        VStack(spacing: 0) {
                             ForEach(Array(hits.enumerated()), id: \.element.id) { index, hit in
                                 resultRow(index: index, hit: hit, hits: hits)
                                     .id(hit.id)
@@ -95,7 +95,7 @@ struct SearchOverlay: View {
                     .frame(maxHeight: 220)
                     .onChange(of: selection) { _, newValue in
                         guard hits.indices.contains(newValue) else { return }
-                        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.12)) {
+                        withAnimation(Motion.respecting(reduceMotion, Motion.quick)) {
                             proxy.scrollTo(hits[newValue].id, anchor: .center)
                         }
                     }
@@ -125,7 +125,7 @@ struct SearchOverlay: View {
         } label: {
             HStack {
                 Text(hit.text)
-                    .font(.system(size: 12))
+                    .font(.callout)
                     .lineLimit(1)
                     .truncationMode(.tail)
                 Spacer()
@@ -134,11 +134,12 @@ struct SearchOverlay: View {
                     .foregroundColor(.secondary)
                     .lineLimit(1)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
+            .padding(.horizontal, Spacing.s)
+            .padding(.vertical, Spacing.stack)
             .background(
-                index == selection
-                    ? Color.accentColor.opacity(0.15) : .clear
+                RoundedRectangle(cornerRadius: Radius.control, style: .continuous)
+                    .fill(index == selection ? Color.accentColor.opacity(Fill.Wash.strong) : .clear)
+                    .padding(.horizontal, Spacing.xxs)
             )
             .contentShape(Rectangle())
         }

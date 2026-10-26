@@ -35,7 +35,7 @@ struct WidgetCardView: View {
     /// it, so the finished load can be announced as worked or failed, and a
     /// load that changed nothing (stopped, cancelled) announces nothing.
     @State private var pendingRefreshOutcome: RefreshBaseline?
-    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.shelfIsEditing) private var shelfIsEditing
 
     /// Effective theming (user override → author default → neutral). Injected
@@ -53,7 +53,7 @@ struct WidgetCardView: View {
     private var isEditing: Bool { shelfIsEditing && placement == .shelf && compactHeight == nil }
 
     /// compact density tightens the card's content insets.
-    private var contentInset: CGFloat { appearance.density == .compact ? Spacing.xs : Spacing.s }
+    private var contentInset: CGFloat { appearance.density == .compact ? Spacing.xs : Spacing.cardInset }
 
     /// Accent used for the tinted wash and the reveal highlight.
     private var cardAccent: Color { appearance.accentColor ?? .accentColor }
@@ -87,8 +87,7 @@ struct WidgetCardView: View {
     var body: some View {
         let snapshot = model.snapshot
         cardStack(snapshot: snapshot)
-            .padding(.horizontal, contentInset + 2)
-            .padding(.vertical, 10)
+            .padding(contentInset)
             .frame(maxWidth: .infinity, alignment: .topLeading)
             .modifier(OptionalHeight(height: displayedFixedHeight))
             .environment(\.widgetAppearance, appearance)
@@ -101,16 +100,16 @@ struct WidgetCardView: View {
         // Insertion indicator while a dragged card hovers over this one.
         .overlay(alignment: .leading) {
             if isDropTarget {
-                RoundedRectangle(cornerRadius: 2)
+                Capsule()
                     .fill(Color.accentColor)
-                    .frame(width: 4)
-                    .padding(.vertical, 6)
+                    .frame(width: Spacing.xxs)
+                    .padding(.vertical, Spacing.stack)
                     .transition(.opacity)
             }
         }
         .contentShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         // Drop target: another card dropped here reorders it before this one.
-        .onDrop(of: CardDrag.types, isTargeted: $isDropTarget.animation(.easeInOut(duration: 0.12))) { providers in
+        .onDrop(of: CardDrag.types, isTargeted: $isDropTarget.animation(Motion.quick)) { providers in
             guard placement == .shelf else { return false }
             return CardDrag.receive(providers) { draggedID in
                 runtime.changeLayout(String(localized: "Move Widget"), undoManager: undoManager) {
@@ -118,9 +117,9 @@ struct WidgetCardView: View {
                 }
             }
         }
-        .animation(.easeInOut(duration: 0.4), value: isHighlighted)
+        .animation(Motion.arrange, value: isHighlighted)
         .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.15)) { isHovering = hovering }
+            withAnimation(Motion.quick) { isHovering = hovering }
         }
         .modifier(CardAccessibilityActions(card: self))
         .onChange(of: model.snapshot.isLoading) { _, loading in
@@ -192,7 +191,7 @@ struct WidgetCardView: View {
 
     @ViewBuilder
     private func cardContents(snapshot: WidgetSnapshot, scrollFixedContent: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: Spacing.stack) {
             if isEditing {
                 editBar
             }
@@ -203,13 +202,13 @@ struct WidgetCardView: View {
                 if scrollFixedContent {
                     // Fixed footprint: content taller than the card scrolls inside.
                     ScrollView(.vertical, showsIndicators: true) {
-                        VStack(alignment: .leading, spacing: 8) { cardContent(snapshot: snapshot) }
+                        VStack(alignment: .leading, spacing: Spacing.xs) { cardContent(snapshot: snapshot) }
                             .frame(maxWidth: .infinity, alignment: .topLeading)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 } else {
                     // Fit to content: the card grows to fit.
-                    VStack(alignment: .leading, spacing: 8) { cardContent(snapshot: snapshot) }
+                    VStack(alignment: .leading, spacing: Spacing.xs) { cardContent(snapshot: snapshot) }
                 }
             }
             // While editing, a drag must never press one of the widget's buttons.
@@ -420,21 +419,20 @@ struct WidgetCardView: View {
 
     // MARK: - Header
 
-    /// Name on the left; the cached badge, a refreshing indicator and the
-    /// last-update time on the right. Quiet (`.caption`, secondary) so the
-    /// content reads first.
+    /// The widget's mark — its symbol on a small tile of its colour — and
+    /// name on the left; the cached badge, a refreshing indicator and the
+    /// last-update time on the right. The tile is the one place a widget's
+    /// colour shows at rest, so the cards on a page are told apart at a
+    /// glance and the content below stays neutral.
     private func cardHeader(snapshot: WidgetSnapshot) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: Spacing.stack) {
             if let icon = widget.manifest.icon {
-                Image(systemName: icon)
-                    .font(.caption)
-                    .foregroundStyle(cardAccent)
-                    .accessibilityHidden(true)
+                CardIconTile(symbol: icon, color: cardAccent)
             }
             Text(widget.displayName)
-                .font(.caption)
+                .font(.subheadline)
                 .fontWeight(.semibold)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.primary)
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .accessibilityAddTraits(.isHeader)
@@ -525,7 +523,7 @@ struct WidgetCardView: View {
     /// offer the same things.
     private var cardControls: some View {
         let visible = isHovering || controlsFocused
-        return HStack(spacing: 2) {
+        return HStack(spacing: Spacing.hair) {
             Button(action: retry) {
                 Image(systemName: "arrow.clockwise")
                     .font(.caption2.weight(.semibold))
@@ -558,10 +556,10 @@ struct WidgetCardView: View {
             .help("Widget settings")
             .accessibilityLabel("Settings for \(widget.displayName)")
         }
-        .padding(.horizontal, 3)
-        .padding(.vertical, 2)
+        .padding(.horizontal, Spacing.hair)
+        .padding(.vertical, Spacing.hair)
         .modifier(ControlCapsule())
-        .padding(6)
+        .padding(Spacing.stack)
         // Keep the controls in the focus order even while visually quiet; a
         // keyboard focus immediately reveals them without making the whole
         // card (and its embedded text fields) a separate focus target.
@@ -571,7 +569,7 @@ struct WidgetCardView: View {
 
     /// The card's drag proxy — a labeled chip so you can see what you're moving.
     private var dragPreview: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: Spacing.stack) {
             Image(systemName: widget.manifest.icon ?? "square.grid.2x2")
                 .foregroundStyle(cardAccent)
             Text(widget.displayName)
@@ -587,7 +585,7 @@ struct WidgetCardView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                .strokeBorder(cardAccent.opacity(0.4), lineWidth: 1)
+                .strokeBorder(cardAccent.opacity(Fill.Wash.strong * 2), lineWidth: 1)
         )
     }
 
@@ -614,17 +612,42 @@ struct WidgetCardView: View {
     /// a text list rather than a shelf of widgets.)
     private var sectionBackground: some View {
         let tinted = appearance.cardStyle == .tinted
-        let dark = colorScheme == .dark
         return RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
             .fill(
                 isHighlighted
-                    ? cardAccent.opacity(dark ? 0.22 : 0.16)
+                    ? AnyShapeStyle(cardAccent.opacity(Fill.Wash.strong))
                     : tinted
-                        ? cardAccent.opacity(dark ? 0.14 : 0.09)
-                        : isHovering || isEditing
-                            ? Color.primary.opacity(dark ? 0.09 : 0.065)
-                            : Color.primary.opacity(dark ? 0.055 : 0.035)
+                        ? AnyShapeStyle(cardAccent.opacity(Fill.Wash.soft))
+                        : AnyShapeStyle(isHovering || isEditing ? Fill.hover : Fill.card)
             )
+            .overlay {
+                // Increase Contrast: a card is told apart by its edge, not
+                // only by a faint fill.
+                if contrast == .increased {
+                    RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+                        .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1)
+                }
+            }
+    }
+}
+
+/// A widget's symbol, white on a small rounded tile of its colour — the
+/// mark Control Center and the Settings sidebar use.
+struct CardIconTile: View {
+    let symbol: String
+    let color: Color
+    var size: CGFloat = 18
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: size * 0.56, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: size, height: size)
+            .background(
+                RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
+                    .fill(color.gradient)
+            )
+            .accessibilityHidden(true)
     }
 }
 

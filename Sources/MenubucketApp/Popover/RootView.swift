@@ -59,18 +59,17 @@ struct RootView: View {
             } else {
                 let index = min(max(pager.index, 0), pages.count - 1)
 
+                // No hairlines between header, pages and footer: the popup is
+                // one sheet of the system's popover material, and the cards
+                // on it are what is separated.
                 VStack(spacing: 0) {
                     header(pages: pages, index: index)
-                    Divider()
                     if !pager.isEditing { pinnedRow }
                 }
                 .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { topChromeHeight = $0 }
                 pagerStrip(pages: pages, index: index)
                 if pages.count > 1 {
-                    VStack(spacing: 0) {
-                        Divider()
-                        footer(pages: pages, index: index)
-                    }
+                    footer(pages: pages, index: index)
                     .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { footerHeight = $0 }
                 }
             }
@@ -81,8 +80,9 @@ struct RootView: View {
         .disabled(searchPresented)
         .allowsHitTesting(!searchPresented)
         .frame(width: Self.defaultSize.width, height: popupHeight(pages: pages))
-        // Solid, opaque popup surface — no popover translucency bleeding through.
-        .background(Color(nsColor: .controlBackgroundColor))
+        // Chrome is the popover's own material (Liquid Glass on macOS 26,
+        // the vibrant popover material before it, opaque under Reduce
+        // Transparency); content cards sit on it as quiet solid fills.
         .environment(\.shelfIsEditing, pager.isEditing)
         .overlay(alignment: .top) {
             if searchPresented {
@@ -95,15 +95,15 @@ struct RootView: View {
                         .contentShape(Rectangle())
                         .onTapGesture { searchPresented = false }
                     SearchOverlay(runtime: runtime, pager: pager, isPresented: $searchPresented)
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.control))
-                        .shadow(radius: 8)
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.surface, style: .continuous))
+                        .shadow(color: .black.opacity(Fill.Wash.strong), radius: Spacing.s, y: Spacing.xxs)
                         .padding(Spacing.xs)
                 }
                 .transition(.opacity)
             }
         }
         .overlay { ToastOverlay(bottomInset: pages.count > 1 ? 46 : Spacing.s) }
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: pager.isEditing)
+        .animation(Motion.respecting(reduceMotion, Motion.quick), value: pager.isEditing)
         // ⌘F arrives as the Edit ▸ Find menu command (`AppCommands`).
         .onChange(of: pager.searchRequests) { searchPresented = true }
         .onChange(of: pager.isEditing) { _, editing in
@@ -233,17 +233,17 @@ struct RootView: View {
         let overflow = PinnedShelf.overflowIDs(pinned: runtime.prefs.pinned, enabledIDs: enabledIDs)
         let pinnedWidgets = shown.compactMap { id in runtime.widgets.first { $0.id == id } }
         if !pinnedWidgets.isEmpty {
-            VStack(spacing: 0) {
+            VStack(spacing: Self.cardGap) {
                 ForEach(pinnedWidgets) { widget in
-                    WidgetCardView(widget: widget, runtime: runtime, compactHeight: 120)
+                    WidgetCardView(widget: widget, runtime: runtime, compactHeight: Self.pinnedCardHeight)
                 }
                 if !overflow.isEmpty {
                     pinnedOverflow(overflowIDs: overflow)
-                        .padding(.horizontal, Spacing.s)
-                        .padding(.vertical, Spacing.xxs)
+                        .padding(.horizontal, Spacing.xxs)
                 }
             }
-            Divider()
+            .padding(.horizontal, Self.cardGap)
+            .padding(.top, Self.cardGap)
         }
     }
 
@@ -318,7 +318,7 @@ struct RootView: View {
                             // The pager first moves this page onscreen. Deferring one
                             // run-loop lets ScrollViewReader resolve its card anchor.
                             DispatchQueue.main.async {
-                                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
+                                withAnimation(Motion.respecting(reduceMotion, Motion.arrange)) {
                                     proxy.scrollTo(id, anchor: .center)
                                 }
                             }
@@ -344,7 +344,7 @@ struct RootView: View {
             // Reduce Motion: pages switch in place instead of sliding. A
             // swipe still tracks the fingers, which is the user's own motion.
             .animation(
-                pager.isSwiping || reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.85),
+                pager.isSwiping || reduceMotion ? nil : Motion.arrange,
                 value: offset
             )
             .onAppear { pager.pageWidth = width }
@@ -389,9 +389,12 @@ struct RootView: View {
         .padding(.vertical, Self.cardGap)
     }
 
+    /// A pinned card's fixed height: a header and about three rows.
+    static let pinnedCardHeight: CGFloat = 130
+
     /// Space between widget cards, and around them: cards are separated by
     /// air, not hairlines.
-    static let cardGap: CGFloat = 6
+    static let cardGap: CGFloat = Spacing.cardGap
 
     // MARK: - Header and footer
 
@@ -437,9 +440,8 @@ struct RootView: View {
             }
         }
         .padding(.horizontal, Spacing.s)
-        .padding(.vertical, Spacing.xs)
+        .padding(.top, Spacing.xs)
         .frame(minHeight: 36)
-        .background(Color(nsColor: .windowBackgroundColor))
     }
 
     /// Page dots. Each is also a drop target: a card dragged onto a dot moves
@@ -457,7 +459,7 @@ struct RootView: View {
             .fixedSize(horizontal: true, vertical: false)
             .onChange(of: index) { _, newIndex in
                 guard pages.indices.contains(newIndex) else { return }
-                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) {
+                withAnimation(Motion.respecting(reduceMotion, Motion.quick)) {
                     proxy.scrollTo(pages[newIndex].id, anchor: .center)
                 }
             }
@@ -466,8 +468,7 @@ struct RootView: View {
         .accessibilityLabel("Page \(index + 1) of \(pages.count)")
         .frame(maxWidth: .infinity)
         .padding(.horizontal, Spacing.s)
-        .padding(.vertical, 6)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .padding(.bottom, Spacing.stack)
     }
 
     private func pageDot(page: WidgetPage, pageIndex: Int, index: Int, pageCount: Int) -> some View {
@@ -566,7 +567,7 @@ struct RootView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            VStack(spacing: 6) {
+            VStack(spacing: Spacing.stack) {
                 Button { onCommand(.addWidget) } label: {
                     Label("Add Widget…", systemImage: "plus")
                         .frame(maxWidth: .infinity)
@@ -592,7 +593,7 @@ struct RootView: View {
                 }
             }
             .controlSize(.large)
-            .padding(.horizontal, 48)
+            .padding(.horizontal, Spacing.xl + Spacing.m)
             .padding(.top, Spacing.xxs)
             Spacer()
             Text("Widgets live in ~/Library/Application Support/barshelf/widgets/")
@@ -600,7 +601,7 @@ struct RootView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, Spacing.s)
-                .padding(.bottom, 10)
+                .padding(.bottom, Spacing.s)
         }
         .frame(maxWidth: .infinity)
     }
