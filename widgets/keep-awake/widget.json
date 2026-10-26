@@ -1,0 +1,117 @@
+{
+  "$schema": "https://barshelf.jiun.dev/schema/widget-0.1.json",
+  "schemaVersion": 1,
+  "id": "dev.barshelf.keep-awake",
+  "name": "Keep Awake",
+  "version": "0.1.0",
+  "minHostVersion": "0.7.5",
+  "icon": "cup.and.saucer",
+  "bucket": {
+    "group": "System",
+    "order": 40,
+    "size": "M"
+  },
+  "entry": {
+    "kind": "workflow",
+    "main": "workflow.json"
+  },
+  "refresh": {
+    "onOpen": true,
+    "interval": 15,
+    "staleAfterSec": 15,
+    "triggers": [
+      {
+        "fs": "~/Library/Application Support/PowerDisplayGuard"
+      },
+      "wake"
+    ]
+  },
+  "statusItem": {
+    "mode": "dynamic",
+    "icon": "cup.and.saucer"
+  },
+  "permissions": {
+    "readPaths": [
+      "~/Library/Application Support/PowerDisplayGuard"
+    ],
+    "exec": [
+      {
+        "command": "/usr/bin/osascript",
+        "allowedArgs": [
+          [
+            "-l",
+            "JavaScript",
+            "./keep-awake.js",
+            "status"
+          ],
+          [
+            "-l",
+            "JavaScript",
+            "./keep-awake.js",
+            "set",
+            "*",
+            "*"
+          ],
+          [
+            "-l",
+            "JavaScript",
+            "./keep-awake.js",
+            "until",
+            "*",
+            "*"
+          ],
+          [
+            "-l",
+            "JavaScript",
+            "./keep-awake.js",
+            "cancel"
+          ]
+        ],
+        "maxOutputBytes": 65536
+      }
+    ]
+  },
+  "settings": [
+    {
+      "key": "lidClosed",
+      "title": "Stay awake with the lid closed",
+      "type": "boolean",
+      "default": false
+    },
+    {
+      "key": "untilTime",
+      "title": "“Until” time (HH:MM)",
+      "type": "string",
+      "default": "18:00"
+    }
+  ],
+  "appearance": {
+    "accent": "orange"
+  },
+  "localizations": {
+    "ko": {
+      "Keep Awake": "깨어 있기",
+      "Stay awake with the lid closed": "덮개를 닫아도 깨어 있기",
+      "“Until” time (HH:MM)": "“~까지” 시각 (HH:MM)",
+      "PowerDisplayGuard isn’t running, so nothing here can keep the Mac awake.": "PowerDisplayGuard가 실행 중이 아니라서 여기서는 Mac을 깨워 둘 수 없습니다.",
+      "PowerDisplayGuard stopped answering ${sources.guard.ageSeconds} s ago. What shows below may be out of date.": "PowerDisplayGuard가 ${sources.guard.ageSeconds}초 전부터 응답하지 않습니다. 아래 내용이 최신이 아닐 수 있습니다.",
+      "PowerDisplayGuard’s status couldn’t be read.": "PowerDisplayGuard 상태를 읽을 수 없습니다.",
+      "Awake for ${sources.guard.remaining}": "${sources.guard.remaining} 동안 깨어 있음",
+      "until ${sources.guard.untilText}": "${sources.guard.untilText}까지",
+      "On battery: sleep in ${sources.guard.graceText}": "배터리: ${sources.guard.graceText} 뒤 잠자기",
+      "Awake on power": "전원 연결됨: 깨어 있음",
+      "On battery: sleep allowed": "배터리: 잠자기 허용",
+      "Waiting for PowerDisplayGuard to pick up the request…": "PowerDisplayGuard가 요청을 받기를 기다리는 중…",
+      "1 h": "1시간",
+      "2 h": "2시간",
+      "4 h": "4시간",
+      "Until ${settings.untilTime}": "${settings.untilTime}까지",
+      "Stop": "중지",
+      "Also keeping it awake": "함께 잠자기를 막는 프로세스",
+      "Stays awake with the lid closed.": "덮개를 닫아도 깨어 있습니다.",
+      "Closing the lid still sleeps.": "덮개를 닫으면 잠듭니다.",
+      "New requests keep it awake with the lid closed. Never longer than 12 hours.": "새 요청은 덮개를 닫아도 깨어 있습니다. 최대 12시간입니다.",
+      "New requests let it sleep when the lid closes. Never longer than 12 hours.": "새 요청은 덮개를 닫으면 잠듭니다. 최대 12시간입니다."
+    }
+  }
+}

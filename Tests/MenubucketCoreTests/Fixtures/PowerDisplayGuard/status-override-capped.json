@@ -1,0 +1,29 @@
+{
+  "batteryPercent" : 100,
+  "blockers" : [
+    {
+      "assertionName" : "caffeinate command-line tool",
+      "pid" : 75068,
+      "process" : "caffeinate",
+      "type" : "PreventUserIdleSystemSleep"
+    }
+  ],
+  "guardPid" : 91566,
+  "guardVersion" : "2",
+  "holding" : true,
+  "onAC" : true,
+  "override" : {
+    "createdAt" : "2026-10-26T03:00:00Z",
+    "id" : "6F1C2A7E-0B7D-4E7A-9C1B-2F7C5E1D9A10",
+    "lidClosed" : false,
+    "lidClosedEffective" : false,
+    "note" : "capped at 12 h",
+    "requestedUntil" : "2026-10-26T23:00:00Z",
+    "source" : "barshelf",
+    "until" : "2026-10-26T15:00:00Z"
+  },
+  "phase" : "override",
+  "sleepDisabled" : true,
+  "updatedAt" : "2026-10-26T03:00:00Z",
+  "version" : 1
+}

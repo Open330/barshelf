@@ -1,0 +1,19 @@
+{
+  "batteryPercent" : 96,
+  "blockers" : [
+    {
+      "assertionName" : "caffeinate command-line tool",
+      "pid" : 75068,
+      "process" : "caffeinate",
+      "type" : "PreventUserIdleSystemSleep"
+    }
+  ],
+  "guardPid" : 91566,
+  "guardVersion" : "2",
+  "holding" : false,
+  "onAC" : false,
+  "phase" : "battery",
+  "sleepDisabled" : false,
+  "updatedAt" : "2026-10-26T03:00:00Z",
+  "version" : 1
+}
