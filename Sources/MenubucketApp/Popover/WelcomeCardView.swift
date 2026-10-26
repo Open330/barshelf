@@ -45,6 +45,9 @@ struct WelcomeCardView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.accentColor.opacity(0.07))
+        .background(
+            RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+                .fill(Color.accentColor.opacity(0.08))
+        )
     }
 }
