@@ -33,7 +33,7 @@ struct DockWidgetGlance: View {
         let summary = self.summary
         let metrics = Array((summary?.metrics ?? []).prefix(2))
         VStack(alignment: .leading, spacing: height * 0.06) {
-            HStack(spacing: 4) {
+            HStack(spacing: Spacing.xxs) {
                 if let symbol = summary?.symbol {
                     Image(systemName: symbol).imageScale(.small)
                 }
@@ -69,7 +69,7 @@ struct DockWidgetGlance: View {
 
     private func meter(_ metric: SharedShelf.Metric) -> some View {
         let barHeight = max(3, height * 0.08)
-        return HStack(spacing: 4) {
+        return HStack(spacing: Spacing.xxs) {
             if let label = metric.label {
                 Text(label)
                     .font(.system(size: max(8, height * 0.18)))
@@ -79,7 +79,7 @@ struct DockWidgetGlance: View {
             }
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Color.primary.opacity(0.12))
+                    Capsule().fill(Fill.track)
                     Capsule()
                         .fill(nodeColor(metric.tone) ?? .accentColor)
                         .frame(width: proxy.size.width * CGFloat(min(max(metric.fraction ?? 0, 0), 1)))

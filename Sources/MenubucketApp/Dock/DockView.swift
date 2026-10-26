@@ -235,8 +235,8 @@ struct DockView: View {
         .overlay(alignment: edge == .bottom ? .top : .center) { profileBanner }
         .fixedSize()
         .onChange(of: hoveredID == nil) { _, resting in onHoverChange(!resting) }
-        .animation(reduceMotion ? nil : .spring(response: 0.22, dampingFraction: 0.82), value: hoveredID)
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: tiles.map(\.id))
+        .animation(Motion.respecting(reduceMotion, Motion.quick), value: hoveredID)
+        .animation(Motion.respecting(reduceMotion, Motion.arrange), value: tiles.map(\.id))
         .onChange(of: tiles.map(\.id)) { _, ids in
             DockMenuRouter.shared.keep(only: Set(ids))
             if let hoveredID, !ids.contains(hoveredID) { self.hoveredID = nil }
@@ -280,7 +280,7 @@ struct DockView: View {
         } else {
             shape
                 .fill(isClassic ? AnyShapeStyle(.ultraThinMaterial) : AnyShapeStyle(.regularMaterial))
-                .overlay(shape.strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5))
+                .overlay(shape.strokeBorder(Fill.hairline, lineWidth: 0.5))
                 .shadow(color: .black.opacity(0.18), radius: 10, y: 2)
         }
     }
@@ -298,8 +298,8 @@ struct DockView: View {
         if let profile = store.announcedProfile {
             Label(profile.name, systemImage: profile.symbol)
                 .font(.headline)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 7)
+                .padding(.horizontal, Spacing.s + Spacing.hair)
+                .padding(.vertical, Spacing.stack)
                 .background(.regularMaterial, in: Capsule())
                 .offset(y: edge == .bottom ? -44 : 0)
                 .transition(.opacity.combined(with: .scale(scale: 0.9)))
@@ -593,7 +593,7 @@ struct DockView: View {
     @ViewBuilder
     private func widgetTile(item: DockItem, widgetID: String) -> some View {
         let frame = widgetFrame(for: widgetID)
-        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
         if isClassic, let widget = runtime.widgets.first(where: { $0.id == widgetID }) {
             // Classic keeps the Apple Dock's height: a glance, not a card.
             // A button, so keyboard and VoiceOver users can reach and open it.
@@ -609,7 +609,7 @@ struct DockView: View {
             WidgetCardView(widget: widget, runtime: runtime, compactHeight: frame.height, placement: .single)
                 .frame(width: frame.width, height: frame.height)
                 .clipShape(shape)
-                .overlay(shape.strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5))
+                .overlay(shape.strokeBorder(Fill.hairline, lineWidth: 0.5))
         } else {
             VStack(spacing: Spacing.xxs) {
                 Image(systemName: "questionmark.square.dashed").font(.title2)
@@ -617,7 +617,7 @@ struct DockView: View {
             }
             .foregroundStyle(.secondary)
             .frame(width: frame.width, height: frame.height)
-            .background(Color.primary.opacity(0.05), in: shape)
+            .background(Fill.card, in: shape)
         }
     }
 
@@ -784,7 +784,7 @@ struct DockOverflowStack<Content: View>: View {
                     )
                     .onChange(of: focusedID) { _, id in
                         guard let id else { return }
-                        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { proxy.scrollTo(id) }
+                        withAnimation(Motion.respecting(reduceMotion, Motion.quick)) { proxy.scrollTo(id) }
                     }
                 }
             } else {
@@ -809,11 +809,11 @@ private struct HoverLabel: View {
 
     var body: some View {
         Text(title)
-            .font(.system(size: 13))
-            .padding(.horizontal, 10)
-            .padding(.vertical, 4)
+            .font(.body)
+            .padding(.horizontal, Spacing.s)
+            .padding(.vertical, Spacing.xxs)
             .background(.regularMaterial, in: Capsule())
-            .overlay(Capsule().strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5))
+            .overlay(Capsule().strokeBorder(Fill.hairline, lineWidth: 0.5))
     }
 }
 

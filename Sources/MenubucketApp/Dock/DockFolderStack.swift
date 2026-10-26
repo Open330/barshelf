@@ -53,11 +53,11 @@ struct DockFolderStack: View {
                     .frame(maxWidth: .infinity, minHeight: 120)
             } else {
                 ScrollView {
-                    LazyVGrid(columns: Array(repeating: GridItem(.fixed(Self.cellWidth), spacing: 8), count: Self.columns),
+                    LazyVGrid(columns: Array(repeating: GridItem(.fixed(Self.cellWidth), spacing: Spacing.xs), count: Self.columns),
                               spacing: Self.rowSpacing) {
                         ForEach(entries) { entry in cell(entry) }
                     }
-                    .padding(12)
+                    .padding(Spacing.s)
                 }
                 // A scroll view has no height of its own, and the popover
                 // took the smallest it could: one row. Rows decide it, up to
@@ -91,8 +91,8 @@ struct DockFolderStack: View {
             }
             .controlSize(.small)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, Spacing.s)
+        .padding(.vertical, Spacing.xs)
     }
 
     private func cell(_ entry: Entry) -> some View {
@@ -104,7 +104,7 @@ struct DockFolderStack: View {
                 onClose()
             }
         } label: {
-            VStack(spacing: 4) {
+            VStack(spacing: Spacing.xxs) {
                 Image(nsImage: DockActions.fileIcon(at: entry.url.path))
                     .resizable()
                     .interpolation(.high)
