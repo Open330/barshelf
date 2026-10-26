@@ -1,4 +1,4 @@
-# BarShelf 0.7.10
+# BarShelf 0.7.11
 
 > Unreleased. Requires macOS 14+ on Apple Silicon.
 
