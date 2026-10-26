@@ -31,7 +31,7 @@ struct GalleryCard: View {
             screenshotPreview
             HStack(alignment: .top, spacing: Spacing.s) {
                 GalleryIconTile(entry: entry, size: 40)
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: Spacing.hair) {
                     Text(displayName)
                         .font(.headline)
                         .lineLimit(1)
@@ -62,9 +62,10 @@ struct GalleryCard: View {
                 Text(description)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                    // Two lines held even for a one-line summary, so cards
+                    // in a row end at the same height.
+                    .lineLimit(2, reservesSpace: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true)
             }
             HStack(spacing: Spacing.xxs) {
                 requiresBadge
@@ -103,7 +104,7 @@ struct GalleryCard: View {
                 .strokeBorder(Color.accentColor, lineWidth: 2)
         } else if isHovered {
             RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.18), lineWidth: 1)
+                .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1)
         }
     }
 
@@ -181,8 +182,8 @@ struct GalleryCard: View {
             Label(style.text(requires), systemImage: style.symbol)
                 .font(.caption2.weight(.medium))
                 .padding(.horizontal, Spacing.xs)
-                .padding(.vertical, 2)
-                .background(style.color.opacity(0.15), in: Capsule())
+                .padding(.vertical, Spacing.hair)
+                .background(style.color.opacity(Fill.Wash.medium), in: Capsule())
                 .foregroundStyle(style.color)
                 .help(style.help(requires))
         }
@@ -239,12 +240,13 @@ struct GalleryCard: View {
                 // widget's color as a wash, its symbol drawn large in it.
                 ZStack {
                     LinearGradient(
-                        colors: [accent.opacity(0.22), accent.opacity(0.06)],
+                        colors: [accent.opacity(Fill.Wash.strong), accent.opacity(Fill.Wash.soft / 2)],
                         startPoint: .topLeading, endPoint: .bottomTrailing
                     )
                     Image(systemName: entry.icon ?? "app.dashed")
-                        .font(.system(size: 44, weight: .light))
-                        .foregroundStyle(accent.opacity(0.85))
+                        .font(.largeTitle.weight(.light))
+                        .imageScale(.large)
+                        .foregroundStyle(accent)
                 }
                 .accessibilityHidden(true)
             }
@@ -260,9 +262,9 @@ struct GalleryCard: View {
                 ForEach(lines, id: \.self) { line in
                     Image(systemName: line.symbol)
                         .font(.caption2)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(Color.secondary.opacity(0.12), in: Capsule())
+                        .padding(.horizontal, Spacing.stack)
+                        .padding(.vertical, Spacing.hair + 1)
+                        .background(Fill.pressed, in: Capsule())
                         .foregroundStyle(.secondary)
                         .help(line.short)
                 }
@@ -307,22 +309,8 @@ struct GalleryIconTile: View {
     }
 
     var body: some View {
-        let accent = Self.accent(for: entry)
-        RoundedRectangle(cornerRadius: size > 48 ? Radius.surface : Radius.card, style: .continuous)
-            .fill(
-                LinearGradient(
-                    colors: [accent.opacity(0.95), accent.opacity(0.7)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
-            .frame(width: size, height: size)
-            .overlay(
-                Image(systemName: entry.icon ?? "app.dashed")
-                    .font(size > 48 ? .largeTitle : .title3)
-                    .foregroundStyle(.white)
-            )
-            .accessibilityHidden(true)
+        // The same tile a widget's card and Shelf chip carry once installed.
+        CardIconTile(symbol: entry.icon ?? "app.dashed", color: Self.accent(for: entry), size: size)
     }
 }
 
@@ -331,12 +319,7 @@ struct GalleryTypeBadge: View {
     let kind: String
 
     var body: some View {
-        Text(WidgetTypeName.name(kind))
-            .font(.caption2.weight(.medium))
-            .padding(.horizontal, 6)
-            .padding(.vertical, 1)
-            .background(Color.secondary.opacity(0.12), in: Capsule())
-            .foregroundStyle(.secondary)
+        Pill(text: WidgetTypeName.name(kind))
     }
 }
 
@@ -352,7 +335,7 @@ struct GalleryScreenshot<Placeholder: View>: View {
 
     var body: some View {
         RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-            .fill(Color.secondary.opacity(0.07))
+            .fill(Fill.card)
             .frame(maxWidth: .infinity)
             .frame(height: height)
             .overlay {
