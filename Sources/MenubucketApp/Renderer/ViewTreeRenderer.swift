@@ -159,6 +159,7 @@ struct NodeView: View {
     @Environment(\.actionContext) private var actionContext
     @Environment(\.widgetAppearance) private var appearance
     @Environment(\.localFileReadPaths) private var localFileReadPaths
+    @Environment(\.colorSchemeContrast) private var contrast
 
     /// Custom accent color, or nil when the widget uses the system accent.
     private var accentOverride: Color? { appearance.accentColor }
@@ -317,9 +318,10 @@ struct NodeView: View {
     }
 
     private var cardView: some View {
-        // A card inside a widget card: the same quiet fill one step up, or
-        // a soft wash when the author gave it a tone. No border — the fill
-        // is the edge.
+        // A card inside a widget card: the hover fill, one step above the
+        // card it sits on, or a soft wash when the author gave it a tone.
+        // No border — the fill is the edge (a hairline under Increase
+        // Contrast).
         let tone = nodeColor(node.tone ?? node.tint, accent: accentOverride)
         return VStack(alignment: .leading, spacing: (node.spacing ?? Spacing.stack) * scale) {
             NodeChildrenView(nodes: node.children ?? [])
@@ -328,8 +330,14 @@ struct NodeView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: Radius.nested(in: Radius.card, inset: Spacing.xxs), style: .continuous)
-                .fill(tone.map { AnyShapeStyle($0.opacity(Fill.Wash.soft)) } ?? AnyShapeStyle(Fill.card))
+                .fill(tone.map { AnyShapeStyle($0.opacity(Fill.Wash.soft)) } ?? AnyShapeStyle(Fill.hover))
         )
+        .overlay {
+            if contrast == .increased {
+                RoundedRectangle(cornerRadius: Radius.nested(in: Radius.card, inset: Spacing.xxs), style: .continuous)
+                    .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1)
+            }
+        }
     }
 
     @ViewBuilder
@@ -367,7 +375,7 @@ struct NodeView: View {
         // native-widget-style large numbers/headlines. From hero size up the
         // text is a reading (23 %, 1:42, 18°), drawn as every hero number is.
         if let size = node.size {
-            font = Typography.authored(size: CGFloat(size) * scale, role: node.role)
+            font = Typography.authored(size: CGFloat(size), scale: scale, role: node.role)
         }
         if node.monospacedDigit == true {
             font = font.monospacedDigit()
@@ -497,8 +505,8 @@ struct NodeView: View {
         VStack(spacing: Spacing.stack) {
             if let icon = node.icon {
                 Image(systemName: icon)
-                    .font(.title2)
-                    .foregroundStyle(.tertiary)
+                    .font(.title)
+                    .foregroundStyle(.secondary)
             }
             if let title = node.title {
                 Text(title)

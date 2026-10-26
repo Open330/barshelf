@@ -14,8 +14,8 @@ final class DesignTokenLintTests: XCTestCase {
         ("spacing", #"spacing:\s*(?:[1-9][0-9]*(?:\.[0-9]+)?|0\.[0-9]+)\b"#),
         ("cornerRadius", #"cornerRadius:\s*(?:[1-9][0-9]*(?:\.[0-9]+)?|0\.[0-9]+)\b"#),
         ("pointSize", #"\.system\(size:\s*[0-9]"#),
-        ("opacity", #"\.opacity\(0?\.[0-9]+\)"#),
-        ("animation", #"\.(?:easeInOut|easeOut|easeIn|linear)\(duration:|\.spring\(response:"#),
+        ("opacity", #"\.opacity\([^)\n]*\b0?\.[0-9]+"#),
+        ("animation", #"\.(?:easeInOut|easeOut|easeIn|linear|snappy|smooth|bouncy)\(|\.spring\((?:response|duration):"#),
     ]
 
     /// Where the tokens themselves are defined.
@@ -35,7 +35,8 @@ final class DesignTokenLintTests: XCTestCase {
         // Comments explain values; they are not values.
         let code = source.split(separator: "\n", omittingEmptySubsequences: false)
             .map { line -> Substring in
-                guard let range = line.range(of: "//") else { return line }
+                // `://` is a URL in a string, not a comment.
+                guard let range = line.range(of: #"(?<!:)//"#, options: .regularExpression) else { return line }
                 return line[..<range.lowerBound]
             }
             .joined(separator: "\n")
@@ -97,6 +98,8 @@ final class DesignTokenLintTests: XCTestCase {
         XCTAssertEqual(Self.countLiterals(in: ".font(.system(size: 12))"), 1)
         XCTAssertEqual(Self.countLiterals(in: ".opacity(0.12)"), 1)
         XCTAssertEqual(Self.countLiterals(in: "withAnimation(.easeOut(duration: 0.2))"), 1)
+        XCTAssertEqual(Self.countLiterals(in: ".opacity(dark ? 0.22 : 0.16)"), 1)
+        XCTAssertEqual(Self.countLiterals(in: "let url = \"https://x\"; view.padding(4)"), 1)
 
         XCTAssertEqual(Self.countLiterals(in: ".padding(Spacing.s)"), 0)
         XCTAssertEqual(Self.countLiterals(in: "VStack(spacing: 0) {"), 0)

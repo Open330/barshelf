@@ -125,15 +125,19 @@ enum Typography {
     /// From this size up, text a widget sizes itself is a reading.
     static let heroThreshold: CGFloat = 20
 
-    /// Text at a size the widget chose. Big text is a reading and is drawn as
-    /// one (`metric`'s face at that size); smaller text keeps its role's face.
-    static func authored(size: CGFloat, role: String?) -> Font {
+    /// Text at a size the widget chose, drawn at `size * scale`. Big text is
+    /// a reading and is drawn as one (`metric`'s face); whether it is big is
+    /// decided by the authored size, so Compact density does not change the
+    /// face. Code stays monospaced at any size.
+    static func authored(size: CGFloat, scale: CGFloat = 1, role: String?) -> Font {
+        if role == "code" {
+            return .system(size: size * scale, design: .monospaced)
+        }
         if size >= heroThreshold {
-            return .system(size: size, weight: .semibold, design: .rounded).monospacedDigit()
+            return .system(size: size * scale, weight: .semibold, design: .rounded).monospacedDigit()
         }
         let weight: Font.Weight = role == "title" ? .bold : .regular
-        let design: Font.Design = role == "code" ? .monospaced : .default
-        return .system(size: size, weight: weight, design: design)
+        return .system(size: size * scale, weight: weight)
     }
 
     enum MetricSize {
