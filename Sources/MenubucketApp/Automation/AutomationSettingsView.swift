@@ -4,7 +4,9 @@ import UniformTypeIdentifiers
 
 struct AutomationSettingsView: View {
     @ObservedObject private var controller: AutomationController
-    @State private var draft = ""
+    /// The editor's text: unsaved edits if there are any, else the saved script.
+    private var draft: String { controller.draft ?? controller.source }
+    private var hasUnsavedChanges: Bool { controller.draft != nil }
     @State private var displays: [AutomationWindows.Display] = []
 
     init(controller: AutomationController = .shared) {
@@ -17,7 +19,9 @@ struct AutomationSettingsView: View {
                 Toggle("Enable Keyboard & Window Extension", isOn: Binding(
                     get: { controller.isRunning },
                     set: { enabled in
-                        if enabled { controller.apply(source: draft, enabled: true) }
+                        // Enabling runs the saved script. Unsaved edits are
+                        // applied only by Save, as the editor says.
+                        if enabled { controller.apply(source: controller.source, enabled: true) }
                         else { controller.disable() }
                     }
                 ))
@@ -60,7 +64,7 @@ struct AutomationSettingsView: View {
                                 URL(fileURLWithPath: $0, isDirectory: true)
                             } ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".config")
                             if let imported = controller.importFile(base.appendingPathComponent("karabiner/karabiner.json")) {
-                                draft = imported
+                                controller.setDraft(imported)
                             }
                         }
                         Button("Karabiner Key Mappings Only…") {
@@ -79,19 +83,30 @@ struct AutomationSettingsView: View {
                 if let summary = controller.importSummary {
                     Text(summary).font(.caption).textSelection(.enabled)
                 }
-                TextEditor(text: $draft)
+                TextEditor(text: Binding(get: { draft }, set: { controller.setDraft($0) }))
                     .font(.system(.body, design: .monospaced))
                     .frame(minHeight: 230)
                     .border(Fill.hairline)
                     .accessibilityLabel("Automation JavaScript")
                 HStack {
                     Button(controller.isRunning ? String(localized: "Save & Reload") : String(localized: "Save Script")) {
-                        controller.apply(source: draft, enabled: controller.isRunning)
+                        if controller.apply(source: draft, enabled: controller.isRunning) {
+                            controller.setDraft(controller.source)
+                        }
                     }
-                    Button("Revert Draft") { draft = controller.source }
-                        .disabled(draft == controller.source)
-                    Button("Load Example") { draft = AutomationScript.example }
+                    // Running, it doubles as Reload.
+                    .disabled(!hasUnsavedChanges && !controller.isRunning)
+                    Button("Revert Draft") { controller.setDraft(controller.source) }
+                        .disabled(!hasUnsavedChanges)
+                    Button("Load Example") { controller.setDraft(AutomationScript.example) }
                     Button("Export…") { export() }
+                    if hasUnsavedChanges {
+                        Label("Unsaved changes", systemImage: "circle.fill")
+                            .labelStyle(.titleAndIcon)
+                            .font(.caption)
+                            .foregroundStyle(StatusTone.warning.color)
+                            .imageScale(.small)
+                    }
                 }
                 Text("Edit shortcuts and window actions in JavaScript. Save applies your changes; Revert Draft restores the saved script.")
                     .font(.caption).foregroundStyle(.secondary)
@@ -107,7 +122,6 @@ struct AutomationSettingsView: View {
             } header: { Text("Displays") }
         }
         .onAppear {
-            draft = controller.source
             displays = AutomationWindows.displays
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)) { _ in
@@ -168,12 +182,12 @@ struct AutomationSettingsView: View {
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        if let imported = controller.importFile(url, excludingFunctionKeys: keyMappingsOnly) { draft = imported }
+        if let imported = controller.importFile(url, excludingFunctionKeys: keyMappingsOnly) { controller.setDraft(imported) }
     }
 
     private func importSettings(path: String) {
         let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(path)
-        if let imported = controller.importFile(url) { draft = imported }
+        if let imported = controller.importFile(url) { controller.setDraft(imported) }
     }
 
     private func export() {

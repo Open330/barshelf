@@ -11036,6 +11036,16 @@
         }
       }
     },
+    "Unsaved changes": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "저장하지 않은 변경 사항"
+          }
+        }
+      }
+    },
     "Unsupported Fn mapping: %@ → %@. Use letter keys and up/down/left/right.": {
       "localizations": {
         "en": {

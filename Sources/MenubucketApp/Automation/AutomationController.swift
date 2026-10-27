@@ -13,6 +13,10 @@ final class AutomationController: ObservableObject {
     }
     @Published private(set) var source = AutomationScript.example
     @Published private(set) var isRunning = false
+    /// Unsaved edits in the settings editor; nil when the editor shows the
+    /// saved script. Kept here rather than in the view, so leaving the page
+    /// and coming back does not throw edits away.
+    @Published private(set) var draft: String?
     @Published private(set) var message: String?
     @Published private(set) var importSummary: String?
     /// Running bindings that macOS also uses for one of its shortcuts.
@@ -57,6 +61,11 @@ final class AutomationController: ObservableObject {
     func startAtLaunch() {
         guard launchEnabled else { return }
         apply(source: source, enabled: true)
+    }
+
+    /// Records editor text; matching the saved script clears the draft.
+    func setDraft(_ text: String) {
+        draft = text == source ? nil : text
     }
 
     @discardableResult
