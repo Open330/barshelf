@@ -43,12 +43,9 @@ struct MenuBarStyleControls {
 
             switch presentation.effectiveWidth {
             case .auto:
-                Stepper(value: Binding(
-                    get: { presentation.effectiveDigits },
-                    set: { digits in
-                        change { $0.digits = keep(digits, \.effectiveDigits) }
-                    }
-                ), in: 1...6) {
+                // The label beside its arrows, not at the far edge of the
+                // row: a grouped form spreads a stepper's label and control.
+                HStack(spacing: Spacing.xs) {
                     Group {
                         if presentation.effectiveDigits == 1 {
                             Text("Room for 1 digit")
@@ -57,21 +54,29 @@ struct MenuBarStyleControls {
                         }
                     }
                     .monospacedDigit()
+                    Stepper("Digits", value: Binding(
+                        get: { presentation.effectiveDigits },
+                        set: { digits in
+                            change { $0.digits = keep(digits, \.effectiveDigits) }
+                        }
+                    ), in: 1...6)
+                    .labelsHidden()
                 }
-                .fixedSize()
+                .accessibilityElement(children: .contain)
                 Self.hint(String(localized: "Keeps the item the same width as a reading goes from 9 to 10. A longer reading widens it once and it stays that wide."))
             case .fixed:
                 // A stepper rather than a text field: a field that clamps on
                 // every keystroke cannot be typed into ("1" became 32).
-                Stepper(value: Binding(
-                    get: { presentation.effectiveFixedWidth },
-                    set: { width in
-                        change { $0.valueWidth = keep(width, \.effectiveFixedWidth) }
-                    }
-                ), in: 32...120, step: 2) {
+                HStack(spacing: Spacing.xs) {
                     Text("\(Int(presentation.effectiveFixedWidth)) pt").monospacedDigit()
+                    Stepper("Width", value: Binding(
+                        get: { presentation.effectiveFixedWidth },
+                        set: { width in
+                            change { $0.valueWidth = keep(width, \.effectiveFixedWidth) }
+                        }
+                    ), in: 32...120, step: 2)
+                    .labelsHidden()
                 }
-                .fixedSize()
                 switch usesOwnItem {
                 case true?:
                     Self.hint(String(localized: "The text column is always this wide. Content that does not fit still widens it rather than being cut off."))
@@ -170,15 +175,15 @@ struct MenuBarStyleControls {
                 Text("Secondary").tag("secondary")
             }
             .labelsHidden()
-            .frame(width: 150)
+            .fixedSize()
             Self.hint(String(localized: "Automatic keeps the widget's own warning colors; monochrome follows the menu bar."))
         }
     }
 
     static func hint(_ text: String) -> some View {
         Text(text)
-            .font(.caption2)
-            .foregroundStyle(.tertiary)
+            .font(.caption)
+            .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
     }
 }

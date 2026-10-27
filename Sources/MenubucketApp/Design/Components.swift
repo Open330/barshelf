@@ -1,3 +1,4 @@
+import MenubucketCore
 import SwiftUI
 
 /// A symbol or image on an accent-tinted rounded square — the mark beside a
@@ -180,5 +181,21 @@ struct EmptyStateView<Action: View>: View {
 extension EmptyStateView where Action == EmptyView {
     init(symbol: String, title: String, message: String? = nil) {
         self.init(symbol: symbol, title: title, message: message) { EmptyView() }
+    }
+}
+
+/// A widget's mark wherever the app lists it — Shelf board, inspector,
+/// Menu Bar and Privacy settings — the same tile its popup card carries.
+struct WidgetMark: View {
+    let widget: LoadedWidget
+    @ObservedObject var runtime: WidgetRuntime
+    var size: CGFloat = 20
+
+    var body: some View {
+        CardIconTile(
+            symbol: widget.manifest.icon ?? "square.dashed",
+            color: runtime.prefs.effectiveAppearance(for: widget.manifest, widgetID: widget.id).accentColor ?? .accentColor,
+            size: size
+        )
     }
 }

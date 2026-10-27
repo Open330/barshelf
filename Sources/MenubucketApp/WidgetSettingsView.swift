@@ -88,9 +88,9 @@ struct WidgetSettingsView: View {
     @State private var warningText = ""
     @State private var dangerText = ""
     @State private var showWhenText = ""
-    /// Height of the scrolling settings area. A variable only so the
-    /// screenshot test can render the whole pane rather than its first screen.
-    static var scrollMaxHeight: CGFloat = 420
+    /// Height of the scrolling settings area: the inspector's full height.
+    /// A variable only so the screenshot test can render the whole pane.
+    static var scrollMaxHeight: CGFloat = .infinity
 
     /// Titles in the app's language; keys and stored option values unchanged.
     private var entries: [Manifest.Setting] {
@@ -131,7 +131,7 @@ struct WidgetSettingsView: View {
             }
             .frame(maxHeight: Self.scrollMaxHeight)
         }
-        .frame(minWidth: 320, maxWidth: .infinity, alignment: .topLeading)
+        .frame(minWidth: 320, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear(perform: load)
         .onDisappear(perform: flush)
         .onChange(of: snapshot) { scheduleCommit() }
@@ -167,9 +167,7 @@ struct WidgetSettingsView: View {
 
     private var header: some View {
         HStack(spacing: Spacing.xs) {
-            AccentTile(size: 28) {
-                Image(systemName: widget.manifest.icon ?? "square.dashed")
-            }
+            WidgetMark(widget: widget, runtime: runtime, size: 28)
             VStack(alignment: .leading, spacing: 1) {
                 Text(widget.displayName).font(.headline)
                 Text("\(WidgetTypeName.name(widget.manifest.entry.kind)) · version \(widget.packageInfo.version ?? "–")")
@@ -194,7 +192,9 @@ struct WidgetSettingsView: View {
                 }
             }
         )) {
-            Text("Show on the shelf")
+            // Off stops the widget everywhere — popup, menu bar, desktop —
+            // not just on the shelf, so the switch says so.
+            Text("Widget On", comment: "Inspector switch that turns a widget on or off everywhere")
         }
         .toggleStyle(.switch)
         if !isEnabled {

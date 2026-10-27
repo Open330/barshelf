@@ -563,7 +563,7 @@ struct RootView: View {
                 .accessibilityHidden(true)
             Text("Time to tidy up your menu bar")
                 .font(.headline)
-            Text("BarShelf collects your menu bar extras\ninto one popup of widgets.")
+            Text("The readings you check all day,\nin one popup of widgets.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -572,6 +572,8 @@ struct RootView: View {
                     Label("Add Widget…", systemImage: "plus")
                         .frame(maxWidth: .infinity)
                 }
+                // The one way most people start; the rest are alternatives.
+                .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
                 Button {
                     Task { @MainActor in HubWindowController.shared.show(tab: .create) }
@@ -596,12 +598,6 @@ struct RootView: View {
             .padding(.horizontal, Spacing.xl + Spacing.m)
             .padding(.top, Spacing.xxs)
             Spacer()
-            Text("Widgets live in ~/Library/Application Support/barshelf/widgets/")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, Spacing.s)
-                .padding(.bottom, Spacing.s)
         }
         .frame(maxWidth: .infinity)
     }

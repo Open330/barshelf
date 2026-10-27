@@ -375,7 +375,7 @@ struct NodeView: View {
         // native-widget-style large numbers/headlines. From hero size up the
         // text is a reading (23 %, 1:42, 18°), drawn as every hero number is.
         if let size = node.size {
-            font = Typography.authored(size: CGFloat(size), scale: scale, role: node.role)
+            font = Typography.authored(size: CGFloat(size), scale: scale, role: node.role, text: node.text ?? "")
         }
         if node.monospacedDigit == true {
             font = font.monospacedDigit()

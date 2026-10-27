@@ -116,6 +116,7 @@ struct DockSettingsPage: View {
             Text("Dock")
         } footer: {
             Text("Profiles below also work with the BarShelf Dock off: they can switch the Apple Dock's apps.")
+                .formFooter()
         }
     }
 
@@ -263,6 +264,7 @@ struct DockSettingsPage: View {
             Text("Profiles")
         } footer: {
             Text("Each profile has its own dock items, and can carry an Apple Dock layout and a popup page. Drag to reorder; the first nine get ⌃⌥1–9.")
+                .formFooter()
         }
     }
 
@@ -550,6 +552,7 @@ struct DockSettingsPage: View {
             Text("Apple Dock Layout")
         } footer: {
             Text("Arrange the Apple Dock the way you want it for this profile, then save. Switching restarts the Dock briefly; open apps and windows stay as they are. The previous layout is backed up first.")
+                .formFooter()
         }
     }
 
@@ -586,6 +589,7 @@ struct DockSettingsPage: View {
             Text("Switching")
         } footer: {
             Text("To follow a Focus: in Shortcuts, add a personal automation for when the Focus turns on, with the Open URLs action and this link. From Terminal: barshelf dock use \"\(profile.name)\".")
+                .formFooter()
         }
     }
 

@@ -125,15 +125,16 @@ enum Typography {
     /// From this size up, text a widget sizes itself is a reading.
     static let heroThreshold: CGFloat = 20
 
-    /// Text at a size the widget chose, drawn at `size * scale`. Big text is
-    /// a reading and is drawn as one (`metric`'s face); whether it is big is
-    /// decided by the authored size, so Compact density does not change the
-    /// face. Code stays monospaced at any size.
-    static func authored(size: CGFloat, scale: CGFloat = 1, role: String?) -> Font {
+    /// Text at a size the widget chose, drawn at `size * scale`. Big text
+    /// with a digit in it is a reading (23 %, 1:42, 18°) and is drawn as one
+    /// (`metric`'s face); a big heading stays a heading. Whether it is big
+    /// is decided by the authored size, so Compact density does not change
+    /// the face. Code stays monospaced at any size.
+    static func authored(size: CGFloat, scale: CGFloat = 1, role: String?, text: String = "0") -> Font {
         if role == "code" {
             return .system(size: size * scale, design: .monospaced)
         }
-        if size >= heroThreshold {
+        if size >= heroThreshold, text.contains(where: \.isNumber) {
             return .system(size: size * scale, weight: .semibold, design: .rounded).monospacedDigit()
         }
         let weight: Font.Weight = role == "title" ? .bold : .regular

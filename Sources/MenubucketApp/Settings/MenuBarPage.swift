@@ -151,7 +151,15 @@ enum MenuBarPresetName {
 /// One widget that can show a value in the menu bar.
 private struct MenuBarItemRow: View {
     @ObservedObject var runtime: WidgetRuntime
+    /// Watched so the reading beside the switch follows the menu bar.
+    @ObservedObject var store: MenuBarStatusStore
     let widget: LoadedWidget
+
+    init(runtime: WidgetRuntime, widget: LoadedWidget) {
+        self.runtime = runtime
+        self.store = runtime.menuBar
+        self.widget = widget
+    }
 
     var body: some View {
         let isOn = runtime.menuBarWidgetIDs.contains(widget.id)
@@ -161,9 +169,17 @@ private struct MenuBarItemRow: View {
                 get: { isOn },
                 set: { value in runtime.updateMenuBarPlacement(for: widget.id) { $0.enabled = value } }
             )) {
-                Text(widget.displayName)
-                if let reading = reading(isOn: isOn) {
-                    Text(reading)
+                HStack(spacing: Spacing.xs) {
+                    WidgetMark(widget: widget, runtime: runtime)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(widget.displayName)
+                        if let reading = reading(isOn: isOn) {
+                            Text(reading)
+                                .font(.caption)
+                                .monospacedDigit()
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
             }
 
@@ -218,6 +234,6 @@ private struct MenuBarItemRow: View {
         if runtime.dormantMenuBarWidgetIDs.contains(widget.id) {
             return String(localized: "Hidden until its reading reaches the level you set")
         }
-        return runtime.menuBar.entries.first { $0.widgetID == widget.id }?.label
+        return store.entries.first { $0.widgetID == widget.id }?.label
     }
 }
