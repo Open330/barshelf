@@ -96,7 +96,7 @@ struct AutomationSettingsView: View {
                 Text("Edit shortcuts and window actions in JavaScript. Save applies your changes; Revert Draft restores the saved script.")
                     .font(.caption).foregroundStyle(.secondary)
             } header: { Text("Extension Script") }
-            footer: { Text("Saved separately from the original file. Original tool settings are unchanged.") }
+            footer: { Text("Saved separately from the original file. Original tool settings are unchanged.").formFooter() }
 
             SwiftUI.Section {
                 ForEach(Array(displays.enumerated()), id: \.element.id) { index, display in

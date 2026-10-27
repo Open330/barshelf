@@ -172,11 +172,13 @@ struct ShelfView: View {
             }
 
             // The end of the column, so a widget can be dropped last.
+            // Drawn only while a card is over it; the space stays a target.
             RoundedRectangle(cornerRadius: Radius.control, style: .continuous)
                 .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                .foregroundStyle(dropHighlight == page.name ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.tertiary))
+                .foregroundStyle(Color.accentColor)
+                .opacity(dropHighlight == page.name ? 1 : 0)
                 .frame(height: 30)
-                .overlay(Text("Drop here").font(.caption).foregroundStyle(.secondary))
+                .contentShape(Rectangle())
                 .dropDestination(for: String.self) { ids, _ in
                     guard let id = ids.first else { return false }
                     move(id, toPage: page.name, before: nil)
@@ -210,16 +212,11 @@ struct ShelfView: View {
                     .lineLimit(1)
                 // The widget's current reading says more about it than its
                 // size does; the size stays for widgets without one.
-                if let reading = runtime.snapshots[widget.id]?.statusLabel, !reading.isEmpty, status == nil {
-                    Text(reading)
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                } else {
-                    Text(LayoutSizeName.name(runtime.effectiveSize(for: widget.id)))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                ShelfChipSubtitle(
+                    model: runtime.cardModel(for: widget.id),
+                    sizeName: LayoutSizeName.name(runtime.effectiveSize(for: widget.id)),
+                    showsReading: status == nil
+                )
             }
             Spacer(minLength: 0)
             if let status {
@@ -257,7 +254,7 @@ struct ShelfView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(widget.displayName)
         .accessibilityValue(
-            [LayoutSizeName.name(runtime.effectiveSize(for: widget.id)), status?.text]
+            [runtime.snapshots[widget.id]?.statusLabel, LayoutSizeName.name(runtime.effectiveSize(for: widget.id)), status?.text]
                 .compactMap { $0 }.joined(separator: ", ")
         )
         .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
@@ -454,6 +451,28 @@ struct ShelfView: View {
             selection = try runtime.duplicateWidget(id: widget.id, label: name)
         } catch {
             actionError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+}
+
+/// A chip's second line: the widget's current reading, or its size when it
+/// has none. Observes the widget's own card model, so the board follows
+/// refreshes as the popup does (the runtime does not publish them).
+private struct ShelfChipSubtitle: View {
+    @ObservedObject var model: WidgetCardModel
+    let sizeName: String
+    let showsReading: Bool
+
+    var body: some View {
+        if showsReading, let reading = model.snapshot.statusLabel, !reading.isEmpty {
+            Text(reading)
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        } else {
+            Text(sizeName)
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 }

@@ -357,7 +357,8 @@ struct PrivacySettingsPage: View {
         var body: some View {
             let state = runtime.permissionState(for: widget)
             VStack(alignment: .leading, spacing: Spacing.xxs) {
-                HStack {
+                HStack(spacing: Spacing.xs) {
+                    WidgetMark(widget: widget, runtime: runtime)
                     Text(widget.displayName).font(.headline)
                     Spacer()
                     stateBadge(state)
@@ -468,6 +469,8 @@ struct AdvancedSettingsPage: View {
             } footer: {
                 HStack {
                     Text("How each widget's recent refreshes went.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     Spacer()
                     Button("Open Logs", action: Self.openLogsFolder)
                         .buttonStyle(.link)

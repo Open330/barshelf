@@ -1587,6 +1587,7 @@
       }
     },
     "BarShelf collects your menu bar extras\ninto one popup of widgets.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -3046,6 +3047,16 @@
         }
       }
     },
+    "Digits": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "자릿수"
+          }
+        }
+      }
+    },
     "Direct input-source selection was requested, but some apps may keep using the previous input language. For reliable switching, assign Select next source in Input menu an unused key without modifiers in Keyboard Shortcuts → Input Sources.": {
       "localizations": {
         "ko": {
@@ -3406,6 +3417,7 @@
       }
     },
     "Drop here": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -9400,6 +9412,7 @@
       }
     },
     "Show on the shelf": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -10285,6 +10298,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "소스의 원본 출력을 텍스트로 표시합니다."
+          }
+        }
+      }
+    },
+    "The readings you check all day,\nin one popup of widgets.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "하루 종일 확인하는 정보를\n위젯 팝업 하나에 모았습니다."
           }
         }
       }
@@ -11599,6 +11622,17 @@
         }
       }
     },
+    "Widget On": {
+      "comment": "Inspector switch that turns a widget on or off everywhere",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯 사용"
+          }
+        }
+      }
+    },
     "Widget Permissions": {
       "localizations": {
         "ko": {
@@ -11700,6 +11734,7 @@
       }
     },
     "Widgets live in ~/Library/Application Support/barshelf/widgets/": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {

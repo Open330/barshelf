@@ -25,7 +25,7 @@ final class SettingsShotTests: XCTestCase {
         // The whole pane, not its first screen — once per tab.
         WidgetSettingsView.scrollMaxHeight = 2000
         defer {
-            WidgetSettingsView.scrollMaxHeight = 420
+            WidgetSettingsView.scrollMaxHeight = .infinity
         }
         for tab in MenuBarSettingsTab.allCases {
             let view = WidgetSettingsView(widget: widget, runtime: runtime, initialTab: tab)
