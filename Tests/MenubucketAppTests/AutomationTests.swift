@@ -236,6 +236,24 @@ final class AutomationTests: XCTestCase {
         XCTAssertFalse(restored.isRunning)
     }
 
+    func testUnsavedDraftOutlivesTheEditorAndClearsWhenItMatchesTheSavedScript() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let controller = AutomationController(fileURL: folder.appendingPathComponent("automation.json"))
+        let saved = "barshelf.bind(['ctrl'], 'i', () => moveMouseToScreen(1));"
+        XCTAssertTrue(controller.apply(source: saved, enabled: false))
+        XCTAssertNil(controller.draft)
+
+        // An edit is held by the controller, so a settings page that is left
+        // and rebuilt shows it again instead of the saved script.
+        controller.setDraft(saved + "\n// edit")
+        XCTAssertEqual(controller.draft, saved + "\n// edit")
+        XCTAssertEqual(controller.source, saved, "a draft is not saved")
+
+        controller.setDraft(saved)
+        XCTAssertNil(controller.draft, "text equal to the saved script is no draft")
+    }
+
     func testImportIsOnlyADraftAndDoesNotOverwriteSavedSourceOrOriginal() throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)

@@ -46,11 +46,22 @@ struct DockSettingsPage: View {
                     }
                 }
             }
-            appearanceSection
-            profilesSection
-            itemsSection
-            appleDockSection
-            switchingSection
+            if config.mode == .off {
+                // With the BarShelf Dock off, profiles still switch the Apple
+                // Dock: lead with them, and keep the BarShelf Dock's own
+                // look and items for when it is turned on.
+                profilesSection
+                appleDockSection
+                switchingSection
+                appearanceSection
+                itemsSection
+            } else {
+                appearanceSection
+                profilesSection
+                itemsSection
+                appleDockSection
+                switchingSection
+            }
         }
         .alert("Add Link", isPresented: $showLinkPrompt) {
             TextField("https://example.com", text: $linkDraft)
