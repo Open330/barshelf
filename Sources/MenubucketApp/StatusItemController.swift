@@ -296,7 +296,7 @@ final class StatusItemController: NSObject {
         // The shelf and a single card should not be open at once.
         if popup.isShown { popup.hide() }
         surface.show(relativeTo: button)
-        runtime.refresh(widgetID: widgetID, manual: true)
+        runtime.refreshMenuBarPopoverIfNeeded(widget)
     }
 
     // MARK: - Menu bar visibility
