@@ -35,22 +35,21 @@ final class PagerState: ObservableObject {
     }
 
     func clamp(to pageCount: Int) {
-        if pageCount == 0 {
-            index = 0
-        } else if index >= pageCount {
-            index = pageCount - 1
-        } else if index < 0 {
-            index = 0
-        }
+        select(min(max(index, 0), max(0, pageCount - 1)))
     }
 
     func step(_ delta: Int, pageCount: Int) {
         guard pageCount > 0 else { return }
-        index = min(max(index + delta, 0), pageCount - 1)
+        select(min(max(index + delta, 0), pageCount - 1))
     }
 
     func jump(to target: Int, pageCount: Int) {
         guard pageCount > 0, (0..<pageCount).contains(target) else { return }
+        select(target)
+    }
+
+    private func select(_ target: Int) {
+        guard target != index else { return }
         index = target
     }
 

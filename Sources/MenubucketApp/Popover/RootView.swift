@@ -111,6 +111,7 @@ struct RootView: View {
         }
         .onAppear {
             pager.setSearchPresented(searchPresented)
+            pager.clamp(to: pages.count)
             publishVisibleWidgets(pages: pages)
         }
         .onDisappear { pager.setSearchPresented(false) }
@@ -127,13 +128,16 @@ struct RootView: View {
                 }
             }
         }
-        .onChange(of: pager.index) { publishVisibleWidgets(pages: runtime.pages) }
-        .onReceive(runtime.objectWillChange) { _ in
-            DispatchQueue.main.async {
-                let updatedPages = runtime.pages
-                pager.clamp(to: updatedPages.count)
-                publishVisibleWidgets(pages: updatedPages)
-            }
+        // Snapshot/loading updates do not change page membership. Observe the
+        // actual layout inputs instead of queueing another full page scan for
+        // every runtime publication (often several per widget refresh).
+        .onChange(of: pages.map(\.id)) {
+            pager.clamp(to: pages.count)
+        }
+        .onChange(of: Self.visibleWidgetIDs(
+            pages: pages, index: pager.index, pinnedIDs: runtime.prefs.pinned
+        )) { _, ids in
+            runtime.setVisibleWidgetIDs(ids)
         }
         .onReceive(runtime.$pendingReveal) { id in
             guard let id else { return }

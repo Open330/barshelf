@@ -6,6 +6,28 @@ import MenubucketCore
 /// overrides win over the manifest, disabled widgets vanish, empty groups
 /// disappear, and both members and pages keep a stable order.
 final class WidgetPagesTests: XCTestCase {
+    func testRepeatedNavigationDoesNotPublishAnUnchangedSelection() {
+        let pager = PagerState()
+        var selections: [Int] = []
+        let subscription = pager.$index.dropFirst().sink { selections.append($0) }
+
+        pager.clamp(to: 0)
+        pager.clamp(to: 3)
+        pager.step(-1, pageCount: 3)
+        pager.jump(to: 0, pageCount: 3)
+        XCTAssertTrue(selections.isEmpty)
+
+        pager.step(1, pageCount: 3)
+        pager.jump(to: 1, pageCount: 3)
+        pager.clamp(to: 3)
+        pager.jump(to: 2, pageCount: 3)
+        pager.step(1, pageCount: 3)
+        pager.clamp(to: 1)
+        pager.clamp(to: 0)
+        XCTAssertEqual(selections, [1, 2, 0])
+        withExtendedLifetime(subscription) {}
+    }
+
     private func widget(_ id: String, group: String?, order: Int?) -> LoadedWidget {
         LoadedWidget(
             manifest: Manifest(
