@@ -60,7 +60,10 @@ final class PopoverSurface: NSObject, PopupSurface, NSPopoverDelegate {
         }
         super.init()
         popover.behavior = .transient
-        popover.animates = true
+        // Menu bar popups are direct click responses. AppKit's opening and
+        // closing animation delays both presentation and disposal of the
+        // hosting controller, and can make repeated clicks feel queued.
+        popover.animates = false
         popover.contentSize = contentSize
         popover.delegate = self
     }
