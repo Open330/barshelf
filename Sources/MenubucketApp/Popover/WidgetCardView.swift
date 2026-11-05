@@ -646,6 +646,18 @@ struct CardIconTile: View {
             .background(
                 RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
                     .fill(color.gradient)
+                    // Lit from above, with a fine edge, like an app icon.
+                    .overlay(
+                        RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
+                            .fill(LinearGradient(
+                                colors: [.white.opacity(Fill.Tile.sheen), .clear],
+                                startPoint: .top, endPoint: .center
+                            ))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
+                            .strokeBorder(.white.opacity(Fill.Tile.rim), lineWidth: 0.5)
+                    )
             )
             .accessibilityHidden(true)
     }

@@ -13,13 +13,12 @@ struct ToastOverlay: View {
         ZStack(alignment: .bottom) {
             if let message = toast.message {
                 Text(message)
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .padding(.horizontal, Spacing.s)
-                    .padding(.vertical, Spacing.xs)
-                    .modifier(ControlCapsule())
+                    .font(.callout.weight(.medium))
+                    .padding(.horizontal, Spacing.m)
+                    .frame(height: ControlMetrics.height + Spacing.xs)
+                    .glassSurface(Capsule())
                     .padding(.bottom, bottomInset)
-                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .bottom)))
+                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: Motion.pressScale)).combined(with: .move(edge: .bottom)))
                     // `ToastCenter.show` already announced it; a live-region
                     // trait here would have VoiceOver read it a second time.
                     .accessibilityLabel(message)
@@ -27,6 +26,6 @@ struct ToastOverlay: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         .allowsHitTesting(false)
-        .animation(Motion.respecting(reduceMotion, Motion.quick), value: toast.message)
+        .animation(Motion.respecting(reduceMotion, Motion.press), value: toast.message)
     }
 }

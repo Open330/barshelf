@@ -40,10 +40,13 @@ enum Spacing {
 enum Radius {
     /// Buttons, fields, small tiles.
     static let control: CGFloat = 6
-    /// Widget cards, rows, banners — a separate object on the page.
-    static let card: CGFloat = 12
-    /// Large surfaces: sheets, overlays, the search panel.
-    static let surface: CGFloat = 16
+    /// A key cap: ⌘F, ↵.
+    static let key: CGFloat = 4
+    /// Widget cards, rows, banners — a separate object on the page. With the
+    /// popup's 8 pt inset this sits concentric inside the popover's own corner.
+    static let card: CGFloat = 16
+    /// Large surfaces: sheets, overlays, the search panel, floating HUDs.
+    static let surface: CGFloat = 22
     /// A shape nested `inset` points inside one of radius `outer`.
     static func nested(in outer: CGFloat, inset: CGFloat) -> CGFloat {
         max(outer - inset, 2)
@@ -65,6 +68,38 @@ enum Fill {
     /// floating chrome).
     static let hairline = adaptive(light: 0.10, dark: 0.14)
 
+    /// Glass, where the system's own glass is not available (before macOS 26).
+    /// Light from above: a sheen over the top third, and a rim that is
+    /// brightest along the top and bottom edges.
+    enum Glass {
+        static let sheen = white(light: 0.60, dark: 0.075)
+        static let rimHigh = white(light: 0.90, dark: 0.22)
+        static let rimLow = white(light: 0.35, dark: 0.05)
+        /// How far down the sheen fades out, as a fraction of the height.
+        static let sheenDepth: CGFloat = 0.38
+    }
+
+    /// The highlight and edge of a coloured icon tile.
+    enum Tile {
+        static let sheen: Double = 0.28
+        static let rim: Double = 0.18
+    }
+
+    /// The filled button that carries a screen's main action: near-white on
+    /// dark glass, the accent on light.
+    static let primaryButton = Color(nsColor: NSColor(name: nil) { appearance in
+        isDark(appearance) ? NSColor(white: 0.96, alpha: 1) : .controlAccentColor
+    })
+    static let primaryButtonInk = Color(nsColor: NSColor(name: nil) { appearance in
+        isDark(appearance) ? NSColor(white: 0.07, alpha: 1) : .white
+    })
+    /// How much a filled button lightens under the pointer.
+    static let hoverBrightness: Double = 0.05
+    /// A control that cannot be used right now.
+    static let disabled: Double = 0.4
+    /// A key cap inside a filled button recedes behind the title.
+    static let keyCapInButton: Double = 0.6
+
     /// How strongly a tint washes a surface: a `tinted` card, a status
     /// banner, a highlighted (just revealed) card.
     enum Wash {
@@ -75,9 +110,18 @@ enum Fill {
 
     private static func adaptive(light: CGFloat, dark: CGFloat) -> Color {
         Color(nsColor: NSColor(name: nil) { appearance in
-            let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            return NSColor.labelColor.withAlphaComponent(isDark ? dark : light)
+            NSColor.labelColor.withAlphaComponent(isDark(appearance) ? dark : light)
         })
+    }
+
+    private static func white(light: CGFloat, dark: CGFloat) -> Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            NSColor(white: 1, alpha: isDark(appearance) ? dark : light)
+        })
+    }
+
+    private static func isDark(_ appearance: NSAppearance) -> Bool {
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
     }
 }
 
@@ -87,6 +131,10 @@ enum Motion {
     static let quick: Animation = .easeOut(duration: 0.15)
     /// Something changing place: reorder, page switch, a card resizing.
     static let arrange: Animation = .spring(response: 0.35, dampingFraction: 0.86)
+    /// A control giving under a press: quick, with a little bounce back.
+    static let press: Animation = .spring(response: 0.28, dampingFraction: 0.62)
+    /// How far a pressed control gives.
+    static let pressScale: CGFloat = 0.96
 
     /// `animation` unless Reduce Motion is on, where a change just happens.
     static func respecting(_ reduceMotion: Bool, _ animation: Animation) -> Animation? {
@@ -141,6 +189,18 @@ enum Typography {
         return .system(size: size * scale, weight: weight)
     }
 
+    /// The unit after a hero number (%, °): smaller, secondary, and raised to
+    /// the cap height so the digits stay the reading.
+    static func metricUnit(_ size: MetricSize = .regular) -> Font {
+        .system(size: size.unitPoints, weight: .semibold, design: .rounded)
+    }
+
+    /// Hero digits are set a touch tight; at 34 pt the default tracking
+    /// leaves them looking loose.
+    static func metricTracking(_ size: MetricSize = .regular) -> CGFloat {
+        -size.points * 0.025
+    }
+
     enum MetricSize {
         /// Two half-width cards side by side.
         case compact
@@ -151,6 +211,22 @@ enum Typography {
             switch self {
             case .compact: return 26
             case .regular: return 34
+            }
+        }
+
+        var unitPoints: CGFloat {
+            switch self {
+            case .compact: return 12
+            case .regular: return 15
+            }
+        }
+
+        /// How far the unit drops from the digits' top edge to meet their
+        /// cap height.
+        var unitRaise: CGFloat {
+            switch self {
+            case .compact: return 2
+            case .regular: return 3
             }
         }
     }
@@ -177,6 +253,42 @@ enum StatusTone {
         case .success: return "checkmark.circle.fill"
         case .warning: return "exclamationmark.triangle.fill"
         case .critical: return "xmark.octagon.fill"
+        }
+    }
+}
+
+/// Fixed control metrics. Buttons are capsules, so only their height and
+/// side inset are decisions.
+enum ControlMetrics {
+    static let height: CGFloat = 28
+    static let smallHeight: CGFloat = 24
+    static let inset: CGFloat = 13
+    static let smallInset: CGFloat = 10
+    static let keyCap: CGFloat = 16
+}
+
+/// Shadows by how far something floats above the page.
+enum Elevation {
+    case none
+    /// A filled button sitting on its surface.
+    case control
+    /// A HUD, toast or panel over other content: three soft layers, contact
+    /// to ambient.
+    case float
+}
+
+extension View {
+    @ViewBuilder
+    func elevation(_ level: Elevation) -> some View {
+        switch level {
+        case .none:
+            self
+        case .control:
+            shadow(color: .black.opacity(0.18), radius: 1, y: 0.5)
+        case .float:
+            shadow(color: .black.opacity(0.18), radius: 1, y: 0.5)
+                .shadow(color: .black.opacity(0.14), radius: 4, y: 3)
+                .shadow(color: .black.opacity(0.22), radius: 18, y: 14)
         }
     }
 }
