@@ -129,6 +129,7 @@ struct ShelfWidgetView: View {
     /// Where exported thumbnails are; the preview tool passes its own.
     var container: URL? = SharedContainer.url
     @Environment(\.widgetFamily) private var environmentFamily
+    @Environment(\.locale) private var locale
 
     private var family: WidgetFamily { familyOverride ?? environmentFamily }
 
@@ -361,10 +362,14 @@ struct ShelfWidgetView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(Text("Refresh"))
             } else if stale, let updated = snapshot.updatedAt {
-                // Only an old reading says how old it is.
+                // Archive a fixed, localized timestamp. A relative-date Text
+                // keeps updating in the system widget host even while our
+                // extension is asleep and the reading itself is unchanged.
                 HStack(spacing: 3) {
                     Image(systemName: "clock.arrow.circlepath")
-                    Text(updated, style: .relative)
+                    Text(verbatim: updated.formatted(
+                        Date.FormatStyle(date: .abbreviated, time: .shortened).locale(locale)
+                    ))
                 }
                 .font(.caption2)
                 .foregroundStyle(.orange)
