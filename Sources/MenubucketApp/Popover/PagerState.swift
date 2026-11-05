@@ -16,6 +16,8 @@ final class PagerState: ObservableObject {
     /// True during an active swipe — disables the snap animation so content
     /// tracks the fingers 1:1.
     @Published private(set) var isSwiping = false
+    /// Jump directly to distant pages; intermediate pages may be unmounted.
+    private(set) var animatesPageTransition = true
     /// Edit mode: cards show their drag handle, width and remove controls.
     /// Entered from ⌘E or ⋯ ▸ Edit Shelf; Esc, Done, or closing leaves it.
     @Published var isEditing = false
@@ -35,28 +37,29 @@ final class PagerState: ObservableObject {
     }
 
     func clamp(to pageCount: Int) {
-        if pageCount == 0 {
-            index = 0
-        } else if index >= pageCount {
-            index = pageCount - 1
-        } else if index < 0 {
-            index = 0
-        }
+        select(min(max(index, 0), max(0, pageCount - 1)))
     }
 
     func step(_ delta: Int, pageCount: Int) {
         guard pageCount > 0 else { return }
-        index = min(max(index + delta, 0), pageCount - 1)
+        select(min(max(index + delta, 0), pageCount - 1))
     }
 
     func jump(to target: Int, pageCount: Int) {
         guard pageCount > 0, (0..<pageCount).contains(target) else { return }
+        select(target)
+    }
+
+    private func select(_ target: Int) {
+        guard target != index else { return }
+        animatesPageTransition = abs(target - index) == 1
         index = target
     }
 
     // MARK: - Trackpad swipe (driven by the scroll-wheel monitor)
 
     func beginSwipe() {
+        animatesPageTransition = true
         isSwiping = true
         dragOffset = 0
     }

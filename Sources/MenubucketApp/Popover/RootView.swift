@@ -29,6 +29,9 @@ struct RootView: View {
     @State private var revealToken = UUID()
     /// Measured natural heights: each page's cards, and the chrome around them.
     @State private var pageContentHeights: [String: CGFloat] = [:]
+    /// Keep visited pages for scroll position and outgoing swipe animation,
+    /// but do not construct every unvisited widget tree on the first click.
+    @State private var materializedPageIDs: Set<String> = []
     @State private var topChromeHeight: CGFloat = 0
     @State private var footerHeight: CGFloat = 0
     /// The page dot a dragged card is hovering over.
@@ -111,6 +114,7 @@ struct RootView: View {
         }
         .onAppear {
             pager.setSearchPresented(searchPresented)
+            pager.clamp(to: pages.count)
             publishVisibleWidgets(pages: pages)
         }
         .onDisappear { pager.setSearchPresented(false) }
@@ -127,13 +131,16 @@ struct RootView: View {
                 }
             }
         }
-        .onChange(of: pager.index) { publishVisibleWidgets(pages: runtime.pages) }
-        .onReceive(runtime.objectWillChange) { _ in
-            DispatchQueue.main.async {
-                let updatedPages = runtime.pages
-                pager.clamp(to: updatedPages.count)
-                publishVisibleWidgets(pages: updatedPages)
-            }
+        // Snapshot/loading updates do not change page membership. Observe the
+        // actual layout inputs instead of queueing another full page scan for
+        // every runtime publication (often several per widget refresh).
+        .onChange(of: pages.map(\.id)) {
+            pager.clamp(to: pages.count)
+        }
+        .onChange(of: Self.visibleWidgetIDs(
+            pages: pages, index: pager.index, pinnedIDs: runtime.prefs.pinned
+        )) { _, ids in
+            runtime.setVisibleWidgetIDs(ids)
         }
         .onReceive(runtime.$pendingReveal) { id in
             guard let id else { return }
@@ -153,9 +160,8 @@ struct RootView: View {
         )
     }
 
-    /// Chrome plus the tallest page, between `minimumHeight` and `maxHeight`.
-    /// The tallest page rather than the current one, so swiping between pages
-    /// does not make the popup jump; a taller page scrolls inside.
+    /// Chrome plus the tallest measured page, bounded by the screen. Keep
+    /// earlier measurements so returning to a shorter page never shrinks it.
     static func popupHeight(chrome: CGFloat, content: CGFloat?, maxHeight: CGFloat) -> CGFloat {
         let ceiling = max(maxHeight, minimumHeight)
         guard let content else { return min(defaultSize.height, ceiling) }
@@ -202,6 +208,12 @@ struct RootView: View {
     /// page may run timelines or initiate image/thumbnail work.
     static func pageContentIsActive(pageID: String, selectedPageID: String) -> Bool {
         pageID == selectedPageID
+    }
+
+    static func shouldMaterializePage(
+        at index: Int, selectedIndex: Int, pageID: String, visited: Set<String>
+    ) -> Bool {
+        abs(index - selectedIndex) <= 1 || visited.contains(pageID)
     }
 
     /// Jumps the pager to the page holding `id`, flashes that card's border, and
@@ -304,24 +316,34 @@ struct RootView: View {
             let offset = -CGFloat(index) * width + pager.dragOffset
 
             HStack(spacing: 0) {
-                ForEach(pages) { page in
-                    ScrollViewReader { proxy in
-                        ScrollView {
-                            pageContent(page, pages: pages)
-                                .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { height in
-                                    pageContentHeights[page.id] = height
+                ForEach(Array(pages.enumerated()), id: \.element.id) { pageIndex, page in
+                    Group {
+                        if Self.shouldMaterializePage(
+                            at: pageIndex, selectedIndex: index,
+                            pageID: page.id, visited: materializedPageIDs
+                        ) {
+                            ScrollViewReader { proxy in
+                                ScrollView {
+                                    pageContent(page, pages: pages)
+                                        .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { height in
+                                            pageContentHeights[page.id] = height
+                                        }
                                 }
-                        }
-                        .onChange(of: revealToken) {
-                            guard let id = highlightedID,
-                                  page.widgets.contains(where: { $0.id == id }) else { return }
-                            // The pager first moves this page onscreen. Deferring one
-                            // run-loop lets ScrollViewReader resolve its card anchor.
-                            DispatchQueue.main.async {
-                                withAnimation(Motion.respecting(reduceMotion, Motion.arrange)) {
-                                    proxy.scrollTo(id, anchor: .center)
+                                .onChange(of: revealToken, initial: true) {
+                                    guard let id = highlightedID,
+                                          page.widgets.contains(where: { $0.id == id }) else { return }
+                                    // The pager first moves this page onscreen. Deferring one
+                                    // run-loop lets ScrollViewReader resolve its card anchor.
+                                    DispatchQueue.main.async {
+                                        withAnimation(Motion.respecting(reduceMotion, Motion.arrange)) {
+                                            proxy.scrollTo(id, anchor: .center)
+                                        }
+                                    }
                                 }
                             }
+                            .onAppear { materializedPageIDs.insert(page.id) }
+                        } else {
+                            Color.clear.accessibilityHidden(true)
                         }
                     }
                     .frame(width: width, height: geometry.size.height)
@@ -344,7 +366,8 @@ struct RootView: View {
             // Reduce Motion: pages switch in place instead of sliding. A
             // swipe still tracks the fingers, which is the user's own motion.
             .animation(
-                pager.isSwiping || reduceMotion ? nil : Motion.arrange,
+                pager.isSwiping || reduceMotion || !pager.animatesPageTransition
+                    ? nil : Motion.arrange,
                 value: offset
             )
             .onAppear { pager.pageWidth = width }

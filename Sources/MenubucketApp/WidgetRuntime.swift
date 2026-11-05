@@ -1922,6 +1922,23 @@ final class WidgetRuntime: ObservableObject {
         }
     }
 
+    /// Opening a reading is navigation, not an explicit refresh/retry. Reuse
+    /// fresh content and preserve automatic failure backoff. Visibility-aware
+    /// workflows are separately handled when menuBarPopoverWidgetID changes.
+    func refreshMenuBarPopoverIfNeeded(_ widget: LoadedWidget) {
+        let snapshot = snapshots[widget.id] ?? WidgetSnapshot(widgetID: widget.id)
+        guard Self.needsMenuBarPopoverRefresh(
+            snapshot: snapshot, staleAfterSec: effectiveStaleAfter(for: widget)
+        ) else { return }
+        refresh(widget, manual: false)
+    }
+
+    static func needsMenuBarPopoverRefresh(
+        snapshot: WidgetSnapshot, staleAfterSec: Double?, now: Date = Date()
+    ) -> Bool {
+        snapshot.viewTree == nil || snapshot.isStale(after: staleAfterSec, now: now)
+    }
+
     func popupClosed() {
         scheduler.popupClosed()
         syncScriptTimerActivity()

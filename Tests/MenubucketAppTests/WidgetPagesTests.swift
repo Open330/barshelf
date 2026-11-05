@@ -6,6 +6,58 @@ import MenubucketCore
 /// overrides win over the manifest, disabled widgets vanish, empty groups
 /// disappear, and both members and pages keep a stable order.
 final class WidgetPagesTests: XCTestCase {
+    func testInitialPageMaterializationIsBoundedAndVisitedPagesSurviveFarJumps() {
+        let ids = (0..<20).map { "page-\($0)" }
+        func mounted(_ selected: Int, visited: Set<String> = []) -> [String] {
+            ids.enumerated().compactMap { index, id in
+                RootView.shouldMaterializePage(
+                    at: index, selectedIndex: selected, pageID: id, visited: visited
+                ) ? id : nil
+            }
+        }
+        XCTAssertEqual(mounted(0), ["page-0", "page-1"])
+        XCTAssertEqual(mounted(10), ["page-9", "page-10", "page-11"])
+        XCTAssertEqual(mounted(19), ["page-18", "page-19"])
+        // Preserve the old page during a keyboard jump and keep its scroll
+        // position when returning, without mounting the intervening pages.
+        XCTAssertEqual(mounted(10, visited: ["page-0", "page-1"]),
+                       ["page-0", "page-1", "page-9", "page-10", "page-11"])
+    }
+
+    func testDistantNavigationDoesNotAnimateAcrossUnbuiltPages() {
+        let pager = PagerState()
+        pager.jump(to: 9, pageCount: 20)
+        XCTAssertFalse(pager.animatesPageTransition)
+        pager.step(1, pageCount: 20)
+        XCTAssertTrue(pager.animatesPageTransition)
+        pager.jump(to: 0, pageCount: 20)
+        XCTAssertFalse(pager.animatesPageTransition)
+        pager.beginSwipe()
+        XCTAssertTrue(pager.animatesPageTransition)
+    }
+
+    func testRepeatedNavigationDoesNotPublishAnUnchangedSelection() {
+        let pager = PagerState()
+        var selections: [Int] = []
+        let subscription = pager.$index.dropFirst().sink { selections.append($0) }
+
+        pager.clamp(to: 0)
+        pager.clamp(to: 3)
+        pager.step(-1, pageCount: 3)
+        pager.jump(to: 0, pageCount: 3)
+        XCTAssertTrue(selections.isEmpty)
+
+        pager.step(1, pageCount: 3)
+        pager.jump(to: 1, pageCount: 3)
+        pager.clamp(to: 3)
+        pager.jump(to: 2, pageCount: 3)
+        pager.step(1, pageCount: 3)
+        pager.clamp(to: 1)
+        pager.clamp(to: 0)
+        XCTAssertEqual(selections, [1, 2, 0])
+        withExtendedLifetime(subscription) {}
+    }
+
     private func widget(_ id: String, group: String?, order: Int?) -> LoadedWidget {
         LoadedWidget(
             manifest: Manifest(

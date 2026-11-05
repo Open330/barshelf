@@ -6,6 +6,32 @@ import XCTest
 /// The popover's rules that do not need a window: attention, pins, height,
 /// freshness, and the native approval card's contents.
 final class PopoverShelfTests: XCTestCase {
+    func testOpeningAReadingUsesFreshContentAndRefreshesMissingOrStaleContent() {
+        let now = Date(timeIntervalSince1970: 1_000)
+        var snapshot = WidgetSnapshot(
+            widgetID: "reading", viewTree: UINode(type: "text", text: "42%"),
+            updatedAt: now.addingTimeInterval(-2)
+        )
+        XCTAssertFalse(WidgetRuntime.needsMenuBarPopoverRefresh(
+            snapshot: snapshot, staleAfterSec: 5, now: now
+        ))
+        XCTAssertTrue(WidgetRuntime.needsMenuBarPopoverRefresh(
+            snapshot: snapshot, staleAfterSec: 1, now: now
+        ))
+        XCTAssertTrue(WidgetRuntime.needsMenuBarPopoverRefresh(
+            snapshot: snapshot, staleAfterSec: nil, now: now
+        ))
+        snapshot.viewTree = nil
+        XCTAssertTrue(WidgetRuntime.needsMenuBarPopoverRefresh(
+            snapshot: snapshot, staleAfterSec: 5, now: now
+        ))
+        snapshot.viewTree = UINode(type: "text", text: "Cached")
+        snapshot.updatedAt = nil
+        XCTAssertTrue(WidgetRuntime.needsMenuBarPopoverRefresh(
+            snapshot: snapshot, staleAfterSec: 5, now: now
+        ))
+    }
+
     // MARK: - Attention
 
     private func reasons(
