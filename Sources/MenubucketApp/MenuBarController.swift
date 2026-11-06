@@ -404,7 +404,10 @@ final class MenuBarController {
     /// its coordinates (x from the left): past the item's inset and the room
     /// it takes on its left while a chip is in focus.
     func clusterOrigin(in button: NSStatusBarButton) -> CGFloat {
-        Self.clusterItemInset + clusterLead
+        // The image is centred in the button, which the menu bar may make a
+        // little wider than the length asked for.
+        guard let image = button.image else { return Self.clusterItemInset + clusterLead }
+        return ((button.bounds.width - image.size.width) / 2).rounded() + clusterLead
     }
 
     // MARK: - Main item (shared strip)

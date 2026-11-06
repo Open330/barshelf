@@ -309,7 +309,10 @@ public struct ClusterGeometry: Equatable, Sendable {
             }
         }
         let end = focus == count - 1 ? xs[focus] + width + 2 * Self.slotInset : xs[count - 1] + Self.slot
-        let shift = min(0, itemWidth - end)
+        // Fit inside the item, and keep the pill over the place its chip
+        // had while folded, so a pointer that has not moved is on it.
+        let cover = collapsedX(focus) - (xs[focus] + Self.slotInset)
+        let shift = min(0, itemWidth - end, cover)
         return xs.map { $0 + shift }
     }
 
@@ -328,11 +331,10 @@ public struct ClusterGeometry: Equatable, Sendable {
         return (lead / 4).rounded(.up) * 4
     }
 
-    /// The chip the pointer at stack x selects in the pill layout. The
-    /// focused chip owns the gap before it and everything up to the next
-    /// chip, so a pointer that has not moved stays on it; elsewhere the
-    /// later chip wins where two overlap. Folded, only the stack selects a
-    /// chip, so the icon stays the icon.
+    /// The chip the pointer at stack x selects in the pill layout: the one
+    /// drawn there, the focused pill over the discs and a later disc over an
+    /// earlier one; between shapes, the nearest. Folded, only the stack
+    /// selects a chip, so the icon stays the icon.
     public func pillIndex(at x: Double, focus: Int?, pill: Double) -> Int? {
         guard count > 0 else { return nil }
         let xs = pillLayout(focus: focus, pill: pill)
@@ -341,12 +343,23 @@ public struct ClusterGeometry: Equatable, Sendable {
             return stride(from: count - 1, through: 0, by: -1).first { x >= xs[$0] }
         }
         let width = max(pill, Self.disc)
-        let end = focus == count - 1 ? xs[focus] + width + 2 * Self.slotInset : xs[count - 1] + Self.slot
-        guard x >= xs[0], x < end else { return nil }
-        let start = xs[focus] - (focus > 0 ? Self.focusShift : 0)
-        let stop = focus == count - 1 ? end : xs[focus + 1]
-        if x >= start, x < stop { return focus }
-        return stride(from: count - 1, through: 0, by: -1).first { x >= xs[$0] }
+        // The drawn chips, and the stack's folded place: the pointer came
+        // in over the fold, so it may still be there.
+        let drawnEnd = focus == count - 1 ? xs[focus] + width + 2 * Self.slotInset : xs[count - 1] + Self.slot
+        guard x >= min(xs[0], 0), x < max(drawnEnd, collapsedWidth) else { return nil }
+        func span(_ index: Int) -> ClosedRange<Double> {
+            let start = xs[index] + Self.slotInset
+            return start...(start + (index == focus ? width : Self.disc))
+        }
+        if span(focus).contains(x) { return focus }
+        if let drawn = stride(from: count - 1, through: 0, by: -1).first(where: { span($0).contains(x) }) {
+            return drawn
+        }
+        func distance(_ index: Int) -> Double {
+            let range = span(index)
+            return x < range.lowerBound ? range.lowerBound - x : x - range.upperBound
+        }
+        return (0..<count).min { distance($0) < distance($1) }
     }
 
     /// `pillLayout` with the focused chip as a plain disc.
