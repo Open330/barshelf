@@ -34,11 +34,15 @@ extension MenuBarController {
         /// melting into a dark menu bar.
         static let rimAlpha: CGFloat = 0.18
         static let rimWidth: CGFloat = 0.5
+        /// The chip under the pointer: a little larger, and on top of both
+        /// neighbours. No ring: the peek below the bar carries the reading.
+        static let focusScale: CGFloat = 1.1
     }
 
     static func clusterImage(
         _ chips: [ClusterChip],
         positions: [CGFloat]? = nil,
+        focus: Int? = nil,
         mark: NSImage,
         badged: Bool,
         color: @escaping (String) -> NSColor,
@@ -53,21 +57,28 @@ extension MenuBarController {
                 // Chips are drawn on a layer of their own so a cutout clears
                 // only the chips beneath, not the bar.
                 context.cgContext.beginTransparencyLayer(auxiliaryInfo: nil)
-                for (index, chip) in chips.enumerated() {
-                    let center = NSPoint(
+                func center(_ index: Int) -> NSPoint {
+                    NSPoint(
                         x: (positions?[cluster: index] ?? CGFloat(geometry.collapsedX(index))) + ClusterGeometry.slot / 2,
                         y: height / 2
                     )
-                    drawChip(chip, at: center, color: color(chip.widgetID), context: context)
+                }
+                let focused = focus.flatMap { chips.indices.contains($0) ? $0 : nil }
+                for (index, chip) in chips.enumerated() where index != focused {
+                    drawChip(chip, at: center(index), color: color(chip.widgetID), context: context)
+                }
+                // The focused chip last, so it sits on top of both neighbours.
+                if let focused {
+                    let chip = chips[focused]
+                    drawChip(
+                        chip, at: center(focused), color: color(chip.widgetID),
+                        context: context, scale: ChipMetrics.focusScale
+                    )
                 }
                 // Alert dots last: the next chip would cover a dot drawn
                 // with its own chip.
                 for (index, chip) in chips.enumerated() where chip.alert {
-                    let center = NSPoint(
-                        x: (positions?[cluster: index] ?? CGFloat(geometry.collapsedX(index))) + ClusterGeometry.slot / 2,
-                        y: height / 2
-                    )
-                    drawBadge(at: center, context: context)
+                    drawBadge(at: center(index), context: context)
                 }
                 context.cgContext.endTransparencyLayer()
                 let markRect = NSRect(
@@ -97,8 +108,11 @@ extension MenuBarController {
         tinted.draw(in: fitted)
     }
 
-    static func drawChip(_ chip: ClusterChip, at center: NSPoint, color: NSColor, context: NSGraphicsContext) {
+    static func drawChip(
+        _ chip: ClusterChip, at center: NSPoint, color: NSColor, context: NSGraphicsContext, scale: CGFloat = 1
+    ) {
         let m = ChipMetrics.self
+        let face = m.face * scale
         func circle(_ diameter: CGFloat, at point: NSPoint = center) -> NSBezierPath {
             NSBezierPath(ovalIn: NSRect(
                 x: point.x - diameter / 2, y: point.y - diameter / 2, width: diameter, height: diameter
@@ -106,23 +120,23 @@ extension MenuBarController {
         }
         // Clear what the previous chip drew under this one, plus a gap.
         context.compositingOperation = .clear
-        circle(m.face + m.cutout * 2).fill()
+        circle(face + m.cutout * 2).fill()
         context.compositingOperation = .sourceOver
 
         let alpha = chip.isStale ? m.staleAlpha : 1
         // The disc: the widget's colour, a little lighter at the top.
-        let disc = circle(m.face)
+        let disc = circle(face)
         let base = color.withAlphaComponent(alpha)
         let lit = (color.blended(withFraction: m.sheenAlpha, of: .white) ?? color).withAlphaComponent(alpha)
         NSGraphicsContext.saveGraphicsState()
         disc.addClip()
         NSGradient(starting: lit, ending: base)?.draw(
-            from: NSPoint(x: center.x, y: center.y - m.face / 2),
-            to: NSPoint(x: center.x, y: center.y + m.face / 2),
+            from: NSPoint(x: center.x, y: center.y - face / 2),
+            to: NSPoint(x: center.x, y: center.y + face / 2),
             options: [.drawsBeforeStartingLocation, .drawsAfterEndingLocation]
         )
         NSGraphicsContext.restoreGraphicsState()
-        let rim = circle(m.face - m.rimWidth)
+        let rim = circle(face - m.rimWidth)
         rim.lineWidth = m.rimWidth
         NSColor.white.withAlphaComponent(m.rimAlpha * alpha).setStroke()
         rim.stroke()

@@ -182,16 +182,36 @@ final class MenuBarClusterFocusTests: XCTestCase {
     func testFocusedHitTestIsStableAcrossTheMovingEdge() {
         let g = ClusterGeometry(count: 5)
         for focus in 0..<4 {
-            // Anywhere on the uncovered chip keeps the focus there.
-            var x = g.focusedX(focus, focus: focus)
-            while x < g.focusedX(focus + 1, focus: focus) {
+            // Anywhere on the uncovered chip keeps the focus there, its
+            // disc drawn over the next chip's edge included.
+            let start = g.focusedX(focus, focus: focus)
+            let end = start + ClusterGeometry.slot - ClusterGeometry.focusInset
+            var x = start
+            while x < end {
                 XCTAssertEqual(g.focusedIndex(at: x, focus: focus), focus)
                 x += 0.5
             }
             // Crossing to the next chip, then laying out for it, stays on it.
-            let next = g.focusedX(focus + 1, focus: focus) + 0.5
+            let next = end + 0.5
             XCTAssertEqual(g.focusedIndex(at: next, focus: focus), focus + 1)
             XCTAssertEqual(g.focusedIndex(at: next, focus: focus + 1), focus + 1)
+        }
+    }
+
+    func testEveryChipIsReachableSweepingAcrossFourChips() {
+        let g = ClusterGeometry(count: 4)
+        for direction in [1.0, -1.0] {
+            var focus: Int?
+            var seen = Set<Int>()
+            var x = direction > 0 ? 0 : g.collapsedWidth - 0.25
+            while x >= 0, x < g.collapsedWidth {
+                if let index = g.focusedIndex(at: x, focus: focus) {
+                    focus = index
+                    seen.insert(index)
+                }
+                x += 0.25 * direction
+            }
+            XCTAssertEqual(seen, [0, 1, 2, 3], "sweep \(direction)")
         }
     }
 }

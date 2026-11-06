@@ -1258,6 +1258,7 @@ private struct ClusterShot: View {
         let image = MenuBarController.clusterImage(
             Self.chips,
             positions: MenuBarController.clusterTargets(count: Self.chips.count, focus: focus),
+            focus: focus,
             mark: BarShelfStatusIcon.image(for: AppPreferences.defaultMenuBarSymbol, fallback: "tray.full"),
             badged: false,
             color: { Self.colors[$0] ?? .controlAccentColor },

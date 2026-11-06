@@ -277,7 +277,7 @@ final class MenuBarController {
         appliedStrip = nil
         let mark = BarShelfStatusIcon.image(for: mainSymbol, fallback: AppPreferences.defaultMenuBarSymbol)
         let image = Self.clusterImage(
-            chips, positions: clusterPositions, mark: mark, badged: attention,
+            chips, positions: clusterPositions, focus: clusterFocus, mark: mark, badged: attention,
             color: { [chipColor] id in chipColor?(id) ?? .controlAccentColor },
             appearance: button.effectiveAppearance,
             height: NSStatusBar.system.thickness
