@@ -23,10 +23,10 @@
   numbers and meters carry the colour, and the box keeps a faint edge.
 - **Menu bar cluster** (Settings ▸ Menu Bar ▸ Show widgets as: Cluster).
   Promoted widgets become small overlapping discs beside the BarShelf icon,
-  with a red dot for a reading in trouble. Pointing at a chip enlarges it and
-  opens a gap on each side of it, the chips stepping into the BarShelf icon's
-  room; moving along the stack moves the gaps chip by chip, without
-  widening the item or covering anything else in the menu bar. Rest on it to see its reading, click to open its card there, then
+  with a red dot for a reading in trouble. Pointing at a chip grows it into a
+  pill with its reading ("CPU 22%"), a gap opening on each side of it; the
+  item widens once when the pointer arrives and stays put while you move
+  between chips, then folds back when it leaves. Rest on it to see its reading, click to open its card there, then
   move along or press ← → to switch cards. Widgets can mark their metrics as
   `profiles` (accounts, hosts) to get one chip each.
 - **Gallery.** Widgets without a screenshot are drawn as the card they will

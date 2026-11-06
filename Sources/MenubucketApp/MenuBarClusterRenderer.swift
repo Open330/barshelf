@@ -37,12 +37,34 @@ extension MenuBarController {
         /// The chip under the pointer: a little larger, and on top of both
         /// neighbours. No ring: the peek below the bar carries the reading.
         static let focusScale: CGFloat = 1.1
+        /// The focused chip's pill: its reading after the glyph.
+        static let pillFontSize: CGFloat = 11
+        static let pillTextGap: CGFloat = 3
+        static let pillTrailing: CGFloat = 8
+        /// Longer readings are cut short, so one pill never takes the bar.
+        static let pillTextMax: CGFloat = 76
+    }
+
+    static func pillFont() -> NSFont {
+        NSFont.monospacedDigitSystemFont(ofSize: ChipMetrics.pillFontSize, weight: .semibold)
+    }
+
+    /// The width of a chip's pill: its disc, then its reading. A chip
+    /// without a reading stays a disc.
+    static func pillWidth(_ chip: ClusterChip) -> CGFloat {
+        let face = CGFloat(ClusterGeometry.disc)
+        guard !chip.reading.isEmpty else { return face }
+        let text = NSAttributedString(string: chip.reading, attributes: [.font: pillFont()]).size().width
+        let height = ChipMetrics.face * ChipMetrics.focusScale
+        return ceil(height + ChipMetrics.pillTextGap + min(text, ChipMetrics.pillTextMax) + ChipMetrics.pillTrailing)
     }
 
     static func clusterImage(
         _ chips: [ClusterChip],
         positions: [CGFloat]? = nil,
         focus: Int? = nil,
+        pill: CGFloat? = nil,
+        lead: CGFloat = 0,
         markAlpha: CGFloat = 1,
         mark: NSImage,
         badged: Bool,
@@ -51,10 +73,13 @@ extension MenuBarController {
         height: CGFloat
     ) -> NSImage {
         let geometry = ClusterGeometry(count: chips.count)
-        let size = NSSize(width: ceil(geometry.itemWidth), height: height)
+        let size = NSSize(width: ceil(lead + geometry.itemWidth), height: height)
         let image = NSImage(size: size, flipped: true) { _ in
             appearance.performAsCurrentDrawingAppearance {
                 guard let context = NSGraphicsContext.current else { return }
+                // Stack coordinates: the folded stack starts past the room
+                // the item takes on its left while a chip is in focus.
+                context.cgContext.translateBy(x: lead, y: 0)
                 // Chips are drawn on a layer of their own so a cutout clears
                 // only the chips beneath, not the bar.
                 context.cgContext.beginTransparencyLayer(auxiliaryInfo: nil)
@@ -71,10 +96,17 @@ extension MenuBarController {
                 // The focused chip last, so it sits on top of both neighbours.
                 if let focused {
                     let chip = chips[focused]
-                    drawChip(
-                        chip, at: center(focused), color: color(chip.widgetID),
-                        context: context, scale: ChipMetrics.focusScale
-                    )
+                    let width = pill ?? CGFloat(ClusterGeometry.disc)
+                    if width > ChipMetrics.face * ChipMetrics.focusScale {
+                        let left = (positions?[cluster: focused] ?? CGFloat(geometry.collapsedX(focused)))
+                            + CGFloat(ClusterGeometry.slotInset)
+                        drawPill(chip, left: left, width: width, midY: height / 2, color: color(chip.widgetID), context: context)
+                    } else {
+                        drawChip(
+                            chip, at: center(focused), color: color(chip.widgetID),
+                            context: context, scale: ChipMetrics.focusScale
+                        )
+                    }
                 }
                 // Alert dots last: the next chip would cover a dot drawn
                 // with its own chip.
@@ -147,6 +179,56 @@ extension MenuBarController {
 
         drawGlyph(chip, at: center, alpha: alpha)
 
+    }
+
+    /// The focused chip grown into a pill: its disc's colour, the glyph at
+    /// the start, then its reading. Cut out of the chips beneath, like a
+    /// disc.
+    static func drawPill(
+        _ chip: ClusterChip, left: CGFloat, width: CGFloat, midY: CGFloat, color: NSColor, context: NSGraphicsContext
+    ) {
+        let m = ChipMetrics.self
+        let height = m.face * m.focusScale
+        let rect = NSRect(x: left, y: midY - height / 2, width: max(width, height), height: height)
+        func capsule(_ r: NSRect) -> NSBezierPath {
+            NSBezierPath(roundedRect: r, xRadius: r.height / 2, yRadius: r.height / 2)
+        }
+        context.compositingOperation = .clear
+        capsule(rect.insetBy(dx: -m.cutout, dy: -m.cutout)).fill()
+        context.compositingOperation = .sourceOver
+
+        let alpha = chip.isStale ? m.staleAlpha : 1
+        let shape = capsule(rect)
+        let base = color.withAlphaComponent(alpha)
+        let lit = (color.blended(withFraction: m.sheenAlpha, of: .white) ?? color).withAlphaComponent(alpha)
+        NSGraphicsContext.saveGraphicsState()
+        shape.addClip()
+        NSGradient(starting: lit, ending: base)?.draw(
+            from: NSPoint(x: rect.midX, y: rect.minY), to: NSPoint(x: rect.midX, y: rect.maxY),
+            options: [.drawsBeforeStartingLocation, .drawsAfterEndingLocation]
+        )
+        drawGlyph(chip, at: NSPoint(x: rect.minX + height / 2, y: midY), alpha: alpha)
+        if !chip.reading.isEmpty {
+            let text = NSAttributedString(string: chip.reading, attributes: [
+                .font: pillFont(), .foregroundColor: NSColor.white.withAlphaComponent(alpha),
+            ])
+            let size = text.size()
+            let x = rect.minX + height + m.pillTextGap
+            let room = rect.maxX - m.pillTrailing - x
+            if room > 0 {
+                // Cut short with a fade-free clip; the reading is whole once
+                // the pill has grown.
+                NSGraphicsContext.saveGraphicsState()
+                NSRect(x: x, y: rect.minY, width: room, height: rect.height).clip()
+                text.draw(at: NSPoint(x: x, y: midY - size.height / 2))
+                NSGraphicsContext.restoreGraphicsState()
+            }
+        }
+        NSGraphicsContext.restoreGraphicsState()
+        let rim = capsule(rect.insetBy(dx: m.rimWidth / 2, dy: m.rimWidth / 2))
+        rim.lineWidth = m.rimWidth
+        NSColor.white.withAlphaComponent(m.rimAlpha * alpha).setStroke()
+        rim.stroke()
     }
 
     /// The red dot at a chip's top-trailing edge, cut out of what is under it.

@@ -224,4 +224,56 @@ final class MenuBarClusterFocusTests: XCTestCase {
             XCTAssertEqual(seen, [0, 1, 2, 3], "sweep \(direction)")
         }
     }
+
+    func testAPillPushesItsNeighboursAndStaysUnderAStillPointer() {
+        for count in 2...MenuBarClusterPolicy.maxChips {
+            let g = ClusterGeometry(count: count)
+            for pill in [18.0, 40, 64, 101] {
+                let pills = Array(repeating: pill, count: count)
+                let lead = g.hoverLead(pills: pills)
+                for focus in 0..<count {
+                    let xs = g.pillLayout(focus: focus, pill: pill)
+                    // Inside the item, the room on its left included.
+                    XCTAssertGreaterThanOrEqual(xs[0], -lead - 0.0001)
+                    let end = focus == count - 1 ? xs[focus] + pill + 2 * ClusterGeometry.slotInset : xs[count - 1] + ClusterGeometry.slot
+                    XCTAssertLessThanOrEqual(end, g.itemWidth + 0.0001)
+                    // The pill stands apart on both sides.
+                    if focus > 0 { XCTAssertEqual(xs[focus] - xs[focus - 1], ClusterGeometry.revealStep, accuracy: 0.0001) }
+                    if focus < count - 1 {
+                        XCTAssertEqual(xs[focus + 1] - xs[focus], pill + ClusterGeometry.revealStep - ClusterGeometry.disc, accuracy: 0.0001)
+                    }
+                }
+                // Folded, the pointer picks a chip; laid out for it, the
+                // pointer is still on it.
+                var x = 0.0
+                while x < g.collapsedWidth {
+                    if let first = g.pillIndex(at: x, focus: nil, pill: pill) {
+                        XCTAssertEqual(g.pillIndex(at: x, focus: first, pill: pill), first, "count \(count) pill \(pill) x \(x)")
+                    }
+                    x += 0.5
+                }
+            }
+        }
+    }
+
+    func testEveryChipIsReachableAlongPills() {
+        let g = ClusterGeometry(count: 4)
+        let pill = 64.0
+        let lead = g.hoverLead(pills: Array(repeating: pill, count: 4))
+        var focus: Int?
+        var seen = Set<Int>()
+        var x = 0.0
+        while x < g.itemWidth {
+            if let index = g.pillIndex(at: x, focus: focus, pill: pill) { focus = index; seen.insert(index) }
+            x += 0.25
+        }
+        XCTAssertEqual(seen, [0, 1, 2, 3])
+        seen = []
+        x = g.itemWidth - 0.25
+        while x >= -lead {
+            if let index = g.pillIndex(at: x, focus: focus, pill: pill) { focus = index; seen.insert(index) }
+            x -= 0.25
+        }
+        XCTAssertEqual(seen, [0, 1, 2, 3])
+    }
 }

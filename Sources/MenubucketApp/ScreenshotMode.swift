@@ -1258,8 +1258,10 @@ private struct ClusterShot: View {
         let appearance = NSAppearance(named: scheme == .dark ? .darkAqua : .aqua)!
         let image = MenuBarController.clusterImage(
             Self.chips,
-            positions: MenuBarController.clusterTargets(count: Self.chips.count, focus: focus),
+            positions: MenuBarController.clusterTargets(Self.chips, focus: focus),
             focus: focus,
+            pill: focus.map { MenuBarController.pillWidth(Self.chips[$0]) },
+            lead: focus == nil ? 0 : MenuBarController.clusterLead(for: Self.chips),
             markAlpha: focus == nil ? 1 : 0,
             mark: BarShelfStatusIcon.image(for: AppPreferences.defaultMenuBarSymbol, fallback: "tray.full"),
             badged: false,
