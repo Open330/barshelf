@@ -285,4 +285,21 @@ final class MenuBarClusterFocusTests: XCTestCase {
         entry.metrics = []
         XCTAssertNil(MenuBarClusterPolicy.value(of: entry))
     }
+
+    func testTheChipBesideAPillIsTheOneSelectedWhereItIsDrawn() {
+        for count in 2...MenuBarClusterPolicy.maxChips {
+            let g = ClusterGeometry(count: count)
+            for pill in [18.0, 54, 90] {
+                for focus in 1..<count {
+                    let xs = g.pillLayout(focus: focus, pill: pill)
+                    // The middle of the visible part of the chip before the pill.
+                    let discStart = xs[focus - 1] + ClusterGeometry.slotInset
+                    let pillStart = xs[focus] + ClusterGeometry.slotInset
+                    let visibleEnd = min(discStart + ClusterGeometry.disc, pillStart)
+                    let x = (discStart + visibleEnd) / 2
+                    XCTAssertEqual(g.pillIndex(at: x, focus: focus, pill: pill), focus - 1, "count \(count) pill \(pill) focus \(focus)")
+                }
+            }
+        }
+    }
 }
