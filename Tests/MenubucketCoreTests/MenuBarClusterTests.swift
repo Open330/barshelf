@@ -276,4 +276,13 @@ final class MenuBarClusterFocusTests: XCTestCase {
         }
         XCTAssertEqual(seen, [0, 1, 2, 3])
     }
+
+    func testPillValueIsTheReadingWithoutItsLabel() {
+        XCTAssertEqual(MenuBarClusterPolicy.shortValue(" 22% "), "22%")
+        XCTAssertEqual(MenuBarClusterPolicy.shortValue("123456789"), "1234567…")
+        var entry = MenuBarEntry(widgetID: "w", name: "System", metrics: [StatusMetric(label: "CPU", value: "22%")])
+        XCTAssertEqual(MenuBarClusterPolicy.value(of: entry), "22%")
+        entry.metrics = []
+        XCTAssertNil(MenuBarClusterPolicy.value(of: entry))
+    }
 }

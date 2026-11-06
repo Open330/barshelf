@@ -32,6 +32,9 @@ public struct ClusterChip: Equatable, Sendable, Identifiable {
     public var isStale: Bool
     /// The reading as the strip would draw it, for the peek.
     public var reading: String
+    /// The reading's value alone ("22%", "12W"), for the pill the chip
+    /// grows into under the pointer. The peek names it.
+    public var value: String
     /// What VoiceOver says for the chip.
     public var spoken: String
 
@@ -39,7 +42,7 @@ public struct ClusterChip: Equatable, Sendable, Identifiable {
         id: String? = nil,
         widgetID: String, name: String, symbol: String? = nil, initial: String,
         fraction: Double? = nil, tint: MenuBarTint? = nil, alert: Bool = false,
-        isStale: Bool = false, reading: String = "", spoken: String = ""
+        isStale: Bool = false, reading: String = "", value: String? = nil, spoken: String = ""
     ) {
         self.id = id ?? widgetID
         self.widgetID = widgetID
@@ -51,6 +54,7 @@ public struct ClusterChip: Equatable, Sendable, Identifiable {
         self.alert = alert
         self.isStale = isStale
         self.reading = reading
+        self.value = value ?? reading
         self.spoken = spoken
     }
 }
@@ -102,6 +106,7 @@ public enum MenuBarClusterPolicy {
                 alert: tint == .danger,
                 isStale: entry.isStale,
                 reading: value,
+                value: shortValue(value),
                 spoken: "\(entry.name), \(spoken)"
             )
         }
@@ -125,8 +130,25 @@ public enum MenuBarClusterPolicy {
             alert: tint == .danger,
             isStale: entry.isStale,
             reading: reading,
+            value: shortValue(value(of: entry) ?? reading),
             spoken: spoken.isEmpty ? entry.name : "\(entry.name), \(spoken)"
         )
+    }
+
+    /// The first reading's value, without its label; nil when the entry
+    /// has no metrics.
+    static func value(of entry: MenuBarEntry) -> String? {
+        guard let metric = entry.metrics.first else { return nil }
+        if !metric.value.isEmpty { return metric.value }
+        return metric.active.map { $0 ? "●" : "○" }
+    }
+
+    /// At most `valueLimit` characters, so a pill stays a pill.
+    static let valueLimit = 8
+    static func shortValue(_ text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        guard trimmed.count > valueLimit else { return trimmed }
+        return String(trimmed.prefix(valueLimit - 1)) + "…"
     }
 
     /// The first letter that is a letter or digit, upper-cased.
