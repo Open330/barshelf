@@ -550,6 +550,7 @@ final class MenuBarController {
         // A chart's width is fixed; its points are readings, not layout.
         layout.history = []
         layout.chartScale = nil
+        layout.profileMetrics = []
         layout.metrics = entry.metrics.map { metric in
             var metric = metric
             metric.value = ""
@@ -569,6 +570,9 @@ final class MenuBarController {
         var rhs = rhs
         lhs.tooltip = nil
         rhs.tooltip = nil
+        // Only the cluster draws profiles, and it compares its own chips.
+        lhs.profileMetrics = []
+        rhs.profileMetrics = []
         lhs.metrics = lhs.metrics.map(Self.drawnMetric)
         rhs.metrics = rhs.metrics.map(Self.drawnMetric)
         // Formatting and row overrides are already resolved into visible

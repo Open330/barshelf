@@ -261,6 +261,11 @@ public struct Manifest: Codable, Equatable {
         public var style: String?
         /// Author defaults for numeric/metric presentation.
         public var presentation: MenuBarPresentation?
+        /// Each of `status.metrics` is a profile of its own (an account, a
+        /// host, a cluster). In the menu bar's cluster layout every profile
+        /// gets a chip, labelled by the metric's label; elsewhere nothing
+        /// changes.
+        public var profiles: Bool?
 
         /// Display modes that put the widget in the menu bar.
         public static let promotableModes: Set<String> = ["icon", "text", "dynamic"]
@@ -282,7 +287,8 @@ public struct Manifest: Codable, Equatable {
             tooltipFrom: String? = nil,
             label: String? = nil,
             style: String? = nil,
-            presentation: MenuBarPresentation? = nil
+            presentation: MenuBarPresentation? = nil,
+            profiles: Bool? = nil
         ) {
             self.mode = mode
             self.icon = icon
@@ -291,6 +297,7 @@ public struct Manifest: Codable, Equatable {
             self.label = label
             self.style = style
             self.presentation = presentation
+            self.profiles = profiles
         }
     }
 

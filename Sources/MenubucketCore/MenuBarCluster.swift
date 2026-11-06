@@ -14,7 +14,8 @@ public enum MenuBarLayout: String, Codable, CaseIterable, Sendable {
 /// initial, a ring for a reading that is a share of something, and a dot
 /// when the reading is in trouble.
 public struct ClusterChip: Equatable, Sendable, Identifiable {
-    public var id: String { widgetID }
+    /// The widget's id, or `widgetID#profile` for one of its profiles.
+    public var id: String
     public var widgetID: String
     public var name: String
     /// SF Symbol for the face; nil draws `initial` instead.
@@ -35,10 +36,12 @@ public struct ClusterChip: Equatable, Sendable, Identifiable {
     public var spoken: String
 
     public init(
+        id: String? = nil,
         widgetID: String, name: String, symbol: String? = nil, initial: String,
         fraction: Double? = nil, tint: MenuBarTint? = nil, alert: Bool = false,
         isStale: Bool = false, reading: String = "", spoken: String = ""
     ) {
+        self.id = id ?? widgetID
         self.widgetID = widgetID
         self.name = name
         self.symbol = symbol
@@ -50,6 +53,12 @@ public struct ClusterChip: Equatable, Sendable, Identifiable {
         self.reading = reading
         self.spoken = spoken
     }
+}
+
+extension MenuBarEntry {
+    /// The readings that are profiles: the full list when the runtime kept
+    /// one, else the metrics the item draws.
+    var profileReadings: [StatusMetric] { profileMetrics.isEmpty ? metrics : profileMetrics }
 }
 
 public enum MenuBarClusterPolicy {
@@ -65,27 +74,59 @@ public enum MenuBarClusterPolicy {
     public static func chips(
         from entries: [MenuBarEntry], isSymbol: (String) -> Bool = { _ in true }
     ) -> [ClusterChip] {
-        MenuBarPolicy.promoted(entries).prefix(maxChips).map { entry in
-            let override = entry.iconOverride.flatMap { $0.isEmpty ? nil : $0 }
-            let symbolName = override ?? entry.symbol
-            let symbol = symbolName.flatMap { isSymbol($0) ? $0 : nil }
-            let glyph = override.flatMap { isSymbol($0) ? nil : $0 }
-            let tint = tint(for: entry)
-            let reading = MenuBarPolicy.normalizedLabel(MenuBarPolicy.entryText(entry), limit: 28) ?? ""
-            let spoken = MenuBarPolicy.accessibilityText(entry)
+        let all: [ClusterChip] = MenuBarPolicy.promoted(entries).flatMap { entry -> [ClusterChip] in
+            if entry.profiles, entry.profileReadings.count > 1 { return profileChips(entry) }
+            return [widgetChip(entry, isSymbol: isSymbol)]
+        }
+        return Array(all.prefix(maxChips))
+    }
+
+    /// One chip per metric of a widget whose metrics are profiles: named
+    /// by the metric's label, ringed by its own share and tint.
+    static func profileChips(_ entry: MenuBarEntry) -> [ClusterChip] {
+        entry.profileReadings.enumerated().map { index, metric in
+            let name = metric.label.isEmpty ? entry.name : metric.label
+            let tint = MenuBarTint.named(metric.tint)
+            let value = metric.value.isEmpty ? metric.active.map { $0 ? "●" : "○" } ?? "" : metric.value
+            let spoken = metric.accessibilityLabel ?? [name, value].filter { !$0.isEmpty }.joined(separator: " ")
+            var single = entry
+            single.metrics = [metric]
+            single.label = nil
             return ClusterChip(
+                id: "\(entry.widgetID)#\(metric.id ?? String(index))",
                 widgetID: entry.widgetID,
-                name: entry.name,
-                symbol: symbol,
-                initial: glyph.map { String($0.prefix(2)) } ?? initial(of: entry.name),
-                fraction: fraction(for: entry),
+                name: name,
+                initial: initial(of: name),
+                fraction: fraction(for: single),
                 tint: tint,
                 alert: tint == .danger,
                 isStale: entry.isStale,
-                reading: reading,
-                spoken: spoken.isEmpty ? entry.name : "\(entry.name), \(spoken)"
+                reading: value,
+                spoken: "\(entry.name), \(spoken)"
             )
         }
+    }
+
+    static func widgetChip(_ entry: MenuBarEntry, isSymbol: (String) -> Bool) -> ClusterChip {
+        let override = entry.iconOverride.flatMap { $0.isEmpty ? nil : $0 }
+        let symbolName = override ?? entry.symbol
+        let symbol = symbolName.flatMap { isSymbol($0) ? $0 : nil }
+        let glyph = override.flatMap { isSymbol($0) ? nil : $0 }
+        let tint = tint(for: entry)
+        let reading = MenuBarPolicy.normalizedLabel(MenuBarPolicy.entryText(entry), limit: 28) ?? ""
+        let spoken = MenuBarPolicy.accessibilityText(entry)
+        return ClusterChip(
+            widgetID: entry.widgetID,
+            name: entry.name,
+            symbol: symbol,
+            initial: glyph.map { String($0.prefix(2)) } ?? initial(of: entry.name),
+            fraction: fraction(for: entry),
+            tint: tint,
+            alert: tint == .danger,
+            isStale: entry.isStale,
+            reading: reading,
+            spoken: spoken.isEmpty ? entry.name : "\(entry.name), \(spoken)"
+        )
     }
 
     /// The first letter that is a letter or digit, upper-cased.

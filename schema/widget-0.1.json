@@ -341,6 +341,10 @@
         "tooltipFrom": {
           "type": "string"
         },
+        "profiles": {
+          "type": "boolean",
+          "description": "Each of status.metrics is a profile of its own (an account, a host). In the cluster menu bar layout every profile gets a chip."
+        },
         "label": {
           "type": "string",
           "description": "Default text drawn before the value in the menu bar (\"CPU\"). The user can override it, and a workflow's `status.prefix` takes precedence over it for widgets whose metric the user selects."

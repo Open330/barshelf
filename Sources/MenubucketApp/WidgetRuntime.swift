@@ -1596,7 +1596,7 @@ final class WidgetRuntime: ObservableObject {
                 live: snapshot?.statusPresentation,
                 manifest: statusItem.presentation
             )
-            let entry = MenuBarEntry(
+            var entry = MenuBarEntry(
                 widgetID: widget.id,
                 name: widget.displayName,
                 symbol: statusItem.showsIcon
@@ -1630,6 +1630,12 @@ final class WidgetRuntime: ObservableObject {
                 separate: separate,
                 presentation: presentation
             )
+            entry.profiles = statusItem.profiles ?? false
+            if entry.profiles, statusItem.showsLabel {
+                entry.profileMetrics = MenuBarPolicy.normalizedMetrics(
+                    snapshot?.statusMetrics ?? [], limit: MenuBarClusterPolicy.maxChips
+                )
+            }
             if let interval = placement.interval { intervalOverrides[widget.id] = interval }
             var applied = MenuBarPolicy.applyingPresentation(presentation, to: entry)
             // Only an item with its own place draws a chart; the strip is
