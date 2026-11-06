@@ -39,6 +39,9 @@ public struct AppPreferences: Codable, Equatable, Sendable {
     public var skippedUpdateVersion: String?
     /// The tallest the popup grows before its pages scroll.
     public var popupHeight: PopupHeight
+    /// Promoted widgets as text and items of their own, or as one cluster of
+    /// chips beside the BarShelf icon.
+    public var menuBarLayout: MenuBarLayout
 
     public enum PopupHeight: String, Codable, CaseIterable, Sendable {
         /// 480 pt, the size BarShelf has always opened at.
@@ -72,7 +75,8 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         menuBarPresentation: MenuBarPresentation? = nil,
         checkForUpdatesAutomatically: Bool = true,
         skippedUpdateVersion: String? = nil,
-        popupHeight: PopupHeight = .standard
+        popupHeight: PopupHeight = .standard,
+        menuBarLayout: MenuBarLayout = .items
     ) {
         self.menuBarSymbol = menuBarSymbol
         self.refreshMultiplier = refreshMultiplier
@@ -85,6 +89,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         self.checkForUpdatesAutomatically = checkForUpdatesAutomatically
         self.skippedUpdateVersion = skippedUpdateVersion
         self.popupHeight = popupHeight
+        self.menuBarLayout = menuBarLayout
         normalize()
     }
 
@@ -142,6 +147,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         // An unknown value from a newer build falls back rather than failing
         // the whole file.
         popupHeight = (try? container.decodeIfPresent(PopupHeight.self, forKey: .popupHeight)) ?? .standard
+        menuBarLayout = (try? container.decodeIfPresent(MenuBarLayout.self, forKey: .menuBarLayout)) ?? .items
         normalize()
     }
 

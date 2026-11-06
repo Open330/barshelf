@@ -13,9 +13,31 @@ struct MenuBarPage: View {
     var body: some View {
         SettingsPage {
             MenuBarHiddenBanner { id in runtime.widgets.first { $0.id == id }?.displayName }
+            layoutSection
             itemsSection
             styleSection
             overridesSection
+        }
+    }
+
+    // MARK: - Layout
+
+    private var layoutSection: some View {
+        Section {
+            Picker(selection: Binding(
+                get: { appPrefs.preferences.menuBarLayout },
+                set: { value in appPrefs.update { $0.menuBarLayout = value } }
+            )) {
+                Text("Text and Items").tag(MenuBarLayout.items)
+                Text("Cluster").tag(MenuBarLayout.cluster)
+            } label: {
+                Text("Show widgets as")
+                Text(appPrefs.preferences.menuBarLayout == .cluster
+                    ? "One small chip per widget beside the BarShelf icon. Point at them to fan them out, rest on one to see its reading, and click to open its card."
+                    : "Readings as text beside the BarShelf icon, or as items of their own.")
+            }
+            .pickerStyle(.segmented)
+            .accessibilityLabel("Show widgets as")
         }
     }
 

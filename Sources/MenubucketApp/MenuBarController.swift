@@ -78,6 +78,15 @@ final class MenuBarController {
     var onContextMenu: ((NSEvent, String, NSStatusBarButton) -> Void)?
 
     private let mainItem: NSStatusItem
+    /// Text and items, or one cluster of chips (`MenuBarLayout`).
+    private(set) var layout: MenuBarLayout = .items
+    /// A widget's colour for its chip face; nil uses the accent colour.
+    var chipColor: ((String) -> NSColor?)?
+    /// The chips the cluster last drew, for the controller that handles
+    /// hover and clicks on them. Empty outside cluster layout.
+    var onChipsChanged: (([ClusterChip]) -> Void)?
+    private var appliedChips: [ClusterChip]?
+    private var appearanceObservation: NSKeyValueObservation?
     /// Extra status items, keyed by widget id.
     private var separateItems: [String: NSStatusItem] = [:]
     private var mainSymbol: String = AppPreferences.defaultMenuBarSymbol
@@ -156,11 +165,39 @@ final class MenuBarController {
 
     init(mainItem: NSStatusItem) {
         self.mainItem = mainItem
+        // The cluster is drawn in colour, so not a template: it is drawn
+        // again for the bar's own appearance when that changes.
+        appearanceObservation = mainItem.button?.observe(\.effectiveAppearance) { [weak self] _, _ in
+            DispatchQueue.main.async {
+                guard let self, self.layout == .cluster else { return }
+                self.appliedChips = nil
+                self.redraw()
+            }
+        }
+    }
+
+    /// Switches between text-and-items and the cluster, redrawing the main
+    /// item from scratch either way.
+    func setLayout(_ layout: MenuBarLayout) {
+        guard self.layout != layout else { return }
+        self.layout = layout
+        appliedSymbol = nil
+        appliedStrip = nil
+        appliedChips = nil
+        redraw()
+    }
+
+    /// Redraw after a widget's colour changed.
+    func invalidateChips() {
+        guard layout == .cluster else { return }
+        appliedChips = nil
+        redraw()
     }
 
     /// The SF Symbol / brand mark shown on the main item (app preference).
     func setMainSymbol(_ symbol: String) {
         mainSymbol = symbol
+        appliedChips = nil
         redraw()
     }
 
@@ -170,6 +207,7 @@ final class MenuBarController {
         attention = needsAttention
         // Rebuild the mark with or without the dot on the next draw.
         appliedSymbol = nil
+        appliedChips = nil
         redraw()
     }
 
@@ -183,9 +221,67 @@ final class MenuBarController {
     }
 
     private func redraw() {
+        if layout == .cluster {
+            applySeparateItems([])
+            applyCluster()
+            return
+        }
+        if appliedChips != nil {
+            appliedChips = nil
+            onChipsChanged?([])
+        }
         let (strip, separate) = MenuBarPolicy.partition(currentEntries)
         applyStrip(strip)
         applySeparateItems(separate)
+    }
+
+    // MARK: - Cluster
+
+    private func applyCluster() {
+        guard let button = mainItem.button else { return }
+        let drawable = MenuBarPolicy.promoted(currentEntries).filter { !$0.isEmpty }
+        let chips = MenuBarClusterPolicy.chips(from: drawable) { name in
+            NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil
+        }
+        guard !chips.isEmpty else {
+            // Nothing promoted: the plain icon, drawn the usual way.
+            if appliedChips != [] {
+                appliedChips = []
+                appliedSymbol = nil
+                appliedStrip = nil
+                onChipsChanged?([])
+            }
+            applyStrip([])
+            return
+        }
+        guard appliedChips != chips else { return }
+        appliedChips = chips
+        // The strip path must start over when the layout switches back.
+        appliedSymbol = nil
+        appliedStrip = nil
+        let mark = BarShelfStatusIcon.image(for: mainSymbol, fallback: AppPreferences.defaultMenuBarSymbol)
+        let image = Self.clusterImage(
+            chips, mark: mark, badged: attention,
+            color: { [chipColor] id in chipColor?(id) ?? .controlAccentColor },
+            appearance: button.effectiveAppearance,
+            height: NSStatusBar.system.thickness
+        )
+        button.image = image
+        if button.attributedTitle.length > 0 { button.attributedTitle = NSAttributedString(string: "") }
+        if button.imagePosition != .imageOnly { button.imagePosition = .imageOnly }
+        let length = ceil(image.size.width) + Self.clusterItemInset * 2
+        if abs(mainItem.length - length) > 0.5 { mainItem.length = length }
+        button.toolTip = nil
+        let spoken = chips.map(\.spoken).joined(separator: "; ")
+        button.setAccessibilityLabel("\(BarShelfStatusIcon.accessibilityLabel(badged: attention)), \(spoken)")
+        onChipsChanged?(chips)
+    }
+
+    /// Where the cluster's stack starts inside the main button, in its
+    /// coordinates (x from the left). The image is centred in the button.
+    func clusterOrigin(in button: NSStatusBarButton) -> CGFloat {
+        guard let image = button.image else { return Self.clusterItemInset }
+        return ((button.bounds.width - image.size.width) / 2).rounded()
     }
 
     // MARK: - Main item (shared strip)
