@@ -104,50 +104,63 @@ struct ClusterChipFace: View {
 
     enum Metrics {
         static let face = MenuBarController.ChipMetrics.face
-        static let core = MenuBarController.ChipMetrics.core
         static let ring = MenuBarController.ChipMetrics.ringWidth
+        /// The share arc's diameter: around the disc, a gap away.
+        static let arc = face + 2 * (MenuBarController.ChipMetrics.ringGap + ring / 2)
         static let badge = MenuBarController.ChipMetrics.badge
         static let glyph = MenuBarController.ChipMetrics.glyphSize
         static let hit: CGFloat = 24
-        static let nearScale: CGFloat = 1.04
-        static let hoverScale: CGFloat = 1.12
-        static let activeRing: CGFloat = 26
+        static let nearScale: CGFloat = 1.03
+        static let hoverScale: CGFloat = 1.08
+        static let activeDisc: CGFloat = 26
     }
 
     let chip: ClusterChip
     let color: Color
     var emphasis: Emphasis = .rest
+    /// The share arc around the disc, for the chip in focus. The folded
+    /// stack in the menu bar never draws it.
+    var showsRing = true
 
     var body: some View {
         ZStack {
-            Circle()
-                .stroke(Color.primary.opacity(MenuBarController.ChipMetrics.trackAlpha), lineWidth: Metrics.ring)
-                .frame(width: Metrics.face - Metrics.ring, height: Metrics.face - Metrics.ring)
-            if let fraction = chip.fraction, fraction > 0 {
+            if emphasis == .active {
+                // The open card's chip sits in a soft well, not a drawn ring.
                 Circle()
-                    .trim(from: 0, to: fraction)
-                    .stroke(ringColor, style: StrokeStyle(lineWidth: Metrics.ring, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                    .frame(width: Metrics.face - Metrics.ring, height: Metrics.face - Metrics.ring)
+                    .fill(Fill.pressed)
+                    .frame(width: Metrics.activeDisc, height: Metrics.activeDisc)
+            }
+            // Only the chip in focus shows its share, so a fanned-out strip
+            // is a row of clean discs rather than a row of gauges.
+            if showsRing, emphasis == .hovered || emphasis == .active, let fraction = chip.fraction {
+                Circle()
+                    .stroke(Color.primary.opacity(MenuBarController.ChipMetrics.trackAlpha), lineWidth: Metrics.ring)
+                    .frame(width: Metrics.arc, height: Metrics.arc)
+                if fraction > 0 {
+                    Circle()
+                        .trim(from: 0, to: fraction)
+                        .stroke(ringColor, style: StrokeStyle(lineWidth: Metrics.ring, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                        .frame(width: Metrics.arc, height: Metrics.arc)
+                }
             }
             Circle()
-                .fill(color.gradient)
+                .fill(color)
                 .overlay(Circle().fill(LinearGradient(
                     colors: [.white.opacity(MenuBarController.ChipMetrics.sheenAlpha), .clear],
-                    startPoint: .top, endPoint: .center
+                    startPoint: .top, endPoint: .bottom
                 )))
-                .frame(width: Metrics.core, height: Metrics.core)
+                .overlay(Circle().strokeBorder(
+                    .white.opacity(MenuBarController.ChipMetrics.rimAlpha),
+                    lineWidth: MenuBarController.ChipMetrics.rimWidth
+                ))
+                .frame(width: Metrics.face, height: Metrics.face)
             glyph
             if chip.alert {
                 Circle()
                     .fill(Color.red)
                     .frame(width: Metrics.badge, height: Metrics.badge)
-                    .offset(x: (Metrics.face - Metrics.badge) / 2, y: -(Metrics.face - Metrics.badge) / 2)
-            }
-            if emphasis == .active {
-                Circle()
-                    .strokeBorder(Color.primary.opacity(Fill.keyCapInButton), lineWidth: Metrics.ring)
-                    .frame(width: Metrics.activeRing, height: Metrics.activeRing)
+                    .offset(x: Metrics.face / 2 - Metrics.badge / 3, y: -(Metrics.face / 2 - Metrics.badge / 3))
             }
         }
         .opacity(chip.isStale ? MenuBarController.ChipMetrics.staleAlpha : 1)
@@ -192,7 +205,7 @@ struct ClusterPeekView: View {
 
     var body: some View {
         HStack(spacing: Spacing.xs) {
-            ClusterChipFace(chip: chip, color: color)
+            ClusterChipFace(chip: chip, color: color, emphasis: .hovered)
             VStack(alignment: .leading, spacing: Spacing.hair / 2) {
                 Text(chip.name)
                     .font(.caption.weight(.semibold))

@@ -8,20 +8,32 @@ extension MenuBarController {
     /// Space the button keeps either side of the drawing.
     static let clusterItemInset: CGFloat = 3
 
-    /// A chip's face, its coloured core and the ring between them.
+    /// A chip: a solid disc in the widget's colour. Folded, that is all it
+    /// is (plus an alert dot); the share ring appears only in the fanned-out
+    /// strip, a thin arc held off the disc by a gap, so the menu bar never
+    /// shows a pile of concentric outlines.
     enum ChipMetrics {
-        static let face: CGFloat = 20
-        static let core: CGFloat = 15
+        /// The disc.
+        static let face: CGFloat = 18
+        static let core: CGFloat = face
+        /// The share arc in the strip, and the gap between it and the disc.
         static let ringWidth: CGFloat = 1.5
+        static let ringGap: CGFloat = 1.5
         /// The clear ring that separates a chip from the one it covers.
-        static let cutout: CGFloat = 2
+        static let cutout: CGFloat = 1.5
         static let badge: CGFloat = 6
         static let glyphSize: CGFloat = 8.5
-        /// The box a symbol is fitted into, inside the core.
-        static let glyphBox: CGFloat = 9
-        static let trackAlpha: CGFloat = 0.22
+        /// The box a symbol is fitted into, inside the disc.
+        static let glyphBox: CGFloat = 9.5
+        /// The arc's track, barely there.
+        static let trackAlpha: CGFloat = 0.12
         static let staleAlpha: CGFloat = 0.45
-        static let sheenAlpha: CGFloat = 0.3
+        /// How much lighter the disc's top is than its colour.
+        static let sheenAlpha: CGFloat = 0.22
+        /// The disc's fine inner edge, which keeps a dark colour from
+        /// melting into a dark menu bar.
+        static let rimAlpha: CGFloat = 0.18
+        static let rimWidth: CGFloat = 0.5
     }
 
     static func clusterImage(
@@ -97,36 +109,22 @@ extension MenuBarController {
         context.compositingOperation = .sourceOver
 
         let alpha = chip.isStale ? m.staleAlpha : 1
-        // Ring: the share, in the reading's colour, over a faint track.
-        let ringDiameter = m.face - m.ringWidth
-        let track = circle(ringDiameter)
-        track.lineWidth = m.ringWidth
-        NSColor.labelColor.withAlphaComponent(m.trackAlpha * alpha).setStroke()
-        track.stroke()
-        if let fraction = chip.fraction, fraction > 0 {
-            let arc = NSBezierPath()
-            // Flipped: -90° is the top; clockwise in screen terms.
-            arc.appendArc(
-                withCenter: center, radius: ringDiameter / 2,
-                startAngle: -90, endAngle: -90 + 360 * CGFloat(fraction), clockwise: false
-            )
-            arc.lineWidth = m.ringWidth
-            arc.lineCapStyle = .round
-            let ink = chip.tint.map(nsColor(for:)) ?? .labelColor
-            ink.withAlphaComponent(alpha).setStroke()
-            arc.stroke()
-        }
-
-        // Core: the widget's colour, lit from above.
-        let core = circle(m.core)
-        color.withAlphaComponent(alpha).setFill()
-        core.fill()
+        // The disc: the widget's colour, a little lighter at the top.
+        let disc = circle(m.face)
+        let base = color.withAlphaComponent(alpha)
+        let lit = (color.blended(withFraction: m.sheenAlpha, of: .white) ?? color).withAlphaComponent(alpha)
         NSGraphicsContext.saveGraphicsState()
-        core.addClip()
-        NSGradient(
-            starting: NSColor.white.withAlphaComponent(m.sheenAlpha), ending: .clear
-        )?.draw(in: core.bounds, angle: 90)
+        disc.addClip()
+        NSGradient(starting: lit, ending: base)?.draw(
+            from: NSPoint(x: center.x, y: center.y - m.face / 2),
+            to: NSPoint(x: center.x, y: center.y + m.face / 2),
+            options: [.drawsBeforeStartingLocation, .drawsAfterEndingLocation]
+        )
         NSGraphicsContext.restoreGraphicsState()
+        let rim = circle(m.face - m.rimWidth)
+        rim.lineWidth = m.rimWidth
+        NSColor.white.withAlphaComponent(m.rimAlpha * alpha).setStroke()
+        rim.stroke()
 
         drawGlyph(chip, at: center, alpha: alpha)
 
@@ -135,7 +133,7 @@ extension MenuBarController {
     /// The red dot at a chip's top-trailing edge, cut out of what is under it.
     static func drawBadge(at center: NSPoint, context: NSGraphicsContext) {
         let m = ChipMetrics.self
-        let badgeCenter = NSPoint(x: center.x + m.face / 2 - m.badge / 2, y: center.y - m.face / 2 + m.badge / 2)
+        let badgeCenter = NSPoint(x: center.x + m.face / 2 - m.badge / 3, y: center.y - m.face / 2 + m.badge / 3)
         func circle(_ diameter: CGFloat) -> NSBezierPath {
             NSBezierPath(ovalIn: NSRect(
                 x: badgeCenter.x - diameter / 2, y: badgeCenter.y - diameter / 2, width: diameter, height: diameter
