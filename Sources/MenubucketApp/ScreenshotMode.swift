@@ -710,19 +710,82 @@ private struct ShotCard: View {
 
     private var accent: Color { WidgetAppearance(accent: accentName).accentColor ?? .accentColor }
 
+    /// The real card: icon tile and name, the widget below, on a soft card.
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Image(systemName: icon).font(.system(size: 11)).foregroundColor(accent)
-                Text(title).font(.system(size: 11, weight: .semibold)).foregroundColor(.secondary)
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            HStack(spacing: Spacing.stack) {
+                CardIconTile(symbol: icon, color: accent)
+                Text(title).font(.subheadline.weight(.semibold))
                 Spacer(minLength: 0)
             }
             ViewTreeRenderer(node: node)
                 .environment(\.widgetAppearance, WidgetAppearance(accent: accentName))
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(Spacing.cardInset)
         .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).fill(Fill.card))
+    }
+}
+
+/// RootView's chrome without native menus (ImageRenderer cannot draw them):
+/// page name and position, refresh and ⋯, the search capsule.
+private struct ShotHeader: View {
+    let page: String
+    var position: String?
+
+    var body: some View {
+        VStack(spacing: Spacing.xs) {
+            HStack(spacing: Spacing.stack) {
+                Text(page).font(.headline)
+                Image(systemName: "chevron.down").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
+                if let position {
+                    Text(position).font(.caption.weight(.medium).monospacedDigit()).foregroundStyle(.tertiary)
+                }
+                Spacer()
+                Image(systemName: "arrow.clockwise").foregroundStyle(.secondary)
+                    .frame(width: ControlMetrics.height, height: ControlMetrics.height)
+                Image(systemName: "ellipsis").foregroundStyle(.secondary)
+                    .frame(width: ControlMetrics.height, height: ControlMetrics.height)
+            }
+            HStack(spacing: Spacing.stack) {
+                Image(systemName: "magnifyingglass").font(.callout.weight(.medium))
+                Text("Search widgets").font(.callout)
+                Spacer(minLength: 0)
+                KeyCap("⌘F")
+            }
+            .foregroundStyle(.secondary)
+            .padding(.leading, Spacing.s - Spacing.hair)
+            .padding(.trailing, Spacing.stack)
+            .frame(height: ControlMetrics.height)
+            .background(Capsule().fill(Fill.hover))
+        }
+        .padding(.leading, Spacing.s)
+        .padding(.trailing, Spacing.xs)
+        .padding(.top, Spacing.xs)
+        .padding(.bottom, Spacing.xxs)
+    }
+}
+
+/// The page dots under the shelf, the current one larger and solid.
+private struct ShotDots: View {
+    let count: Int
+    let current: Int
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(0..<count, id: \.self) { index in
+                Circle()
+                    .fill(index == current ? Color.primary
+                        : Color.secondary.opacity(RootView.inactivePageDotOpacity(increasedContrast: false)))
+                    .frame(
+                        width: RootView.pageDotDiameter(isCurrent: index == current, isDropTarget: false),
+                        height: RootView.pageDotDiameter(isCurrent: index == current, isDropTarget: false)
+                    )
+                    .frame(width: Spacing.l, height: Spacing.l)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.bottom, Spacing.stack)
     }
 }
 
@@ -1064,39 +1127,17 @@ private struct MenuBarStrip: View {
 private struct HeroPanel: View {
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Text("Home").font(.system(size: 13, weight: .semibold))
-                Spacer()
-                Image(systemName: "magnifyingglass").font(.system(size: 11)).foregroundColor(.secondary)
-                Image(systemName: "arrow.clockwise").font(.system(size: 11)).foregroundColor(.secondary)
-            }
-            .padding(.horizontal, 12).padding(.vertical, 10)
-            Divider()
-            VStack(spacing: 0) {
+            ShotHeader(page: "Home")
+            VStack(spacing: Spacing.cardGap) {
                 ShotCard(title: "Today", icon: "calendar", node: ShotData.todayNode, accentName: "red")
-                Divider().padding(.horizontal, 12)
-                HStack(alignment: .top, spacing: 0) {
+                HStack(alignment: .top, spacing: Spacing.cardGap) {
                     ShotCard(title: "Weather", icon: "cloud.sun.fill", node: ShotData.weatherNode, accentName: "blue")
-                    Divider()
                     ShotCard(title: "Battery", icon: "battery.100percent", node: ShotData.batteryNode, accentName: "green")
                 }
-                Divider().padding(.horizontal, 12)
                 ShotCard(title: "k8s pods", icon: "shippingbox", node: ShotData.k8sNode)
-                Divider().padding(.horizontal, 12)
                 ShotCard(title: "Recent Files", icon: "clock.arrow.circlepath", node: ShotData.filesNode)
             }
-            .padding(.vertical, 4)
-            Divider()
-            HStack(spacing: 10) {
-                Image(systemName: "plus").font(.system(size: 11)).foregroundColor(.secondary)
-                Image(systemName: "chevron.left").font(.system(size: 10)).foregroundColor(.secondary.opacity(0.5))
-                Spacer()
-                Circle().fill(Color.accentColor).frame(width: 7, height: 7)
-                Spacer()
-                Image(systemName: "chevron.right").font(.system(size: 10)).foregroundColor(.secondary)
-                Image(systemName: "gearshape").font(.system(size: 11)).foregroundColor(.secondary)
-            }
-            .padding(.horizontal, 12).padding(.vertical, 8)
+            .padding(Spacing.cardGap)
         }
         .frame(width: ScreenshotMode.heroPanelWidth)
         .background(Color(nsColor: .controlBackgroundColor))
@@ -1133,43 +1174,23 @@ private struct PopoverShot: View {
     let scheme: ColorScheme
     var body: some View {
         VStack(spacing: 0) {
-            // Mirrors RootView's header: page menu, position, search,
-            // refresh, ⋯ (drawn as images — ImageRenderer has no native menus).
-            HStack(spacing: Spacing.xs) {
-                Text("Demo").font(.headline)
-                Image(systemName: "chevron.down").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
-                Text("1 of 3").font(.caption).foregroundStyle(.secondary)
-                Spacer()
-                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                Image(systemName: "arrow.clockwise").foregroundStyle(.secondary)
-                Image(systemName: "ellipsis.circle").foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, Spacing.s).padding(.vertical, 10)
-            Divider()
-            VStack(spacing: 0) {
+            ShotHeader(page: "Demo", position: "1/3")
+            VStack(spacing: Spacing.cardGap) {
                 ShotCard(title: "Today", icon: "calendar", node: ShotData.todayNode, accentName: "red")
-                Divider().padding(.horizontal, 12)
-                HStack(alignment: .top, spacing: 0) {
+                HStack(alignment: .top, spacing: Spacing.cardGap) {
                     ShotCard(title: "Battery", icon: "battery.100percent", node: ShotData.batteryNode, accentName: "green")
-                    Divider()
                     ShotCard(title: "Weather", icon: "cloud.sun.fill", node: ShotData.weatherNode, accentName: "blue")
                 }
-                Divider().padding(.horizontal, 12)
                 ShotCard(title: "aas usage", icon: "gauge", node: ShotData.aasNode, accentName: "orange")
             }
-            .padding(.vertical, 4)
-            Divider()
-            HStack(spacing: 7) {
-                Circle().fill(Color.secondary.opacity(0.4)).frame(width: 6, height: 6)
-                Circle().fill(Color.accentColor).frame(width: 7, height: 7)
-                Circle().fill(Color.secondary.opacity(0.4)).frame(width: 6, height: 6)
-            }
-            .padding(9)
+            .padding(Spacing.cardGap)
+            ShotDots(count: 3, current: 0)
         }
-        .frame(width: 360)
+        .frame(width: RootView.defaultSize.width)
+        // ImageRenderer draws no materials; the popup's solid stand-in.
         .background(Color(nsColor: .controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.primary.opacity(0.12), lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: Radius.surface, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.surface, style: .continuous).strokeBorder(Fill.hairline, lineWidth: 1))
         .padding(20)
         .background(shotBackground)
         .environment(\.colorScheme, scheme)

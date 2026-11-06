@@ -420,3 +420,105 @@ struct WidgetMark: View {
         )
     }
 }
+
+/// A toolbar symbol: bare at rest, on a soft disc under the pointer, giving a
+/// little when pressed.
+struct IconButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        IconButton(configuration: configuration)
+    }
+}
+
+extension ButtonStyle where Self == IconButtonStyle {
+    static var icon: IconButtonStyle { IconButtonStyle() }
+}
+
+private struct IconButton: View {
+    let configuration: ButtonStyle.Configuration
+    @State private var hovering = false
+    @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        configuration.label
+            .font(.body.weight(.medium))
+            .foregroundStyle(hovering ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+            .frame(width: ControlMetrics.height, height: ControlMetrics.height)
+            .background(Circle().fill(
+                configuration.isPressed ? Fill.pressed : hovering ? Fill.hover : .clear
+            ))
+            .contentShape(Circle())
+            .scaleEffect(configuration.isPressed && !reduceMotion ? Motion.pressScale : 1)
+            .opacity(isEnabled ? 1 : Fill.disabled)
+            .animation(Motion.respecting(reduceMotion, Motion.press), value: configuration.isPressed)
+            .animation(Motion.respecting(reduceMotion, Motion.quick), value: hovering)
+            .onHover { hovering = $0 && isEnabled }
+    }
+}
+
+/// A small glass label naming a control and its key, shown after the
+/// pointer rests on the control for a moment: "Refresh All ⌘R".
+///
+/// Drawn inside the window rather than as a system tooltip, so it shows the
+/// key the way the rest of the app does. `alignment` keeps a control at the
+/// window's edge from pushing its hint off the side.
+struct HoverHint: ViewModifier {
+    let title: LocalizedStringKey
+    var key: String?
+    var alignment: HorizontalAlignment = .center
+    @State private var shown = false
+    @State private var pending: Task<Void, Never>?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content
+            .onHover { inside in
+                pending?.cancel()
+                if inside {
+                    pending = Task { @MainActor in
+                        try? await Task.sleep(for: Self.delay)
+                        guard !Task.isCancelled else { return }
+                        shown = true
+                    }
+                } else {
+                    shown = false
+                }
+            }
+            .overlay(alignment: Alignment(horizontal: alignment, vertical: .bottom)) {
+                if shown {
+                    label
+                        .alignmentGuide(.bottom) { $0[.top] - Spacing.xxs }
+                        .transition(.opacity.combined(with: .offset(y: -Spacing.xxs)))
+                        .allowsHitTesting(false)
+                }
+            }
+            .animation(Motion.respecting(reduceMotion, Motion.quick), value: shown)
+            .onDisappear { pending?.cancel() }
+    }
+
+    private var label: some View {
+        HStack(spacing: Spacing.stack) {
+            Text(title)
+            if let key { KeyCap(key) }
+        }
+        .font(.caption.weight(.medium))
+        .padding(.leading, Spacing.xs)
+        .padding(.trailing, key == nil ? Spacing.xs : Spacing.xxs)
+        .frame(height: ControlMetrics.smallHeight)
+        .fixedSize()
+        .glassSurface(Capsule())
+        .accessibilityHidden(true)
+    }
+
+    static let delay: Duration = .milliseconds(450)
+}
+
+extension View {
+    /// See `HoverHint`. The control keeps its own accessibility label; the
+    /// hint is for the pointer only.
+    func hoverHint(
+        _ title: LocalizedStringKey, key: String? = nil, alignment: HorizontalAlignment = .center
+    ) -> some View {
+        modifier(HoverHint(title: title, key: key, alignment: alignment))
+    }
+}

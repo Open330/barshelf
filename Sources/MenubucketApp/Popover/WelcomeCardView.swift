@@ -35,12 +35,13 @@ struct WelcomeCardView: View {
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: Spacing.xs) {
                 Button("Add Widget…", action: addWidget)
-                    .controlSize(.small)
+                    .buttonStyle(.glass(.accent))
                 Button("Getting Started") {
                     NSWorkspace.shared.open(RootView.gettingStartedURL)
                 }
-                .controlSize(.small)
+                .buttonStyle(.glass(.plain))
             }
+            .controlSize(.small)
         }
         .padding(Spacing.cardInset)
         .frame(maxWidth: .infinity, alignment: .leading)

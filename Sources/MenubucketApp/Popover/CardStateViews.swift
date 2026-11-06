@@ -44,6 +44,7 @@ struct CardEmptyView: View {
                 .foregroundStyle(.secondary)
             Spacer(minLength: 0)
             Button("Refresh", action: onRefresh)
+                .buttonStyle(.glass(.secondary))
                 .controlSize(.small)
         }
         .padding(.vertical, Spacing.xxs)
@@ -68,13 +69,14 @@ struct CardErrorView: View {
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: Spacing.xs) {
                 Button("Retry", action: onRetry)
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.glass(.primary))
                 Button(showsDetails ? "Hide Details" : "Details") { showsDetails.toggle() }
                 Button("Settings…", action: onSettings)
                 if explanation.kind == .permissionDenied {
                     PrivacySettingsButton()
                 }
             }
+            .buttonStyle(.glass(.secondary))
             .controlSize(.small)
             if showsDetails {
                 RawErrorText(error: error)
@@ -193,18 +195,23 @@ struct PermissionApprovalView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                Spacer(minLength: Spacing.xs)
-                Button("Deny", action: onDeny)
-                    .buttonStyle(.borderless)
-                    .foregroundStyle(.secondary)
-                Button("Allow", action: onAllow)
-                    .buttonStyle(.borderedProminent)
+                Spacer(minLength: 0)
             }
-            .controlSize(.small)
             if requests.count > 1 {
                 PermissionList(requests: requests)
                     .padding(.leading, 26 + Spacing.xs)
             }
+            // The decision sits on its own row, so the reason above keeps
+            // the card's full width. Deliberately no `.defaultAction`: see
+            // the type's note.
+            HStack(spacing: Spacing.xxs) {
+                Spacer(minLength: 0)
+                Button("Deny", action: onDeny)
+                    .buttonStyle(.glass(.plain))
+                Button("Allow", action: onAllow)
+                    .buttonStyle(.glass(.primary))
+            }
+            .controlSize(.small)
         }
         // The widget's card is the surface; a box of its own here would be
         // a box inside a box.
@@ -261,7 +268,9 @@ struct PermissionDeniedView: View {
                     .foregroundStyle(.secondary)
                 HStack(spacing: Spacing.xs) {
                     Button("Review Permissions") { reviewing = true }
+                        .buttonStyle(.glass(.secondary))
                     Button("Remove Widget…", role: .destructive, action: onRemove)
+                        .buttonStyle(.glass(.destructive))
                 }
                 .controlSize(.small)
             }
@@ -288,8 +297,9 @@ struct CrashDisabledView: View {
             )
             HStack(spacing: Spacing.xs) {
                 Button("Restart Widget", action: onRestart)
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.glass(.primary))
                 Button("Open Logs", action: onOpenLogs)
+                    .buttonStyle(.glass(.secondary))
             }
             .controlSize(.small)
         }

@@ -4,7 +4,7 @@
   "Sources\/MenubucketApp\/Hub\/ShelfView.swift" : 1,
   "Sources\/MenubucketApp\/Popover\/RootView.swift" : 2,
   "Sources\/MenubucketApp\/Renderer\/ViewTreeRenderer.swift" : 1,
-  "Sources\/MenubucketApp\/ScreenshotMode.swift" : 169,
+  "Sources\/MenubucketApp\/ScreenshotMode.swift" : 135,
   "Sources\/MenubucketApp\/WidgetSettingsView.swift" : 49,
   "WidgetExtension\/BarShelfWidgets\/ShelfTemplates.swift" : 20,
   "WidgetExtension\/BarShelfWidgets\/ShelfWidget.swift" : 6,
