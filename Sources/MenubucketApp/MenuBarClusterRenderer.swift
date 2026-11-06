@@ -43,6 +43,7 @@ extension MenuBarController {
         _ chips: [ClusterChip],
         positions: [CGFloat]? = nil,
         focus: Int? = nil,
+        markAlpha: CGFloat = 1,
         mark: NSImage,
         badged: Bool,
         color: @escaping (String) -> NSColor,
@@ -85,7 +86,10 @@ extension MenuBarController {
                     x: geometry.collapsedMarkX, y: (height - mark.size.height) / 2,
                     width: ClusterGeometry.markWidth, height: mark.size.height
                 )
-                drawTemplate(badged ? BarShelfStatusIcon.badgedImage(mark) : mark, in: markRect)
+                // Hidden while a chip is in focus: its room is the chips'.
+                if markAlpha > 0 {
+                    drawTemplate(badged ? BarShelfStatusIcon.badgedImage(mark) : mark, in: markRect, alpha: markAlpha)
+                }
             }
             return true
         }
@@ -94,7 +98,7 @@ extension MenuBarController {
     }
 
     /// A template image in the bar's text colour.
-    private static func drawTemplate(_ template: NSImage, in rect: NSRect) {
+    private static func drawTemplate(_ template: NSImage, in rect: NSRect, alpha: CGFloat = 1) {
         let fitted = NSRect(
             x: rect.midX - template.size.width / 2, y: rect.minY,
             width: template.size.width, height: template.size.height
@@ -105,7 +109,7 @@ extension MenuBarController {
             bounds.fill(using: .sourceAtop)
             return true
         }
-        tinted.draw(in: fitted)
+        tinted.draw(in: fitted, from: .zero, operation: .sourceOver, fraction: alpha, respectFlipped: true, hints: nil)
     }
 
     static func drawChip(

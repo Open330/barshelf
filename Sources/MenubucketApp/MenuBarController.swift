@@ -90,6 +90,9 @@ final class MenuBarController {
     /// right now (they glide between layouts).
     private(set) var clusterFocus: Int?
     private var clusterPositions: [CGFloat] = []
+    /// The BarShelf icon's opacity in the cluster: it fades out while a chip
+    /// is in focus, so the chips can spread into its room.
+    private var clusterMarkAlpha: CGFloat = 1
     private var focusAnimation: Timer?
     private var appearanceObservation: NSKeyValueObservation?
     /// Extra status items, keyed by widget id.
@@ -265,6 +268,7 @@ final class MenuBarController {
             clusterFocus = nil
             focusAnimation?.invalidate()
             clusterPositions = Self.clusterTargets(count: chips.count, focus: nil)
+            clusterMarkAlpha = 1
         }
         appliedChips = chips
         drawCluster(chips, on: button)
@@ -277,7 +281,7 @@ final class MenuBarController {
         appliedStrip = nil
         let mark = BarShelfStatusIcon.image(for: mainSymbol, fallback: AppPreferences.defaultMenuBarSymbol)
         let image = Self.clusterImage(
-            chips, positions: clusterPositions, focus: clusterFocus, mark: mark, badged: attention,
+            chips, positions: clusterPositions, focus: clusterFocus, markAlpha: clusterMarkAlpha, mark: mark, badged: attention,
             color: { [chipColor] id in chipColor?(id) ?? .controlAccentColor },
             appearance: button.effectiveAppearance,
             height: NSStatusBar.system.thickness
@@ -300,8 +304,9 @@ final class MenuBarController {
     /// Uncovers one chip in place (nil folds them all again), gliding there
     /// over a few frames unless `animated` is false.
     ///
-    /// The item's width never changes, so nothing else in the menu bar moves
-    /// or is covered. Each frame is one image set on the status item, which
+    /// The BarShelf icon fades out meanwhile and the chips spread into its
+    /// room. The item's width never changes, so nothing else in the menu bar
+    /// moves or is covered. Each frame is one image set on the status item, which
     /// is cheap enough for a pointer moving between chips.
     func setClusterFocus(_ focus: Int?, animated: Bool) {
         guard layout == .cluster, let chips = appliedChips, !chips.isEmpty,
@@ -310,8 +315,11 @@ final class MenuBarController {
         let target = Self.clusterTargets(count: chips.count, focus: focus)
         focusAnimation?.invalidate()
         let start = clusterPositions.count == target.count ? clusterPositions : target
+        let markStart = clusterMarkAlpha
+        let markTarget: CGFloat = ClusterGeometry(count: chips.count).hidesMark(focus: focus) ? 0 : 1
         guard animated else {
             clusterPositions = target
+            clusterMarkAlpha = markTarget
             drawCluster(chips, on: button)
             return
         }
@@ -324,6 +332,7 @@ final class MenuBarController {
             // Ease out: quick to start, gentle to land.
             let eased = CGFloat(1 - pow(1 - t, 3))
             self.clusterPositions = zip(start, target).map { $0 + ($1 - $0) * eased }
+            self.clusterMarkAlpha = markStart + (markTarget - markStart) * eased
             self.drawCluster(chips, on: button)
             if t >= 1 { timer.invalidate() }
         }
