@@ -1260,7 +1260,7 @@ private struct ClusterShot: View {
             Self.chips,
             positions: MenuBarController.clusterTargets(Self.chips, focus: focus),
             focus: focus,
-            pill: focus.map { MenuBarController.pillWidth(Self.chips[$0]) },
+            pill: focus.map { _ in MenuBarController.pillWidth(Self.chips) },
             lead: focus == nil ? 0 : MenuBarController.clusterLead(for: Self.chips),
             markAlpha: focus == nil ? 1 : 0,
             mark: BarShelfStatusIcon.image(for: AppPreferences.defaultMenuBarSymbol, fallback: "tray.full"),

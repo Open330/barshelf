@@ -318,13 +318,13 @@ final class MenuBarController {
 
     /// Where each chip rests with `focus` drawn as its pill.
     static func clusterTargets(_ chips: [ClusterChip], focus: Int?) -> [CGFloat] {
-        let pill = focus.flatMap { chips[cluster: $0] }.map(pillWidth) ?? CGFloat(ClusterGeometry.disc)
+        let pill = focus == nil ? CGFloat(ClusterGeometry.disc) : pillWidth(chips)
         return ClusterGeometry(count: chips.count).pillLayout(focus: focus, pill: Double(pill)).map { CGFloat($0) }
     }
 
     /// The room on the item's left that the widest pill needs.
     static func clusterLead(for chips: [ClusterChip]) -> CGFloat {
-        CGFloat(ClusterGeometry(count: chips.count).hoverLead(pills: chips.map { Double(pillWidth($0)) }))
+        CGFloat(ClusterGeometry(count: chips.count).hoverLead(pills: chips.map { _ in Double(pillWidth(chips)) }))
     }
 
     /// The chip under a point in the main button, in the layout as it
@@ -332,7 +332,7 @@ final class MenuBarController {
     func clusterIndex(atButtonX x: CGFloat, in button: NSStatusBarButton) -> Int? {
         guard let chips = appliedChips, !chips.isEmpty else { return nil }
         let stackX = Double(x - clusterOrigin(in: button))
-        let pill = clusterFocus.flatMap { chips[cluster: $0] }.map(Self.pillWidth) ?? CGFloat(ClusterGeometry.disc)
+        let pill = clusterFocus == nil ? CGFloat(ClusterGeometry.disc) : Self.pillWidth(chips)
         return ClusterGeometry(count: chips.count).pillIndex(at: stackX, focus: clusterFocus, pill: Double(pill))
     }
 
@@ -357,7 +357,7 @@ final class MenuBarController {
         let markTarget: CGFloat = ClusterGeometry(count: chips.count).hidesMark(focus: focus) ? 0 : 1
         // A new chip's pill grows out of its disc.
         let pillStart = CGFloat(ClusterGeometry.disc)
-        let pillTarget = focus.flatMap { chips[cluster: $0] }.map(Self.pillWidth) ?? CGFloat(ClusterGeometry.disc)
+        let pillTarget = focus == nil ? CGFloat(ClusterGeometry.disc) : Self.pillWidth(chips)
         // The item widens and narrows with the chips. The folded stack keeps
         // its place on screen whatever the lead (the item grows to the
         // left), so only the items beside it slide.
@@ -395,7 +395,7 @@ final class MenuBarController {
     func clusterChipRect(_ index: Int, in button: NSStatusBarButton) -> NSRect {
         let chips = appliedChips ?? []
         let x = Self.clusterTargets(chips, focus: clusterFocus)[cluster: index] ?? 0
-        let pill = index == clusterFocus ? chips[cluster: index].map(Self.pillWidth) ?? 0 : 0
+        let pill = index == clusterFocus ? Self.pillWidth(chips) : 0
         let width = max(pill + 2 * CGFloat(ClusterGeometry.slotInset), CGFloat(ClusterGeometry.slot))
         return NSRect(x: clusterOrigin(in: button) + x, y: 0, width: width, height: button.bounds.height)
     }

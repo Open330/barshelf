@@ -130,7 +130,7 @@ public enum MenuBarClusterPolicy {
             alert: tint == .danger,
             isStale: entry.isStale,
             reading: reading,
-            value: shortValue(value(of: entry) ?? reading),
+            value: shortValue(pillText(entry, reading: reading)),
             spoken: spoken.isEmpty ? entry.name : "\(entry.name), \(spoken)"
         )
     }
@@ -143,8 +143,16 @@ public enum MenuBarClusterPolicy {
         return metric.active.map { $0 ? "●" : "○" }
     }
 
+    /// What the pill shows: the first reading's value, else the whole
+    /// reading. Empty for a widget that shows only its icon; its pill then
+    /// shows the name if it fits (`MenuBarController.drawPill`).
+    static func pillText(_ entry: MenuBarEntry, reading: String) -> String {
+        if let value = value(of: entry), !value.isEmpty { return value }
+        return reading.trimmingCharacters(in: .whitespaces)
+    }
+
     /// At most `valueLimit` characters, so a pill stays a pill.
-    static let valueLimit = 8
+    static let valueLimit = 10
     static func shortValue(_ text: String) -> String {
         let trimmed = text.trimmingCharacters(in: .whitespaces)
         guard trimmed.count > valueLimit else { return trimmed }
