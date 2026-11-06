@@ -1211,11 +1211,11 @@ private struct ClusterShot: View {
     let scheme: ColorScheme
 
     private static let chips: [ClusterChip] = [
-        ClusterChip(widgetID: "work", name: "work-01", initial: "W", fraction: 0.36, tint: .good, reading: "36% · 2h 10m"),
-        ClusterChip(widgetID: "personal", name: "personal", initial: "P", fraction: 0.18, tint: .warning, reading: "18% · 2h 10m"),
-        ClusterChip(widgetID: "teamx", name: "team-x", initial: "T", fraction: 0.06, tint: .danger, alert: true, reading: "6% left"),
+        ClusterChip(widgetID: "work", name: "work-01", initial: "W", fraction: 0.36, tint: .good, reading: "36% · 2h 10m", value: "36%"),
+        ClusterChip(widgetID: "personal", name: "personal", initial: "P", fraction: 0.18, tint: .warning, reading: "18% · 2h 10m", value: "18%"),
+        ClusterChip(widgetID: "teamx", name: "team-x", initial: "T", fraction: 0.06, tint: .danger, alert: true, reading: "6% left", value: "6%"),
         ClusterChip(widgetID: "battery", name: "Battery", symbol: "battery.75percent", initial: "B", fraction: 0.8, tint: .good, reading: "80%"),
-        ClusterChip(widgetID: "k8s", name: "k8s pods", symbol: "shippingbox.fill", initial: "K", fraction: 0.92, tint: .warning, reading: "11/12 ready"),
+        ClusterChip(widgetID: "k8s", name: "k8s pods", symbol: "shippingbox.fill", initial: "K", fraction: 0.92, tint: .warning, reading: "11/12 ready", value: "11/12"),
     ]
     private static let colors: [String: NSColor] = [
         "work": NSColor(red: 0.85, green: 0.47, blue: 0.34, alpha: 1),

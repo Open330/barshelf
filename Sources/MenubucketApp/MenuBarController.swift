@@ -342,8 +342,8 @@ final class MenuBarController {
     /// The focused chip grows into a pill with its reading, and a gap opens
     /// on each side of it. The chips step into the BarShelf icon's room,
     /// which fades out meanwhile, and into room the item takes on its left
-    /// for as long as a chip is in focus: the item widens once when the
-    /// pointer arrives and narrows once when it leaves, never while it moves
+    /// for as long as a chip is in focus: the item glides wider when the
+    /// pointer arrives and back when it leaves, never while it moves
     /// between chips. Each frame is one image set on the status item, which
     /// is cheap enough for a pointer moving between chips.
     func setClusterFocus(_ focus: Int?, animated: Bool) {
@@ -358,9 +358,11 @@ final class MenuBarController {
         // A new chip's pill grows out of its disc.
         let pillStart = CGFloat(ClusterGeometry.disc)
         let pillTarget = focus.flatMap { chips[cluster: $0] }.map(Self.pillWidth) ?? CGFloat(ClusterGeometry.disc)
-        // Widen before the chips move; narrow only once they have folded.
+        // The item widens and narrows with the chips. The folded stack keeps
+        // its place on screen whatever the lead (the item grows to the
+        // left), so only the items beside it slide.
+        let leadStart = clusterLead
         let leadTarget = focus == nil ? 0 : Self.clusterLead(for: chips)
-        if leadTarget > clusterLead { clusterLead = leadTarget }
         guard animated else {
             clusterPositions = target
             clusterMarkAlpha = markTarget
@@ -380,10 +382,8 @@ final class MenuBarController {
             self.clusterPositions = zip(start, target).map { $0 + ($1 - $0) * eased }
             self.clusterMarkAlpha = markStart + (markTarget - markStart) * eased
             self.clusterPill = pillStart + (pillTarget - pillStart) * eased
-            if t >= 1 {
-                self.clusterLead = leadTarget
-                timer.invalidate()
-            }
+            self.clusterLead = (leadStart + (leadTarget - leadStart) * eased).rounded()
+            if t >= 1 { timer.invalidate() }
             self.drawCluster(chips, on: button)
         }
     }

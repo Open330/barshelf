@@ -49,12 +49,12 @@ extension MenuBarController {
         NSFont.monospacedDigitSystemFont(ofSize: ChipMetrics.pillFontSize, weight: .semibold)
     }
 
-    /// The width of a chip's pill: its disc, then its reading. A chip
-    /// without a reading stays a disc.
+    /// The width of a chip's pill: its disc, then its value. A chip
+    /// without one stays a disc.
     static func pillWidth(_ chip: ClusterChip) -> CGFloat {
         let face = CGFloat(ClusterGeometry.disc)
-        guard !chip.reading.isEmpty else { return face }
-        let text = NSAttributedString(string: chip.reading, attributes: [.font: pillFont()]).size().width
+        guard !chip.value.isEmpty else { return face }
+        let text = NSAttributedString(string: chip.value, attributes: [.font: pillFont()]).size().width
         let height = ChipMetrics.face * ChipMetrics.focusScale
         return ceil(height + ChipMetrics.pillTextGap + min(text, ChipMetrics.pillTextMax) + ChipMetrics.pillTrailing)
     }
@@ -182,7 +182,7 @@ extension MenuBarController {
     }
 
     /// The focused chip grown into a pill: its disc's colour, the glyph at
-    /// the start, then its reading. Cut out of the chips beneath, like a
+    /// the start, then its value. Cut out of the chips beneath, like a
     /// disc.
     static func drawPill(
         _ chip: ClusterChip, left: CGFloat, width: CGFloat, midY: CGFloat, color: NSColor, context: NSGraphicsContext
@@ -208,8 +208,8 @@ extension MenuBarController {
             options: [.drawsBeforeStartingLocation, .drawsAfterEndingLocation]
         )
         drawGlyph(chip, at: NSPoint(x: rect.minX + height / 2, y: midY), alpha: alpha)
-        if !chip.reading.isEmpty {
-            let text = NSAttributedString(string: chip.reading, attributes: [
+        if !chip.value.isEmpty {
+            let text = NSAttributedString(string: chip.value, attributes: [
                 .font: pillFont(), .foregroundColor: NSColor.white.withAlphaComponent(alpha),
             ])
             let size = text.size()
