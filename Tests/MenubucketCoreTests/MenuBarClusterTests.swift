@@ -168,20 +168,18 @@ final class MenuBarClusterProfileTests: XCTestCase {
 }
 
 final class MenuBarClusterFocusTests: XCTestCase {
-    func testFocusOpensOneGapBehindTheFocusedChip() {
+    func testFocusOpensAGapOnEachSideOfTheFocusedChip() {
         for count in 2...MenuBarClusterPolicy.maxChips {
             let g = ClusterGeometry(count: count)
             XCTAssertFalse(g.hidesMark(focus: nil))
             for focus in 0..<count {
                 XCTAssertTrue(g.hidesMark(focus: focus))
-                for index in 0..<count {
-                    let moved = g.focusedX(index, focus: focus) - g.collapsedX(index)
-                    // Up to the focused chip nothing moves; after it, all
-                    // step aside together.
-                    XCTAssertEqual(moved, index > focus ? ClusterGeometry.focusShift : 0, accuracy: 0.0001)
-                }
-                if focus < count - 1 {
-                    XCTAssertEqual(g.focusedX(focus + 1, focus: focus) - g.focusedX(focus, focus: focus), ClusterGeometry.revealStep, accuracy: 0.0001)
+                for index in 1..<count {
+                    let gap = g.focusedX(index, focus: focus) - g.focusedX(index - 1, focus: focus)
+                    // The two gaps beside the focused chip open; the rest
+                    // stay folded.
+                    let opens = index == focus || index == focus + 1
+                    XCTAssertEqual(gap, opens ? ClusterGeometry.revealStep : ClusterGeometry.collapsedStep, accuracy: 0.0001)
                 }
                 XCTAssertLessThanOrEqual(g.focusedX(count - 1, focus: focus) + ClusterGeometry.slot, g.itemWidth, "stays inside the item")
             }

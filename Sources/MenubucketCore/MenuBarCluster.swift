@@ -258,25 +258,36 @@ public struct ClusterGeometry: Equatable, Sendable {
     /// focused chip to show whole, taken from the hidden icon's room.
     public static var focusShift: Double { revealStep - collapsedStep }
 
-    /// With `focus` uncovered: every chip keeps its folded place except
-    /// those after the focused one, which step aside together by
-    /// `focusShift`. One gap opens, behind the chip under the pointer, and
-    /// moving along the stack moves that gap one chip at a time. The icon
-    /// hides to make the room, so the item keeps its width. nil is the
-    /// plain fold.
+    /// With `focus` uncovered, a gap opens on each side of it: the focused
+    /// chip steps right by `focusShift`, away from the one before it, and
+    /// the chips after it step right by twice that, away from it. Every
+    /// other gap stays folded, so only the chip under the pointer stands
+    /// apart, and moving along the stack moves it one chip at a time. The
+    /// icon hides to make the room, so the item keeps its width. nil is
+    /// the plain fold.
     public func focusedX(_ index: Int, focus: Int?) -> Double {
         let x = collapsedX(index)
-        guard hidesMark(focus: focus), let focus, index > focus else { return x }
-        return x + Self.focusShift
+        guard hidesMark(focus: focus), let focus else { return x }
+        var shift = 0.0
+        if focus > 0, index >= focus { shift += Self.focusShift }
+        if index > focus { shift += Self.focusShift }
+        return x + shift
     }
 
-    /// The chip under `x` in the layout for `focus`: the topmost one, the
-    /// later chip where two overlap. With a chip in focus the stack reaches
-    /// into the icon's room; folded, the icon stays the icon.
+    /// The chip under `x` in the layout for `focus`. The focused chip owns
+    /// the gap before it as well as its own disc, so it stays under a
+    /// pointer that has not moved; elsewhere the later chip wins where two
+    /// overlap. With a chip in focus the stack reaches into the icon's
+    /// room; folded, the icon stays the icon.
     public func focusedIndex(at x: Double, focus: Int?) -> Int? {
         guard count > 0, x >= 0 else { return nil }
         let end = focusedX(count - 1, focus: focus) + Self.slot
         guard x < end else { return nil }
+        if hidesMark(focus: focus), let focus {
+            let start = focusedX(focus, focus: focus) - (focus > 0 ? Self.focusShift : 0)
+            let stop = focus == count - 1 ? end : focusedX(focus, focus: focus) + Self.revealStep
+            if x >= start, x < stop { return focus }
+        }
         for index in stride(from: count - 1, through: 0, by: -1) where x >= focusedX(index, focus: focus) {
             return index
         }
