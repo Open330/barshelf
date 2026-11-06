@@ -316,8 +316,8 @@ final class MenuBarController {
     /// Uncovers one chip in place (nil folds them all again), gliding there
     /// over a few frames unless `animated` is false.
     ///
-    /// The BarShelf icon fades out meanwhile and the chips spread into its
-    /// room. The item's width never changes, so nothing else in the menu bar
+    /// The chips after the focused one step aside into the BarShelf icon's
+    /// room, which fades out meanwhile. The item's width never changes, so nothing else in the menu bar
     /// moves or is covered. Each frame is one image set on the status item, which
     /// is cheap enough for a pointer moving between chips.
     func setClusterFocus(_ focus: Int?, animated: Bool) {

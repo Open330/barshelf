@@ -254,56 +254,33 @@ public struct ClusterGeometry: Equatable, Sendable {
         return count > 1 && focus >= 0 && focus < count
     }
 
-    /// The farthest a chip may start while the icon is hidden: the whole
-    /// item but one slot.
-    public var focusTrack: Double { max(itemWidth - Self.slot, 0) }
+    /// How far the chips after the focused one step aside: enough for the
+    /// focused chip to show whole, taken from the hidden icon's room.
+    public static var focusShift: Double { revealStep - collapsedStep }
 
-    /// Where chip `index` would start spread evenly across the track: the
-    /// middle of the stretch of the item that selects it.
-    public func spreadX(_ index: Int) -> Double {
-        count > 1 ? focusTrack * Double(index) / Double(count - 1) : 0
-    }
-
-    /// With `focus` uncovered: the icon hides and its room joins the
-    /// stack's. The focused chip sits over its own stretch of the item
-    /// (`spreadX`), both neighbours at least `revealStep` away so it shows
-    /// whole, and
-    /// the chips beyond them share what is left on each side. The item keeps
-    /// its width, so nothing else in the menu bar moves. nil is the plain
-    /// fold.
+    /// With `focus` uncovered: every chip keeps its folded place except
+    /// those after the focused one, which step aside together by
+    /// `focusShift`. One gap opens, behind the chip under the pointer, and
+    /// moving along the stack moves that gap one chip at a time. The icon
+    /// hides to make the room, so the item keeps its width. nil is the
+    /// plain fold.
     public func focusedX(_ index: Int, focus: Int?) -> Double {
-        guard hidesMark(focus: focus), let focus, index >= 0, index < count else { return collapsedX(index) }
-        let reveal = Self.revealStep
-        let low = focus > 0 ? reveal : 0
-        let high = focus < count - 1 ? focusTrack - reveal : focusTrack
-        let x = min(max(spreadX(focus), low), max(high, low))
-        if index == focus { return x }
-        if index < focus {
-            // Left: the neighbour a reveal away, the rest evenly from 0.
-            // A neighbour with nothing beyond it takes the end of the track.
-            let neighbour = focus == 1 ? 0 : x - reveal
-            if index == focus - 1 { return neighbour }
-            return neighbour * Double(index) / Double(focus - 1)
-        }
-        let beyond = count - 2 - focus
-        let neighbour = beyond == 0 ? focusTrack : x + reveal
-        if index == focus + 1 { return neighbour }
-        return neighbour + (focusTrack - neighbour) * Double(index - focus - 1) / Double(beyond)
+        let x = collapsedX(index)
+        guard hidesMark(focus: focus), let focus, index > focus else { return x }
+        return x + Self.focusShift
     }
 
-    /// The chip the pointer at `x` selects. While a chip is in focus the
-    /// whole item is split into equal stretches, one per chip, that do not
-    /// depend on which chip is in focus, so the chips moving under a still
-    /// pointer never change the answer. Folded, only the stack selects a
-    /// chip; the BarShelf icon stays the icon.
+    /// The chip under `x` in the layout for `focus`: the topmost one, the
+    /// later chip where two overlap. With a chip in focus the stack reaches
+    /// into the icon's room; folded, the icon stays the icon.
     public func focusedIndex(at x: Double, focus: Int?) -> Int? {
         guard count > 0, x >= 0 else { return nil }
-        if count == 1 { return x < collapsedWidth ? 0 : nil }
-        let end = hidesMark(focus: focus) ? itemWidth : collapsedWidth
+        let end = focusedX(count - 1, focus: focus) + Self.slot
         guard x < end else { return nil }
-        let stretch = focusTrack / Double(count - 1)
-        let raw = ((x - Self.slot / 2) / stretch).rounded()
-        return min(max(Int(raw), 0), count - 1)
+        for index in stride(from: count - 1, through: 0, by: -1) where x >= focusedX(index, focus: focus) {
+            return index
+        }
+        return nil
     }
 
     /// Whether `x` is on the BarShelf icon while folded.
