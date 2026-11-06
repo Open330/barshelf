@@ -31,7 +31,13 @@ final class MenuBarClusterController: NSObject {
 
     private(set) var chips: [ClusterChip] = []
     private var isEnabled = false
-    private var trackingArea: NSTrackingArea?
+    /// Pointer monitors, while the cluster is on. Not a tracking area: since
+    /// macOS 26 the menu bar host draws status items, and the app's own
+    /// button is a stand-in that receives no hover events and whose click
+    /// events carry no real position. The pointer is read in screen
+    /// coordinates and compared with the item's frame instead.
+    private var pointerMonitors: [Any] = []
+    private var pointerInside = false
 
     private var peek: ClusterPeekPanel?
     private var peekWork: DispatchWorkItem?
@@ -75,6 +81,7 @@ final class MenuBarClusterController: NSObject {
 
     deinit {
         removeKeyMonitor()
+        for monitor in pointerMonitors { NSEvent.removeMonitor(monitor) }
         for (center, observer) in observers { center.removeObserver(observer) }
     }
 
@@ -120,23 +127,55 @@ final class MenuBarClusterController: NSObject {
     // MARK: - Pointer on the status item
 
     private func installTracking() {
-        guard let button = statusItem?.button, trackingArea == nil else { return }
-        let area = NSTrackingArea(
-            rect: .zero,
-            options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
-            owner: self, userInfo: nil
-        )
-        button.addTrackingArea(area)
-        trackingArea = area
+        guard pointerMonitors.isEmpty else { return }
+        let types: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged]
+        // Global: the pointer over the menu bar while another app is in front.
+        if let global = NSEvent.addGlobalMonitorForEvents(matching: types, handler: { [weak self] _ in
+            self?.pointerMoved()
+        }) { pointerMonitors.append(global) }
+        // Local: the same while BarShelf itself is in front (a card is open).
+        if let local = NSEvent.addLocalMonitorForEvents(matching: types, handler: { [weak self] event in
+            self?.pointerMoved()
+            return event
+        }) { pointerMonitors.append(local) }
         updateAccessibility()
     }
 
     private func removeTracking() {
-        if let trackingArea, let button = statusItem?.button {
-            button.removeTrackingArea(trackingArea)
-        }
-        trackingArea = nil
+        for monitor in pointerMonitors { NSEvent.removeMonitor(monitor) }
+        pointerMonitors.removeAll()
+        pointerInside = false
         statusItem?.button?.setAccessibilityChildren(nil)
+    }
+
+    /// The status item's frame in the menu bar of the screen the pointer is
+    /// on. The menu bar host draws the item on every display's menu bar,
+    /// while the app's stand-in window knows only one of them. Items sit at
+    /// the same distance from each menu bar's right end, so the stand-in's
+    /// frame is carried over to the pointer's screen by that distance.
+    private func itemFrame(near point: NSPoint) -> NSRect? {
+        guard let button = statusItem?.button, let window = button.window,
+              let home = window.screen ?? NSScreen.main,
+              let screen = NSScreen.screens.first(where: { NSMouseInRect(point, $0.frame, false) })
+        else { return nil }
+        let frame = window.convertToScreen(button.convert(button.bounds, to: nil))
+        let fromRight = home.frame.maxX - frame.minX
+        let bar = max(screen.frame.maxY - screen.visibleFrame.maxY, NSStatusBar.system.thickness)
+        return NSRect(
+            x: screen.frame.maxX - fromRight, y: screen.frame.maxY - bar,
+            width: frame.width, height: bar
+        )
+    }
+
+    /// Where the pointer is along the button, or nil when it is off the item.
+    private func pointerButtonX() -> CGFloat? {
+        let point = NSEvent.mouseLocation
+        guard let frame = itemFrame(near: point) else { return nil }
+        // The menu bar's full height counts, and its top edge too (a pointer
+        // pushed against the top of the screen).
+        guard point.x >= frame.minX, point.x < frame.maxX,
+              point.y >= frame.minY, point.y <= frame.maxY + 1 else { return nil }
+        return point.x - frame.minX
     }
 
     /// The chip under a point in the button, in the layout as it stands.
@@ -146,24 +185,21 @@ final class MenuBarClusterController: NSObject {
         return ClusterGeometry(count: chips.count).focusedIndex(at: stackX, focus: menuBar.clusterFocus)
     }
 
-    private func buttonX(_ event: NSEvent) -> CGFloat? {
-        guard let button = statusItem?.button else { return nil }
-        return button.convert(event.locationInWindow, from: nil).x
-    }
-
-    @objc func mouseEntered(with event: NSEvent) { pointerMoved(event) }
-
-    @objc func mouseMoved(with event: NSEvent) { pointerMoved(event) }
-
-    @objc func mouseExited(with event: NSEvent) {
+    private func pointerLeft() {
+        pointerInside = false
         hidePeek()
         // With a card open its chip stays uncovered.
         guard card?.isShown != true else { return }
         menuBar.setClusterFocus(nil, animated: true)
     }
 
-    private func pointerMoved(_ event: NSEvent) {
-        guard isEnabled, !chips.isEmpty, let x = buttonX(event) else { return }
+    private func pointerMoved() {
+        guard isEnabled, !chips.isEmpty else { return }
+        guard let x = pointerButtonX() else {
+            if pointerInside { pointerLeft() }
+            return
+        }
+        pointerInside = true
         let index = chipIndex(atButtonX: x)
         guard index != menuBar.clusterFocus else { return }
         hidePeek()
@@ -184,7 +220,7 @@ final class MenuBarClusterController: NSObject {
     /// A left click on the status item. False for the BarShelf icon, which
     /// the owner handles as before (the shelf).
     func handleStatusItemClick(_ event: NSEvent) -> Bool {
-        guard isEnabled, !chips.isEmpty, let x = buttonX(event),
+        guard isEnabled, !chips.isEmpty, let x = pointerButtonX(),
               let index = chipIndex(atButtonX: x) else { return false }
         hidePeek()
         let id = chips[index].widgetID
@@ -207,7 +243,7 @@ final class MenuBarClusterController: NSObject {
     /// A right click on the status item: the chip's menu, or false for the
     /// icon, whose menu the owner shows.
     func handleStatusItemRightClick(_ event: NSEvent) -> Bool {
-        guard isEnabled, !chips.isEmpty, let button = statusItem?.button, let x = buttonX(event),
+        guard isEnabled, !chips.isEmpty, let button = statusItem?.button, let x = pointerButtonX(),
               let index = chipIndex(atButtonX: x) else { return false }
         hidePeek()
         card?.hide()
@@ -233,11 +269,15 @@ final class MenuBarClusterController: NSObject {
             chip: chip, color: chipColor?(chip.widgetID) ?? .accentColor
         ))
         let size = hosting.fittingSize
-        let rect = window.convertToScreen(button.convert(menuBar.clusterChipRect(index, in: button), to: nil))
+        // Under the chip on the menu bar the pointer is on.
+        let chipRect = menuBar.clusterChipRect(index, in: button)
+        let item = itemFrame(near: NSEvent.mouseLocation)
+            ?? window.convertToScreen(button.convert(button.bounds, to: nil))
+        let rect = NSRect(x: item.minX + chipRect.minX, y: item.minY, width: chipRect.width, height: item.height)
         // The view carries its own margin for the shadow; tuck it up so the
         // card itself sits `peekGap` below the bar.
         var origin = NSPoint(x: rect.midX - size.width / 2, y: rect.minY - Self.peekGap - size.height + Spacing.s)
-        if let screen = window.screen {
+        if let screen = NSScreen.screens.first(where: { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }) ?? window.screen {
             origin.x = min(max(origin.x, screen.frame.minX), screen.frame.maxX - size.width)
         }
         let panel = peek ?? ClusterPeekPanel()
