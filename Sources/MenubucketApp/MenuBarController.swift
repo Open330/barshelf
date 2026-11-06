@@ -95,6 +95,8 @@ final class MenuBarController {
     private var clusterMarkAlpha: CGFloat = 1
     private var focusAnimation: Timer?
     private var appearanceObservation: NSKeyValueObservation?
+    /// Light or dark, as the cluster was last drawn.
+    private var drawnLook: NSAppearance.Name?
     /// Extra status items, keyed by widget id.
     private var separateItems: [String: NSStatusItem] = [:]
     private var mainSymbol: String = AppPreferences.defaultMenuBarSymbol
@@ -174,12 +176,17 @@ final class MenuBarController {
     init(mainItem: NSStatusItem) {
         self.mainItem = mainItem
         // The cluster is drawn in colour, so not a template: it is drawn
-        // again for the bar's own appearance when that changes.
-        appearanceObservation = mainItem.button?.observe(\.effectiveAppearance) { [weak self] _, _ in
+        // again when the bar turns light or dark. Only then: the button
+        // reports its appearance again whenever its image is set, and
+        // redrawing on every report never stops.
+        appearanceObservation = mainItem.button?.observe(\.effectiveAppearance) { [weak self] button, _ in
+            let look = Self.look(of: button.effectiveAppearance)
             DispatchQueue.main.async {
-                guard let self, self.layout == .cluster else { return }
-                self.appliedChips = nil
-                self.redraw()
+                guard let self, self.layout == .cluster, look != self.drawnLook,
+                      let chips = self.appliedChips, !chips.isEmpty, let button = self.mainItem.button
+                else { return }
+                // The chips stay as they are, focus included.
+                self.drawCluster(chips, on: button)
             }
         }
     }
@@ -280,6 +287,7 @@ final class MenuBarController {
         appliedSymbol = nil
         appliedStrip = nil
         let mark = BarShelfStatusIcon.image(for: mainSymbol, fallback: AppPreferences.defaultMenuBarSymbol)
+        drawnLook = Self.look(of: button.effectiveAppearance)
         let image = Self.clusterImage(
             chips, positions: clusterPositions, focus: clusterFocus, markAlpha: clusterMarkAlpha, mark: mark, badged: attention,
             color: { [chipColor] id in chipColor?(id) ?? .controlAccentColor },
@@ -294,6 +302,10 @@ final class MenuBarController {
         button.toolTip = nil
         let spoken = chips.map(\.spoken).joined(separator: "; ")
         button.setAccessibilityLabel("\(BarShelfStatusIcon.accessibilityLabel(badged: attention)), \(spoken)")
+    }
+
+    static func look(of appearance: NSAppearance) -> NSAppearance.Name? {
+        appearance.bestMatch(from: [.aqua, .darkAqua, .accessibilityHighContrastAqua, .accessibilityHighContrastDarkAqua])
     }
 
     static func clusterTargets(count: Int, focus: Int?) -> [CGFloat] {
