@@ -5,9 +5,9 @@ import SwiftUI
 /// Hover, peek and click for the menu bar cluster (`MenuBarLayout.cluster`).
 ///
 /// Everything happens inside the status item's own width. Under the pointer
-/// one gap opens behind the chip under the pointer: the chips after it step
-/// aside together into the room of the BarShelf icon, which fades out
-/// (`ClusterGeometry.focusedX`). Moving along the stack moves the gap one
+/// a gap opens on each side of the chip under the pointer, the chips from
+/// it on stepping into the room of the BarShelf icon, which fades out
+/// (`ClusterGeometry.focusedX`). Moving along the stack moves the gaps one
 /// chip at a time. The item never grows, so nothing else in the menu bar
 /// is moved or covered. Resting on a chip shows
 /// a peek below the bar; clicking runs the widget's click action, and its
