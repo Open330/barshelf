@@ -5,11 +5,12 @@ import SwiftUI
 /// Hover, peek and click for the menu bar cluster (`MenuBarLayout.cluster`).
 ///
 /// Everything happens inside the status item's own width. Under the pointer
-/// a gap opens on each side of the chip under the pointer, the chips from
-/// it on stepping into the room of the BarShelf icon, which fades out
-/// (`ClusterGeometry.focusedX`). Moving along the stack moves the gaps one
-/// chip at a time. The item never grows, so nothing else in the menu bar
-/// is moved or covered. Resting on a chip shows
+/// the chip under the pointer grows into a pill with its reading, a gap
+/// opening on each side of it (`ClusterGeometry.pillLayout`). The BarShelf
+/// icon fades out to make room, and the item takes what else the widest
+/// pill needs on its left once, when the pointer arrives, so moving between
+/// chips never moves the rest of the menu bar; it gives it back when the
+/// pointer leaves. Resting on a chip shows
 /// a peek below the bar; clicking runs the widget's click action, and its
 /// card hangs off that chip. With a card open, moving to another chip (or
 /// pressing ← →) moves the card there.
@@ -174,8 +175,7 @@ final class MenuBarClusterController: NSObject {
     /// The chip under a point in the button, in the layout as it stands.
     private func chipIndex(atButtonX x: CGFloat) -> Int? {
         guard let button = statusItem?.button else { return nil }
-        let stackX = Double(x - menuBar.clusterOrigin(in: button))
-        return ClusterGeometry(count: chips.count).focusedIndex(at: stackX, focus: menuBar.clusterFocus)
+        return menuBar.clusterIndex(atButtonX: x, in: button)
     }
 
     private func pointerLeft() {

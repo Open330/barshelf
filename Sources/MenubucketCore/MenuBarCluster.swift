@@ -254,44 +254,88 @@ public struct ClusterGeometry: Equatable, Sendable {
         return count > 1 && focus >= 0 && focus < count
     }
 
-    /// How far the chips after the focused one step aside: enough for the
-    /// focused chip to show whole, taken from the hidden icon's room.
+    /// How far the focused chip steps away from the one before it.
     public static var focusShift: Double { revealStep - collapsedStep }
+    /// A chip's disc, inside its slot.
+    public static let disc: Double = 18
+    /// The slot's empty edge either side of a disc or pill.
+    public static var slotInset: Double { (slot - disc) / 2 }
 
-    /// With `focus` uncovered, a gap opens on each side of it: the focused
-    /// chip steps right by `focusShift`, away from the one before it, and
-    /// the chips after it step right by twice that, away from it. Every
-    /// other gap stays folded, so only the chip under the pointer stands
-    /// apart, and moving along the stack moves it one chip at a time. The
-    /// icon hides to make the room, so the item keeps its width. nil is
-    /// the plain fold.
-    public func focusedX(_ index: Int, focus: Int?) -> Double {
-        let x = collapsedX(index)
-        guard hidesMark(focus: focus), let focus else { return x }
-        var shift = 0.0
-        if focus > 0, index >= focus { shift += Self.focusShift }
-        if index > focus { shift += Self.focusShift }
-        return x + shift
+    /// Where every chip starts with `focus` uncovered and drawn as a pill
+    /// `pill` wide (a disc's width when its reading has no room or none).
+    ///
+    /// A gap opens on each side of the focused chip: it steps away from the
+    /// one before it, and the chips after it step away from its right end.
+    /// Every other gap stays folded. The layout grows to the right first,
+    /// into the hidden icon's room; what does not fit there moves the whole
+    /// layout left, into room the item takes on its left while a chip is in
+    /// focus (`hoverLead`). x is in stack coordinates: the folded stack
+    /// starts at 0, so a negative x is in that room. nil is the plain fold.
+    public func pillLayout(focus: Int?, pill: Double) -> [Double] {
+        guard hidesMark(focus: focus), let focus else { return (0..<count).map(collapsedX) }
+        let width = max(pill, Self.disc)
+        var xs: [Double] = []
+        var x = 0.0
+        for index in 0..<count {
+            xs.append(x)
+            if index == focus - 1 {
+                x += Self.revealStep
+            } else if index == focus {
+                x += width + Self.revealStep - Self.disc
+            } else {
+                x += Self.collapsedStep
+            }
+        }
+        let end = focus == count - 1 ? xs[focus] + width + 2 * Self.slotInset : xs[count - 1] + Self.slot
+        let shift = min(0, itemWidth - end)
+        return xs.map { $0 + shift }
     }
 
-    /// The chip under `x` in the layout for `focus`. The focused chip owns
-    /// the gap before it as well as its own disc, so it stays under a
-    /// pointer that has not moved; elsewhere the later chip wins where two
-    /// overlap. With a chip in focus the stack reaches into the icon's
-    /// room; folded, the icon stays the icon.
+    /// The room the item takes on its left while a chip is in focus: enough
+    /// for the widest pill, so the item keeps one width while the pointer
+    /// moves between chips.
+    public func hoverLead(pills: [Double]) -> Double {
+        guard count > 1 else { return 0 }
+        var lead = 0.0
+        for focus in 0..<count {
+            let pill = focus < pills.count ? pills[focus] : Self.disc
+            lead = max(lead, -(pillLayout(focus: focus, pill: pill).first ?? 0))
+        }
+        // In steps of 4, so a reading that changes by a digit does not
+        // nudge the menu bar.
+        return (lead / 4).rounded(.up) * 4
+    }
+
+    /// The chip the pointer at stack x selects in the pill layout. The
+    /// focused chip owns the gap before it and everything up to the next
+    /// chip, so a pointer that has not moved stays on it; elsewhere the
+    /// later chip wins where two overlap. Folded, only the stack selects a
+    /// chip, so the icon stays the icon.
+    public func pillIndex(at x: Double, focus: Int?, pill: Double) -> Int? {
+        guard count > 0 else { return nil }
+        let xs = pillLayout(focus: focus, pill: pill)
+        guard hidesMark(focus: focus), let focus else {
+            guard x >= 0, x < collapsedWidth else { return nil }
+            return stride(from: count - 1, through: 0, by: -1).first { x >= xs[$0] }
+        }
+        let width = max(pill, Self.disc)
+        let end = focus == count - 1 ? xs[focus] + width + 2 * Self.slotInset : xs[count - 1] + Self.slot
+        guard x >= xs[0], x < end else { return nil }
+        let start = xs[focus] - (focus > 0 ? Self.focusShift : 0)
+        let stop = focus == count - 1 ? end : xs[focus + 1]
+        if x >= start, x < stop { return focus }
+        return stride(from: count - 1, through: 0, by: -1).first { x >= xs[$0] }
+    }
+
+    /// `pillLayout` with the focused chip as a plain disc.
+    public func focusedX(_ index: Int, focus: Int?) -> Double {
+        let xs = pillLayout(focus: focus, pill: Self.disc)
+        return xs.indices.contains(index) ? xs[index] : collapsedX(index)
+    }
+
+    /// `pillIndex` with the focused chip as a plain disc.
     public func focusedIndex(at x: Double, focus: Int?) -> Int? {
-        guard count > 0, x >= 0 else { return nil }
-        let end = focusedX(count - 1, focus: focus) + Self.slot
-        guard x < end else { return nil }
-        if hidesMark(focus: focus), let focus {
-            let start = focusedX(focus, focus: focus) - (focus > 0 ? Self.focusShift : 0)
-            let stop = focus == count - 1 ? end : focusedX(focus, focus: focus) + Self.revealStep
-            if x >= start, x < stop { return focus }
-        }
-        for index in stride(from: count - 1, through: 0, by: -1) where x >= focusedX(index, focus: focus) {
-            return index
-        }
-        return nil
+        pillIndex(at: x, focus: focus, pill: Self.disc)
     }
 
     /// Whether `x` is on the BarShelf icon while folded.
