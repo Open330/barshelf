@@ -21,6 +21,8 @@ final class StatusItemController: NSObject {
     /// Draws the live strip into the main item and owns the extra status items
     /// of widgets the user split out.
     private var menuBar: MenuBarController!
+    /// Hover, peek and cards for the cluster layout.
+    private var cluster: MenuBarClusterController!
     /// The BarShelf Dock on the screen edge, and its profile hotkeys (R15).
     private var dockPanel: DockPanelController!
     private var dockHotkeys: DockHotkeys!
@@ -127,8 +129,9 @@ final class StatusItemController: NSObject {
             self?.itemClicked(widgetID, button: button)
         }
         menuBar.onContextMenu = { [weak self] event, widgetID, button in
-            self?.showWidgetMenu(for: widgetID, with: event, anchoredTo: button)
+            self?.showWidgetMenu(for: widgetID, with: event, in: button)
         }
+        configureCluster()
         runtime.menuBar.$entries
             .receive(on: RunLoop.main)
             .sink { [weak self] entries in
@@ -141,6 +144,7 @@ final class StatusItemController: NSObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] preferences in
                 self?.applyStatusSymbol(preferences.menuBarSymbol)
+                self?.applyMenuBarLayout(preferences.menuBarLayout)
                 self?.updateHotkey(preferences)
             }
             .store(in: &cancellables)
@@ -187,6 +191,8 @@ final class StatusItemController: NSObject {
         if isRightClick {
             popup.hide()
             showStatusItemMenu(with: event)
+        } else if cluster.handleStatusItemClick(event) {
+            return
         } else {
             togglePopup()
         }
@@ -210,6 +216,9 @@ final class StatusItemController: NSObject {
                 cap: appPrefs.preferences.popupHeight.points.map { CGFloat($0) }
             )
         }
+        // The shelf and a single card should not be open at once.
+        cluster.dismiss()
+        widgetPopover?.surface.hide()
         popup.show(relativeTo: button)
     }
 
@@ -218,13 +227,28 @@ final class StatusItemController: NSObject {
     /// opens) shows the card, so a click never does nothing. Any other action
     /// first closes a card left open, as a click on the item always did.
     private func itemClicked(_ widgetID: String, button: NSStatusBarButton) {
+        performClick(on: widgetID) { [weak self] in
+            self?.toggleWidgetPopover(for: widgetID, anchoredTo: button)
+        }
+    }
+
+    /// A chip in the cluster was clicked: the same choices as a widget's own
+    /// item, with the card hung off the chip.
+    private func chipClicked(_ widgetID: String) {
+        performClick(on: widgetID) { [weak self] in
+            if self?.popup.isShown == true { self?.popup.hide() }
+            self?.cluster.openCard(widgetID: widgetID)
+        }
+    }
+
+    private func performClick(on widgetID: String, showCard: @escaping () -> Void) {
         guard let widget = runtime.widgets.first(where: { $0.id == widgetID }) else { return }
         let placement = runtime.prefs.menuBarPlacement(for: widget.manifest, widgetID: widgetID)
         let action = placement.effectiveClickAction
         if action != .card { widgetPopover?.surface.hide() }
         switch action {
         case .card:
-            toggleWidgetPopover(for: widgetID, anchoredTo: button)
+            showCard()
         case .refresh:
             runtime.refresh(widgetID: widgetID, manual: true)
         case .hub:
@@ -233,7 +257,7 @@ final class StatusItemController: NSObject {
             guard let url = placement.clickTarget.flatMap(Self.clickTargetURL),
                   NSWorkspace.shared.open(url)
             else {
-                toggleWidgetPopover(for: widgetID, anchoredTo: button)
+                showCard()
                 return
             }
         }
@@ -435,11 +459,59 @@ final class StatusItemController: NSObject {
         menuBar.setMainSymbol(symbol)
     }
 
+    // MARK: - Cluster
+
+    private func configureCluster() {
+        cluster = MenuBarClusterController(
+            runtime: runtime,
+            statusItem: statusItem,
+            originInButton: { [weak self] button in
+                self?.menuBar.clusterOrigin(in: button) ?? MenuBarController.clusterItemInset
+            },
+            markImage: { [weak self] in
+                BarShelfStatusIcon.image(
+                    for: self?.appPrefs.preferences.menuBarSymbol ?? AppPreferences.defaultMenuBarSymbol,
+                    fallback: AppPreferences.defaultMenuBarSymbol
+                )
+            }
+        )
+        cluster.chipColor = { [weak self] id in
+            self.flatMap { $0.widgetColor(id) }.map { Color(nsColor: $0) } ?? .accentColor
+        }
+        menuBar.chipColor = { [weak self] id in self?.widgetColor(id) }
+        menuBar.onChipsChanged = { [weak self] chips in self?.cluster.update(chips) }
+        cluster.onChipClick = { [weak self] id in self?.chipClicked(id) }
+        cluster.onMarkClick = { [weak self] in self?.togglePopup() }
+        cluster.onChipContextMenu = { [weak self] id, event, view in
+            self?.showWidgetMenu(for: id, with: event, in: view)
+        }
+        cluster.onMarkContextMenu = { [weak self] event, view in
+            guard let self else { return }
+            NSMenu.popUpContextMenu(self.makeAppMenu(), with: event, for: view)
+        }
+    }
+
+    /// The colour a widget's card tile uses, for its chip.
+    private func widgetColor(_ widgetID: String) -> NSColor? {
+        guard let widget = runtime.widgets.first(where: { $0.id == widgetID }),
+              let color = runtime.prefs.effectiveAppearance(for: widget.manifest, widgetID: widgetID).accentColor
+        else { return nil }
+        return NSColor(color)
+    }
+
+    private func applyMenuBarLayout(_ layout: MenuBarLayout) {
+        menuBar.setLayout(layout)
+        cluster.setEnabled(layout == .cluster)
+        widgetPopover?.surface.hide()
+        scheduleVisibilityCheck()
+    }
+
     // MARK: - Promoted widget menu
 
-    /// Right-click menu of a widget that has its own status item.
+    /// Right-click menu of a widget that has its own status item, or of its
+    /// chip in the cluster.
     private func showWidgetMenu(
-        for widgetID: String, with event: NSEvent, anchoredTo button: NSStatusBarButton
+        for widgetID: String, with event: NSEvent, in view: NSView
     ) {
         guard let widget = runtime.widgets.first(where: { $0.id == widgetID })
         else { return }
@@ -456,7 +528,7 @@ final class StatusItemController: NSObject {
         if placement.effectiveClickAction != .card {
             let card = NSMenuItem(title: String(localized: "Show Card"), action: #selector(showPromotedCard(_:)), keyEquivalent: "")
             card.target = self
-            card.representedObject = (widgetID, button)
+            card.representedObject = widgetID
             menu.addItem(card)
         }
 
@@ -486,7 +558,8 @@ final class StatusItemController: NSObject {
         // Only a widget that can render a label has something to merge into
         // the shared text strip.
         merge.isEnabled = widget.manifest.statusItem?.showsLabel ?? true
-        menu.addItem(merge)
+        // A cluster has no separate items to merge.
+        if appPrefs.preferences.menuBarLayout != .cluster { menu.addItem(merge) }
 
         let remove = NSMenuItem(
             title: String(localized: "Remove from Menu Bar"),
@@ -497,7 +570,7 @@ final class StatusItemController: NSObject {
         remove.representedObject = widgetID
         menu.addItem(remove)
 
-        NSMenu.popUpContextMenu(menu, with: event, for: button)
+        NSMenu.popUpContextMenu(menu, with: event, for: view)
     }
 
     @objc private func showPromotedWidget(_ sender: NSMenuItem) {
@@ -507,7 +580,12 @@ final class StatusItemController: NSObject {
     }
 
     @objc private func showPromotedCard(_ sender: NSMenuItem) {
-        guard let (widgetID, button) = sender.representedObject as? (String, NSStatusBarButton) else { return }
+        guard let widgetID = sender.representedObject as? String else { return }
+        if appPrefs.preferences.menuBarLayout == .cluster {
+            cluster.openCard(widgetID: widgetID)
+            return
+        }
+        guard let button = menuBar.separateStatusItems[widgetID]?.button else { return }
         // Show, not toggle: the menu item says "Show".
         if let current = widgetPopover, current.widgetID == widgetID, current.surface.isShown { return }
         toggleWidgetPopover(for: widgetID, anchoredTo: button)

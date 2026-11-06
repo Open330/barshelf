@@ -77,9 +77,17 @@ final class PopoverSurface: NSObject, PopupSurface, NSPopoverDelegate {
     }
 
     func show(relativeTo button: NSStatusBarButton) {
+        show(relativeTo: button.bounds, of: button)
+    }
+
+    /// Hangs the popover off `rect` in `view`: a status item's button, or a
+    /// chip in the menu bar cluster's strip. The view must outlive the
+    /// popover; the cluster passes its strip's container, which stays put
+    /// while chips move inside it.
+    func show(relativeTo rect: NSRect, of view: NSView) {
         NSApp.activate()
         if popover.contentViewController == nil { popover.contentViewController = makeContent() }
-        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        popover.show(relativeTo: rect, of: view, preferredEdge: .minY)
         // Make the popover window key so its text fields receive keyboard input
         // and standard editing key equivalents (⌘A/⌘C/⌘V/⌘X).
         popover.contentViewController?.view.window?.makeKey()
@@ -108,6 +116,15 @@ final class PopoverSurface: NSObject, PopupSurface, NSPopoverDelegate {
 
     func hide() {
         popover.performClose(nil)
+    }
+
+    /// Moves an open popover's arrow to another rect in the same view, as
+    /// when the pointer slides from one cluster chip to the next. The
+    /// content is the caller's to swap (through its own model), so the
+    /// hosting controller survives the move.
+    func reposition(to rect: NSRect) {
+        guard popover.isShown else { return }
+        popover.positioningRect = rect
     }
 
     // MARK: - NSPopoverDelegate

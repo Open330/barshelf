@@ -2332,6 +2332,16 @@
         }
       }
     },
+    "Cluster": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "클러스터"
+          }
+        }
+      }
+    },
     "Color": {
       "localizations": {
         "ko": {
@@ -6830,6 +6840,16 @@
         }
       }
     },
+    "One small chip per widget beside the BarShelf icon. Point at them to fan them out, rest on one to see its reading, and click to open its card.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BarShelf 아이콘 옆에 위젯마다 작은 칩이 겹쳐 놓입니다. 포인터를 올리면 펼쳐지고, 칩 위에 잠시 머무르면 값이 보이며, 클릭하면 그 위젯의 카드가 열립니다."
+          }
+        }
+      }
+    },
     "One-time sign-in codes with a countdown and one-click copy. Needs the otpeek command-line tool and a set-up vault.": {
       "localizations": {
         "ko": {
@@ -7776,6 +7796,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "값"
+          }
+        }
+      }
+    },
+    "Readings as text beside the BarShelf icon, or as items of their own.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "값을 BarShelf 아이콘 옆에 텍스트로 보여 주거나, 위젯별 항목으로 따로 보여 줍니다."
           }
         }
       }
@@ -9538,6 +9568,16 @@
         }
       }
     },
+    "Show widgets as": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯 표시 방식"
+          }
+        }
+      }
+    },
     "Showing cached data. The latest refresh failed.": {
       "localizations": {
         "ko": {
@@ -10128,6 +10168,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "텍스트 정렬"
+          }
+        }
+      }
+    },
+    "Text and Items": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "텍스트와 항목"
           }
         }
       }

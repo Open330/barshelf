@@ -17,6 +17,8 @@ enum ScreenshotMode {
         ok = render(PopoverShot(scheme: .dark), name: "popover-dark", to: dir) && ok
         ok = render(PopoverShot(scheme: .light), name: "popover-light", to: dir) && ok
         ok = render(BuilderShot(), name: "builder", to: dir) && ok
+        ok = render(ClusterShot(scheme: .dark), name: "menubar-cluster-dark", to: dir) && ok
+        ok = render(ClusterShot(scheme: .light), name: "menubar-cluster-light", to: dir) && ok
         // Standalone widget-card tiles for the landing-page preview gallery
         // (light — the landing page is a fixed light theme).
         let tiles: [(name: String, title: String, icon: String, node: UINode, accent: String?)] = [
@@ -1198,6 +1200,83 @@ private struct PopoverShot: View {
 
     private var shotBackground: some View {
         (scheme == .dark ? Color(red: 0.04, green: 0.10, blue: 0.12) : Color(red: 0.93, green: 0.96, blue: 0.95))
+    }
+}
+
+// MARK: - Menu bar cluster
+
+/// The cluster three ways on a strip of menu bar: folded as the status item
+/// draws it, fanned out under the pointer with a chip active, and the peek.
+private struct ClusterShot: View {
+    let scheme: ColorScheme
+
+    private static let chips: [ClusterChip] = [
+        ClusterChip(widgetID: "work", name: "work-01", initial: "W", fraction: 0.36, tint: .good, reading: "36% · 2h 10m"),
+        ClusterChip(widgetID: "personal", name: "personal", initial: "P", fraction: 0.18, tint: .warning, reading: "18% · 2h 10m"),
+        ClusterChip(widgetID: "teamx", name: "team-x", initial: "T", fraction: 0.06, tint: .danger, alert: true, reading: "6% left"),
+        ClusterChip(widgetID: "battery", name: "Battery", symbol: "battery.75percent", initial: "B", fraction: 0.8, tint: .good, reading: "80%"),
+        ClusterChip(widgetID: "k8s", name: "k8s pods", symbol: "shippingbox.fill", initial: "K", fraction: 0.92, tint: .warning, reading: "11/12 ready"),
+    ]
+    private static let colors: [String: NSColor] = [
+        "work": NSColor(red: 0.85, green: 0.47, blue: 0.34, alpha: 1),
+        "personal": .systemPurple, "teamx": NSColor(red: 0.06, green: 0.64, blue: 0.5, alpha: 1),
+        "battery": .systemGreen, "k8s": .systemBlue,
+    ]
+
+    private var barHeight: CGFloat { NSStatusBar.system.thickness }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.l) {
+            bar { folded }
+            bar { fanned }
+            ClusterPeekView(chip: Self.chips[2], color: Color(nsColor: Self.colors["teamx"]!))
+        }
+        .padding(Spacing.l)
+        .background(scheme == .dark ? Color(white: 0.1) : Color(white: 0.9))
+        .environment(\.colorScheme, scheme)
+    }
+
+    private func bar<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        HStack(spacing: Spacing.s) {
+            Image(systemName: "wifi")
+            Image(systemName: "battery.75percent")
+            content()
+            Text(verbatim: "Thu 9:41").font(.callout.weight(.medium))
+        }
+        .padding(.horizontal, Spacing.s)
+        .frame(width: 420, height: barHeight, alignment: .trailing)
+        .background(scheme == .dark ? Color(white: 0.18) : Color(white: 0.97))
+    }
+
+    private var folded: some View {
+        let appearance = NSAppearance(named: scheme == .dark ? .darkAqua : .aqua)!
+        let image = MenuBarController.clusterImage(
+            Self.chips,
+            mark: BarShelfStatusIcon.image(for: AppPreferences.defaultMenuBarSymbol, fallback: "tray.full"),
+            badged: false,
+            color: { Self.colors[$0] ?? .controlAccentColor },
+            appearance: appearance,
+            height: barHeight
+        )
+        return Image(nsImage: image)
+    }
+
+    private var fanned: some View {
+        let model = ClusterStripModel()
+        model.chips = Self.chips
+        model.colors = Self.colors.mapValues { Color(nsColor: $0) }
+        model.anchor = 2
+        model.expanded = true
+        model.hovered = 3
+        model.active = 2
+        model.originX = 60
+        let width = CGFloat(model.geometry.expandedSpan(anchor: 2).upperBound
+            - model.geometry.expandedSpan(anchor: 2).lowerBound) + 2 * Spacing.s
+        return ClusterStripView(
+            model: model,
+            mark: BarShelfStatusIcon.image(for: AppPreferences.defaultMenuBarSymbol, fallback: "tray.full")
+        )
+        .frame(width: width, height: barHeight)
     }
 }
 
