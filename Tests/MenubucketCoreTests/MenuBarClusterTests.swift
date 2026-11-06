@@ -279,7 +279,9 @@ final class MenuBarClusterFocusTests: XCTestCase {
 
     func testPillValueIsTheReadingWithoutItsLabel() {
         XCTAssertEqual(MenuBarClusterPolicy.shortValue(" 22% "), "22%")
-        XCTAssertEqual(MenuBarClusterPolicy.shortValue("123456789"), "1234567…")
+        XCTAssertEqual(MenuBarClusterPolicy.shortValue("12345678901"), "123456789…")
+        let quiet = MenuBarEntry(widgetID: "k", name: "Keep Awake")
+        XCTAssertEqual(MenuBarClusterPolicy.pillText(quiet, reading: ""), "", "an icon-only widget has no value")
         var entry = MenuBarEntry(widgetID: "w", name: "System", metrics: [StatusMetric(label: "CPU", value: "22%")])
         XCTAssertEqual(MenuBarClusterPolicy.value(of: entry), "22%")
         entry.metrics = []

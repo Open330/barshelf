@@ -49,14 +49,28 @@ extension MenuBarController {
         NSFont.monospacedDigitSystemFont(ofSize: ChipMetrics.pillFontSize, weight: .semibold)
     }
 
+    /// Every pill in a cluster is as wide as the widest, so the layout has
+    /// one shape whichever chip is under the pointer, and the place that
+    /// selects each chip does not move as the pointer goes along.
+    /// Chips with no value take the others' width; if none has one, the
+    /// names set it, so an all-icon cluster still grows pills.
+    static func pillWidth(_ chips: [ClusterChip]) -> CGFloat {
+        let valued = chips.filter { !$0.value.isEmpty }
+        if let widest = valued.map(pillWidth).max() { return widest }
+        return chips.map { pillWidth(text: $0.name) }.max() ?? CGFloat(ClusterGeometry.disc)
+    }
+
     /// The width of a chip's pill: its disc, then its value. A chip
     /// without one stays a disc.
     static func pillWidth(_ chip: ClusterChip) -> CGFloat {
-        let face = CGFloat(ClusterGeometry.disc)
-        guard !chip.value.isEmpty else { return face }
-        let text = NSAttributedString(string: chip.value, attributes: [.font: pillFont()]).size().width
+        pillWidth(text: chip.value)
+    }
+
+    static func pillWidth(text: String) -> CGFloat {
+        guard !text.isEmpty else { return CGFloat(ClusterGeometry.disc) }
+        let width = NSAttributedString(string: text, attributes: [.font: pillFont()]).size().width
         let height = ChipMetrics.face * ChipMetrics.focusScale
-        return ceil(height + ChipMetrics.pillTextGap + min(text, ChipMetrics.pillTextMax) + ChipMetrics.pillTrailing)
+        return ceil(height + ChipMetrics.pillTextGap + min(width, ChipMetrics.pillTextMax) + ChipMetrics.pillTrailing)
     }
 
     static func clusterImage(
@@ -207,9 +221,14 @@ extension MenuBarController {
             from: NSPoint(x: rect.midX, y: rect.minY), to: NSPoint(x: rect.midX, y: rect.maxY),
             options: [.drawsBeforeStartingLocation, .drawsAfterEndingLocation]
         )
-        drawGlyph(chip, at: NSPoint(x: rect.minX + height / 2, y: midY), alpha: alpha)
-        if !chip.value.isEmpty {
-            let text = NSAttributedString(string: chip.value, attributes: [
+        // The value, else the name when it fits whole; else the glyph alone
+        // in the middle of the pill.
+        let label = chip.value.isEmpty ? chip.name : chip.value
+        let fits = !chip.value.isEmpty
+            || pillWidth(text: chip.name) <= rect.width + 0.5
+        drawGlyph(chip, at: NSPoint(x: fits ? rect.minX + height / 2 : rect.midX, y: midY), alpha: alpha)
+        if fits, !label.isEmpty {
+            let text = NSAttributedString(string: label, attributes: [
                 .font: pillFont(), .foregroundColor: NSColor.white.withAlphaComponent(alpha),
             ])
             let size = text.size()
