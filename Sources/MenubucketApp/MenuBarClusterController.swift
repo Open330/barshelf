@@ -74,10 +74,25 @@ final class MenuBarClusterController: NSObject {
         self.originInButton = originInButton
         self.markImage = markImage
         super.init()
+        // A Space switch, a display change or the app losing the menu bar
+        // (full screen, auto-hide) leaves the strip pointing at nothing.
+        let workspace = NSWorkspace.shared.notificationCenter
+        observers.append(workspace.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in self?.dismiss() })
+        observers.append(NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
+        ) { [weak self] _ in self?.dismiss() })
     }
+
+    private var observers: [NSObjectProtocol] = []
 
     deinit {
         removeKeyMonitor()
+        for observer in observers {
+            NSWorkspace.shared.notificationCenter.removeObserver(observer)
+            NotificationCenter.default.removeObserver(observer)
+        }
     }
 
     // MARK: - State from the menu bar
@@ -208,7 +223,9 @@ final class MenuBarClusterController: NSObject {
         var upper = CGFloat(max(span.upperBound, geometry.itemWidth))
         // Keep the fan on screen: push it back from whichever edge it passes.
         var shift: CGFloat = 0
-        let minX = screen.frame.minX + pad, maxX = screen.frame.maxX - pad
+        // On a notched display the strip must stay right of the notch.
+        let rightOfNotch = screen.auxiliaryTopRightArea.map { $0.minX } ?? screen.frame.minX
+        let minX = max(screen.frame.minX, rightOfNotch) + pad, maxX = screen.frame.maxX - pad
         if stackX + upper > maxX { shift = maxX - (stackX + upper) }
         if stackX + lower + shift < minX { shift = minX - (stackX + lower) }
         lower = min(lower, lower + shift)
@@ -249,6 +266,8 @@ final class MenuBarClusterController: NSObject {
         collapseWork?.cancel()
         guard strip != nil else { return }
         guard card?.isShown != true else { return }
+        // An exit event can arrive late; trust where the pointer is now.
+        if !immediately, stripView?.containsPointer == true { return }
         hidePeek()
         model.expanded = false
         model.hovered = nil
