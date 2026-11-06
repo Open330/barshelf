@@ -86,6 +86,11 @@ final class MenuBarController {
     /// hover and clicks on them. Empty outside cluster layout.
     var onChipsChanged: (([ClusterChip]) -> Void)?
     private var appliedChips: [ClusterChip]?
+    /// The chip uncovered under the pointer, and where every chip is drawn
+    /// right now (they glide between layouts).
+    private(set) var clusterFocus: Int?
+    private var clusterPositions: [CGFloat] = []
+    private var focusAnimation: Timer?
     private var appearanceObservation: NSKeyValueObservation?
     /// Extra status items, keyed by widget id.
     private var separateItems: [String: NSStatusItem] = [:]
@@ -255,13 +260,24 @@ final class MenuBarController {
             return
         }
         guard appliedChips != chips else { return }
+        if appliedChips?.map(\.id) != chips.map(\.id) {
+            // Different chips: start from the plain fold.
+            clusterFocus = nil
+            focusAnimation?.invalidate()
+            clusterPositions = Self.clusterTargets(count: chips.count, focus: nil)
+        }
         appliedChips = chips
+        drawCluster(chips, on: button)
+        onChipsChanged?(chips)
+    }
+
+    private func drawCluster(_ chips: [ClusterChip], on button: NSStatusBarButton) {
         // The strip path must start over when the layout switches back.
         appliedSymbol = nil
         appliedStrip = nil
         let mark = BarShelfStatusIcon.image(for: mainSymbol, fallback: AppPreferences.defaultMenuBarSymbol)
         let image = Self.clusterImage(
-            chips, mark: mark, badged: attention,
+            chips, positions: clusterPositions, mark: mark, badged: attention,
             color: { [chipColor] id in chipColor?(id) ?? .controlAccentColor },
             appearance: button.effectiveAppearance,
             height: NSStatusBar.system.thickness
@@ -274,7 +290,56 @@ final class MenuBarController {
         button.toolTip = nil
         let spoken = chips.map(\.spoken).joined(separator: "; ")
         button.setAccessibilityLabel("\(BarShelfStatusIcon.accessibilityLabel(badged: attention)), \(spoken)")
-        onChipsChanged?(chips)
+    }
+
+    static func clusterTargets(count: Int, focus: Int?) -> [CGFloat] {
+        let geometry = ClusterGeometry(count: count)
+        return (0..<count).map { CGFloat(geometry.focusedX($0, focus: focus)) }
+    }
+
+    /// Uncovers one chip in place (nil folds them all again), gliding there
+    /// over a few frames unless `animated` is false.
+    ///
+    /// The item's width never changes, so nothing else in the menu bar moves
+    /// or is covered. Each frame is one image set on the status item, which
+    /// is cheap enough for a pointer moving between chips.
+    func setClusterFocus(_ focus: Int?, animated: Bool) {
+        guard layout == .cluster, let chips = appliedChips, !chips.isEmpty,
+              let button = mainItem.button, focus != clusterFocus else { return }
+        clusterFocus = focus
+        let target = Self.clusterTargets(count: chips.count, focus: focus)
+        focusAnimation?.invalidate()
+        let start = clusterPositions.count == target.count ? clusterPositions : target
+        guard animated else {
+            clusterPositions = target
+            drawCluster(chips, on: button)
+            return
+        }
+        let began = Date()
+        focusAnimation = Timer.scheduledTimer(withTimeInterval: 1.0 / 60, repeats: true) { [weak self] timer in
+            guard let self, let chips = self.appliedChips, let button = self.mainItem.button else {
+                timer.invalidate(); return
+            }
+            let t = min(Date().timeIntervalSince(began) / Self.focusDuration, 1)
+            // Ease out: quick to start, gentle to land.
+            let eased = CGFloat(1 - pow(1 - t, 3))
+            self.clusterPositions = zip(start, target).map { $0 + ($1 - $0) * eased }
+            self.drawCluster(chips, on: button)
+            if t >= 1 { timer.invalidate() }
+        }
+    }
+
+    static let focusDuration: TimeInterval = 0.16
+
+    /// A chip's rect in the main button's coordinates, where it will rest
+    /// in the current focus layout: for anchoring its card and peek.
+    func clusterChipRect(_ index: Int, in button: NSStatusBarButton) -> NSRect {
+        let count = appliedChips?.count ?? 0
+        let x = Self.clusterTargets(count: count, focus: clusterFocus)[cluster: index] ?? 0
+        return NSRect(
+            x: clusterOrigin(in: button) + x, y: 0,
+            width: CGFloat(ClusterGeometry.slot), height: button.bounds.height
+        )
     }
 
     /// Where the cluster's stack starts inside the main button, in its
@@ -974,4 +1039,8 @@ final class MenuBarController {
         case .secondary: return .secondaryLabelColor
         }
     }
+}
+
+private extension Array {
+    subscript(cluster index: Int) -> Element? { indices.contains(index) ? self[index] : nil }
 }

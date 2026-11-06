@@ -1,101 +1,6 @@
 import MenubucketCore
 import SwiftUI
 
-/// What the fanned-out strip draws. The controller owns it; the views only
-/// read it.
-final class ClusterStripModel: ObservableObject {
-    @Published var chips: [ClusterChip] = []
-    /// The chip that stays put while the strip opens around it.
-    @Published var anchor = 0
-    @Published var expanded = false
-    /// Where stack x = 0 sits in the strip's own coordinates.
-    @Published var originX: CGFloat = 0
-    /// Extra offset of the whole fan, to keep it on screen.
-    @Published var fanShift: CGFloat = 0
-    @Published var hovered: Int?
-    @Published var markHovered = false
-    /// The chip whose card is open.
-    @Published var active: Int?
-    var colors: [String: Color] = [:]
-
-    var geometry: ClusterGeometry { ClusterGeometry(count: chips.count) }
-
-    /// A chip's left edge in strip coordinates.
-    func chipX(_ index: Int) -> CGFloat {
-        let g = geometry
-        return originX + (expanded
-            ? CGFloat(g.expandedX(index, anchor: anchor)) + fanShift
-            : CGFloat(g.collapsedX(index)))
-    }
-
-    var markX: CGFloat {
-        let g = geometry
-        return originX + (expanded
-            ? CGFloat(g.expandedMarkX(anchor: anchor)) + fanShift
-            : CGFloat(g.collapsedMarkX))
-    }
-}
-
-/// The strip that replaces the folded stack under the pointer: a glass pill
-/// with the chips side by side and the BarShelf icon at the end.
-struct ClusterStripView: View {
-    @ObservedObject var model: ClusterStripModel
-    let mark: NSImage
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        GeometryReader { proxy in
-            let height = proxy.size.height
-            let slot = CGFloat(ClusterGeometry.slot)
-            ZStack(alignment: .topLeading) {
-                pill(height: height)
-                ForEach(Array(model.chips.enumerated()), id: \.element.id) { index, chip in
-                    ClusterChipFace(
-                        chip: chip,
-                        color: model.colors[chip.widgetID] ?? .accentColor,
-                        emphasis: emphasis(index)
-                    )
-                    .frame(width: slot, height: height)
-                    .offset(x: model.chipX(index))
-                }
-                Image(nsImage: mark)
-                    .renderingMode(.template)
-                    .foregroundStyle(model.markHovered ? .primary : .secondary)
-                    .frame(width: CGFloat(ClusterGeometry.markWidth), height: height)
-                    .background(
-                        Circle().fill(model.markHovered ? Fill.hover : .clear)
-                            .frame(width: ClusterChipFace.Metrics.hit, height: ClusterChipFace.Metrics.hit)
-                    )
-                    .offset(x: model.markX)
-            }
-            .animation(Motion.respecting(reduceMotion, Motion.arrange), value: model.expanded)
-            .animation(Motion.respecting(reduceMotion, Motion.press), value: model.hovered)
-            .animation(Motion.respecting(reduceMotion, Motion.press), value: model.active)
-        }
-        .allowsHitTesting(false)
-    }
-
-    @ViewBuilder
-    private func pill(height: CGFloat) -> some View {
-        let g = model.geometry
-        let lead = model.chipX(0) - Spacing.xxs
-        let trail = model.markX + CGFloat(ClusterGeometry.markWidth) + Spacing.xxs
-        Capsule()
-            .fill(.clear)
-            .frame(width: max(trail - lead, 0), height: height - Spacing.hair)
-            .glassSurface(Capsule(), elevation: .control)
-            .offset(x: lead, y: Spacing.hair / 2)
-            .opacity(model.expanded && g.count > 0 ? 1 : 0)
-    }
-
-    private func emphasis(_ index: Int) -> ClusterChipFace.Emphasis {
-        if model.active == index { return .active }
-        guard model.expanded, let hovered = model.hovered else { return .rest }
-        if hovered == index { return .hovered }
-        return abs(hovered - index) == 1 ? .near : .rest
-    }
-}
-
 /// One chip: the share ring, the coloured core with the widget's symbol or
 /// initial, and a red dot when its reading needs a look. The same drawing
 /// as the folded stack in the menu bar (`MenuBarController.drawChip`).
@@ -109,7 +14,6 @@ struct ClusterChipFace: View {
         static let arc = face + 2 * (MenuBarController.ChipMetrics.ringGap + ring / 2)
         static let badge = MenuBarController.ChipMetrics.badge
         static let glyph = MenuBarController.ChipMetrics.glyphSize
-        static let hit: CGFloat = 24
         static let nearScale: CGFloat = 1.03
         static let hoverScale: CGFloat = 1.08
         static let activeDisc: CGFloat = 26

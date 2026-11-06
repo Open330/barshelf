@@ -22,12 +22,12 @@
 - **Toned boxes inside widgets** no longer wash the whole box in colour. The
   numbers and meters carry the colour, and the box keeps a faint edge.
 - **Menu bar cluster** (Settings ▸ Menu Bar ▸ Show widgets as: Cluster).
-  Promoted widgets become small overlapping chips beside the BarShelf icon,
-  with a ring for a percentage and a red dot for a reading in trouble. Point
-  at them to fan them out. Rest on one to see its reading, click to open its
-  card there, then slide or press ← → to move between them. Nothing else in
-  the menu bar moves. Widgets can mark their metrics as `profiles` (accounts,
-  hosts) to get one chip each.
+  Promoted widgets become small overlapping discs beside the BarShelf icon,
+  with a red dot for a reading in trouble. Pointing at one uncovers just that
+  chip in place, without widening the item or covering anything else in the
+  menu bar. Rest on it to see its reading, click to open its card there, then
+  move along or press ← → to switch cards. Widgets can mark their metrics as
+  `profiles` (accounts, hosts) to get one chip each.
 - **Gallery.** Widgets without a screenshot are drawn as the card they will
   be, not as a symbol on a pastel field. Previews that are still loading show
   the same placeholder rows instead of a spinner.

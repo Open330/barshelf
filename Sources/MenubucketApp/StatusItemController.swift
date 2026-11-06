@@ -190,7 +190,7 @@ final class StatusItemController: NSObject {
 
         if isRightClick {
             popup.hide()
-            showStatusItemMenu(with: event)
+            if !cluster.handleStatusItemRightClick(event) { showStatusItemMenu(with: event) }
         } else if cluster.handleStatusItemClick(event) {
             return
         } else {
@@ -465,15 +465,7 @@ final class StatusItemController: NSObject {
         cluster = MenuBarClusterController(
             runtime: runtime,
             statusItem: statusItem,
-            originInButton: { [weak self] button in
-                self?.menuBar.clusterOrigin(in: button) ?? MenuBarController.clusterItemInset
-            },
-            markImage: { [weak self] in
-                BarShelfStatusIcon.image(
-                    for: self?.appPrefs.preferences.menuBarSymbol ?? AppPreferences.defaultMenuBarSymbol,
-                    fallback: AppPreferences.defaultMenuBarSymbol
-                )
-            }
+            menuBar: menuBar
         )
         cluster.chipColor = { [weak self] id in
             self.flatMap { $0.widgetColor(id) }.map { Color(nsColor: $0) } ?? .accentColor
@@ -481,13 +473,8 @@ final class StatusItemController: NSObject {
         menuBar.chipColor = { [weak self] id in self?.widgetColor(id) }
         menuBar.onChipsChanged = { [weak self] chips in self?.cluster.update(chips) }
         cluster.onChipClick = { [weak self] id in self?.chipClicked(id) }
-        cluster.onMarkClick = { [weak self] in self?.togglePopup() }
         cluster.onChipContextMenu = { [weak self] id, event, view in
             self?.showWidgetMenu(for: id, with: event, in: view)
-        }
-        cluster.onMarkContextMenu = { [weak self] event, view in
-            guard let self else { return }
-            NSMenu.popUpContextMenu(self.makeAppMenu(), with: event, for: view)
         }
     }
 
