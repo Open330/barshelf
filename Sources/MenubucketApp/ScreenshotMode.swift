@@ -1250,8 +1250,8 @@ private struct ClusterShot: View {
 
     private var folded: some View { stack(focus: nil) }
 
-    /// The pointer on team-x: the icon hidden, the chips spread into its
-    /// room around that chip, same width.
+    /// The pointer on team-x: one gap opens behind it, the chips after it
+    /// step into the hidden icon's room, same width.
     private var fanned: some View { stack(focus: 2) }
 
     private func stack(focus: Int?) -> some View {
