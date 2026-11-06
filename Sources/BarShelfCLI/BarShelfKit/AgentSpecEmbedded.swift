@@ -328,6 +328,11 @@ sharing) the BarShelf mark.
   `menuBar.metric('ram', 12_800_000_000, { label: 'RAM', format: 'bytes' })`,
   or `menuBar.metric('power', 18.6, { label: 'Power', unit: 'W', precision: 1 })`.
   Pass at most two readings through `menuBar.status([...], { presentation: { showUnits: true } })`.
+- `statusItem.profiles: true` marks each of `status.metrics` as a profile of
+  its own (an account, a host). When the user picks the **Cluster** menu bar
+  layout, every profile gets its own chip (named by the metric's `label`,
+  ringed by its percentage, red-dotted for a `danger` tint), up to 8 chips in
+  total. The text and item layouts are unaffected.
 - `statusItem.style` picks the layout: `"inline"` draws the label beside the
   value, `"stacked"` puts it above in smaller type, and `"metrics"` draws up
   to two independent metrics in its own status item. Stacked and metrics both

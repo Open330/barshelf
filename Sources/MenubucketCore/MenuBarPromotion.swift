@@ -588,6 +588,13 @@ public struct MenuBarEntry: Equatable, Sendable {
     /// What a chart scales against: 0–100 for a percentage, else nil (the
     /// history's own peak).
     public var chartScale: Double?
+    /// Each metric is a profile of its own (`Manifest.StatusItem.profiles`):
+    /// one chip per metric in the cluster layout.
+    public var profiles: Bool = false
+    /// Every profile's reading when `profiles` is on. `metrics` keeps only
+    /// the two an item has room for; the cluster draws a chip for each of
+    /// these, up to its own cap.
+    public var profileMetrics: [StatusMetric] = []
 
     public init(
         widgetID: String,
@@ -1293,7 +1300,7 @@ public enum MenuBarPolicy {
 
     /// Bounds metric content before AppKit rendering. Active-only metrics stay
     /// present so callers can render a dot with an accessibility description.
-    public static func normalizedMetrics(_ metrics: [StatusMetric]) -> [StatusMetric] {
+    public static func normalizedMetrics(_ metrics: [StatusMetric], limit: Int = maxMetrics) -> [StatusMetric] {
         metrics.compactMap { metric in
             let label = normalizedLabel(metric.label, limit: maxPrefixCharacters) ?? ""
             let value = normalizedLabel(metric.value) ?? ""
@@ -1319,7 +1326,7 @@ public enum MenuBarPolicy {
                 accessibilityLabel: accessibilityLabel
             )
         }
-        .prefix(maxMetrics)
+        .prefix(limit)
         .map { $0 }
     }
 

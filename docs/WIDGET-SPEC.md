@@ -188,6 +188,7 @@ Workflow DSL 상세 계약은 [`docs/WORKFLOW.md`](WORKFLOW.md)를 따른다.
 | `label` | 값 앞에 그릴 기본 텍스트(`CPU 23%`의 `CPU`). 워크플로의 `status.prefix`가 이보다 우선하고, 사용자 설정이 둘 다 이긴다. |
 | `style` | `inline`은 값 옆에, `stacked`는 값 **위에** 작게 라벨을 둔다(시스템 모니터가 메뉴바 높이에 두 줄을 넣는 방식). `metrics`는 최대 두 개의 독립 metric을 나란히 그리는 전용 status item이다. |
 | `presentation` | 작성자 기본 표시값. `showValues`, `showUnits`, `precision`(0–3), `color`(`automatic`/`monochrome`/semantic tint), `width`(`auto`=`digits`자리만큼 폭 예약, 기본 / `fixed`=`valueWidth` 32–120pt / `fit`=글자에 맞춤), `digits`(1–6, 기본 2), `alignment`(행 정렬), `numberAlignment`(`right` 기본: 마지막 자리·단위 고정 / `left`: 라벨과 왼쪽 맞춤), `weight`, `size`, stable metric id의 `metricOrder`, `metricOverrides`를 둔다. 사용자 설정과 각 refresh의 status.presentation이 더 우선한다. |
+| `profiles` | `true`면 `status.metrics`의 각 항목을 별도 프로필(계정, 호스트 등)로 본다. 메뉴 막대를 **클러스터**로 표시할 때 프로필마다 칩이 하나씩 생기고, 칩 이름은 metric의 `label`이다(최대 8개). 텍스트·항목 표시에서는 아무것도 바뀌지 않는다. |
 | `labelFrom` | 스키마 호환용. 현재 런타임은 읽지 않는다. |
 | `tooltipFrom` | 스키마 호환용. 현재 런타임은 읽지 않는다. |
 
@@ -212,6 +213,10 @@ Workflow DSL 상세 계약은 [`docs/WORKFLOW.md`](WORKFLOW.md)를 따른다.
   아이템으로 분리할 수 있다. `icon` 모드는 아이콘을 글자 줄에 섞을 수 없으므로 항상 자기 아이템을 쓴다.
 - 공유 스트립의 좌우 순서는 BarShelf 창 메뉴 막대 페이지의 ← → 버튼(또는 위젯
   설정 Menu Bar 탭의 Move Left / Move Right)으로 바꾼다. 자기 아이템을 쓰는 위젯은 macOS가 제공하는 ⌘-드래그로 옮긴다.
+- 설정 ▸ 메뉴 막대 ▸ **위젯 표시 방식: 클러스터**를 고르면 승격된 위젯이 BarShelf
+  아이콘 옆에 겹친 작은 원형 칩으로 그려진다. 포인터를 올리면 펼쳐지고, 잠시
+  머무르면 값이 보이며, 클릭하면 위젯의 클릭 동작(기본: 카드)이 그 칩에서 열린다.
+  칩에는 percent metric의 비율이 링으로, `danger` tint가 빨간 점으로 나타난다.
 - 최대 5개까지 승격된다. 이 상한은 그리기 전에 적용되므로, 넘친 위젯이 보이지도 않으면서 닫힌 팝오버 폴링 면제를 들고 있는 일은 없다. label은 한 줄로 합쳐 14자에서 자른다.
 - 작성자가 `mode`를 선언해도 그것만으로 켜지지 않는다. 업데이트가 사용자의 메뉴바를 말없이 차지하고 배터리를 더 쓰게 만들지 않기 위해서다.
 - 승격된 위젯은 팝오버가 닫혀 있어도 자기 `refresh.interval`로 계속 돈다.

@@ -152,6 +152,7 @@ struct GalleryCard: View {
                 .help("Update BarShelf to install this widget")
         } else if updateAvailable {
             Button("Update", action: install)
+                .buttonStyle(.glass(.accent))
                 .controlSize(.small)
                 .help("A newer version is available in the registry")
                 .accessibilityLabel("Update \(displayName)")
@@ -164,6 +165,7 @@ struct GalleryCard: View {
                 .help("Installed — right-click to reinstall")
         } else {
             Button("Install", action: install)
+                .buttonStyle(.glass(.secondary))
                 .controlSize(.small)
                 .accessibilityLabel("Install \(displayName)")
         }
@@ -236,19 +238,7 @@ struct GalleryCard: View {
         GalleryScreenshot(
             url: GalleryLinks.screenshotURL(entry), name: displayName, height: 120,
             placeholder: {
-                // Artwork rather than a second copy of the tile below: the
-                // widget's color as a wash, its symbol drawn large in it.
-                ZStack {
-                    LinearGradient(
-                        colors: [accent.opacity(Fill.Wash.strong), accent.opacity(Fill.Wash.soft / 2)],
-                        startPoint: .topLeading, endPoint: .bottomTrailing
-                    )
-                    Image(systemName: entry.icon ?? "app.dashed")
-                        .font(.largeTitle.weight(.light))
-                        .imageScale(.large)
-                        .foregroundStyle(accent)
-                }
-                .accessibilityHidden(true)
+                GalleryPreviewStandIn(symbol: entry.icon ?? "app.dashed", color: accent, name: displayName)
             }
         )
     }
@@ -349,8 +339,9 @@ struct GalleryScreenshot<Placeholder: View>: View {
                                 .padding(Spacing.xs)
                                 .accessibilityLabel("Preview of \(name)")
                         case .empty:
-                            ProgressView().controlSize(.small)
-                                .accessibilityHidden(true)
+                            // The shape of a card, not a spinner: the band
+                            // keeps its look while the picture arrives.
+                            GalleryPreviewSkeleton()
                         default:
                             placeholder()
                         }
@@ -360,6 +351,69 @@ struct GalleryScreenshot<Placeholder: View>: View {
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+    }
+}
+
+/// A widget without a screenshot, drawn as the card it will be: its tile and
+/// name over a few placeholder rows, on its colour's faint wash. Reads as a
+/// widget, where a big symbol on a pastel field read as missing artwork.
+struct GalleryPreviewStandIn: View {
+    let symbol: String
+    let color: Color
+    let name: String
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [color.opacity(Fill.Wash.soft), .clear],
+                startPoint: .top, endPoint: .bottom
+            )
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                HStack(spacing: Spacing.stack) {
+                    CardIconTile(symbol: symbol, color: color)
+                    Text(name)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+                }
+                GalleryPreviewSkeleton(tint: color)
+            }
+            .padding(Spacing.cardInset)
+            .frame(width: Self.cardWidth, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: Radius.nested(in: Radius.card, inset: Spacing.xs), style: .continuous)
+                    .fill(Color(nsColor: .controlBackgroundColor))
+                    .elevation(.control)
+            )
+        }
+        .accessibilityHidden(true)
+    }
+
+    static let cardWidth: CGFloat = 200
+}
+
+/// Placeholder rows: a wide headline bar in the widget's colour, then two
+/// quiet lines.
+struct GalleryPreviewSkeleton: View {
+    var tint: Color?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.stack) {
+            bar(width: 0.45, height: Spacing.s, fill: tint.map { AnyShapeStyle($0.opacity(Fill.Wash.strong)) })
+            bar(width: 0.9, height: Spacing.stack, fill: nil)
+            bar(width: 0.65, height: Spacing.stack, fill: nil)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(tint == nil ? Spacing.m : 0)
+        .accessibilityHidden(true)
+    }
+
+    private func bar(width: CGFloat, height: CGFloat, fill: AnyShapeStyle?) -> some View {
+        GeometryReader { proxy in
+            Capsule()
+                .fill(fill ?? AnyShapeStyle(Fill.pressed))
+                .frame(width: proxy.size.width * width)
+        }
+        .frame(height: height)
     }
 }
 

@@ -129,3 +129,40 @@ final class MenuBarClusterTests: XCTestCase {
         XCTAssertEqual(roundTrip.menuBarLayout, .cluster)
     }
 }
+
+final class MenuBarClusterProfileTests: XCTestCase {
+    func testProfilesSplitIntoOneChipEach() {
+        let readings = [
+            StatusMetric(id: "work", label: "work-01", value: "36%", number: 36, unit: "%", tint: "good"),
+            StatusMetric(id: "personal", label: "personal", value: "18%", number: 18, unit: "%", tint: "warning"),
+            StatusMetric(label: "team-x", value: "6%", number: 6, unit: "%", tint: "danger"),
+        ]
+        var entry = MenuBarEntry(widgetID: "aas", name: "aas usage", style: .metrics, metrics: readings)
+        entry.profiles = true
+        entry.profileMetrics = MenuBarPolicy.normalizedMetrics(readings, limit: 8)
+        XCTAssertEqual(entry.metrics.count, MenuBarPolicy.maxMetrics, "the item itself still draws two")
+        let chips = MenuBarClusterPolicy.chips(from: [entry, MenuBarEntry(widgetID: "b", name: "Battery", label: "80%")])
+        XCTAssertEqual(chips.map(\.id), ["aas#work", "aas#personal", "aas#2", "b"])
+        XCTAssertEqual(Set(chips.prefix(3).map(\.widgetID)), ["aas"])
+        XCTAssertEqual(chips[0].name, "work-01")
+        XCTAssertEqual(chips[0].initial, "W")
+        XCTAssertEqual(chips[1].fraction ?? -1, 0.18, accuracy: 0.0001)
+        XCTAssertEqual(chips[1].tint, .warning)
+        XCTAssertTrue(chips[2].alert)
+        XCTAssertEqual(chips[2].reading, "6%")
+        XCTAssertTrue(chips[0].spoken.hasPrefix("aas usage"))
+    }
+
+    func testProfilesFlagIgnoredForASingleMetric() {
+        var entry = MenuBarEntry(widgetID: "aas", name: "aas", metrics: [StatusMetric(label: "a", value: "1")])
+        entry.profiles = true
+        XCTAssertEqual(MenuBarClusterPolicy.chips(from: [entry]).map(\.id), ["aas"])
+    }
+
+    func testManifestDecodesProfiles() throws {
+        let item = try JSONDecoder().decode(
+            Manifest.StatusItem.self, from: Data(#"{"mode":"text","style":"metrics","profiles":true}"#.utf8)
+        )
+        XCTAssertEqual(item.profiles, true)
+    }
+}
