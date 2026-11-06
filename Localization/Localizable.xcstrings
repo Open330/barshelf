@@ -421,6 +421,7 @@
       }
     },
     "%lld of %lld": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -575,6 +576,7 @@
       }
     },
     "1 of 3": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -2310,6 +2312,16 @@
         }
       }
     },
+    "Close": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "닫기"
+          }
+        }
+      }
+    },
     "Close search": {
       "localizations": {
         "ko": {
@@ -2926,6 +2938,7 @@
       }
     },
     "Demo": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -4006,6 +4019,7 @@
       }
     },
     "Finish editing (Esc)": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -7957,6 +7971,7 @@
       }
     },
     "Refresh All (⌘R)": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -8839,6 +8854,7 @@
       }
     },
     "Search (⌘F)": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -8894,6 +8910,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "이름, 설명 또는 태그로 위젯 검색"
+          }
+        }
+      }
+    },
+    "Searches widget names and what they show": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯 이름과 표시 내용을 검색합니다"
           }
         }
       }

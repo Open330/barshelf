@@ -70,6 +70,8 @@ struct RootView: View {
                     if !pager.isEditing { pinnedRow }
                 }
                 .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { topChromeHeight = $0 }
+                // Hover hints hang below the header, over the first card.
+                .zIndex(1)
                 pagerStrip(pages: pages, index: index)
                 if pages.count > 1 {
                     footer(pages: pages, index: index)
@@ -98,15 +100,15 @@ struct RootView: View {
                         .contentShape(Rectangle())
                         .onTapGesture { searchPresented = false }
                     SearchOverlay(runtime: runtime, pager: pager, isPresented: $searchPresented)
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.surface, style: .continuous))
-                        .shadow(color: .black.opacity(Fill.Wash.strong), radius: Spacing.s, y: Spacing.xxs)
                         .padding(Spacing.xs)
+                        .transition(.opacity.combined(with: .scale(scale: Motion.pressScale, anchor: .top)))
                 }
                 .transition(.opacity)
             }
         }
         .overlay { ToastOverlay(bottomInset: pages.count > 1 ? 46 : Spacing.s) }
         .animation(Motion.respecting(reduceMotion, Motion.quick), value: pager.isEditing)
+        .animation(Motion.respecting(reduceMotion, Motion.press), value: searchPresented)
         // ⌘F arrives as the Edit ▸ Find menu command (`AppCommands`).
         .onChange(of: pager.searchRequests) { searchPresented = true }
         .onChange(of: pager.isEditing) { _, editing in
@@ -404,7 +406,7 @@ struct RootView: View {
                     Label("Add Widget…", systemImage: "plus")
                         .frame(maxWidth: .infinity)
                 }
-                .controlSize(.large)
+                .buttonStyle(.glass(.secondary))
                 .padding(Spacing.s)
             }
         }
@@ -421,49 +423,51 @@ struct RootView: View {
 
     // MARK: - Header and footer
 
-    /// Page menu on the left; search, refresh and ⋯ on the right — or, while
-    /// editing, Done.
+    /// Page menu and position on the left; refresh and ⋯ on the right — or,
+    /// while editing, Done. Below it, the search field (⌘F).
     private func header(pages: [WidgetPage], index: Int) -> some View {
-        HStack(spacing: Spacing.xs) {
-            PageMenu(pages: pages, index: index) { target in
-                pager.jump(to: target, pageCount: pages.count)
-            }
-            if pages.count > 1 {
-                Text("\(index + 1) of \(pages.count)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .accessibilityLabel("Page \(index + 1) of \(pages.count)")
-            }
-            Spacer()
-            if pager.isEditing {
-                Button("Done") { pager.isEditing = false }
-                    .buttonStyle(.borderedProminent)
+        VStack(spacing: Spacing.xs) {
+            HStack(spacing: Spacing.stack) {
+                PageMenu(pages: pages, index: index) { target in
+                    pager.jump(to: target, pageCount: pages.count)
+                }
+                if pages.count > 1 {
+                    Text(verbatim: "\(index + 1)/\(pages.count)")
+                        .font(.caption.weight(.medium).monospacedDigit())
+                        .foregroundStyle(.tertiary)
+                        .accessibilityLabel("Page \(index + 1) of \(pages.count)")
+                }
+                Spacer()
+                if pager.isEditing {
+                    Button { pager.isEditing = false } label: {
+                        ShortcutLabel("Done", key: "esc")
+                    }
+                    .buttonStyle(.glass(.primary))
                     .controlSize(.small)
-                    .help("Finish editing (Esc)")
-            } else {
-                Button {
-                    searchPresented = true
-                } label: {
-                    Image(systemName: "magnifyingglass")
+                    .accessibilityLabel("Done")
+                } else {
+                    Button {
+                        runtime.refreshAll()
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .buttonStyle(.icon)
+                    .hoverHint("Refresh All", key: "⌘R")
+                    .accessibilityLabel("Refresh all widgets")
+                    ShelfMoreMenu(runtime: runtime, onCommand: onCommand)
+                        .hoverHint("More", alignment: .trailing)
                 }
-                .buttonStyle(.borderless)
-                .focused($searchButtonFocused)
-                .accessibilityFocused($searchButtonAccessibilityFocused)
-                .help("Search (⌘F)")
-                .accessibilityLabel("Search")
-                Button {
-                    runtime.refreshAll()
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .buttonStyle(.borderless)
-                .help("Refresh All (⌘R)")
-                .accessibilityLabel("Refresh all widgets")
-                ShelfMoreMenu(runtime: runtime, onCommand: onCommand)
+            }
+            if !pager.isEditing {
+                SearchCapsule { searchPresented = true }
+                    .focused($searchButtonFocused)
+                    .accessibilityFocused($searchButtonAccessibilityFocused)
             }
         }
-        .padding(.horizontal, Spacing.s)
+        .padding(.leading, Spacing.s)
+        .padding(.trailing, Spacing.xs)
         .padding(.top, Spacing.xs)
+        .padding(.bottom, pager.isEditing ? 0 : Spacing.xxs)
         .frame(minHeight: 36)
     }
 
@@ -596,7 +600,7 @@ struct RootView: View {
                         .frame(maxWidth: .infinity)
                 }
                 // The one way most people start; the rest are alternatives.
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.glass(.primary))
                 .keyboardShortcut(.defaultAction)
                 Button {
                     Task { @MainActor in HubWindowController.shared.show(tab: .create) }
@@ -617,7 +621,7 @@ struct RootView: View {
                         .frame(maxWidth: .infinity)
                 }
             }
-            .controlSize(.large)
+            .buttonStyle(.glass(.secondary))
             .padding(.horizontal, Spacing.xl + Spacing.m)
             .padding(.top, Spacing.xxs)
             Spacer()

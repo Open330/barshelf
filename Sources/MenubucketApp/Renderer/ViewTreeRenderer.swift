@@ -319,9 +319,10 @@ struct NodeView: View {
 
     private var cardView: some View {
         // A card inside a widget card: the hover fill, one step above the
-        // card it sits on, or a soft wash when the author gave it a tone.
-        // No border — the fill is the edge (a hairline under Increase
-        // Contrast).
+        // card it sits on. A tone no longer washes the whole card (a page of
+        // green, orange and red boxes reads as noise); its numbers and meters
+        // carry the colour, and the card keeps only a faint edge in the tone.
+        // A hairline under Increase Contrast.
         let tone = nodeColor(node.tone ?? node.tint, accent: accentOverride)
         return VStack(alignment: .leading, spacing: (node.spacing ?? Spacing.stack) * scale) {
             NodeChildrenView(nodes: node.children ?? [])
@@ -330,12 +331,15 @@ struct NodeView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: Radius.nested(in: Radius.card, inset: Spacing.xxs), style: .continuous)
-                .fill(tone.map { AnyShapeStyle($0.opacity(Fill.Wash.soft)) } ?? AnyShapeStyle(Fill.hover))
+                .fill(Fill.hover)
         )
         .overlay {
             if contrast == .increased {
                 RoundedRectangle(cornerRadius: Radius.nested(in: Radius.card, inset: Spacing.xxs), style: .continuous)
                     .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1)
+            } else if let tone {
+                RoundedRectangle(cornerRadius: Radius.nested(in: Radius.card, inset: Spacing.xxs), style: .continuous)
+                    .strokeBorder(tone.opacity(Fill.Wash.strong), lineWidth: 1)
             }
         }
     }

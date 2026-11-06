@@ -19,12 +19,12 @@ struct ShelfMoreMenu: View {
                 }
             }
         } label: {
-            Image(systemName: "ellipsis.circle")
+            Image(systemName: "ellipsis")
         }
-        .menuStyle(.borderlessButton)
+        .menuStyle(.button)
+        .buttonStyle(.icon)
         .menuIndicator(.hidden)
         .fixedSize()
-        .help("More")
         .accessibilityLabel("More")
     }
 

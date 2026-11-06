@@ -65,32 +65,37 @@ struct SearchOverlay: View {
                 Button {
                     isPresented = false
                 } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.secondary)
+                    KeyCap("esc")
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(.plain)
+                .hoverHint("Close", alignment: .trailing)
                 // Not while an input method is composing: there Escape
                 // cancels the composition, not the search.
                 .keyboardShortcut(isComposing ? nil : .cancelAction)
                 .accessibilityLabel("Close search")
             }
-            .padding(Spacing.s)
-            Divider()
+            .padding(.leading, Spacing.s - Spacing.hair)
+            .padding(.trailing, Spacing.stack)
+            .frame(height: ControlMetrics.height)
+            .background(Capsule().fill(Fill.hover))
+            .padding(Spacing.stack)
             if hits.isEmpty {
                 Text(query.isEmpty ? "Type to search" : "No matches")
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, Spacing.l)
+                    .padding(.top, Spacing.m)
+                    .padding(.bottom, Spacing.l)
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {
-                        VStack(spacing: 0) {
+                        VStack(spacing: Spacing.hair) {
                             ForEach(Array(hits.enumerated()), id: \.element.id) { index, hit in
                                 resultRow(index: index, hit: hit, hits: hits)
                                     .id(hit.id)
                             }
                         }
+                        .padding([.horizontal, .bottom], Spacing.stack)
                     }
                     .frame(maxHeight: 220)
                     .onChange(of: selection) { _, newValue in
@@ -102,7 +107,9 @@ struct SearchOverlay: View {
                 }
             }
         }
-        .background(Color(nsColor: .windowBackgroundColor))
+        // A HUD floating over the shelf: glass, not another opaque sheet.
+        .clipShape(RoundedRectangle(cornerRadius: Radius.surface, style: .continuous))
+        .glassSurface(RoundedRectangle(cornerRadius: Radius.surface, style: .continuous))
         // RootView hides and disables the shelf under this overlay. Keeping the
         // search surface as one contained accessibility region prevents its
         // result rows from being interleaved with background controls.
@@ -118,35 +125,53 @@ struct SearchOverlay: View {
         // field's delegate turns them into moveUp/moveDown/insertNewline.
     }
 
+    /// The widget's tile, the matched text and where it lives. The selected
+    /// row is filled with the accent and shows the key that opens it.
     private func resultRow(index: Int, hit: SearchHit, hits: [SearchHit]) -> some View {
-        Button {
+        let selected = index == selection
+        return Button {
             selection = index
             execute(hits: hits)
         } label: {
-            HStack {
+            HStack(spacing: Spacing.xs) {
+                if let widget = runtime.widgets.first(where: { $0.id == hit.widgetID }) {
+                    WidgetMark(widget: widget, runtime: runtime, size: Self.tileSize)
+                } else {
+                    Color.clear.frame(width: Self.tileSize, height: Self.tileSize)
+                }
                 Text(hit.text)
                     .font(.callout)
                     .lineLimit(1)
                     .truncationMode(.tail)
-                Spacer()
+                Spacer(minLength: Spacing.xs)
                 Text(hit.widgetName)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(selected ? AnyShapeStyle(.white.opacity(Fill.keyCapInButton)) : AnyShapeStyle(.secondary))
                     .lineLimit(1)
+                if selected {
+                    Text(verbatim: "↵")
+                        .font(.caption.weight(.semibold))
+                        .opacity(Fill.keyCapInButton)
+                        .accessibilityHidden(true)
+                }
             }
-            .padding(.horizontal, Spacing.s)
-            .padding(.vertical, Spacing.stack)
+            .foregroundStyle(selected ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
+            .padding(.horizontal, Spacing.xs)
+            .frame(height: Self.rowHeight)
             .background(
-                RoundedRectangle(cornerRadius: Radius.control, style: .continuous)
-                    .fill(index == selection ? Color.accentColor.opacity(Fill.Wash.strong) : .clear)
-                    .padding(.horizontal, Spacing.xxs)
+                RoundedRectangle(cornerRadius: Self.rowRadius, style: .continuous)
+                    .fill(selected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.clear))
             )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(hit.text), \(hit.widgetName)")
-        .accessibilityAddTraits(index == selection ? [.isSelected] : [])
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
+
+    private static let tileSize: CGFloat = 20
+    private static let rowHeight: CGFloat = 34
+    private static let rowRadius = Radius.nested(in: Radius.surface, inset: Spacing.stack)
 
     private func moveSelection(_ delta: Int, hits: [SearchHit]) {
         guard !hits.isEmpty else { return }
