@@ -166,3 +166,32 @@ final class MenuBarClusterProfileTests: XCTestCase {
         XCTAssertEqual(item.profiles, true)
     }
 }
+
+final class MenuBarClusterFocusTests: XCTestCase {
+    func testFocusRevealsOneChipWithoutChangingWidth() {
+        let g = ClusterGeometry(count: 5)
+        for focus in 0..<4 {
+            XCTAssertEqual(g.focusedX(0, focus: focus), 0)
+            XCTAssertEqual(g.focusedX(4, focus: focus), g.collapsedX(4), accuracy: 0.0001, "the stack keeps its width")
+            XCTAssertEqual(g.focusedX(focus + 1, focus: focus) - g.focusedX(focus, focus: focus), ClusterGeometry.revealStep, accuracy: 0.0001)
+        }
+        XCTAssertEqual(g.focusedX(3, focus: nil), g.collapsedX(3))
+        XCTAssertEqual(g.focusedX(2, focus: 4), g.collapsedX(2), "the last chip is never covered")
+    }
+
+    func testFocusedHitTestIsStableAcrossTheMovingEdge() {
+        let g = ClusterGeometry(count: 5)
+        for focus in 0..<4 {
+            // Anywhere on the uncovered chip keeps the focus there.
+            var x = g.focusedX(focus, focus: focus)
+            while x < g.focusedX(focus + 1, focus: focus) {
+                XCTAssertEqual(g.focusedIndex(at: x, focus: focus), focus)
+                x += 0.5
+            }
+            // Crossing to the next chip, then laying out for it, stays on it.
+            let next = g.focusedX(focus + 1, focus: focus) + 0.5
+            XCTAssertEqual(g.focusedIndex(at: next, focus: focus), focus + 1)
+            XCTAssertEqual(g.focusedIndex(at: next, focus: focus + 1), focus + 1)
+        }
+    }
+}

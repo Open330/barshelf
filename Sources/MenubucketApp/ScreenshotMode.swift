@@ -1248,10 +1248,16 @@ private struct ClusterShot: View {
         .background(scheme == .dark ? Color(white: 0.18) : Color(white: 0.97))
     }
 
-    private var folded: some View {
+    private var folded: some View { stack(focus: nil) }
+
+    /// The pointer on team-x: that chip uncovered in place, same width.
+    private var fanned: some View { stack(focus: 2) }
+
+    private func stack(focus: Int?) -> some View {
         let appearance = NSAppearance(named: scheme == .dark ? .darkAqua : .aqua)!
         let image = MenuBarController.clusterImage(
             Self.chips,
+            positions: MenuBarController.clusterTargets(count: Self.chips.count, focus: focus),
             mark: BarShelfStatusIcon.image(for: AppPreferences.defaultMenuBarSymbol, fallback: "tray.full"),
             badged: false,
             color: { Self.colors[$0] ?? .controlAccentColor },
@@ -1259,24 +1265,6 @@ private struct ClusterShot: View {
             height: barHeight
         )
         return Image(nsImage: image)
-    }
-
-    private var fanned: some View {
-        let model = ClusterStripModel()
-        model.chips = Self.chips
-        model.colors = Self.colors.mapValues { Color(nsColor: $0) }
-        model.anchor = 2
-        model.expanded = true
-        model.hovered = 3
-        model.active = 2
-        model.originX = 60
-        let width = CGFloat(model.geometry.expandedSpan(anchor: 2).upperBound
-            - model.geometry.expandedSpan(anchor: 2).lowerBound) + 2 * Spacing.s
-        return ClusterStripView(
-            model: model,
-            mark: BarShelfStatusIcon.image(for: AppPreferences.defaultMenuBarSymbol, fallback: "tray.full")
-        )
-        .frame(width: width, height: barHeight)
     }
 }
 

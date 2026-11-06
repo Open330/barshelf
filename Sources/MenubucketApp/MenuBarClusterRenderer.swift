@@ -38,6 +38,7 @@ extension MenuBarController {
 
     static func clusterImage(
         _ chips: [ClusterChip],
+        positions: [CGFloat]? = nil,
         mark: NSImage,
         badged: Bool,
         color: @escaping (String) -> NSColor,
@@ -54,7 +55,7 @@ extension MenuBarController {
                 context.cgContext.beginTransparencyLayer(auxiliaryInfo: nil)
                 for (index, chip) in chips.enumerated() {
                     let center = NSPoint(
-                        x: geometry.collapsedX(index) + ClusterGeometry.slot / 2,
+                        x: (positions?[cluster: index] ?? CGFloat(geometry.collapsedX(index))) + ClusterGeometry.slot / 2,
                         y: height / 2
                     )
                     drawChip(chip, at: center, color: color(chip.widgetID), context: context)
@@ -63,7 +64,7 @@ extension MenuBarController {
                 // with its own chip.
                 for (index, chip) in chips.enumerated() where chip.alert {
                     let center = NSPoint(
-                        x: geometry.collapsedX(index) + ClusterGeometry.slot / 2,
+                        x: (positions?[cluster: index] ?? CGFloat(geometry.collapsedX(index))) + ClusterGeometry.slot / 2,
                         y: height / 2
                     )
                     drawBadge(at: center, context: context)
@@ -173,4 +174,8 @@ extension MenuBarController {
         let size = text.size()
         text.draw(at: NSPoint(x: center.x - size.width / 2, y: center.y - size.height / 2))
     }
+}
+
+private extension Array {
+    subscript(cluster index: Int) -> Element? { indices.contains(index) ? self[index] : nil }
 }

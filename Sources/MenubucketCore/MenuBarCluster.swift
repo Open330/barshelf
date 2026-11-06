@@ -242,6 +242,39 @@ public struct ClusterGeometry: Equatable, Sendable {
         return min(max(Int(raw), 0), count - 1)
     }
 
+    /// Folded centre-to-centre distance that leaves a chip whole: its disc
+    /// plus a hair of gap.
+    public static let revealStep: Double = 21
+
+    /// Folded, with `focus` uncovered in place: the chip after it steps
+    /// aside by `revealStep`, and the other gaps close up to pay for it, so
+    /// the stack keeps its width and nothing else in the menu bar moves.
+    /// nil (or the last chip, which nothing covers) is the plain fold.
+    public func focusedX(_ index: Int, focus: Int?) -> Double {
+        guard let focus, count > 2, focus >= 0, focus < count - 1 else {
+            if let focus, count == 2, focus == 0 {
+                // Two chips: the second moves as far as the width allows.
+                return index == 0 ? 0 : Self.collapsedStep
+            }
+            return collapsedX(index)
+        }
+        let total = Double(count - 1) * Self.collapsedStep
+        let reveal = min(Self.revealStep, total)
+        let rest = (total - reveal) / Double(count - 2)
+        if index <= focus { return Double(index) * rest }
+        return Double(index - 1) * rest + reveal
+    }
+
+    /// The chip under `x` in the layout for `focus`: the topmost one, the
+    /// later chip where two overlap.
+    public func focusedIndex(at x: Double, focus: Int?) -> Int? {
+        guard count > 0, x >= 0, x < collapsedWidth else { return nil }
+        for index in stride(from: count - 1, through: 0, by: -1) where x >= focusedX(index, focus: focus) {
+            return index
+        }
+        return nil
+    }
+
     /// Whether `x` is on the BarShelf icon while folded.
     public func isOnMark(collapsedX x: Double) -> Bool {
         x >= collapsedMarkX - Self.markGap / 2 && x <= collapsedMarkX + Self.markWidth
