@@ -245,6 +245,8 @@ public struct ClusterGeometry: Equatable, Sendable {
     /// Folded centre-to-centre distance that leaves a chip whole: its disc
     /// plus a hair of gap.
     public static let revealStep: Double = 21
+    /// The empty edge of a chip's slot either side of its disc.
+    public static let focusInset: Double = 3
 
     /// Folded, with `focus` uncovered in place: the chip after it steps
     /// aside by `revealStep`, and the other gaps close up to pay for it, so
@@ -265,10 +267,15 @@ public struct ClusterGeometry: Equatable, Sendable {
         return Double(index - 1) * rest + reveal
     }
 
-    /// The chip under `x` in the layout for `focus`: the topmost one, the
-    /// later chip where two overlap.
+    /// The chip under `x` in the layout for `focus`: the topmost one. The
+    /// focused chip is drawn over its neighbours, so it wins across its own
+    /// disc; elsewhere the later chip wins where two overlap.
     public func focusedIndex(at x: Double, focus: Int?) -> Int? {
         guard count > 0, x >= 0, x < collapsedWidth else { return nil }
+        if let focus, focus >= 0, focus < count {
+            let start = focusedX(focus, focus: focus) + Self.focusInset
+            if x >= start, x < start + Self.slot - 2 * Self.focusInset { return focus }
+        }
         for index in stride(from: count - 1, through: 0, by: -1) where x >= focusedX(index, focus: focus) {
             return index
         }

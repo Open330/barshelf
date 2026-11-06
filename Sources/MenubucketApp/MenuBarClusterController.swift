@@ -31,12 +31,12 @@ final class MenuBarClusterController: NSObject {
 
     private(set) var chips: [ClusterChip] = []
     private var isEnabled = false
-    /// Pointer monitors, while the cluster is on. Not a tracking area: since
-    /// macOS 26 the menu bar host draws status items, and the app's own
-    /// button is a stand-in that receives no hover events and whose click
-    /// events carry no real position. The pointer is read in screen
+    /// Follows the pointer while the cluster is on. Not a tracking area:
+    /// since macOS 26 the menu bar host draws status items, and the app's
+    /// own button is a stand-in that receives no hover events and whose
+    /// click events carry no real position. The pointer is read in screen
     /// coordinates and compared with the item's frame instead.
-    private var pointerMonitors: [Any] = []
+    private var pointerWatcher: PointerWatcher?
     private var pointerInside = false
 
     private var peek: ClusterPeekPanel?
@@ -81,7 +81,7 @@ final class MenuBarClusterController: NSObject {
 
     deinit {
         removeKeyMonitor()
-        for monitor in pointerMonitors { NSEvent.removeMonitor(monitor) }
+        pointerWatcher?.stop()
         for (center, observer) in observers { center.removeObserver(observer) }
     }
 
@@ -127,23 +127,14 @@ final class MenuBarClusterController: NSObject {
     // MARK: - Pointer on the status item
 
     private func installTracking() {
-        guard pointerMonitors.isEmpty else { return }
-        let types: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged]
-        // Global: the pointer over the menu bar while another app is in front.
-        if let global = NSEvent.addGlobalMonitorForEvents(matching: types, handler: { [weak self] _ in
-            self?.pointerMoved()
-        }) { pointerMonitors.append(global) }
-        // Local: the same while BarShelf itself is in front (a card is open).
-        if let local = NSEvent.addLocalMonitorForEvents(matching: types, handler: { [weak self] event in
-            self?.pointerMoved()
-            return event
-        }) { pointerMonitors.append(local) }
+        guard pointerWatcher == nil else { return }
+        pointerWatcher = PointerWatcher { [weak self] in self?.pointerMoved() }
         updateAccessibility()
     }
 
     private func removeTracking() {
-        for monitor in pointerMonitors { NSEvent.removeMonitor(monitor) }
-        pointerMonitors.removeAll()
+        pointerWatcher?.stop()
+        pointerWatcher = nil
         pointerInside = false
         statusItem?.button?.setAccessibilityChildren(nil)
     }
