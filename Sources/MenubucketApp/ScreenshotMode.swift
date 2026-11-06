@@ -1250,7 +1250,8 @@ private struct ClusterShot: View {
 
     private var folded: some View { stack(focus: nil) }
 
-    /// The pointer on team-x: that chip uncovered in place, same width.
+    /// The pointer on team-x: the icon hidden, the chips spread into its
+    /// room around that chip, same width.
     private var fanned: some View { stack(focus: 2) }
 
     private func stack(focus: Int?) -> some View {
@@ -1259,6 +1260,7 @@ private struct ClusterShot: View {
             Self.chips,
             positions: MenuBarController.clusterTargets(count: Self.chips.count, focus: focus),
             focus: focus,
+            markAlpha: focus == nil ? 1 : 0,
             mark: BarShelfStatusIcon.image(for: AppPreferences.defaultMenuBarSymbol, fallback: "tray.full"),
             badged: false,
             color: { Self.colors[$0] ?? .controlAccentColor },

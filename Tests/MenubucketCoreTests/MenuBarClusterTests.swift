@@ -168,43 +168,64 @@ final class MenuBarClusterProfileTests: XCTestCase {
 }
 
 final class MenuBarClusterFocusTests: XCTestCase {
-    func testFocusRevealsOneChipWithoutChangingWidth() {
-        let g = ClusterGeometry(count: 5)
-        for focus in 0..<4 {
-            XCTAssertEqual(g.focusedX(0, focus: focus), 0)
-            XCTAssertEqual(g.focusedX(4, focus: focus), g.collapsedX(4), accuracy: 0.0001, "the stack keeps its width")
-            XCTAssertEqual(g.focusedX(focus + 1, focus: focus) - g.focusedX(focus, focus: focus), ClusterGeometry.revealStep, accuracy: 0.0001)
+    func testFocusSpreadsIntoTheIconsRoomWithoutChangingWidth() {
+        for count in 2...MenuBarClusterPolicy.maxChips {
+            let g = ClusterGeometry(count: count)
+            XCTAssertFalse(g.hidesMark(focus: nil))
+            for focus in 0..<count {
+                XCTAssertTrue(g.hidesMark(focus: focus))
+                XCTAssertGreaterThanOrEqual(g.focusedX(0, focus: focus), 0)
+                let last = g.focusedX(count - 1, focus: focus)
+                XCTAssertLessThanOrEqual(last + ClusterGeometry.slot, g.itemWidth + 0.0001, "stays inside the item")
+                // Both neighbours step a whole reveal away.
+                if focus > 0 {
+                    XCTAssertGreaterThanOrEqual(g.focusedX(focus, focus: focus) - g.focusedX(focus - 1, focus: focus), ClusterGeometry.revealStep - 0.0001)
+                }
+                if focus < count - 1 {
+                    XCTAssertGreaterThanOrEqual(g.focusedX(focus + 1, focus: focus) - g.focusedX(focus, focus: focus), ClusterGeometry.revealStep - 0.0001)
+                }
+                // The chips keep their order.
+                for index in 1..<count {
+                    XCTAssertGreaterThan(g.focusedX(index, focus: focus), g.focusedX(index - 1, focus: focus))
+                }
+            }
         }
-        XCTAssertEqual(g.focusedX(3, focus: nil), g.collapsedX(3))
-        XCTAssertEqual(g.focusedX(2, focus: 4), g.collapsedX(2), "the last chip is never covered")
+        XCTAssertEqual(ClusterGeometry(count: 3).focusedX(2, focus: nil), ClusterGeometry(count: 3).collapsedX(2))
+        XCTAssertFalse(ClusterGeometry(count: 1).hidesMark(focus: 0), "a lone chip keeps the icon")
     }
 
-    func testFocusedHitTestIsStableAcrossTheMovingEdge() {
-        let g = ClusterGeometry(count: 5)
-        for focus in 0..<4 {
-            // Anywhere on the uncovered chip keeps the focus there, its
-            // disc drawn over the next chip's edge included.
-            let start = g.focusedX(focus, focus: focus)
-            let end = start + ClusterGeometry.slot - ClusterGeometry.focusInset
-            var x = start
-            while x < end {
-                XCTAssertEqual(g.focusedIndex(at: x, focus: focus), focus)
+    func testHitTestDoesNotDependOnTheFocus() {
+        for count in 2...MenuBarClusterPolicy.maxChips {
+            let g = ClusterGeometry(count: count)
+            var x = 0.0
+            while x < g.itemWidth {
+                let first = g.focusedIndex(at: x, focus: 0)
+                for focus in 1..<count { XCTAssertEqual(g.focusedIndex(at: x, focus: focus), first) }
+                // The chip the pointer selects is, once it is in focus,
+                // drawn under the pointer or just beside it.
+                if let first {
+                    let centre = g.focusedX(first, focus: first) + ClusterGeometry.slot / 2
+                    XCTAssertLessThanOrEqual(abs(centre - x), ClusterGeometry.slot / 2 + 6, "count \(count) x \(x)")
+                }
                 x += 0.5
             }
-            // Crossing to the next chip, then laying out for it, stays on it.
-            let next = end + 0.5
-            XCTAssertEqual(g.focusedIndex(at: next, focus: focus), focus + 1)
-            XCTAssertEqual(g.focusedIndex(at: next, focus: focus + 1), focus + 1)
         }
+    }
+
+    func testTheIconStaysClickableWhileFolded() {
+        let g = ClusterGeometry(count: 4)
+        XCTAssertNil(g.focusedIndex(at: g.collapsedMarkX + 5, focus: nil))
+        XCTAssertEqual(g.focusedIndex(at: g.collapsedMarkX + 5, focus: 1), 3)
     }
 
     func testEveryChipIsReachableSweepingAcrossFourChips() {
         let g = ClusterGeometry(count: 4)
         for direction in [1.0, -1.0] {
-            var focus: Int?
+            // Right from the left edge, folded; back left while in focus.
+            var focus: Int? = direction > 0 ? nil : 3
             var seen = Set<Int>()
-            var x = direction > 0 ? 0 : g.collapsedWidth - 0.25
-            while x >= 0, x < g.collapsedWidth {
+            var x = direction > 0 ? 0 : g.itemWidth - 0.25
+            while x >= 0, x < g.itemWidth {
                 if let index = g.focusedIndex(at: x, focus: focus) {
                     focus = index
                     seen.insert(index)
