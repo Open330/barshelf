@@ -85,7 +85,25 @@ extension MenuBarController {
         }
         var turned = hue + turn * toneHueStep / 360
         turned -= floor(turned)
-        return NSColor(hue: turned, saturation: saturation, brightness: brightness, alpha: alpha)
+        // Turning orange towards yellow makes it much lighter, and the
+        // white glyph fades into it: keep the new tone no lighter than the
+        // colour it came from.
+        let ceiling = luminance(rgb) + toneLuminanceSlack
+        var result = NSColor(hue: turned, saturation: saturation, brightness: brightness, alpha: alpha)
+        let light = luminance(result)
+        if light > ceiling {
+            result = NSColor(hue: turned, saturation: saturation, brightness: brightness * pow(ceiling / light, 1 / 2.2), alpha: alpha)
+        }
+        return result
+    }
+
+    static let toneLuminanceSlack: CGFloat = 0.04
+
+    /// Relative luminance, near enough to compare two tones.
+    static func luminance(_ color: NSColor) -> CGFloat {
+        guard let rgb = color.usingColorSpace(.sRGB) else { return 0 }
+        func linear(_ c: CGFloat) -> CGFloat { c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4) }
+        return 0.2126 * linear(rgb.redComponent) + 0.7152 * linear(rgb.greenComponent) + 0.0722 * linear(rgb.blueComponent)
     }
 
     static func pillFont() -> NSFont {
