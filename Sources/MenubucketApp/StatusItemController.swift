@@ -145,6 +145,7 @@ final class StatusItemController: NSObject {
             .sink { [weak self] preferences in
                 self?.applyStatusSymbol(preferences.menuBarSymbol)
                 self?.applyMenuBarLayout(preferences.menuBarLayout)
+                self?.menuBar.pulseEnabled = preferences.menuBarPulse
                 self?.updateHotkey(preferences)
             }
             .store(in: &cancellables)
@@ -467,11 +468,9 @@ final class StatusItemController: NSObject {
             statusItem: statusItem,
             menuBar: menuBar
         )
-        cluster.chipColor = { [weak self] id in
-            self.flatMap { $0.widgetColor(id) }.map { Color(nsColor: $0) } ?? .accentColor
-        }
         menuBar.chipColor = { [weak self] id in self?.widgetColor(id) }
         menuBar.onChipsChanged = { [weak self] chips in self?.cluster.update(chips) }
+        menuBar.mayPulse = { [weak self] in self?.cluster.isCardShown != true }
         cluster.onChipClick = { [weak self] id in self?.chipClicked(id) }
         cluster.onChipContextMenu = { [weak self] id, event, view in
             self?.showWidgetMenu(for: id, with: event, in: view)

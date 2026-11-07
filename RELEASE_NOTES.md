@@ -29,6 +29,13 @@
   between chips, then folds back when it leaves. Rest on it to see its reading, click to open its card there, then
   move along or press ← → to switch cards. Widgets can mark their metrics as
   `profiles` (accounts, hosts) to get one chip each.
+  Each chip shows what it measures (CPU, memory, power, …) rather than its
+  widget's initial, and chips that share a colour (two from one widget) step
+  around the colour wheel so they tell apart. When a reading turns to a
+  warning, switches on or off, or changes its icon, the chips come forward
+  one by one, left to right; at most once every three minutes, never while
+  you point at them, and only a brief glow with Reduce Motion. Settings ▸
+  Menu Bar ▸ Wave when a widget changes turns it off.
 - **Gallery.** Widgets without a screenshot are drawn as the card they will
   be, not as a symbol on a pastel field. Previews that are still loading show
   the same placeholder rows instead of a spinner.

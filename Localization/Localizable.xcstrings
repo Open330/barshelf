@@ -10272,6 +10272,16 @@
         }
       }
     },
+    "The chips come forward one by one when a reading turns to a warning, switches on or off, or changes its icon. At most once every three minutes; never for a number that just ticks.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "값이 경고로 바뀌거나, 켜지거나 꺼지거나, 아이콘이 바뀌면 칩이 하나씩 차례로 앞으로 나옵니다. 많아야 3분에 한 번이며, 숫자만 바뀔 때는 움직이지 않습니다."
+          }
+        }
+      }
+    },
     "The command “%@” isn’t installed on this Mac.": {
       "localizations": {
         "ko": {
@@ -11552,6 +11562,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "폴더 감시"
+          }
+        }
+      }
+    },
+    "Wave when a widget changes": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯이 바뀌면 웨이브로 알리기"
           }
         }
       }

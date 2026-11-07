@@ -557,6 +557,9 @@ public struct MenuBarEntry: Equatable, Sendable {
     public var name: String
     /// SF Symbol to draw, or nil when the widget's mode shows text only.
     public var symbol: String?
+    /// The widget's own icon whether or not its item shows one: the cluster
+    /// draws it on a chip that has nothing more specific.
+    public var iconSymbol: String?
     /// The user's replacement for `symbol`, verbatim. Empty means they asked
     /// for no icon. See `MenuBarPlacement.icon`.
     public var iconOverride: String?

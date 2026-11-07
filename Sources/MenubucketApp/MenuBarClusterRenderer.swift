@@ -37,12 +37,55 @@ extension MenuBarController {
         /// The chip under the pointer: a little larger, and on top of both
         /// neighbours. No ring: the peek below the bar carries the reading.
         static let focusScale: CGFloat = 1.1
+        /// How much whiter a chip is at the top of the update wave.
+        static let glowAlpha: CGFloat = 0.18
         /// The focused chip's pill: its reading after the glyph.
         static let pillFontSize: CGFloat = 11
         static let pillTextGap: CGFloat = 3
         static let pillTrailing: CGFloat = 8
         /// Longer readings are cut short, so one pill never takes the bar.
         static let pillTextMax: CGFloat = 76
+    }
+
+    /// Each chip's face colour, by chip id: its widget's colour, turned a
+    /// step around the colour wheel for every chip before it that has the
+    /// same colour. Two chips of one widget (CPU and RAM), or two widgets
+    /// that chose the same colour, then tell apart and still read as one
+    /// family. The first keeps the colour as chosen.
+    static func clusterColors(_ chips: [ClusterChip], base: (String) -> NSColor) -> [String: NSColor] {
+        let bases = chips.map { base($0.widgetID).usingColorSpace(.sRGB) ?? base($0.widgetID) }
+        let keys = bases.map { color -> String in
+            guard let rgb = color.usingColorSpace(.sRGB) else { return color.description }
+            return [rgb.redComponent, rgb.greenComponent, rgb.blueComponent]
+                .map { String(Int(($0 * 100).rounded())) }.joined(separator: ",")
+        }
+        let steps = MenuBarClusterPolicy.toneSteps(keys: keys)
+        var colors: [String: NSColor] = [:]
+        for (index, chip) in chips.enumerated() {
+            colors[chip.id] = toned(bases[index], step: steps[index])
+        }
+        return colors
+    }
+
+    /// Hue degrees per tone step, and the order steps alternate in: the
+    /// second chip of a colour turns one way, the third the other.
+    static let toneHueStep: CGFloat = 30
+    static let toneOrder: [CGFloat] = [0, 1, -1, 2, -2, 3, -3, 4]
+    /// For a colour with too little hue to turn (grey), brightness steps.
+    static let toneBrightnessStep: CGFloat = 0.12
+
+    static func toned(_ color: NSColor, step: Int) -> NSColor {
+        guard step > 0, let rgb = color.usingColorSpace(.sRGB) else { return color }
+        let turn = toneOrder[step % toneOrder.count]
+        var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 0
+        rgb.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
+        if saturation < 0.15 {
+            let shifted = brightness - turn * toneBrightnessStep
+            return NSColor(hue: hue, saturation: saturation, brightness: min(max(shifted, 0.2), 0.95), alpha: alpha)
+        }
+        var turned = hue + turn * toneHueStep / 360
+        turned -= floor(turned)
+        return NSColor(hue: turned, saturation: saturation, brightness: brightness, alpha: alpha)
     }
 
     static func pillFont() -> NSFont {
@@ -80,9 +123,11 @@ extension MenuBarController {
         pill: CGFloat? = nil,
         lead: CGFloat = 0,
         markAlpha: CGFloat = 1,
+        lifts: [CGFloat] = [],
+        growth: CGFloat = CGFloat(ClusterPulse.growth),
         mark: NSImage,
         badged: Bool,
-        color: @escaping (String) -> NSColor,
+        color: @escaping (ClusterChip) -> NSColor,
         appearance: NSAppearance,
         height: CGFloat
     ) -> NSImage {
@@ -104,8 +149,16 @@ extension MenuBarController {
                     )
                 }
                 let focused = focus.flatMap { chips.indices.contains($0) ? $0 : nil }
-                for (index, chip) in chips.enumerated() where index != focused {
-                    drawChip(chip, at: center(index), color: color(chip.widgetID), context: context)
+                // A chip the update wave lifts comes to the front: drawn
+                // after the resting ones, the highest last.
+                let order = chips.indices.filter { $0 != focused }
+                    .sorted { (lifts[cluster: $0] ?? 0, $0) < (lifts[cluster: $1] ?? 0, $1) }
+                for index in order {
+                    let lift = lifts[cluster: index] ?? 0
+                    drawChip(
+                        chips[index], at: center(index), color: color(chips[index]), context: context,
+                        scale: 1 + growth * lift, glow: lift
+                    )
                 }
                 // The focused chip last, so it sits on top of both neighbours.
                 if let focused {
@@ -114,10 +167,10 @@ extension MenuBarController {
                     if width > ChipMetrics.face * ChipMetrics.focusScale {
                         let left = (positions?[cluster: focused] ?? CGFloat(geometry.collapsedX(focused)))
                             + CGFloat(ClusterGeometry.slotInset)
-                        drawPill(chip, left: left, width: width, midY: height / 2, color: color(chip.widgetID), context: context)
+                        drawPill(chip, left: left, width: width, midY: height / 2, color: color(chip), context: context)
                     } else {
                         drawChip(
-                            chip, at: center(focused), color: color(chip.widgetID),
+                            chip, at: center(focused), color: color(chip),
                             context: context, scale: ChipMetrics.focusScale
                         )
                     }
@@ -159,8 +212,11 @@ extension MenuBarController {
     }
 
     static func drawChip(
-        _ chip: ClusterChip, at center: NSPoint, color: NSColor, context: NSGraphicsContext, scale: CGFloat = 1
+        _ chip: ClusterChip, at center: NSPoint, color: NSColor, context: NSGraphicsContext,
+        scale: CGFloat = 1, glow: CGFloat = 0
     ) {
+        // A chip at the top of the update wave is a little brighter.
+        let color = glow > 0 ? (color.blended(withFraction: ChipMetrics.glowAlpha * glow, of: .white) ?? color) : color
         let m = ChipMetrics.self
         let face = m.face * scale
         func circle(_ diameter: CGFloat, at point: NSPoint = center) -> NSBezierPath {
@@ -191,8 +247,7 @@ extension MenuBarController {
         NSColor.white.withAlphaComponent(m.rimAlpha * alpha).setStroke()
         rim.stroke()
 
-        drawGlyph(chip, at: center, alpha: alpha)
-
+        drawGlyph(chip, at: center, alpha: alpha, scale: scale)
     }
 
     /// The focused chip grown into a pill: its disc's colour, the glyph at
@@ -266,11 +321,11 @@ extension MenuBarController {
         circle(m.badge).fill()
     }
 
-    private static func drawGlyph(_ chip: ClusterChip, at center: NSPoint, alpha: CGFloat) {
+    private static func drawGlyph(_ chip: ClusterChip, at center: NSPoint, alpha: CGFloat, scale: CGFloat = 1) {
         let ink = NSColor.white.withAlphaComponent(alpha)
         if let name = chip.symbol,
            let symbol = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
-            .withSymbolConfiguration(.init(pointSize: ChipMetrics.glyphSize, weight: .bold)) {
+            .withSymbolConfiguration(.init(pointSize: ChipMetrics.glyphSize * scale, weight: .bold)) {
             let tinted = NSImage(size: symbol.size, flipped: false) { bounds in
                 symbol.draw(in: bounds)
                 ink.set()
@@ -278,17 +333,18 @@ extension MenuBarController {
                 return true
             }
             // Wide symbols (a battery) are fitted into the core's box.
-            let box = ChipMetrics.glyphBox
-            let scale = min(box / symbol.size.width, box / symbol.size.height, 1)
-            let size = NSSize(width: symbol.size.width * scale, height: symbol.size.height * scale)
+            let box = ChipMetrics.glyphBox * scale
+            let fit = min(box / symbol.size.width, box / symbol.size.height, 1)
+            let size = NSSize(width: symbol.size.width * fit, height: symbol.size.height * fit)
             tinted.draw(in: NSRect(
                 x: center.x - size.width / 2, y: center.y - size.height / 2,
                 width: size.width, height: size.height
             ))
             return
         }
-        let font = NSFont.systemFont(ofSize: ChipMetrics.glyphSize, weight: .heavy)
-        let rounded = font.fontDescriptor.withDesign(.rounded).flatMap { NSFont(descriptor: $0, size: ChipMetrics.glyphSize) } ?? font
+        let pointSize = ChipMetrics.glyphSize * scale
+        let font = NSFont.systemFont(ofSize: pointSize, weight: .heavy)
+        let rounded = font.fontDescriptor.withDesign(.rounded).flatMap { NSFont(descriptor: $0, size: pointSize) } ?? font
         let text = NSAttributedString(string: chip.initial, attributes: [.font: rounded, .foregroundColor: ink])
         let size = text.size()
         text.draw(at: NSPoint(x: center.x - size.width / 2, y: center.y - size.height / 2))
