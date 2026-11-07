@@ -178,17 +178,36 @@ final class MenuBarRedrawDecisionTests: XCTestCase {
             MenuBarController.luminance(turned),
             MenuBarController.luminance(orange) + MenuBarController.toneLuminanceSlack + 0.01
         )
-        // Orange turns towards red, not to a darkened yellow.
-        var hue: CGFloat = 0, baseHue: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        turned.getHue(&hue, saturation: &s, brightness: &b, alpha: &a)
-        orange.usingColorSpace(.sRGB)!.getHue(&baseHue, saturation: &s, brightness: &b, alpha: &a)
-        func offset(_ h: CGFloat) -> CGFloat { let d = h - baseHue; return d - (d / 1).rounded() }
-        XCTAssertLessThan(offset(hue), 0)
-        // The third goes the other way, so the two never meet.
-        let third = MenuBarController.toned(orange, step: 2).usingColorSpace(.sRGB)!
-        var thirdHue: CGFloat = 0
-        third.getHue(&thirdHue, saturation: &s, brightness: &b, alpha: &a)
-        XCTAssertGreaterThan(offset(thirdHue), 0)
+    }
+
+    private func hsb(_ color: NSColor) -> (hue: CGFloat, brightness: CGFloat) {
+        var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        color.usingColorSpace(.sRGB)!.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
+        return (h * 360, b)
+    }
+
+    func testPurpleTurnsToMagenta() {
+        let purple = NSColor(hue: 285 / 360, saturation: 0.75, brightness: 0.85, alpha: 1)
+        let second = hsb(MenuBarController.toned(purple, step: 1))
+        XCTAssertEqual(second.hue, 315, accuracy: 1)
+        XCTAssertEqual(second.brightness, 0.85, accuracy: 0.02, "no darkening needed")
+    }
+
+    func testOrangeNeitherGoesMuddyNorRedButDarker() {
+        // Orange +30° is yellow (too much darkening, olive); −30° is red.
+        let orange = NSColor(hue: 28 / 360, saturation: 0.9, brightness: 1, alpha: 1)
+        let second = hsb(MenuBarController.toned(orange, step: 1))
+        let third = hsb(MenuBarController.toned(orange, step: 2))
+        XCTAssertEqual(second.hue, 28, accuracy: 1)
+        XCTAssertEqual(third.hue, 28, accuracy: 1)
+        XCTAssertEqual(second.brightness, 1 - MenuBarController.toneFallbackStep, accuracy: 0.01)
+        XCTAssertLessThan(third.brightness, second.brightness - 0.1, "the third stays apart from the second")
+    }
+
+    func testARedColourMayStillTurn() {
+        let red = NSColor(hue: 0, saturation: 0.8, brightness: 0.9, alpha: 1)
+        let second = hsb(MenuBarController.toned(red, step: 1))
+        XCTAssertFalse(abs(second.hue - 0) < 1 || abs(second.hue - 360) < 1, "only new red is avoided")
     }
 
     func testGreyChipsStepInBrightness() {

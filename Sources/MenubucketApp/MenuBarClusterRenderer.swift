@@ -83,27 +83,36 @@ extension MenuBarController {
             let shifted = brightness - turn * toneBrightnessStep
             return NSColor(hue: hue, saturation: saturation, brightness: min(max(shifted, 0.2), 0.95), alpha: alpha)
         }
-        // The first turn goes the way that gets darker, so it keeps its
-        // colour instead of being darkened into mud (orange turns to red,
-        // not to a darkened yellow). Later steps alternate from there.
-        func hued(_ degrees: CGFloat) -> NSColor {
-            var shifted = hue + degrees / 360
-            shifted -= floor(shifted)
-            return NSColor(hue: shifted, saturation: saturation, brightness: brightness, alpha: alpha)
-        }
-        let way: CGFloat = luminance(hued(toneHueStep)) > luminance(hued(-toneHueStep)) ? -1 : 1
-        var turned = hue + way * turn * toneHueStep / 360
-        turned -= floor(turned)
-        // Turning orange towards yellow makes it much lighter, and the
-        // white glyph fades into it: keep the new tone no lighter than the
-        // colour it came from.
+        // Try the turn, then its mirror. A turn is no good if keeping the
+        // white glyph readable would darken it into mud (orange to yellow
+        // ends up olive), or if it turns red, which in the menu bar reads
+        // as an alert and swallows the red alert dot.
         let ceiling = luminance(rgb) + toneLuminanceSlack
-        var result = NSColor(hue: turned, saturation: saturation, brightness: brightness, alpha: alpha)
-        let light = luminance(result)
-        if light > ceiling {
-            result = NSColor(hue: turned, saturation: saturation, brightness: brightness * pow(ceiling / light, 1 / 2.2), alpha: alpha)
+        for way: CGFloat in [1, -1] {
+            var turned = hue + way * turn * toneHueStep / 360
+            turned -= floor(turned)
+            if isRed(turned), !isRed(hue) { continue }
+            let plain = NSColor(hue: turned, saturation: saturation, brightness: brightness, alpha: alpha)
+            let light = luminance(plain)
+            let darkening = light > ceiling ? pow(ceiling / light, 1 / 2.2) : 1
+            if darkening < toneMinimumDarkening { continue }
+            return NSColor(hue: turned, saturation: saturation, brightness: brightness * darkening, alpha: alpha)
         }
-        return result
+        // Neither way works (orange): the same hue, darker for each step.
+        let darker = brightness - toneFallbackStep * CGFloat(step)
+        return NSColor(hue: hue, saturation: saturation, brightness: max(darker, 0.2), alpha: alpha)
+    }
+
+    /// The share of its brightness a turned tone may lose to the
+    /// luminance ceiling before it counts as muddy.
+    static let toneMinimumDarkening: CGFloat = 0.85
+    /// Brightness per step when no hue turn works.
+    static let toneFallbackStep: CGFloat = 0.18
+
+    /// Hues that read as red: the alert colour.
+    static func isRed(_ hue: CGFloat) -> Bool {
+        let degrees = hue * 360
+        return degrees >= 345 || degrees < 20
     }
 
     static let toneLuminanceSlack: CGFloat = 0.04
