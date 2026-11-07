@@ -157,4 +157,32 @@ final class MenuBarRedrawDecisionTests: XCTestCase {
         tinted.tint = .warning
         XCTAssertFalse(MenuBarController.drawsIdentically(base, tinted))
     }
+
+    // MARK: - Cluster tones
+
+    func testChipsOfOneColourGetTonesThatStayReadable() throws {
+        let orange = NSColor.systemOrange
+        let chips = [
+            ClusterChip(widgetID: "sensors", name: "Sensors", initial: "S"),
+            ClusterChip(widgetID: "awake", name: "Keep Awake", initial: "K"),
+            ClusterChip(widgetID: "cpu", name: "CPU", initial: "C"),
+        ]
+        let colors = MenuBarController.clusterColors(chips) { $0 == "cpu" ? .systemBlue : orange }
+        // The first of a colour keeps it; another colour is left alone.
+        XCTAssertEqual(colors["sensors"]?.usingColorSpace(.sRGB), orange.usingColorSpace(.sRGB))
+        XCTAssertEqual(colors["cpu"]?.usingColorSpace(.sRGB), NSColor.systemBlue.usingColorSpace(.sRGB))
+        // The second turns, and is no lighter than the first (white glyph).
+        let turned = try XCTUnwrap(colors["awake"]?.usingColorSpace(.sRGB))
+        XCTAssertNotEqual(turned, orange.usingColorSpace(.sRGB))
+        XCTAssertLessThanOrEqual(
+            MenuBarController.luminance(turned),
+            MenuBarController.luminance(orange) + MenuBarController.toneLuminanceSlack + 0.01
+        )
+    }
+
+    func testGreyChipsStepInBrightness() {
+        let grey = NSColor(srgbRed: 0.5, green: 0.5, blue: 0.5, alpha: 1)
+        let toned = MenuBarController.toned(grey, step: 1).usingColorSpace(.sRGB)!
+        XCTAssertNotEqual(toned.redComponent, 0.5, accuracy: 0.05)
+    }
 }

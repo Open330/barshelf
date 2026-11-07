@@ -42,6 +42,9 @@ public struct AppPreferences: Codable, Equatable, Sendable {
     /// Promoted widgets as text and items of their own, or as one cluster of
     /// chips beside the BarShelf icon.
     public var menuBarLayout: MenuBarLayout
+    /// In the cluster, a wave through the chips when one's state changes
+    /// (`ClusterPulse`).
+    public var menuBarPulse: Bool
 
     public enum PopupHeight: String, Codable, CaseIterable, Sendable {
         /// 480 pt, the size BarShelf has always opened at.
@@ -76,7 +79,8 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         checkForUpdatesAutomatically: Bool = true,
         skippedUpdateVersion: String? = nil,
         popupHeight: PopupHeight = .standard,
-        menuBarLayout: MenuBarLayout = .items
+        menuBarLayout: MenuBarLayout = .items,
+        menuBarPulse: Bool = true
     ) {
         self.menuBarSymbol = menuBarSymbol
         self.refreshMultiplier = refreshMultiplier
@@ -90,6 +94,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         self.skippedUpdateVersion = skippedUpdateVersion
         self.popupHeight = popupHeight
         self.menuBarLayout = menuBarLayout
+        self.menuBarPulse = menuBarPulse
         normalize()
     }
 
@@ -148,6 +153,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         // the whole file.
         popupHeight = (try? container.decodeIfPresent(PopupHeight.self, forKey: .popupHeight)) ?? .standard
         menuBarLayout = (try? container.decodeIfPresent(MenuBarLayout.self, forKey: .menuBarLayout)) ?? .items
+        menuBarPulse = (try? container.decodeIfPresent(Bool.self, forKey: .menuBarPulse)) ?? true
         normalize()
     }
 

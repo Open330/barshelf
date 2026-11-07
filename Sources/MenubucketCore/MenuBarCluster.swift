@@ -79,7 +79,7 @@ public enum MenuBarClusterPolicy {
         from entries: [MenuBarEntry], isSymbol: (String) -> Bool = { _ in true }
     ) -> [ClusterChip] {
         let all: [ClusterChip] = MenuBarPolicy.promoted(entries).flatMap { entry -> [ClusterChip] in
-            if entry.profiles, entry.profileReadings.count > 1 { return profileChips(entry) }
+            if entry.profiles, entry.profileReadings.count > 1 { return profileChips(entry, isSymbol: isSymbol) }
             return [widgetChip(entry, isSymbol: isSymbol)]
         }
         return Array(all.prefix(maxChips))
@@ -87,7 +87,7 @@ public enum MenuBarClusterPolicy {
 
     /// One chip per metric of a widget whose metrics are profiles: named
     /// by the metric's label, ringed by its own share and tint.
-    static func profileChips(_ entry: MenuBarEntry) -> [ClusterChip] {
+    static func profileChips(_ entry: MenuBarEntry, isSymbol: (String) -> Bool = { _ in true }) -> [ClusterChip] {
         entry.profileReadings.enumerated().map { index, metric in
             let name = metric.label.isEmpty ? entry.name : metric.label
             let tint = MenuBarTint.named(metric.tint)
@@ -100,6 +100,7 @@ public enum MenuBarClusterPolicy {
                 id: "\(entry.widgetID)#\(metric.id ?? String(index))",
                 widgetID: entry.widgetID,
                 name: name,
+                symbol: metricSymbol(for: [metric.label, metric.id ?? ""]).flatMap { isSymbol($0) ? $0 : nil },
                 initial: initial(of: name),
                 fraction: fraction(for: single),
                 tint: tint,
@@ -114,9 +115,14 @@ public enum MenuBarClusterPolicy {
 
     static func widgetChip(_ entry: MenuBarEntry, isSymbol: (String) -> Bool) -> ClusterChip {
         let override = entry.iconOverride.flatMap { $0.isEmpty ? nil : $0 }
-        let symbolName = override ?? entry.symbol
-        let symbol = symbolName.flatMap { isSymbol($0) ? $0 : nil }
         let glyph = override.flatMap { isSymbol($0) ? nil : $0 }
+        // The icon the item shows; else one that names the reading, so two
+        // chips of one widget ("CPU", "RAM") tell apart; else the widget's
+        // own icon even when its item shows text only.
+        let candidates: [String?] = glyph == nil
+            ? [override, entry.symbol, metricSymbol(for: readingNames(entry)), entry.iconSymbol]
+            : []
+        let symbol = candidates.lazy.compactMap { $0 }.first(where: isSymbol)
         let tint = tint(for: entry)
         let reading = MenuBarPolicy.normalizedLabel(MenuBarPolicy.entryText(entry), limit: 28) ?? ""
         let spoken = MenuBarPolicy.accessibilityText(entry)
@@ -124,7 +130,8 @@ public enum MenuBarClusterPolicy {
             widgetID: entry.widgetID,
             name: entry.name,
             symbol: symbol,
-            initial: glyph.map { String($0.prefix(2)) } ?? initial(of: entry.name),
+            initial: glyph.map { String($0.prefix(2)) }
+                ?? initial(of: readingNames(entry).first(where: { !$0.isEmpty }) ?? entry.name),
             fraction: fraction(for: entry),
             tint: tint,
             alert: tint == .danger,
@@ -157,6 +164,56 @@ public enum MenuBarClusterPolicy {
         let trimmed = text.trimmingCharacters(in: .whitespaces)
         guard trimmed.count > valueLimit else { return trimmed }
         return String(trimmed.prefix(valueLimit - 1)) + "…"
+    }
+
+    /// What names the reading, most specific first: the user's or widget's
+    /// prefix ("PWR"), then the first metric's label and id.
+    static func readingNames(_ entry: MenuBarEntry) -> [String] {
+        [entry.prefix ?? "", entry.metrics.first?.label ?? "", entry.metrics.first?.id ?? ""]
+    }
+
+    /// SF Symbols for the readings menu bar widgets commonly show, by a
+    /// word in their label. Matched on whole words, so "Memory" finds the
+    /// chip but "Remember" does not.
+    static let readingSymbols: [(words: Set<String>, symbol: String)] = [
+        (["cpu", "load", "proc", "processor"], "cpu"),
+        (["gpu"], "square.grid.3x3.fill"),
+        (["ram", "mem", "memory"], "memorychip"),
+        (["swap"], "arrow.left.arrow.right"),
+        (["pwr", "power", "watt", "watts"], "bolt.fill"),
+        (["bat", "batt", "battery"], "battery.75percent"),
+        (["temp", "temperature", "heat"], "thermometer.medium"),
+        (["fan", "fans", "rpm"], "fan"),
+        (["disk", "ssd", "drive", "storage"], "internaldrive"),
+        (["net", "network", "wifi", "lan"], "network"),
+        (["down", "download", "rx"], "arrow.down"),
+        (["up", "upload", "tx"], "arrow.up"),
+    ]
+
+    /// The symbol for the first name with a word this table knows.
+    public static func metricSymbol(for names: [String]) -> String? {
+        for name in names {
+            let words = name.lowercased()
+                .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+                .map(String.init)
+            for word in words {
+                if let match = readingSymbols.first(where: { $0.words.contains(word) }) { return match.symbol }
+            }
+        }
+        return nil
+    }
+
+    /// For each chip, how many chips before it share its colour (keyed by
+    /// `keys`). The app turns the step into a nearby hue, so chips of one
+    /// widget, or of two widgets that chose the same colour, tell apart and
+    /// still read as a family.
+    public static func toneSteps(keys: [String]) -> [Int] {
+        var seen: [String: Int] = [:]
+        return keys.map { key in
+            let step = seen[key, default: 0]
+            seen[key] = step + 1
+            return step
+        }
     }
 
     /// The first letter that is a letter or digit, upper-cased.

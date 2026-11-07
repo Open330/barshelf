@@ -99,6 +99,18 @@ final class MenuBarController {
     private var clusterPill: CGFloat = CGFloat(ClusterGeometry.disc)
     private(set) var clusterLead: CGFloat = 0
     private var focusAnimation: Timer?
+    /// The update wave (`ClusterPulse`): on or off (app preference), whether
+    /// it may run right now (no card open), when it last ran, and how far
+    /// each chip is lifted while it runs.
+    var pulseEnabled = true {
+        didSet { if !pulseEnabled { stopPulse(redraw: true); pulseGate.reset() } }
+    }
+    var mayPulse: (() -> Bool)?
+    private var pulseGate = ClusterPulseGate()
+    private var pulseLifts: [CGFloat] = []
+    private var pulseGrowth = CGFloat(ClusterPulse.growth)
+    private var pulseAnimation: Timer?
+    private var pulseWork: DispatchWorkItem?
     private var appearanceObservation: NSKeyValueObservation?
     /// Light or dark, as the cluster was last drawn.
     private var drawnLook: NSAppearance.Name?
@@ -201,6 +213,8 @@ final class MenuBarController {
     func setLayout(_ layout: MenuBarLayout) {
         guard self.layout != layout else { return }
         self.layout = layout
+        stopPulse(redraw: false)
+        pulseGate.reset()
         appliedSymbol = nil
         appliedStrip = nil
         appliedChips = nil
@@ -275,8 +289,11 @@ final class MenuBarController {
             return
         }
         guard appliedChips != chips else { return }
-        if appliedChips?.map(\.id) != chips.map(\.id) {
+        let previous = appliedChips
+        if previous?.map(\.id) != chips.map(\.id) {
             // Different chips: start from the plain fold.
+            stopPulse(redraw: false)
+            pulseGate.reset()
             clusterFocus = nil
             focusAnimation?.invalidate()
             clusterPositions = Self.clusterTargets(chips, focus: nil)
@@ -287,6 +304,95 @@ final class MenuBarController {
         appliedChips = chips
         drawCluster(chips, on: button)
         onChipsChanged?(chips)
+        if let previous, previous.map(\.id) == chips.map(\.id) {
+            notePulse(ClusterPulse.changes(from: previous, to: chips))
+        }
+    }
+
+    // MARK: - Update wave
+
+    /// A chip's state changed: run the wave now, or once the cooldown since
+    /// the last one is over.
+    private func notePulse(_ changes: Set<String>) {
+        guard pulseEnabled, !changes.isEmpty else { return }
+        switch pulseGate.note(changes, now: Date()) {
+        case .now:
+            runPulse()
+        case .at(let date):
+            guard pulseWork == nil else { return }
+            let work = DispatchWorkItem { [weak self] in self?.runPulse() }
+            pulseWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + max(date.timeIntervalSinceNow, 0), execute: work)
+        case .none:
+            break
+        }
+    }
+
+    /// Lifts each chip in turn, left to right. Skipped, and its changes
+    /// dropped, while the user is already looking (a chip in focus, a card
+    /// open) or nobody can see the bar. With Reduce Motion on, only the
+    /// chips that changed brighten for a moment, in place.
+    private func runPulse() {
+        pulseWork?.cancel()
+        pulseWork = nil
+        guard pulseEnabled, layout == .cluster, let chips = appliedChips, !chips.isEmpty,
+              mainItem.button != nil else { return }
+        let changed = pulseGate.pending
+        pulseGate.ran(at: Date())
+        guard clusterFocus == nil, mayPulse?() ?? true, !Self.barIsHidden else { return }
+        let reduced = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        pulseGrowth = reduced ? 0 : CGFloat(ClusterPulse.growth)
+        let duration = reduced ? ClusterPulse.chipDuration : ClusterPulse.duration(count: chips.count)
+        let ids = chips.map(\.id)
+        pulseAnimation?.invalidate()
+        let began = Date()
+        pulseAnimation = Timer.scheduledTimer(withTimeInterval: 1.0 / 60, repeats: true) { [weak self] timer in
+            guard let self, let chips = self.appliedChips, chips.map(\.id) == ids,
+                  self.clusterFocus == nil, let button = self.mainItem.button else {
+                timer.invalidate(); return
+            }
+            let elapsed = Date().timeIntervalSince(began)
+            self.pulseLifts = ids.indices.map { index in
+                if reduced { return changed.contains(ids[index]) ? CGFloat(ClusterPulse.lift(index: 0, elapsed: elapsed)) : 0 }
+                return CGFloat(ClusterPulse.lift(index: index, elapsed: elapsed))
+            }
+            if elapsed >= duration {
+                timer.invalidate()
+                self.pulseAnimation = nil
+                self.pulseLifts = []
+            }
+            self.drawCluster(chips, on: button)
+        }
+    }
+
+    /// Ends a running wave where it is.
+    private func stopPulse(redraw: Bool) {
+        pulseWork?.cancel()
+        pulseWork = nil
+        let running = pulseAnimation != nil || !pulseLifts.isEmpty
+        pulseAnimation?.invalidate()
+        pulseAnimation = nil
+        pulseLifts = []
+        if redraw, running, layout == .cluster, let chips = appliedChips, !chips.isEmpty, let button = mainItem.button {
+            drawCluster(chips, on: button)
+        }
+    }
+
+    /// The screen is locked or the display asleep: a wave nobody sees.
+    static var barIsHidden: Bool {
+        if CGDisplayIsAsleep(CGMainDisplayID()) != 0 { return true }
+        guard let session = CGSessionCopyCurrentDictionary() as? [String: Any] else { return false }
+        return session["CGSSessionScreenIsLocked"] as? Bool ?? false
+    }
+
+    /// A chip's face colour as the cluster draws it, for its peek.
+    func clusterColor(for chip: ClusterChip) -> NSColor {
+        let chips = appliedChips ?? [chip]
+        return Self.clusterColors(chips, base: baseChipColor)[chip.id] ?? baseChipColor(chip.widgetID)
+    }
+
+    private func baseChipColor(_ widgetID: String) -> NSColor {
+        chipColor?(widgetID) ?? .controlAccentColor
     }
 
     private func drawCluster(_ chips: [ClusterChip], on button: NSStatusBarButton) {
@@ -295,10 +401,11 @@ final class MenuBarController {
         appliedStrip = nil
         let mark = BarShelfStatusIcon.image(for: mainSymbol, fallback: AppPreferences.defaultMenuBarSymbol)
         drawnLook = Self.look(of: button.effectiveAppearance)
+        let colors = Self.clusterColors(chips, base: baseChipColor)
         let image = Self.clusterImage(
             chips, positions: clusterPositions, focus: clusterFocus, pill: clusterPill, lead: clusterLead,
-            markAlpha: clusterMarkAlpha, mark: mark, badged: attention,
-            color: { [chipColor] id in chipColor?(id) ?? .controlAccentColor },
+            markAlpha: clusterMarkAlpha, lifts: pulseLifts, growth: pulseGrowth, mark: mark, badged: attention,
+            color: { chip in colors[chip.id] ?? .controlAccentColor },
             appearance: button.effectiveAppearance,
             height: NSStatusBar.system.thickness
         )
@@ -349,6 +456,8 @@ final class MenuBarController {
     func setClusterFocus(_ focus: Int?, animated: Bool) {
         guard layout == .cluster, let chips = appliedChips, !chips.isEmpty,
               let button = mainItem.button, focus != clusterFocus else { return }
+        // The user is looking now: the wave gives way.
+        stopPulse(redraw: false)
         clusterFocus = focus
         let target = Self.clusterTargets(chips, focus: focus)
         focusAnimation?.invalidate()

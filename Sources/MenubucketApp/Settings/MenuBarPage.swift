@@ -38,6 +38,15 @@ struct MenuBarPage: View {
             }
             .pickerStyle(.segmented)
             .accessibilityLabel("Show widgets as")
+            if appPrefs.preferences.menuBarLayout == .cluster {
+                Toggle(isOn: Binding(
+                    get: { appPrefs.preferences.menuBarPulse },
+                    set: { value in appPrefs.update { $0.menuBarPulse = value } }
+                )) {
+                    Text("Wave when a widget changes")
+                    Text("The chips come forward one by one when a reading turns to a warning, switches on or off, or changes its icon. At most once every three minutes; never for a number that just ticks.")
+                }
+            }
         }
     }
 

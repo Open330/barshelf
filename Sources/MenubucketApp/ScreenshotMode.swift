@@ -1265,7 +1265,9 @@ private struct ClusterShot: View {
             markAlpha: focus == nil ? 1 : 0,
             mark: BarShelfStatusIcon.image(for: AppPreferences.defaultMenuBarSymbol, fallback: "tray.full"),
             badged: false,
-            color: { Self.colors[$0] ?? .controlAccentColor },
+            color: { [colors = MenuBarController.clusterColors(Self.chips) { Self.colors[$0] ?? .controlAccentColor }] in
+                colors[$0.id] ?? .controlAccentColor
+            },
             appearance: appearance,
             height: barHeight
         )

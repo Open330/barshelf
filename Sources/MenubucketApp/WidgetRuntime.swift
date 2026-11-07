@@ -1630,6 +1630,9 @@ final class WidgetRuntime: ObservableObject {
                 separate: separate,
                 presentation: presentation
             )
+            entry.iconSymbol = MenuBarPolicy.resolvedIcon(
+                user: nil, live: snapshot?.statusIcon, statusItem: statusItem.icon, manifest: widget.manifest.icon
+            )
             entry.profiles = statusItem.profiles ?? false
             if entry.profiles, statusItem.showsLabel {
                 entry.profileMetrics = MenuBarPolicy.normalizedMetrics(

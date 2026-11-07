@@ -25,8 +25,6 @@ final class MenuBarClusterController: NSObject {
     var onChipClick: ((String) -> Void)?
     /// Right-click on a chip.
     var onChipContextMenu: ((String, NSEvent, NSView) -> Void)?
-    /// A widget's colour.
-    var chipColor: ((String) -> Color)?
 
     private let runtime: WidgetRuntime
     private weak var statusItem: NSStatusItem?
@@ -47,6 +45,8 @@ final class MenuBarClusterController: NSObject {
 
     private let cardModel = ClusterCardModel()
     private var card: PopoverSurface?
+    /// A chip's card is open.
+    var isCardShown: Bool { card?.isShown == true }
     private var cardWidgetID: String?
     /// The chip whose card is open.
     private var activeIndex: Int?
@@ -259,7 +259,7 @@ final class MenuBarClusterController: NSObject {
         else { return }
         let chip = chips[index]
         let hosting = NSHostingView(rootView: ClusterPeekView(
-            chip: chip, color: chipColor?(chip.widgetID) ?? .accentColor
+            chip: chip, color: Color(nsColor: menuBar.clusterColor(for: chip))
         ))
         let size = hosting.fittingSize
         // Under the chip on the menu bar the pointer is on.
