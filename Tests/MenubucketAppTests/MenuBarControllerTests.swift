@@ -178,6 +178,17 @@ final class MenuBarRedrawDecisionTests: XCTestCase {
             MenuBarController.luminance(turned),
             MenuBarController.luminance(orange) + MenuBarController.toneLuminanceSlack + 0.01
         )
+        // Orange turns towards red, not to a darkened yellow.
+        var hue: CGFloat = 0, baseHue: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        turned.getHue(&hue, saturation: &s, brightness: &b, alpha: &a)
+        orange.usingColorSpace(.sRGB)!.getHue(&baseHue, saturation: &s, brightness: &b, alpha: &a)
+        func offset(_ h: CGFloat) -> CGFloat { let d = h - baseHue; return d - (d / 1).rounded() }
+        XCTAssertLessThan(offset(hue), 0)
+        // The third goes the other way, so the two never meet.
+        let third = MenuBarController.toned(orange, step: 2).usingColorSpace(.sRGB)!
+        var thirdHue: CGFloat = 0
+        third.getHue(&thirdHue, saturation: &s, brightness: &b, alpha: &a)
+        XCTAssertGreaterThan(offset(thirdHue), 0)
     }
 
     func testGreyChipsStepInBrightness() {

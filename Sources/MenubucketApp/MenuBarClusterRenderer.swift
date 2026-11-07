@@ -83,7 +83,16 @@ extension MenuBarController {
             let shifted = brightness - turn * toneBrightnessStep
             return NSColor(hue: hue, saturation: saturation, brightness: min(max(shifted, 0.2), 0.95), alpha: alpha)
         }
-        var turned = hue + turn * toneHueStep / 360
+        // The first turn goes the way that gets darker, so it keeps its
+        // colour instead of being darkened into mud (orange turns to red,
+        // not to a darkened yellow). Later steps alternate from there.
+        func hued(_ degrees: CGFloat) -> NSColor {
+            var shifted = hue + degrees / 360
+            shifted -= floor(shifted)
+            return NSColor(hue: shifted, saturation: saturation, brightness: brightness, alpha: alpha)
+        }
+        let way: CGFloat = luminance(hued(toneHueStep)) > luminance(hued(-toneHueStep)) ? -1 : 1
+        var turned = hue + way * turn * toneHueStep / 360
         turned -= floor(turned)
         // Turning orange towards yellow makes it much lighter, and the
         // white glyph fades into it: keep the new tone no lighter than the
