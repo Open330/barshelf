@@ -83,22 +83,23 @@ extension MenuBarController {
             let shifted = brightness - turn * toneBrightnessStep
             return NSColor(hue: hue, saturation: saturation, brightness: min(max(shifted, 0.2), 0.95), alpha: alpha)
         }
-        // Try the turn, then its mirror. A turn is no good if keeping the
-        // white glyph readable would darken it into mud (orange to yellow
-        // ends up olive), or if it turns red, which in the menu bar reads
-        // as an alert and swallows the red alert dot.
+        // A step's turn is no good if keeping the white glyph readable
+        // would darken it into mud (orange to yellow ends up olive), or if
+        // it turns red, which in the menu bar reads as an alert and
+        // swallows the red alert dot. No mirror retry: the mirror is the
+        // next step's turn, and two chips would share a colour.
         let ceiling = luminance(rgb) + toneLuminanceSlack
-        for way: CGFloat in [1, -1] {
-            var turned = hue + way * turn * toneHueStep / 360
-            turned -= floor(turned)
-            if isRed(turned), !isRed(hue) { continue }
+        var turned = hue + turn * toneHueStep / 360
+        turned -= floor(turned)
+        if !(isRed(turned) && !isRed(hue)) {
             let plain = NSColor(hue: turned, saturation: saturation, brightness: brightness, alpha: alpha)
             let light = luminance(plain)
             let darkening = light > ceiling ? pow(ceiling / light, 1 / 2.2) : 1
-            if darkening < toneMinimumDarkening { continue }
-            return NSColor(hue: turned, saturation: saturation, brightness: brightness * darkening, alpha: alpha)
+            if darkening >= toneMinimumDarkening {
+                return NSColor(hue: turned, saturation: saturation, brightness: brightness * darkening, alpha: alpha)
+            }
         }
-        // Neither way works (orange): the same hue, darker for each step.
+        // The turn is refused (orange): the same hue, darker for each step.
         let darker = brightness - toneFallbackStep * CGFloat(step)
         return NSColor(hue: hue, saturation: saturation, brightness: max(darker, 0.2), alpha: alpha)
     }

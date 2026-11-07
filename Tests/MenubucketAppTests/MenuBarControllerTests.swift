@@ -204,10 +204,26 @@ final class MenuBarRedrawDecisionTests: XCTestCase {
         XCTAssertLessThan(third.brightness, second.brightness - 0.1, "the third stays apart from the second")
     }
 
+    func testNoTwoStepsOfAColourMatch() {
+        // A refused turn must not borrow the next step's turn.
+        for degrees in stride(from: 0, to: 360, by: 15) {
+            let base = NSColor(hue: CGFloat(degrees) / 360, saturation: 0.8, brightness: 0.9, alpha: 1)
+            let tones = (0..<5).map { hsb(MenuBarController.toned(base, step: $0)) }
+            for i in tones.indices {
+                for j in tones.indices where j > i {
+                    let hueGap = min(abs(tones[i].hue - tones[j].hue), 360 - abs(tones[i].hue - tones[j].hue))
+                    XCTAssertTrue(hueGap > 10 || abs(tones[i].brightness - tones[j].brightness) > 0.1,
+                                  "base \(degrees)°: steps \(i) and \(j) match")
+                }
+            }
+        }
+    }
+
     func testARedColourMayStillTurn() {
         let red = NSColor(hue: 0, saturation: 0.8, brightness: 0.9, alpha: 1)
-        let second = hsb(MenuBarController.toned(red, step: 1))
-        XCTAssertFalse(abs(second.hue - 0) < 1 || abs(second.hue - 360) < 1, "only new red is avoided")
+        // −30° from red stays near red, and is allowed: only new red is avoided.
+        let third = hsb(MenuBarController.toned(red, step: 2))
+        XCTAssertEqual(third.hue, 330, accuracy: 1)
     }
 
     func testGreyChipsStepInBrightness() {
