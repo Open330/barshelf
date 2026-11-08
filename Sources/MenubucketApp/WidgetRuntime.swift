@@ -1715,6 +1715,8 @@ final class WidgetRuntime: ObservableObject {
     }
 
     /// Recent readings of each charting item, oldest first.
+    /// Recent menu bar readings for the trend in a menu bar item's card.
+    let readingHistory = ReadingHistory()
     private(set) var menuBarHistory: [String: MenuBarChartHistory] = [:]
     /// Widgets with a snapshot the chart has not taken a point from yet.
     private var chartPending: Set<String> = []
@@ -3105,6 +3107,10 @@ final class WidgetRuntime: ObservableObject {
         snapshots[id] = snapshot
         cardModels[id]?.snapshot = snapshot
         if errorChanged { updateAttention() }
+        if menuBarWidgetIDs.contains(id), previous?.updatedAt != snapshot.updatedAt,
+           let reading = ReadingHistory.reading(of: snapshot) {
+            readingHistory.record(id, reading)
+        }
         if menuBarWidgetIDs.contains(id), Self.menuBarStateChanged(from: previous, to: snapshot) {
             // Loading/error-only changes are not new measurements. Inserting
             // those into chart history repeated the previous reading.
@@ -3149,6 +3155,7 @@ final class WidgetRuntime: ObservableObject {
 
     /// Drops per-widget state for removed widget ids (hot reload cleanup).
     private func removeWidgetState(notIn liveIDs: Set<String>) {
+        readingHistory.retain(liveIDs)
         // A throttled cache write outlives the widget by up to
         // `persistIntervalSec`; left alone it would re-create the cache file
         // of a widget removed by hot reload, and a reinstall would show it.

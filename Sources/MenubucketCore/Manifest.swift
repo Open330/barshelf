@@ -266,6 +266,10 @@ public struct Manifest: Codable, Equatable {
         /// gets a chip, labelled by the metric's label; elsewhere nothing
         /// changes.
         public var profiles: Bool?
+        /// The card a menu bar item opens leads with the widget's menu bar
+        /// reading, large, beside its recent trend. `false` leaves that out —
+        /// for a widget whose own view already leads with the same number.
+        public var popoverHero: Bool?
 
         /// Display modes that put the widget in the menu bar.
         public static let promotableModes: Set<String> = ["icon", "text", "dynamic"]
@@ -288,7 +292,8 @@ public struct Manifest: Codable, Equatable {
             label: String? = nil,
             style: String? = nil,
             presentation: MenuBarPresentation? = nil,
-            profiles: Bool? = nil
+            profiles: Bool? = nil,
+            popoverHero: Bool? = nil
         ) {
             self.mode = mode
             self.icon = icon
@@ -298,6 +303,7 @@ public struct Manifest: Codable, Equatable {
             self.style = style
             self.presentation = presentation
             self.profiles = profiles
+            self.popoverHero = popoverHero
         }
     }
 

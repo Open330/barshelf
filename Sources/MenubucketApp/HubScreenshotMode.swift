@@ -62,6 +62,15 @@ enum HubScreenshotMode {
         }
         ok = render(RootView(runtime: runtime, pager: PagerState()),
                     size: NSSize(width: 360, height: 640), name: "popup", to: dir) && ok
+        // The card a menu bar item opens, for every widget that can be in
+        // the menu bar.
+        for widget in runtime.widgets where widget.manifest.statusItem?.isPromotable == true {
+            // At the height the popover would take: its content's.
+            let fitted = NSHostingView(rootView: MenuBarWidgetPopover(widget: widget, runtime: runtime)).fittingSize
+            ok = render(MenuBarWidgetPopover(widget: widget, runtime: runtime),
+                        size: NSSize(width: MenuBarWidgetPopover.width, height: min(fitted.height, MenuBarWidgetPopover.maximumHeight)),
+                        name: "menubar-card-\(widget.id)", to: dir) && ok
+        }
         return ok ? 0 : 1
     }
 

@@ -535,3 +535,42 @@ extension View {
         modifier(HoverHint(title: title, key: key, alignment: alignment))
     }
 }
+
+/// A reading's recent trend: a line with a soft fill under it and its
+/// latest point marked. Scaled to the values' own range, with headroom, so
+/// a steady reading draws flat rather than as noise.
+struct TrendLine: View {
+    let values: [Double]
+    var tint: Color = .primary
+    /// 100 for a percentage, so 20 % does not fill the height.
+    var ceiling: Double?
+
+    var body: some View {
+        Canvas { context, size in
+            guard values.count > 1 else { return }
+            let low = min(values.min() ?? 0, ceiling == nil ? .infinity : 0)
+            let high = max(values.max() ?? 1, ceiling ?? -.infinity)
+            let span = max(high - low, ceiling == nil ? max(abs(high) * 0.1, 1) : 1)
+            let inset = Spacing.hair + 1
+            let points = values.enumerated().map { index, value in
+                CGPoint(
+                    x: size.width * CGFloat(index) / CGFloat(values.count - 1),
+                    y: inset + (size.height - inset * 2) * CGFloat(1 - (value - low) / span)
+                )
+            }
+            var line = Path()
+            line.addLines(points)
+            var area = line
+            area.addLine(to: CGPoint(x: size.width, y: size.height))
+            area.addLine(to: CGPoint(x: 0, y: size.height))
+            area.closeSubpath()
+            context.fill(area, with: .color(tint.opacity(Fill.Wash.soft + Fill.Wash.soft / 2)))
+            context.stroke(line, with: .color(tint), style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+            if let last = points.last {
+                let dot = CGRect(x: last.x - 2.5, y: last.y - 2.5, width: 5, height: 5)
+                context.fill(Path(ellipseIn: dot), with: .color(tint))
+            }
+        }
+        .accessibilityHidden(true)
+    }
+}

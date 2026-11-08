@@ -47,7 +47,7 @@ struct WidgetCardView: View {
     /// The card's own header is on by default — it is how a reading, or an
     /// error, is traced to its widget — unless the widget's appearance turns
     /// it off.
-    private var showsHeader: Bool { appearance.showsHeader }
+    private var showsHeader: Bool { appearance.showsHeader && placement != .menuBar }
 
     /// Edit controls only make sense on a shelf page.
     private var isEditing: Bool { shelfIsEditing && placement == .shelf && compactHeight == nil }
@@ -95,7 +95,7 @@ struct WidgetCardView: View {
             .environment(\.localFileReadPaths, runtime.effectiveReadPaths(for: widget))
         .background(sectionBackground)
         .overlay(alignment: .topTrailing) {
-            if !isEditing { cardControls }
+            if !isEditing, placement != .menuBar { cardControls }
         }
         // Insertion indicator while a dragged card hovers over this one.
         .overlay(alignment: .leading) {
@@ -208,7 +208,7 @@ struct WidgetCardView: View {
             }
             // While editing, a drag must never press one of the widget's buttons.
             .allowsHitTesting(!isEditing)
-            if !showsHeader, model.overlay == nil, let updatedAt = snapshot.updatedAt {
+            if !showsHeader, placement != .menuBar, model.overlay == nil, let updatedAt = snapshot.updatedAt {
                 FreshnessText(updatedAt: updatedAt)
             }
         }

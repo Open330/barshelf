@@ -6799,6 +6799,16 @@
         }
       }
     },
+    "Not updated recently": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "최근에 갱신되지 않음"
+          }
+        }
+      }
+    },
     "Nothing": {
       "comment": "Row click action: do nothing",
       "localizations": {
@@ -6912,11 +6922,23 @@
       }
     },
     "Open": {
+      "comment": "Button: open the file a widget shows",
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "열기"
+          }
+        }
+      }
+    },
+    "Open %@": {
+      "comment": "Button: open the app a widget belongs to",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 열기"
           }
         }
       }
@@ -7071,6 +7093,16 @@
         }
       }
     },
+    "Open in Browser": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "브라우저에서 열기"
+          }
+        }
+      }
+    },
     "Open in Finder": {
       "localizations": {
         "ko": {
@@ -7177,6 +7209,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "주황색"
+          }
+        }
+      }
+    },
+    "Other widgets": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "다른 위젯"
           }
         }
       }

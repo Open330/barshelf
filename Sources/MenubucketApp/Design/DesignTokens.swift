@@ -62,6 +62,8 @@ enum Fill {
     static let hover = adaptive(light: 0.075, dark: 0.11)
     /// Pressed, or a selected row.
     static let pressed = adaptive(light: 0.11, dark: 0.15)
+    /// Content shown but no longer current: a reading past its refresh.
+    static let staleOpacity: Double = 0.55
     /// A meter's or ring's empty track.
     static let track = adaptive(light: 0.09, dark: 0.14)
     /// Hairline borders, where a border is needed at all (Increase Contrast,
