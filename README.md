@@ -37,7 +37,7 @@ new SDK to learn.
 - **🪟 One icon, many widgets** — bucket pages, trackpad swipe, pinned row, ⌘F search.
 - **📊 Live in the menu bar** — opt a widget in and its value updates right on
   the bar (`✦ 42% · 61% · 58°`), sharing the BarShelf icon or on its own.
-  Coming in 0.7.13: show them as a cluster of small chips beside the icon instead.
+  Or show them as a cluster of small chips beside the icon.
 - **🧭 A dock, if you want one** — put apps, folders, links, Shortcuts, and live
   widgets on a screen-edge dock, alongside the Apple Dock or instead of it, and
   switch profiles (⌃⌥1–9, swipe, Focus) — the Apple Dock's apps can follow.
@@ -75,7 +75,7 @@ Install BarShelf on my Mac and scaffold my first widget.
 1. Download the latest release from
    https://github.com/Open330/barshelf/releases/latest, unzip the
    BarShelf-<version>-arm64.zip, move BarShelf.app into /Applications, and open it.
-   The current v0.7.13 build is Developer ID signed, notarized, and stapled.
+   The current v0.7.14 build is Developer ID signed, notarized, and stapled.
 2. Download the barshelf CLI — it ships as a separate release asset
    (barshelf-cli-<version>-arm64.tar.gz). Extract it and put barshelf on my PATH.
 3. Scaffold a widget:  barshelf new my-widget --kind workflow
@@ -98,7 +98,7 @@ brew install --cask open330/tap/barshelf
 
 Or grab `BarShelf-<version>-arm64.zip` from
 **[Releases](https://github.com/Open330/barshelf/releases/latest)**, move it to
-`/Applications`, then open it normally. The current v0.7.13 asset is Developer ID
+`/Applications`, then open it normally. The current v0.7.14 asset is Developer ID
 signed, Apple-notarized, and includes a stapled ticket for offline verification.
 
 BarShelf checks for updates itself and can install them in place — only when
