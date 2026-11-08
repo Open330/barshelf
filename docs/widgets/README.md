@@ -71,6 +71,14 @@ Silicon HID sensor plane as a fallback.
 Both widgets can show a live value in the menu bar — turn it on in the widget's
 **Settings → Menu Bar**.
 
+### Keep Awake
+
+Keep the Mac awake for 1, 2 or 4 hours or until a set time — never
+indefinitely — and see what else is keeping it awake. It asks
+PowerDisplayGuard, which owns the power policy, rather than changing power
+settings itself, and can show the time left in the menu bar.
+[Setup and how it talks to the guard](../../widgets/keep-awake/README.md).
+
 ## Registry presentation metadata
 
 A registry entry can attach both a compact visual preview and a long-form

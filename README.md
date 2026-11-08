@@ -37,6 +37,7 @@ new SDK to learn.
 - **🪟 One icon, many widgets** — bucket pages, trackpad swipe, pinned row, ⌘F search.
 - **📊 Live in the menu bar** — opt a widget in and its value updates right on
   the bar (`✦ 42% · 61% · 58°`), sharing the BarShelf icon or on its own.
+  Coming in 0.7.13: show them as a cluster of small chips beside the icon instead.
 - **🧭 A dock, if you want one** — put apps, folders, links, Shortcuts, and live
   widgets on a screen-edge dock, alongside the Apple Dock or instead of it, and
   switch profiles (⌃⌥1–9, swipe, Focus) — the Apple Dock's apps can follow.
@@ -137,6 +138,7 @@ Fit / fixed-height layout. **Today**, **Recent Files**, and the permission-free
 | **Today** · **Calendar** · **Clock** | `/bin/date` | Big date, a month grid with today circled, a live clock — layout adapts to widget size. |
 | **Weather** · **Exchange** · **Stock** | http | Temperature, USD→KRW, and a stock quote (Stock needs a `User-Agent` header). |
 | **Battery** · **Network** | shell | Battery %, and the local IP. |
+| **Keep Awake** | `osascript` | Keep the Mac awake for 1, 2 or 4 hours or until a set time, never indefinitely. Works with [PowerDisplayGuard](https://github.com/jiunbae/settings), which owns the power policy. |
 | **System** · **Sensors** | native | CPU/Memory/Disk meters and SMC temperatures, fans and power draw — read from Mach/IOKit, no subprocess. Both can show a live value in the menu bar. |
 | **Recent Files** | `fs.directory` | Stashbar-style Grid/List of recent files — QuickLook thumbnails, drag-out, click to open. |
 | **aas Usage** · **OTP Codes** | CLI | LLM usage meters from [`aas`](https://github.com/Open330/aas); TOTP codes with a countdown ring from [`otpeek`](https://github.com/jiunbae/otpeek). |
@@ -225,9 +227,10 @@ notifications, and host-mediated command execution. Workflow expressions and
 sources are documented in [Workflow DSL](docs/WORKFLOW.md); manifest fields and
 native UINode actions are covered by [Widget Spec](docs/WIDGET-SPEC.md).
 
-**Visual builder** — status menu → *Create Widget…* → pick a source (run a
-command / watch a folder / static text), a display (list · table · value · text)
-with a **live preview**, then name it. No JSON.
+**Visual builder** — BarShelf window ▸ **Create** (⌘N), or ⋯ → **Add Widget…** →
+**Create Widget** in the gallery. Pick a source (command, shell script, HTTP
+JSON, pasted JSON, a folder, static text), a display (list · grid · table ·
+single value · meter · plain text) with a **live preview**, then name it. No JSON.
 
 **By hand** — a widget is a folder with a `widget.json`:
 
@@ -275,6 +278,9 @@ Reference: **[docs/CLI.md](docs/CLI.md)**.
 |---|---|
 | [Getting Started](docs/GETTING-STARTED.md) | Install, first widget, the bundled examples |
 | [Install](docs/INSTALL.md) | Release install, `barshelf`, source build, troubleshooting |
+| [Installing Widgets](docs/INSTALLING-WIDGETS.md) | Installing from a GitHub URL, archive, deep link, or the CLI |
+| [Dock](docs/DOCK.md) | The optional BarShelf Dock, profiles, and Apple Dock switching |
+| [Automation](docs/AUTOMATION.md) | Keyboard and window extensions, Hammerspoon and Karabiner import |
 | [Widget Spec](docs/WIDGET-SPEC.md) | `widget.json`, UINode nodes, actions, refresh, permissions |
 | [Agents](docs/AGENTS.md) | Self-contained widget-authoring spec for LLM agents (also `barshelf agent-spec`) |
 | [Workflow DSL](docs/WORKFLOW.md) | Sources, transforms, interpolation, built-ins, `forEach` |

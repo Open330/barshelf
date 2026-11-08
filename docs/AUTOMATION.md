@@ -164,6 +164,13 @@ restores the previous extension where possible, and reports any restoration
 failure. A conflicting shortcut never appears as successfully enabled.
 The existing popup shortcut uses a separate event signature.
 
+The editor keeps your draft while you move to other pages of the BarShelf
+window, and an **Unsaved changes** mark shows next to the buttons when the
+draft differs from the saved script. Only **Save Script** (or **Save & Reload**
+while the extension runs) applies the draft. **Enable Keyboard & Window
+Extension** runs the saved script, not the draft; **Revert Draft** goes back to
+the saved script.
+
 Source and enabled state are written atomically to
 `~/Library/Application Support/barshelf/automation.json` (the same app-support
 root used by the host). **Export…** writes the editor draft to a `.js` file.
