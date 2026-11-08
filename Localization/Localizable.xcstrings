@@ -51,6 +51,23 @@
         }
       }
     },
+    "%@ %@": {
+      "comment": "One part of a stacked meter for VoiceOver: its label, then its share",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ %2$@"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ %2$@"
+          }
+        }
+      }
+    },
     "%@ (line %d)": {
       "localizations": {
         "en": {
@@ -7753,6 +7770,17 @@
         }
       }
     },
+    "Quit %@?": {
+      "comment": "quitApp confirmation title; the app's name",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 앱을 종료할까요?"
+          }
+        }
+      }
+    },
     "Quit BarShelf": {
       "localizations": {
         "ko": {
@@ -7769,6 +7797,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "같은 키가 두 번 처리되지 않도록 이 확장을 켜기 전에 Hammerspoon을 종료하십시오."
+          }
+        }
+      }
+    },
+    "Quit apps you choose, asking each time": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "선택한 앱 종료(매번 확인)"
           }
         }
       }
@@ -11062,6 +11100,33 @@
         }
       }
     },
+    "Trend from %@ to %@, low %@, high %@": {
+      "comment": "Sparkline summary for VoiceOver: first, last, lowest and highest values",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Trend from %1$@ to %2$@, low %3$@, high %4$@"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "추세: %1$@에서 %2$@(으)로, 최저 %3$@, 최고 %4$@"
+          }
+        }
+      }
+    },
+    "Trend, no data": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "추세, 데이터 없음"
+          }
+        }
+      }
+    },
     "Try a different search, or show every type and category.": {
       "localizations": {
         "ko": {
@@ -12583,6 +12648,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "—"
+          }
+        }
+      }
+    },
+    "“%@” asked to quit this app. If it has unsaved changes, it will ask you about them first.": {
+      "comment": "quitApp confirmation body; the widget's name",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” 위젯이 이 앱의 종료를 요청했습니다. 저장하지 않은 변경 사항이 있으면 앱이 먼저 물어봅니다."
           }
         }
       }

@@ -404,7 +404,8 @@ permissions invalidates approval (re-approval required).
   "env": ["HOME", "PATH"],           // env vars exposed to processes
   "keychain": true,                  // allow barshelf.secret.* (Keychain)
   "notifications": true,             // allow barshelf.notify.show
-  "system": ["cpu", "memory", "sensors", "network"]  // telemetry groups the "system" source may read
+  "system": ["cpu", "memory", "sensors", "network"], // telemetry groups the "system" source may read
+  "quitApps": true                   // allow quitApp actions (user confirms each quit)
 }
 ```
 
@@ -419,9 +420,13 @@ Gating specifics:
   symlink substitution cannot retarget access. The stale `permissions.files`
   draft form is rejected; migrate it to `permissions.readPaths`.
 - The workflow **`system` source requires `permissions.system`**: every metric
-  group it reads (`cpu`, `memory`, `disk`, `sensors`, `network`) must be declared, and an
+  group it reads (`cpu`, `memory`, `disk`, `sensors`, `network`, `processes`) must be declared, and an
   undeclared group fails the refresh. No subprocess and no file access are
-  involved, so no `exec`/`readPaths` entry is needed.
+  involved, so no `exec`/`readPaths` entry is needed. `processes` is sampled
+  only when a source names it in `metrics` (never by an omitted `metrics`).
+- `quitApps: true` gates the `quitApp` action. Launching (`openApp`) needs no
+  grant; quitting can lose work, so it is declared, approved with the rest of
+  the permission set, and still confirmed by the user every time.
 - `keychain` gates `barshelf.secret.*`; `notifications` gates `barshelf.notify.show`.
 - `barshelf.storage.*` needs **no** permission (per-widget sandbox).
 
@@ -436,11 +441,12 @@ e.g. `exec: /bin/ls`, `network: fetches from api.github.com`, `files: reads
 
 The view tree is one root UINode object. `type` is a string discriminator; every
 other field is optional; unknown types decode fine but render as a placeholder.
-**The native renderer knows exactly these 18 types** (anything else renders as
+**The native renderer knows exactly these 19 types** (anything else renders as
 an unsupported placeholder today):
 
 `vstack`, `hstack`, `zstack`, `scroll`, `list`, `grid`, `section`, `card`, `text`,
-`image`, `progress`, `button`, `badge`, `banner`, `empty`, `divider`, `spacer`, `none`.
+`image`, `progress`, `sparkline`, `button`, `badge`, `banner`, `empty`, `divider`,
+`spacer`, `none`.
 
 Shared/common fields: `id` (stable identity, needed for lists & action routing),
 `padding` (points), `widthFill` (bool), `tint`/`tone`/`foreground`
@@ -515,6 +521,25 @@ action payloads are excluded and typing does not re-run the widget.
 no re-run; `labelFrom: "remainingSeconds"` renders the seconds left; `tintRules`
 (first match wins) override `tint`.
 
+Stacked meter (linear only): `segments` replaces `value`; parts are drawn left
+to right, the running total is clamped to 1, and VoiceOver reads each part.
+
+```json
+{ "type": "progress", "style": "linear", "label": "CPU",
+  "segments": [ { "value": 0.32, "tint": "accent", "label": "User" },
+                { "value": 0.12, "tint": "warning", "label": "System" } ] }
+```
+
+### Sparkline
+
+```json
+{ "type": "sparkline", "values": "${storage.cpuHistory}", "min": 0, "max": 100, "tint": "accent", "height": 34 }
+```
+`values` is an array of numbers, oldest first (a whole-string `${…}` keeps the
+array). `min`/`max` default to the data range plus 10 % headroom; no `tint`
+draws a neutral line. `height` defaults to 34 pt and follows Compact density.
+VoiceOver reads first/last/low/high.
+
 ### Script SDK component helpers
 
 Use the component helpers when authoring script widgets; they emit ordinary
@@ -554,14 +579,16 @@ ui.stat("Source", "AC Power", { icon: "powerplug.fill", tone: "accent" })
 
 ### NodeAction (on `button`, or a node's `action`)
 
-`type` is one of: `copyText`, `openURL`, `openFile`, `revealFile`, `refresh`,
-`run`, `event`.
+`type` is one of: `copyText`, `openURL`, `openFile`, `revealFile`, `openApp`,
+`quitApp`, `refresh`, `run`, `event`.
 
 ```jsonc
 { "type": "copyText", "value": "…", "toast": "Copied", "clearAfterSec": 30 } // clears clipboard after N s
 { "type": "openURL",  "url": "https://example.com" }
 { "type": "openFile", "path": "~/Downloads/x.pdf" }
 { "type": "revealFile", "path": "~/Downloads/x.pdf" }                         // reveal in Finder
+{ "type": "openApp", "value": "com.apple.ActivityMonitor" }                // bundle id, name or .app path
+{ "type": "quitApp", "value": "com.apple.TextEdit" }                        // or a pid; needs permissions.quitApps; user confirms
 { "type": "refresh" }                                                        // re-run this widget
 { "type": "run", "command": ["/bin/ls", "-la"], "thenRefresh": true }        // must match permissions.exec
 { "type": "event", "id": "increment", "toast": "…" }                         // script widgets: routed to action handler
@@ -728,6 +755,12 @@ anything the machine does not publish**):
   `sent`, `address`. Rates are bytes/s and `null` on the first sample; totals
   are bytes. `interface` selects one interface, while omitted or `all`
   aggregates physical interfaces.
+- `processes` (only when named in `metrics`; `"processes": { "count": 5 }`,
+  1–10) — `[{pid, name, cpu, memory, bundleID, isApp}]`, busiest first. `cpu`
+  is the share of **total** CPU since the previous sample (0–100, the scale of
+  `cpu.usage`; Activity Monitor's column is this × `cpu.coreCount`). `memory`
+  is the physical footprint in bytes. `bundleID`/`isApp` are set for regular
+  (Dock) apps. Processes this user may not inspect are left out.
 
 `detail: true` costs roughly 4× a plain sample — leave it off for a widget that
 polls in the menu bar.
@@ -785,7 +818,7 @@ export default barshelf.widget({ load, action: action_ });
 - `schemaVersion`, `id` (filesystem-safe), `name`, `entry.kind` present.
 - Every command/host you touch is declared in `permissions` (exec allowlist,
   `network` for `http`, `keychain`/`notifications` as needed).
-- View tree uses only the 18 rendered node types; lists give each row a stable `id`.
+- View tree uses only the 19 rendered node types; lists give each row a stable `id`.
 - `barshelf validate ./my-widget` prints `valid:`.
 - Loads in dev mode from `./widgets/` (or `barshelf install ./my-widget`), and the
   first-run permission prompt lists what you expect.

@@ -121,6 +121,9 @@ enum WidgetPermissionSummary {
         if permissions.notifications == true {
             lines.append(Line(symbol: "bell", text: String(localized: "Send notifications")))
         }
+        if permissions.quitApps == true {
+            lines.append(Line(symbol: "xmark.app", text: String(localized: "Quit apps you choose, asking each time")))
+        }
         let environment = permissions.env ?? []
         if !environment.isEmpty {
             lines.append(Line(symbol: "list.bullet.rectangle", text: String(localized: "Read the environment variables \(list(environment))", comment: "Permission summary: environment variables the widget may read")))

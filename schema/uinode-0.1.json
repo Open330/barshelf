@@ -34,6 +34,9 @@
               "$ref": "#/definitions/progressNode"
             },
             {
+              "$ref": "#/definitions/sparklineNode"
+            },
+            {
               "$ref": "#/definitions/buttonNode"
             },
             {
@@ -638,6 +641,78 @@
         },
         "size": {
           "type": "number"
+        },
+        "segments": {
+          "description": "Linear style only: parts of one stacked meter (e.g. CPU user + system), drawn left to right. The running total is clamped to 1. When present, value is ignored.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/progressSegment"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "progressSegment": {
+      "type": "object",
+      "required": [
+        "value"
+      ],
+      "properties": {
+        "value": {
+          "description": "Share of the whole meter, 0.0 to 1.0. A numeric string is accepted.",
+          "type": [
+            "number",
+            "string"
+          ]
+        },
+        "tint": {
+          "$ref": "#/definitions/semanticColor"
+        },
+        "label": {
+          "description": "Name of this part, read by VoiceOver with its share.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "sparklineNode": {
+      "type": "object",
+      "required": [
+        "type",
+        "values"
+      ],
+      "properties": {
+        "type": {
+          "const": "sparkline"
+        },
+        "values": {
+          "description": "Samples, oldest first. Usually a whole-string expression (\"${storage.history}\") that yields an array. Numeric strings are accepted; other entries are skipped.",
+          "oneOf": [
+            {
+              "type": "array",
+              "items": {}
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "min": {
+          "description": "Value at the bottom edge. Defaults to the data minimum less 10% of the span.",
+          "type": "number"
+        },
+        "max": {
+          "description": "Value at the top edge. Defaults to the data maximum plus 10% of the span.",
+          "type": "number"
+        },
+        "tint": {
+          "description": "Line colour. Omitted draws a neutral line.",
+          "$ref": "#/definitions/semanticColor"
+        },
+        "height": {
+          "description": "Height in points. Default 34; Compact density scales it.",
+          "type": "number",
+          "exclusiveMinimum": 0
         }
       },
       "additionalProperties": true
@@ -916,8 +991,32 @@
         },
         {
           "$ref": "#/definitions/refreshAction"
+        },
+        {
+          "$ref": "#/definitions/quitAppAction"
         }
       ]
+    },
+    "quitAppAction": {
+      "description": "Asks the user, then quits a running app (a normal quit; never forced). Requires permissions.quitApps. A pid that is not an app is refused.",
+      "type": "object",
+      "required": [
+        "type",
+        "value"
+      ],
+      "properties": {
+        "type": {
+          "const": "quitApp"
+        },
+        "value": {
+          "description": "Bundle identifier, or the app's pid (number or decimal string).",
+          "type": [
+            "string",
+            "integer"
+          ]
+        }
+      },
+      "additionalProperties": true
     },
     "eventAction": {
       "type": "object",

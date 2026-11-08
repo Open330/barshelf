@@ -24,6 +24,7 @@ public final class PermissionStore: @unchecked Sendable {
         case readPaths
         case keychain
         case notifications
+        case quitApps
     }
 
     /// True when the manifest declares the given permission kind. Used to gate
@@ -42,6 +43,8 @@ public final class PermissionStore: @unchecked Sendable {
             return permissions?.keychain == true
         case .notifications:
             return permissions?.notifications == true
+        case .quitApps:
+            return permissions?.quitApps == true
         }
     }
 

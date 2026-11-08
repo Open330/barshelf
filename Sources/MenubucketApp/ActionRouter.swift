@@ -61,6 +61,11 @@ enum ActionRouter {
             guard let value = action.value ?? action.url else { return }
             openApp(value)
 
+        case "quitApp":
+            // Needs permissions.quitApps, then the user's confirmation;
+            // only ever a polite terminate() of a running app.
+            runtime?.performQuitApp(action: action, widgetID: widgetID)
+
         case "refresh":
             if let targetID = action.id {
                 runtime?.refresh(widgetID: targetID)

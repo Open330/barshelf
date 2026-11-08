@@ -846,6 +846,9 @@ final class WidgetRuntime: ObservableObject {
         if permissions?.notifications == true {
             rows.append(PermissionRequest(symbol: "bell.fill", description: String(localized: "Show notifications")))
         }
+        if permissions?.quitApps == true {
+            rows.append(PermissionRequest(symbol: "xmark.app.fill", description: String(localized: "Quit apps you choose, asking each time")))
+        }
         if let net = permissions?.network, !net.isEmpty {
             let hosts = net.prefix(4).joined(separator: ", ")
             let suffix = net.count > 4 ? ", …" : ""
@@ -2450,7 +2453,7 @@ final class WidgetRuntime: ObservableObject {
         if let requested, requested.isEmpty {
             throw RuntimeError.invalidWorkflow(
                 "system source \"metrics\" lists no known group"
-                    + " (cpu, memory, disk, network, sensors)"
+                    + " (cpu, memory, disk, network, sensors, processes)"
             )
         }
         let (allowed, denied) = SystemMetrics.authorized(
@@ -2479,6 +2482,10 @@ final class WidgetRuntime: ObservableObject {
         let sensorGroups = Self.sensorGroups(from: params.objectValue?["sensors"])
         let sensorKeys = Self.sensorKeys(from: params.objectValue?["sensors"])
         let diskIO = params.objectValue?["io"]?.boolValue == true
+        let processCount = ProcessMetrics.count(from: params.objectValue?["processes"])
+        // Running apps name the `processes` rows; read only when that group
+        // is sampled.
+        let apps = allowed.contains(.processes) ? await Self.runningAppIdentities() : nil
         // Sampling blocks on Mach/IOKit calls (and, on a cold CPU sampler, a
         // short baseline window), so it stays off the main thread.
         return await Task.detached(priority: .userInitiated) {
@@ -2489,9 +2496,24 @@ final class WidgetRuntime: ObservableObject {
                 sensorKeys: sensorKeys,
                 diskIO: diskIO,
                 mountPoint: mountPoint,
-                networkInterface: networkInterface
+                networkInterface: networkInterface,
+                processCount: processCount,
+                apps: apps
             )
         }.value
+    }
+
+    /// Regular (Dock) apps by pid: what a `processes` row calls an app.
+    @MainActor
+    static func runningAppIdentities() -> [Int32: ProcessMetrics.AppIdentity] {
+        var apps: [Int32: ProcessMetrics.AppIdentity] = [:]
+        for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular {
+            apps[app.processIdentifier] = ProcessMetrics.AppIdentity(
+                name: app.localizedName ?? app.bundleIdentifier ?? "pid \(app.processIdentifier)",
+                bundleID: app.bundleIdentifier
+            )
+        }
+        return apps
     }
 
     /// `"sensors"` on a system source: which sensor readings the widget

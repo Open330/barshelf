@@ -97,6 +97,9 @@ public enum WidgetDiscovery {
         if manifest.permissions?.notifications == true {
             lines.append("notifications: may show system notifications")
         }
+        if manifest.permissions?.quitApps == true {
+            lines.append("apps: may quit running apps (asks each time)")
+        }
         if let environment = manifest.permissions?.env, !environment.isEmpty {
             lines.append("environment: reads " + environment.joined(separator: ", "))
         }

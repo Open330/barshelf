@@ -587,7 +587,7 @@
       "type": "object",
       "properties": {
         "metrics": {
-          "description": "Groups to sample. Omitted means every group the widget is permitted to read.",
+          "description": "Groups to sample. Omitted means every group the widget is permitted to read, except processes, which is sampled only when named.",
           "type": "array",
           "items": {
             "type": "string",
@@ -596,10 +596,24 @@
               "memory",
               "disk",
               "sensors",
-              "network"
+              "network",
+              "processes"
             ]
           },
           "uniqueItems": true
+        },
+        "processes": {
+          "description": "Options for the processes group: the busiest processes by CPU, as processes[] of {pid, name, cpu (share of total CPU since the previous sample, 0-100), memory (bytes), bundleID, isApp}.",
+          "type": "object",
+          "properties": {
+            "count": {
+              "description": "Rows to return, 1-10. Default 5.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10
+            }
+          },
+          "additionalProperties": true
         },
         "detail": {
           "description": "Also emit cpu.cores[] and sensors.list[]. Roughly 4x the cost of a plain sample.",

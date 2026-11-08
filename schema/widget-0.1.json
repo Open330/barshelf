@@ -459,7 +459,7 @@
           "type": "boolean"
         },
         "system": {
-          "description": "System telemetry groups a `system` workflow source may read. An undeclared group fails the refresh.",
+          "description": "System telemetry groups a `system` workflow source may read. An undeclared group fails the refresh. `processes` (the busiest processes) is sampled only when a source names it in `metrics`.",
           "type": "array",
           "items": {
             "type": "string",
@@ -468,10 +468,15 @@
               "memory",
               "disk",
               "sensors",
-              "network"
+              "network",
+              "processes"
             ]
           },
           "uniqueItems": true
+        },
+        "quitApps": {
+          "description": "Allow quitApp actions. Each quit is still confirmed by the user, and only running apps are ever quit, never forced.",
+          "type": "boolean"
         }
       },
       "additionalProperties": true
