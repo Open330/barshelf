@@ -32,8 +32,10 @@ final class MenuBarClusterTests: XCTestCase {
     func testFoldedHitTestPicksTheChipOnTop() {
         let geometry = ClusterGeometry(count: 3)
         XCTAssertEqual(geometry.collapsedIndex(at: 5), 0)
-        // 12 is inside chip 0 (0...26) and chip 1 (11...37): chip 1 is on top.
-        XCTAssertEqual(geometry.collapsedIndex(at: 12), 1)
+        // 12 is inside chip 0 and chip 1: chip 0 lies over chip 1.
+        XCTAssertEqual(geometry.collapsedIndex(at: 12), 0)
+        // Past chip 0's disc (4...22) it is chip 1 coming out from under it.
+        XCTAssertEqual(geometry.collapsedIndex(at: 24), 1)
         XCTAssertEqual(geometry.collapsedIndex(at: 47), 2)
         XCTAssertNil(geometry.collapsedIndex(at: 48))
         XCTAssertNil(geometry.collapsedIndex(at: -1))
