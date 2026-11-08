@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.keep-awake",
   "name": "Keep Awake",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "minHostVersion": "0.7.5",
   "icon": "cup.and.saucer",
   "bucket": {
@@ -19,11 +19,14 @@
     "onOpen": true,
     "interval": 60,
     "staleAfterSec": 150,
-    "triggers": ["wake"]
+    "triggers": [
+      "wake"
+    ]
   },
   "statusItem": {
     "mode": "dynamic",
-    "icon": "cup.and.saucer"
+    "icon": "cup.and.saucer",
+    "popoverHero": false
   },
   "permissions": {
     "readPaths": [
