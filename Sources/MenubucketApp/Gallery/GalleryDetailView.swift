@@ -56,14 +56,8 @@ struct GalleryDetailView: View {
             requirementStatus = await model.requirementStatuses(for: requirements)
         }
         .onExitCommand { model.closeDetail() }
-        .confirmationDialog(
-            "Remove “\(displayName)”?",
-            isPresented: $confirmingRemove
-        ) {
-            Button("Remove", role: .destructive) { model.remove(entry) }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This deletes the widget and its settings from this Mac. You can install it again from the Gallery.")
+        .widgetRemovalConfirmation(isPresented: $confirmingRemove, name: displayName) {
+            model.remove(entry)
         }
     }
 
@@ -85,9 +79,10 @@ struct GalleryDetailView: View {
             } label: {
                 Label("Gallery", systemImage: "chevron.left")
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(.glass(.plain))
+            .controlSize(.small)
             .keyboardShortcut(.cancelAction)
-            .help("Back to all widgets (Esc)")
+            .hoverHint("Back to all widgets", key: "esc", alignment: .leading)
             .accessibilityLabel("Back to Gallery")
             Spacer()
         }
@@ -149,8 +144,9 @@ struct GalleryDetailView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             } else if updateAvailable {
+                // Install and Update look the same here as on the card.
                 Button("Update") { model.install(entry) }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.glass(.accent))
                     .keyboardShortcut(.defaultAction)
                     .help("Install the newer version from the registry")
                     .accessibilityLabel("Update \(displayName)")
@@ -158,23 +154,23 @@ struct GalleryDetailView: View {
                 Button("Open") {
                     HubWindowController.shared.showWidgetSettings(widgetID: entry.id)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.glass(.primary))
                 .keyboardShortcut(.defaultAction)
                 .help("Show this widget’s settings")
                 .accessibilityLabel("Open \(displayName) settings")
             } else {
                 Button("Install") { model.install(entry) }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.glass(.accent))
                     .keyboardShortcut(.defaultAction)
                     .accessibilityLabel("Install \(displayName)")
             }
             if isInstalled {
                 Button("Remove…", role: .destructive) { confirmingRemove = true }
+                    .buttonStyle(.glass(.destructive))
                     .help("Delete this widget from your Mac")
                     .accessibilityLabel("Remove \(displayName)")
             }
         }
-        .controlSize(.large)
     }
 
     // MARK: Sections

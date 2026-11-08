@@ -151,16 +151,18 @@ struct GalleryCard: View {
                 .foregroundStyle(.secondary)
                 .help("Update BarShelf to install this widget")
         } else if updateAvailable {
+            // Quiet in the grid, where every card has one; the detail
+            // page, with a single action, fills it with the accent.
             Button("Update", action: install)
-                .buttonStyle(.glass(.accent))
+                .buttonStyle(.glass(.secondary))
                 .controlSize(.small)
                 .help("A newer version is available in the registry")
                 .accessibilityLabel("Update \(displayName)")
         } else if isInstalled {
+            // The same green as the detail page's status.
             Label("Installed", systemImage: "checkmark.circle.fill")
                 .font(.caption)
-                .foregroundStyle(.secondary)
-                .symbolRenderingMode(.multicolor)
+                .foregroundStyle(StatusTone.success.color)
                 .contextMenu { Button("Reinstall", action: install) }
                 .help("Installed — right-click to reinstall")
         } else {

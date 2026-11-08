@@ -598,7 +598,7 @@ struct WidgetSettingsView: View {
                 get: { menuBarDraft.enabled },
                 set: { menuBarDraft.enabled = $0 }
             ))
-            .toggleStyle(.checkbox)
+            .toggleStyle(.switch)
 
             if menuBarDraft.enabled {
                 menuBarPreview

@@ -140,7 +140,7 @@ struct CachedBadge: View {
                         showsPopover = false
                         onRetry()
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.glass(.primary))
                     .keyboardShortcut(.defaultAction)
                 }
             }
@@ -176,14 +176,14 @@ struct PermissionApprovalView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.xs) {
             HStack(alignment: .center, spacing: Spacing.xs) {
-                Image(systemName: "lock.fill")
+                Image(systemName: PermissionWaiting.symbol)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(PermissionWaiting.tone.color)
                     .frame(width: 26, height: 26)
-                    .background(Circle().fill(Color.accentColor.opacity(Fill.Wash.soft)))
+                    .background(Circle().fill(PermissionWaiting.tone.color.opacity(Fill.Wash.soft)))
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: Spacing.hair) {
-                    Text("Waiting for your permission")
+                    Text(PermissionWaiting.title)
                         .font(.callout.weight(.medium))
                     // One request reads as a sentence on its own; several
                     // are listed below, where each gets its own line.
@@ -204,14 +204,10 @@ struct PermissionApprovalView: View {
             // The decision sits on its own row, so the reason above keeps
             // the card's full width. Deliberately no `.defaultAction`: see
             // the type's note.
-            HStack(spacing: Spacing.xxs) {
+            HStack(spacing: 0) {
                 Spacer(minLength: 0)
-                Button("Deny", action: onDeny)
-                    .buttonStyle(.glass(.plain))
-                Button("Allow", action: onAllow)
-                    .buttonStyle(.glass(.primary))
+                PermissionDecisionButtons(onDeny: onDeny, onAllow: onAllow)
             }
-            .controlSize(.small)
         }
         // The widget's card is the surface; a box of its own here would be
         // a box inside a box.

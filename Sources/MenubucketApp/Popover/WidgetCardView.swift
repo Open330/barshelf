@@ -147,16 +147,11 @@ struct WidgetCardView: View {
         } message: {
             Text("Enter a name for the page to move \(widget.displayName) to.")
         }
-        .alert("Remove \(widget.displayName)?", isPresented: $showRemoveConfirm) {
-            Button("Cancel", role: .cancel) {}
-            Button("Remove", role: .destructive) {
-                Task { @MainActor in
-                    do { try await runtime.removeWidget(id: widget.id) }
-                    catch { removeError = error.localizedDescription }
-                }
+        .widgetRemovalConfirmation(isPresented: $showRemoveConfirm, name: widget.displayName) {
+            Task { @MainActor in
+                do { try await runtime.removeWidget(id: widget.id) }
+                catch { removeError = error.localizedDescription }
             }
-        } message: {
-            Text("This deletes the widget's files and settings and cannot be undone.")
         }
         .alert(
             "Couldn't remove widget",
@@ -327,36 +322,24 @@ struct WidgetCardView: View {
 
     // MARK: - Context menu
 
-    /// Card right-click actions. Shortcuts only: every one is also reachable
-    /// from visible UI (hover controls, edit mode, the hub).
-    @ViewBuilder
+    /// Card right-click actions — the same menu, in the same order, as the
+    /// widget's chip on the Shelf. Shortcuts only: every one is also
+    /// reachable from visible UI (hover controls, edit mode, the hub).
     private var cardContextMenu: some View {
-        if placement == .shelf {
-            Button(pinTitle, action: togglePin)
-                .disabled(!runtime.canPin(widget.id))
-        }
-        Button("Settings…", action: openSettings)
-        Button("Refresh", action: retry)
-
-        if placement == .shelf {
-            moveWithinPanelButtons
-
-            Divider()
-
-            Button(runtime.prefs.isDisabled(widget.id) ? "Enable" : "Disable") {
-                runtime.setWidgetDisabled(widget.id, !runtime.prefs.isDisabled(widget.id))
+        let onShelf = placement == .shelf
+        return WidgetContextMenu(
+            widgetID: widget.id,
+            runtime: runtime,
+            pin: onShelf ? .init(title: pinTitle, enabled: runtime.canPin(widget.id), action: togglePin) : nil,
+            openSettings: openSettings,
+            refresh: retry,
+            setDisabled: onShelf ? { runtime.setWidgetDisabled(widget.id, $0) } : nil,
+            remove: onShelf ? { showRemoveConfirm = true } : nil
+        ) {
+            if onShelf {
+                moveWithinPanelButtons
+                moveToPageMenu
             }
-            moveToPageMenu
-        }
-        Button("Reveal in Finder") {
-            if let directory = runtime.widgetDirectory(for: widget.id) {
-                NSWorkspace.shared.activateFileViewerSelecting([directory])
-            }
-        }
-
-        if placement == .shelf {
-            Divider()
-            Button("Remove Widget…", role: .destructive) { showRemoveConfirm = true }
         }
     }
 
@@ -523,37 +506,32 @@ struct WidgetCardView: View {
     /// offer the same things.
     private var cardControls: some View {
         let visible = isHovering || controlsFocused
-        return HStack(spacing: Spacing.hair) {
+        return HStack(spacing: 0) {
             Button(action: retry) {
                 Image(systemName: "arrow.clockwise")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 22, height: 20)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.icon)
             .focused($controlsFocused)
-            .help("Refresh \(widget.displayName)")
+            .hoverHint("Refresh")
             .accessibilityLabel("Refresh \(widget.displayName)")
             if placement == .shelf {
                 Image(systemName: "line.3.horizontal")
-                    .font(.caption2.weight(.semibold))
+                    .font(.body.weight(.medium))
                     .foregroundStyle(.secondary)
-                    .frame(width: 22, height: 20)
+                    .frame(width: ControlMetrics.height, height: ControlMetrics.height)
+                    .contentShape(Rectangle())
                     .onDrag { CardDrag.provider(for: widget.id) } preview: { dragPreview }
-                    .help("Drag to move")
+                    .hoverHint("Drag to Move")
                     // Pointer-only; the card's Move up / Move down actions and
                     // its context menu are the accessible route.
                     .accessibilityHidden(true)
             }
             Button(action: openSettings) {
                 Image(systemName: "slider.horizontal.3")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 22, height: 20)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.icon)
             .focused($controlsFocused)
-            .help("Widget settings")
+            .hoverHint("Settings…", alignment: .trailing)
             .accessibilityLabel("Settings for \(widget.displayName)")
         }
         .padding(.horizontal, Spacing.hair)

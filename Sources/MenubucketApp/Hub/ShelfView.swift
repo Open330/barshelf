@@ -59,18 +59,14 @@ struct ShelfView: View {
             if id != nil { inspectorShown = true }
             if id != requestedPage?.widgetID { requestedPage = nil }
         }
-        .alert(
-            "Remove \(removalTarget?.displayName ?? String(localized: "Widget"))?",
+        .widgetRemovalConfirmation(
             isPresented: Binding(
                 get: { removalTarget != nil },
                 set: { if !$0 { removalTarget = nil } }
             ),
-            presenting: removalTarget
-        ) { widget in
-            Button("Remove", role: .destructive) { remove(widget) }
-            Button("Cancel", role: .cancel) { removalTarget = nil }
-        } message: { widget in
-            Text("This deletes \"\(widget.displayName)\" and its data. It can be installed again from the Gallery.")
+            name: removalTarget?.displayName ?? ""
+        ) { [removalTarget] in
+            if let removalTarget { remove(removalTarget) }
         }
         .alert(
             "Duplicate \(duplicateTarget?.displayName ?? String(localized: "Widget"))",
@@ -202,11 +198,7 @@ struct ShelfView: View {
         let status = chipStatus(widget, disabled: disabled)
         return HStack(spacing: Spacing.xs) {
             // The same mark the widget's card carries in the popup.
-            CardIconTile(
-                symbol: widget.manifest.icon ?? "square.dashed",
-                color: runtime.prefs.effectiveAppearance(for: widget.manifest, widgetID: widget.id).accentColor ?? .accentColor,
-                size: 22
-            )
+            WidgetMark(widget: widget, runtime: runtime, size: 22)
             VStack(alignment: .leading, spacing: Spacing.hair / 2) {
                 Text(widget.displayName)
                     .lineLimit(1)
@@ -250,7 +242,7 @@ struct ShelfView: View {
             move(id, toPage: page.name, before: widget.id)
             return true
         }
-        .contextMenu { chipMenu(widget, disabled: disabled) }
+        .contextMenu { chipMenu(widget) }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(widget.displayName)
         .accessibilityValue(
@@ -263,29 +255,27 @@ struct ShelfView: View {
         .accessibilityAction(named: "Move down") { step(widget, in: page, by: 1) }
     }
 
-    @ViewBuilder
-    private func chipMenu(_ widget: LoadedWidget, disabled: Bool) -> some View {
-        Button("Settings") { selection = widget.id; inspectorShown = true }
-        Button(disabled ? "Show on the Shelf" : "Turn Off") {
-            runtime.changeLayout((disabled ? String(localized: "Show Widget") : String(localized: "Turn Off Widget")), undoManager: undoManager) {
-                runtime.setWidgetDisabled(widget.id, !disabled)
+    /// The same menu, in the same order, as the widget's popup card.
+    private func chipMenu(_ widget: LoadedWidget) -> some View {
+        WidgetContextMenu(
+            widgetID: widget.id,
+            runtime: runtime,
+            openSettings: { selection = widget.id; inspectorShown = true },
+            setDisabled: { off in
+                runtime.changeLayout(off ? String(localized: "Turn Off Widget") : String(localized: "Turn On Widget"), undoManager: undoManager) {
+                    runtime.setWidgetDisabled(widget.id, off)
+                }
+            },
+            duplicate: { duplicateTarget = widget },
+            remove: { removalTarget = widget }
+        ) {
+            Menu("Move to Page") {
+                ForEach(shelfPages.map(\.name), id: \.self) { name in
+                    Button(PageName.label(name)) { move(widget.id, toPage: name, before: nil) }
+                        .disabled(name == runtime.effectiveGroup(for: widget.id))
+                }
             }
         }
-        Menu("Move to Page") {
-            ForEach(shelfPages.map(\.name), id: \.self) { name in
-                Button(PageName.label(name)) { move(widget.id, toPage: name, before: nil) }
-                    .disabled(name == runtime.effectiveGroup(for: widget.id))
-            }
-        }
-        Divider()
-        Button("Duplicate…") { duplicateTarget = widget }
-        Button("Show in Finder") {
-            if let url = runtime.widgetDirectory(for: widget.id) {
-                NSWorkspace.shared.activateFileViewerSelecting([url])
-            }
-        }
-        Divider()
-        Button("Remove…", role: .destructive) { removalTarget = widget }
     }
 
     /// What the row's trailing glyph says. Waiting for a first OK is the
@@ -294,7 +284,7 @@ struct ShelfView: View {
     private func chipStatus(_ widget: LoadedWidget, disabled: Bool) -> (text: String, symbol: String, color: Color)? {
         if disabled { return (String(localized: "Turned off"), "pause.circle", .secondary) }
         switch runtime.permissionState(for: widget) {
-        case .notAsked: return (String(localized: "Waiting for your permission"), "lock.fill", .secondary)
+        case .notAsked: return (PermissionWaiting.title, PermissionWaiting.symbol, PermissionWaiting.tone.color)
         case .denied: return (String(localized: "Permission denied"), "hand.raised.fill", StatusTone.warning.color)
         default: break
         }
@@ -338,22 +328,19 @@ struct ShelfView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: Spacing.s) {
-            Image(systemName: "square.grid.2x2")
-                .font(.largeTitle)
-                .foregroundStyle(.secondary)
-                .accessibilityHidden(true)
-            Text("Your shelf is empty")
-                .font(.title3.weight(.semibold))
-            Text("Add a widget from the Gallery, or build your own.")
-                .foregroundStyle(.secondary)
-            HStack {
+        EmptyStateView(
+            symbol: "square.grid.2x2",
+            title: String(localized: "Your shelf is empty"),
+            message: String(localized: "Add a widget from the Gallery, or build your own."),
+            size: .page
+        ) {
+            HStack(spacing: Spacing.xs) {
                 Button("Open Gallery") { model.tab = .gallery }
-                    .buttonStyle(.borderedProminent)
-                Button("Create Widget") { model.tab = .create }
+                    .buttonStyle(.glass(.primary))
+                Button("Create Widget…") { model.tab = .create }
+                    .buttonStyle(.glass(.secondary))
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Layout

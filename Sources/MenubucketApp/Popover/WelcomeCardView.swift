@@ -35,7 +35,7 @@ struct WelcomeCardView: View {
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: Spacing.xs) {
                 Button("Add Widget…", action: addWidget)
-                    .buttonStyle(.glass(.accent))
+                    .buttonStyle(.glass(.primary))
                 Button("Getting Started") {
                     NSWorkspace.shared.open(RootView.gettingStartedURL)
                 }

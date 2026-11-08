@@ -3,6 +3,11 @@ import SwiftUI
 /// BarShelf's color names, as widgets draw them. Mirrors `nodeColor` and
 /// `WidgetAppearance.accentColor` in the app.
 enum WidgetPalette {
+    /// Status colours, as the app's `StatusTone` has them. The extension is
+    /// its own target, so it keeps its own copy rather than importing the app.
+    static let warning: Color = .orange
+    static let critical: Color = .red
+
     static func color(_ name: String?, accent: Color = .accentColor) -> Color? {
         guard let raw = name?.trimmingCharacters(in: .whitespaces).lowercased(), !raw.isEmpty else { return nil }
         switch raw {

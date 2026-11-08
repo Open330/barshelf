@@ -777,7 +777,7 @@ struct WidgetBuilderView: View {
                 Divider()
                 Label("Created \(created.lastPathComponent)", systemImage: "checkmark.seal.fill")
                     .foregroundStyle(.green).font(.system(size: 12))
-                Button("Reveal in Finder") { model.revealCreated() }.font(.caption)
+                Button("Show in Finder") { model.revealCreated() }.font(.caption)
             }
             if let err = model.createError {
                 Label {
@@ -954,28 +954,33 @@ struct WidgetBuilderView: View {
     // MARK: Footer
 
     private var footer: some View {
-        HStack {
+        HStack(spacing: Spacing.xs) {
             if model.step != .source {
                 Button("Back") { model.step = WidgetBuilderModel.Step(rawValue: model.step.rawValue - 1)! }
+                    .buttonStyle(.glass(.plain))
             }
             Spacer()
             Button("Cancel") { model.onClose?() }
-            switch model.step {
-            case .source:
-                Button("Next") { model.step = .display }
-                    .keyboardShortcut(.defaultAction).disabled(!model.canAdvanceFromSource)
-            case .display:
-                Button("Next") { model.step = .details }.keyboardShortcut(.defaultAction)
-            case .details:
-                if model.createdPath == nil {
-                    Button("Create") { model.create() }
-                        .keyboardShortcut(.defaultAction).disabled(!model.canCreate)
-                } else {
-                    Button("Done") { model.onClose?() }.keyboardShortcut(.defaultAction)
+                .buttonStyle(.glass(.plain))
+            Group {
+                switch model.step {
+                case .source:
+                    Button("Next") { model.step = .display }
+                        .keyboardShortcut(.defaultAction).disabled(!model.canAdvanceFromSource)
+                case .display:
+                    Button("Next") { model.step = .details }.keyboardShortcut(.defaultAction)
+                case .details:
+                    if model.createdPath == nil {
+                        Button("Create") { model.create() }
+                            .keyboardShortcut(.defaultAction).disabled(!model.canCreate)
+                    } else {
+                        Button("Done") { model.onClose?() }.keyboardShortcut(.defaultAction)
+                    }
                 }
             }
+            .buttonStyle(.glass(.primary))
         }
-        .padding(12)
+        .padding(Spacing.s)
     }
 
     private func chooseFolder() {

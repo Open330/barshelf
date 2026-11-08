@@ -671,7 +671,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "앱·폴더·위젯을 올리는 독. 프로필로 구성을 바꿀 수 있습니다."
+            "value": "앱·폴더·위젯을 올리는 Dock. 프로필로 구성을 바꿀 수 있습니다."
           }
         }
       }
@@ -792,7 +792,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "독에서 열 웹 페이지입니다."
+            "value": "Dock에서 열 웹 페이지입니다."
           }
         }
       }
@@ -993,7 +993,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "독에 추가"
+            "value": "Dock에 추가"
           }
         }
       }
@@ -1416,7 +1416,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "독을 자동으로 숨기고 보이기"
+            "value": "Dock을 자동으로 숨기고 보이기"
           }
         }
       }
@@ -1461,7 +1461,18 @@
         }
       }
     },
+    "Back to all widgets": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "모든 위젯으로 돌아가기"
+          }
+        }
+      }
+    },
     "Back to all widgets (Esc)": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -2061,6 +2072,7 @@
       }
     },
     "Check for new and updated widgets": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -2678,7 +2690,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "독 설정을 저장하지 못했습니다: %@"
+            "value": "Dock 설정을 저장하지 못했습니다: %@"
           }
         }
       }
@@ -2775,6 +2787,7 @@
       }
     },
     "Create Your Own Widget": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -2908,6 +2921,7 @@
       }
     },
     "Delete": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -2918,6 +2932,7 @@
       }
     },
     "Delete %@?": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -2938,6 +2953,7 @@
       }
     },
     "Delete…": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -2994,6 +3010,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "거부"
+          }
+        }
+      }
+    },
+    "Deny %@": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 거부"
           }
         }
       }
@@ -3091,6 +3117,7 @@
       }
     },
     "Disable": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -3197,7 +3224,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "독"
+            "value": "Dock"
           }
         }
       }
@@ -3207,7 +3234,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "독 설정…"
+            "value": "Dock 설정…"
           }
         }
       }
@@ -3217,7 +3244,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "독 프로필: %@"
+            "value": "Dock 프로필: %@"
           }
         }
       }
@@ -3379,7 +3406,18 @@
         }
       }
     },
+    "Drag to Move": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "드래그하여 이동"
+          }
+        }
+      }
+    },
     "Drag to move": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -3535,7 +3573,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "프로필마다 독 아이템이 따로 있고, Apple Dock 레이아웃과 팝업 페이지를 함께 담을 수 있습니다. 끌어서 순서를 바꾸십시오. 처음 아홉 개에 ⌃⌥1–9가 붙습니다."
+            "value": "프로필마다 Dock 아이템이 따로 있고, Apple Dock 레이아웃과 팝업 페이지를 함께 담을 수 있습니다. 끌어서 순서를 바꾸십시오. 처음 아홉 개에 ⌃⌥1–9가 붙습니다."
           }
         }
       }
@@ -3592,6 +3630,7 @@
       }
     },
     "Enable": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -4879,7 +4918,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "전체 화면 앱에서는 독이 가장자리에서 기다리다가 포인터를 대면 나옵니다."
+            "value": "전체 화면 앱에서는 Dock이 가장자리에서 기다리다가 포인터를 대면 나옵니다."
           }
         }
       }
@@ -5055,6 +5094,7 @@
       }
     },
     "Install from URL…": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -5390,7 +5430,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "독에 유지"
+            "value": "Dock에 유지"
           }
         }
       }
@@ -6572,7 +6612,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "아직 아이템이 없습니다. 아래에서 추가하거나 앱·폴더·파일을 독에 끌어다 놓으십시오."
+            "value": "아직 아이템이 없습니다. 아래에서 추가하거나 앱·폴더·파일을 Dock에 끌어다 놓으십시오."
           }
         }
       }
@@ -6708,6 +6748,7 @@
       }
     },
     "Not allowed yet": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -8152,6 +8193,7 @@
       }
     },
     "Remove %@?": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -8186,7 +8228,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "독에서 제거"
+            "value": "Dock에서 제거"
           }
         }
       }
@@ -8202,11 +8244,12 @@
       }
     },
     "Remove from the dock": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "독에서 제거"
+            "value": "Dock에서 제거"
           }
         }
       }
@@ -8241,7 +8284,18 @@
         }
       }
     },
+    "Remove the “%@” profile?": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” 프로필을 제거하겠습니까?"
+          }
+        }
+      }
+    },
     "Remove “%@”?": {
+      "comment": "Confirmation title before removing a widget",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -8433,6 +8487,7 @@
       }
     },
     "Reveal in Finder": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -9458,6 +9513,7 @@
       }
     },
     "Show on the Shelf": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -9503,7 +9559,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "독에 없는 열린 앱 보기"
+            "value": "Dock에 없는 열린 앱 보기"
           }
         }
       }
@@ -10629,6 +10685,7 @@
       }
     },
     "This deletes \"%@\" and its data. It can be installed again from the Gallery.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -10638,7 +10695,18 @@
         }
       }
     },
+    "This deletes the widget and its settings and saved data from this Mac. It can’t be undone, but a widget from the Gallery can be installed again there.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 Mac에서 위젯과 설정, 저장된 데이터가 삭제됩니다. 되돌릴 수 없지만, 갤러리에서 받은 위젯은 갤러리에서 다시 설치할 수 있습니다."
+          }
+        }
+      }
+    },
     "This deletes the widget and its settings from this Mac. You can install it again from the Gallery.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -10649,6 +10717,7 @@
       }
     },
     "This deletes the widget's files and settings and cannot be undone.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -10991,6 +11060,26 @@
         }
       }
     },
+    "Turn On": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "켜기"
+          }
+        }
+      }
+    },
+    "Turn On Widget": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯 켜기"
+          }
+        }
+      }
+    },
     "Turned off": {
       "localizations": {
         "ko": {
@@ -11209,7 +11298,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "독에 없고 열려 있지도 않은, 최근에 쓴 앱을 세 개까지 보여 줍니다."
+            "value": "Dock에 없고 열려 있지도 않은, 최근에 쓴 앱을 세 개까지 보여 줍니다."
           }
         }
       }
@@ -11497,6 +11586,7 @@
       }
     },
     "View the Getting Started guide": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -11800,6 +11890,7 @@
       }
     },
     "Widget settings": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -11938,7 +12029,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "독 위에서 두 손가락으로 옆으로 쓸거나, ⌘를 누른 채 스크롤하거나, BarShelf 메뉴에서 프로필을 고를 수도 있습니다."
+            "value": "Dock 위에서 두 손가락으로 옆으로 쓸거나, ⌘를 누른 채 스크롤하거나, BarShelf 메뉴에서 프로필을 고를 수도 있습니다."
           }
         }
       }
