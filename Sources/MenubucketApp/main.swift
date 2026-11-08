@@ -104,9 +104,9 @@ if commandLineArguments.count >= 2, commandLineArguments[1] == "install" {
 }
 
 // `barshelf-app screenshot <dir>` renders the real widget UI to PNGs offscreen
-// (landing-page / README assets) and exits — no window, no TCC permissions.
+// (README / registry previews) and exits — no window, no TCC permissions.
 if commandLineArguments.count >= 2, commandLineArguments[1] == "screenshot" {
-    let outDir = commandLineArguments.count >= 3 ? commandLineArguments[2] : "./site/shots"
+    let outDir = commandLineArguments.count >= 3 ? commandLineArguments[2] : "./screenshots"
     exit(MainActor.assumeIsolated { ScreenshotMode.run(outputDir: outDir) })
 }
 
@@ -115,6 +115,14 @@ if commandLineArguments.count >= 2, commandLineArguments[1] == "screenshot" {
 if commandLineArguments.count >= 2, commandLineArguments[1] == "screenshot-hub" {
     let outDir = commandLineArguments.count >= 3 ? commandLineArguments[2] : "./hub-shots"
     exit(MainActor.assumeIsolated { HubScreenshotMode.run(outputDir: outDir) })
+}
+
+// `barshelf-app landing-media <dir> [hero|popup|stills…]` records the
+// landing page's videos and stills from the real views (see LandingMediaMode).
+if commandLineArguments.count >= 2, commandLineArguments[1] == "landing-media" {
+    let outDir = commandLineArguments.count >= 3 ? commandLineArguments[2] : "./site/shots"
+    let only = Set(commandLineArguments.dropFirst(3))
+    exit(MainActor.assumeIsolated { LandingMediaMode.run(outputDir: outDir, only: only) })
 }
 
 let app = NSApplication.shared

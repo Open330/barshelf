@@ -8,12 +8,12 @@
   <meta property="og:title" content="BarShelf — Turn any CLI into a native macOS menu bar widget" />
   <meta property="og:description" content="Turn any CLI into a native menu bar widget — all behind one icon." />
   <meta property="og:type" content="website" />
-  <meta property="og:image" content="https://barshelf.jiun.dev/shots/macos-menubar-popover-crop.jpg" />
+  <meta property="og:image" content="https://barshelf.jiun.dev/shots/og-image.jpg" />
   <meta property="og:url" content="https://barshelf.jiun.dev/" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="BarShelf — Turn any CLI into a native macOS menu bar widget" />
   <meta name="twitter:description" content="Turn any CLI into a native menu bar widget — all behind one icon." />
-  <meta name="twitter:image" content="https://barshelf.jiun.dev/shots/macos-menubar-popover-crop.jpg" />
+  <meta name="twitter:image" content="https://barshelf.jiun.dev/shots/og-image.jpg" />
   <meta name="theme-color" content="#111315" />
   <link rel="canonical" href="https://barshelf.jiun.dev/" />
   <meta name="google-site-verification" content="FfsF-kqtNl0jX3XUKsZXaFRfrCRid8UudBbTWny1BkA" />
@@ -173,24 +173,21 @@
     }
     .hero-grid {
       display: grid;
-      grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+      grid-template-columns: 1fr;
       gap: 48px;
-      align-items: center;
       padding: 112px 0 72px;
     }
-    .hero-content { max-width: 640px; }
+    .hero-content { max-width: 720px; }
     .hero-shot {
       margin: 0;
-      justify-self: end;
-      width: min(100%, 420px);
-      max-height: 640px;
+      width: 100%;
       overflow: hidden;
       border-radius: 18px;
+      background: #15112b;
       box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.08);
-      -webkit-mask-image: linear-gradient(180deg, #000 78%, transparent);
-      mask-image: linear-gradient(180deg, #000 78%, transparent);
     }
-    .hero-shot img { width: 100%; height: auto; }
+    .hero-shot img,
+    .hero-shot video { display: block; width: 100%; height: auto; aspect-ratio: 1440 / 900; }
     .kicker {
       display: inline-flex;
       align-items: center;
@@ -366,7 +363,7 @@
     .showcase-media video {
       width: 100%;
       height: auto;
-      aspect-ratio: 840 / 720;
+      aspect-ratio: 1440 / 900;
       object-fit: cover;
       display: block;
     }
@@ -611,8 +608,7 @@
 
     @media (max-width: 920px) {
       .links { display: none; }
-      .hero-grid { grid-template-columns: 1fr; gap: 36px; }
-      .hero-shot { justify-self: start; max-height: 520px; }
+      .hero-grid { gap: 36px; }
       .proof-row, .grid-3, .model, .terminal-grid { grid-template-columns: 1fr 1fr; }
       .split { grid-template-columns: 1fr; }
       .showcase-grid { grid-template-columns: 1fr; }
@@ -626,7 +622,7 @@
       .nav-actions > .btn { display: none; }
       .btn { min-height: 42px; padding: 0 14px; font-size: 14px; }
       .hero-grid { padding: 96px 0 48px; }
-      .hero-shot { max-height: 440px; }
+      .hero-shot { border-radius: 12px; }
       .wordmark { font-size: clamp(48px, 17vw, 72px); }
       .proof-row, .grid-3, .model, .terminal-grid { grid-template-columns: 1fr; }
       section { padding: 58px 0; }
@@ -683,7 +679,12 @@
           </div>
         </div>
         <figure class="hero-shot">
-          <img src="shots/popover-dark.png" width="800" height="1502" alt="BarShelf popover with Today, Battery, Weather, and Claude Code and Codex usage widgets — real render" />
+          <video class="autoplay" muted loop playsinline preload="auto" poster="shots/hero-menubar.jpg" width="1440" height="900"
+                 aria-label="BarShelf in the menu bar: the pointer runs across the widget chips, each growing to show its reading, then a click opens the System card and the arrow key moves it to Sensors and Keep Awake">
+            <source src="shots/hero-menubar.webm" type="video/webm" />
+            <source src="shots/hero-menubar.mp4" type="video/mp4" />
+            <img src="shots/hero-menubar.jpg" width="1440" height="900" alt="BarShelf's System card open under its menu bar chip: CPU reading with its recent trend, memory, disk and the busiest apps" />
+          </video>
         </figure>
       </div>
     </section>
@@ -711,8 +712,8 @@
             <mark>01</mark>
             <h3 class="en">One organized surface</h3>
             <h3 class="ko">정리된 하나의 표면</h3>
-            <p class="en">Pages, pinned widgets, refresh controls, and search live in one popover. The menu bar stays quiet, except for the few readings you choose to keep there. An optional dock can hold apps and widgets at a screen edge.</p>
-            <p class="ko">페이지, 고정 위젯, 새로고침, 검색이 하나의 팝오버에 있습니다. 메뉴바에는 직접 고른 값 몇 개만 남고 조용하게 유지됩니다. 원하면 화면 가장자리 독에 앱과 위젯을 둘 수 있습니다.</p>
+            <p class="en">Pages, pinned widgets, refresh controls, and search live in one popover. The readings you keep in the menu bar fold into a row of small chips: point at one to see its value, click it for that widget's card. An optional dock can hold apps and widgets at a screen edge.</p>
+            <p class="ko">페이지, 고정 위젯, 새로고침, 검색이 하나의 팝오버에 있습니다. 메뉴바에 남긴 값은 작은 칩 한 줄로 접혀 있다가, 포인터를 올리면 값을 보여 주고 클릭하면 그 위젯의 카드가 열립니다. 원하면 화면 가장자리 독에 앱과 위젯을 둘 수 있습니다.</p>
           </article>
           <article class="feature">
             <mark>02</mark>
@@ -735,11 +736,11 @@
     <section id="showcase">
       <div class="wrap showcase-grid">
         <div class="showcase-media reveal">
-          <video autoplay muted loop playsinline
-                 poster="shots/macos-widget-shelf.jpg" width="840" height="720"
-                 aria-label="BarShelf demo: the popover opens from the menu bar, swipes to the OTP page, and copies a code">
-            <source src="shots/popover-demo.mp4" type="video/mp4" />
-            <img src="shots/macos-widget-shelf.jpg" width="840" height="720" alt="BarShelf popover with multiple widgets arranged in one shelf" />
+          <video class="autoplay" muted loop playsinline preload="none" poster="shots/popup-shelf.jpg" width="1440" height="900"
+                 aria-label="BarShelf demo: a click on the menu bar icon opens the shelf on its Today page, a swipe moves to the System page, and Command-F searches the widgets for cpu">
+            <source data-src="shots/popup-shelf.webm" type="video/webm" />
+            <source data-src="shots/popup-shelf.mp4" type="video/mp4" />
+            <img src="shots/popup-shelf.jpg" width="1440" height="900" loading="lazy" alt="BarShelf shelf with its search open: cpu typed, the first result highlighted" />
           </video>
         </div>
         <div class="reveal">
@@ -804,18 +805,18 @@
           </div>
         </div>
         <div class="tile-gallery reveal">
-          <figure><a href="widgets/today/"><img src="shots/tile-today.png" width="576" height="220" loading="lazy" alt="Today widget — date and clock, real render" /></a><figcaption>today</figcaption></figure>
-          <figure><a href="widgets/otpeek/"><img src="shots/tile-otp.png" width="576" height="225" loading="lazy" alt="OTP Codes widget with countdown rings, real render" /></a><figcaption>otpeek</figcaption></figure>
-          <figure><a href="widgets/#weather"><img src="shots/tile-weather.png" width="576" height="272" loading="lazy" alt="Weather widget, real render" /></a><figcaption>weather</figcaption></figure>
-          <figure><a href="widgets/aas-usage/"><img src="shots/tile-aas.png" width="576" height="704" loading="lazy" alt="aas usage widget with LLM quota meters, real render" /></a><figcaption>aas usage</figcaption></figure>
-          <figure><a href="widgets/#recent-files-grid"><img src="shots/tile-files.png" width="576" height="222" loading="lazy" alt="Recent Files widget, real render" /></a><figcaption>recent files</figcaption></figure>
-          <figure><a href="widgets/#battery-meter"><img src="shots/tile-battery.png" width="576" height="256" loading="lazy" alt="Battery widget with charge meter, real render" /></a><figcaption>battery</figcaption></figure>
-          <figure><img src="shots/tile-k8s.png" width="576" height="202" loading="lazy" alt="Custom k8s pods list widget, real render" /><figcaption>your script here</figcaption></figure>
+          <figure><a href="widgets/today/"><img src="shots/tile-today.png" width="736" height="264" loading="lazy" alt="Today widget — weekday, date and time, real render" /></a><figcaption>today</figcaption></figure>
+          <figure><a href="widgets/otpeek/"><img src="shots/tile-otp.png" width="736" height="266" loading="lazy" alt="OTP Codes widget with countdown rings, real render" /></a><figcaption>otpeek</figcaption></figure>
+          <figure><a href="widgets/#weather"><img src="shots/tile-weather.png" width="736" height="316" loading="lazy" alt="Weather widget, real render" /></a><figcaption>weather</figcaption></figure>
+          <figure><a href="widgets/aas-usage/"><img src="shots/tile-aas.png" width="736" height="802" loading="lazy" alt="aas usage widget with LLM quota meters, real render" /></a><figcaption>aas usage</figcaption></figure>
+          <figure><a href="widgets/#system"><img src="shots/tile-system.png" width="736" height="766" loading="lazy" alt="System widget with CPU, memory, disk and the busiest apps, real render" /></a><figcaption>system</figcaption></figure>
+          <figure><a href="widgets/#battery-meter"><img src="shots/tile-battery.png" width="736" height="300" loading="lazy" alt="Battery widget with charge meter, real render" /></a><figcaption>battery</figcaption></figure>
+          <figure><img src="shots/tile-k8s.png" width="736" height="246" loading="lazy" alt="Custom k8s pods list widget, real render" /><figcaption>your script here</figcaption></figure>
         </div>
         <p class="gallery-more reveal"><a class="btn light-line" href="widgets/"><span class="en">Browse every widget →</span><span class="ko">위젯 전체 보기 →</span></a></p>
         <div class="pair-gallery reveal">
-          <figure><img src="shots/popover-light.png" width="800" height="1502" loading="lazy" alt="BarShelf popover, light appearance — real render" /><figcaption>light</figcaption></figure>
-          <figure><img src="shots/popover-dark.png" width="800" height="1502" loading="lazy" alt="BarShelf popover, dark appearance — real render" /><figcaption>dark</figcaption></figure>
+          <figure><img src="shots/popover-light.png" width="832" height="1032" loading="lazy" alt="BarShelf popover in the light appearance, with OTP codes and aas usage widgets — real render" /><figcaption>light</figcaption></figure>
+          <figure><img src="shots/popover-dark.png" width="832" height="1032" loading="lazy" alt="BarShelf popover in the dark appearance, with OTP codes and aas usage widgets — real render" /><figcaption>dark</figcaption></figure>
         </div>
       </div>
     </section>
@@ -837,7 +838,7 @@
           </div>
         </div>
         <div class="builder-shot reveal">
-          <img src="shots/builder.png" width="1360" height="614" alt="BarShelf widget builder with source, display, and details steps" />
+          <img src="shots/builder.png" width="2104" height="1444" loading="lazy" alt="The BarShelf window on Create: the widget builder's Source step, with command templates" />
         </div>
       </div>
     </section>
@@ -967,6 +968,43 @@ barshelf pack ./my-widget</pre>
       function updateNav() { nav.classList.toggle("scrolled", window.scrollY > 8); }
       updateNav();
       window.addEventListener("scroll", updateNav, { passive: true });
+
+      // Product videos: the hero plays at once, the others when scrolled
+      // to (their files load only then). Reduce Motion keeps the posters,
+      // with controls to play by choice.
+      var videos = document.querySelectorAll("video.autoplay");
+      var still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      function load(video) {
+        var sources = video.querySelectorAll("source[data-src]");
+        if (!sources.length) return;
+        for (var s = 0; s < sources.length; s += 1) {
+          sources[s].setAttribute("src", sources[s].getAttribute("data-src"));
+          sources[s].removeAttribute("data-src");
+        }
+        video.load();
+      }
+      function play(video) { var p = video.play(); if (p && p.catch) p.catch(function () {}); }
+      for (var v = 0; v < videos.length; v += 1) {
+        if (still) {
+          // Nothing downloads until the viewer presses play.
+          videos[v].setAttribute("controls", "");
+          videos[v].setAttribute("preload", "none");
+          load(videos[v]);
+        }
+      }
+      if (!still) {
+        if ("IntersectionObserver" in window) {
+          var vo = new IntersectionObserver(function (entries) {
+            for (var q = 0; q < entries.length; q += 1) {
+              var video = entries[q].target;
+              if (entries[q].isIntersecting) { load(video); play(video); } else { video.pause(); }
+            }
+          }, { rootMargin: "200px 0px" });
+          for (var w = 0; w < videos.length; w += 1) vo.observe(videos[w]);
+        } else {
+          for (var x = 0; x < videos.length; x += 1) { load(videos[x]); play(videos[x]); }
+        }
+      }
 
       var items = document.querySelectorAll(".reveal");
       if ("IntersectionObserver" in window && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {

@@ -477,7 +477,7 @@ def index_page(widgets: list[dict], paged: set[str]) -> str:
         description=summary(f"{len(widgets)} native macOS menu bar widgets for BarShelf: Claude Code and Codex "
                             "usage, OTP codes, GitHub reviews, Mac sensors, calendar, weather and more."),
         path="/widgets/",
-        image=f"{SITE_URL}/shots/macos-menubar-popover-crop.jpg",
+        image=f"{SITE_URL}/shots/og-image.jpg",
         body=body,
         breadcrumbs=[("BarShelf", "/"), ("Widgets", "/widgets/")],
     )
