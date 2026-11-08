@@ -186,16 +186,25 @@ extension MenuBarController {
                     )
                 }
                 let focused = focus.flatMap { chips.indices.contains($0) ? $0 : nil }
-                // A chip the update wave lifts comes to the front: drawn
-                // after the resting ones, the highest last.
+                // Folded, each chip lies over the one to its right, as a
+                // stack of avatars does, so a chip's top-trailing corner —
+                // where its alert dot goes — is over the chip beneath and in
+                // view, and plainly its own. Drawn right to left. A chip the
+                // update wave lifts comes to the front: the highest last.
                 let order = chips.indices.filter { $0 != focused }
-                    .sorted { (lifts[cluster: $0] ?? 0, $0) < (lifts[cluster: $1] ?? 0, $1) }
+                    .sorted { (lifts[cluster: $0] ?? 0, -$0) < (lifts[cluster: $1] ?? 0, -$1) }
                 for index in order {
                     let lift = lifts[cluster: index] ?? 0
+                    let scale = 1 + growth * lift
                     drawChip(
                         chips[index], at: center(index), color: color(chips[index]), context: context,
-                        scale: 1 + growth * lift, glow: lift
+                        scale: scale, glow: lift
                     )
+                    // With its chip, so a chip drawn later covers it as it
+                    // covers the chip, and it grows with the chip.
+                    if chips[index].alert {
+                        drawBadge(at: center(index), context: context, scale: scale)
+                    }
                 }
                 // The focused chip last, so it sits on top of both neighbours.
                 if let focused {
@@ -205,17 +214,23 @@ extension MenuBarController {
                         let left = (positions?[cluster: focused] ?? CGFloat(geometry.collapsedX(focused)))
                             + CGFloat(ClusterGeometry.slotInset)
                         drawPill(chip, left: left, width: width, midY: height / 2, color: color(chip), context: context)
+                        if chip.alert {
+                            // At the pill's trailing end, where a disc's dot sits.
+                            let face = ChipMetrics.face * ChipMetrics.focusScale
+                            drawBadge(
+                                at: NSPoint(x: left + width - face / 2, y: height / 2),
+                                context: context, scale: ChipMetrics.focusScale
+                            )
+                        }
                     } else {
                         drawChip(
                             chip, at: center(focused), color: color(chip),
                             context: context, scale: ChipMetrics.focusScale
                         )
+                        if chip.alert {
+                            drawBadge(at: center(focused), context: context, scale: ChipMetrics.focusScale)
+                        }
                     }
-                }
-                // Alert dots last: the next chip would cover a dot drawn
-                // with its own chip.
-                for (index, chip) in chips.enumerated() where chip.alert {
-                    drawBadge(at: center(index), context: context)
                 }
                 context.cgContext.endTransparencyLayer()
                 let markRect = NSRect(
@@ -342,10 +357,13 @@ extension MenuBarController {
         rim.stroke()
     }
 
-    /// The red dot at a chip's top-trailing edge, cut out of what is under it.
-    static func drawBadge(at center: NSPoint, context: NSGraphicsContext) {
+    /// The red dot at the top-trailing edge of a chip drawn at `scale`, cut
+    /// out of what is under it. The dot keeps its size; only its place
+    /// follows the chip.
+    static func drawBadge(at center: NSPoint, context: NSGraphicsContext, scale: CGFloat = 1) {
         let m = ChipMetrics.self
-        let badgeCenter = NSPoint(x: center.x + m.face / 2 - m.badge / 3, y: center.y - m.face / 2 + m.badge / 3)
+        let face = m.face * scale
+        let badgeCenter = NSPoint(x: center.x + face / 2 - m.badge / 3, y: center.y - face / 2 + m.badge / 3)
         func circle(_ diameter: CGFloat) -> NSBezierPath {
             NSBezierPath(ovalIn: NSRect(
                 x: badgeCenter.x - diameter / 2, y: badgeCenter.y - diameter / 2, width: diameter, height: diameter

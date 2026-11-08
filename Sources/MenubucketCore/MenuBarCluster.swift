@@ -308,14 +308,17 @@ public struct ClusterGeometry: Equatable, Sendable {
         return expandedX(0, anchor: anchor)...(expandedMarkX(anchor: anchor) + Self.markWidth)
     }
 
-    /// The chip under `x` while folded: the topmost one, which is the later
-    /// one where two overlap. nil over the icon or outside the stack.
+    /// The chip under `x` while folded: the topmost one, which is the
+    /// earlier one where two overlap (each chip lies over the one to its
+    /// right). nil over the icon or outside the stack.
     public func collapsedIndex(at x: Double) -> Int? {
         guard count > 0, x >= 0, x < collapsedWidth else { return nil }
-        for index in stride(from: count - 1, through: 0, by: -1) where x >= collapsedX(index) {
+        // A chip's own: up to its disc's trailing edge, where the next
+        // chip comes out from under it.
+        for index in 0..<count where x < collapsedX(index) + Self.slot - Self.slotInset {
             return index
         }
-        return nil
+        return count - 1
     }
 
     /// The chip under `x` while fanned out around `anchor`: the nearest one,
