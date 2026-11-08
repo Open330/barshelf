@@ -365,12 +365,19 @@ struct PrivacySettingsPage: View {
                     switch state {
                     case .allowed:
                         Button("Revoke") { runtime.revokePermissions(widgetID: widget.id) }
+                            .buttonStyle(.glass(.secondary))
+                            .controlSize(.small)
                             .help("Stop this widget until you allow it again")
                     case .denied:
-                        Button("Allow") { runtime.approvePermissions(widgetID: widget.id) }
+                        PermissionDecisionButtons(widgetName: widget.displayName) {
+                            runtime.approvePermissions(widgetID: widget.id)
+                        }
                     case .notAsked:
-                        Button("Deny") { runtime.denyPermissions(widgetID: widget.id) }
-                        Button("Allow") { runtime.approvePermissions(widgetID: widget.id) }
+                        PermissionDecisionButtons(
+                            widgetName: widget.displayName,
+                            onDeny: { runtime.denyPermissions(widgetID: widget.id) },
+                            onAllow: { runtime.approvePermissions(widgetID: widget.id) }
+                        )
                     case .notNeeded:
                         EmptyView()
                     }
@@ -395,8 +402,8 @@ struct PrivacySettingsPage: View {
                 Label("Denied", systemImage: StatusTone.critical.symbol)
                     .foregroundStyle(StatusTone.critical.color)
             case .notAsked:
-                Label("Waiting for you", systemImage: StatusTone.warning.symbol)
-                    .foregroundStyle(StatusTone.warning.color)
+                Label(PermissionWaiting.title, systemImage: PermissionWaiting.symbol)
+                    .foregroundStyle(PermissionWaiting.tone.color)
             case .notNeeded:
                 EmptyView()
             }
@@ -461,7 +468,7 @@ struct AdvancedSettingsPage: View {
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(runtime.widgets) { widget in
-                        DiagnosticsRow(widget: widget, stats: refreshStats.stats[widget.id])
+                        DiagnosticsRow(widget: widget, runtime: runtime, stats: refreshStats.stats[widget.id])
                     }
                 }
             } header: {
@@ -515,6 +522,7 @@ struct AdvancedSettingsPage: View {
 /// how long it took, and when.
 private struct DiagnosticsRow: View {
     let widget: LoadedWidget
+    let runtime: WidgetRuntime
     let stats: WidgetRefreshStats?
 
     var body: some View {
@@ -532,8 +540,15 @@ private struct DiagnosticsRow: View {
                     .foregroundStyle(.secondary)
             }
         } label: {
-            Text(widget.displayName)
-            Text(lastRefresh)
+            HStack(spacing: Spacing.xs) {
+                WidgetMark(widget: widget, runtime: runtime)
+                VStack(alignment: .leading, spacing: Spacing.hair) {
+                    Text(widget.displayName)
+                    Text(lastRefresh)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
         .accessibilityElement(children: .combine)
     }

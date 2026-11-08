@@ -367,41 +367,54 @@ struct Pill: View {
 }
 
 /// Nothing here yet: one symbol, one sentence, and the way to fill it.
+///
+/// `.inline` sits inside a panel or list (search results, a card); `.page`
+/// fills a whole page or popup (an empty Shelf, an empty Gallery) and gets a
+/// bigger symbol and title. Either way it is the same arrangement, so every
+/// empty place in the app reads the same.
 struct EmptyStateView<Action: View>: View {
-    let symbol: String
+    enum Size { case inline, page }
+
+    /// Nil while something is loading: the action slot carries the spinner.
+    let symbol: String?
     let title: String
     var message: String?
+    var size: Size = .inline
     @ViewBuilder var action: Action
 
     var body: some View {
-        VStack(spacing: Spacing.stack) {
-            Image(systemName: symbol)
-                .font(.title2)
-                .foregroundStyle(.tertiary)
-                .accessibilityHidden(true)
+        VStack(spacing: size == .page ? Spacing.s : Spacing.stack) {
+            if let symbol {
+                Image(systemName: symbol)
+                    .font(size == .page ? .largeTitle : .title2)
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
+            }
             Text(title)
-                .font(.callout.weight(.semibold))
+                .font(size == .page ? .title3.weight(.semibold) : .callout.weight(.semibold))
                 .multilineTextAlignment(.center)
+                .accessibilityAddTraits(.isHeader)
             if let message {
                 Text(message)
-                    .font(.caption)
+                    .font(size == .page ? .callout : .caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
             action
-                .controlSize(.small)
+                .controlSize(size == .page ? .regular : .small)
                 .padding(.top, Spacing.xxs)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, Spacing.s)
+        .frame(maxWidth: .infinity, maxHeight: size == .page ? .infinity : nil)
+        .padding(size == .page ? Spacing.l : 0)
+        .padding(.vertical, size == .page ? 0 : Spacing.s)
         .accessibilityElement(children: .contain)
     }
 }
 
 extension EmptyStateView where Action == EmptyView {
-    init(symbol: String, title: String, message: String? = nil) {
-        self.init(symbol: symbol, title: title, message: message) { EmptyView() }
+    init(symbol: String?, title: String, message: String? = nil, size: Size = .inline) {
+        self.init(symbol: symbol, title: title, message: message, size: size) { EmptyView() }
     }
 }
 

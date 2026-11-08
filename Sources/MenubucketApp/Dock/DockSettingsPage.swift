@@ -83,11 +83,11 @@ struct DockSettingsPage: View {
             Text("Starts empty. Add apps, folders, and widgets below.")
         }
         .alert(
-            "Delete \(profileToDelete?.name ?? "")?",
+            "Remove the “\(profileToDelete?.name ?? "")” profile?",
             isPresented: Binding(get: { profileToDelete != nil }, set: { if !$0 { profileToDelete = nil } })
         ) {
             Button("Cancel", role: .cancel) { profileToDelete = nil }
-            Button("Delete", role: .destructive) {
+            Button("Remove", role: .destructive) {
                 if let profile = profileToDelete {
                     store.removeProfile(profile.id)
                     selectedProfileID = nil
@@ -268,7 +268,7 @@ struct DockSettingsPage: View {
                     )
                 }
                 Spacer()
-                Button("Delete…", role: .destructive) { profileToDelete = selectedProfile }
+                Button("Remove…", role: .destructive) { profileToDelete = selectedProfile }
                     .disabled(config.profiles.count < 2)
             }
         } header: {
@@ -411,7 +411,7 @@ struct DockSettingsPage: View {
                 Image(systemName: "minus.circle")
             }
             .buttonStyle(.borderless)
-            .help("Remove from the dock")
+            .help("Remove from Dock")
             .accessibilityLabel(Text("Remove \(itemTitle(item))"))
         }
     }
@@ -419,8 +419,12 @@ struct DockSettingsPage: View {
     @ViewBuilder
     private func itemIcon(_ item: DockItem) -> some View {
         switch item.kind {
-        case .widget:
-            Image(systemName: "square.grid.2x2").foregroundStyle(Color.accentColor)
+        case .widget(let id):
+            if let widget = runtime.widgets.first(where: { $0.id == id }) {
+                WidgetMark(widget: widget, runtime: runtime, size: 22)
+            } else {
+                Image(systemName: "square.grid.2x2").foregroundStyle(Color.accentColor)
+            }
         case .spacer:
             Image(systemName: "arrow.left.and.right").foregroundStyle(.secondary)
         case .separator:
@@ -479,8 +483,11 @@ struct DockSettingsPage: View {
                 }
                 Menu("Widget") {
                     ForEach(runtime.widgets) { widget in
-                        Button(widget.displayName) {
+                        Button {
                             store.addItems([DockItem(kind: .widget(id: widget.id))], profileID: profileID)
+                        } label: {
+                            // A menu shows a symbol, not the coloured tile.
+                            Label(widget.displayName, systemImage: widget.manifest.icon ?? "square.dashed")
                         }
                     }
                 }

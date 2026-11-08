@@ -23,6 +23,8 @@ final class GalleryWindowController {
 /// replaces the grid until Back (or Esc).
 struct GalleryView: View {
     @ObservedObject var model: GalleryModel
+    /// Bumped by ⌘F to put the cursor in the search field.
+    @State private var searchFocusRequest = 0
     /// The app's runtime, used to remove widgets. Without one, Remove reports
     /// that it cannot.
     var runtime: WidgetRuntime?
@@ -69,23 +71,36 @@ struct GalleryView: View {
             SearchField(
                 text: $model.searchText,
                 placeholder: String(localized: "Search widgets"),
+                focusRequest: searchFocusRequest,
                 onCancel: { model.searchText = "" }
             )
             .frame(minWidth: 160, idealWidth: 260, maxWidth: 300)
             .frame(height: 22)
             .accessibilityLabel("Search widgets by name, description, or tag")
+            .hoverHint("Search", key: "⌘F")
+            // ⌘F puts the cursor in the field, as it does in the popup.
+            .background {
+                Button("Search") { searchFocusRequest += 1 }
+                    .keyboardShortcut("f", modifiers: .command)
+                    .hidden()
+                    .accessibilityHidden(true)
+            }
             Spacer(minLength: Spacing.xs)
             Button {
                 WidgetInstaller.shared.promptForURL()
             } label: {
-                Label("Install from URL…", systemImage: "link")
+                Label("Install Widget from URL…", systemImage: "link")
             }
+            .buttonStyle(.glass(.secondary))
+            .controlSize(.small)
             .help("Install a widget from a GitHub repository or a .zip/.mbw link")
             Button {
                 HubWindowController.shared.show(tab: .create)
             } label: {
-                Label("Create Widget", systemImage: "wand.and.stars")
+                Label("Create Widget…", systemImage: "wand.and.stars")
             }
+            .buttonStyle(.glass(.secondary))
+            .controlSize(.small)
             .help("Build your own widget")
             refreshButton
         }
@@ -101,14 +116,14 @@ struct GalleryView: View {
             if model.isLoading {
                 ProgressView()
                     .controlSize(.small)
-                    .frame(width: 16, height: 16)
             } else {
                 Image(systemName: "arrow.clockwise")
-                    .frame(width: 16, height: 16)
             }
         }
+        .buttonStyle(.icon)
+        .keyboardShortcut("r", modifiers: .command)
         .disabled(model.isLoading)
-        .help(model.isLoading ? "Loading the widget list…" : "Check for new and updated widgets")
+        .hoverHint(model.isLoading ? "Loading the widget list…" : "Refresh", key: model.isLoading ? nil : "⌘R", alignment: .trailing)
         .accessibilityLabel(model.isLoading ? "Loading widget list" : "Refresh widget list")
     }
 
@@ -185,26 +200,34 @@ struct GalleryView: View {
     @ViewBuilder
     private var content: some View {
         if let error = model.loadError, model.entries.isEmpty {
-            placeholder(symbol: "wifi.exclamationmark", title: Text("Couldn’t load the widget list")) {
-                StatusBanner(tone: .critical, message: error) { retryButton }
+            EmptyStateView(
+                symbol: "wifi.exclamationmark",
+                title: String(localized: "Couldn’t load the widget list"),
+                message: String(localized: "Check your internet connection, then try again."),
+                size: .page
+            ) {
+                StatusBanner(tone: .critical, message: error)
                     .frame(maxWidth: 420)
-                Text("Check your internet connection, then try again.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                retryButton
+                    .buttonStyle(.glass(.primary))
             }
         } else if model.entries.isEmpty && (model.isLoading || !model.hasLoaded) {
-            placeholder(symbol: nil, title: Text("Loading widgets…")) {
+            EmptyStateView(symbol: nil, title: String(localized: "Loading widgets…"), size: .page) {
                 ProgressView()
                     .controlSize(.small)
             }
         } else if model.entries.isEmpty {
-            placeholder(symbol: "square.grid.2x2", title: Text("No widgets yet")) {
-                Text("The widget list is empty. Check again later, or make your own.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                HStack {
+            EmptyStateView(
+                symbol: "square.grid.2x2",
+                title: String(localized: "No widgets yet"),
+                message: String(localized: "The widget list is empty. Check again later, or make your own."),
+                size: .page
+            ) {
+                HStack(spacing: Spacing.xs) {
                     retryButton
-                    Button("Create Widget") { HubWindowController.shared.show(tab: .create) }
+                        .buttonStyle(.glass(.secondary))
+                    Button("Create Widget…") { HubWindowController.shared.show(tab: .create) }
+                        .buttonStyle(.glass(.secondary))
                 }
             }
         } else if model.filteredEntries.isEmpty {
@@ -225,18 +248,17 @@ struct GalleryView: View {
 
     private var noResults: some View {
         let query = model.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        return placeholder(
+        return EmptyStateView(
             symbol: "magnifyingglass",
             title: query.isEmpty
-                ? Text("No widgets match these filters")
-                : Text("No widgets match “\(query)”")
+                ? String(localized: "No widgets match these filters")
+                : String(localized: "No widgets match “\(query)”"),
+            message: model.pickerFiltersAreActive
+                ? String(localized: "Try a different search, or show every type and category.")
+                : String(localized: "Try a different word, or search by what the widget shows."),
+            size: .page
         ) {
-            Text(model.pickerFiltersAreActive
-                ? "Try a different search, or show every type and category."
-                : "Try a different word, or search by what the widget shows.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-            HStack {
+            HStack(spacing: Spacing.xs) {
                 if !query.isEmpty {
                     Button("Clear Search") { model.searchText = "" }
                 }
@@ -244,40 +266,21 @@ struct GalleryView: View {
                     Button("Show All Widgets") { model.clearFilters() }
                 }
             }
+            .buttonStyle(.glass(.secondary))
         }
-    }
-
-    private func placeholder<Content: View>(
-        symbol: String?, title: Text, @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(spacing: Spacing.s) {
-            if let symbol {
-                Image(systemName: symbol)
-                    .font(.largeTitle)
-                    .foregroundStyle(.secondary)
-                    .accessibilityHidden(true)
-            }
-            title
-                .font(.headline)
-                .multilineTextAlignment(.center)
-            content()
-        }
-        .multilineTextAlignment(.center)
-        .padding(Spacing.l)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @ViewBuilder
     private var notices: some View {
         if let notice = model.registryNotice {
-            StatusBanner(tone: .warning, message: notice, symbol: "icloud.slash") { retryButton }
+            StatusBanner(tone: .warning, message: notice, symbol: "icloud.slash") { retryButton.buttonStyle(.glass(.secondary)) }
         }
         if model.loadError != nil {
             StatusBanner(
                 tone: .warning,
                 message: String(localized: "Couldn’t refresh the widget list. Showing the widgets already loaded."),
                 symbol: "wifi.exclamationmark"
-            ) { retryButton }
+            ) { retryButton.buttonStyle(.glass(.secondary)) }
         }
     }
 

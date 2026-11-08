@@ -260,7 +260,7 @@ struct ListTemplate: View {
                 .font(.system(size: 8, weight: .bold))
                 .foregroundStyle(.white)
                 .frame(width: 14, height: 14)
-                .background(Circle().fill(["danger", "red"].contains(summary.tone) ? Color.red : accent))
+                .background(Circle().fill(["danger", "red"].contains(summary.tone) ? WidgetPalette.critical : accent))
                 .widgetAccentable()
         }
     }

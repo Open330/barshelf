@@ -80,12 +80,11 @@ struct SearchOverlay: View {
             .background(Capsule().fill(Fill.hover))
             .padding(Spacing.stack)
             if hits.isEmpty {
-                Text(query.isEmpty ? "Type to search" : "No matches")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, Spacing.m)
-                    .padding(.bottom, Spacing.l)
+                EmptyStateView(
+                    symbol: "magnifyingglass",
+                    title: query.isEmpty ? String(localized: "Type to search") : String(localized: "No matches")
+                )
+                .padding(.bottom, Spacing.xs)
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {
@@ -348,6 +347,8 @@ struct SearchField: NSViewRepresentable {
     @Binding var text: String
     var placeholder: String = String(localized: "Search")
     var autofocus: Bool = false
+    /// Each change puts the cursor in the field (⌘F where a page binds it).
+    var focusRequest: Int = 0
     /// Set while the field editor holds marked (uncommitted IME) text.
     var isComposing: Binding<Bool>?
     var onSubmit: () -> Void = {}
@@ -382,6 +383,10 @@ struct SearchField: NSViewRepresentable {
         // cannot stay in the native keyboard focus chain.
         field.isEnabled = context.environment.isEnabled
         context.coordinator.focusIfNeeded(field)
+        if focusRequest != context.coordinator.lastFocusRequest {
+            context.coordinator.lastFocusRequest = focusRequest
+            if field.isEnabled { field.window?.makeFirstResponder(field) }
+        }
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -389,7 +394,11 @@ struct SearchField: NSViewRepresentable {
     final class Coordinator: NSObject, NSSearchFieldDelegate {
         var parent: SearchField
         var didFocus = false
-        init(_ parent: SearchField) { self.parent = parent }
+        var lastFocusRequest: Int
+        init(_ parent: SearchField) {
+            self.parent = parent
+            lastFocusRequest = parent.focusRequest
+        }
 
         func focusIfNeeded(_ field: NSSearchField) {
             guard parent.autofocus, !didFocus, field.isEnabled,

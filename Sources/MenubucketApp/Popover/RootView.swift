@@ -583,48 +583,42 @@ struct RootView: View {
             }
             .padding(.horizontal, Spacing.s)
             .padding(.top, Spacing.xs)
-            Spacer()
-            Image(systemName: "tray.full")
-                .font(.largeTitle)
-                .foregroundStyle(Color.accentColor)
-                .accessibilityHidden(true)
-            Text("Time to tidy up your menu bar")
-                .font(.headline)
-            Text("The readings you check all day,\nin one popup of widgets.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-            VStack(spacing: Spacing.stack) {
-                Button { onCommand(.addWidget) } label: {
-                    Label("Add Widget…", systemImage: "plus")
-                        .frame(maxWidth: .infinity)
+            EmptyStateView(
+                symbol: "tray.full",
+                title: String(localized: "Time to tidy up your menu bar"),
+                message: String(localized: "The readings you check all day,\nin one popup of widgets."),
+                size: .page
+            ) {
+                VStack(spacing: Spacing.stack) {
+                    Button { onCommand(.addWidget) } label: {
+                        Label("Add Widget…", systemImage: "plus")
+                            .frame(maxWidth: .infinity)
+                    }
+                    // The one way most people start; the rest are alternatives.
+                    .buttonStyle(.glass(.primary))
+                    .keyboardShortcut(.defaultAction)
+                    Button {
+                        Task { @MainActor in HubWindowController.shared.show(tab: .create) }
+                    } label: {
+                        Label("Create Widget…", systemImage: "wand.and.stars")
+                            .frame(maxWidth: .infinity)
+                    }
+                    Button {
+                        WidgetInstaller.shared.promptForURL()
+                    } label: {
+                        Label("Install Widget from URL…", systemImage: "link")
+                            .frame(maxWidth: .infinity)
+                    }
+                    Button {
+                        NSWorkspace.shared.open(Self.gettingStartedURL)
+                    } label: {
+                        Label("Getting Started", systemImage: "book")
+                            .frame(maxWidth: .infinity)
+                    }
                 }
-                // The one way most people start; the rest are alternatives.
-                .buttonStyle(.glass(.primary))
-                .keyboardShortcut(.defaultAction)
-                Button {
-                    Task { @MainActor in HubWindowController.shared.show(tab: .create) }
-                } label: {
-                    Label("Create Your Own Widget", systemImage: "wand.and.stars")
-                        .frame(maxWidth: .infinity)
-                }
-                Button {
-                    WidgetInstaller.shared.promptForURL()
-                } label: {
-                    Label("Install Widget from URL…", systemImage: "link")
-                        .frame(maxWidth: .infinity)
-                }
-                Button {
-                    NSWorkspace.shared.open(Self.gettingStartedURL)
-                } label: {
-                    Label("View the Getting Started guide", systemImage: "book")
-                        .frame(maxWidth: .infinity)
-                }
+                .buttonStyle(.glass(.secondary))
+                .padding(.horizontal, Spacing.l)
             }
-            .buttonStyle(.glass(.secondary))
-            .padding(.horizontal, Spacing.xl + Spacing.m)
-            .padding(.top, Spacing.xxs)
-            Spacer()
         }
         .frame(maxWidth: .infinity)
     }

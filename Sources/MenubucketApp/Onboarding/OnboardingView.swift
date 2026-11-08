@@ -132,7 +132,7 @@ struct OnboardingView: View {
                     get: { isOn },
                     set: { runtime.setWidgetDisabled(widget.id, !$0) }
                 )) {
-                    Label(widget.displayName, systemImage: widget.manifest.icon ?? "square.dashed")
+                    widgetLabel(widget)
                 }
                 if PermissionStore.requiresApproval(for: widget.manifest) {
                     permissionRow(for: widget, isOn: isOn)
@@ -152,6 +152,7 @@ struct OnboardingView: View {
             Button("Open Gallery") {
                 GalleryWindowController.shared.show()
             }
+            .buttonStyle(.glass(.secondary))
             .controlSize(.small)
         }
     }
@@ -183,22 +184,26 @@ struct OnboardingView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 case .pending:
-                    // The intro above says what waiting means; each row only
-                    // needs its state, not the sentence again.
-                    Label(isOn ? "Not allowed yet" : "Turned off",
-                          systemImage: isOn ? "lock.fill" : "pause.circle")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    // The same words, symbol and tone as the widget's card,
+                    // its Shelf chip and its Privacy row.
+                    if isOn {
+                        Label(PermissionWaiting.title, systemImage: PermissionWaiting.symbol)
+                            .font(.caption)
+                            .foregroundStyle(PermissionWaiting.tone.color)
+                    } else {
+                        Label("Turned off", systemImage: "pause.circle")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 Spacer(minLength: 0)
                 if status != .approved, isOn {
-                    // Never the default button: Return must not grant access.
-                    Button("Allow") {
+                    // Allow only: turning the widget off above is the way to
+                    // say no here. Never the default button.
+                    PermissionDecisionButtons(widgetName: widget.displayName) {
                         runtime.approvePermissions(widgetID: widget.id)
                         approvals += 1
                     }
-                    .controlSize(.small)
-                    .accessibilityLabel(Text("Allow \(widget.displayName)"))
                 }
             }
         }
@@ -279,7 +284,7 @@ struct OnboardingView: View {
                         get: { runtime.menuBarWidgetIDs.contains(widget.id) },
                         set: { value in runtime.updateMenuBarPlacement(for: widget.id) { $0.enabled = value } }
                     )) {
-                        Label(widget.displayName, systemImage: widget.manifest.icon ?? "square.dashed")
+                        widgetLabel(widget)
                     }
                     if widget.id != candidates.last?.id { Divider() }
                 }
@@ -303,6 +308,14 @@ struct OnboardingView: View {
     }
 
     // MARK: - Pieces
+
+    /// A widget as every list in the app shows it: its mark, then its name.
+    private func widgetLabel(_ widget: LoadedWidget) -> some View {
+        HStack(spacing: Spacing.xs) {
+            WidgetMark(widget: widget, runtime: runtime)
+            Text(widget.displayName)
+        }
+    }
 
     /// Label on the leading edge, switch on the trailing one — what a Form
     /// row does, outside a Form.
@@ -361,15 +374,17 @@ struct OnboardingView: View {
             if step == .done {
                 Button("Show BarShelf") { finish(true) }
                     .keyboardShortcut(.defaultAction)
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.glass(.primary))
             } else {
                 if step != .widgets {
                     Button("Back") { move(-1) }
+                        .buttonStyle(.glass(.plain))
                 }
                 Button("Skip Setup") { finish(false) }
+                    .buttonStyle(.glass(.plain))
                 Button("Continue") { move(1) }
                     .keyboardShortcut(.defaultAction)
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.glass(.primary))
             }
         }
         .padding(Spacing.m)

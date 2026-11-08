@@ -137,7 +137,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@에 저장된 Apple Dock 레이아웃이 없습니다. 이 프로필로 바꿔도 Apple Dock은 그대로입니다."
+            "value": "%@에 저장된 Apple 독 레이아웃이 없습니다. 이 프로필로 바꿔도 Apple 독은 그대로입니다."
           }
         }
       }
@@ -1013,7 +1013,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple Dock의 앱·폴더·파일을 이 프로필에 추가합니다."
+            "value": "Apple 독의 앱·폴더·파일을 이 프로필에 추가합니다."
           }
         }
       }
@@ -1175,7 +1175,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple Dock과 함께"
+            "value": "Apple 독과 함께"
           }
         }
       }
@@ -1276,7 +1276,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple Dock 레이아웃"
+            "value": "Apple 독 레이아웃"
           }
         }
       }
@@ -1326,7 +1326,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "이 프로필에 맞게 Apple Dock을 정리한 뒤 저장하십시오. 전환할 때 Dock이 잠깐 다시 시작되지만 열린 앱과 창은 그대로입니다. 이전 레이아웃은 먼저 백업됩니다."
+            "value": "이 프로필에 맞게 Apple 독을 정리한 뒤 저장하십시오. 전환할 때 독이 잠깐 다시 시작되지만 열린 앱과 창은 그대로입니다. 이전 레이아웃은 먼저 백업됩니다."
           }
         }
       }
@@ -1461,7 +1461,18 @@
         }
       }
     },
+    "Back to all widgets": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "모든 위젯으로 돌아가기"
+          }
+        }
+      }
+    },
     "Back to all widgets (Esc)": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -1533,7 +1544,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "BarShelf Dock"
+            "value": "BarShelf 독"
           }
         }
       }
@@ -2061,6 +2072,7 @@
       }
     },
     "Check for new and updated widgets": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -2556,7 +2568,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple Dock에서 가져오기"
+            "value": "Apple 독에서 가져오기"
           }
         }
       }
@@ -2658,7 +2670,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple Dock 레이아웃을 읽지 못해 아무것도 저장하지 않았습니다."
+            "value": "Apple 독 레이아웃을 읽지 못해 아무것도 저장하지 않았습니다."
           }
         }
       }
@@ -2775,6 +2787,7 @@
       }
     },
     "Create Your Own Widget": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -2908,6 +2921,7 @@
       }
     },
     "Delete": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -2918,6 +2932,7 @@
       }
     },
     "Delete %@?": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -2938,6 +2953,7 @@
       }
     },
     "Delete…": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -2998,6 +3014,16 @@
         }
       }
     },
+    "Deny %@": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 거부"
+          }
+        }
+      }
+    },
     "Desc": {
       "localizations": {
         "ko": {
@@ -3033,7 +3059,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "데스크톱 위젯은 BarShelf가 마지막으로 읽은 결과를 보여 줍니다. 데스크톱에 놓는 것만으로 원본 위젯이 계속 실행되지는 않습니다. 해당 선반 페이지를 열거나 새로 고침을 눌러 갱신하십시오. 선반을 닫아도 계속 갱신하려면 BarShelf를 실행한 상태에서 원본을 메뉴 막대나 Dock에 표시하십시오."
+            "value": "데스크톱 위젯은 BarShelf가 마지막으로 읽은 결과를 보여 줍니다. 데스크톱에 놓는 것만으로 원본 위젯이 계속 실행되지는 않습니다. 해당 선반 페이지를 열거나 새로 고침을 눌러 갱신하십시오. 선반을 닫아도 계속 갱신하려면 BarShelf를 실행한 상태에서 원본을 메뉴 막대나 독에 표시하십시오."
           }
         }
       }
@@ -3091,6 +3117,7 @@
       }
     },
     "Disable": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -3379,7 +3406,18 @@
         }
       }
     },
+    "Drag to Move": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "드래그하여 이동"
+          }
+        }
+      }
+    },
     "Drag to move": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -3535,7 +3573,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "프로필마다 독 아이템이 따로 있고, Apple Dock 레이아웃과 팝업 페이지를 함께 담을 수 있습니다. 끌어서 순서를 바꾸십시오. 처음 아홉 개에 ⌃⌥1–9가 붙습니다."
+            "value": "프로필마다 독 아이템이 따로 있고, Apple 독 레이아웃과 팝업 페이지를 함께 담을 수 있습니다. 끌어서 순서를 바꾸십시오. 처음 아홉 개에 ⌃⌥1–9가 붙습니다."
           }
         }
       }
@@ -3592,6 +3630,7 @@
       }
     },
     "Enable": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -4095,7 +4134,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dock에 초점 이동"
+            "value": "독에 초점 이동"
           }
         }
       }
@@ -4574,7 +4613,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "팝업을 열 때까지 숨겨진 위젯의 새로고침을 멈춥니다. 메뉴 막대와 Dock 위젯은 계속 갱신되며, 백그라운드 갱신을 멈추려면 해당 위치에서 제거하십시오."
+            "value": "팝업을 열 때까지 숨겨진 위젯의 새로고침을 멈춥니다. 메뉴 막대와 독 위젯은 계속 갱신되며, 백그라운드 갱신을 멈추려면 해당 위치에서 제거하십시오."
           }
         }
       }
@@ -5055,6 +5094,7 @@
       }
     },
     "Install from URL…": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -5190,7 +5230,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple Dock 대신"
+            "value": "Apple 독 대신"
           }
         }
       }
@@ -5250,7 +5290,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "아이템과 저장된 Apple Dock 레이아웃이 지워집니다. 디스크의 파일은 그대로입니다."
+            "value": "아이템과 저장된 Apple 독 레이아웃이 지워집니다. 디스크의 파일은 그대로입니다."
           }
         }
       }
@@ -5653,7 +5693,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple Dock처럼: 유리 위의 아이콘, 가리키면 이름 표시."
+            "value": "Apple 독처럼: 유리 위의 아이콘, 가리키면 이름 표시."
           }
         }
       }
@@ -5663,7 +5703,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple Dock처럼: 유리 위의 아이콘, 가리키면 이름 표시. 위젯은 아이콘 높이에 주요 값만 보여 줍니다."
+            "value": "Apple 독처럼: 유리 위의 아이콘, 가리키면 이름 표시. 위젯은 아이콘 높이에 주요 값만 보여 줍니다."
           }
         }
       }
@@ -5916,7 +5956,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple Dock에 맞추기"
+            "value": "Apple 독에 맞추기"
           }
         }
       }
@@ -6708,6 +6748,7 @@
       }
     },
     "Not allowed yet": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -7615,7 +7656,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "아래 프로필은 BarShelf Dock을 꺼도 동작합니다. Apple Dock의 앱을 바꿀 수 있습니다."
+            "value": "아래 프로필은 BarShelf 독을 꺼도 동작합니다. Apple 독의 앱을 바꿀 수 있습니다."
           }
         }
       }
@@ -8152,6 +8193,7 @@
       }
     },
     "Remove %@?": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -8202,6 +8244,7 @@
       }
     },
     "Remove from the dock": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -8241,7 +8284,18 @@
         }
       }
     },
+    "Remove the “%@” profile?": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” 프로필을 제거하겠습니까?"
+          }
+        }
+      }
+    },
     "Remove “%@”?": {
+      "comment": "Confirmation title before removing a widget",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -8277,7 +8331,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "현재 Apple Dock으로 바꾸기"
+            "value": "현재 Apple 독으로 바꾸기"
           }
         }
       }
@@ -8397,7 +8451,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple Dock 복원"
+            "value": "Apple 독 복원"
           }
         }
       }
@@ -8433,6 +8487,7 @@
       }
     },
     "Reveal in Finder": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -8716,7 +8771,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple Dock과 같은 크기"
+            "value": "Apple 독과 같은 크기"
           }
         }
       }
@@ -8736,7 +8791,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "현재 Apple Dock 저장"
+            "value": "현재 Apple 독 저장"
           }
         }
       }
@@ -9458,6 +9513,7 @@
       }
     },
     "Show on the Shelf": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -9975,7 +10031,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "프로필에 따라 Apple Dock의 앱 바꾸기"
+            "value": "프로필에 따라 Apple 독의 앱 바꾸기"
           }
         }
       }
@@ -10217,7 +10273,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "BarShelf가 실행되는 동안 Apple Dock은 숨겨지고, BarShelf를 종료하거나 이 옵션을 끄면 돌아옵니다. 계속 숨겨져 있다면 터미널에서 barshelf dock restore-apple-dock을 실행하십시오."
+            "value": "BarShelf가 실행되는 동안 Apple 독은 숨겨지고, BarShelf를 종료하거나 이 옵션을 끄면 돌아옵니다. 계속 숨겨져 있다면 터미널에서 barshelf dock restore-apple-dock을 실행하십시오."
           }
         }
       }
@@ -10227,7 +10283,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple Dock이 같은 가장자리에 있습니다. BarShelf Dock은 그 바로 위에 놓입니다. 위치를 바꾸거나 자동 숨기기를 켜면 겹치지 않습니다."
+            "value": "Apple 독이 같은 가장자리에 있습니다. BarShelf 독은 그 바로 위에 놓입니다. 위치를 바꾸거나 자동 숨기기를 켜면 겹치지 않습니다."
           }
         }
       }
@@ -10237,7 +10293,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple Dock 설정을 복원하지 못했습니다. BarShelf가 복구용 사본을 보관하고 있습니다. Apple Dock 복원을 선택해 다시 시도하십시오."
+            "value": "Apple 독 설정을 복원하지 못했습니다. BarShelf가 복구용 사본을 보관하고 있습니다. Apple 독 복원을 선택해 다시 시도하십시오."
           }
         }
       }
@@ -10257,7 +10313,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dock을 확인해 주십시오. %@"
+            "value": "독을 확인해 주십시오. %@"
           }
         }
       }
@@ -10629,6 +10685,7 @@
       }
     },
     "This deletes \"%@\" and its data. It can be installed again from the Gallery.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -10638,7 +10695,18 @@
         }
       }
     },
+    "This deletes the widget and its settings and saved data from this Mac. It can’t be undone, but a widget from the Gallery can be installed again there.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 Mac에서 위젯과 설정, 저장된 데이터가 삭제됩니다. 되돌릴 수 없지만, 갤러리에서 받은 위젯은 갤러리에서 다시 설치할 수 있습니다."
+          }
+        }
+      }
+    },
     "This deletes the widget and its settings from this Mac. You can install it again from the Gallery.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -10649,6 +10717,7 @@
       }
     },
     "This deletes the widget's files and settings and cannot be undone.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -10987,6 +11056,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "위젯 끄기"
+          }
+        }
+      }
+    },
+    "Turn On": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "켜기"
+          }
+        }
+      }
+    },
+    "Turn On Widget": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯 켜기"
           }
         }
       }
@@ -11497,6 +11586,7 @@
       }
     },
     "View the Getting Started guide": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -11800,6 +11890,7 @@
       }
     },
     "Widget settings": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -12236,7 +12327,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS가 Apple Dock 숨기기를 확인하지 못해 Dock이 계속 표시됩니다. 다시 시도하려면 “Apple Dock 대신”을 다시 선택하십시오."
+            "value": "macOS가 Apple 독 숨기기를 확인하지 못해 독이 계속 표시됩니다. 다시 시도하려면 “Apple 독 대신”을 다시 선택하십시오."
           }
         }
       }
@@ -12246,7 +12337,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS에서 Apple Dock 설정 변경을 확인하지 못했습니다. Apple Dock 복원을 다시 시도하십시오."
+            "value": "macOS에서 Apple 독 설정 변경을 확인하지 못했습니다. Apple 독 복원을 다시 시도하십시오."
           }
         }
       }

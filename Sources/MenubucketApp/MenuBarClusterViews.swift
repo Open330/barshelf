@@ -62,7 +62,7 @@ struct ClusterChipFace: View {
             glyph
             if chip.alert {
                 Circle()
-                    .fill(Color.red)
+                    .fill(StatusTone.critical.color)
                     .frame(width: Metrics.badge, height: Metrics.badge)
                     .offset(x: Metrics.face / 2 - Metrics.badge / 3, y: -(Metrics.face / 2 - Metrics.badge / 3))
             }

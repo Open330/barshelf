@@ -157,15 +157,15 @@ struct GalleryCard: View {
                 .help("A newer version is available in the registry")
                 .accessibilityLabel("Update \(displayName)")
         } else if isInstalled {
+            // The same green as the detail page's status.
             Label("Installed", systemImage: "checkmark.circle.fill")
                 .font(.caption)
-                .foregroundStyle(.secondary)
-                .symbolRenderingMode(.multicolor)
+                .foregroundStyle(StatusTone.success.color)
                 .contextMenu { Button("Reinstall", action: install) }
                 .help("Installed — right-click to reinstall")
         } else {
             Button("Install", action: install)
-                .buttonStyle(.glass(.secondary))
+                .buttonStyle(.glass(.accent))
                 .controlSize(.small)
                 .accessibilityLabel("Install \(displayName)")
         }

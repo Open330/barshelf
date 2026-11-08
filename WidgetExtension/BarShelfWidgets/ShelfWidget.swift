@@ -218,7 +218,7 @@ struct ShelfWidgetView: View {
                     Image(systemName: entry.unanswered ? Self.noAnswerSymbol : "exclamationmark.triangle.fill")
                 }
                 .font(.caption2)
-                .foregroundStyle(.orange)
+                .foregroundStyle(WidgetPalette.warning)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -340,7 +340,7 @@ struct ShelfWidgetView: View {
                     Button(intent: RefreshShelfWidgetIntent(widgetID: id)) {
                         Image(systemName: symbol)
                             .font(.caption2)
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(WidgetPalette.warning)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(Text(notice))
@@ -348,7 +348,7 @@ struct ShelfWidgetView: View {
                 } else {
                     Image(systemName: symbol)
                         .font(.caption2)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(WidgetPalette.warning)
                         .accessibilityLabel(Text(notice))
                 }
             } else if stale, family == .systemSmall, let id = entry.widgetID {
@@ -357,7 +357,7 @@ struct ShelfWidgetView: View {
                 Button(intent: RefreshShelfWidgetIntent(widgetID: id)) {
                     Image(systemName: "clock.arrow.circlepath")
                         .font(.caption2)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(WidgetPalette.warning)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(Text("Refresh"))
@@ -372,7 +372,7 @@ struct ShelfWidgetView: View {
                     ))
                 }
                 .font(.caption2)
-                .foregroundStyle(.orange)
+                .foregroundStyle(WidgetPalette.warning)
                 .lineLimit(1)
                 .layoutPriority(-1)
             }

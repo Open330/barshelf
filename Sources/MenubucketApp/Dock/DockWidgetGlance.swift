@@ -46,9 +46,9 @@ struct DockWidgetGlance: View {
             .foregroundStyle(.secondary)
 
             if model.snapshot.error != nil {
-                Label("Error", systemImage: "exclamationmark.triangle.fill")
+                Label("Error", systemImage: StatusTone.warning.symbol)
                     .font(.system(size: max(9, height * 0.26), weight: .semibold))
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(StatusTone.warning.color)
             } else if !metrics.isEmpty {
                 ForEach(Array(metrics.enumerated()), id: \.offset) { _, metric in
                     meter(metric)
