@@ -6184,6 +6184,26 @@
         }
       }
     },
+    "More Actions": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "추가 동작"
+          }
+        }
+      }
+    },
+    "More actions for %@": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 추가 동작"
+          }
+        }
+      }
+    },
     "Move": {
       "localizations": {
         "ko": {

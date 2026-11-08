@@ -49,6 +49,20 @@ struct WidgetCardView: View {
     /// it off.
     private var showsHeader: Bool { appearance.showsHeader && placement != .menuBar }
 
+    /// The quick controls sit in the header's trailing slot, swapping places
+    /// with the freshness caption, when there is a header wide enough for
+    /// them. A headerless card, or a half-width one on a page, gets a single
+    /// corner `⋯` menu instead, so nothing large floats over its content.
+    private var usesHeaderControls: Bool {
+        guard showsHeader else { return false }
+        let isHalfOnPage = placement == .shelf && compactHeight == nil
+            && runtime.effectiveSize(for: widget.id) == "S"
+        return !isHalfOnPage
+    }
+
+    /// Hover or keyboard focus reveals the quick controls.
+    private var controlsVisible: Bool { isHovering || controlsFocused }
+
     /// Edit controls only make sense on a shelf page.
     private var isEditing: Bool { shelfIsEditing && placement == .shelf && compactHeight == nil }
 
@@ -95,7 +109,7 @@ struct WidgetCardView: View {
             .environment(\.localFileReadPaths, runtime.effectiveReadPaths(for: widget))
         .background(sectionBackground)
         .overlay(alignment: .topTrailing) {
-            if !isEditing, placement != .menuBar { cardControls }
+            if !isEditing, placement != .menuBar, !usesHeaderControls { moreMenu }
         }
         // Insertion indicator while a dragged card hovers over this one.
         .overlay(alignment: .leading) {
@@ -409,6 +423,25 @@ struct WidgetCardView: View {
     /// glance and the content below stays neutral.
     private func cardHeader(snapshot: WidgetSnapshot) -> some View {
         HStack(spacing: Spacing.stack) {
+            headerTitle
+            if model.overlay == nil, snapshot.viewTree != nil, let error = snapshot.error {
+                CachedBadge(error: error, onRetry: retry)
+            }
+            Spacer(minLength: Spacing.xxs)
+            if snapshot.isLoading, snapshot.viewTree != nil {
+                ProgressView()
+                    .controlSize(.mini)
+                    .accessibilityLabel("Refreshing")
+            }
+            headerTrailingSlot(snapshot: snapshot)
+        }
+    }
+
+    /// Icon and name. On a page this is also the card's grab handle: drag it
+    /// to reorder, like a window by its title bar.
+    @ViewBuilder
+    private var headerTitle: some View {
+        let title = HStack(spacing: Spacing.stack) {
             if let icon = widget.manifest.icon {
                 CardIconTile(symbol: icon, color: cardAccent)
             }
@@ -419,19 +452,34 @@ struct WidgetCardView: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .accessibilityAddTraits(.isHeader)
-            if model.overlay == nil, snapshot.viewTree != nil, let error = snapshot.error {
-                CachedBadge(error: error, onRetry: retry)
+        }
+        if placement == .shelf {
+            title
+                .contentShape(Rectangle())
+                .onDrag { CardDrag.provider(for: widget.id) } preview: { dragPreview }
+                .help("Drag to Move")
+        } else {
+            title
+        }
+    }
+
+    /// The freshness caption at rest; the quick controls in the same place
+    /// on hover. Both are laid out at once so the slot keeps its width and
+    /// the title never shifts.
+    @ViewBuilder
+    private func headerTrailingSlot(snapshot: WidgetSnapshot) -> some View {
+        let freshness = model.overlay == nil ? snapshot.updatedAt : nil
+        if usesHeaderControls {
+            ZStack(alignment: .trailing) {
+                if let freshness {
+                    FreshnessText(updatedAt: freshness)
+                        .opacity(controlsVisible ? 0 : 1)
+                }
+                headerControls
             }
-            Spacer(minLength: Spacing.xxs)
-            if snapshot.isLoading, snapshot.viewTree != nil {
-                ProgressView()
-                    .controlSize(.mini)
-                    .accessibilityLabel("Refreshing")
-            }
-            if model.overlay == nil, let updatedAt = snapshot.updatedAt {
-                FreshnessText(updatedAt: updatedAt)
-                    .layoutPriority(-1)
-            }
+        } else if let freshness {
+            FreshnessText(updatedAt: freshness)
+                .layoutPriority(-1)
         }
     }
 
@@ -500,49 +548,57 @@ struct WidgetCardView: View {
 
     // MARK: - Hover controls
 
-    /// Hover controls at the widget's top-right — refresh, a drag handle to
-    /// move/reorder, and settings — grouped in one capsule. Out of the
-    /// accessibility tree while invisible; the card's accessibility actions
-    /// offer the same things.
-    private var cardControls: some View {
-        let visible = isHovering || controlsFocused
-        return HStack(spacing: 0) {
-            Button(action: retry) {
-                Image(systemName: "arrow.clockwise")
-            }
-            .buttonStyle(.icon)
-            .focused($controlsFocused)
-            .hoverHint("Refresh")
-            .accessibilityLabel("Refresh \(widget.displayName)")
-            if placement == .shelf {
-                Image(systemName: "line.3.horizontal")
-                    .font(.body.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .frame(width: ControlMetrics.height, height: ControlMetrics.height)
-                    .contentShape(Rectangle())
-                    .onDrag { CardDrag.provider(for: widget.id) } preview: { dragPreview }
-                    .hoverHint("Drag to Move")
-                    // Pointer-only; the card's Move up / Move down actions and
-                    // its context menu are the accessible route.
-                    .accessibilityHidden(true)
-            }
-            Button(action: openSettings) {
-                Image(systemName: "slider.horizontal.3")
-            }
-            .buttonStyle(.icon)
-            .focused($controlsFocused)
-            .hoverHint("Settings…", alignment: .trailing)
-            .accessibilityLabel("Settings for \(widget.displayName)")
+    /// Refresh and settings, inline in the header. No capsule behind them:
+    /// at rest they are invisible and the freshness caption holds the slot,
+    /// so they read as part of the header rather than something on top of
+    /// it. Out of the accessibility tree while invisible; the card's
+    /// accessibility actions offer the same things.
+    private var headerControls: some View {
+        HStack(spacing: 0) {
+            HeaderControlButton(symbol: "arrow.clockwise", action: retry)
+                .focused($controlsFocused)
+                .hoverHint("Refresh")
+                .accessibilityLabel("Refresh \(widget.displayName)")
+            HeaderControlButton(symbol: "slider.horizontal.3", action: openSettings)
+                .focused($controlsFocused)
+                .hoverHint("Settings…", alignment: .trailing)
+                .accessibilityLabel("Settings for \(widget.displayName)")
         }
-        .padding(.horizontal, Spacing.hair)
-        .padding(.vertical, Spacing.hair)
-        .modifier(ControlCapsule())
-        .padding(Spacing.stack)
         // Keep the controls in the focus order even while visually quiet; a
-        // keyboard focus immediately reveals them without making the whole
-        // card (and its embedded text fields) a separate focus target.
-        .opacity(visible ? 1 : 0)
-        .accessibilityHidden(!visible)
+        // keyboard focus immediately reveals them.
+        .opacity(controlsVisible ? 1 : 0)
+        .accessibilityHidden(!controlsVisible)
+    }
+
+    /// One small `⋯` in the corner for cards with no room in a header: it
+    /// covers far less of the content than a row of buttons would.
+    private var moreMenu: some View {
+        Menu {
+            Button("Refresh", action: retry)
+            Button("Settings…", action: openSettings)
+            if placement == .shelf {
+                Divider()
+                moveWithinPanelButtons
+                moveToPageMenu
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.secondary)
+                .frame(width: 22, height: 22)
+                .modifier(ControlCapsule())
+                .contentShape(Circle())
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .focused($controlsFocused)
+        .hoverHint("More Actions", alignment: .trailing)
+        .accessibilityLabel("More actions for \(widget.displayName)")
+        .padding(Spacing.xxs + Spacing.hair)
+        .opacity(controlsVisible ? 1 : 0)
+        .accessibilityHidden(!controlsVisible)
     }
 
     /// The card's drag proxy — a labeled chip so you can see what you're moving.
@@ -611,6 +667,30 @@ struct WidgetCardView: View {
 
 /// A widget's symbol, white on a small rounded tile of its colour — the
 /// mark Control Center and the Settings sidebar use.
+/// A borderless icon button sized to the card header's 18 pt row; a faint
+/// fill under the pointer is its only chrome.
+private struct HeaderControlButton: View {
+    let symbol: String
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(hovering ? .primary : .secondary)
+                .frame(width: 20, height: 18)
+                .background(
+                    RoundedRectangle(cornerRadius: Radius.key, style: .continuous)
+                        .fill(hovering ? Fill.hover : .clear)
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+    }
+}
+
 struct CardIconTile: View {
     let symbol: String
     let color: Color
