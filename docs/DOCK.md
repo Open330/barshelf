@@ -1,7 +1,9 @@
 # BarShelf Dock
 
 BarShelf is menu-bar-first; the dock is an option, off by default. Open the
-BarShelf window's **Dock** page to turn it on.
+BarShelf window's **Dock** page to turn it on. While the BarShelf Dock is off,
+that page starts with profiles, the Apple Dock layout and switching, which work
+without it; the dock's look and items follow below.
 
 ## Modes
 
