@@ -14,6 +14,18 @@
         ],
         "io": "${or(or(eq(coalesce(settings.menuBarMetric, ''), 'diskRead'), eq(coalesce(settings.menuBarMetric, ''), 'diskWrite')), or(eq(coalesce(settings.menuBarSecondary, ''), 'diskRead'), eq(coalesce(settings.menuBarSecondary, ''), 'diskWrite')))}"
       }
+    },
+    "top": {
+      "use": "system",
+      "with": {
+        "metrics": [
+          "processes"
+        ],
+        "processes": {
+          "count": 3,
+          "when": "${coalesce(widget.visible, false)}"
+        }
+      }
     }
   },
   "transforms": {
@@ -119,32 +131,34 @@
     "spacing": 10,
     "children": [
       {
-        "type": "hstack",
-        "spacing": 6,
+        "type": "section",
+        "title": "CPU",
+        "spacing": 5,
         "children": [
           {
-            "type": "spacer"
+            "type": "progress",
+            "style": "linear",
+            "segments": [
+              {
+                "value": "${div(sources.data.cpu.user, 100)}",
+                "tint": "${if(gt(sources.data.cpu.usage, 85), 'danger', if(gt(sources.data.cpu.usage, 60), 'warning', 'secondary'))}",
+                "label": "User"
+              },
+              {
+                "value": "${div(sources.data.cpu.system, 100)}",
+                "tint": "${if(gt(sources.data.cpu.usage, 85), 'danger', if(gt(sources.data.cpu.usage, 60), 'warning', 'tertiary'))}",
+                "label": "System"
+              }
+            ]
           },
-          {
-            "type": "text",
-            "text": "${string(round(number(sources.data.cpu.loadAverage.1m), 2))}",
-            "role": "caption",
-            "monospacedDigit": true,
-            "foreground": "secondary"
-          }
-        ]
-      },
-      {
-        "type": "vstack",
-        "spacing": 3,
-        "children": [
           {
             "type": "hstack",
             "children": [
               {
                 "type": "text",
-                "text": "CPU",
-                "role": "caption"
+                "text": "User ${string(round(number(sources.data.cpu.user), 0))}% · System ${string(round(number(sources.data.cpu.system), 0))}%",
+                "role": "caption",
+                "foreground": "secondary"
               },
               {
                 "type": "spacer"
@@ -154,29 +168,73 @@
                 "text": "${string(round(number(sources.data.cpu.usage), 0))}%",
                 "role": "caption",
                 "monospacedDigit": true,
-                "foreground": "${if(gt(sources.data.cpu.usage, 85), 'danger', if(gt(sources.data.cpu.usage, 60), 'warning', 'good'))}"
+                "foreground": "${if(gt(sources.data.cpu.usage, 85), 'danger', if(gt(sources.data.cpu.usage, 60), 'warning', 'primary'))}"
               }
             ]
           },
-          {
-            "type": "progress",
-            "style": "linear",
-            "value": "${div(sources.data.cpu.usage, 100)}",
-            "tint": "${if(gt(sources.data.cpu.usage, 85), 'danger', if(gt(sources.data.cpu.usage, 60), 'warning', 'good'))}"
-          }
-        ]
-      },
-      {
-        "type": "vstack",
-        "spacing": 3,
-        "children": [
           {
             "type": "hstack",
             "children": [
               {
                 "type": "text",
-                "text": "Memory",
-                "role": "caption"
+                "text": "Busiest core",
+                "role": "caption",
+                "foreground": "secondary"
+              },
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "text",
+                "text": "${string(round(number(sources.data.cpu.coreMax), 0))}%",
+                "role": "caption",
+                "monospacedDigit": true,
+                "foreground": "${if(gt(sources.data.cpu.coreMax, 99), 'danger', if(gt(sources.data.cpu.coreMax, 90), 'warning', 'primary'))}"
+              }
+            ]
+          },
+          {
+            "type": "hstack",
+            "children": [
+              {
+                "type": "text",
+                "text": "Load average (1 min)",
+                "role": "caption",
+                "foreground": "secondary"
+              },
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "text",
+                "text": "${string(round(number(sources.data.cpu.loadAverage.1m), 2))}",
+                "role": "caption",
+                "monospacedDigit": true,
+                "foreground": "primary"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "section",
+        "title": "Memory",
+        "spacing": 5,
+        "children": [
+          {
+            "type": "progress",
+            "style": "linear",
+            "value": "${div(sources.data.memory.usage, 100)}",
+            "tint": "${if(gt(sources.data.memory.usage, 93), 'danger', if(gt(sources.data.memory.usage, 85), 'warning', 'secondary'))}"
+          },
+          {
+            "type": "hstack",
+            "children": [
+              {
+                "type": "text",
+                "text": "${string(round(div(number(sources.data.memory.used), 1000000000), 1))} GB of ${string(round(div(number(sources.data.memory.total), 1000000000), 1))} GB",
+                "role": "caption",
+                "foreground": "secondary"
               },
               {
                 "type": "spacer"
@@ -186,29 +244,52 @@
                 "text": "${string(round(number(sources.data.memory.usage), 0))}%",
                 "role": "caption",
                 "monospacedDigit": true,
-                "foreground": "${if(gt(sources.data.memory.usage, 85), 'danger', if(gt(sources.data.memory.usage, 65), 'warning', 'good'))}"
+                "foreground": "${if(gt(sources.data.memory.usage, 93), 'danger', if(gt(sources.data.memory.usage, 85), 'warning', 'primary'))}"
               }
             ]
           },
-          {
-            "type": "progress",
-            "style": "linear",
-            "value": "${div(sources.data.memory.usage, 100)}",
-            "tint": "${if(gt(sources.data.memory.usage, 85), 'danger', if(gt(sources.data.memory.usage, 65), 'warning', 'good'))}"
-          }
-        ]
-      },
-      {
-        "type": "vstack",
-        "spacing": 3,
-        "children": [
           {
             "type": "hstack",
             "children": [
               {
                 "type": "text",
-                "text": "Disk",
-                "role": "caption"
+                "text": "Pressure",
+                "role": "caption",
+                "foreground": "secondary"
+              },
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "text",
+                "text": "${switch(coalesce(sources.data.memory.pressure, 'normal'), 'critical', if(transforms.ko, '높음', 'High'), 'warning', if(transforms.ko, '주의', 'Elevated'), if(transforms.ko, '보통', 'Normal'))}",
+                "role": "caption",
+                "monospacedDigit": true,
+                "foreground": "${if(eq(sources.data.memory.pressure, 'critical'), 'danger', if(eq(sources.data.memory.pressure, 'warning'), 'warning', 'primary'))}"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "section",
+        "title": "Disk",
+        "spacing": 5,
+        "children": [
+          {
+            "type": "progress",
+            "style": "linear",
+            "value": "${div(sources.data.disk.usage, 100)}",
+            "tint": "${if(gt(sources.data.disk.usage, 90), 'danger', if(gt(sources.data.disk.usage, 75), 'warning', 'secondary'))}"
+          },
+          {
+            "type": "hstack",
+            "children": [
+              {
+                "type": "text",
+                "text": "${string(round(div(number(sources.data.disk.free), 1000000000), 1))} GB free",
+                "role": "caption",
+                "foreground": "secondary"
               },
               {
                 "type": "spacer"
@@ -218,17 +299,56 @@
                 "text": "${string(round(number(sources.data.disk.usage), 0))}%",
                 "role": "caption",
                 "monospacedDigit": true,
-                "foreground": "${if(gt(sources.data.disk.usage, 90), 'danger', if(gt(sources.data.disk.usage, 75), 'warning', 'good'))}"
+                "foreground": "${if(gt(sources.data.disk.usage, 90), 'danger', if(gt(sources.data.disk.usage, 75), 'warning', 'primary'))}"
               }
             ]
-          },
-          {
-            "type": "progress",
-            "style": "linear",
-            "value": "${div(sources.data.disk.usage, 100)}",
-            "tint": "${if(gt(sources.data.disk.usage, 90), 'danger', if(gt(sources.data.disk.usage, 75), 'warning', 'good'))}"
           }
         ]
+      },
+      {
+        "type": "section",
+        "title": "Using the most CPU",
+        "spacing": 4,
+        "hidden": "${not(coalesce(widget.visible, false))}",
+        "children": {
+          "forEach": "$.sources.top.processes",
+          "as": "proc",
+          "template": {
+            "type": "hstack",
+            "id": "proc-${proc.pid}",
+            "spacing": 6,
+            "children": [
+              {
+                "type": "text",
+                "text": "${proc.name}",
+                "role": "body",
+                "lineLimit": 1
+              },
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "text",
+                "text": "${string(round(mul(number(proc.cpu), number(sources.data.cpu.coreCount)), 0))}%",
+                "role": "caption",
+                "monospacedDigit": true,
+                "foreground": "secondary"
+              },
+              {
+                "type": "button",
+                "icon": "xmark",
+                "hidden": "${not(proc.isApp)}",
+                "action": {
+                  "type": "quitApp",
+                  "value": "${proc.pid}"
+                },
+                "accessibility": {
+                  "label": "Quit ${proc.name}"
+                }
+              }
+            ]
+          }
+        }
       }
     ]
   },

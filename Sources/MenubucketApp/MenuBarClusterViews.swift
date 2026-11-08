@@ -144,7 +144,7 @@ struct ClusterCardView: View {
 
     var body: some View {
         if let widget = model.widget {
-            MenuBarWidgetPopover(widget: widget, runtime: runtime)
+            MenuBarWidgetPopover(widget: widget, runtime: runtime, switchesWithArrows: true)
                 .id(widget.id)
         } else {
             Color.clear.frame(width: MenuBarWidgetPopover.width, height: ControlMetrics.height)

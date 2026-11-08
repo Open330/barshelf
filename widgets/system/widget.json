@@ -3,8 +3,8 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.system",
   "name": "System",
-  "version": "0.5.3",
-  "minHostVersion": "0.3.11",
+  "version": "0.6.0",
+  "minHostVersion": "0.7.13",
   "icon": "cpu.fill",
   "bucket": {
     "group": "System",
@@ -28,8 +28,10 @@
     "system": [
       "cpu",
       "memory",
-      "disk"
-    ]
+      "disk",
+      "processes"
+    ],
+    "quitApps": true
   },
   "settings": [
     {
@@ -118,7 +120,6 @@
   "appearance": {
     "accent": "purple"
   },
-
   "localizations": {
     "ko": {
       "System": "시스템",
@@ -140,7 +141,15 @@
       "Memory used": "사용 중인 메모리",
       "Memory available": "사용 가능한 메모리",
       "Disk": "디스크",
-      "${if(transforms.plainTooltip, '', concat(transforms.label1, ' ', transforms.text1, if(transforms.hasSecond, concat(' · ', transforms.label2, ' ', transforms.text2), ''), '\n'))}CPU ${string(round(number(sources.data.cpu.usage), 0))}% · Memory ${string(round(number(sources.data.memory.usage), 0))}% · Disk ${string(round(number(sources.data.disk.usage), 0))}%": "${if(transforms.plainTooltip, '', concat(transforms.label1, ' ', transforms.text1, if(transforms.hasSecond, concat(' · ', transforms.label2, ' ', transforms.text2), ''), '\n'))}CPU ${string(round(number(sources.data.cpu.usage), 0))}% · 메모리 ${string(round(number(sources.data.memory.usage), 0))}% · 디스크 ${string(round(number(sources.data.disk.usage), 0))}%"
+      "${if(transforms.plainTooltip, '', concat(transforms.label1, ' ', transforms.text1, if(transforms.hasSecond, concat(' · ', transforms.label2, ' ', transforms.text2), ''), '\n'))}CPU ${string(round(number(sources.data.cpu.usage), 0))}% · Memory ${string(round(number(sources.data.memory.usage), 0))}% · Disk ${string(round(number(sources.data.disk.usage), 0))}%": "${if(transforms.plainTooltip, '', concat(transforms.label1, ' ', transforms.text1, if(transforms.hasSecond, concat(' · ', transforms.label2, ' ', transforms.text2), ''), '\n'))}CPU ${string(round(number(sources.data.cpu.usage), 0))}% · 메모리 ${string(round(number(sources.data.memory.usage), 0))}% · 디스크 ${string(round(number(sources.data.disk.usage), 0))}%",
+      "User ${string(round(number(sources.data.cpu.user), 0))}% · System ${string(round(number(sources.data.cpu.system), 0))}%": "사용자 ${string(round(number(sources.data.cpu.user), 0))}% · 시스템 ${string(round(number(sources.data.cpu.system), 0))}%",
+      "Load average (1 min)": "평균 부하 (1분)",
+      "${string(round(div(number(sources.data.memory.used), 1000000000), 1))} GB of ${string(round(div(number(sources.data.memory.total), 1000000000), 1))} GB": "${string(round(div(number(sources.data.memory.total), 1000000000), 1))} GB 중 ${string(round(div(number(sources.data.memory.used), 1000000000), 1))} GB",
+      "Pressure": "압력",
+      "${string(round(div(number(sources.data.disk.free), 1000000000), 1))} GB free": "${string(round(div(number(sources.data.disk.free), 1000000000), 1))} GB 남음",
+      "Using the most CPU": "CPU를 많이 쓰는 앱",
+      "Quit ${proc.name}": "${proc.name} 종료",
+      "User": "사용자"
     }
   }
 }

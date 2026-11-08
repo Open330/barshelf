@@ -153,7 +153,9 @@ extension SharedShelf {
             if let index = others.firstIndex(where: { $0.isCaption && $0.text.count <= 6 }), index > 0 {
                 others.insert(others.remove(at: index), at: 0)
             }
+            // A stacked meter reads as its total.
             let fraction = progress?.value
+                ?? progress?.clampedSegments.map { $0.reduce(0) { $0 + $1.value } }
                 ?? progress?.countdown.flatMap { countdown in
                     countdown.until > countdown.from
                         ? max(0, min(1, (countdown.until - Date().timeIntervalSince1970 * 1000) / (countdown.until - countdown.from)))

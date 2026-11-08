@@ -439,7 +439,7 @@ final class RegistryTests: XCTestCase {
         // must stop claiming a command the widget no longer runs.
         let system = try XCTUnwrap(index.widgets.first { $0.id == "dev.barshelf.system" })
         XCTAssertEqual(system.permissions?.exec, [])
-        XCTAssertEqual(system.permissions?.system, ["cpu", "memory", "disk"])
+        XCTAssertEqual(system.permissions?.system, ["cpu", "memory", "disk", "processes"])
     }
 
 }

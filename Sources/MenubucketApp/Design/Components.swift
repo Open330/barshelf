@@ -535,3 +535,22 @@ extension View {
         modifier(HoverHint(title: title, key: key, alignment: alignment))
     }
 }
+
+/// A reading's recent trend, drawn exactly as a widget's `sparkline` node
+/// is, so the trend the host adds and one a widget draws look the same.
+struct TrendLine: View {
+    let values: [Double]
+    var tint: Color = .primary
+    /// 100 for a percentage, so 20 % does not fill the height.
+    var ceiling: Double?
+    var height: CGFloat = ChartMetrics.sparklineHeight
+
+    var body: some View {
+        SparklineView(
+            node: UINode(type: "sparkline", values: NumberList(values), min: ceiling == nil ? nil : 0, max: ceiling),
+            tint: tint,
+            height: height
+        )
+        .accessibilityHidden(true)
+    }
+}

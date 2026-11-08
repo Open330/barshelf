@@ -72,7 +72,10 @@ final class WidgetVisibilityTests: XCTestCase {
          "view":{"type":"text","text":"${sources.d.cpu.usage}"}}
         """)
         XCTAssertFalse(plain.readsWidgetVisibility)
-        XCTAssertFalse(try loadShippedWorkflow("system").readsWidgetVisibility)
+        XCTAssertFalse(try loadShippedWorkflow("clock").readsWidgetVisibility)
+        // System reads it now: its busiest-apps list is sampled only while
+        // its card is on screen.
+        XCTAssertTrue(try loadShippedWorkflow("system").readsWidgetVisibility)
     }
 
     // MARK: The flag resolves to a real boolean

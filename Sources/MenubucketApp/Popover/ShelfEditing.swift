@@ -21,6 +21,9 @@ enum CardPlacement {
     case shelf
     /// Alone, from its own menu bar item: nothing about pages or pins.
     case single
+    /// In the card a menu bar item opens, which draws the header, the
+    /// controls and the widget's reading itself (`MenuBarWidgetPopover`).
+    case menuBar
 }
 
 /// Pinning rules. The pinned strip above the pages has room for two compact

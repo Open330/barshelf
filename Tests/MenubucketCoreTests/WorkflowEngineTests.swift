@@ -914,11 +914,15 @@ final class NativeWidgetsTests: XCTestCase {
         )
         let bars = allNodes(ofType: "progress", in: out.viewTree)
         XCTAssertEqual(bars.count, 3)                               // CPU, Memory, Disk
-        XCTAssertEqual(bars[0].value ?? 0, 0.30, accuracy: 0.0001)  // CPU
-        XCTAssertEqual(bars[0].tint, "good")
+        // CPU is split user / system; a reading in its normal range stays
+        // neutral, colour is for one that needs attention.
+        XCTAssertEqual(bars[0].segments?.count, 2)
+        XCTAssertEqual(bars[0].segments?.first?.tint, "secondary")
+        XCTAssertEqual(bars[1].tint, "secondary")                   // Memory 50 %
         XCTAssertEqual(bars[2].value ?? 0, 0.92, accuracy: 0.0001)  // Disk
         XCTAssertEqual(bars[2].tint, "danger")
-        XCTAssertTrue(flat(out.viewTree).contains("1.25"))          // load average
+        XCTAssertTrue(flat(out.viewTree).contains("1.25"))          // load average, now labelled
+        XCTAssertTrue(flat(out.viewTree).contains("Load average (1 min)"))
     }
 
     func testSystemStatusTextFeedsTheMenuBar() throws {

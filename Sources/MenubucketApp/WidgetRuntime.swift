@@ -846,6 +846,9 @@ final class WidgetRuntime: ObservableObject {
         if permissions?.notifications == true {
             rows.append(PermissionRequest(symbol: "bell.fill", description: String(localized: "Show notifications")))
         }
+        if permissions?.quitApps == true {
+            rows.append(PermissionRequest(symbol: "xmark.app.fill", description: String(localized: "Quit apps you choose, asking each time")))
+        }
         if let net = permissions?.network, !net.isEmpty {
             let hosts = net.prefix(4).joined(separator: ", ")
             let suffix = net.count > 4 ? ", …" : ""
@@ -1715,6 +1718,8 @@ final class WidgetRuntime: ObservableObject {
     }
 
     /// Recent readings of each charting item, oldest first.
+    /// Recent menu bar readings for the trend in a menu bar item's card.
+    let readingHistory = ReadingHistory()
     private(set) var menuBarHistory: [String: MenuBarChartHistory] = [:]
     /// Widgets with a snapshot the chart has not taken a point from yet.
     private var chartPending: Set<String> = []
@@ -2448,12 +2453,13 @@ final class WidgetRuntime: ObservableObject {
         if let requested, requested.isEmpty {
             throw RuntimeError.invalidWorkflow(
                 "system source \"metrics\" lists no known group"
-                    + " (cpu, memory, disk, network, sensors)"
+                    + " (cpu, memory, disk, network, sensors, processes)"
             )
         }
-        let (allowed, denied) = SystemMetrics.authorized(
+        let (authorized, denied) = SystemMetrics.authorized(
             requested, declared: widget.manifest.permissions?.system
         )
+        var allowed = authorized
         guard denied.isEmpty else {
             let names = denied.map(\.rawValue).sorted()
             auditLog.record("system.blocked", widgetId: widget.id, detail: [
@@ -2477,9 +2483,19 @@ final class WidgetRuntime: ObservableObject {
         let sensorGroups = Self.sensorGroups(from: params.objectValue?["sensors"])
         let sensorKeys = Self.sensorKeys(from: params.objectValue?["sensors"])
         let diskIO = params.objectValue?["io"]?.boolValue == true
+        let processCount = ProcessMetrics.count(from: params.objectValue?["processes"])
+        // `processes: {when: false}` skips the group for this sample — a
+        // menu bar widget asks for it only while its card is on screen
+        // (`"when": "${widget.visible}"`), not on every refresh.
+        let skipsProcesses = allowed.contains(.processes)
+            && params.objectValue?["processes"]?.objectValue?["when"]?.boolValue == false
+        if skipsProcesses { allowed.remove(.processes) }
+        // Running apps name the `processes` rows; read only when that group
+        // is sampled.
+        let apps = allowed.contains(.processes) ? await Self.runningAppIdentities() : nil
         // Sampling blocks on Mach/IOKit calls (and, on a cold CPU sampler, a
         // short baseline window), so it stays off the main thread.
-        return await Task.detached(priority: .userInitiated) {
+        let sample = await Task.detached(priority: .userInitiated) {
             SystemMetrics.sample(
                 metrics: allowed,
                 detail: detail,
@@ -2487,9 +2503,29 @@ final class WidgetRuntime: ObservableObject {
                 sensorKeys: sensorKeys,
                 diskIO: diskIO,
                 mountPoint: mountPoint,
-                networkInterface: networkInterface
+                networkInterface: networkInterface,
+                processCount: processCount,
+                apps: apps
             )
         }.value
+        // A skipped group is an empty list, not a missing one, so a view's
+        // `forEach` over it renders nothing instead of failing.
+        guard skipsProcesses, case var .object(fields) = sample else { return sample }
+        fields["processes"] = .array([])
+        return .object(fields)
+    }
+
+    /// Regular (Dock) apps by pid: what a `processes` row calls an app.
+    @MainActor
+    static func runningAppIdentities() -> [Int32: ProcessMetrics.AppIdentity] {
+        var apps: [Int32: ProcessMetrics.AppIdentity] = [:]
+        for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular {
+            apps[app.processIdentifier] = ProcessMetrics.AppIdentity(
+                name: app.localizedName ?? app.bundleIdentifier ?? "pid \(app.processIdentifier)",
+                bundleID: app.bundleIdentifier
+            )
+        }
+        return apps
     }
 
     /// `"sensors"` on a system source: which sensor readings the widget
@@ -3105,6 +3141,10 @@ final class WidgetRuntime: ObservableObject {
         snapshots[id] = snapshot
         cardModels[id]?.snapshot = snapshot
         if errorChanged { updateAttention() }
+        if menuBarWidgetIDs.contains(id), previous?.updatedAt != snapshot.updatedAt,
+           let reading = ReadingHistory.reading(of: snapshot) {
+            readingHistory.record(id, reading)
+        }
         if menuBarWidgetIDs.contains(id), Self.menuBarStateChanged(from: previous, to: snapshot) {
             // Loading/error-only changes are not new measurements. Inserting
             // those into chart history repeated the previous reading.
@@ -3149,6 +3189,7 @@ final class WidgetRuntime: ObservableObject {
 
     /// Drops per-widget state for removed widget ids (hot reload cleanup).
     private func removeWidgetState(notIn liveIDs: Set<String>) {
+        readingHistory.retain(liveIDs)
         // A throttled cache write outlives the widget by up to
         // `persistIntervalSec`; left alone it would re-create the cache file
         // of a widget removed by hot reload, and a reinstall would show it.

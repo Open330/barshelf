@@ -62,6 +62,8 @@ enum Fill {
     static let hover = adaptive(light: 0.075, dark: 0.11)
     /// Pressed, or a selected row.
     static let pressed = adaptive(light: 0.11, dark: 0.15)
+    /// Content shown but no longer current: a reading past its refresh.
+    static let staleOpacity: Double = 0.55
     /// A meter's or ring's empty track.
     static let track = adaptive(light: 0.09, dark: 0.14)
     /// Hairline borders, where a border is needed at all (Increase Contrast,
@@ -254,6 +256,26 @@ enum StatusTone {
         case .warning: return "exclamationmark.triangle.fill"
         case .critical: return "xmark.octagon.fill"
         }
+    }
+}
+
+/// Small charts drawn inside a widget: `sparkline` and stacked meters.
+enum ChartMetrics {
+    /// A sparkline's height when the widget does not set one.
+    static let sparklineHeight: CGFloat = 34
+    static let lineWidth: CGFloat = 1.5
+    /// The emphasised last point, and the soft halo around it.
+    static let pointDiameter: CGFloat = 5
+    static let haloDiameter: CGFloat = 9
+    /// An untinted line is the primary ink, quieter than text.
+    static let neutralInk: Double = 0.55
+    /// The area under the line fades from this to `areaBottom`.
+    static let areaTop: Double = 0.22
+    static let areaBottom: Double = 0.02
+    /// Parts of a stacked meter after the first, without their own tint,
+    /// fade the meter's colour step by step so they stay distinguishable.
+    static func segmentOpacity(_ index: Int) -> Double {
+        max(1 - Double(index) * 0.3, 0.3)
     }
 }
 

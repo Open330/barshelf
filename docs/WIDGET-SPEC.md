@@ -232,8 +232,9 @@ Workflow DSL 상세 계약은 [`docs/WORKFLOW.md`](WORKFLOW.md)를 따른다.
 | `network` | 예약. 네트워크 접근 선언용 배열. |
 | `readPaths` | 파일 접근의 유일한 정식 권한 선언. `fs.directory`, 파일 썸네일·드래그·열기/Finder 표시가 접근할 수 있는 루트 경로 배열이다. `fs.directory` 목록과 `watch: true` 감시는 승인된 디렉터리 핸들에 묶여 심볼릭 링크 교체로 다른 위치를 가리킬 수 없다. |
 | `storage` | script storage quota와 secret 허용 여부 선언. 스키마의 정식 형식은 `{ "maxBytes": 1048576, "secrets": false }`다. |
-| `system` | workflow `system` source가 읽을 수 있는 측정 그룹 배열: `cpu`, `memory`, `disk`, `sensors`, `network`. 선언하지 않은 그룹을 읽으면 refresh가 실패한다. 서브프로세스도 파일 접근도 없으므로 `exec`/`readPaths`는 필요 없다. |
+| `system` | workflow `system` source가 읽을 수 있는 측정 그룹 배열: `cpu`, `memory`, `disk`, `sensors`, `network`, `processes`. 선언하지 않은 그룹을 읽으면 refresh가 실패한다. 서브프로세스도 파일 접근도 없으므로 `exec`/`readPaths`는 필요 없다. `processes`는 source의 `metrics`에 이름을 적었을 때만 샘플링한다. |
 | `notifications` | `true`이면 script 런타임의 `host.notify.show` 요청을 허용한다. |
+| `quitApps` | `true`이면 `quitApp` 액션을 허용한다. 앱 실행(`openApp`)은 권한이 필요 없지만, 종료는 작업을 잃을 수 있으므로 선언하고 다른 권한과 함께 승인받아야 한다. 승인 후에도 종료할 때마다 사용자에게 묻는다. |
 | `env` | 호스트가 읽거나 source 명령 탐색에 사용할 수 있는 환경 변수 이름. |
 | `keychain` | Keychain 조회 허용 여부. otpeek vault password 주입에 사용한다. |
 
@@ -499,6 +500,53 @@ Countdown progress:
 
 `countdown.from`과 `countdown.until`은 Unix epoch milliseconds이다. Countdown은 `value` 대신 사용할 수 있으며, 팝오버가 열려 있는 동안 호스트가 1초 tick으로 자체 갱신한다. 코드나 스크립트를 매초 다시 실행하지 않는다.
 
+누적(stacked) progress — 한 막대에 여러 부분을 이어 그린다(예: CPU user + system):
+
+```json
+{
+  "type": "progress",
+  "style": "linear",
+  "label": "CPU",
+  "segments": [
+    { "value": 0.32, "tint": "accent", "label": "User" },
+    { "value": 0.12, "tint": "warning", "label": "System" }
+  ]
+}
+```
+
+`segments`는 linear 스타일 전용이며, 있으면 `value`는 무시한다. 각 `value`는
+0.0~1.0이고 왼쪽부터 차례로 그린다. 합계는 1로 잘린다 — 넘치는 부분은 남은
+만큼만 그리고 그 뒤 부분은 그리지 않는다. 음수는 0이다. `tint`가 없는 부분은
+노드의 `tint`(없으면 accent)를 단계적으로 옅게 그린다. VoiceOver 값은 부분마다
+`label`과 비율("User 32%, System 12%")을 읽는다. `segments`가 없으면 기존 `value`
+동작 그대로다.
+
+### `sparkline`
+
+```json
+{
+  "type": "sparkline",
+  "values": "${storage.cpuHistory}",
+  "min": 0,
+  "max": 100,
+  "tint": "accent",
+  "height": 34
+}
+```
+
+작은 추세선: 선 아래 옅은 영역을 채우고 마지막 점을 강조한다.
+
+| 필드 | 설명 |
+| --- | --- |
+| `values` | 숫자 배열, 오래된 것부터. 필수. `"${…}"` 하나로 된 문자열은 배열 타입을 그대로 유지하므로 workflow 식(`storage`, `sources`)의 배열을 바로 넘길 수 있다. 숫자 문자열은 숫자로 읽고, 그 밖의 항목(`null` 등)은 건너뛴다. 값이 하나면 수평선, 없으면 옅은 기준선만 그린다. |
+| `min` / `max` | 아래/위 끝의 값. 생략하면 데이터 범위에 폭의 10%씩 여유를 둔다. 범위를 벗어난 값은 끝에 붙는다. |
+| `tint` | 선 색(다른 노드와 같은 색 이름). 생략하면 중립적인 primary를 옅게 그린다. |
+| `height` | 높이(pt). 기본 34, Compact 밀도에서는 다른 노드처럼 줄어든다. |
+
+도형만으로 그리므로 오프스크린(ImageRenderer, 데스크톱 위젯 스냅샷)에서도
+똑같이 렌더링된다. `accessibilityLabel`이 없으면 VoiceOver 레이블은 "Trend from
+첫 값 to 마지막 값, low 최저, high 최고" 요약이고, 레이블을 주면 그 요약이 값이 된다.
+
 ### `button`
 
 ```json
@@ -564,6 +612,7 @@ Script 위젯에서는 같은 구조를 직접 쓰는 대신 SDK의 `ui.metricCa
 | `openFile` | `path` | 파일을 기본 앱으로 연다. |
 | `revealFile` | `path` | Finder에서 파일을 표시한다. |
 | `openApp` | `value` | 앱을 실행한다. bundle id(`com.apple.iCal`), 표시 이름(`Activity Monitor`), 또는 `.app` 전체 경로를 받는다. |
+| `quitApp` | `value` | 실행 중인 앱을 종료한다. bundle id 또는 pid(숫자나 숫자 문자열)를 받는다. `permissions.quitApps: true`가 필요하고, 매번 "Quit <앱>?" 확인(기본 버튼은 취소)을 거친다. 일반 종료(`terminate`)만 보내므로 앱이 저장 여부를 물을 수 있고, 강제 종료는 하지 않는다. 앱이 아닌 pid(데몬, 헬퍼, CLI)와 BarShelf 자신은 거부한다. |
 | `run` | `command`, `thenRefresh` | manifest `permissions.exec` allowlist와 매칭되는 명령만 실행한다. |
 | `refresh` | 없음 | 현재 위젯을 수동 갱신한다. |
 
@@ -581,7 +630,18 @@ Script 위젯에서는 같은 구조를 직접 쓰는 대신 SDK의 `ui.metricCa
 }
 ```
 
-`openURL`/`openFile`/`revealFile`/`openApp`은 사용자가 직접 클릭해 여는 host 액션이므로 별도의 `permissions.exec` 권한이 필요 없다. 번들 위젯 예: Today/Calendar→Calendar 앱, System→활성 상태 보기, Stock→Yahoo Finance, Weather→날씨 앱.
+`openURL`/`openFile`/`revealFile`/`openApp`은 사용자가 직접 클릭해 여는 host 액션이므로 별도의 `permissions.exec` 권한이 필요 없다. `quitApp`은 예외로 `permissions.quitApps`가 필요하다.
+
+`system` source의 `processes` 행에서 바로 종료 버튼을 만들 수 있다:
+
+```json
+{
+  "type": "button",
+  "title": "Quit",
+  "hidden": "${not(row.isApp)}",
+  "action": { "type": "quitApp", "value": "${row.pid}" }
+}
+``` 번들 위젯 예: Today/Calendar→Calendar 앱, System→활성 상태 보기, Stock→Yahoo Finance, Weather→날씨 앱.
 
 `run` 예:
 

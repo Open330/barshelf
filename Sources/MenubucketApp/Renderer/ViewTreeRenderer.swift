@@ -257,6 +257,12 @@ struct NodeView: View {
             imageView
         case .progress:
             progressView
+        case .sparkline:
+            SparklineView(
+                node: node,
+                tint: nodeColor(node.tint, accent: accentOverride),
+                height: CGFloat(node.height ?? ChartMetrics.sparklineHeight) * scale
+            )
         case .button:
             buttonView
         case .badge:
@@ -451,10 +457,18 @@ struct NodeView: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
-                LinearMeter(
-                    fraction: min(max(node.value ?? 0, 0), 1),
-                    tint: nodeColor(node.tint, accent: accentOverride) ?? effectiveAccent
-                )
+                if let segments = node.clampedSegments {
+                    SegmentedMeter(
+                        segments: segments,
+                        baseTint: nodeColor(node.tint, accent: accentOverride) ?? effectiveAccent,
+                        accent: accentOverride
+                    )
+                } else {
+                    LinearMeter(
+                        fraction: min(max(node.value ?? 0, 0), 1),
+                        tint: nodeColor(node.tint, accent: accentOverride) ?? effectiveAccent
+                    )
+                }
             }
         }
     }
@@ -475,7 +489,9 @@ struct NodeView: View {
             }
             .font(.callout)
         }
-        .buttonStyle(.bordered)
+        // The app's capsule, so a widget's buttons match every other
+        // button in BarShelf.
+        .buttonStyle(.glass(.secondary))
         .controlSize(.small)
         .modifier(AccentTint(color: accentOverride))
     }
@@ -667,6 +683,177 @@ private struct LinearMeter: View {
         }
         .frame(height: height)
         .frame(maxWidth: .infinity)
+    }
+}
+
+/// A stacked linear meter: one track, its parts laid end to end (CPU user
+/// then system, say). `segments` arrive clamped so they never overflow.
+/// Shapes only, so it renders offscreen like `LinearMeter`.
+struct SegmentedMeter: View {
+    let segments: [UINode.ProgressSegment]
+    let baseTint: Color
+    let accent: Color?
+    var height: CGFloat = 6
+
+    var body: some View {
+        GeometryReader { geo in
+            HStack(spacing: 0) {
+                ForEach(Array(segments.enumerated()), id: \.offset) { index, segment in
+                    Rectangle()
+                        .fill(color(for: segment, at: index))
+                        .frame(width: geo.size.width * CGFloat(segment.value))
+                }
+                Spacer(minLength: 0)
+            }
+            .background(Fill.track)
+            .clipShape(Capsule())
+        }
+        .frame(height: height)
+        .frame(maxWidth: .infinity)
+        .accessibilityElement()
+        .accessibilityValue(Self.accessibilityValue(for: segments))
+    }
+
+    private func color(for segment: UINode.ProgressSegment, at index: Int) -> Color {
+        if let own = nodeColor(segment.tint, accent: accent) { return own }
+        return baseTint.opacity(ChartMetrics.segmentOpacity(index))
+    }
+
+    /// "User 32%, System 12%" — each part with its share of the meter.
+    static func accessibilityValue(for segments: [UINode.ProgressSegment]) -> String {
+        let parts = segments.map { segment -> String in
+            let percent = segment.value.formatted(.percent.precision(.fractionLength(0)))
+            guard let label = segment.label, !label.isEmpty else { return percent }
+            return String(localized: "\(label) \(percent)", comment: "One part of a stacked meter for VoiceOver: its label, then its share")
+        }
+        return ListFormatter.localizedString(byJoining: parts)
+    }
+}
+
+/// `sparkline`: a small trend line over `values` (oldest first), a soft
+/// area under it and the latest point emphasised. Drawn with shapes so it
+/// renders the same in the popup and offscreen (ImageRenderer).
+struct SparklineView: View {
+    let node: UINode
+    /// The node's tint, or nil for the neutral ink.
+    let tint: Color?
+    let height: CGFloat
+
+    private var ink: Color { tint ?? Color.primary.opacity(ChartMetrics.neutralInk) }
+
+    var body: some View {
+        let values = node.values?.values ?? []
+        let domain = node.sparklineDomain
+        GeometryReader { geo in
+            if let domain, !values.isEmpty {
+                let points = Self.points(values, domain: domain, in: Self.plotRect(geo.size))
+                ZStack(alignment: .topLeading) {
+                    Self.area(points, bottom: geo.size.height)
+                        .fill(LinearGradient(
+                            colors: [
+                                ink.opacity(ChartMetrics.areaTop),
+                                ink.opacity(ChartMetrics.areaBottom),
+                            ],
+                            startPoint: .top, endPoint: .bottom
+                        ))
+                    Self.line(points)
+                        .stroke(ink, style: StrokeStyle(
+                            lineWidth: ChartMetrics.lineWidth, lineCap: .round, lineJoin: .round
+                        ))
+                    if let last = points.last {
+                        Circle()
+                            .fill(ink.opacity(Fill.Wash.strong))
+                            .frame(width: ChartMetrics.haloDiameter, height: ChartMetrics.haloDiameter)
+                            .position(last)
+                        Circle()
+                            .fill(ink)
+                            .frame(width: ChartMetrics.pointDiameter, height: ChartMetrics.pointDiameter)
+                            .position(last)
+                    }
+                }
+            } else {
+                // Nothing to plot yet: a quiet baseline keeps the layout.
+                Capsule()
+                    .fill(Fill.track)
+                    .frame(height: ChartMetrics.lineWidth)
+                    .frame(maxHeight: .infinity)
+            }
+        }
+        .frame(height: height)
+        .frame(maxWidth: .infinity)
+        .accessibilityElement()
+        .accessibilityLabel(node.effectiveAccessibilityLabel ?? Self.summary(values))
+        .modifier(SparklineValueModifier(
+            value: node.effectiveAccessibilityLabel == nil ? nil : Self.summary(values)
+        ))
+    }
+
+    /// Inset so the line's caps and the last point's halo stay in frame.
+    static func plotRect(_ size: CGSize) -> CGRect {
+        let inset = ChartMetrics.haloDiameter / 2
+        return CGRect(x: 0, y: inset, width: max(size.width - inset, 1), height: max(size.height - inset * 2, 1))
+    }
+
+    /// Values mapped into `rect`, the domain's bottom at its bottom edge.
+    /// Values outside an explicit `min`/`max` sit on the edge. One value
+    /// draws as a level line across.
+    static func points(_ values: [Double], domain: ClosedRange<Double>, in rect: CGRect) -> [CGPoint] {
+        let series = values.count == 1 ? [values[0], values[0]] : values
+        let span = domain.upperBound - domain.lowerBound
+        let step = series.count > 1 ? rect.width / CGFloat(series.count - 1) : 0
+        return series.enumerated().map { index, value in
+            let clamped = min(max(value, domain.lowerBound), domain.upperBound)
+            let fraction = span > 0 ? (clamped - domain.lowerBound) / span : 0.5
+            return CGPoint(
+                x: rect.minX + step * CGFloat(index),
+                y: rect.maxY - rect.height * CGFloat(fraction)
+            )
+        }
+    }
+
+    static func line(_ points: [CGPoint]) -> Path {
+        Path { path in
+            guard let first = points.first else { return }
+            path.move(to: first)
+            for point in points.dropFirst() { path.addLine(to: point) }
+        }
+    }
+
+    static func area(_ points: [CGPoint], bottom: CGFloat) -> Path {
+        Path { path in
+            guard let first = points.first, let last = points.last else { return }
+            path.move(to: CGPoint(x: first.x, y: bottom))
+            for point in points { path.addLine(to: point) }
+            path.addLine(to: CGPoint(x: last.x, y: bottom))
+            path.closeSubpath()
+        }
+    }
+
+    /// "Trend from 12 to 31, low 9, high 40" for VoiceOver.
+    static func summary(_ values: [Double]) -> String {
+        guard let first = values.first, let last = values.last,
+              let low = values.min(), let high = values.max()
+        else { return String(localized: "Trend, no data") }
+        let format: (Double) -> String = { $0.formatted(.number.precision(.fractionLength(0...1))) }
+        return String(
+            localized: "Trend from \(format(first)) to \(format(last)), low \(format(low)), high \(format(high))",
+            comment: "Sparkline summary for VoiceOver: first, last, lowest and highest values"
+        )
+    }
+}
+
+/// Author-labelled sparklines keep their label and carry the summary as the
+/// value instead.
+private struct SparklineValueModifier: ViewModifier {
+    let value: String?
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if let value {
+            content.accessibilityValue(value)
+        } else {
+            content
+        }
     }
 }
 

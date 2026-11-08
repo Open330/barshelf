@@ -92,7 +92,7 @@ Builder의 고급 UI는 `WorkflowGraph`를 편집 모델로 사용할 수 있다
 | `fs.directory` | `path`, `watch`, `skipHidden`, `sortBy`, `sortDirection`, `limit` | `{ "items": [...] }` |
 | `exec` | `command`, `timeoutMs`, `output`, `maxOutputBytes` | stdout JSON |
 | `http` | `url`, `headers` | HTTPS JSON response |
-| `system` | `metrics`, `detail`, `sensors`, `io`, `mount`, `interface` | CPU/메모리/디스크/센서/네트워크 측정값 |
+| `system` | `metrics`, `detail`, `sensors`, `io`, `mount`, `interface`, `processes` | CPU/메모리/디스크/센서/네트워크 측정값, CPU 상위 프로세스 |
 | `value` | any JSON literal | the literal JSON value |
 
 `fs.directory` item 필드는 고정이다.
@@ -190,12 +190,49 @@ manifest의 `permissions.system`에 **모두 선언해야 한다**. 선언되지
 
 | `with` 필드 | 설명 |
 | --- | --- |
-| `metrics` | 읽을 그룹 배열: `cpu`, `memory`, `disk`, `sensors`, `network`. 생략하면 위젯이 허가받은 전부. |
+| `metrics` | 읽을 그룹 배열: `cpu`, `memory`, `disk`, `sensors`, `network`, `processes`. 생략하면 위젯이 허가받은 전부 — 단 `processes`는 이름을 적었을 때만 읽는다. |
 | `detail` | `true`면 `cpu.cores[]`와 `sensors.list[]`까지 채운다. 기본 샘플의 약 3배 비용. |
 | `sensors` | 이 위젯이 실제로 보여주는 센서 판독값. 읽을 온도 키를 그만큼만 좁힌다. |
 | `io` | `true`면 `disk.read`/`disk.write`(bytes/s)도 채운다. 저장장치 드라이버를 도는 IOKit 레지스트리 조회라, 실제로 보여줄 때만 켠다. 기본 `false`. |
 | `mount` | `disk` 그룹이 볼 마운트 포인트. 기본 `"/"`. |
 | `interface` | `network` 그룹이 볼 인터페이스. 생략하거나 `all`이면 물리 인터페이스를 합산한다. |
+| `processes` | `processes` 그룹 옵션 `{ "count": N, "when": bool }`: 돌려줄 행 수(1~10, 기본 5)와, `false`면 이번 샘플에서 건너뛰기. 메뉴바 위젯은 `"when": "${widget.visible}"`로 카드가 떠 있을 때만 읽는다. |
+
+### 상위 프로세스 (`processes`)
+
+```json
+{
+  "sources": {
+    "top": { "use": "system", "with": { "metrics": ["cpu", "processes"], "processes": { "count": 5 } } }
+  }
+}
+```
+
+manifest에 `"permissions": { "system": ["cpu", "processes"] }`가 필요하다. libproc
+(`proc_listallpids` + `proc_pidinfo(PROC_PIDTASKINFO)`)로 읽으며 서브프로세스는
+없다. 한 번 샘플링 비용은 이 Mac(프로세스 약 1,200개) 기준 약 6 ms다 — CPU 그룹보다
+비싸므로 `metrics`에 이름을 적었을 때만 읽고, 생략된 `metrics`에는 포함되지 않는다.
+
+- `cpu`는 직전 샘플 이후 구간에서 **전체 CPU 대비** 점유율(0~100)이다. `cpu.usage`와
+  같은 척도라 합산·비교할 수 있다. Activity Monitor의 "% CPU" 열은 코어 하나 기준이므로
+  `cpu × cpu.coreCount`가 그 값이다.
+- CPU 시간은 프로세스 시작 이후 누적값이라 pid별 직전 값과의 차이로 계산한다. 캐시가
+  비어 있는 첫 샘플은 `cpu` 그룹처럼 짧은 기준 구간(200 ms)을 먼저 재므로 첫 목록도
+  실제 값이다. 두 위젯이 0.25초 안에 연달아 읽으면 같은 측정을 공유한다.
+- 이 사용자가 들여다볼 수 없는 프로세스(다른 사용자·보호된 프로세스)는 빠진다.
+
+| 경로 | 설명 |
+| --- | --- |
+| `processes[]` | CPU 순 상위 N개. |
+| `processes[].pid` | 프로세스 id. `quitApp` 액션의 `value`로 그대로 넘길 수 있다. |
+| `processes[].name` | 앱이면 앱 이름, 아니면 실행 파일 이름. |
+| `processes[].cpu` | 전체 CPU 대비 %, 0~100. |
+| `processes[].memory` | 물리 메모리 사용량(footprint, Activity Monitor의 "메모리"), bytes. |
+| `processes[].bundleID` | 앱이면 bundle id, 아니면 `null`. |
+| `processes[].isApp` | Dock에 나타나는 일반 앱이면 `true`. |
+
+뷰에서는 `forEach`로 행을 만들고, 앱인 행에만 종료 버튼을 붙인다(`permissions.quitApps`
+필요, WIDGET-SPEC의 `quitApp` 참고).
 
 ### 센서 샘플 좁히기
 
