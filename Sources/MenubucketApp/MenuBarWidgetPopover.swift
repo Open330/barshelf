@@ -19,7 +19,7 @@ struct MenuBarWidgetPopover: View {
     /// Room for two-column rows without reading as a window.
     static let width: CGFloat = 330
     /// Past this the content scrolls rather than growing off the screen.
-    static let maximumHeight: CGFloat = 480
+    static let maximumHeight: CGFloat = 560
 
     var body: some View {
         MenuBarCardFrame(

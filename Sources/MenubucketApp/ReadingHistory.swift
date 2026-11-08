@@ -24,6 +24,11 @@ final class ReadingHistory: ObservableObject {
         values[widgetID] = series
     }
 
+    /// A whole series at once: staged previews (`stagePreview`) only.
+    func replace(_ widgetID: String, with series: [Double]) {
+        values[widgetID] = Array(series.suffix(Self.limit))
+    }
+
     func retain(_ widgetIDs: Set<String>) {
         guard values.keys.contains(where: { !widgetIDs.contains($0) }) else { return }
         values = values.filter { widgetIDs.contains($0.key) }

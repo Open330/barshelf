@@ -215,3 +215,26 @@ override가 걸려 있으면 설정 창의 **Update source** 행과 업데이트
   확인할 수 없다 — `verify-release.sh`의 CDHash 대조가 그 역할을 한다.
 - 직전 릴리스를 지우지 않는다 — 자가 업데이트가 잘못됐을 때의 유일한
   다운그레이드 경로다.
+
+## 랜딩 페이지 미디어
+
+UI가 바뀐 릴리스라면 `site/shots`의 영상과 스틸을 다시 만든다. 실제 앱
+뷰(메뉴바 클러스터·위젯 카드·팝업·검색·Create 창)를 화면 밖에서 렌더해
+ffmpeg로 인코딩하므로, 화면 녹화도 실제 마우스도 필요 없다.
+
+```sh
+brew install ffmpeg                        # 처음 한 번
+scripts/render-landing-media.sh            # 전부 (약 3분)
+scripts/render-landing-media.sh hero       # 하나만: hero | popup | stills
+```
+
+- 산출물: `hero-menubar.{mp4,webm,jpg}`(히어로), `popup-shelf.{mp4,webm,jpg}`
+  (쇼케이스), `og-image.jpg`, `popover-{light,dark}.png`, `tile-*.png`,
+  `builder.png`.
+- 데이터는 번들 위젯의 실제 `workflow.json`을 가짜 소스로 평가한 것이다
+  (`LandingDemo`). 이 Mac의 값·이름·파일은 들어가지 않고, 스크립트가 임시
+  홈 폴더를 쓰므로 내 BarShelf 설정도 건드리지 않는다.
+- 커서·키캡·바탕화면·유리 재질은 연출이다(오프스크린 렌더에는 vibrancy가
+  없다). 장면 타이밍과 구성은 `Sources/MenubucketApp/LandingMedia/`에 있다.
+- 결과 프레임을 몇 장 뽑아 확인한 뒤 커밋한다:
+  `ffmpeg -ss 6 -i site/shots/hero-menubar.mp4 -frames:v 1 /tmp/hero.png`

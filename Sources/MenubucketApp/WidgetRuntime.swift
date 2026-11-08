@@ -1994,6 +1994,7 @@ final class WidgetRuntime: ObservableObject {
     }
 
     func refresh(_ widget: LoadedWidget, manual: Bool = true) {
+        guard !isStagedPreview else { return }
         let id = widget.id
         guard !prefs.isDisabled(id) else { return } // disabled widgets never run
         guard scriptDisableStopTokens[id] == nil else { return }
@@ -3118,6 +3119,40 @@ final class WidgetRuntime: ObservableObject {
         setSnapshot(snapshot, for: id)
     }
 
+    // MARK: - Staged preview (landing-page media)
+
+    /// Set by `stagePreview`: from then on nothing refreshes and only staged
+    /// renders reach the cards.
+    private(set) var isStagedPreview = false
+    private var isWritingStage = false
+
+    /// Marketing renders only (`barshelf-app landing-media`): replaces the
+    /// loaded widgets with `staged`, shows `renders` as their current
+    /// snapshots, and stops every refresh, so recorded frames are
+    /// deterministic and never carry this Mac's own data. The runtime is
+    /// not usable for anything else afterwards.
+    func stagePreview(widgets staged: [LoadedWidget], renders: [WidgetSnapshot]) {
+        isStagedPreview = true
+        scheduler.configure(widgets: [])
+        for watcher in hotReloadWatchers { watcher.cancel() }
+        hotReloadWatchers = []
+        menuBarStalenessTimer?.invalidate()
+        menuBarStalenessTimer = nil
+        isWritingStage = true
+        defer { isWritingStage = false }
+        widgets = staged
+        for id in Array(overlayCards.keys) { setOverlay(nil, for: id) }
+        for render in renders { setSnapshot(render, for: render.widgetID) }
+    }
+
+    /// A staged widget's next render: one step of a recorded demo.
+    func stageRender(_ render: WidgetSnapshot) {
+        guard isStagedPreview else { return }
+        isWritingStage = true
+        defer { isWritingStage = false }
+        setSnapshot(render, for: render.widgetID)
+    }
+
     // MARK: - Per-widget publish routing (R05 perf)
 
     /// The card model the popup UI observes for this widget. Created lazily so
@@ -3135,6 +3170,8 @@ final class WidgetRuntime: ObservableObject {
     /// Single write path for snapshots: no-op (publish suppressed) when the
     /// snapshot is unchanged; otherwise only the affected card model publishes.
     private func setSnapshot(_ snapshot: WidgetSnapshot, for id: String) {
+        // A staged preview shows only what was staged.
+        guard !isStagedPreview || isWritingStage else { return }
         guard snapshots[id] != snapshot else { return }
         let previous = snapshots[id]
         let errorChanged = previous?.error != snapshot.error
@@ -3169,6 +3206,7 @@ final class WidgetRuntime: ObservableObject {
 
     /// Single write path for overlay cards (`nil` removes), same suppression.
     private func setOverlay(_ overlay: CardOverlay?, for id: String) {
+        guard !isStagedPreview || isWritingStage else { return }
         guard overlayCards[id] != overlay else { return }
         overlayCards[id] = overlay
         cardModels[id]?.overlay = overlay
