@@ -319,6 +319,10 @@ public struct Manifest: Codable, Equatable {
         /// workflow's `storage.*` reads and `store` writes, and for a script's
         /// `host.storage.*` calls to be honored beyond the default quota.
         public var storage: StoragePermission?
+        /// Allow `quitApp` actions: quit a running app after the user
+        /// confirms each one. Launching apps (`openApp`) needs no grant —
+        /// quitting can lose work, so it does.
+        public var quitApps: Bool?
 
         public init(
             exec: [ExecPermission]? = nil,
@@ -328,7 +332,8 @@ public struct Manifest: Codable, Equatable {
             keychain: Bool? = nil,
             notifications: Bool? = nil,
             storage: StoragePermission? = nil,
-            system: [String]? = nil
+            system: [String]? = nil,
+            quitApps: Bool? = nil
         ) {
             self.exec = exec
             self.network = network
@@ -338,10 +343,11 @@ public struct Manifest: Codable, Equatable {
             self.notifications = notifications
             self.storage = storage
             self.system = system
+            self.quitApps = quitApps
         }
 
         private enum CodingKeys: String, CodingKey {
-            case exec, network, readPaths, env, keychain, notifications, storage, system
+            case exec, network, readPaths, env, keychain, notifications, storage, system, quitApps
             /// A stale, never-enforced draft shape. Keep the key solely so
             /// ingestion can reject it with an actionable field-level error.
             case files
@@ -364,6 +370,7 @@ public struct Manifest: Codable, Equatable {
             notifications = try container.decodeIfPresent(Bool.self, forKey: .notifications)
             storage = try container.decodeIfPresent(StoragePermission.self, forKey: .storage)
             system = try container.decodeIfPresent([String].self, forKey: .system)
+            quitApps = try container.decodeIfPresent(Bool.self, forKey: .quitApps)
         }
 
         public func encode(to encoder: Encoder) throws {
@@ -376,6 +383,7 @@ public struct Manifest: Codable, Equatable {
             try container.encodeIfPresent(notifications, forKey: .notifications)
             try container.encodeIfPresent(storage, forKey: .storage)
             try container.encodeIfPresent(system, forKey: .system)
+            try container.encodeIfPresent(quitApps, forKey: .quitApps)
         }
     }
 

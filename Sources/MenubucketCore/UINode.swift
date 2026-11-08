@@ -68,6 +68,22 @@ public struct UINode: Codable, Equatable {
     public var labelFrom: String?
     /// First matching rule overrides `tint` (e.g. danger under 10s).
     public var tintRules: [TintRule]?
+    /// `progress` (linear): parts of one stacked meter, e.g. CPU user +
+    /// system. Drawn left to right; the total is clamped to 1. When present
+    /// the meter ignores `value`.
+    public var segments: [ProgressSegment]?
+
+    // Sparkline
+    /// `sparkline` samples, oldest first. Decodes leniently (numbers and
+    /// numeric strings; anything else is skipped) so a workflow expression
+    /// that yields a ragged array still draws what it can.
+    public var values: NumberList?
+    /// `sparkline` value at the bottom / top edge. Absent → the data range
+    /// with a little headroom.
+    public var min: Double?
+    public var max: Double?
+    /// `sparkline` height in points (default 34, scaled by Compact density).
+    public var height: Double?
 
     /// SF Symbol name (button / empty / banner leading icon).
     public var icon: String?
@@ -151,6 +167,11 @@ public struct UINode: Codable, Equatable {
         countdown: Countdown? = nil,
         labelFrom: String? = nil,
         tintRules: [TintRule]? = nil,
+        segments: [ProgressSegment]? = nil,
+        values: NumberList? = nil,
+        min: Double? = nil,
+        max: Double? = nil,
+        height: Double? = nil,
         icon: String? = nil,
         action: NodeAction? = nil,
         padding: Double? = nil,
@@ -190,6 +211,11 @@ public struct UINode: Codable, Equatable {
         self.countdown = countdown
         self.labelFrom = labelFrom
         self.tintRules = tintRules
+        self.segments = segments
+        self.values = values
+        self.min = min
+        self.max = max
+        self.height = height
         self.icon = icon
         self.action = action
         self.padding = padding
@@ -210,6 +236,7 @@ public struct UINode: Codable, Equatable {
 extension UINode: Sendable {}
 extension UINode.Countdown: Sendable {}
 extension UINode.TintRule: Sendable {}
+extension UINode.ProgressSegment: Sendable {}
 extension ImageSource: Sendable {}
 extension NodeAction: Sendable {}
 
@@ -240,13 +267,13 @@ extension UINode {
     /// this node has no countdown.
     public func countdownRemainingSeconds(nowMs: Double) -> Double? {
         guard let countdown else { return nil }
-        return max((countdown.until - nowMs) / 1000, 0)
+        return Swift.max((countdown.until - nowMs) / 1000, 0)
     }
 
     /// Remaining fraction (1 → just started, 0 → expired), clamped to 0...1.
     public func countdownFraction(nowMs: Double) -> Double? {
         guard let countdown, countdown.until > countdown.from else { return nil }
-        return min(max((countdown.until - nowMs) / (countdown.until - countdown.from), 0), 1)
+        return Swift.min(Swift.max((countdown.until - nowMs) / (countdown.until - countdown.from), 0), 1)
     }
 
     /// Effective tint after applying `tintRules` (first match wins), falling
@@ -266,6 +293,70 @@ extension UINode {
     public enum KnownType: String, CaseIterable {
         case vstack, hstack, zstack, scroll, list, grid, section, card, text, image, progress
         case button, badge, banner, empty, divider, spacer, none
+        case sparkline
+    }
+
+    /// One part of a stacked `progress` meter.
+    public struct ProgressSegment: Codable, Equatable {
+        /// Share of the whole meter, 0...1.
+        public var value: Double
+        public var tint: String?
+        public var label: String?
+
+        public init(value: Double, tint: String? = nil, label: String? = nil) {
+            self.value = value
+            self.tint = tint
+            self.label = label
+        }
+
+        private enum CodingKeys: String, CodingKey { case value, tint, label }
+
+        /// A template can yield `"0.4"` or `null` for `value`; both decode
+        /// (as 0.4 and 0) instead of failing the whole view tree.
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            value = (try? container.decodeIfPresent(LenientNumber.self, forKey: .value))?.value ?? 0
+            tint = try? container.decodeIfPresent(String.self, forKey: .tint)
+            label = try? container.decodeIfPresent(String.self, forKey: .label)
+        }
+    }
+
+    /// `segments` ready to draw: negative and non-finite values read as 0,
+    /// and the running total stops at 1 — a segment that would overflow the
+    /// meter is cut to the room left, and any after it get none. Nil when
+    /// the node has no segments (draw `value` instead).
+    public var clampedSegments: [ProgressSegment]? {
+        guard let segments else { return nil }
+        var remaining = 1.0
+        return segments.map { segment in
+            var clamped = segment
+            let value = segment.value.isFinite ? Swift.max(segment.value, 0) : 0
+            clamped.value = Swift.min(value, remaining)
+            remaining -= clamped.value
+            return clamped
+        }
+    }
+
+    /// The value range a `sparkline` maps to its bottom and top edges.
+    ///
+    /// An explicit `min`/`max` wins. Otherwise each open end takes the data's
+    /// own extreme plus 10 % of the span as headroom, so the line never sits
+    /// on the frame. A flat series (or one pinned by a single explicit end)
+    /// gets a unit of room so it draws as a level line, not a division by
+    /// zero. Nil when there are no finite values.
+    public var sparklineDomain: ClosedRange<Double>? {
+        let data = (values?.values ?? []).filter(\.isFinite)
+        guard let low = data.min(), let high = data.max() else { return nil }
+        let span = high - low
+        let headroom = span > 0 ? span * 0.1 : Swift.max(Swift.abs(high) * 0.1, 1)
+        var lower = min ?? (low - headroom)
+        var upper = max ?? (high + headroom)
+        if !lower.isFinite { lower = low - headroom }
+        if !upper.isFinite { upper = high + headroom }
+        if upper <= lower {
+            if max == nil { upper = lower + headroom } else { lower = upper - headroom }
+        }
+        return lower...upper
     }
 
     public var isKnownType: Bool {
@@ -290,6 +381,64 @@ extension UINode {
         let descendants = ((children ?? []) + (items ?? []) + [child?.node].compactMap { $0 })
             .map { $0.searchableText() }
         return (own + descendants).joined(separator: " ")
+    }
+}
+
+/// A list of numbers that decodes leniently: each element may be a number
+/// or a numeric string, and anything else (null, objects, words) is
+/// skipped. A non-array decodes as an empty list. Encodes as a plain array.
+public struct NumberList: Codable, Equatable, Sendable, ExpressibleByArrayLiteral {
+    public var values: [Double]
+
+    public init(_ values: [Double]) { self.values = values }
+
+    public init(arrayLiteral elements: Double...) { self.values = elements }
+
+    public init(from decoder: Decoder) throws {
+        guard var container = try? decoder.unkeyedContainer() else {
+            values = []
+            return
+        }
+        var values: [Double] = []
+        while !container.isAtEnd {
+            if (try? container.decodeNil()) == true { continue }
+            if let number = try? container.decode(LenientNumber.self).value {
+                if number.isFinite { values.append(number) }
+            } else if (try? container.decode(SkippedValue.self)) == nil {
+                // Could not step past the element; stop rather than spin.
+                break
+            }
+        }
+        self.values = values
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(values)
+    }
+
+    private struct SkippedValue: Decodable {
+        init(from decoder: Decoder) throws {}
+    }
+}
+
+/// A number written as a JSON number or a numeric string.
+struct LenientNumber: Decodable {
+    var value: Double
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let number = try? container.decode(Double.self) {
+            value = number
+        } else if let text = try? container.decode(String.self),
+                  let number = Double(text.trimmingCharacters(in: .whitespaces)) {
+            value = number
+        } else {
+            throw DecodingError.typeMismatch(
+                Double.self,
+                .init(codingPath: decoder.codingPath, debugDescription: "not a number")
+            )
+        }
     }
 }
 
@@ -350,9 +499,14 @@ public struct ImageSource: Codable, Equatable {
 /// with an `action` becomes tappable as a whole (a file row, a grid tile, or an
 /// entire widget card — so a widget can behave like a native one: click → open).
 /// `type`: "copyText" | "openURL" | "openFile" | "revealFile" | "openApp"
-///         | "refresh" | "run" | "event"
+///         | "quitApp" | "refresh" | "run" | "event"
 /// `openApp` opens an application by bundle id ("com.apple.iCal"), display name
 /// ("Activity Monitor"), or a full `.app` path, carried in `value`.
+/// `quitApp` asks the user, then politely quits the running app named by a
+/// bundle id or pid in `value` (needs `permissions.quitApps`).
+///
+/// `value` also accepts a JSON number (a pid from a `system` source row, say)
+/// and holds it as its decimal string.
 public struct NodeAction: Codable, Equatable {
     public var type: String
     public var value: String?
@@ -388,5 +542,29 @@ public struct NodeAction: Codable, Equatable {
         self.command = command
         self.thenRefresh = thenRefresh
         self.clearAfterSec = clearAfterSec
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case type, value, url, path, id, toast, command, thenRefresh, clearAfterSec
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        type = try container.decode(String.self, forKey: .type)
+        if let text = try? container.decodeIfPresent(String.self, forKey: .value) {
+            value = text
+        } else if let number = try? container.decodeIfPresent(Double.self, forKey: .value) {
+            value = number.rounded() == number && Swift.abs(number) < 1e15
+                ? String(Int64(number)) : String(number)
+        } else {
+            value = nil
+        }
+        url = try container.decodeIfPresent(String.self, forKey: .url)
+        path = try container.decodeIfPresent(String.self, forKey: .path)
+        id = try container.decodeIfPresent(String.self, forKey: .id)
+        toast = try container.decodeIfPresent(String.self, forKey: .toast)
+        command = try container.decodeIfPresent([String].self, forKey: .command)
+        thenRefresh = try container.decodeIfPresent(Bool.self, forKey: .thenRefresh)
+        clearAfterSec = try container.decodeIfPresent(Int.self, forKey: .clearAfterSec)
     }
 }

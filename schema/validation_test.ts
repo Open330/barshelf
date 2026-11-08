@@ -82,5 +82,38 @@ Deno.test("JSON Schemas reject invalid menu-bar presentation values", async () =
   };
   assert(!workflow(metricPrecisionOutOfRange), "workflow schema accepted out-of-range metric precision");
 });
+Deno.test("JSON Schemas accept sparkline, progress segments, quitApp and the processes group", async () => {
+  const ajv = await validator();
+  ajv.addSchema(await json("./uinode-0.1.json"));
+  const node = ajv.getSchema("https://barshelf.jiun.dev/schema/uinode-0.1.json")!;
+  const widget = ajv.getSchema("https://barshelf.jiun.dev/schema/widget-0.1.json")!;
+  const workflow = ajv.getSchema("https://barshelf.jiun.dev/schema/workflow-0.1.json")!;
+
+  const sparkline = { type: "sparkline", values: [3, 5, 4], min: 0, max: 10, tint: "accent", height: 40 };
+  assert(node(sparkline), `sparkline: ${ajv.errorsText(node.errors)}`);
+  assert(node({ type: "sparkline", values: "${storage.history}" }), "templated sparkline values");
+  assert(!node({ type: "sparkline" }), "sparkline without values accepted");
+
+  const stacked = {
+    type: "progress",
+    style: "linear",
+    segments: [{ value: 0.3, tint: "accent", label: "User" }, { value: 0.1, label: "System" }],
+  };
+  assert(node(stacked), `segments: ${ajv.errorsText(node.errors)}`);
+
+  const quit = { type: "button", title: "Quit", action: { type: "quitApp", value: "com.apple.TextEdit" } };
+  assert(node(quit), `quitApp: ${ajv.errorsText(node.errors)}`);
+  assert(node({ ...quit, action: { type: "quitApp", value: 4242 } }), "quitApp by pid");
+
+  const manifest = structuredClone(await json("../widgets/system/widget.json")) as Record<string, unknown>;
+  manifest.permissions = { system: ["cpu", "processes"], quitApps: true };
+  assert(widget(manifest), `quitApps/processes permission: ${ajv.errorsText(widget.errors)}`);
+
+  const flow = structuredClone(await json("../widgets/system/workflow.json")) as Record<string, unknown>;
+  flow.sources = { top: { use: "system", with: { metrics: ["processes"], processes: { count: 5 } } } };
+  assert(workflow(flow), `processes source: ${ajv.errorsText(workflow.errors)}`);
+  flow.sources = { top: { use: "system", with: { metrics: ["processes"], processes: { count: 11 } } } };
+  assert(!workflow(flow), "processes count above 10 accepted");
+});
 import AjvModule from "npm:ajv@8";
 import addFormatsModule from "npm:ajv-formats@2";

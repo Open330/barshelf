@@ -63,7 +63,7 @@ final class UINodeTests: XCTestCase {
           "type": "vstack",
           "children": [
             { "id": "known", "type": "text", "text": "hi" },
-            { "id": "future", "type": "sparkline", "points": [1, 2, 3], "style": "area" },
+            { "id": "future", "type": "heatmap", "points": [1, 2, 3], "style": "area" },
             { "id": "grid", "type": "grid", "columns": 2 }
           ]
         }
@@ -72,7 +72,7 @@ final class UINodeTests: XCTestCase {
         let node = try JSONDecoder().decode(UINode.self, from: json)
         XCTAssertEqual(node.type, "vstack")
         XCTAssertEqual(node.children?.count, 3)
-        XCTAssertEqual(node.children?[1].type, "sparkline")
+        XCTAssertEqual(node.children?[1].type, "heatmap")
         XCTAssertFalse(node.children?[1].isKnownType ?? true)
         XCTAssertTrue(node.children?[0].isKnownType ?? false)
         XCTAssertTrue(UINode(type: "card").isKnownType)
@@ -152,7 +152,7 @@ final class UINodeTests: XCTestCase {
         // The label must decode even alongside forward-compat unknown fields.
         let json = """
         {
-          "type": "sparkline",
+          "type": "heatmap",
           "points": [1, 2, 3],
           "accessibilityLabel": "Weekly usage trend",
           "futureField": { "nested": true }

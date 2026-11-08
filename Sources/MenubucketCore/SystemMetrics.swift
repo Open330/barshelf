@@ -25,6 +25,13 @@ public enum SystemMetrics {
     /// in `permissions.system`.
     public enum Metric: String, CaseIterable, Sendable {
         case cpu, memory, disk, network, sensors
+        /// The busiest processes (`ProcessMetrics`). Never part of an
+        /// implicit request: a source gets it only by naming it in `metrics`.
+        case processes
+
+        /// What a source that names no `metrics` may sample: everything but
+        /// the opt-in groups.
+        public static let implicit: Set<Metric> = Set(allCases).subtracting([.processes])
     }
 
     /// Parses the `metrics` source parameter. `nil` means the source named no
@@ -50,13 +57,14 @@ public enum SystemMetrics {
     ///
     /// An unspecified request takes the whole grant, so `{ "use": "system" }`
     /// with `permissions.system: ["cpu"]` samples CPU rather than failing on
-    /// the three groups it never asked for.
+    /// the three groups it never asked for. `processes` is the exception: it
+    /// walks every process, so it is sampled only when named.
     public static func authorized(
         _ requested: Set<Metric>?,
         declared: [String]?
     ) -> (allowed: Set<Metric>, denied: Set<Metric>) {
         let grant = granted(declared)
-        guard let requested else { return (grant, []) }
+        guard let requested else { return (grant.intersection(Metric.implicit), []) }
         return (requested.intersection(grant), requested.subtracting(grant))
     }
 
@@ -69,14 +77,19 @@ public enum SystemMetrics {
     ///   components the caller displays (`nil` reads all of them). Each key is
     ///   its own IOKit round trip, so a widget showing one CPU reading saves
     ///   about two thirds of the sample by saying so.
+    /// - Parameter processCount: rows in `processes` (1…10).
+    /// - Parameter apps: running apps by pid, to name `processes` rows and
+    ///   mark them `isApp`; nil falls back to reading `.app` bundles.
     public static func sample(
-        metrics: Set<Metric> = Set(Metric.allCases),
+        metrics: Set<Metric> = Metric.implicit,
         detail: Bool = false,
         sensorGroups: Set<SensorSampler.SensorGroup>? = nil,
         sensorKeys: [String] = [],
         diskIO: Bool = false,
         mountPoint: String = "/",
-        networkInterface: String? = nil
+        networkInterface: String? = nil,
+        processCount: Int = ProcessMetrics.defaultCount,
+        apps: [Int32: ProcessMetrics.AppIdentity]? = nil
     ) -> JSONValue {
         var object: [String: JSONValue] = [:]
         if metrics.contains(.cpu) {
@@ -103,6 +116,11 @@ public enum SystemMetrics {
             object["sensors"] = json(
                 for: SensorSampler.shared.sample(detail: detail, groups: sensorGroups, keys: sensorKeys),
                 detail: detail
+            )
+        }
+        if metrics.contains(.processes) {
+            object["processes"] = .array(
+                ProcessMetrics.shared.sample(count: processCount, apps: apps).map(\.json)
             )
         }
         object["sampledAt"] = .number(Date().timeIntervalSince1970 * 1000)
