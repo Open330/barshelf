@@ -21,7 +21,10 @@ ignores "stay awake with the lid closed", and the widget shows that.
 
 Turn it on under BarShelf ▸ Menu Bar. The item shows the time left while a
 request is active, the countdown to sleep just after unplugging, and a warning
-when the guard stops answering (no status for more than 15 seconds).
+when the guard stops answering (no status for more than 15 seconds). It
+checks once a minute and whenever the popup opens; the guard rewrites its
+status every few seconds, so watching that folder would run the widget
+nonstop.
 
 ## Settings
 

@@ -69,6 +69,16 @@ final class KeepAwakeWidgetTests: XCTestCase {
 
     // MARK: - Phases
 
+    /// The guard rewrites status.json every few seconds, so an fs trigger on
+    /// its folder ran an osascript every five seconds around the clock
+    /// (175k runs in two weeks on one Mac). Poll instead.
+    func testDoesNotRunOnEveryGuardHeartbeat() throws {
+        let manifest = try Manifest.decode(from: Data(contentsOf: widgetDir.appendingPathComponent("widget.json")))
+        let refresh = try XCTUnwrap(manifest.refresh)
+        XCTAssertFalse(refresh.triggers?.contains { if case .fs = $0 { return true } else { return false } } ?? false)
+        XCTAssertGreaterThanOrEqual(refresh.interval ?? 0, 60)
+    }
+
     func testOnPowerShowsAwakeAndTheBlockers() throws {
         try writeStatus(["onAC": true, "phase": "ac", "holding": true, "sleepDisabled": true, "override": NSNull(),
                          "blockers": [["pid": 4242, "process": "caffeinate", "type": "PreventUserIdleSystemSleep",
