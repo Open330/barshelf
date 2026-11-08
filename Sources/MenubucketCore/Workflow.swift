@@ -614,6 +614,10 @@ public enum WorkflowEngine {
                 throw WorkflowError.invalidTemplate("forEach needs \"as\" and \"template\"")
             }
             let list = try evaluateExpression(path)
+            // Nothing there yet (a source that skipped this sample, an
+            // optional field) is no rows; only a value that is something
+            // other than a list is a mistake.
+            if case .null = list { return .array([]) }
             guard case let .array(items) = list else {
                 throw WorkflowError.badExpression("forEach path is not a list: \(path)")
             }

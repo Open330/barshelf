@@ -145,8 +145,14 @@
         "children": [
           {
             "type": "hstack",
-            "spacing": 6,
+            "hidden": "${eq(sources.data.sensors.power, null)}",
             "children": [
+              {
+                "type": "text",
+                "text": "Power",
+                "role": "caption",
+                "foreground": "secondary"
+              },
               {
                 "type": "spacer"
               },
@@ -155,7 +161,7 @@
                 "text": "${if(eq(sources.data.sensors.power, null), '', concat(string(round(number(sources.data.sensors.power), 1)), ' W'))}",
                 "role": "caption",
                 "monospacedDigit": true,
-                "foreground": "secondary"
+                "foreground": "primary"
               }
             ]
           },
@@ -169,7 +175,8 @@
                   {
                     "type": "text",
                     "text": "CPU",
-                    "role": "caption"
+                    "role": "caption",
+                    "foreground": "secondary"
                   },
                   {
                     "type": "spacer"
@@ -179,7 +186,7 @@
                     "text": "${if(eq(sources.data.sensors.cpu, null), '—', concat(string(round(number(if(eq(settings.unit,'fahrenheit'), add(mul(sources.data.sensors.cpu,1.8),32), sources.data.sensors.cpu)), 1)), if(eq(settings.unit,'fahrenheit'), ' °F', ' °C')))}",
                     "role": "caption",
                     "monospacedDigit": true,
-                    "foreground": "${if(gt(sources.data.sensors.cpu, 90), 'danger', if(gt(sources.data.sensors.cpu, 75), 'warning', 'good'))}"
+                    "foreground": "${if(gt(sources.data.sensors.cpu, 90), 'danger', if(gt(sources.data.sensors.cpu, 75), 'warning', 'secondary'))}"
                   }
                 ]
               },
@@ -187,7 +194,7 @@
                 "type": "progress",
                 "style": "linear",
                 "value": "${div(coalesce(sources.data.sensors.cpu, 0), 100)}",
-                "tint": "${if(gt(sources.data.sensors.cpu, 90), 'danger', if(gt(sources.data.sensors.cpu, 75), 'warning', 'good'))}"
+                "tint": "${if(gt(sources.data.sensors.cpu, 90), 'danger', if(gt(sources.data.sensors.cpu, 75), 'warning', 'secondary'))}"
               }
             ]
           },
@@ -197,7 +204,8 @@
               {
                 "type": "text",
                 "text": "GPU",
-                "role": "caption"
+                "role": "caption",
+                "foreground": "secondary"
               },
               {
                 "type": "spacer"
@@ -207,7 +215,7 @@
                 "text": "${if(eq(sources.data.sensors.gpu, null), '—', concat(string(round(number(if(eq(settings.unit,'fahrenheit'), add(mul(sources.data.sensors.gpu,1.8),32), sources.data.sensors.gpu)), 1)), if(eq(settings.unit,'fahrenheit'), ' °F', ' °C')))}",
                 "role": "caption",
                 "monospacedDigit": true,
-                "foreground": "secondary"
+                "foreground": "primary"
               }
             ]
           },
@@ -217,7 +225,8 @@
               {
                 "type": "text",
                 "text": "Battery",
-                "role": "caption"
+                "role": "caption",
+                "foreground": "secondary"
               },
               {
                 "type": "spacer"
@@ -227,7 +236,7 @@
                 "text": "${if(eq(sources.data.sensors.battery, null), '—', concat(string(round(number(if(eq(settings.unit,'fahrenheit'), add(mul(sources.data.sensors.battery,1.8),32), sources.data.sensors.battery)), 1)), if(eq(settings.unit,'fahrenheit'), ' °F', ' °C')))}",
                 "role": "caption",
                 "monospacedDigit": true,
-                "foreground": "secondary"
+                "foreground": "primary"
               }
             ]
           },
@@ -247,7 +256,8 @@
                       {
                         "type": "text",
                         "text": "${fan.name}",
-                        "role": "caption"
+                        "role": "caption",
+                        "foreground": "secondary"
                       },
                       {
                         "type": "spacer"
@@ -257,7 +267,7 @@
                         "text": "${concat(string(round(number(fan.rpm), 0)), ' rpm')}",
                         "role": "caption",
                         "monospacedDigit": true,
-                        "foreground": "secondary"
+                        "foreground": "primary"
                       }
                     ]
                   }
@@ -269,7 +279,8 @@
                   {
                     "type": "text",
                     "text": "Fans",
-                    "role": "caption"
+                    "role": "caption",
+                    "foreground": "secondary"
                   },
                   {
                     "type": "spacer"
@@ -278,7 +289,7 @@
                     "type": "text",
                     "text": "none",
                     "role": "caption",
-                    "foreground": "secondary"
+                    "foreground": "primary"
                   }
                 ]
               }
@@ -328,7 +339,8 @@
                           {
                             "type": "text",
                             "text": "${reading.name}",
-                            "role": "caption"
+                            "role": "caption",
+                            "foreground": "secondary"
                           },
                           {
                             "type": "spacer"
@@ -337,7 +349,7 @@
                             "type": "text",
                             "role": "caption",
                             "monospacedDigit": true,
-                            "foreground": "secondary",
+                            "foreground": "primary",
                             "text": "${concat(string(round(number(if(and(eq(reading.kind,'temperature'), transforms.fahrenheit), add(mul(reading.value,1.8),32), reading.value)), 1)), if(and(eq(reading.kind,'temperature'), transforms.fahrenheit), ' °F', concat(' ', reading.unit)))}"
                           }
                         ]

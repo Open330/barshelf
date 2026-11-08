@@ -489,7 +489,9 @@ struct NodeView: View {
             }
             .font(.callout)
         }
-        .buttonStyle(.bordered)
+        // The app's capsule, so a widget's buttons match every other
+        // button in BarShelf.
+        .buttonStyle(.glass(.secondary))
         .controlSize(.small)
         .modifier(AccentTint(color: accentOverride))
     }

@@ -196,7 +196,7 @@ manifest의 `permissions.system`에 **모두 선언해야 한다**. 선언되지
 | `io` | `true`면 `disk.read`/`disk.write`(bytes/s)도 채운다. 저장장치 드라이버를 도는 IOKit 레지스트리 조회라, 실제로 보여줄 때만 켠다. 기본 `false`. |
 | `mount` | `disk` 그룹이 볼 마운트 포인트. 기본 `"/"`. |
 | `interface` | `network` 그룹이 볼 인터페이스. 생략하거나 `all`이면 물리 인터페이스를 합산한다. |
-| `processes` | `processes` 그룹 옵션 `{ "count": N }`: 돌려줄 행 수, 1~10, 기본 5. |
+| `processes` | `processes` 그룹 옵션 `{ "count": N, "when": bool }`: 돌려줄 행 수(1~10, 기본 5)와, `false`면 이번 샘플에서 건너뛰기. 메뉴바 위젯은 `"when": "${widget.visible}"`로 카드가 떠 있을 때만 읽는다. |
 
 ### 상위 프로세스 (`processes`)
 

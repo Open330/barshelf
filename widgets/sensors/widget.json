@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.sensors",
   "name": "Sensors",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "minHostVersion": "0.3.11",
   "icon": "thermometer.medium",
   "bucket": {
@@ -114,7 +114,6 @@
   "appearance": {
     "accent": "orange"
   },
-
   "localizations": {
     "ko": {
       "Sensors": "센서",
@@ -136,7 +135,8 @@
       "none": "없음",
       "All sensors": "모든 센서",
       "No hardware sensors are readable on this Mac. Sandboxed builds and virtual machines have no SMC access.": "이 Mac에서 읽을 수 있는 하드웨어 센서가 없습니다. 샌드박스 빌드와 가상 머신은 SMC에 접근할 수 없습니다.",
-      "${string(count(sources.data.sensors.list))} readings": "측정값 ${string(count(sources.data.sensors.list))}개"
+      "${string(count(sources.data.sensors.list))} readings": "측정값 ${string(count(sources.data.sensors.list))}개",
+      "Power": "전력"
     }
   }
 }

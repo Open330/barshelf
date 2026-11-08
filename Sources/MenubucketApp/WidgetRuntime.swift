@@ -2456,9 +2456,10 @@ final class WidgetRuntime: ObservableObject {
                     + " (cpu, memory, disk, network, sensors, processes)"
             )
         }
-        let (allowed, denied) = SystemMetrics.authorized(
+        let (authorized, denied) = SystemMetrics.authorized(
             requested, declared: widget.manifest.permissions?.system
         )
+        var allowed = authorized
         guard denied.isEmpty else {
             let names = denied.map(\.rawValue).sorted()
             auditLog.record("system.blocked", widgetId: widget.id, detail: [
@@ -2483,12 +2484,18 @@ final class WidgetRuntime: ObservableObject {
         let sensorKeys = Self.sensorKeys(from: params.objectValue?["sensors"])
         let diskIO = params.objectValue?["io"]?.boolValue == true
         let processCount = ProcessMetrics.count(from: params.objectValue?["processes"])
+        // `processes: {when: false}` skips the group for this sample — a
+        // menu bar widget asks for it only while its card is on screen
+        // (`"when": "${widget.visible}"`), not on every refresh.
+        let skipsProcesses = allowed.contains(.processes)
+            && params.objectValue?["processes"]?.objectValue?["when"]?.boolValue == false
+        if skipsProcesses { allowed.remove(.processes) }
         // Running apps name the `processes` rows; read only when that group
         // is sampled.
         let apps = allowed.contains(.processes) ? await Self.runningAppIdentities() : nil
         // Sampling blocks on Mach/IOKit calls (and, on a cold CPU sampler, a
         // short baseline window), so it stays off the main thread.
-        return await Task.detached(priority: .userInitiated) {
+        let sample = await Task.detached(priority: .userInitiated) {
             SystemMetrics.sample(
                 metrics: allowed,
                 detail: detail,
@@ -2501,6 +2508,11 @@ final class WidgetRuntime: ObservableObject {
                 apps: apps
             )
         }.value
+        // A skipped group is an empty list, not a missing one, so a view's
+        // `forEach` over it renders nothing instead of failing.
+        guard skipsProcesses, case var .object(fields) = sample else { return sample }
+        fields["processes"] = .array([])
+        return .object(fields)
     }
 
     /// Regular (Dock) apps by pid: what a `processes` row calls an app.

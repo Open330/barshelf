@@ -65,6 +65,9 @@ enum HubScreenshotMode {
         // The card a menu bar item opens, for every widget that can be in
         // the menu bar.
         for widget in runtime.widgets where widget.manifest.statusItem?.isPromotable == true {
+            if let error = runtime.snapshots[widget.id]?.error {
+                print("menubar-card \(widget.id): \(error)")
+            }
             // At the height the popover would take: its content's.
             let fitted = NSHostingView(rootView: MenuBarWidgetPopover(widget: widget, runtime: runtime)).fittingSize
             ok = render(MenuBarWidgetPopover(widget: widget, runtime: runtime),

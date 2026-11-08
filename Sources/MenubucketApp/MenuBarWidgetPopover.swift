@@ -238,9 +238,8 @@ struct MenuBarCardHero: View {
             }
             .layoutPriority(1)
             if content.history.count > 2 {
-                TrendLine(values: content.history, tint: color, ceiling: content.isPercent ? 100 : nil)
-                    .frame(height: Spacing.xl + Spacing.s)
-                    .frame(maxWidth: .infinity)
+                TrendLine(values: content.history, tint: color, ceiling: content.isPercent ? 100 : nil,
+                          height: Spacing.xl + Spacing.s)
             } else {
                 Spacer(minLength: 0)
             }
