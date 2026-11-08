@@ -36,6 +36,30 @@
   one by one, left to right; at most once every three minutes, never while
   you point at them, and only a brief glow with Reduce Motion. Settings ▸
   Menu Bar ▸ Wave when a widget changes turns it off.
+- **Menu bar cards.** The card a menu bar item or cluster chip opens has
+  the same shape for every widget: its tile, name and freshness, a named
+  button for what clicking the card does ("Open Activity Monitor"),
+  Refresh and Settings; then the reading it shows in the menu bar, large,
+  beside its last couple of minutes; then the widget itself. A reading that
+  has stopped updating is dimmed and says so. The card is a little wider
+  and only as tall as its content.
+- **System** splits CPU into user and system time, names every figure
+  (busiest core, 1-minute load average, memory used of total, pressure,
+  disk free) and lists the apps using the most CPU while its card is open,
+  with a Quit button that always asks first. It asks once for permission to
+  do that. **Sensors** labels its power reading. Readings in their normal
+  range are no longer green; colour marks the ones that need attention.
+- **For widget authors:** a `sparkline` node, stacked `progress.segments`,
+  the busiest processes from the `system` source and a `quitApp` action
+  (`permissions.quitApps`). Widget buttons now use BarShelf's capsule style.
+- **One way to do things everywhere.** Empty states, buttons, the widget
+  menu, the Remove confirmation and the "waiting for your permission" state
+  look and read the same on the popup, the Shelf, the gallery, onboarding
+  and settings, and every list of widgets shows its tile. Command names
+  match ("Create Widget…", "Install Widget from URL…", "Show in Finder").
+  The gallery takes ⌘F and ⌘R.
+- **Keep Awake** checks the guard once a minute instead of on every one of
+  its five-second status writes, which ran a script around the clock.
 - **Gallery.** Widgets without a screenshot are drawn as the card they will
   be, not as a symbol on a pastel field. Previews that are still loading show
   the same placeholder rows instead of a spinner.
