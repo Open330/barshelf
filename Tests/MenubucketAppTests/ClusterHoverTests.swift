@@ -32,8 +32,9 @@ final class ClusterHoverTests: XCTestCase {
                        ClusterHoverPolicy.leaveGrace)
     }
 
-    func testTheGraceOutlastsTheArrivalSoAPassingPointerNeverFlickers() {
-        XCTAssertGreaterThan(ClusterHoverPolicy.leaveGrace, ClusterHoverPolicy.arriveDelay * 2)
+    func testFoldingWaitsBrieflyAndLongerTowardsThePeek() {
+        XCTAssertEqual(ClusterHoverPolicy.leaveGrace, 0.2)
+        XCTAssertGreaterThan(ClusterHoverPolicy.peekGrace, ClusterHoverPolicy.leaveGrace)
         XCTAssertGreaterThan(MenuBarController.foldDuration, MenuBarController.focusDuration)
     }
 }
