@@ -1571,11 +1571,12 @@ final class WidgetRuntime: ObservableObject {
         var charting = Set<String>()
 
         for widget in widgets where !prefs.isDisabled(widget.id) {
-            guard permissionStore.status(for: widget.manifest) == .approved else { continue }
             let placement = prefs.menuBarPlacement(
                 for: widget.manifest, widgetID: widget.id
             )
-            guard placement.enabled else { continue }
+            // Most widgets are not on the bar: the cheaper test first.
+            guard placement.enabled,
+                  permissionStore.status(for: widget.manifest) == .approved else { continue }
             let statusItem = MenuBarPolicy.effectiveStatusItem(widget.manifest.statusItem)
             let snapshot = snapshots[widget.id]
             // Only text can share the strip, so a widget that shows no label

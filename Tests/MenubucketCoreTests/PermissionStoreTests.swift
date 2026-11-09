@@ -43,4 +43,17 @@ final class PermissionStoreTests: XCTestCase {
         store.approve(widget)
         XCTAssertEqual(store.status(for: widget), .approved)
     }
+
+    /// The hash is remembered between checks, but a manifest reloaded with
+    /// other permissions is not taken for the approved one.
+    func testChangedPermissionsAskAgainAfterTheHashWasRemembered() {
+        let store = store()
+        let approved = manifest(permissions: .init(readPaths: ["~/Downloads"]))
+        store.approve(approved)
+        XCTAssertEqual(store.status(for: approved), .approved)
+        XCTAssertEqual(store.status(for: approved), .approved)
+        let widened = manifest(permissions: .init(readPaths: ["~/Downloads", "~/Documents"]))
+        XCTAssertEqual(store.status(for: widened), .pending)
+        XCTAssertEqual(store.status(for: approved), .approved)
+    }
 }

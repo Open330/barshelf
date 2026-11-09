@@ -81,6 +81,20 @@ public final class PermissionStore: @unchecked Sendable {
         return digest.map { String(format: "%02x", $0) }.joined()
     }
 
+    /// The hash of `manifest`'s permissions, remembered per widget while
+    /// they stay the same: the menu bar asks for every widget's status on
+    /// each update, and encoding and hashing them each time was a visible
+    /// share of the app's idle work. Keyed by the permissions themselves, so
+    /// a reloaded manifest that changed them is hashed afresh.
+    private var hashes: [String: (permissions: Manifest.Permissions?, hash: String)] = [:]
+
+    private func hashLocked(of manifest: Manifest) -> String {
+        if let cached = hashes[manifest.id], cached.permissions == manifest.permissions { return cached.hash }
+        let hash = Self.permissionsHash(of: manifest)
+        hashes[manifest.id] = (manifest.permissions, hash)
+        return hash
+    }
+
     // MARK: - API
 
     /// Permission-free widgets do not need a meaningless approval click. Any
@@ -102,7 +116,7 @@ public final class PermissionStore: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         guard let record = records[manifest.id] else { return .pending }
-        guard record.hash == Self.permissionsHash(of: manifest) else {
+        guard record.hash == hashLocked(of: manifest) else {
             return .pending // permissions changed → re-approval required
         }
         return record.decision == "approved" ? .approved : .denied

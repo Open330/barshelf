@@ -114,6 +114,10 @@ final class MenuBarController {
     private var appearanceObservation: NSKeyValueObservation?
     /// Light or dark, as the cluster was last drawn.
     private var drawnLook: NSAppearance.Name?
+    /// What the cluster image on the button shows, and the image itself:
+    /// redrawing pixels that would not change is skipped.
+    private var drawnPixels: ClusterPixels?
+    private weak var drawnImage: NSImage?
     /// Extra status items, keyed by widget id.
     private var separateItems: [String: NSStatusItem] = [:]
     private var mainSymbol: String = AppPreferences.defaultMenuBarSymbol
@@ -219,6 +223,13 @@ final class MenuBarController {
         appliedStrip = nil
         appliedChips = nil
         redraw()
+    }
+
+    /// Displays came, went or changed density: the cluster's bitmaps are
+    /// drawn again for the ones there now, if that changes them.
+    func redrawClusterForScreens() {
+        guard layout == .cluster, let chips = appliedChips, !chips.isEmpty, let button = mainItem.button else { return }
+        drawCluster(chips, on: button)
     }
 
     /// Redraw after a widget's colour changed.
@@ -399,22 +410,38 @@ final class MenuBarController {
         // The strip path must start over when the layout switches back.
         appliedSymbol = nil
         appliedStrip = nil
-        let mark = BarShelfStatusIcon.image(for: mainSymbol, fallback: AppPreferences.defaultMenuBarSymbol)
-        drawnLook = Self.look(of: button.effectiveAppearance)
+        let appearance = button.effectiveAppearance
+        drawnLook = Self.look(of: appearance)
         let colors = Self.clusterColors(chips, base: baseChipColor)
-        let image = Self.clusterImage(
-            chips, positions: clusterPositions, focus: clusterFocus, pill: clusterPill, lead: clusterLead,
-            markAlpha: clusterMarkAlpha, lifts: pulseLifts, growth: pulseGrowth, mark: mark, badged: attention,
-            color: { chip in colors[chip.id] ?? .controlAccentColor },
-            appearance: button.effectiveAppearance,
-            height: NSStatusBar.system.thickness
+        let color: (ClusterChip) -> NSColor = { chip in colors[chip.id] ?? .controlAccentColor }
+        let height = NSStatusBar.system.thickness
+        let pixels = ClusterPixels(
+            chips: chips, focus: clusterFocus, color: color, appearance: appearance,
+            positions: clusterPositions, pill: clusterPill, lead: clusterLead, markAlpha: clusterMarkAlpha,
+            lifts: pulseLifts, growth: pulseGrowth, mark: mainSymbol, badged: attention, height: height,
+            scales: Self.screenScales()
         )
-        button.image = image
+        // A reading changed but the folded chips do not show it: the image
+        // stays. Setting one makes the menu bar snapshot the item again for
+        // every display, which was most of the app's idle work.
+        if pixels != drawnPixels || drawnImage == nil || button.image !== drawnImage {
+            let mark = BarShelfStatusIcon.image(for: mainSymbol, fallback: AppPreferences.defaultMenuBarSymbol)
+            let image = Self.rasterized(Self.clusterImage(
+                chips, positions: clusterPositions, focus: clusterFocus, pill: clusterPill, lead: clusterLead,
+                markAlpha: clusterMarkAlpha, lifts: pulseLifts, growth: pulseGrowth, mark: mark, badged: attention,
+                color: color, appearance: appearance, height: height
+            ), scales: pixels.scales)
+            button.image = image
+            drawnImage = image
+            drawnPixels = pixels
+        }
         if button.attributedTitle.length > 0 { button.attributedTitle = NSAttributedString(string: "") }
         if button.imagePosition != .imageOnly { button.imagePosition = .imageOnly }
-        let length = ceil(image.size.width) + Self.clusterItemInset * 2
-        if abs(mainItem.length - length) > 0.5 { mainItem.length = length }
-        button.toolTip = nil
+        if let image = button.image {
+            let length = ceil(image.size.width) + Self.clusterItemInset * 2
+            if abs(mainItem.length - length) > 0.5 { mainItem.length = length }
+        }
+        if button.toolTip != nil { button.toolTip = nil }
         let spoken = chips.map(\.spoken).joined(separator: "; ")
         button.setAccessibilityLabel("\(BarShelfStatusIcon.accessibilityLabel(badged: attention)), \(spoken)")
     }
@@ -472,7 +499,10 @@ final class MenuBarController {
         // left), so only the items beside it slide.
         let leadStart = clusterLead
         let leadTarget = focus == nil ? 0 : Self.clusterLead(for: chips)
-        guard animated else {
+        // Folding takes a little longer than opening: quick to answer the
+        // pointer, unhurried to put things away. Reduce Motion: no glide.
+        let duration = focus == nil ? Self.foldDuration : Self.focusDuration
+        guard animated, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else {
             clusterPositions = target
             clusterMarkAlpha = markTarget
             clusterPill = pillTarget
@@ -485,7 +515,7 @@ final class MenuBarController {
             guard let self, let chips = self.appliedChips, let button = self.mainItem.button else {
                 timer.invalidate(); return
             }
-            let t = min(Date().timeIntervalSince(began) / Self.focusDuration, 1)
+            let t = min(Date().timeIntervalSince(began) / duration, 1)
             // Ease out: quick to start, gentle to land.
             let eased = CGFloat(1 - pow(1 - t, 3))
             self.clusterPositions = zip(start, target).map { $0 + ($1 - $0) * eased }
@@ -498,6 +528,7 @@ final class MenuBarController {
     }
 
     static let focusDuration: TimeInterval = 0.16
+    static let foldDuration: TimeInterval = 0.26
 
     /// A chip's rect in the main button's coordinates, where it will rest
     /// in the current focus layout: for anchoring its card and peek.
