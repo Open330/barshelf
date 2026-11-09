@@ -103,7 +103,7 @@ final class MenuBarController {
     /// it may run right now (no card open), when it last ran, and how far
     /// each chip is lifted while it runs.
     var pulseEnabled = true {
-        didSet { if !pulseEnabled { stopPulse(redraw: true); pulseGate.reset() } }
+        didSet { if !pulseEnabled { stopPulse(redraw: true); pulseGate.reset(settling: appliedChips ?? []) } }
     }
     var mayPulse: (() -> Bool)?
     private var pulseGate = ClusterPulseGate()
@@ -304,7 +304,7 @@ final class MenuBarController {
         if previous?.map(\.id) != chips.map(\.id) {
             // Different chips: start from the plain fold.
             stopPulse(redraw: false)
-            pulseGate.reset()
+            pulseGate.reset(settling: chips)
             clusterFocus = nil
             focusAnimation?.invalidate()
             clusterPositions = Self.clusterTargets(chips, focus: nil)
@@ -348,8 +348,13 @@ final class MenuBarController {
         pulseWork = nil
         guard pulseEnabled, layout == .cluster, let chips = appliedChips, !chips.isEmpty,
               mainItem.button != nil else { return }
-        let changed = pulseGate.pending
-        pulseGate.ran(at: Date())
+        let changed = pulseGate.standing(in: chips)
+        guard !changed.isEmpty else {
+            // Every held change went back: nothing to announce.
+            pulseGate.dropReverted()
+            return
+        }
+        pulseGate.ran(at: Date(), chips: chips)
         guard clusterFocus == nil, mayPulse?() ?? true, !Self.barIsHidden else { return }
         let reduced = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         pulseGrowth = reduced ? 0 : CGFloat(ClusterPulse.growth)

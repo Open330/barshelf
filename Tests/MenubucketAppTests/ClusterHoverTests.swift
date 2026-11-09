@@ -104,4 +104,38 @@ final class ClusterPixelsTests: XCTestCase {
         XCTAssertLessThan(Double(off) / Double(a.count), 0.001, "\(off) of \(a.count) bytes differ")
         XCTAssertGreaterThan(a.filter { $0 > 0 }.count, 100, "something was drawn")
     }
+
+    /// Cached glyphs land where freshly drawn ones did, the same way up.
+    func testCachedGlyphsDrawLikeFreshOnes() throws {
+        func render() -> NSImage {
+            MenuBarController.rasterized(MenuBarController.clusterImage(
+                chips(alert: true, stale: true), focus: 0, pill: 60,
+                mark: NSImage(systemSymbolName: "square.grid.2x2", accessibilityDescription: nil)!,
+                badged: false, color: { _ in .systemPurple }, appearance: NSAppearance(named: .darkAqua)!, height: 24
+            ), scales: [2])
+        }
+        GlyphCache.shared.isEnabled = false
+        let fresh = render()
+        GlyphCache.shared.isEnabled = true
+        defer { GlyphCache.shared.isEnabled = true }
+        _ = render()
+        let cached = render()
+        XCTAssertGreaterThan(GlyphCache.shared.count, 0)
+        func bytes(_ image: NSImage) throws -> [UInt8] {
+            let rep = try XCTUnwrap(image.representations.first as? NSBitmapImageRep)
+            return Array(UnsafeBufferPointer(start: rep.bitmapData, count: rep.bytesPerRow * rep.pixelsHigh))
+        }
+        let a = try bytes(fresh), b = try bytes(cached)
+        XCTAssertEqual(a.count, b.count)
+        let off = zip(a, b).filter { abs(Int($0) - Int($1)) > 24 }.count
+        XCTAssertLessThan(Double(off) / Double(a.count), 0.01, "\(off) of \(a.count) bytes differ")
+        if let dir = ProcessInfo.processInfo.environment["CLUSTER_RENDER_DIR"] {
+            for (name, image) in [("glyph-fresh", fresh), ("glyph-cached", cached)] {
+                let rep = NSBitmapImageRep(data: image.tiffRepresentation!)!
+                try rep.representation(using: .png, properties: [:])!
+                    .write(to: URL(fileURLWithPath: dir).appendingPathComponent("\(name).png"))
+            }
+        }
+    }
 }
+
