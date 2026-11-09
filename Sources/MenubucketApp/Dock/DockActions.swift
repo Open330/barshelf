@@ -46,6 +46,13 @@ final class RunningApps: ObservableObject {
                 if name == NSWorkspace.didLaunchApplicationNotification,
                    let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
                    let url = app.bundleURL {
+                    DockActions.forgetFilePresentation(at: url.path)
+                }
+                if name == NSWorkspace.didLaunchApplicationNotification,
+                   let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+                   let url = app.bundleURL, self?.launching.contains(Self.key(url.path)) == true {
+                    // Only when it was bouncing: removing from a published
+                    // set republishes it, and redraws the dock, either way.
                     self?.launching.remove(Self.key(url.path))
                 }
                 // Switching apps happens all day and changes only which app
@@ -139,7 +146,7 @@ final class RunningApps: ObservableObject {
         guard !isRunning(path: key) else { return }
         launching.insert(key)
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.launchTimeout) { [weak self] in
-            self?.launching.remove(key)
+            if self?.launching.contains(key) == true { self?.launching.remove(key) }
         }
     }
 
@@ -171,6 +178,12 @@ enum DockActions {
     // change while magnifying, and asking LaunchServices for every tile's
     // icon each time stuttered the animation.
     private static let filePresentations = DockFilePresentationCache()
+
+    /// An app launched: its icon and name are read again, in case it was
+    /// updated in place.
+    static func forgetFilePresentation(at path: String) {
+        filePresentations.forget(path)
+    }
 
     static func fileIcon(at path: String) -> NSImage {
         filePresentations.presentation(at: path).icon ?? NSWorkspace.shared.icon(forFile: path)

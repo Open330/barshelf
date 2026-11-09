@@ -19,6 +19,10 @@
   later. Chip glyphs are drawn once per size instead of on every frame of the
   wave and the hover glide. Switching apps no longer lists every running app
   for the dock.
+- **Lighter dock.** Moving the pointer along the dock rebuilds only the
+  icons that change (the ones growing under it), not every icon and its
+  menu. Icons and names are read once every ten minutes instead of every
+  minute, and again when an app launches.
 - **Card controls no longer cover the card.** On a card with a header,
   Refresh and Settings appear in the header on hover, in place of the "3m
   ago" time, so nothing floats over the title or the content. Cards without

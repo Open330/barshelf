@@ -3,6 +3,8 @@ import AppKit
 /// Hover and widget refreshes redraw the Dock frequently. File metadata and
 /// icon services need one read per path, not one per SwiftUI body evaluation.
 /// Expiry is checked on use; no polling timer or filesystem watcher is needed.
+/// Ten minutes: icons and names rarely change, and reloading every icon in
+/// the dock each minute was most of the dock's work at rest.
 final class DockFilePresentationCache {
     struct Presentation {
         let name: String
@@ -20,13 +22,19 @@ final class DockFilePresentationCache {
     private let load: (String) -> Presentation
     private let lifetime: TimeInterval
 
-    init(lifetime: TimeInterval = 60, load: @escaping (String) -> Presentation = {
+    init(lifetime: TimeInterval = 600, load: @escaping (String) -> Presentation = {
         Presentation(name: FileManager.default.displayName(atPath: $0),
                      icon: NSWorkspace.shared.icon(forFile: $0))
     }) {
         self.lifetime = lifetime
         self.load = load
         entries.countLimit = 256
+    }
+
+    /// Drops what is known about `path`: an app that just launched may be a
+    /// new version with a new icon.
+    func forget(_ path: String) {
+        entries.removeObject(forKey: RunningApps.key(path) as NSString)
     }
 
     func presentation(at path: String, now: Date = Date()) -> Presentation {

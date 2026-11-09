@@ -390,6 +390,7 @@ struct DockView: View {
                     custom: color.map { color in
                         AnyView(FolderBadge(color: color, label: label ?? DockActions.displayName(for: item)))
                     },
+                    customKey: color.map { "\($0)|\(label ?? "")" },
                     menu: { itemMenu(item) }
                 )
                 .popover(
@@ -409,6 +410,7 @@ struct DockView: View {
                     image: nil, isRunning: false, scale: scale,
                     action: { DockActions.open(item) }, dropFiles: nil,
                     custom: AnyView(LinkBadge(url: url)),
+                    customKey: url,
                     menu: { itemMenu(item) }
                 )
             case .file, .shortcut:
@@ -466,6 +468,38 @@ struct DockView: View {
         action: @escaping () -> Void,
         dropFiles: (([URL]) -> Void)?,
         custom: AnyView? = nil,
+        customKey: String? = nil,
+        menu: @escaping () -> [DockMenuEntry]
+    ) -> some View {
+        // A tile whose inputs are as they were is not built again: moving
+        // the pointer along the dock re-ran every tile, its menu and its
+        // icon lookup, for each icon it crossed. The key is everything the
+        // tile's look and its actions and menu are made from.
+        let key = DockTileKey(
+            id: id, title: title, image: image.map(ObjectIdentifier.init), custom: customKey,
+            isRunning: isRunning, isLaunching: isLaunching, scale: scale,
+            showsLabel: hoveredID == id || focusedTileID == id, reduceMotion: reduceMotion,
+            configuration: config, running: running.apps.map { "\($0.path)#\($0.processID)" }
+        )
+        return EquatableTile(key: key) {
+            iconTileBody(
+                id: id, title: title, image: image, isRunning: isRunning, scale: scale,
+                isLaunching: isLaunching, action: action, dropFiles: dropFiles, custom: custom, menu: menu
+            )
+        }
+        .equatable()
+    }
+
+    private func iconTileBody(
+        id: String,
+        title: String,
+        image: NSImage?,
+        isRunning: Bool,
+        scale: CGFloat,
+        isLaunching: Bool,
+        action: @escaping () -> Void,
+        dropFiles: (([URL]) -> Void)?,
+        custom: AnyView?,
         menu: @escaping () -> [DockMenuEntry]
     ) -> some View {
         let grown = tileSize * scale
@@ -1070,3 +1104,32 @@ private struct LaunchBounce: ViewModifier {
         }
     }
 }
+
+/// What an icon tile is made from, to tell when it would come out the same.
+/// The whole configuration and the running apps (with their process, so a
+/// restarted app's Quit and Hide reach the new one) are in it because a
+/// tile's menu reads them; both change rarely.
+struct DockTileKey: Equatable {
+    let id: String
+    let title: String
+    let image: ObjectIdentifier?
+    let custom: String?
+    let isRunning: Bool
+    let isLaunching: Bool
+    let scale: CGFloat
+    let showsLabel: Bool
+    let reduceMotion: Bool
+    let configuration: DockConfiguration
+    let running: [String]
+}
+
+/// A view SwiftUI builds again only when its key changes (`.equatable()`).
+struct EquatableTile<Content: View>: View, Equatable {
+    let key: DockTileKey
+    @ViewBuilder let content: () -> Content
+
+    var body: some View { content() }
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.key == rhs.key }
+}
+
