@@ -2626,7 +2626,7 @@ final class WidgetRuntime: ObservableObject {
             return .string(String(data: data, encoding: .utf8) ?? "")
         }
         // Default: JSON (the DSL transforms/templates need structured data).
-        return try JSONDecoder().decode(JSONValue.self, from: data)
+        return try JSONValue.parse(data)
     }
 
     /// Workflow-source launch seam; the caller's matched permission is the
