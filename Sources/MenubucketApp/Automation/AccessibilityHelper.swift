@@ -114,7 +114,7 @@ struct AccessibilityHelperView: View {
             if helper.isTrusted {
                 Label("BarShelf is allowed in Accessibility.", systemImage: "checkmark.circle.fill")
                     .font(.headline)
-                    .foregroundStyle(.green)
+                    .foregroundStyle(StatusTone.success.color)
                 Text("Keyboard shortcuts and key remapping can run now.")
                     .foregroundStyle(.secondary)
                 HStack {

@@ -298,7 +298,7 @@ struct ShelfView: View {
         }
         .padding(.horizontal, Spacing.xs)
         .padding(.vertical, Spacing.stack)
-        .opacity(disabled ? 0.55 : 1)
+        .opacity(disabled ? Fill.disabledOpacity : 1)
         .background(
             RoundedRectangle(cornerRadius: Radius.nested(in: Radius.card, inset: Spacing.xxs), style: .continuous)
                 .fill(isSelected ? AnyShapeStyle(selectionTint.opacity(Fill.Wash.strong)) : AnyShapeStyle(Color(nsColor: .controlBackgroundColor)))

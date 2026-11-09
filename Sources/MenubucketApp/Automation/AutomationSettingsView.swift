@@ -32,7 +32,8 @@ struct AutomationSettingsView: View {
                 Button("Allow in Accessibility…") { controller.requestAccessibility() }
                 // The input status below says it already; not twice.
                 if let message = controller.message, message != controller.inputSourceStatus.message {
-                    Text(message).font(.caption).foregroundStyle(.orange).textSelection(.enabled)
+                    // A warning carries its symbol as well as its colour.
+                    StatusBanner(tone: .warning, message: message)
                 }
                 if controller.isRunning { inputSourceStatusView }
                 ForEach(controller.systemShortcutConflicts) { conflict in
@@ -142,7 +143,7 @@ struct AutomationSettingsView: View {
                   : warning ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
         }
         .font(.caption)
-        .foregroundStyle(!controller.isRunning ? Color.secondary : warning ? Color.orange : Color.green)
+        .foregroundStyle(!controller.isRunning ? Color.secondary : warning ? StatusTone.warning.color : StatusTone.success.color)
     }
 
     /// The last input source switch. "Changed" only means the selected

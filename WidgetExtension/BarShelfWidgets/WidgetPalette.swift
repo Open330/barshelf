@@ -13,7 +13,7 @@ enum WidgetPalette {
         switch raw {
         case "primary": return .primary
         case "secondary": return .secondary
-        case "tertiary": return .secondary.opacity(0.6)
+        case "tertiary": return .secondary.opacity(WidgetFill.tertiary)
         case "accent": return accent
         case "good", "green": return .green
         case "warning", "orange": return .orange
@@ -39,3 +39,44 @@ enum WidgetPalette {
         )
     }
 }
+
+/// Spacing and corners, as the app's `DesignTokens` has them. The extension
+/// is its own target, so it keeps its own copy; values a widget's tight
+/// layout needs (the row indent, the gap between columns) are named here
+/// rather than written where they are used.
+enum WidgetSpacing {
+    static let hair: CGFloat = 2
+    static let xxs: CGFloat = 4
+    static let stack: CGFloat = 6
+    static let xs: CGFloat = 8
+    /// Between a row's mark and its title.
+    static let markGap: CGFloat = 7
+    /// A row's second line, under its title: the mark's width and gap.
+    static let rowIndent: CGFloat = 21
+    /// Between columns of rings and rows.
+    static let columnGap: CGFloat = 18
+}
+
+enum WidgetRadius {
+    static let control: CGFloat = 6
+}
+
+/// Washes and type sizes the widget templates draw with.
+enum WidgetFill {
+    /// A ring's or bar's empty track.
+    static let track: Double = 0.12
+    /// A tile's quiet background.
+    static let tile: Double = 0.08
+    /// Tertiary text, from secondary.
+    static let tertiary: Double = 0.6
+}
+
+enum WidgetTypeSize {
+    /// The value inside a ring.
+    static let ringValue: CGFloat = 11
+    /// A tile's caption.
+    static let tileCaption: CGFloat = 9
+    /// A count badge.
+    static let badge: CGFloat = 8
+}
+

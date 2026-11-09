@@ -1998,6 +1998,7 @@
       }
     },
     "Card": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -6565,6 +6566,7 @@
       }
     },
     "Next": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -11892,6 +11894,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "필요한 것"
+          }
+        }
+      }
+    },
+    "What clicking one of the widget's rows does.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯의 행을 클릭했을 때 할 동작입니다."
           }
         }
       }

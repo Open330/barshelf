@@ -171,7 +171,7 @@ struct WidgetSettingsView: View {
     private var header: some View {
         HStack(spacing: Spacing.xs) {
             WidgetMark(widget: widget, runtime: runtime, size: 28)
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: Spacing.hair / 2) {
                 Text(widget.displayName).font(.headline)
                 Text("\(WidgetTypeName.name(widget.manifest.entry.kind)) · version \(widget.packageInfo.version ?? "–")")
                     .font(.caption)
@@ -612,9 +612,9 @@ struct WidgetSettingsView: View {
     }
 
     private var menuBarSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: Spacing.xs + Spacing.hair) {
             Text("Menu Bar")
-                .font(.system(size: 12, weight: .semibold))
+                .font(.headline)
 
             Toggle("Show in the menu bar", isOn: Binding(
                 get: { menuBarDraft.enabled },
@@ -703,7 +703,7 @@ struct WidgetSettingsView: View {
     private func previewRow<Content: View>(
         alignment: VerticalAlignment = .center, @ViewBuilder _ content: () -> Content
     ) -> some View {
-        HStack(alignment: alignment, spacing: 8) {
+        HStack(alignment: alignment, spacing: Spacing.xs) {
             Text("Preview").font(.caption).foregroundStyle(.secondary)
                 .frame(width: 52, alignment: .leading)
             content()
@@ -715,11 +715,11 @@ struct WidgetSettingsView: View {
             let image = MenuBarController.previewImage(for: previewEntry)
             Image(nsImage: image)
                 .renderingMode(image.isTemplate ? .template : .original)
-                .padding(.horizontal, 6)
+                .padding(.horizontal, Spacing.stack)
                 .frame(height: 24)
                 .background(
                     RoundedRectangle(cornerRadius: Radius.control, style: .continuous)
-                        .fill(Color.primary.opacity(0.07))
+                        .fill(Fill.card)
                 )
             Spacer(minLength: 0)
         }
@@ -729,7 +729,7 @@ struct WidgetSettingsView: View {
     /// be two unlabelled radio groups in a row, which gave four buttons and no
     /// way to tell which question either pair answered.
     private var menuBarControls: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: Spacing.xs + Spacing.hair) {
             // Fourteen rows in one column had become a wall; three questions —
             // how it looks, what it reads, what it does — each get a tab.
             Picker("", selection: $menuBarTab) {
@@ -747,7 +747,7 @@ struct WidgetSettingsView: View {
                 case .look:
                     GridRow {
                         settingsRowLabel("Item")
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: Spacing.xxs) {
                             Picker("Menu bar item", selection: Binding(
                                 get: { usesOwnItem },
                                 set: { menuBarDraft.separate = $0 }
@@ -764,7 +764,7 @@ struct WidgetSettingsView: View {
                             } else if stackedForcesOwnItem {
                                 settingsHint(String(localized: "Two rows need their own item."))
                             } else if !menuBarDraft.separate {
-                                HStack(spacing: 6) {
+                                HStack(spacing: Spacing.stack) {
                                     Button("Move Left") { runtime.moveInMenuBar(widget.id, by: -1) }
                                         .disabled(!runtime.canMoveInMenuBar(widget.id, by: -1))
                                     Button("Move Right") { runtime.moveInMenuBar(widget.id, by: 1) }
@@ -794,8 +794,8 @@ struct WidgetSettingsView: View {
                     if effectiveStyle != .metrics {
                         GridRow {
                             settingsRowLabel("Label")
-                            VStack(alignment: .leading, spacing: 4) {
-                            HStack(spacing: 6) {
+                            VStack(alignment: .leading, spacing: Spacing.xxs) {
+                            HStack(spacing: Spacing.stack) {
                                 // Same three-state problem the icon has: "" is no
                                 // label, nil is the widget's own, and a text field
                                 // cannot say which an empty box means.
@@ -823,8 +823,8 @@ struct WidgetSettingsView: View {
 
                     GridRow {
                         settingsRowLabel("Icon")
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack(spacing: 6) {
+                        VStack(alignment: .leading, spacing: Spacing.xxs) {
+                            HStack(spacing: Spacing.stack) {
                                 // "" means no icon, nil means the widget's own. A text
                                 // field cannot say the difference, so the checkbox does
                                 // — and it sits beside the field it governs.
@@ -860,7 +860,7 @@ struct WidgetSettingsView: View {
 
                     GridRow {
                         settingsRowLabel("Graph")
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: Spacing.xxs) {
                             Picker("Graph", selection: Binding(
                                 get: { shownPresentation.effectiveChart },
                                 set: { value in
@@ -937,7 +937,7 @@ struct WidgetSettingsView: View {
 
                     GridRow {
                         settingsRowLabel("Update")
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: Spacing.xxs) {
                             Picker("Update interval", selection: intervalBinding) {
                                 Text(menuBarInheritedIntervalTitle).tag(0.0)
                                 Divider()
@@ -974,11 +974,11 @@ struct WidgetSettingsView: View {
     private var metricPresentationControls: some View {
         let rows = editableMetricRows
         if rows.isEmpty {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: Spacing.stack) {
                 settingsHint(String(localized: "This widget has no metric rows to customize yet."))
             }
         } else {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: Spacing.xs) {
                 metricFormatControls(rows.map(\.metric))
                 if effectiveStyle == .metrics {
                     Divider()
@@ -1016,12 +1016,12 @@ struct WidgetSettingsView: View {
     }
 
     private func metricFormatControls(_ metrics: [StatusMetric]) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: Spacing.stack) {
             Toggle("Show values", isOn: presentationBoolBinding(\.showValues))
             Toggle("Show units", isOn: presentationBoolBinding(\.showUnits))
 
             if metrics.contains(where: { $0.number != nil || $0.format != nil }) {
-                HStack(spacing: 8) {
+                HStack(spacing: Spacing.xs) {
                     Text("Decimals").font(.caption).foregroundStyle(.secondary)
                     Picker("Decimals", selection: precisionBinding) {
                         Text("Auto").tag(-1)
@@ -1044,8 +1044,8 @@ struct WidgetSettingsView: View {
         _ metric: StatusMetric, key: String, at offset: Int,
         rows: [(key: String, metric: StatusMetric)]
     ) -> some View {
-        return VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
+        return VStack(alignment: .leading, spacing: Spacing.xxs) {
+            HStack(spacing: Spacing.stack) {
                 Toggle("", isOn: metricHiddenBinding(key))
                     .toggleStyle(.checkbox)
                     .labelsHidden()
@@ -1145,7 +1145,7 @@ struct WidgetSettingsView: View {
         let presentation = shownPresentation
         let unit = MenuBarPolicy.thresholdUnit(thresholdMetrics)
         let below = presentation.thresholdDirection == .below
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: Spacing.stack) {
             Picker("Which direction is worse", selection: Binding(
                 get: { presentation.thresholdDirection ?? .above },
                 set: { value in setPresentation { $0.thresholdDirection = value == .above ? nil : value } }
@@ -1156,7 +1156,7 @@ struct WidgetSettingsView: View {
             .pickerStyle(.segmented)
             .labelsHidden()
             .frame(width: 210)
-            HStack(spacing: 6) {
+            HStack(spacing: Spacing.stack) {
                 thresholdField("Warning", $warningText, \.warningAt, unit: unit)
                 thresholdField("Danger", $dangerText, \.dangerAt, unit: unit)
             }
@@ -1174,7 +1174,7 @@ struct WidgetSettingsView: View {
         _ title: LocalizedStringKey, _ text: Binding<String>,
         _ keyPath: WritableKeyPath<MenuBarPresentation, Double?>, unit: String
     ) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: Spacing.xxs) {
             Text(title).font(.caption).foregroundStyle(.secondary)
             TextField(title, text: Binding(
                 get: { text.wrappedValue },
@@ -1341,39 +1341,22 @@ struct WidgetSettingsView: View {
 
     // MARK: - Appearance section (R12)
 
-    /// One accent choice: a display name and the stored `accent` value
-    /// (nil for the system-accent "Default").
-    private struct AccentSwatch {
-        let name: String
-        let value: String?
-    }
-
-    private let accentSwatches: [AccentSwatch] = [
-        .init(name: String(localized: "Default", comment: "Accent color choice"), value: nil),
-        .init(name: String(localized: "Blue"), value: "blue"),
-        .init(name: String(localized: "Purple"), value: "purple"),
-        .init(name: String(localized: "Pink"), value: "pink"),
-        .init(name: String(localized: "Red"), value: "red"),
-        .init(name: String(localized: "Orange"), value: "orange"),
-        .init(name: String(localized: "Yellow"), value: "yellow"),
-        .init(name: String(localized: "Green"), value: "green"),
-        .init(name: String(localized: "Gray"), value: "gray"),
-    ]
-
     private var appearanceSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: Spacing.xs + Spacing.hair) {
             Text("Appearance")
-                .font(.system(size: 12, weight: .semibold))
+                .font(.headline)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Accent").font(.system(size: 11)).foregroundColor(.secondary)
-                HStack(spacing: 6) {
-                    ForEach(accentSwatches, id: \.name) { swatch in
-                        accentButton(swatch)
+            VStack(alignment: .leading, spacing: Spacing.xxs) {
+                Text("Accent").font(.caption).foregroundStyle(.secondary)
+                HStack(spacing: Spacing.stack) {
+                    ForEach(AccentPalette.swatches) { swatch in
+                        AccentSwatchButton(swatch: swatch, isSelected: isAccentSelected(swatch.value)) {
+                            appearanceDraft.accent = swatch.value
+                        }
                     }
                 }
-                HStack(spacing: 6) {
-                    Text("Hex").font(.system(size: 11)).foregroundColor(.secondary)
+                HStack(spacing: Spacing.stack) {
+                    Text("Hex").font(.caption).foregroundStyle(.secondary)
                     TextField("#RRGGBB", text: hexBinding)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 90)
@@ -1382,7 +1365,7 @@ struct WidgetSettingsView: View {
             }
 
             HStack {
-                Text("Density").font(.system(size: 12))
+                Text("Density").font(.callout)
                 Spacer()
                 Picker("Density", selection: densityBinding) {
                     Text("Regular").tag(WidgetAppearance.Density.regular)
@@ -1392,18 +1375,18 @@ struct WidgetSettingsView: View {
             }
 
             HStack {
-                Text("Card style").font(.system(size: 12))
+                Text("Card style").font(.callout)
                 Spacer()
-                Picker("", selection: cardStyleBinding) {
+                Picker("Card style", selection: cardStyleBinding) {
                     Text("Plain").tag(WidgetAppearance.CardStyle.plain)
                     Text("Tinted").tag(WidgetAppearance.CardStyle.tinted)
                 }
                 .pickerStyle(.segmented).labelsHidden().frame(width: 160)
             }
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: Spacing.hair) {
                 HStack {
-                    Text("Height").font(.system(size: 12))
+                    Text("Height").font(.callout)
                     Spacer()
                     Picker("", selection: heightBinding) {
                         Text("Auto").tag(HeightPreset.fit)
@@ -1420,44 +1403,16 @@ struct WidgetSettingsView: View {
             }
 
             Toggle("Show header", isOn: showHeaderBinding)
-                .font(.system(size: 12))
+                .toggleStyle(.switch)
+                .font(.callout)
 
             Button("Reset to widget default") { appearanceDraft = authorBase }
                 .controlSize(.small)
         }
     }
 
-    private func accentButton(_ swatch: AccentSwatch) -> some View {
-        let selected = isAccentSelected(swatch.value)
-        return Button {
-            appearanceDraft.accent = swatch.value
-        } label: {
-            Circle()
-                .fill(swatchColor(swatch))
-                .frame(width: 18, height: 18)
-                .overlay(
-                    Circle().stroke(
-                        Color.primary.opacity(selected ? 0.9 : 0.15),
-                        lineWidth: selected ? 2 : 1
-                    )
-                )
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(swatch.name) accent")
-        .accessibilityAddTraits(selected ? [.isSelected] : [])
-    }
-
-    private func swatchColor(_ swatch: AccentSwatch) -> Color {
-        WidgetAppearance(accent: swatch.value).accentColor ?? .accentColor
-    }
-
     private func isAccentSelected(_ value: String?) -> Bool {
-        switch (value, appearanceDraft.accent) {
-        case (nil, nil): return true
-        case let (candidate?, current?):
-            return candidate.caseInsensitiveCompare(current) == .orderedSame
-        default: return false
-        }
+        AccentPalette.matches(value, appearanceDraft.accent)
     }
 
     private var hexBinding: Binding<String> {
@@ -1535,11 +1490,11 @@ struct WidgetSettingsView: View {
                 get: { values[key]?.boolValue ?? false },
                 set: { values[key] = .bool($0) }
             ))
-            .font(.system(size: 12))
+            .font(.callout)
         case "integer":
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: Spacing.hair) {
                 HStack {
-                    Text(title).font(.system(size: 12))
+                    Text(title).font(.callout)
                     Spacer()
                     TextField("", text: Binding(
                         get: { values[key]?.numberValue.map { String(Int($0)) } ?? "" },
@@ -1572,7 +1527,7 @@ struct WidgetSettingsView: View {
             }
         case "enum":
             HStack {
-                Text(title).font(.system(size: 12))
+                Text(title).font(.callout)
                 Spacer()
                 Picker(title, selection: Binding(
                     get: { values[key]?.stringValue ?? "" },
@@ -1593,8 +1548,8 @@ struct WidgetSettingsView: View {
                 .frame(width: entry.optionsSource == nil ? 140 : 190)
             }
         case "directory":
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title).font(.system(size: 12))
+            VStack(alignment: .leading, spacing: Spacing.xxs) {
+                Text(title).font(.callout)
                 HStack {
                     TextField("~/path", text: stringBinding(key))
                         .textFieldStyle(.roundedBorder)
@@ -1619,8 +1574,8 @@ struct WidgetSettingsView: View {
                 }
             }
         default: // "string"
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title).font(.system(size: 12))
+            VStack(alignment: .leading, spacing: Spacing.xxs) {
+                Text(title).font(.callout)
                 TextField(title, text: stringBinding(key))
                     .textFieldStyle(.roundedBorder)
             }
@@ -1713,7 +1668,7 @@ struct WidgetSettingsView: View {
 
     @ViewBuilder
     private var clickControls: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: Spacing.xxs) {
             Picker("When clicked", selection: Binding(
                 get: { menuBarDraft.effectiveClickAction },
                 set: { menuBarDraft.clickAction = $0 == .card ? nil : $0 }
@@ -1726,7 +1681,7 @@ struct WidgetSettingsView: View {
             .labelsHidden()
             .frame(width: 180)
             if menuBarDraft.effectiveClickAction == .open {
-                HStack(spacing: 6) {
+                HStack(spacing: Spacing.stack) {
                     TextField("com.apple.ActivityMonitor or https://…", text: Binding(
                         get: { menuBarDraft.clickTarget ?? "" },
                         set: {
@@ -1757,8 +1712,8 @@ struct WidgetSettingsView: View {
         let others = runtime.menuBarCandidates.filter { other in
             other.id != widget.id && runtime.prefs.menuBarPlacements[other.id] != nil
         }
-        VStack(alignment: .leading, spacing: 4) {
-        HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: Spacing.xxs) {
+        HStack(spacing: Spacing.xs) {
             Menu("Apply Preset") {
                 ForEach(MenuBarPresentation.presets, id: \.name) { preset in
                     Button(MenuBarPresetName.title(preset.name)) {

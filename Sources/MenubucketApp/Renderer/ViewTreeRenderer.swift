@@ -1122,7 +1122,7 @@ private struct MonogramView: View {
 
     var body: some View {
         RoundedRectangle(cornerRadius: pointSize * 0.22)
-            .fill(accent.opacity(0.18))
+            .fill(accent.opacity(Fill.Wash.strong))
             .frame(width: pointSize, height: pointSize)
             .overlay(
                 Text(String(text.prefix(2)))

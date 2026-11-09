@@ -22,11 +22,9 @@ struct WelcomeCardView: View {
                 Spacer()
                 Button(action: dismiss) {
                     Image(systemName: "xmark")
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(.secondary)
                 }
-                .buttonStyle(.borderless)
-                .help("Dismiss")
+                .buttonStyle(.icon)
+                .hoverHint("Dismiss")
                 .accessibilityLabel("Dismiss welcome card")
             }
             Text("A few widgets to start with. Find more in the Gallery.")

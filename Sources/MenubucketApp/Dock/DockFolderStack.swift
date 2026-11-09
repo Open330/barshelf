@@ -48,8 +48,7 @@ struct DockFolderStack: View {
             header
             Divider()
             if entries.isEmpty {
-                Text("Empty Folder")
-                    .foregroundStyle(.secondary)
+                EmptyStateView(symbol: "folder", title: String(localized: "Empty Folder"))
                     .frame(maxWidth: .infinity, minHeight: 120)
             } else {
                 ScrollView {
@@ -77,8 +76,9 @@ struct DockFolderStack: View {
                 } label: {
                     Image(systemName: "chevron.left")
                 }
-                .buttonStyle(.borderless)
-                .help("Back")
+                .buttonStyle(.icon)
+                .hoverHint("Back", key: "⌘[")
+                .keyboardShortcut("[", modifiers: .command)
                 .accessibilityLabel(Text("Back"))
             }
             Text(FileManager.default.displayName(atPath: folder.path))
@@ -89,6 +89,7 @@ struct DockFolderStack: View {
                 NSWorkspace.shared.open(folder)
                 onClose()
             }
+            .buttonStyle(.glass(.secondary))
             .controlSize(.small)
         }
         .padding(.horizontal, Spacing.s)

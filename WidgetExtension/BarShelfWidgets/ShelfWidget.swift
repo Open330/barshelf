@@ -87,7 +87,7 @@ struct ShelfProvider: AppIntentTimelineProvider {
                     UINode(type: "text", text: value, foreground: tint),
                 ]),
                 UINode(type: "progress", tint: tint, value: fraction),
-            ], spacing: 4)
+            ], spacing: WidgetSpacing.xxs)
         }
         return SharedShelf.Snapshot(
             widgetID: "sample",
@@ -190,7 +190,7 @@ struct ShelfWidgetView: View {
     private func content(_ snapshot: SharedShelf.Snapshot) -> some View {
         let accent = WidgetPalette.color(snapshot.accent) ?? .accentColor
         let plan = layout(for: snapshot)
-        return VStack(alignment: .leading, spacing: 8) {
+        return VStack(alignment: .leading, spacing: WidgetSpacing.xs) {
             header(snapshot, title: plan.heading, accent: accent)
             if !plan.missingKeys.isEmpty {
                 missingSelection(plan.missingKeys)
@@ -313,7 +313,7 @@ struct ShelfWidgetView: View {
 
     private func header(_ snapshot: SharedShelf.Snapshot, title: String?, accent: Color) -> some View {
         let stale = snapshot.staleAfter.map { entry.date >= $0 } ?? false
-        return HStack(spacing: 5) {
+        return HStack(spacing: WidgetSpacing.xxs) {
             if let icon = snapshot.icon {
                 Image(systemName: icon)
                     .font(.caption)
@@ -365,7 +365,7 @@ struct ShelfWidgetView: View {
                 // Archive a fixed, localized timestamp. A relative-date Text
                 // keeps updating in the system widget host even while our
                 // extension is asleep and the reading itself is unchanged.
-                HStack(spacing: 3) {
+                HStack(spacing: WidgetSpacing.hair) {
                     Image(systemName: "clock.arrow.circlepath")
                     Text(verbatim: updated.formatted(
                         Date.FormatStyle(date: .abbreviated, time: .shortened).locale(locale)
@@ -389,12 +389,12 @@ struct ShelfWidgetView: View {
     }
 
     private func placeholder(symbol: String, title: String?, text: String, retry: Bool = false) -> some View {
-        VStack(spacing: 6) {
+        VStack(spacing: WidgetSpacing.stack) {
             Image(systemName: symbol)
                 .font(.title2)
                 .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
-            VStack(spacing: 6) {
+            VStack(spacing: WidgetSpacing.stack) {
                 if let title {
                     Text(title).font(.callout.weight(.semibold))
                 }
