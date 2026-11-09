@@ -48,7 +48,22 @@ final class RunningApps: ObservableObject {
                    let url = app.bundleURL {
                     self?.launching.remove(Self.key(url.path))
                 }
-                self?.reload()
+                // Switching apps happens all day and changes only which app
+                // is in front; listing every running app for it was a
+                // visible share of the app's idle work. The list itself
+                // changes when an app starts or quits.
+                switch name {
+                case NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification:
+                    self?.reload()
+                default:
+                    // An app that turns into a regular one (a menu bar app
+                    // opening a window) comes forward without launching.
+                    if let self, self.listChanged() {
+                        self.reload()
+                    } else {
+                        self?.updateFrontmost()
+                    }
+                }
             })
         }
         reload()
@@ -59,17 +74,39 @@ final class RunningApps: ObservableObject {
     }
 
     private var hasLooked = false
+    /// The apps behind `apps`, to see their activation policy change.
+    private var listed: [NSRunningApplication] = []
+
+    /// Whether an app switch also changed which apps belong in the list
+    /// without one starting or quitting: an app turning regular (a menu bar
+    /// app opening a window) comes forward, and one turning into an
+    /// accessory (closing its last window) is no longer regular.
+    private func listChanged() -> Bool {
+        if let front = NSWorkspace.shared.frontmostApplication, front.activationPolicy == .regular,
+           let url = front.bundleURL, !apps.contains(where: { $0.path == Self.key(url.path) }) {
+            return true
+        }
+        // The listed apps, as the system keeps them current: one that is
+        // no longer a regular app, whenever that happened, leaves the list.
+        return listed.contains { $0.isTerminated || $0.activationPolicy != .regular }
+    }
 
     func reload() {
         defer { hasLooked = true }
-        let running = NSWorkspace.shared.runningApplications
+        listed = NSWorkspace.shared.runningApplications
             .filter { $0.activationPolicy == .regular && !$0.isTerminated }
             .sorted { ($0.launchDate ?? .distantPast) < ($1.launchDate ?? .distantPast) }
+        let running = listed
             .compactMap { app -> App? in
                 guard let url = app.bundleURL else { return nil }
                 return App(path: Self.key(url.path), bundleID: app.bundleIdentifier, processID: app.processIdentifier)
             }
         if running != apps { apps = running }
+        updateFrontmost()
+    }
+
+    /// Which app is in front, and the recent list it feeds.
+    private func updateFrontmost() {
         let front = NSWorkspace.shared.frontmostApplication?.bundleURL.map { Self.key($0.path) }
         if front != frontmostPath {
             let isFirstLook = !hasLooked

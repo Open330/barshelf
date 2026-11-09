@@ -14,6 +14,11 @@
   once into a bitmap instead of again for every display's menu bar.
   Permission checks no longer re-hash every widget on each menu bar update.
   `scripts/profile-idle.sh` measures and profiles the running app.
+- **Fewer and cheaper waves.** A chip that turns to a warning and back
+  before the wave's cooldown ends no longer sets off a wave three minutes
+  later. Chip glyphs are drawn once per size instead of on every frame of the
+  wave and the hover glide. Switching apps no longer lists every running app
+  for the dock.
 - **Card controls no longer cover the card.** On a card with a header,
   Refresh and Settings appear in the header on hover, in place of the "3m
   ago" time, so nothing floats over the title or the content. Cards without

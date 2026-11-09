@@ -378,23 +378,15 @@ extension MenuBarController {
 
     private static func drawGlyph(_ chip: ClusterChip, at center: NSPoint, alpha: CGFloat, scale: CGFloat = 1) {
         let ink = NSColor.white.withAlphaComponent(alpha)
-        if let name = chip.symbol,
-           let symbol = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
-            .withSymbolConfiguration(.init(pointSize: ChipMetrics.glyphSize * scale, weight: .bold)) {
-            let tinted = NSImage(size: symbol.size, flipped: false) { bounds in
-                symbol.draw(in: bounds)
-                ink.set()
-                bounds.fill(using: .sourceAtop)
-                return true
-            }
+        if let name = chip.symbol, let glyph = GlyphCache.shared.glyph(name, pointSize: ChipMetrics.glyphSize * scale) {
             // Wide symbols (a battery) are fitted into the core's box.
             let box = ChipMetrics.glyphBox * scale
-            let fit = min(box / symbol.size.width, box / symbol.size.height, 1)
-            let size = NSSize(width: symbol.size.width * fit, height: symbol.size.height * fit)
-            tinted.draw(in: NSRect(
-                x: center.x - size.width / 2, y: center.y - size.height / 2,
-                width: size.width, height: size.height
-            ))
+            let fit = min(box / glyph.size.width, box / glyph.size.height, 1)
+            let size = NSSize(width: glyph.size.width * fit, height: glyph.size.height * fit)
+            glyph.draw(
+                in: NSRect(x: center.x - size.width / 2, y: center.y - size.height / 2, width: size.width, height: size.height),
+                from: .zero, operation: .sourceOver, fraction: alpha
+            )
             return
         }
         let pointSize = ChipMetrics.glyphSize * scale
@@ -408,4 +400,65 @@ extension MenuBarController {
 
 private extension Array {
     subscript(cluster index: Int) -> Element? { indices.contains(index) ? self[index] : nil }
+}
+
+/// White chip glyphs, drawn once per symbol and size.
+///
+/// A chip's glyph was a fresh SF Symbol, tinted, on every frame: two thirds
+/// of drawing the cluster, which the update wave and the hover glide do
+/// sixty times a second. The glyph is drawn white at full strength, and a
+/// stale chip's fade is applied when it is drawn. Sizes are rounded to a
+/// quarter point, so the wave's growing chips reuse a few dozen images.
+final class GlyphCache: @unchecked Sendable {
+    static let shared = GlyphCache()
+    /// Off draws every glyph afresh, as before (tests compare the two).
+    var isEnabled = true
+    static let limit = 96
+
+    private let lock = NSLock()
+    private var images: [Key: NSImage] = [:]
+
+    private struct Key: Hashable {
+        let name: String
+        let quarterPoints: Int
+        let scales: [CGFloat]
+    }
+
+    func glyph(_ name: String, pointSize: CGFloat) -> NSImage? {
+        let quarterPoints = Int((pointSize * 4).rounded())
+        let size = CGFloat(quarterPoints) / 4
+        guard isEnabled else { return Self.draw(name, pointSize: pointSize) }
+        let scales = MenuBarController.screenScales()
+        let key = Key(name: name, quarterPoints: quarterPoints, scales: scales)
+        lock.lock()
+        if let image = images[key] {
+            lock.unlock()
+            return image
+        }
+        lock.unlock()
+        guard let drawn = Self.draw(name, pointSize: size) else { return nil }
+        let image = MenuBarController.rasterized(drawn, scales: scales)
+        lock.lock()
+        if images.count >= Self.limit { images.removeAll(keepingCapacity: true) }
+        images[key] = image
+        lock.unlock()
+        return image
+    }
+
+    var count: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return images.count
+    }
+
+    private static func draw(_ name: String, pointSize: CGFloat) -> NSImage? {
+        guard let symbol = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: pointSize, weight: .bold)) else { return nil }
+        return NSImage(size: symbol.size, flipped: false) { bounds in
+            symbol.draw(in: bounds)
+            NSColor.white.set()
+            bounds.fill(using: .sourceAtop)
+            return true
+        }
+    }
 }

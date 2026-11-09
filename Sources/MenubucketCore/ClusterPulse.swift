@@ -58,6 +58,9 @@ public struct ClusterPulseGate: Equatable, Sendable {
     public private(set) var lastWave: Date?
     /// Changes seen while a wave could not run, waiting for the next.
     public private(set) var pending: Set<String> = []
+    /// Each chip's state as of the last wave, or as first seen: what a
+    /// held change is measured against when its wave comes.
+    public private(set) var settled: [String: ClusterChip.PulseState] = [:]
 
     public init() {}
 
@@ -80,15 +83,39 @@ public struct ClusterPulseGate: Equatable, Sendable {
         return .now
     }
 
-    /// A wave ran (or was skipped on purpose): start the cooldown and drop
-    /// what it covered.
-    public mutating func ran(at now: Date) {
-        lastWave = now
-        pending = []
+    /// The held changes that still stand in `chips`. A chip that turned to
+    /// a warning and back while the wave was held has nothing to show: a
+    /// spike that came and went set off a wave three minutes later, every
+    /// three minutes.
+    public func standing(in chips: [ClusterChip]) -> Set<String> {
+        let current = Dictionary(chips.map { ($0.id, $0.pulseState) }, uniquingKeysWith: { first, _ in first })
+        return pending.filter { id in
+            guard let state = current[id] else { return false }
+            return settled[id] != state
+        }
     }
 
-    /// Forget held changes, e.g. when the chips are replaced.
-    public mutating func reset() { pending = [] }
+    /// A wave ran (or was skipped on purpose) over `chips`: start the
+    /// cooldown, drop what it covered, and measure later changes from here.
+    public mutating func ran(at now: Date, chips: [ClusterChip]) {
+        lastWave = now
+        pending = []
+        settle(chips)
+    }
+
+    /// Held changes that all went back: nothing to show, no cooldown.
+    public mutating func dropReverted() { pending = [] }
+
+    /// Forget held changes and measure from `chips`, e.g. when the chips
+    /// are replaced.
+    public mutating func reset(settling chips: [ClusterChip] = []) {
+        pending = []
+        settle(chips)
+    }
+
+    private mutating func settle(_ chips: [ClusterChip]) {
+        settled = Dictionary(chips.map { ($0.id, $0.pulseState) }, uniquingKeysWith: { first, _ in first })
+    }
 }
 
 extension ClusterChip {

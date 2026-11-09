@@ -119,7 +119,7 @@ final class ClusterPulseTests: XCTestCase {
         let start = Date(timeIntervalSince1970: 1000)
         XCTAssertEqual(gate.note([], now: start), .none)
         XCTAssertEqual(gate.note(["a"], now: start), .now)
-        gate.ran(at: start)
+        gate.ran(at: start, chips: [])
         XCTAssertTrue(gate.pending.isEmpty)
 
         let soon = start.addingTimeInterval(30)
@@ -132,6 +132,31 @@ final class ClusterPulseTests: XCTestCase {
         XCTAssertEqual(gate.note([], now: later), .now, "held changes run once the cooldown is over")
         gate.reset()
         XCTAssertEqual(gate.note([], now: later), .none)
+    }
+
+    /// A held change that went back by the time its wave comes is no
+    /// change: a CPU spike to a warning and back does not wave three
+    /// minutes later.
+    func testAHeldChangeThatWentBackDoesNotWave() {
+        let cpu = ClusterChip(widgetID: "cpu", name: "CPU", initial: "C", reading: "17%")
+        var warned = cpu
+        warned.tint = .warning
+        let ram = ClusterChip(widgetID: "ram", name: "RAM", initial: "R", reading: "78%")
+        var ramAlert = ram
+        ramAlert.alert = true
+
+        var gate = ClusterPulseGate()
+        gate.reset(settling: [cpu, ram])
+        let start = Date(timeIntervalSince1970: 1000)
+        gate.ran(at: start, chips: [cpu, ram])
+        _ = gate.note(ClusterPulse.changes(from: [cpu, ram], to: [warned, ram]), now: start.addingTimeInterval(20))
+        _ = gate.note(ClusterPulse.changes(from: [warned, ram], to: [cpu, ram]), now: start.addingTimeInterval(25))
+        XCTAssertEqual(gate.standing(in: [cpu, ram]), [], "the spike came and went")
+
+        _ = gate.note(ClusterPulse.changes(from: [cpu, ram], to: [cpu, ramAlert]), now: start.addingTimeInterval(30))
+        XCTAssertEqual(gate.standing(in: [cpu, ramAlert]), ["ram"], "only what still differs from the last wave")
+        gate.ran(at: start.addingTimeInterval(180), chips: [cpu, ramAlert])
+        XCTAssertEqual(gate.standing(in: [cpu, ramAlert]), [])
     }
 
     func testThePreferenceDefaultsOnAndSurvivesOldFiles() throws {
