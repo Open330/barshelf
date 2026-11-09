@@ -958,7 +958,7 @@ public actor RuntimeSupervisor {
             var json: JSONValue?
             switch exec.parse {
             case "json":
-                json = try? JSONDecoder().decode(JSONValue.self, from: capture.stdout)
+                json = try? JSONValue.parse(capture.stdout)
             case "lines":
                 json = .array(
                     stdout.split(separator: "\n", omittingEmptySubsequences: true)
@@ -967,13 +967,15 @@ public actor RuntimeSupervisor {
             default:
                 break
             }
-            return try JSONValue.bridged(ExecRunResult(
+            // Built directly: bridging `ExecRunResult` encoded megabytes of
+            // stdout to JSON text only to parse it straight back.
+            return ExecRunResult(
                 exitCode: Int(capture.exitCode),
                 stdout: stdout,
                 stderr: stderr,
                 json: json,
                 durationMs: capture.durationMs
-            ))
+            ).jsonValue
         }
     }
 

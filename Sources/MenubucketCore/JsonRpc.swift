@@ -178,6 +178,19 @@ public enum JsonRpcCodec {
     }
 
     public static func encode(_ message: JsonRpcMessage) throws -> Data {
+        // A result goes out through Foundation's writer: JSONEncoder spent
+        // most of a large command result's round trip escaping it. Same
+        // compact, sorted-key JSON; errors keep the Codable path.
+        if case let .response(response) = message, response.error == nil,
+           let result = response.result, result.isFinite {
+            var object: [String: Any] = ["jsonrpc": response.jsonrpc, "result": result.foundationObject]
+            switch response.id {
+            case let .number(number)?: object["id"] = number
+            case let .string(string)?: object["id"] = string
+            case nil: object["id"] = NSNull()
+            }
+            return try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys, .withoutEscapingSlashes])
+        }
         switch message {
         case let .request(request): return try makeEncoder().encode(request)
         case let .response(response): return try makeEncoder().encode(response)
@@ -187,9 +200,14 @@ public enum JsonRpcCodec {
     /// Decodes one line. Throws `JsonRpcError` with `parseErrorCode` /
     /// `invalidRequestCode` / `protocolErrorCode` on malformed input.
     public static func decode(line: Data) throws -> JsonRpcMessage {
+        let parsed: Any
         let value: JSONValue
         do {
-            value = try JSONDecoder().decode(JSONValue.self, from: line)
+            parsed = try JSONSerialization.jsonObject(with: line, options: [.fragmentsAllowed])
+            guard let converted = JSONValue(foundation: parsed) else {
+                throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "unsupported JSON value"))
+            }
+            value = converted
         } catch {
             throw JsonRpcError(code: JsonRpcError.parseErrorCode, message: "invalid JSON: \(error)")
         }
@@ -199,12 +217,23 @@ public enum JsonRpcCodec {
         guard case .string("2.0")? = object["jsonrpc"] else {
             throw JsonRpcError(code: JsonRpcError.invalidRequestCode, message: "jsonrpc must be \"2.0\"")
         }
-        if object["method"] != nil {
+        if let method = object["method"] {
+            // From the value already parsed, not by decoding the line again:
+            // a script's render can be a large view tree.
+            guard case let .string(name) = method else {
+                throw JsonRpcError(code: JsonRpcError.invalidRequestCode, message: "malformed request: method must be a string")
+            }
+            let id: JsonRpcID?
             do {
-                return .request(try JSONDecoder().decode(JsonRpcRequest.self, from: line))
+                // From the parsed text, not the Double in `value`: a large
+                // integer id keeps every digit.
+                id = try JsonRpcID(foundation: (parsed as? [String: Any])?["id"])
             } catch {
                 throw JsonRpcError(code: JsonRpcError.invalidRequestCode, message: "malformed request: \(error)")
             }
+            // `"params": null` is no params, as the Codable request had it.
+            let params = object["params"].flatMap { $0 == .null ? nil : $0 }
+            return .request(JsonRpcRequest(id: id, method: name, params: params))
         }
         if object["result"] != nil || object["error"] != nil {
             do {
@@ -319,3 +348,40 @@ extension JSONValue {
         return try JSONDecoder().decode(type, from: data)
     }
 }
+
+extension JsonRpcID {
+    /// An id from `JSONSerialization`, by the rules of `init(from:)`: an
+    /// integer as it is, a fraction cut to its whole part when it fits, or a
+    /// string; absent or null is no id.
+    init?(foundation object: Any?) throws {
+        switch object {
+        case nil, is NSNull:
+            return nil
+        case let string as String:
+            self = .string(string)
+        case let number as NSNumber where CFGetTypeID(number) != CFBooleanGetTypeID():
+            if !CFNumberIsFloatType(number), !(number is NSDecimalNumber) {
+                // An unsigned value past Int.max must not wrap.
+                let decimal = NSDecimalNumber(decimal: number.decimalValue)
+                guard decimal.compare(NSDecimalNumber(value: Int.max)) != .orderedDescending,
+                      decimal.compare(NSDecimalNumber(value: Int.min)) != .orderedAscending else {
+                    throw JsonRpcError(code: JsonRpcError.invalidRequestCode, message: "id number out of Int range")
+                }
+                self = .number(number.intValue)
+                return
+            }
+            let double = (number as? NSDecimalNumber).flatMap { Double($0.stringValue) } ?? number.doubleValue
+            if let decimal = number as? NSDecimalNumber, let exact = Int(decimal.stringValue) {
+                self = .number(exact)
+                return
+            }
+            guard double.isFinite, double >= Double(Int.min), double < Double(Int.max) else {
+                throw JsonRpcError(code: JsonRpcError.invalidRequestCode, message: "id number out of Int range")
+            }
+            self = .number(Int(double))
+        default:
+            throw JsonRpcError(code: JsonRpcError.invalidRequestCode, message: "id must be a number or string")
+        }
+    }
+}
+

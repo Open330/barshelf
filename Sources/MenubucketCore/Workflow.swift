@@ -1219,7 +1219,7 @@ public enum HttpSource {
         }
 
         do {
-            return try JSONDecoder().decode(JSONValue.self, from: data)
+            return try JSONValue.parse(data)
         } catch {
             throw HttpSourceError.invalidJSON(String(describing: error))
         }

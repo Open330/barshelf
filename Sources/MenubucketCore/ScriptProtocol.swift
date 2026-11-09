@@ -230,6 +230,19 @@ public struct ExecRunParams: Codable, Equatable, Sendable {
 }
 
 public struct ExecRunResult: Codable, Equatable, Sendable {
+    /// The result as the script receives it: the keys its Codable form has,
+    /// `json` left out when there is none.
+    public var jsonValue: JSONValue {
+        var object: [String: JSONValue] = [
+            "exitCode": .number(Double(exitCode)),
+            "stdout": .string(stdout),
+            "stderr": .string(stderr),
+            "durationMs": .number(durationMs),
+        ]
+        if let json { object["json"] = json }
+        return .object(object)
+    }
+
     public var exitCode: Int
     public var stdout: String
     public var stderr: String
