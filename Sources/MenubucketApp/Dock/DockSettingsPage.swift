@@ -103,15 +103,24 @@ struct DockSettingsPage: View {
 
     private var modeSection: some View {
         Section {
-            Picker("BarShelf Dock", selection: Binding(
+            Picker(selection: Binding(
                 get: { config.mode },
                 set: { mode in store.update { $0.mode = mode } }
             )) {
                 Text("Off").tag(DockConfiguration.Mode.off)
                 Text("Alongside the Apple Dock").tag(DockConfiguration.Mode.alongside)
                 Text("Instead of the Apple Dock").tag(DockConfiguration.Mode.replace)
+            } label: {
+                Text("BarShelf Dock")
+                // What the chosen mode does, as the menu bar's mode says.
+                switch config.mode {
+                case .off: Text("No BarShelf Dock. Profiles can still switch the Apple Dock's apps.")
+                case .alongside: Text("A second dock on the edge you choose, next to the Apple Dock.")
+                case .replace: Text("The BarShelf Dock takes the Apple Dock's place while BarShelf runs.")
+                }
             }
             .pickerStyle(.radioGroup)
+            .accessibilityLabel("BarShelf Dock")
             if config.mode == .replace {
                 StatusBanner(
                     tone: .info,

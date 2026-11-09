@@ -753,6 +753,16 @@
         }
       }
     },
+    "A second dock on the edge you choose, next to the Apple Dock.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Dock 옆, 고른 가장자리에 Dock을 하나 더 띄웁니다."
+          }
+        }
+      }
+    },
     "A single compact line.": {
       "localizations": {
         "ko": {
@@ -6574,6 +6584,16 @@
         }
       }
     },
+    "No BarShelf Dock. Profiles can still switch the Apple Dock's apps.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BarShelf Dock을 쓰지 않습니다. 프로필로 Apple Dock의 앱은 계속 바꿀 수 있습니다."
+          }
+        }
+      }
+    },
     "No Shortcuts found": {
       "localizations": {
         "ko": {
@@ -10415,6 +10435,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Apple Dock 설정을 복원하지 못했습니다. BarShelf가 복구용 사본을 보관하고 있습니다. Apple Dock 복원을 선택해 다시 시도하십시오."
+          }
+        }
+      }
+    },
+    "The BarShelf Dock takes the Apple Dock's place while BarShelf runs.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BarShelf가 실행되는 동안 BarShelf Dock이 Apple Dock을 대신합니다."
           }
         }
       }

@@ -20,6 +20,10 @@ struct ShelfView: View {
     /// The inspector part a request ("Customize…") asked for, for that widget
     /// only; any other selection opens on General.
     @State private var requestedPage: (widgetID: String, page: WidgetSettingsView.InspectorTab)?
+    /// The board takes the keyboard once a chip is clicked or Tab reaches it.
+    @FocusState private var boardFocused: Bool
+    /// Bumped when the chosen widget moves, to scroll it back into view.
+    @State private var revealMoved = 0
     @Environment(\.undoManager) private var undoManager
 
     private let columnWidth: CGFloat = 230
@@ -121,18 +125,85 @@ struct ShelfView: View {
     }
 
     private var shelfColumns: some View {
-        ScrollView([.horizontal, .vertical]) {
-            HStack(alignment: .top, spacing: Spacing.m) {
-                let pages = shelfPages
-                ForEach(Array(pages.enumerated()), id: \.element.name) { index, page in
-                    column(page, index: index, count: pages.count)
+        ScrollViewReader { proxy in
+            ScrollView([.horizontal, .vertical]) {
+                HStack(alignment: .top, spacing: Spacing.m) {
+                    let pages = shelfPages
+                    ForEach(Array(pages.enumerated()), id: \.element.name) { index, page in
+                        column(page, index: index, count: pages.count)
+                    }
                 }
+                .padding(Spacing.m)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
-            .padding(Spacing.m)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+            // Clicking empty space clears the selection, as in Finder.
+            .background(Color.clear.contentShape(Rectangle()).onTapGesture { selection = nil })
+            .onChange(of: selection) { _, id in
+                guard let id else { return }
+                withAnimation(Motion.quick) { proxy.scrollTo(id) }
+            }
+            .onChange(of: revealMoved) {
+                guard let selection else { return }
+                // After the move has laid out.
+                Task { @MainActor in withAnimation(Motion.quick) { proxy.scrollTo(selection) } }
+            }
         }
-        // Clicking empty space clears the selection, as in Finder.
-        .background(Color.clear.contentShape(Rectangle()).onTapGesture { selection = nil })
+        // The system focus ring says the board has the keyboard.
+        .focusable()
+        .focused($boardFocused)
+        .onKeyPress(phases: .down) { press in handleKey(press) }
+    }
+
+    // MARK: - Keyboard
+
+    /// The board's keys, as in a Finder column view: arrows choose a widget,
+    /// ⌥⌘ arrows move it, Return shows or hides its settings, Delete removes
+    /// it (after asking), Escape clears the choice.
+    private func handleKey(_ press: KeyPress) -> KeyPress.Result {
+        let pages = shelfPages
+        let moving = press.modifiers.contains(.command) && press.modifiers.contains(.option)
+        let plain = press.modifiers.intersection([.command, .option, .control, .shift]).isEmpty
+        let step: (dx: Int, dy: Int)? = switch press.key {
+        case .upArrow: (0, -1)
+        case .downArrow: (0, 1)
+        case .leftArrow: (-1, 0)
+        case .rightArrow: (1, 0)
+        default: nil
+        }
+        if let step, moving, let widget = selectedWidget,
+           let page = pages.first(where: { $0.widgets.contains { $0.id == widget.id } }) {
+            if step.dy != 0 {
+                self.step(widget, in: page, by: step.dy)
+            } else if let index = pages.firstIndex(where: { $0.name == page.name }),
+                      pages.indices.contains(index + step.dx) {
+                move(widget.id, toPage: pages[index + step.dx].name, before: nil)
+            }
+            revealMoved &+= 1
+            return .handled
+        }
+        if let step, plain {
+            selection = ShelfNavigation.next(
+                from: selection, in: pages.map { $0.widgets.map(\.id) }, dx: step.dx, dy: step.dy
+            )
+            return .handled
+        }
+        guard plain else { return .ignored }
+        switch press.key {
+        case .return:
+            guard selection != nil else { return .ignored }
+            inspectorShown.toggle()
+            return .handled
+        case .delete, .deleteForward:
+            guard let widget = selectedWidget else { return .ignored }
+            removalTarget = widget
+            return .handled
+        case .escape:
+            guard selection != nil else { return .ignored }
+            selection = nil
+            return .handled
+        default:
+            return .ignored
+        }
     }
 
     private func column(_ page: ShelfPage, index: Int, count: Int) -> some View {
@@ -192,6 +263,12 @@ struct ShelfView: View {
         )
     }
 
+    /// The chosen widget in the accent while the board has the keyboard, in
+    /// grey while the inspector has it, as a Finder selection does.
+    private var selectionTint: Color {
+        boardFocused ? .accentColor : .secondary
+    }
+
     private func chip(_ widget: LoadedWidget, in page: ShelfPage) -> some View {
         let isSelected = selection == widget.id
         let disabled = runtime.prefs.isDisabled(widget.id)
@@ -224,14 +301,18 @@ struct ShelfView: View {
         .opacity(disabled ? 0.55 : 1)
         .background(
             RoundedRectangle(cornerRadius: Radius.nested(in: Radius.card, inset: Spacing.xxs), style: .continuous)
-                .fill(isSelected ? AnyShapeStyle(Color.accentColor.opacity(Fill.Wash.strong)) : AnyShapeStyle(Color(nsColor: .controlBackgroundColor)))
+                .fill(isSelected ? AnyShapeStyle(selectionTint.opacity(Fill.Wash.strong)) : AnyShapeStyle(Color(nsColor: .controlBackgroundColor)))
         )
         .overlay(
             RoundedRectangle(cornerRadius: Radius.nested(in: Radius.card, inset: Spacing.xxs), style: .continuous)
-                .strokeBorder(isSelected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(Fill.hairline), lineWidth: 1)
+                .strokeBorder(isSelected ? AnyShapeStyle(selectionTint) : AnyShapeStyle(Fill.hairline), lineWidth: 1)
         )
         .contentShape(Rectangle())
-        .onTapGesture { selection = widget.id }
+        .onTapGesture {
+            selection = widget.id
+            boardFocused = true
+        }
+        .id(widget.id)
         .draggable(widget.id) {
             Label(widget.displayName, systemImage: widget.manifest.icon ?? "square.dashed")
                 .padding(Spacing.xs)
@@ -463,3 +544,26 @@ private struct ShelfChipSubtitle: View {
         }
     }
 }
+
+/// Where the arrow keys take the choice on the shelf board: up and down
+/// within a page, left and right to the next page with widgets, at the same
+/// row or its last. With nothing chosen, any arrow chooses the first widget.
+enum ShelfNavigation {
+    static func next(from selection: String?, in pages: [[String]], dx: Int, dy: Int) -> String? {
+        guard let column = selection.flatMap({ id in pages.firstIndex { $0.contains(id) } }),
+              let row = pages[column].firstIndex(of: selection!) else {
+            return pages.first { !$0.isEmpty }?.first
+        }
+        if dy != 0 {
+            let target = min(max(row + dy, 0), pages[column].count - 1)
+            return pages[column][target]
+        }
+        var next = column + dx
+        while pages.indices.contains(next) {
+            if !pages[next].isEmpty { return pages[next][min(row, pages[next].count - 1)] }
+            next += dx
+        }
+        return selection
+    }
+}
+
