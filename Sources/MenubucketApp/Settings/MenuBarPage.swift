@@ -59,7 +59,9 @@ struct MenuBarPage: View {
                     ? "One small chip per widget beside the BarShelf icon. Point at a chip to see its reading, click it to open its card, then press ← → for the others."
                     : "Readings as text beside the BarShelf icon, or as items of their own.")
             }
-            .pickerStyle(.segmented)
+            // What the menu bar does, like the Dock's mode: a radio group
+            // (`Components.swift`, choices).
+            .pickerStyle(.radioGroup)
             .accessibilityLabel("Show widgets as")
             if isCluster {
                 if !chips.isEmpty {

@@ -1,3 +1,12 @@
+// Choices in settings, one rule everywhere:
+// - What a feature does (the Dock's mode, how the menu bar shows widgets):
+//   `.pickerStyle(.radioGroup)`, with a line under the label saying what the
+//   chosen option does.
+// - A value of something (a style, an edge, a size, a graph): `.segmented`,
+//   for a few short options.
+// - Turning one thing on or off: a switch (`.toggleStyle(.switch)` in forms).
+// - A page or tab within a view: `.segmented`, labels hidden.
+
 import MenubucketCore
 import SwiftUI
 
