@@ -1187,6 +1187,16 @@
         }
       }
     },
+    "An SF Symbol name or an emoji for the chip. Empty uses the widget's icon, or what it measures (CPU, memory, power, …).": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "칩에 쓸 SF Symbol 이름 또는 이모지입니다. 비워 두면 위젯 아이콘이나 측정 대상(CPU, 메모리, 전력 등)을 씁니다."
+          }
+        }
+      }
+    },
     "An SF Symbol name or an emoji. Uncheck for no icon.": {
       "localizations": {
         "ko": {
@@ -1354,6 +1364,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "단축키는 최대 64개까지 지원됩니다."
+          }
+        }
+      }
+    },
+    "At rest": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "평소"
           }
         }
       }
@@ -2018,6 +2038,16 @@
         }
       }
     },
+    "Change Accent…": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "강조 색상 변경…"
+          }
+        }
+      }
+    },
     "Change Size": {
       "localizations": {
         "ko": {
@@ -2165,6 +2195,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "확인 중…"
+          }
+        }
+      }
+    },
+    "Chips appear left to right in this order. At most %lld widgets are shown; colours come from each widget's accent.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "칩은 이 순서대로 왼쪽부터 나타납니다. 위젯은 최대 %lld개까지 표시되며, 색은 각 위젯의 강조 색상을 따릅니다."
           }
         }
       }
@@ -4726,6 +4766,16 @@
         }
       }
     },
+    "Icon, alerts, and what a click does": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "아이콘, 알림 및 클릭 시 동작"
+          }
+        }
+      }
+    },
     "Icon, login, and sounds.": {
       "localizations": {
         "ko": {
@@ -6756,6 +6806,16 @@
         }
       }
     },
+    "Not shown: at most %lld widgets fit. Turn another off to make room.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "표시되지 않음: 최대 %lld개까지만 표시됩니다. 다른 위젯을 끄면 표시됩니다."
+          }
+        }
+      }
+    },
     "Not updated recently": {
       "localizations": {
         "ko": {
@@ -6838,7 +6898,18 @@
         }
       }
     },
+    "One small chip per widget beside the BarShelf icon. Point at a chip to see its reading, click it to open its card, then press ← → for the others.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BarShelf 아이콘 옆에 위젯마다 작은 칩을 하나씩 보여 줍니다. 칩에 포인터를 올리면 값이 보이고, 클릭하면 카드가 열리며, ← →로 다른 칩으로 넘어갑니다."
+          }
+        }
+      }
+    },
     "One small chip per widget beside the BarShelf icon. Point at them to fan them out, rest on one to see its reading, and click to open its card.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -7156,6 +7227,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "주황색"
+          }
+        }
+      }
+    },
+    "Order": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "순서"
           }
         }
       }
@@ -7479,6 +7560,16 @@
         }
       }
     },
+    "Pointed at": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "포인터를 올렸을 때"
+          }
+        }
+      }
+    },
     "Popup height": {
       "localizations": {
         "ko": {
@@ -7565,6 +7656,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ 미리보기"
+          }
+        }
+      }
+    },
+    "Preview: %@": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "미리보기: %@"
           }
         }
       }
@@ -9674,6 +9775,16 @@
         }
       }
     },
+    "Shown as a chip. Label, width, text, graph and style apply when Settings ▸ Menu Bar shows widgets as Text and Items.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "칩으로 표시됩니다. 레이블, 너비, 텍스트, 그래프, 스타일은 설정 ▸ 메뉴 막대에서 위젯 표시 방식이 ‘텍스트와 항목’일 때 적용됩니다."
+          }
+        }
+      }
+    },
     "Single value": {
       "localizations": {
         "ko": {
@@ -10334,6 +10445,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "이 위젯이 읽는 주소를 찾을 수 없습니다(HTTP 404)."
+          }
+        }
+      }
+    },
+    "The chip is drawn in the widget's accent colour, on the Look page.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "칩은 위젯의 강조 색상으로 그려집니다. 모양 페이지에서 바꿀 수 있습니다."
           }
         }
       }
@@ -12447,6 +12568,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "프로젝트 페이지에서 방법 보기"
+          }
+        }
+      }
+    },
+    "the reading's own": {
+      "comment": "Placeholder: the chip shows the icon of what it measures",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "측정 대상 아이콘"
           }
         }
       }

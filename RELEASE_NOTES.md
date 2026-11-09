@@ -23,6 +23,14 @@
   icons that change (the ones growing under it), not every icon and its
   menu. Icons and names are read once every ten minutes instead of every
   minute, and again when an app launches.
+- **Menu bar settings follow the cluster.** Settings ▸ Menu Bar shows the
+  chips as the bar draws them, at rest and pointed at. As a cluster it no
+  longer offers a place for each item or the text styles, which chips do not
+  use, and every chip can be moved left or right. A widget's own Menu Bar
+  page shows its chip among the others and keeps to what a chip uses: its
+  icon, colour, order, alerts and click. A widget switched on past the
+  five-widget limit now says so instead of looking switched off. A lone chip
+  no longer draws a pill past the end of the item.
 - **Card controls no longer cover the card.** On a card with a header,
   Refresh and Settings appear in the header on hover, in place of the "3m
   ago" time, so nothing floats over the title or the content. Cards without

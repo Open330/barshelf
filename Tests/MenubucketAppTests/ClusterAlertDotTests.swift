@@ -58,3 +58,24 @@ final class ClusterAlertDotTests: XCTestCase {
         }
     }
 }
+
+/// A lone chip in focus stays inside the item: the BarShelf icon keeps its
+/// place, so there is no room for a pill.
+final class LoneChipTests: XCTestCase {
+    func testALoneChipInFocusDrawsNothingPastTheItem() throws {
+        let chip = ClusterChip(widgetID: "a", name: "Keep Awake", symbol: "cup.and.saucer.fill", initial: "K", value: "1:42:00")
+        let pill = MenuBarController.pillWidth([chip])
+        let image = MenuBarController.rasterized(MenuBarController.clusterImage(
+            [chip], positions: MenuBarController.clusterTargets([chip], focus: 0), focus: 0, pill: pill,
+            mark: NSImage(systemSymbolName: "square.grid.2x2", accessibilityDescription: nil)!,
+            badged: false, color: { _ in .systemOrange }, appearance: NSAppearance(named: .darkAqua)!, height: 24
+        ), scales: [2])
+        let rep = try XCTUnwrap(image.representations.first as? NSBitmapImageRep)
+        // Between the chip and the icon there is still the gap: no pill ran
+        // over it.
+        let geometry = ClusterGeometry(count: 1)
+        let gapX = Int((CGFloat(geometry.collapsedMarkX) - 1) * 2)
+        let alpha = try XCTUnwrap(rep.colorAt(x: gapX, y: 24)).alphaComponent
+        XCTAssertLessThan(alpha, 0.1, "the lone chip's focus stays a disc")
+    }
+}

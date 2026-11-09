@@ -20,6 +20,8 @@ struct WidgetSettingsView: View {
     /// include it.
     @ObservedObject private var appPrefs: AppPrefs
     @ObservedObject private var widgetPrefs: WidgetPrefs
+    /// Watched so the chip preview follows the readings.
+    @ObservedObject private var menuBarStore: MenuBarStatusStore
     @Environment(\.dismiss) private var dismiss
 
     init(
@@ -38,6 +40,7 @@ struct WidgetSettingsView: View {
         _page = State(initialValue: page)
         _appPrefs = ObservedObject(wrappedValue: runtime.appPrefs)
         _widgetPrefs = ObservedObject(wrappedValue: runtime.prefs)
+        _menuBarStore = ObservedObject(wrappedValue: runtime.menuBar)
     }
 
     /// The inspector's four pages.
@@ -589,6 +592,25 @@ struct WidgetSettingsView: View {
         !canShareStrip || stackedForcesOwnItem || menuBarDraft.separate
     }
 
+    /// The menu bar shows widgets as chips: what an item shares, its text
+    /// and its graph do not apply; its icon, colour, alerts and click do.
+    private var isCluster: Bool { appPrefs.preferences.menuBarLayout == .cluster }
+
+    /// The cluster as it stands, with this widget's chip showing the icon
+    /// being edited; added at the end when it is not there yet and there is
+    /// room. Its live entry is kept otherwise, profiles and all.
+    private var previewChips: [ClusterChip] {
+        var entries = menuBarStore.entries.filter { !$0.isEmpty }
+        if let index = entries.firstIndex(where: { $0.widgetID == widget.id }) {
+            entries[index].iconOverride = MenuBarPolicy.normalizedIcon(menuBarDraft.icon)
+        } else if MenuBarPolicy.promoted(entries).count < MenuBarPolicy.maxEntries {
+            entries.append(previewEntry)
+        }
+        return MenuBarClusterPolicy.chips(from: entries) {
+            NSImage(systemSymbolName: $0, accessibilityDescription: nil) != nil
+        }
+    }
+
     private var menuBarSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Menu Bar")
@@ -601,7 +623,24 @@ struct WidgetSettingsView: View {
             .toggleStyle(.switch)
 
             if menuBarDraft.enabled {
-                menuBarPreview
+                if isCluster {
+                    let chips = previewChips
+                    if let focus = chips.firstIndex(where: { $0.widgetID == widget.id }) {
+                        // Top: the chips carry captions under them.
+                        previewRow(alignment: .top) {
+                            ClusterSettingsPreview(
+                                chips: chips,
+                                color: { runtime.chipColor(for: $0.widgetID) ?? .controlAccentColor },
+                                markSymbol: appPrefs.preferences.menuBarSymbol,
+                                focusIndex: focus
+                            )
+                        }
+                    } else {
+                        settingsHint(String(localized: "Not shown: at most \(MenuBarPolicy.maxEntries) widgets fit. Turn another off to make room."))
+                    }
+                } else {
+                    menuBarPreview
+                }
                 menuBarControls
                 // The one thing worth saying at the bottom rather than beside
                 // a control, because it is about the widget, not a setting.
@@ -614,11 +653,65 @@ struct WidgetSettingsView: View {
         }
     }
 
+    /// The width of the short text fields on the Menu Bar page.
+    private static let fieldWidth: CGFloat = 150
+
+    /// The Look tab when the menu bar shows chips: the chip's icon, its
+    /// colour, its place among the chips, and a word on where the rest went.
+    @ViewBuilder
+    private var clusterLookRows: some View {
+        GridRow {
+            settingsRowLabel("Icon")
+            VStack(alignment: .leading, spacing: Spacing.xxs) {
+                TextField(
+                    String(localized: "the reading's own", comment: "Placeholder: the chip shows the icon of what it measures"),
+                    text: Binding(
+                        get: { menuBarDraft.icon ?? "" },
+                        set: { menuBarDraft.icon = $0.isEmpty ? nil : $0 }
+                    )
+                )
+                .frame(width: Self.fieldWidth)
+                settingsHint(String(localized: "An SF Symbol name or an emoji for the chip. Empty uses the widget's icon, or what it measures (CPU, memory, power, …)."))
+            }
+        }
+        GridRow {
+            settingsRowLabel("Color")
+            VStack(alignment: .leading, spacing: Spacing.xxs) {
+                Button("Change Accent…") { page = .look }
+                    .controlSize(.small)
+                settingsHint(String(localized: "The chip is drawn in the widget's accent colour, on the Look page."))
+            }
+        }
+        GridRow {
+            settingsRowLabel("Order")
+            HStack(spacing: Spacing.stack) {
+                Button("Move Left") { runtime.moveInMenuBar(widget.id, by: -1) }
+                    .disabled(!runtime.canMoveInMenuBar(widget.id, by: -1))
+                Button("Move Right") { runtime.moveInMenuBar(widget.id, by: 1) }
+                    .disabled(!runtime.canMoveInMenuBar(widget.id, by: 1))
+            }
+            .controlSize(.small)
+        }
+        GridRow {
+            settingsRowLabel("")
+            settingsHint(String(localized: "Shown as a chip. Label, width, text, graph and style apply when Settings ▸ Menu Bar shows widgets as Text and Items."))
+        }
+    }
+
     /// The item as it will appear, drawn by the menu bar's own renderer.
-    private var menuBarPreview: some View {
-        HStack(spacing: 8) {
+    /// "Preview" and what it shows, for the item and for the chips alike.
+    private func previewRow<Content: View>(
+        alignment: VerticalAlignment = .center, @ViewBuilder _ content: () -> Content
+    ) -> some View {
+        HStack(alignment: alignment, spacing: 8) {
             Text("Preview").font(.caption).foregroundStyle(.secondary)
                 .frame(width: 52, alignment: .leading)
+            content()
+        }
+    }
+
+    private var menuBarPreview: some View {
+        previewRow {
             let image = MenuBarController.previewImage(for: previewEntry)
             Image(nsImage: image)
                 .renderingMode(image.isTemplate ? .template : .original)
@@ -649,6 +742,8 @@ struct WidgetSettingsView: View {
 
             Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 8, verticalSpacing: 10) {
                 switch menuBarTab {
+                case .look where isCluster:
+                    clusterLookRows
                 case .look:
                     GridRow {
                         settingsRowLabel("Item")
@@ -828,7 +923,7 @@ struct WidgetSettingsView: View {
                                 : String(localized: "This widget has no numeric readings to set alerts or row options for."))
                         }
                     }
-                    if !rows.isEmpty, effectiveStyle != .metrics {
+                    if !rows.isEmpty, effectiveStyle != .metrics, !isCluster {
                         GridRow {
                             settingsRowLabel("")
                             settingsHint(String(localized: "Per-row labels, colours and order appear with the Two metric rows layout, on the Look tab."))

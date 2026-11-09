@@ -1821,17 +1821,25 @@ final class WidgetRuntime: ObservableObject {
         MenuBarPolicy.partition(ownedMenuBarEntries).strip.map(\.widgetID)
     }
 
-    func canMoveInMenuBar(_ id: String, by offset: Int) -> Bool {
-        MenuBarPolicy.canMove(id, by: offset, within: menuBarStripOrder)
+    /// The run "left" and "right" move within: the items sharing the
+    /// BarShelf icon, or, as a cluster, every chip (all items become chips).
+    var menuBarMoveOrder: [String] {
+        appPrefs.preferences.menuBarLayout == .cluster
+            ? ownedMenuBarEntries.map(\.widgetID)
+            : menuBarStripOrder
     }
 
-    /// Moves a widget within the shared strip.
+    func canMoveInMenuBar(_ id: String, by offset: Int) -> Bool {
+        MenuBarPolicy.canMove(id, by: offset, within: menuBarMoveOrder)
+    }
+
+    /// Moves a widget within the shared strip, or among the chips.
     ///
     /// Every widget in the run gets a fresh key: the stored ones may be absent
     /// or stale (nothing set them before this existed), so re-deriving the
     /// whole order is what makes one move predictable.
     func moveInMenuBar(_ id: String, by offset: Int) {
-        let ids = menuBarStripOrder
+        let ids = menuBarMoveOrder
         guard MenuBarPolicy.canMove(id, by: offset, within: ids) else { return }
         for (widgetID, order) in MenuBarPolicy.reordered(ids, moving: id, by: offset) {
             guard let widget = widgets.first(where: { $0.id == widgetID }) else { continue }
