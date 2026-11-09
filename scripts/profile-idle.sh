@@ -3,6 +3,9 @@
 #
 #   scripts/profile-idle.sh [seconds] [symbols-binary]
 #
+# TOP=n lists n functions (default 30); KEEP_TRACE=path keeps the trace for
+# Instruments.
+#
 # Attaches to the running app without touching the screen or the keyboard:
 # measures its CPU over the window (from its CPU time, not a single `top`
 # sample), records a Time Profiler trace for the same window, and prints the
@@ -21,7 +24,7 @@ PID=$(pgrep -x barshelf-app || true)
 [[ -n "${PID}" ]] || { echo "BarShelf is not running" >&2; exit 1; }
 
 WORK=$(mktemp -d)
-trap 'rm -rf "${WORK}"' EXIT
+trap '[[ -n "${KEEP_TRACE:-}" && -e "${WORK}/idle.trace" ]] && rm -rf "${KEEP_TRACE}" && mv "${WORK}/idle.trace" "${KEEP_TRACE}"; rm -rf "${WORK}"' EXIT
 
 cpu_seconds() { /bin/ps -o cputime= -p "${PID}" | awk -F'[:.]' '{ print $1 * 60 + $2 + $3 / 100 }'; }
 
@@ -43,8 +46,8 @@ if [[ -n "${SYMBOLS}" ]]; then
     || { echo "warning: ${SYMBOLS} is laid out differently; names would be wrong" >&2; SYMBOLS=""; }
 fi
 
-python3 - "${WORK}/profile.xml" "${SYMBOLS}" <<'PY'
-import collections, subprocess, sys, xml.etree.ElementTree as ET
+TOP=${TOP:-30} python3 - "${WORK}/profile.xml" "${SYMBOLS}" <<'PY'
+import collections, os, subprocess, sys, xml.etree.ElementTree as ET
 
 root = ET.parse(sys.argv[1]).getroot()
 symbols = sys.argv[2]
@@ -89,6 +92,6 @@ for frames in samples:
     for name in {label(f) for f in frames if isinstance(f, tuple) or "NSStatusItem" in f}:
         inclusive[name] += 1
 print(f"\n{len(samples)} samples (1 ms each). App functions and status item work, by share of samples:")
-for name, count in inclusive.most_common(30):
+for name, count in inclusive.most_common(int(os.environ.get("TOP", "30"))):
     print(f"{count / max(len(samples), 1) * 100:5.1f}%  {name}")
 PY
