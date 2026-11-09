@@ -39,6 +39,14 @@ final class MenuBarClusterController: NSObject {
     /// coordinates and compared with the item's frame instead.
     private var pointerWatcher: PointerWatcher?
     private var pointerInside = false
+    /// The folded chips open once the pointer stays (`ClusterHoverPolicy`).
+    private var arriveWork: DispatchWorkItem?
+    /// The open chips fold once the pointer has been away a while.
+    private var foldWork: DispatchWorkItem?
+    /// Each menu bar's band on screen, with the margin below it: a pointer
+    /// outside all of them is ignored before any frame is worked out. Most
+    /// pointer moves are nowhere near the menu bar.
+    private var menuBarBands: [NSRect]?
 
     private var peek: ClusterPeekPanel?
     private var peekWork: DispatchWorkItem?
@@ -79,7 +87,12 @@ final class MenuBarClusterController: NSObject {
         ) { [weak self] _ in self?.dismiss() }))
         observers.append((NotificationCenter.default, NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
-        ) { [weak self] _ in self?.dismiss() }))
+        ) { [weak self] _ in
+            self?.menuBarBands = nil
+            self?.dismiss()
+            // A display with another pixel density needs its own bitmap.
+            self?.menuBar.redrawClusterForScreens()
+        }))
     }
 
     deinit {
@@ -122,6 +135,7 @@ final class MenuBarClusterController: NSObject {
 
     /// Everything closed: the shelf is opening, or the layout changed.
     func dismiss() {
+        cancelHoverWork()
         card?.hide()
         hidePeek()
         menuBar.setClusterFocus(nil, animated: false)
@@ -136,6 +150,7 @@ final class MenuBarClusterController: NSObject {
     }
 
     private func removeTracking() {
+        cancelHoverWork()
         pointerWatcher?.stop()
         pointerWatcher = nil
         pointerInside = false
@@ -164,12 +179,9 @@ final class MenuBarClusterController: NSObject {
     /// Where the pointer is along the button, or nil when it is off the item.
     private func pointerButtonX() -> CGFloat? {
         let point = NSEvent.mouseLocation
-        guard let frame = itemFrame(near: point) else { return nil }
-        // The menu bar's full height counts, and its top edge too (a pointer
-        // pushed against the top of the screen).
-        guard point.x >= frame.minX, point.x < frame.maxX,
-              point.y >= frame.minY, point.y <= frame.maxY + 1 else { return nil }
-        return point.x - frame.minX
+        guard let frame = itemFrame(near: point),
+              case .on(let x) = ClusterHoverPolicy.zone(of: point, item: frame) else { return nil }
+        return x
     }
 
     /// The chip under a point in the button, in the layout as it stands.
@@ -178,6 +190,7 @@ final class MenuBarClusterController: NSObject {
         return menuBar.clusterIndex(atButtonX: x, in: button)
     }
 
+    /// Folds the chips: the pointer has been away for the grace period.
     private func pointerLeft() {
         pointerInside = false
         hidePeek()
@@ -188,15 +201,46 @@ final class MenuBarClusterController: NSObject {
 
     private func pointerMoved() {
         guard isEnabled, !chips.isEmpty else { return }
-        guard let x = pointerButtonX() else {
-            if pointerInside { pointerLeft() }
+        let point = NSEvent.mouseLocation
+        let engaged = pointerInside || arriveWork != nil || foldWork != nil
+        guard engaged || isNearMenuBar(point) else { return }
+        guard let frame = itemFrame(near: point) else {
+            pointerAway(at: point, item: nil)
             return
         }
-        pointerInside = true
-        let index = chipIndex(atButtonX: x)
+        switch ClusterHoverPolicy.zone(of: point, item: frame) {
+        case .on(let x):
+            pointerInside = true
+            let index = chipIndex(atButtonX: x)
+            // Back on a chip: stay open. Over the icon a fold already on its
+            // way keeps its time, however the pointer moves there.
+            if index != nil {
+                foldWork?.cancel()
+                foldWork = nil
+            }
+            if menuBar.clusterFocus == nil, card?.isShown != true {
+                // Folded: open once the pointer stays, not as it passes.
+                if index != nil { scheduleArrive() } else { cancelArrive() }
+                return
+            }
+            focus(index)
+        case .margin:
+            // Next to the item: the chips stay as they are, open or folded.
+            if menuBar.clusterFocus == nil { cancelArrive() } else {
+                foldWork?.cancel()
+                foldWork = nil
+            }
+        case .away:
+            pointerAway(at: point, item: frame)
+        }
+    }
+
+    /// The pointer moved onto a chip (or the BarShelf icon, nil) with the
+    /// chips open.
+    private func focus(_ index: Int?) {
         guard index != menuBar.clusterFocus else { return }
-        hidePeek()
         if let index {
+            hidePeek()
             menuBar.setClusterFocus(index, animated: true)
             if card?.isShown == true {
                 // Moving along the chips with a card open moves the card.
@@ -205,14 +249,88 @@ final class MenuBarClusterController: NSObject {
                 schedulePeek(for: index)
             }
         } else if card?.isShown != true {
-            // Over the BarShelf icon: fold, so the icon reads as itself.
-            menuBar.setClusterFocus(nil, animated: true)
+            // Over the BarShelf icon: fold, so the icon reads as itself;
+            // after the same grace, since the chips have just slid over it.
+            if foldWork == nil { scheduleFold(after: ClusterHoverPolicy.leaveGrace) }
         }
+    }
+
+    private func pointerAway(at point: NSPoint, item frame: NSRect?) {
+        cancelArrive()
+        // A peek already showing stays for the grace; one not shown yet is
+        // not wanted any more.
+        peekWork?.cancel()
+        peekWork = nil
+        guard pointerInside, foldWork == nil else { return }
+        let grace = frame.map {
+            ClusterHoverPolicy.grace(leavingAt: point, item: $0, peek: peek?.isVisible == true ? peek?.frame : nil)
+        } ?? ClusterHoverPolicy.leaveGrace
+        scheduleFold(after: grace)
+    }
+
+    private func scheduleArrive() {
+        guard arriveWork == nil else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.arriveWork = nil
+            guard self.isEnabled, self.card?.isShown != true, self.menuBar.clusterFocus == nil,
+                  let x = self.pointerButtonX(), let index = self.chipIndex(atButtonX: x) else { return }
+            self.focus(index)
+        }
+        arriveWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + ClusterHoverPolicy.arriveDelay, execute: work)
+    }
+
+    private func cancelArrive() {
+        arriveWork?.cancel()
+        arriveWork = nil
+    }
+
+    /// Folds after `delay` unless the pointer is back on a chip by then.
+    private func scheduleFold(after delay: TimeInterval) {
+        foldWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.foldWork = nil
+            let point = NSEvent.mouseLocation
+            let zone = self.itemFrame(near: point).map { ClusterHoverPolicy.zone(of: point, item: $0) } ?? .away
+            switch zone {
+            case .on(let x):
+                guard self.chipIndex(atButtonX: x) == nil, self.card?.isShown != true else { return }
+                self.hidePeek()
+                self.menuBar.setClusterFocus(nil, animated: true)
+            case .margin:
+                return
+            case .away:
+                self.pointerLeft()
+            }
+        }
+        foldWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
+    private func cancelHoverWork() {
+        cancelArrive()
+        foldWork?.cancel()
+        foldWork = nil
+    }
+
+    private func isNearMenuBar(_ point: NSPoint) -> Bool {
+        let bands = menuBarBands ?? NSScreen.screens.map { screen in
+            // Generous: a menu bar that is hidden now may be a tall one
+            // (a notched display) when it shows.
+            let bar = max(screen.frame.maxY - screen.visibleFrame.maxY, NSStatusBar.system.thickness, 40)
+            let height = bar + ClusterHoverPolicy.slackBelow + 2
+            return NSRect(x: screen.frame.minX, y: screen.frame.maxY - height, width: screen.frame.width, height: height + 1)
+        }
+        menuBarBands = bands
+        return bands.contains { $0.contains(point) }
     }
 
     /// A left click on the status item. False for the BarShelf icon, which
     /// the owner handles as before (the shelf).
     func handleStatusItemClick(_ event: NSEvent) -> Bool {
+        cancelHoverWork()
         guard isEnabled, !chips.isEmpty, let x = pointerButtonX(),
               let index = chipIndex(atButtonX: x) else { return false }
         hidePeek()
@@ -236,6 +354,7 @@ final class MenuBarClusterController: NSObject {
     /// A right click on the status item: the chip's menu, or false for the
     /// icon, whose menu the owner shows.
     func handleStatusItemRightClick(_ event: NSEvent) -> Bool {
+        cancelHoverWork()
         guard isEnabled, !chips.isEmpty, let button = statusItem?.button, let x = pointerButtonX(),
               let index = chipIndex(atButtonX: x) else { return false }
         hidePeek()
