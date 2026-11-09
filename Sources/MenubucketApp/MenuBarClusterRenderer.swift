@@ -210,7 +210,10 @@ extension MenuBarController {
                 if let focused {
                     let chip = chips[focused]
                     let width = pill ?? CGFloat(ClusterGeometry.disc)
-                    if width > ChipMetrics.face * ChipMetrics.focusScale {
+                    // A lone chip keeps the BarShelf icon beside it, so there
+                    // is no room for a pill: it grows as a disc, and its
+                    // reading is in the peek.
+                    if width > ChipMetrics.face * ChipMetrics.focusScale, geometry.hidesMark(focus: focused) {
                         let left = (positions?[cluster: focused] ?? CGFloat(geometry.collapsedX(focused)))
                             + CGFloat(ClusterGeometry.slotInset)
                         drawPill(chip, left: left, width: width, midY: height / 2, color: color(chip), context: context)

@@ -6,17 +6,40 @@ import SwiftUI
 /// and the style every item uses unless a widget sets its own. Per-widget
 /// fine-tuning (label, icon, graph, alerts, click action) stays with the
 /// widget's own settings, linked from each row.
+///
+/// As a cluster every item is a chip: where an item goes and the text styles
+/// do not apply, so they are not offered, and the page shows the chips as
+/// the bar draws them.
 struct MenuBarPage: View {
     @ObservedObject var appPrefs: AppPrefs
     @ObservedObject var runtime: WidgetRuntime
+    /// Watched so the chip preview follows the readings.
+    @ObservedObject private var store: MenuBarStatusStore
+
+    init(appPrefs: AppPrefs, runtime: WidgetRuntime) {
+        self.appPrefs = appPrefs
+        self.runtime = runtime
+        self.store = runtime.menuBar
+    }
+
+    private var isCluster: Bool { appPrefs.preferences.menuBarLayout == .cluster }
 
     var body: some View {
         SettingsPage {
             MenuBarHiddenBanner { id in runtime.widgets.first { $0.id == id }?.displayName }
             layoutSection
             itemsSection
-            styleSection
-            overridesSection
+            if !isCluster {
+                styleSection
+                overridesSection
+            }
+        }
+    }
+
+    /// The chips the bar draws now.
+    private var chips: [ClusterChip] {
+        MenuBarClusterPolicy.chips(from: store.entries.filter { !$0.isEmpty }) {
+            NSImage(systemSymbolName: $0, accessibilityDescription: nil) != nil
         }
     }
 
@@ -32,13 +55,22 @@ struct MenuBarPage: View {
                 Text("Cluster").tag(MenuBarLayout.cluster)
             } label: {
                 Text("Show widgets as")
-                Text(appPrefs.preferences.menuBarLayout == .cluster
-                    ? "One small chip per widget beside the BarShelf icon. Point at them to fan them out, rest on one to see its reading, and click to open its card."
+                Text(isCluster
+                    ? "One small chip per widget beside the BarShelf icon. Point at a chip to see its reading, click it to open its card, then press ← → for the others."
                     : "Readings as text beside the BarShelf icon, or as items of their own.")
             }
             .pickerStyle(.segmented)
             .accessibilityLabel("Show widgets as")
-            if appPrefs.preferences.menuBarLayout == .cluster {
+            if isCluster {
+                if !chips.isEmpty {
+                    LabeledContent("Preview") {
+                        ClusterSettingsPreview(
+                            chips: chips,
+                            color: { runtime.chipColor(for: $0.widgetID) ?? .controlAccentColor },
+                            markSymbol: appPrefs.preferences.menuBarSymbol
+                        )
+                    }
+                }
                 Toggle(isOn: Binding(
                     get: { appPrefs.preferences.menuBarPulse },
                     set: { value in appPrefs.update { $0.menuBarPulse = value } }
@@ -61,13 +93,15 @@ struct MenuBarPage: View {
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(candidates) { widget in
-                    MenuBarItemRow(runtime: runtime, widget: widget)
+                    MenuBarItemRow(runtime: runtime, widget: widget, isCluster: isCluster)
                 }
             }
         } header: {
             Text("In the Menu Bar")
         } footer: {
-            Text("Items that share the BarShelf icon appear next to it in this order. An item of its own can be moved by holding ⌘ and dragging it in the menu bar.")
+            Text(isCluster
+                ? "Chips appear left to right in this order. At most \(MenuBarPolicy.maxEntries) widgets are shown; colours come from each widget's accent."
+                : "Items that share the BarShelf icon appear next to it in this order. An item of its own can be moved by holding ⌘ and dragging it in the menu bar.")
                 .formFooter()
         }
     }
@@ -75,7 +109,7 @@ struct MenuBarPage: View {
     /// Shown items first, in the order they appear in the bar, then the rest
     /// by name.
     private var orderedCandidates: [LoadedWidget] {
-        let order = runtime.menuBarStripOrder
+        let order = runtime.menuBarMoveOrder
         let shown = runtime.menuBarWidgetIDs
         return runtime.menuBarCandidates.sorted { a, b in
             let ai = order.firstIndex(of: a.id), bi = order.firstIndex(of: b.id)
@@ -185,16 +219,22 @@ private struct MenuBarItemRow: View {
     /// Watched so the reading beside the switch follows the menu bar.
     @ObservedObject var store: MenuBarStatusStore
     let widget: LoadedWidget
+    /// Every item is a chip: no placement to choose, and every chip moves.
+    let isCluster: Bool
 
-    init(runtime: WidgetRuntime, widget: LoadedWidget) {
+    init(runtime: WidgetRuntime, widget: LoadedWidget, isCluster: Bool) {
         self.runtime = runtime
         self.store = runtime.menuBar
         self.widget = widget
+        self.isCluster = isCluster
     }
 
     var body: some View {
-        let isOn = runtime.menuBarWidgetIDs.contains(widget.id)
         let placement = runtime.prefs.menuBarPlacement(for: widget.manifest, widgetID: widget.id)
+        let isShown = runtime.menuBarWidgetIDs.contains(widget.id)
+        // Switched on but past the limit is still on: the switch says what
+        // the user chose, the line under it why nothing appears.
+        let isOn = isShown || placement.enabled
         VStack(alignment: .leading, spacing: Spacing.xs) {
             Toggle(isOn: Binding(
                 get: { isOn },
@@ -204,7 +244,7 @@ private struct MenuBarItemRow: View {
                     WidgetMark(widget: widget, runtime: runtime)
                     VStack(alignment: .leading, spacing: 0) {
                         Text(widget.displayName)
-                        if let reading = reading(isOn: isOn) {
+                        if let reading = reading(isOn: isOn, isShown: isShown) {
                             Text(reading)
                                 .font(.caption)
                                 .monospacedDigit()
@@ -214,8 +254,9 @@ private struct MenuBarItemRow: View {
                 }
             }
 
-            if isOn {
+            if isShown {
                 HStack(spacing: Spacing.xs) {
+                    if !isCluster {
                     Picker("Placement", selection: Binding(
                         get: { placement.separate },
                         set: { value in runtime.updateMenuBarPlacement(for: widget.id) { $0.separate = value } }
@@ -226,8 +267,9 @@ private struct MenuBarItemRow: View {
                     .labelsHidden()
                     .accessibilityLabel("Placement for \(widget.displayName)")
                     .fixedSize()
+                    }
 
-                    if !placement.separate {
+                    if isCluster || !placement.separate {
                         Button {
                             runtime.moveInMenuBar(widget.id, by: -1)
                         } label: {
@@ -250,7 +292,9 @@ private struct MenuBarItemRow: View {
                     Button("Customize…") {
                         HubWindowController.shared.showWidgetSettings(widgetID: widget.id, page: .menuBar)
                     }
-                    .help("Label, icon, graph, alerts, and what a click does")
+                    .help(isCluster
+                        ? "Icon, alerts, and what a click does"
+                        : "Label, icon, graph, alerts, and what a click does")
                 }
                 .controlSize(.small)
             }
@@ -260,8 +304,13 @@ private struct MenuBarItemRow: View {
 
     /// What the item shows right now — or why a switched-on item shows
     /// nothing, which would otherwise look broken.
-    private func reading(isOn: Bool) -> String? {
+    private func reading(isOn: Bool, isShown: Bool) -> String? {
         guard isOn else { return nil }
+        guard isShown else {
+            // Not for an item waiting on something else (its permissions).
+            guard runtime.menuBarWidgetIDs.count >= MenuBarPolicy.maxEntries else { return nil }
+            return String(localized: "Not shown: at most \(MenuBarPolicy.maxEntries) widgets fit. Turn another off to make room.")
+        }
         if runtime.dormantMenuBarWidgetIDs.contains(widget.id) {
             return String(localized: "Hidden until its reading reaches the level you set")
         }

@@ -479,10 +479,7 @@ final class StatusItemController: NSObject {
 
     /// The colour a widget's card tile uses, for its chip.
     private func widgetColor(_ widgetID: String) -> NSColor? {
-        guard let widget = runtime.widgets.first(where: { $0.id == widgetID }),
-              let color = runtime.prefs.effectiveAppearance(for: widget.manifest, widgetID: widgetID).accentColor
-        else { return nil }
-        return NSColor(color)
+        runtime.chipColor(for: widgetID)
     }
 
     private func applyMenuBarLayout(_ layout: MenuBarLayout) {

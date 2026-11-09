@@ -74,6 +74,29 @@ enum HubScreenshotMode {
                         size: NSSize(width: MenuBarWidgetPopover.width, height: min(fitted.height, MenuBarWidgetPopover.maximumHeight)),
                         name: "menubar-card-\(widget.id)", to: dir) && ok
         }
+        // Settings ▸ Menu Bar in both layouts, and a widget's own Menu Bar
+        // page as a chip, with a few widgets that need no approval in the bar.
+        // The scratch home's own widgets, approved there: nothing here
+        // reaches the user's own approvals.
+        let shown = runtime.widgets
+            .filter { $0.manifest.statusItem?.isPromotable == true }
+            .prefix(4)
+        for widget in shown {
+            runtime.approvePermissions(widgetID: widget.id)
+            runtime.updateMenuBarPlacement(for: widget.id) { $0.enabled = true }
+            runtime.refresh(widgetID: widget.id, manual: true)
+        }
+        RunLoop.main.run(until: Date().addingTimeInterval(2))
+        for layout in [MenuBarLayout.items, .cluster] {
+            prefs.update { $0.menuBarLayout = layout }
+            RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+            ok = render(MenuBarPage(appPrefs: prefs, runtime: runtime),
+                        size: NSSize(width: 640, height: 900), name: "settings-menubar-\(layout.rawValue)", to: dir) && ok
+            if let widget = shown.first {
+                ok = render(WidgetSettingsView(widget: widget, runtime: runtime, page: .menuBar),
+                            size: NSSize(width: 640, height: 760), name: "inspector-menubar-\(layout.rawValue)", to: dir) && ok
+            }
+        }
         return ok ? 0 : 1
     }
 
