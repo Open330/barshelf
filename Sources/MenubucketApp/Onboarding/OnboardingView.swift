@@ -372,7 +372,7 @@ struct OnboardingView: View {
 
             Spacer()
             if step == .done {
-                Button("Show BarShelf") { finish(true) }
+                Button { finish(true) } label: { ShortcutLabel("Show BarShelf", key: "↵") }
                     .keyboardShortcut(.defaultAction)
                     .buttonStyle(.glass(.primary))
             } else {
@@ -382,7 +382,7 @@ struct OnboardingView: View {
                 }
                 Button("Skip Setup") { finish(false) }
                     .buttonStyle(.glass(.plain))
-                Button("Continue") { move(1) }
+                Button { move(1) } label: { ShortcutLabel("Continue", key: "↵") }
                     .keyboardShortcut(.defaultAction)
                     .buttonStyle(.glass(.primary))
             }

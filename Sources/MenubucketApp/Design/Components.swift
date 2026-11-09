@@ -563,3 +563,64 @@ struct TrendLine: View {
         .accessibilityHidden(true)
     }
 }
+
+/// The accent colours a widget can take, in one order wherever they are
+/// offered (the inspector, Create).
+enum AccentPalette {
+    struct Swatch: Identifiable {
+        let name: String
+        /// The stored `accent` value; nil is the system accent.
+        let value: String?
+        var id: String { value ?? "default" }
+        var color: Color { WidgetAppearance(accent: value).accentColor ?? .accentColor }
+    }
+
+    static let swatches: [Swatch] = [
+        .init(name: String(localized: "Default", comment: "Accent color choice"), value: nil),
+        .init(name: String(localized: "Blue"), value: "blue"),
+        .init(name: String(localized: "Purple"), value: "purple"),
+        .init(name: String(localized: "Pink"), value: "pink"),
+        .init(name: String(localized: "Red"), value: "red"),
+        .init(name: String(localized: "Orange"), value: "orange"),
+        .init(name: String(localized: "Yellow"), value: "yellow"),
+        .init(name: String(localized: "Green"), value: "green"),
+        .init(name: String(localized: "Gray"), value: "gray"),
+    ]
+
+    /// Whether `value` names the accent `current` holds (names ignore case).
+    static func matches(_ value: String?, _ current: String?) -> Bool {
+        switch (value, current) {
+        case (nil, nil): return true
+        case let (candidate?, current?): return candidate.caseInsensitiveCompare(current) == .orderedSame
+        default: return false
+        }
+    }
+}
+
+/// One accent choice: the colour in a circle, ringed when chosen.
+struct AccentSwatchButton: View {
+    let swatch: AccentPalette.Swatch
+    let isSelected: Bool
+    let action: () -> Void
+
+    static let diameter: CGFloat = 18
+
+    var body: some View {
+        Button(action: action) {
+            Circle()
+                .fill(swatch.color)
+                .frame(width: Self.diameter, height: Self.diameter)
+                .overlay(
+                    Circle().strokeBorder(
+                        isSelected ? AnyShapeStyle(Color.primary) : AnyShapeStyle(Fill.hairline),
+                        lineWidth: isSelected ? 2 : 1
+                    )
+                )
+        }
+        .buttonStyle(.plain)
+        .hoverHint(LocalizedStringKey(swatch.name))
+        .accessibilityLabel("\(swatch.name) accent")
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+    }
+}
+

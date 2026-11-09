@@ -17,3 +17,12 @@
   radio group with a line saying what the chosen option does: Menu Bar ▸
   Show widgets as now matches Dock ▸ BarShelf Dock, which gained its line.
 
+- **One look across Create, the inspector and the rest.** Create and a
+  widget's settings use the same type, spacing and colours as the other
+  settings; both offer the same nine accent colours with the same swatch;
+  "Card style" and "Show header" read and work the same in both. Create says
+  Continue, as onboarding does, and its main buttons show ↵. Warnings and
+  successes use the app's status colours everywhere, the Welcome card and the
+  Dock's folder view use the shared buttons, and desktop widgets draw from
+  named spacing and corner values.
+

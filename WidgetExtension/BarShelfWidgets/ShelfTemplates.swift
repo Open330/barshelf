@@ -55,9 +55,9 @@ struct BigValueTemplate: View {
     var body: some View {
         let (number, unit) = splitValue(summary.value)
         let tone = WidgetPalette.color(summary.tone, accent: accent) ?? .primary
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: WidgetSpacing.xxs) {
             if let number {
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: WidgetSpacing.xxs) {
                     Text(number)
                         .font(.system(size: family == .systemSmall ? 40 : 48, weight: .semibold, design: .rounded))
                         .monospacedDigit()
@@ -110,7 +110,7 @@ struct MetersTemplate: View {
             rings
         } else {
             LazyVGrid(
-                columns: Array(repeating: GridItem(.flexible(), spacing: 18, alignment: .top), count: family.columnCount),
+                columns: Array(repeating: GridItem(.flexible(), spacing: WidgetSpacing.columnGap, alignment: .top), count: family.columnCount),
                 alignment: .leading, spacing: family.isRoomy ? 10 : 7
             ) {
                 ForEach(items) { item in row(item.summary) }
@@ -120,19 +120,19 @@ struct MetersTemplate: View {
     }
 
     private var rings: some View {
-        HStack(alignment: .top, spacing: 6) {
+        HStack(alignment: .top, spacing: WidgetSpacing.stack) {
             ForEach(items) { item in
                 let tone = WidgetPalette.color(item.summary.tone, accent: accent) ?? accent
-                VStack(spacing: 4) {
+                VStack(spacing: WidgetSpacing.xxs) {
                     ZStack {
-                        Circle().stroke(Color.primary.opacity(0.12), lineWidth: 4)
+                        Circle().stroke(Color.primary.opacity(WidgetFill.track), lineWidth: 4)
                         Circle()
                             .trim(from: 0, to: item.summary.fraction ?? 0)
                             .stroke(tone, style: StrokeStyle(lineWidth: 4, lineCap: .round))
                             .rotationEffect(.degrees(-90))
                             .widgetAccentable()
                         Text(shortNumber(item.summary.value))
-                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .font(.system(size: WidgetTypeSize.ringValue, weight: .semibold, design: .rounded))
                             .monospacedDigit()
                             .minimumScaleFactor(0.6)
                     }
@@ -150,7 +150,7 @@ struct MetersTemplate: View {
 
     private func row(_ summary: SharedShelf.Summary) -> some View {
         let tone = WidgetPalette.color(summary.tone, accent: accent)
-        return VStack(alignment: .leading, spacing: 3) {
+        return VStack(alignment: .leading, spacing: WidgetSpacing.hair) {
             HStack(alignment: .firstTextBaseline) {
                 Text(summary.title ?? "")
                     .font(.caption)
@@ -187,7 +187,7 @@ struct ListTemplate: View {
         let columns = family.columnCount == 2 && items.count > 4
             ? [Array(items.prefix(half)), Array(items.dropFirst(half))]
             : [items]
-        HStack(alignment: .top, spacing: 18) {
+        HStack(alignment: .top, spacing: WidgetSpacing.columnGap) {
             ForEach(Array(columns.enumerated()), id: \.offset) { _, column in
                 VStack(alignment: .leading, spacing: family.isRoomy ? 8 : 6) {
                     ForEach(Array(column.enumerated()), id: \.element.id) { index, item in
@@ -209,8 +209,8 @@ struct ListTemplate: View {
     private func row(_ summary: SharedShelf.Summary) -> some View {
         let tone = WidgetPalette.color(summary.tone, accent: accent)
         let trailing = summary.value.map(shortNumber) ?? summary.status
-        return VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 7) {
+        return VStack(alignment: .leading, spacing: WidgetSpacing.hair) {
+            HStack(spacing: WidgetSpacing.markGap) {
                 leading(summary)
                 Text(summary.title ?? "")
                     .font(.caption)
@@ -227,14 +227,14 @@ struct ListTemplate: View {
             }
             if let fraction = summary.fraction {
                 MeterBar(fraction: fraction, tone: tone ?? accent, height: 3)
-                    .padding(.leading, 21)
+                    .padding(.leading, WidgetSpacing.rowIndent)
             }
             if family.isRoomy, let line = summary.detail ?? summary.subtitle {
                 Text(line)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-                    .padding(.leading, 21)
+                    .padding(.leading, WidgetSpacing.rowIndent)
             }
         }
     }
@@ -257,7 +257,7 @@ struct ListTemplate: View {
             // An initial on the item's colour: red when it is in trouble,
             // otherwise the widget's accent.
             Text(String((summary.title ?? "•").prefix(1)).uppercased())
-                .font(.system(size: 8, weight: .bold))
+                .font(.system(size: WidgetTypeSize.badge, weight: .bold))
                 .foregroundStyle(.white)
                 .frame(width: 14, height: 14)
                 .background(Circle().fill(["danger", "red"].contains(summary.tone) ? WidgetPalette.critical : accent))
@@ -280,15 +280,15 @@ struct GridTemplate: View {
             alignment: .leading, spacing: spacing
         ) {
             ForEach(items) { item in
-                VStack(spacing: 3) {
+                VStack(spacing: WidgetSpacing.hair) {
                     // A square cell the picture fills and is cut to.
                     Color.clear
                         .aspectRatio(1, contentMode: .fit)
                         .overlay { thumbnail(item) }
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: WidgetRadius.control, style: .continuous))
                     if family != .systemSmall {
                         Text(shortFileName(item.summary.title ?? ""))
-                            .font(.system(size: 9))
+                            .font(.system(size: WidgetTypeSize.tileCaption))
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
@@ -308,7 +308,7 @@ struct GridTemplate: View {
                 .scaledToFill()
         } else {
             ZStack {
-                RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.primary.opacity(0.08))
+                RoundedRectangle(cornerRadius: WidgetRadius.control, style: .continuous).fill(Color.primary.opacity(WidgetFill.tile))
                 Image(systemName: "doc")
                     .font(.title3)
                     .foregroundStyle(.secondary)
@@ -343,7 +343,7 @@ struct MeterBar: View {
     var body: some View {
         GeometryReader { proxy in
             ZStack(alignment: .leading) {
-                Capsule().fill(Color.primary.opacity(0.12))
+                Capsule().fill(Color.primary.opacity(WidgetFill.track))
                 Capsule()
                     .fill(tone)
                     .frame(width: max(height, proxy.size.width * min(max(fraction, 0), 1)))

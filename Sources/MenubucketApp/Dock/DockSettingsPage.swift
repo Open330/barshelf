@@ -310,7 +310,7 @@ struct DockSettingsPage: View {
                 } else if hotkeyStatus.unavailable.contains(position) {
                     Label("\(label) is taken", systemImage: "exclamationmark.triangle.fill")
                         .font(.caption)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(StatusTone.warning.color)
                         .help("Another app or an Automation shortcut already uses \(label). Free it, then turn profile shortcuts off and on.")
                 } else {
                     Text(label).font(.caption.monospaced()).foregroundStyle(.secondary)

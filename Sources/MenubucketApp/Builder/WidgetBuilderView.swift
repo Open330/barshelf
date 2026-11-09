@@ -27,21 +27,6 @@ struct WidgetBuilderView: View {
         ("5m", 300),
         ("15m", 900),
     ]
-    private struct AccentChoice: Identifiable {
-        let id: String
-        let name: String
-        let value: String?
-        let color: Color
-    }
-    private let accentChoices: [AccentChoice] = [
-        .init(id: "default", name: String(localized: "Default", comment: "Accent color choice"), value: nil, color: .accentColor),
-        .init(id: "blue", name: String(localized: "Blue"), value: "blue", color: .blue),
-        .init(id: "green", name: String(localized: "Green"), value: "green", color: .green),
-        .init(id: "orange", name: String(localized: "Orange"), value: "orange", color: .orange),
-        .init(id: "purple", name: String(localized: "Purple"), value: "purple", color: .purple),
-        .init(id: "pink", name: String(localized: "Pink"), value: "pink", color: .pink),
-    ]
-
     var body: some View {
         VStack(spacing: 0) {
             stepIndicator
@@ -63,21 +48,21 @@ struct WidgetBuilderView: View {
     // MARK: Step indicator
 
     private var stepIndicator: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: Spacing.m) {
             ForEach(WidgetBuilderModel.Step.allCases, id: \.self) { step in
-                HStack(spacing: 6) {
+                HStack(spacing: Spacing.stack) {
                     Image(systemName: step.rawValue < model.step.rawValue
                         ? "checkmark.circle.fill"
                         : (step == model.step ? "circle.inset.filled" : "circle"))
                         .foregroundStyle(step == model.step ? Color.accentColor : .secondary)
                     Text(step.title)
-                        .font(.system(size: 12, weight: step == model.step ? .semibold : .regular))
+                        .font(.callout.weight(step == model.step ? .semibold : .regular))
                         .foregroundStyle(step == model.step ? .primary : .secondary)
                 }
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.horizontal, Spacing.m)
+        .padding(.vertical, Spacing.xs + Spacing.hair)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -86,27 +71,27 @@ struct WidgetBuilderView: View {
     @ViewBuilder
     private var controls: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: Spacing.s + Spacing.hair) {
                 switch model.step {
                 case .source: sourceStep
                 case .display: displayStep
                 case .details: detailsStep
                 }
             }
-            .padding(16)
+            .padding(Spacing.m)
         }
     }
 
     // MARK: Step 1 — source
 
     private var sourceStep: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: Spacing.s) {
             Text("Where does this widget's data come from?")
-                .font(.system(size: 13, weight: .semibold))
+                .font(.headline)
             ForEach(WidgetBuilderModel.SourceKind.allCases) { kind in
                 sourceCard(kind)
             }
-            Divider().padding(.vertical, 4)
+            Divider().padding(.vertical, Spacing.xxs)
             switch model.sourceKind {
             case .command:
                 Text("Templates").font(.caption).foregroundStyle(.secondary)
@@ -114,17 +99,17 @@ struct WidgetBuilderView: View {
                 Text("Command").font(.caption).foregroundStyle(.secondary)
                 TextField("e.g. gh run list --json name,status", text: $model.commandText)
                     .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 12, design: .monospaced))
+                    .font(.callout.monospaced())
                 HStack {
                     Button(model.testRunning ? "Running…" : "Test run") { model.runTest() }
                         .disabled(model.testRunning || model.commandText.isEmpty)
                     Button("Use sample JSON") { model.useSampleJSON() }
                     if model.detectedIsJSONArray {
                         Label("JSON array detected", systemImage: "curlybraces")
-                            .font(.caption).foregroundStyle(.green)
+                            .font(.caption).foregroundStyle(StatusTone.success.color)
                     } else if model.isCommandJSON {
                         Label("JSON object", systemImage: "curlybraces")
-                            .font(.caption).foregroundStyle(.green)
+                            .font(.caption).foregroundStyle(StatusTone.success.color)
                     } else if !model.testOutput.isEmpty && model.testError == nil {
                         // Ran fine but not JSON — say so instead of leaving the
                         // user guessing why the field pickers are empty.
@@ -138,26 +123,26 @@ struct WidgetBuilderView: View {
                     } icon: {
                         Image(systemName: "exclamationmark.triangle.fill")
                     }
-                    .font(.caption).foregroundStyle(.red)
+                    .font(.caption).foregroundStyle(StatusTone.critical.color)
                     .fixedSize(horizontal: false, vertical: true)
                 } else if !model.testOutput.isEmpty {
                     ScrollView {
                         Text(model.testOutput)
-                            .font(.system(size: 11, design: .monospaced))
+                            .font(.subheadline.monospaced())
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .textSelection(.enabled)
                     }
                     .frame(height: 120)
                     .background(Color(nsColor: .textBackgroundColor))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.control))
                 }
             case .shellScript:
                 Text("Shell script").font(.caption).foregroundStyle(.secondary)
                 TextEditor(text: $model.scriptText)
-                    .font(.system(size: 12, design: .monospaced))
+                    .font(.callout.monospaced())
                     .frame(height: 120)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(.secondary.opacity(0.3)))
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.control))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.control).strokeBorder(Fill.hairline))
                 Text("Runs with /bin/sh -c — pipe, jq, awk, chained commands. Emit JSON for list / table / value / meter displays.")
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -167,10 +152,10 @@ struct WidgetBuilderView: View {
                     Button("Use sample JSON") { model.useSampleJSON() }
                     if model.detectedIsJSONArray {
                         Label("JSON array detected", systemImage: "curlybraces")
-                            .font(.caption).foregroundStyle(.green)
+                            .font(.caption).foregroundStyle(StatusTone.success.color)
                     } else if model.isCommandJSON {
                         Label("JSON object", systemImage: "curlybraces")
-                            .font(.caption).foregroundStyle(.green)
+                            .font(.caption).foregroundStyle(StatusTone.success.color)
                     } else if !model.testOutput.isEmpty && model.testError == nil {
                         Label("Plain text — renders as text", systemImage: "text.alignleft")
                             .font(.caption).foregroundStyle(.secondary)
@@ -181,7 +166,7 @@ struct WidgetBuilderView: View {
                 Text("HTTPS JSON endpoint").font(.caption).foregroundStyle(.secondary)
                 TextField("https://api.example.com/status.json", text: $model.httpURL)
                     .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 12, design: .monospaced))
+                    .font(.callout.monospaced())
                 headerEditor
                 HStack {
                     Button(model.testRunning ? "Fetching…" : "Fetch preview") {
@@ -191,7 +176,7 @@ struct WidgetBuilderView: View {
                     Button("Use sample JSON") { model.useSampleJSON() }
                     if model.hasStructuredJSON {
                         Label("JSON ready", systemImage: "curlybraces")
-                            .font(.caption).foregroundStyle(.green)
+                            .font(.caption).foregroundStyle(StatusTone.success.color)
                     }
                 }
                 previewOutputBlock
@@ -201,18 +186,18 @@ struct WidgetBuilderView: View {
                     get: { model.pastedJSONText },
                     set: { model.setPastedJSON($0) }
                 ))
-                .font(.system(size: 12, design: .monospaced))
+                .font(.callout.monospaced())
                 .frame(height: 132)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-                .overlay(RoundedRectangle(cornerRadius: 6).stroke(.secondary.opacity(0.3)))
+                .clipShape(RoundedRectangle(cornerRadius: Radius.control))
+                .overlay(RoundedRectangle(cornerRadius: Radius.control).strokeBorder(Fill.hairline))
                 HStack {
                     Button("Use sample JSON") { model.useSampleJSON() }
                     if let error = model.pastedJSONError {
                         Label(error, systemImage: "exclamationmark.triangle")
-                            .font(.caption).foregroundStyle(.orange)
+                            .font(.caption).foregroundStyle(StatusTone.warning.color)
                     } else {
                         Label("JSON ready", systemImage: "checkmark.circle.fill")
-                            .font(.caption).foregroundStyle(.green)
+                            .font(.caption).foregroundStyle(StatusTone.success.color)
                     }
                 }
             case .folder:
@@ -223,21 +208,21 @@ struct WidgetBuilderView: View {
                     Button("Choose…") { chooseFolder() }
                 }
                 Stepper("Max files: \(model.folderLimit)", value: $model.folderLimit, in: 4...48)
-                    .font(.system(size: 12))
+                    .font(.callout)
             case .staticText:
                 Text("Text").font(.caption).foregroundStyle(.secondary)
                 TextEditor(text: $model.staticContent)
-                    .font(.system(size: 12))
+                    .font(.callout)
                     .frame(height: 100)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(.secondary.opacity(0.3)))
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.control))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.control).strokeBorder(Fill.hairline))
             }
         }
     }
 
     /// Editable list of HTTP request headers (auth etc.) for the HTTP source.
     private var headerEditor: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: Spacing.stack) {
             HStack {
                 Text("Headers (optional)").font(.caption).foregroundStyle(.secondary)
                 Spacer()
@@ -247,7 +232,7 @@ struct WidgetBuilderView: View {
                 .buttonStyle(.borderless).font(.caption)
             }
             ForEach(Array(model.httpHeaders.enumerated()), id: \.element.id) { index, _ in
-                HStack(spacing: 6) {
+                HStack(spacing: Spacing.stack) {
                     TextField("Header", text: Binding(
                         get: { model.httpHeaders[index].key },
                         set: { model.httpHeaders[index].key = $0 }
@@ -269,7 +254,7 @@ struct WidgetBuilderView: View {
                     systemImage: "exclamationmark.shield"
                 )
                 .font(.caption2)
-                .foregroundStyle(.orange)
+                .foregroundStyle(StatusTone.warning.color)
                 .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -283,18 +268,18 @@ struct WidgetBuilderView: View {
             } icon: {
                 Image(systemName: "exclamationmark.triangle.fill")
             }
-            .font(.caption).foregroundStyle(.red)
+            .font(.caption).foregroundStyle(StatusTone.critical.color)
             .fixedSize(horizontal: false, vertical: true)
         } else if !model.testOutput.isEmpty {
             ScrollView {
                 Text(model.testOutput)
-                    .font(.system(size: 11, design: .monospaced))
+                    .font(.subheadline.monospaced())
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .textSelection(.enabled)
             }
             .frame(height: 120)
             .background(Color(nsColor: .textBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.control))
         }
     }
 
@@ -304,25 +289,25 @@ struct WidgetBuilderView: View {
         } label: {
             HStack {
                 Image(systemName: kind.symbol).frame(width: 22)
-                Text(kind.label).font(.system(size: 12))
+                Text(kind.label).font(.callout)
                 Spacer()
                 if model.sourceKind == kind {
                     Image(systemName: "checkmark").foregroundStyle(Color.accentColor)
                 }
             }
-            .padding(10)
-            .background(model.sourceKind == kind ? Color.accentColor.opacity(0.12) : Color(nsColor: .controlBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(.secondary.opacity(0.2)))
+            .padding(Spacing.xs + Spacing.hair)
+            .background(model.sourceKind == kind ? Color.accentColor.opacity(Fill.Wash.medium) : Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.control + Spacing.hair))
+            .overlay(RoundedRectangle(cornerRadius: Radius.control + Spacing.hair).strokeBorder(Fill.hairline))
         }
         .buttonStyle(.plain)
     }
 
     private var commandTemplatePicker: some View {
         LazyVGrid(
-            columns: [GridItem(.adaptive(minimum: 148, maximum: 220), spacing: 8)],
+            columns: [GridItem(.adaptive(minimum: 148, maximum: 220), spacing: Spacing.xs)],
             alignment: .leading,
-            spacing: 8
+            spacing: Spacing.xs
         ) {
             ForEach(WidgetBuilderModel.commandTemplates) { template in
                 commandTemplateChip(template)
@@ -337,27 +322,27 @@ struct WidgetBuilderView: View {
         } label: {
             Label {
                 Text(template.title)
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.subheadline.weight(.medium))
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
             } icon: {
                 Image(systemName: template.suggestedIcon)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.subheadline.weight(.semibold))
             }
             .labelStyle(.titleAndIcon)
             .foregroundStyle(selected ? Color.accentColor : .primary)
-            .padding(.horizontal, 9)
-            .padding(.vertical, 5)
+            .padding(.horizontal, Spacing.xs)
+            .padding(.vertical, Spacing.xxs)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 selected
-                    ? Color.accentColor.opacity(0.16)
+                    ? Color.accentColor.opacity(Fill.Wash.strong)
                     : Color(nsColor: .controlBackgroundColor)
             )
             .clipShape(Capsule())
             .overlay(
                 Capsule().stroke(
-                    selected ? Color.accentColor.opacity(0.65) : Color.secondary.opacity(0.22)
+                    selected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(Fill.hairline)
                 )
             )
             .contentShape(Capsule())
@@ -370,15 +355,15 @@ struct WidgetBuilderView: View {
     // MARK: Step 2 — display
 
     private var displayStep: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("How should it look?").font(.system(size: 13, weight: .semibold))
+        VStack(alignment: .leading, spacing: Spacing.s) {
+            Text("How should it look?").font(.headline)
             Picker("Display", selection: $model.displayKind) {
                 ForEach(model.availableDisplays) { d in Text(d.label).tag(d) }
             }
             .pickerStyle(.radioGroup)
             .labelsHidden()
 
-            Divider().padding(.vertical, 2)
+            Divider().padding(.vertical, Spacing.hair)
 
             switch model.effectiveDisplay {
             case .list where model.usesStructuredSource && !model.detectedFields.isEmpty:
@@ -409,9 +394,9 @@ struct WidgetBuilderView: View {
     // MARK: Refine (filter / sort / limit / row action)
 
     private var refineSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Divider().padding(.vertical, 2)
-            Text("Refine (optional)").font(.system(size: 13, weight: .semibold))
+        VStack(alignment: .leading, spacing: Spacing.xs + Spacing.hair) {
+            Divider().padding(.vertical, Spacing.hair)
+            Text("Refine (optional)").font(.headline)
 
             Toggle("Only keep rows that match", isOn: $model.filterEnabled)
                 .toggleStyle(.switch)
@@ -421,7 +406,7 @@ struct WidgetBuilderView: View {
                     }
                 }
             if model.filterEnabled {
-                HStack(spacing: 6) {
+                HStack(spacing: Spacing.stack) {
                     refineField($model.filterField)
                     Picker("Match", selection: $model.filterIsNot) {
                         Text("is").tag(false)
@@ -441,7 +426,7 @@ struct WidgetBuilderView: View {
                     }
                 }
             if model.sortEnabled {
-                HStack(spacing: 6) {
+                HStack(spacing: Spacing.stack) {
                     refineField($model.sortField)
                     Picker("Sort order", selection: $model.sortDescending) {
                         Text("Asc").tag(false)
@@ -455,22 +440,26 @@ struct WidgetBuilderView: View {
                 .toggleStyle(.switch)
             if model.limitEnabled {
                 Stepper("Show at most \(model.limitCount)", value: $model.limitCount, in: 1...100)
-                    .font(.system(size: 12))
+                    .font(.callout)
             }
 
-            Divider().padding(.vertical, 2)
-            Text("When a row is clicked").font(.system(size: 12))
+            Divider().padding(.vertical, Spacing.hair)
+            Text("When a row is clicked").font(.callout)
+            Text("What clicking one of the widget's rows does.")
+                .font(.caption).foregroundStyle(.secondary)
+            // What the widget does: a radio group (`Components.swift`, choices).
             Picker("When a row is clicked", selection: $model.rowActionKind) {
                 ForEach(WidgetBuilderModel.RowActionKind.allCases) { Text($0.label).tag($0) }
             }
-            .labelsHidden().frame(maxWidth: 260, alignment: .leading)
+            .pickerStyle(.radioGroup)
+            .labelsHidden()
             .onChange(of: model.rowActionKind) { _, kind in
                 if kind != .none, model.rowActionField.isEmpty {
                     model.rowActionField = model.detectedFields.first ?? ""
                 }
             }
             if model.rowActionKind != .none {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: Spacing.xxs) {
                     Text(model.rowActionKind.fieldPrompt)
                         .font(.caption).foregroundStyle(.secondary)
                     refineField($model.rowActionField)
@@ -525,15 +514,15 @@ struct WidgetBuilderView: View {
     /// row's secondary/trailing fields.
     private func optionalFieldRow(_ title: LocalizedStringKey, selection: Binding<String>) -> some View {
         HStack {
-            Text(title).font(.system(size: 12))
+            Text(title).font(.callout)
             Spacer()
             refineField(selection)
         }
     }
 
     private func fieldPicker(_ title: LocalizedStringKey, selection: Binding<String>) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.system(size: 12))
+        VStack(alignment: .leading, spacing: Spacing.xxs) {
+            Text(title).font(.callout)
             if model.detectedFields.isEmpty {
                 TextField("Field path, e.g. name", text: selection)
                     .textFieldStyle(.roundedBorder)
@@ -553,8 +542,8 @@ struct WidgetBuilderView: View {
     }
 
     private var tableColumnEditor: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Columns").font(.system(size: 12))
+        VStack(alignment: .leading, spacing: Spacing.stack) {
+            Text("Columns").font(.callout)
             if model.detectedFields.isEmpty {
                 Label(
                     "Run a JSON command or use sample JSON to auto-fill fields. You can also type field paths manually.",
@@ -607,11 +596,11 @@ struct WidgetBuilderView: View {
     // MARK: Meter editor (one or more meters, bar / ring)
 
     private var meterEditor: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: Spacing.xs + Spacing.hair) {
             ForEach(Array(model.meters.enumerated()), id: \.element.id) { index, _ in
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: Spacing.stack) {
                     HStack {
-                        Text("Meter \(index + 1)").font(.system(size: 12, weight: .medium))
+                        Text("Meter \(index + 1)").font(.callout.weight(.medium))
                         Spacer()
                         Picker("", selection: Binding(
                             get: { model.meters[index].style },
@@ -628,13 +617,13 @@ struct WidgetBuilderView: View {
                                 .accessibilityLabel("Remove meter \(index + 1)")
                         }
                     }
-                    HStack(spacing: 6) {
-                        Text("Field").font(.system(size: 12)).frame(width: 36, alignment: .leading)
+                    HStack(spacing: Spacing.stack) {
+                        Text("Field").font(.callout).frame(width: 36, alignment: .leading)
                         refineField(Binding(
                             get: { model.meters[index].field },
                             set: { model.meters[index].field = $0 }
                         ))
-                        Text("Max").font(.system(size: 12))
+                        Text("Max").font(.callout)
                         TextField("100", value: Binding(
                             get: { model.meters[index].maxValue },
                             set: { model.meters[index].maxValue = $0 }
@@ -646,8 +635,8 @@ struct WidgetBuilderView: View {
                         set: { model.meters[index].label = $0 }
                     )).textFieldStyle(.roundedBorder)
                 }
-                .padding(8)
-                .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.06)))
+                .padding(Spacing.xs)
+                .background(RoundedRectangle(cornerRadius: Radius.control + Spacing.hair).fill(Fill.card))
             }
             if model.meters.count < 6 {
                 Button {
@@ -664,21 +653,21 @@ struct WidgetBuilderView: View {
     // MARK: Step 3 — details
 
     private var detailsStep: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Name & placement").font(.system(size: 13, weight: .semibold))
+        VStack(alignment: .leading, spacing: Spacing.s) {
+            Text("Name & placement").font(.headline)
             TextField("Widget name", text: Binding(
                 get: { model.name },
                 set: { model.setName($0) }
             )).textFieldStyle(.roundedBorder)
 
             Text("Icon").font(.caption).foregroundStyle(.secondary)
-            LazyVGrid(columns: Array(repeating: GridItem(.fixed(34)), count: 6), spacing: 6) {
+            LazyVGrid(columns: Array(repeating: GridItem(.fixed(34)), count: 6), spacing: Spacing.stack) {
                 ForEach(iconChoices, id: \.self) { symbol in
                     Button { model.setIcon(symbol) } label: {
                         Image(systemName: symbol)
                             .frame(width: 30, height: 30)
-                            .background(model.icon == symbol ? Color.accentColor.opacity(0.2) : .clear)
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .background(model.icon == symbol ? Color.accentColor.opacity(Fill.Wash.strong) : .clear)
+                            .clipShape(RoundedRectangle(cornerRadius: Radius.control))
                     }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Icon \(symbol)")
@@ -687,7 +676,7 @@ struct WidgetBuilderView: View {
                         )
                 }
             }
-            HStack(spacing: 6) {
+            HStack(spacing: Spacing.stack) {
                 Text("Or SF Symbol").font(.caption).foregroundStyle(.secondary)
                 TextField("e.g. gauge.badge.plus", text: Binding(
                     get: { model.icon },
@@ -700,7 +689,7 @@ struct WidgetBuilderView: View {
             }
 
             HStack {
-                Text("Page").font(.system(size: 12))
+                Text("Page").font(.callout)
                 Spacer()
                 if addingPanel {
                     TextField("New page name", text: $model.group)
@@ -725,9 +714,9 @@ struct WidgetBuilderView: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: Spacing.xxs) {
                 HStack {
-                    Text("Size").font(.system(size: 12))
+                    Text("Size").font(.callout)
                     Picker("Size", selection: $model.size) {
                         ForEach(sizes, id: \.self) { Text($0).tag($0) }
                     }
@@ -741,9 +730,9 @@ struct WidgetBuilderView: View {
             }
 
             DisclosureGroup("Advanced", isExpanded: $advancedExpanded) {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: Spacing.xs) {
                     HStack {
-                        Text("Refresh").font(.system(size: 12))
+                        Text("Refresh").font(.callout)
                         Picker("Refresh", selection: Binding(
                             get: { model.refreshSeconds ?? 0 },
                             set: { model.refreshSeconds = $0 == 0 ? nil : $0 }
@@ -756,7 +745,7 @@ struct WidgetBuilderView: View {
                         .frame(width: 150)
                     }
                     HStack {
-                        Text("Custom (seconds)").font(.system(size: 12))
+                        Text("Custom (seconds)").font(.callout)
                         TextField("e.g. 45", value: Binding(
                             get: { model.refreshSeconds ?? 0 },
                             set: { model.refreshSeconds = $0 <= 0 ? nil : $0 }
@@ -776,7 +765,7 @@ struct WidgetBuilderView: View {
             if let created = model.createdPath {
                 Divider()
                 Label("Created \(created.lastPathComponent)", systemImage: "checkmark.seal.fill")
-                    .foregroundStyle(.green).font(.system(size: 12))
+                    .foregroundStyle(StatusTone.success.color).font(.callout)
                 Button("Show in Finder") { model.revealCreated() }.font(.caption)
             }
             if let err = model.createError {
@@ -785,7 +774,7 @@ struct WidgetBuilderView: View {
                 } icon: {
                     Image(systemName: "exclamationmark.triangle.fill")
                 }
-                .font(.caption).foregroundStyle(.red)
+                .font(.caption).foregroundStyle(StatusTone.critical.color)
                 .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -808,18 +797,20 @@ struct WidgetBuilderView: View {
     }
 
     private var appearanceSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Divider().padding(.vertical, 2)
-            Text("Appearance").font(.system(size: 13, weight: .semibold))
+        VStack(alignment: .leading, spacing: Spacing.xs + Spacing.hair) {
+            Divider().padding(.vertical, Spacing.hair)
+            Text("Appearance").font(.headline)
             Text("Accent").font(.caption).foregroundStyle(.secondary)
-            HStack(spacing: 8) {
-                ForEach(accentChoices) { choice in
-                    accentSwatch(choice)
+            HStack(spacing: Spacing.stack) {
+                ForEach(AccentPalette.swatches) { swatch in
+                    AccentSwatchButton(swatch: swatch, isSelected: AccentPalette.matches(swatch.value, model.appearanceAccent)) {
+                        model.appearanceAccent = swatch.value
+                    }
                 }
             }
 
             HStack {
-                Text("Density").font(.system(size: 12))
+                Text("Density").font(.callout)
                 Picker("Density", selection: $model.appearanceDensity) {
                     Text("Regular").tag(WidgetAppearance.Density.regular)
                     Text("Compact").tag(WidgetAppearance.Density.compact)
@@ -830,7 +821,7 @@ struct WidgetBuilderView: View {
             }
 
             HStack {
-                Text("Card").font(.system(size: 12))
+                Text("Card style").font(.callout)
                 Picker("Card style", selection: $model.appearanceCardStyle) {
                     Text("Plain").tag(WidgetAppearance.CardStyle.plain)
                     Text("Tinted").tag(WidgetAppearance.CardStyle.tinted)
@@ -845,35 +836,6 @@ struct WidgetBuilderView: View {
         }
     }
 
-    private func accentSwatch(_ choice: AccentChoice) -> some View {
-        let selected = model.appearanceAccent == choice.value
-        return Button {
-            model.appearanceAccent = choice.value
-        } label: {
-            ZStack {
-                Circle()
-                    .fill(choice.color)
-                    .frame(width: 24, height: 24)
-                if choice.value == nil {
-                    Circle()
-                        .stroke(Color(nsColor: .windowBackgroundColor), lineWidth: 3)
-                        .frame(width: 10, height: 10)
-                }
-                if selected {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.white)
-                }
-            }
-            .padding(3)
-            .background(selected ? Color.primary.opacity(0.08) : .clear)
-            .clipShape(Circle())
-            .overlay(Circle().stroke(selected ? Color.primary.opacity(0.28) : Color.secondary.opacity(0.18)))
-        }
-        .buttonStyle(.plain)
-        .help(choice.name)
-        .accessibilityLabel("\(choice.name) accent")
-    }
 
     // MARK: Preview
 
@@ -885,23 +847,23 @@ struct WidgetBuilderView: View {
                 Text(model.size)
                     .font(.caption2.monospacedDigit())
                     .foregroundStyle(.secondary)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Capsule().fill(Color.secondary.opacity(0.12)))
+                    .padding(.horizontal, Spacing.stack)
+                    .padding(.vertical, Spacing.hair)
+                    .background(Capsule().fill(Fill.hover))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(10)
+            .padding(Spacing.xs + Spacing.hair)
             Divider()
             Group {
                 switch model.previewTree() {
                 case let .tree(node):
                     ScrollView {
                         previewCard(node)
-                            .padding(18)
+                            .padding(Spacing.m + Spacing.hair)
                     }
                 case let .failure(message):
-                    VStack(spacing: 8) {
-                        Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange)
+                    VStack(spacing: Spacing.xs) {
+                        Image(systemName: "exclamationmark.triangle").foregroundStyle(StatusTone.warning.color)
                         Text(message).font(.caption).foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
                     }.padding()
@@ -919,9 +881,9 @@ struct WidgetBuilderView: View {
         let appearance = model.previewAppearance
         let accent = appearance.accentColor ?? .accentColor
         let inset: CGFloat = appearance.density == .compact ? Spacing.xs : Spacing.s
-        return VStack(alignment: .leading, spacing: 6) {
+        return VStack(alignment: .leading, spacing: Spacing.stack) {
             if appearance.showsHeader {
-                HStack(spacing: 6) {
+                HStack(spacing: Spacing.stack) {
                     Image(systemName: model.icon)
                         .font(.caption)
                         .foregroundStyle(accent)
@@ -941,10 +903,10 @@ struct WidgetBuilderView: View {
                 .environment(\.widgetAppearance, appearance)
         }
         .padding(.horizontal, inset + 2)
-        .padding(.vertical, 10)
+        .padding(.vertical, Spacing.xs + Spacing.hair)
         .frame(maxWidth: .infinity, minHeight: model.previewMinHeight, alignment: .topLeading)
         .background(
-            Rectangle().fill(appearance.cardStyle == .tinted ? accent.opacity(0.07) : Color.clear)
+            Rectangle().fill(appearance.cardStyle == .tinted ? accent.opacity(Fill.Wash.soft) : Color.clear)
         )
         .background(Color(nsColor: .controlBackgroundColor))
         .overlay(alignment: .top) { Divider() }
@@ -964,17 +926,20 @@ struct WidgetBuilderView: View {
                 .buttonStyle(.glass(.plain))
             Group {
                 switch model.step {
+                // "Continue", as onboarding says it, with the key it answers to.
                 case .source:
-                    Button("Next") { model.step = .display }
+                    Button { model.step = .display } label: { ShortcutLabel("Continue", key: "↵") }
                         .keyboardShortcut(.defaultAction).disabled(!model.canAdvanceFromSource)
                 case .display:
-                    Button("Next") { model.step = .details }.keyboardShortcut(.defaultAction)
+                    Button { model.step = .details } label: { ShortcutLabel("Continue", key: "↵") }
+                        .keyboardShortcut(.defaultAction)
                 case .details:
                     if model.createdPath == nil {
-                        Button("Create") { model.create() }
+                        Button { model.create() } label: { ShortcutLabel("Create", key: "↵") }
                             .keyboardShortcut(.defaultAction).disabled(!model.canCreate)
                     } else {
-                        Button("Done") { model.onClose?() }.keyboardShortcut(.defaultAction)
+                        Button { model.onClose?() } label: { ShortcutLabel("Done", key: "↵") }
+                            .keyboardShortcut(.defaultAction)
                     }
                 }
             }

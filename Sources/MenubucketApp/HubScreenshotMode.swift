@@ -97,6 +97,11 @@ enum HubScreenshotMode {
                             size: NSSize(width: 640, height: 760), name: "inspector-menubar-\(layout.rawValue)", to: dir) && ok
             }
         }
+        // The inspector's Look page: accent swatches, density, card style.
+        if let widget = shown.first {
+            ok = render(WidgetSettingsView(widget: widget, runtime: runtime, page: .look),
+                        size: NSSize(width: 640, height: 760), name: "inspector-look", to: dir) && ok
+        }
         return ok ? 0 : 1
     }
 
