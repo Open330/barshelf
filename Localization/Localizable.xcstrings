@@ -623,32 +623,12 @@
         }
       }
     },
-    "20:53": {
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "20:53"
-          }
-        }
-      }
-    },
     "3": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "3"
-          }
-        }
-      }
-    },
-    "80%": {
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "80%"
           }
         }
       }
@@ -2520,16 +2500,6 @@
         }
       }
     },
-    "Copied — clears in 30s": {
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "복사됨 — 30초 후 지워짐"
-          }
-        }
-      }
-    },
     "Copy": {
       "localizations": {
         "ko": {
@@ -3993,16 +3963,6 @@
         }
       }
     },
-    "File": {
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "파일"
-          }
-        }
-      }
-    },
     "File-path field": {
       "localizations": {
         "ko": {
@@ -4060,16 +4020,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "위젯을 찾아 설치합니다."
-          }
-        }
-      }
-    },
-    "Finder": {
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Finder"
           }
         }
       }
@@ -4391,16 +4341,6 @@
         }
       }
     },
-    "Go": {
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "이동"
-          }
-        }
-      }
-    },
     "Go to a page": {
       "localizations": {
         "ko": {
@@ -4595,16 +4535,6 @@
         }
       }
     },
-    "Help": {
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "도움말"
-          }
-        }
-      }
-    },
     "Hex": {
       "localizations": {
         "ko": {
@@ -4671,16 +4601,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "높을수록 나쁨"
-          }
-        }
-      }
-    },
-    "Home": {
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "홈"
           }
         }
       }
@@ -6883,16 +6803,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "확인"
-          }
-        }
-      }
-    },
-    "OTP Codes": {
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "OTP 코드"
           }
         }
       }
@@ -11018,16 +10928,6 @@
         }
       }
     },
-    "Thu 9 Jul": {
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "7월 9일 (목)"
-          }
-        }
-      }
-    },
     "Time to tidy up your menu bar": {
       "localizations": {
         "ko": {
@@ -11702,16 +11602,6 @@
         }
       }
     },
-    "View": {
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "보기"
-          }
-        }
-      }
-    },
     "View the Getting Started guide": {
       "extractionState": "stale",
       "localizations": {
@@ -12095,16 +11985,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "너비: %@"
-          }
-        }
-      }
-    },
-    "Window": {
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "윈도우"
           }
         }
       }

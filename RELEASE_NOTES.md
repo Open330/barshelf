@@ -16,3 +16,8 @@
   once into a bitmap instead of again for every display's menu bar.
   Permission checks no longer re-hash every widget on each menu bar update.
   `scripts/profile-idle.sh` measures and profiles the running app.
+- **Card controls no longer cover the card.** On a card with a header,
+  Refresh and Settings appear in the header on hover, in place of the "3m
+  ago" time, so nothing floats over the title or the content. Cards without
+  a header, and half-width cards, show one small `⋯` menu in the corner
+  instead. Drag a card by its icon and name to reorder it.
