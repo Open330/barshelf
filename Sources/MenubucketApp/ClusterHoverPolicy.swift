@@ -6,9 +6,9 @@ import AppKit
 /// resting on a chip drifts a point below the bar, a pointer sweeping across
 /// the bar to another item passes over the cluster on its way, and one
 /// heading down to read a peek leaves the item to do it. The cluster
-/// answers the intent: it unfolds once the pointer stays a moment, keeps a
-/// margin around the item, and folds only after the pointer has been away a
-/// little while, longer when it went down towards the peek.
+/// answers the intent: it unfolds at once, keeps a margin around the item,
+/// and folds only after the pointer has been away a moment, a little longer
+/// when it went down towards the peek.
 enum ClusterHoverPolicy {
     /// Room below the menu bar that still counts as on the item: a pointer
     /// resting on a chip drifts down a little.
@@ -17,12 +17,9 @@ enum ClusterHoverPolicy {
     /// when the pointer slips a point past it.
     static let slackSides: CGFloat = 4
     /// Away this long before the chips fold.
-    static let leaveGrace: TimeInterval = 0.35
+    static let leaveGrace: TimeInterval = 0.2
     /// Away towards the peek below: it is being read, give it longer.
-    static let peekGrace: TimeInterval = 0.8
-    /// On the item this long before the folded chips open, so a pointer
-    /// crossing the bar to another item does not widen this one on its way.
-    static let arriveDelay: TimeInterval = 0.1
+    static let peekGrace: TimeInterval = 0.45
 
     enum Zone: Equatable {
         /// On the item: `x` along it, from its left edge.

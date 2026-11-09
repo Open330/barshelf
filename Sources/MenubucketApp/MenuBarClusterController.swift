@@ -39,8 +39,6 @@ final class MenuBarClusterController: NSObject {
     /// coordinates and compared with the item's frame instead.
     private var pointerWatcher: PointerWatcher?
     private var pointerInside = false
-    /// The folded chips open once the pointer stays (`ClusterHoverPolicy`).
-    private var arriveWork: DispatchWorkItem?
     /// The open chips fold once the pointer has been away a while.
     private var foldWork: DispatchWorkItem?
     /// Each menu bar's band on screen, with the margin below it: a pointer
@@ -202,7 +200,7 @@ final class MenuBarClusterController: NSObject {
     private func pointerMoved() {
         guard isEnabled, !chips.isEmpty else { return }
         let point = NSEvent.mouseLocation
-        let engaged = pointerInside || arriveWork != nil || foldWork != nil
+        let engaged = pointerInside || foldWork != nil
         guard engaged || isNearMenuBar(point) else { return }
         guard let frame = itemFrame(near: point) else {
             pointerAway(at: point, item: nil)
@@ -218,18 +216,12 @@ final class MenuBarClusterController: NSObject {
                 foldWork?.cancel()
                 foldWork = nil
             }
-            if menuBar.clusterFocus == nil, card?.isShown != true {
-                // Folded: open once the pointer stays, not as it passes.
-                if index != nil { scheduleArrive() } else { cancelArrive() }
-                return
-            }
+            if menuBar.clusterFocus == nil, card?.isShown != true, index == nil { return }
             focus(index)
         case .margin:
             // Next to the item: the chips stay as they are, open or folded.
-            if menuBar.clusterFocus == nil { cancelArrive() } else {
-                foldWork?.cancel()
-                foldWork = nil
-            }
+            foldWork?.cancel()
+            foldWork = nil
         case .away:
             pointerAway(at: point, item: frame)
         }
@@ -256,7 +248,6 @@ final class MenuBarClusterController: NSObject {
     }
 
     private func pointerAway(at point: NSPoint, item frame: NSRect?) {
-        cancelArrive()
         // A peek already showing stays for the grace; one not shown yet is
         // not wanted any more.
         peekWork?.cancel()
@@ -266,24 +257,6 @@ final class MenuBarClusterController: NSObject {
             ClusterHoverPolicy.grace(leavingAt: point, item: $0, peek: peek?.isVisible == true ? peek?.frame : nil)
         } ?? ClusterHoverPolicy.leaveGrace
         scheduleFold(after: grace)
-    }
-
-    private func scheduleArrive() {
-        guard arriveWork == nil else { return }
-        let work = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            self.arriveWork = nil
-            guard self.isEnabled, self.card?.isShown != true, self.menuBar.clusterFocus == nil,
-                  let x = self.pointerButtonX(), let index = self.chipIndex(atButtonX: x) else { return }
-            self.focus(index)
-        }
-        arriveWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + ClusterHoverPolicy.arriveDelay, execute: work)
-    }
-
-    private func cancelArrive() {
-        arriveWork?.cancel()
-        arriveWork = nil
     }
 
     /// Folds after `delay` unless the pointer is back on a chip by then.
@@ -310,7 +283,6 @@ final class MenuBarClusterController: NSObject {
     }
 
     private func cancelHoverWork() {
-        cancelArrive()
         foldWork?.cancel()
         foldWork = nil
     }
