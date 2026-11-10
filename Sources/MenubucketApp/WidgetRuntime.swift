@@ -1019,8 +1019,7 @@ final class WidgetRuntime: ObservableObject {
         // A removed widget, or changed code (widget.json or workflow.json),
         // holds no vault session.
         for id in Set(previous.keys).subtracting(seenIDs).union(changedIDs).union(workflowIDs) {
-            let vault = previous[id]?.manifest.permissions?.vault
-            MainActor.assumeIsolated { vaultBroker.endWidget(id, permission: vault) }
+            endVaultSession(id, permission: previous[id]?.manifest.permissions?.vault)
         }
         if !alertMonitoringIDs.isDisjoint(with: changedIDs) || !alertMonitoringIDs.isSubset(of: seenIDs) {
             alertMonitoringIDs = alertMonitoringIDs.intersection(seenIDs).subtracting(changedIDs)
@@ -1426,14 +1425,25 @@ final class WidgetRuntime: ObservableObject {
         }
     }
 
+    /// Ends a vault widget's session: synchronously on the main thread,
+    /// where the app's lifecycle calls come from; other callers (tests,
+    /// background reloads) hop there. Widgets without a vault touch nothing.
+    private func endVaultSession(_ id: String, permission: Manifest.VaultPermission?) {
+        guard let permission else { return }
+        if Thread.isMainThread {
+            MainActor.assumeIsolated { vaultBroker.endWidget(id, permission: permission) }
+        } else {
+            Task { @MainActor [weak self] in self?.vaultBroker.endWidget(id, permission: permission) }
+        }
+    }
+
     /// Immediately invalidate callbacks, then stop the resident process. Both
     /// disabling and permission withdrawal use this path, including rapid
     /// re-enabling while the previous process is still shutting down.
     private func stopWidgetExecution(_ id: String) {
         alertGate.invalidate(id)
         // Disable, removal, revoke, denial: the vault locks with the widget.
-        let vault = widgets.first(where: { $0.id == id })?.manifest.permissions?.vault
-        MainActor.assumeIsolated { vaultBroker.endWidget(id, permission: vault) }
+        endVaultSession(id, permission: widgets.first(where: { $0.id == id })?.manifest.permissions?.vault)
         // A stopped widget does not monitor; its next refresh re-learns it.
         if alertMonitoringIDs.remove(id) != nil { scheduler.setMonitoringWidgetIDs(alertMonitoringIDs) }
         for task in runActionTasks.removeValue(forKey: id)?.values ?? [:].values { task.cancel() }
