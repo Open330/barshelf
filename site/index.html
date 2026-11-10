@@ -677,7 +677,7 @@
           <button type="button" data-lang-btn="ko" aria-pressed="false">KR</button>
         </div>
         <a class="nav-link" href="https://github.com/Open330/barshelf" rel="noopener" aria-label="GitHub">↗</a>
-        <a class="btn primary" href="https://github.com/Open330/barshelf/releases/latest" rel="noopener">
+        <a class="btn primary" href="https://github.com/Open330/barshelf/releases/latest" rel="noopener" data-download>
           <span class="en">Download</span><span class="ko">다운로드</span>
         </a>
       </div>
@@ -697,7 +697,7 @@
           <p class="hero-copy en">Claude Code and Codex usage, OTP codes, GitHub reviews, recent files, or whatever your own scripts print.</p>
           <p class="hero-copy ko">Claude Code·Codex 사용량, OTP 코드, GitHub 리뷰 요청, 최근 파일, 직접 만든 스크립트의 출력까지.</p>
           <div class="hero-actions">
-            <a class="btn primary" href="https://github.com/Open330/barshelf/releases/latest" rel="noopener">
+            <a class="btn primary" href="https://github.com/Open330/barshelf/releases/latest" rel="noopener" data-download>
               <span class="en">Download for macOS</span><span class="ko">macOS용 다운로드</span>
             </a>
             <a class="btn line" href="https://github.com/Open330/barshelf" rel="noopener">GitHub</a>
@@ -985,7 +985,7 @@ barshelf pack ./my-widget</pre>
         <p class="en">One icon, native widgets, scriptable from the tools you already trust.</p>
         <p class="ko">아이콘 하나, 네이티브 위젯, 이미 신뢰하는 도구로 스크립팅하세요.</p>
         <div class="hero-actions">
-          <a class="btn dark" href="https://github.com/Open330/barshelf/releases/latest" rel="noopener">
+          <a class="btn dark" href="https://github.com/Open330/barshelf/releases/latest" rel="noopener" data-download>
             <span class="en">Download BarShelf</span><span class="ko">BarShelf 다운로드</span>
           </a>
           <a class="btn light-line" href="https://github.com/Open330/barshelf/blob/main/docs/GETTING-STARTED.md" rel="noopener">
@@ -1034,6 +1034,26 @@ barshelf pack ./my-widget</pre>
       function updateNav() { nav.classList.toggle("scrolled", window.scrollY > 8); }
       updateNav();
       window.addEventListener("scroll", updateNav, { passive: true });
+
+      // Download buttons: straight to the latest release's app zip, so a
+      // click downloads instead of opening a page of three files. The zip's
+      // name carries the version, hence the lookup; the release page stays
+      // the link if it fails.
+      if (window.fetch) {
+        fetch("https://api.github.com/repos/Open330/barshelf/releases/latest", { headers: { Accept: "application/vnd.github+json" } })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (release) {
+            if (!release || !release.assets) return;
+            var zip = null;
+            for (var a = 0; a < release.assets.length; a += 1) {
+              if (/^BarShelf-[0-9.]+-arm64\.zip$/.test(release.assets[a].name)) { zip = release.assets[a]; break; }
+            }
+            if (!zip || !/^https:\/\/github\.com\/Open330\/barshelf\/releases\/download\//.test(zip.browser_download_url)) return;
+            var links = document.querySelectorAll("a[data-download]");
+            for (var d = 0; d < links.length; d += 1) links[d].setAttribute("href", zip.browser_download_url);
+          })
+          .catch(function () {});
+      }
 
       // Product videos: the hero plays at once, the others when scrolled
       // to (their files load only then). Reduce Motion keeps the posters,
