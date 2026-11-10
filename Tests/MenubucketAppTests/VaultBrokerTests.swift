@@ -8,11 +8,12 @@ final class VaultBrokerTests: XCTestCase {
     private final class FakeProvider: VaultProvider, @unchecked Sendable {
         let lock = NSLock()
         var unlockDelayNs: UInt64 = 0
+        var valueDelayNs: UInt64 = 0
         var locked: [String] = []
-        var unlockPasswords: [String] = []
+        var calls: [String] = []
         func unlock(password: String) async throws -> String {
-            lock.withLock { unlockPasswords.append(password) }
-            if unlockDelayNs > 0 { try? await Task.sleep(nanoseconds: unlockDelayNs) }
+            lock.withLock { calls.append("unlock") }
+            if unlockDelayNs > 0 { try await Task.sleep(nanoseconds: unlockDelayNs) }
             guard password == "right" else { throw VaultError.unlockFailed }
             return "session-key-abcdefghijklmnop"
         }
@@ -20,12 +21,13 @@ final class VaultBrokerTests: XCTestCase {
             [VaultItem(id: "item-1", name: "GitHub", username: "june", host: "github.com", hasTOTP: true)]
         }
         func value(of field: VaultField, itemID: String, session: String) async throws -> String {
-            "\(field.rawValue)-of-\(itemID)"
+            if valueDelayNs > 0 { try await Task.sleep(nanoseconds: valueDelayNs) }
+            return "\(field.rawValue)-of-\(itemID) "
         }
-        func lock(session: String) async { lock.withLock { locked.append(session) } }
+        func lock(session: String) async { lock.withLock { locked.append(session); calls.append("lock") } }
     }
 
-    private var clock = Date(timeIntervalSince1970: 1_000_000)
+    private var clock: TimeInterval = 1_000
     private let permission = Manifest.VaultPermission(provider: "bitwarden", idleLockMinutes: 10, maxSessionMinutes: 60)
 
     private func makeBroker(_ provider: FakeProvider, password: String? = "right") -> VaultBroker {
@@ -38,96 +40,133 @@ final class VaultBrokerTests: XCTestCase {
 
     private func unlocked(_ broker: VaultBroker) async throws {
         let changed = expectation(description: "unlocked")
-        broker.onChange = { _ in changed.fulfill() }
+        broker.onChange = { changed.fulfill() }
         broker.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden")
         await fulfillment(of: [changed], timeout: 2)
         broker.onChange = nil
     }
 
-    private func handle(_ source: JSONValue) -> String? {
-        source.objectValue?["items"]?.arrayValue?.first?.objectValue?["handle"]?.stringValue
+    private func firstHandle(_ broker: VaultBroker, widget: String = "w") async throws -> String {
+        let source = await broker.itemsSource(widgetID: widget, permission: permission)
+        return try XCTUnwrap(source.objectValue?["items"]?.arrayValue?.first?.objectValue?["handle"]?.stringValue)
     }
 
-    func testUnlockListsMetadataAndCopiesByHandle() async throws {
-        let provider = FakeProvider()
-        let broker = makeBroker(provider)
+    func testUnlockListsMetadataAndCopiesExactBytesByHandle() async throws {
+        let broker = makeBroker(FakeProvider())
         try await unlocked(broker)
-        XCTAssertTrue(broker.isUnlocked("w"))
-        let source = await broker.itemsSource(widgetID: "w")
-        XCTAssertEqual(source.objectValue?["state"], .string("unlocked"))
+        XCTAssertTrue(broker.isUnlocked(permission))
+        let source = await broker.itemsSource(widgetID: "w", permission: permission)
         let row = try XCTUnwrap(source.objectValue?["items"]?.arrayValue?.first?.objectValue)
         XCTAssertEqual(row["name"], .string("GitHub"))
         XCTAssertNil(row["id"], "the provider's item id stays in the host")
         XCTAssertFalse("\(source)".contains("session-key"), "no session in what the widget gets")
-        broker.copy(widgetID: "w", handle: try XCTUnwrap(handle(source)), field: .password)
+        broker.copy(widgetID: "w", permission: permission, handle: try XCTUnwrap(row["handle"]?.stringValue), field: .password)
         try await Task.sleep(nanoseconds: 200_000_000)
-        XCTAssertEqual(broker.pasteboard.string(forType: .string), "password-of-item-1")
+        XCTAssertEqual(broker.pasteboard.string(forType: .string), "password-of-item-1 ", "trailing space kept")
         XCTAssertNotNil(broker.pasteboard.data(forType: VaultBroker.concealedType), "marked concealed")
-        broker.copy(widgetID: "w", handle: "made-up", field: .password)
+        broker.copy(widgetID: "other", permission: permission, handle: try XCTUnwrap(row["handle"]?.stringValue), field: .username)
         try await Task.sleep(nanoseconds: 100_000_000)
-        XCTAssertEqual(broker.pasteboard.string(forType: .string), "password-of-item-1", "an unknown handle copies nothing")
+        XCTAssertEqual(broker.pasteboard.string(forType: .string), "password-of-item-1 ", "a handle belongs to the widget it was given to")
     }
 
-    /// Background listing is not use: only the user's own vault actions keep
-    /// a session alive, and nothing outlives the cap.
+    /// Background listing is not use; nothing outlives the cap.
     func testIdleAndMaximumLifetimes() async throws {
         let provider = FakeProvider()
         let broker = makeBroker(provider)
         try await unlocked(broker)
         clock += 9 * 60
-        _ = await broker.itemsSource(widgetID: "w")
+        _ = await broker.itemsSource(widgetID: "w", permission: permission)
         clock += 2 * 60
-        XCTAssertFalse(broker.isUnlocked("w"), "listing did not reset the idle clock")
+        XCTAssertFalse(broker.isUnlocked(permission), "listing did not reset the idle clock")
         try await Task.sleep(nanoseconds: 50_000_000)
         XCTAssertEqual(provider.lock.withLock { provider.locked.count }, 1, "the provider is asked to lock")
 
         try await unlocked(broker)
-        let source = await broker.itemsSource(widgetID: "w")
-        let item = try XCTUnwrap(handle(source))
+        let item = try await firstHandle(broker)
         for _ in 0..<7 {
             clock += 9 * 60
-            broker.copy(widgetID: "w", handle: item, field: .username) // a user action each time
+            broker.copy(widgetID: "w", permission: permission, handle: item, field: .username)
         }
-        XCTAssertFalse(broker.isUnlocked("w"), "63 minutes in: past the 60-minute cap")
+        XCTAssertFalse(broker.isUnlocked(permission), "63 minutes in: past the 60-minute cap")
     }
 
-    /// Locking while the master password is being checked: the late session
-    /// is discarded and handed back to the provider to lock.
-    func testALateUnlockAfterLockIsDiscarded() async throws {
+    /// Screen lock while the master password is being checked: the late
+    /// session is discarded, locked again, and new work is refused.
+    func testScreenLockDuringUnlockDiscardsTheLateSession() async throws {
         let provider = FakeProvider()
         provider.unlockDelayNs = 300_000_000
         let broker = makeBroker(provider)
         broker.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden")
-        broker.end("w", runProviderLock: true)
+        broker.setBlocked(screenLocked: true)
         try await Task.sleep(nanoseconds: 600_000_000)
-        XCTAssertFalse(broker.isUnlocked("w"))
-        XCTAssertEqual(provider.lock.withLock { provider.locked }, ["session-key-abcdefghijklmnop"])
+        XCTAssertFalse(broker.isUnlocked(permission))
+        broker.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden")
+        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertFalse(broker.isUnlocked(permission), "no unlock while the screen is locked")
+        broker.setBlocked()
+        try await unlocked(broker)
+        XCTAssertTrue(broker.isUnlocked(permission))
     }
 
-    func testHandlesDieWithTheirSession() async throws {
+    /// A copy whose answer arrives after the session ended publishes nothing.
+    func testACopyFinishingAfterExpiryPublishesNothing() async throws {
         let provider = FakeProvider()
+        provider.valueDelayNs = 300_000_000
         let broker = makeBroker(provider)
         try await unlocked(broker)
-        let first = await broker.itemsSource(widgetID: "w")
-        let old = try XCTUnwrap(handle(first))
-        broker.lockAll()
-        try await unlocked(broker)
-        broker.copy(widgetID: "w", handle: old, field: .password)
-        try await Task.sleep(nanoseconds: 100_000_000)
+        let item = try await firstHandle(broker)
+        broker.copy(widgetID: "w", permission: permission, handle: item, field: .password)
+        clock += 11 * 60
+        try await Task.sleep(nanoseconds: 600_000_000)
         XCTAssertNil(broker.pasteboard.string(forType: .string))
+    }
+
+    /// Locking clears a password BarShelf put on the clipboard, and only that.
+    func testLockClearsOnlyOurClipboardCopy() async throws {
+        let broker = makeBroker(FakeProvider())
+        try await unlocked(broker)
+        let item = try await firstHandle(broker)
+        broker.copy(widgetID: "w", permission: permission, handle: item, field: .password)
+        try await Task.sleep(nanoseconds: 200_000_000)
+        broker.lockAll()
+        XCTAssertNil(broker.pasteboard.string(forType: .string))
+
+        try await unlocked(broker)
+        let again = try await firstHandle(broker)
+        broker.copy(widgetID: "w", permission: permission, handle: again, field: .password)
+        try await Task.sleep(nanoseconds: 200_000_000)
+        broker.pasteboard.clearContents()
+        broker.pasteboard.setString("something the user copied", forType: .string)
+        broker.lockAll()
+        XCTAssertEqual(broker.pasteboard.string(forType: .string), "something the user copied")
+    }
+
+    /// One session per provider: every copy of the widget shares it, and a
+    /// lock queued behind an unlock cannot overtake it.
+    func testProviderCallsAreSerial() async throws {
+        let provider = FakeProvider()
+        provider.unlockDelayNs = 200_000_000
+        let broker = makeBroker(provider)
+        try await unlocked(broker)
+        XCTAssertTrue(broker.isUnlocked(permission))
+        broker.lock(permission)
+        try await unlocked(broker)
+        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertEqual(provider.lock.withLock { provider.calls }, ["unlock", "lock", "unlock"])
+        XCTAssertTrue(broker.isUnlocked(permission), "the old lock did not end the new session")
     }
 
     func testCancelledOrWrongPasswordStaysLocked() async throws {
         let cancelled = makeBroker(FakeProvider(), password: nil)
         cancelled.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden")
         try await Task.sleep(nanoseconds: 50_000_000)
-        XCTAssertFalse(cancelled.isUnlocked("w"))
+        XCTAssertFalse(cancelled.isUnlocked(permission))
         let wrong = makeBroker(FakeProvider(), password: "wrong")
         var messages: [String] = []
         wrong.toast = { messages.append($0) }
         wrong.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden")
         try await Task.sleep(nanoseconds: 100_000_000)
-        XCTAssertFalse(wrong.isUnlocked("w"))
+        XCTAssertFalse(wrong.isUnlocked(permission))
         XCTAssertEqual(messages, [VaultError.unlockFailed.message])
     }
 

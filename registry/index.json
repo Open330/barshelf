@@ -1265,7 +1265,8 @@
         "notifications": true
       },
       "homepage": "https://bitwarden.com/help/cli/",
-      "minHostVersion": "0.7.22"
+      "minHostVersion": "0.7.22",
+      "readme": "https://github.com/Open330/barshelf/blob/main/widgets/bitwarden/README.md"
     },
     {
       "id": "dev.barshelf.world-clock",

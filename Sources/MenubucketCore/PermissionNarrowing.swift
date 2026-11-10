@@ -36,7 +36,7 @@ public enum PermissionNarrowing {
     }
 
     private static func isSensitive(_ permissions: Manifest.Permissions) -> Bool {
-        (permissions.exec ?? []).contains { $0.sensitiveOutput == true }
+        (permissions.exec ?? []).contains { $0.sensitiveOutput == true } || permissions.vault != nil
     }
 
     /// Exec entries are tried in order and the first match decides the

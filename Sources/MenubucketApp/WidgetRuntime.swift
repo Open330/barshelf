@@ -288,7 +288,13 @@ final class WidgetRuntime: ObservableObject {
     /// Unlocked password-vault sessions, in memory only (`VaultBroker`).
     lazy var vaultBroker: VaultBroker = MainActor.assumeIsolated {
         let broker = VaultBroker()
-        broker.onChange = { [weak self] id in self?.refresh(widgetID: id, manual: true) }
+        // Every vault widget shares a provider's session: redraw them all.
+        broker.onChange = { [weak self] in
+            guard let self else { return }
+            for widget in self.widgets where widget.manifest.permissions?.vault != nil {
+                self.refresh(widgetID: widget.id, manual: true)
+            }
+        }
         broker.start()
         return broker
     }
@@ -1010,9 +1016,11 @@ final class WidgetRuntime: ObservableObject {
         for id in Set(previous.keys).subtracting(seenIDs).union(changedIDs).union(workflowIDs) {
             alertGate.invalidate(id)
         }
-        // A removed widget, or changed code, holds no vault session.
-        for id in Set(previous.keys).subtracting(seenIDs).union(changedIDs) {
-            MainActor.assumeIsolated { vaultBroker.end(id, runProviderLock: true) }
+        // A removed widget, or changed code (widget.json or workflow.json),
+        // holds no vault session.
+        for id in Set(previous.keys).subtracting(seenIDs).union(changedIDs).union(workflowIDs) {
+            let vault = previous[id]?.manifest.permissions?.vault
+            MainActor.assumeIsolated { vaultBroker.endWidget(id, permission: vault) }
         }
         if !alertMonitoringIDs.isDisjoint(with: changedIDs) || !alertMonitoringIDs.isSubset(of: seenIDs) {
             alertMonitoringIDs = alertMonitoringIDs.intersection(seenIDs).subtracting(changedIDs)
@@ -1424,7 +1432,8 @@ final class WidgetRuntime: ObservableObject {
     private func stopWidgetExecution(_ id: String) {
         alertGate.invalidate(id)
         // Disable, removal, revoke, denial: the vault locks with the widget.
-        MainActor.assumeIsolated { vaultBroker.end(id, runProviderLock: true) }
+        let vault = widgets.first(where: { $0.id == id })?.manifest.permissions?.vault
+        MainActor.assumeIsolated { vaultBroker.endWidget(id, permission: vault) }
         // A stopped widget does not monitor; its next refresh re-learns it.
         if alertMonitoringIDs.remove(id) != nil { scheduler.setMonitoringWidgetIDs(alertMonitoringIDs) }
         for task in runActionTasks.removeValue(forKey: id)?.values ?? [:].values { task.cancel() }
@@ -2045,10 +2054,10 @@ final class WidgetRuntime: ObservableObject {
         case "vaultUnlock":
             vaultBroker.unlock(widgetID: widgetID, permission: permission, widgetName: widget.displayName)
         case "vaultLock":
-            vaultBroker.lock(widgetID: widgetID)
+            vaultBroker.lock(permission)
         case "vaultCopy":
             guard let handle = action.value, let field = action.field.flatMap(VaultField.init(rawValue:)) else { return }
-            vaultBroker.copy(widgetID: widgetID, handle: handle, field: field)
+            vaultBroker.copy(widgetID: widgetID, permission: permission, handle: handle, field: field)
         default:
             break
         }
@@ -2565,11 +2574,11 @@ final class WidgetRuntime: ObservableObject {
                 case "vault.items":
                     // Metadata and opaque handles from the host's own
                     // provider; never a secret, never a session.
-                    guard widget.manifest.permissions?.vault != nil else {
+                    guard let vault = widget.manifest.permissions?.vault else {
                         throw RuntimeError.invalidWorkflow("vault.items needs permissions.vault")
                     }
                     let broker = await MainActor.run { self.vaultBroker }
-                    sourceValues[sourceID] = await broker.itemsSource(widgetID: widget.id)
+                    sourceValues[sourceID] = await broker.itemsSource(widgetID: widget.id, permission: vault)
                 default:
                     throw RuntimeError.invalidWorkflow(
                         "unknown source use \"\(source.use)\" (v1: exec, fs.directory, fs.json, http, system, value, vault.items)"

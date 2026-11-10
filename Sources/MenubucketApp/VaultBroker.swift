@@ -1,4 +1,5 @@
 import AppKit
+import Darwin
 import Foundation
 import MenubucketCore
 
@@ -41,7 +42,7 @@ enum VaultError: Error, Equatable, Sendable {
 
 /// A password manager BarShelf drives itself. The widget cannot choose its
 /// commands: it can ask to unlock, list item metadata, copy one field of one
-/// item, and lock. Swappable in tests.
+/// item, and lock. Swappable in tests. Calls honor task cancellation.
 protocol VaultProvider: Sendable {
     func unlock(password: String) async throws -> String
     func items(session: String) async throws -> [VaultItem]
@@ -53,10 +54,19 @@ protocol VaultProvider: Sendable {
 /// (not PATH or the widget's folder), with a minimal environment. The master
 /// password goes through stdin (`--passwordfile /dev/stdin`), never argv or
 /// the environment; the session through `BW_SESSION` to this child only.
-/// stderr is discarded and stdout bounded.
+/// stderr is discarded, stdout bounded, the run timed out and killed, and
+/// cancelling the calling task kills it too.
+///
+/// Bitwarden keeps one session per CLI profile: unlocking here replaces a
+/// session unlocked in a terminal, and locking here locks the CLI for both.
+/// BarShelf trusts the bw it finds (and, for npm installs, the node next to
+/// it) as it trusts any software the user installed; a process already
+/// running as the user can read its memory, which no app can prevent.
 struct BitwardenCLIProvider: VaultProvider {
     static let timeout: TimeInterval = 30
+    static let killGrace: TimeInterval = 2
     static let maxOutputBytes = 16 << 20
+    static let maxPasswordBytes = 1024
 
     /// Where bw is installed by Homebrew, npm (global or nvm), volta or bun.
     static func executable(home: String = NSHomeDirectory()) -> URL? {
@@ -64,7 +74,6 @@ struct BitwardenCLIProvider: VaultProvider {
                           home + "/.npm-global/bin/bw", home + "/.volta/bin/bw", home + "/.bun/bin/bw"]
         let nvm = home + "/.nvm/versions/node"
         if let versions = try? FileManager.default.contentsOfDirectory(atPath: nvm) {
-            // Newest node first.
             for version in versions.sorted(by: { $0.compare($1, options: .numeric) == .orderedDescending }) {
                 candidates.append("\(nvm)/\(version)/bin/bw")
             }
@@ -74,9 +83,10 @@ struct BitwardenCLIProvider: VaultProvider {
     }
 
     func unlock(password: String) async throws -> String {
+        let input = Data((password + "\n").utf8)
+        guard input.count <= Self.maxPasswordBytes else { throw VaultError.unlockFailed }
         let data = try await run(["unlock", "--passwordfile", "/dev/stdin", "--raw"],
-                                 stdin: Data((password + "\n").utf8), session: nil,
-                                 failure: .unlockFailed)
+                                 stdin: input, session: nil, failure: .unlockFailed)
         let session = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
         // A session key is base64; anything else is not one.
         guard session.count >= 20, session.allSatisfy({ $0.isLetter || $0.isNumber || "+/=".contains($0) }) else {
@@ -90,12 +100,11 @@ struct BitwardenCLIProvider: VaultProvider {
         return try Self.project(data)
     }
 
+    /// The field exactly as bw prints it: off a terminal it adds no
+    /// newline, so nothing is trimmed (a password may end in whitespace).
     func value(of field: VaultField, itemID: String, session: String) async throws -> String {
         let data = try await run(["get", field.rawValue, itemID], stdin: nil, session: session, failure: .failed)
-        var text = String(decoding: data, as: UTF8.self)
-        // bw ends its output with one newline: framing, not the secret.
-        if text.hasSuffix("\n") { text.removeLast() }
-        guard !text.isEmpty else { throw VaultError.failed }
+        guard !data.isEmpty, let text = String(data: data, encoding: .utf8) else { throw VaultError.failed }
         return text
     }
 
@@ -121,18 +130,61 @@ struct BitwardenCLIProvider: VaultProvider {
         .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 
-    private func run(_ arguments: [String], stdin: Data?, session: String?, failure: VaultError) async throws -> Data {
-        guard let executable = Self.executable() else { throw VaultError.notInstalled }
-        return try await withCheckedThrowingContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                continuation.resume(with: Self.runSync(executable: executable, arguments: arguments,
-                                                       stdin: stdin, session: session, failure: failure))
+    /// The running child, so cancellation can kill it.
+    private final class Child: @unchecked Sendable {
+        private let lock = NSLock()
+        private var process: Process?
+        private var cancelled = false
+
+        func attach(_ process: Process) -> Bool {
+            lock.withLock {
+                guard !cancelled else { return false }
+                self.process = process
+                return true
             }
+        }
+
+        var isCancelled: Bool { lock.withLock { cancelled } }
+
+        func cancel() {
+            let running: Process? = lock.withLock {
+                cancelled = true
+                return process
+            }
+            if let running { BitwardenCLIProvider.stop(running) }
         }
     }
 
-    private static func runSync(executable: URL, arguments: [String], stdin: Data?,
-                                session: String?, failure: VaultError) -> Result<Data, VaultError> {
+    /// SIGTERM, then SIGKILL if it is still there after the grace period.
+    static func stop(_ process: Process) {
+        guard process.isRunning else { return }
+        process.terminate()
+        let pid = process.processIdentifier
+        DispatchQueue.global().asyncAfter(deadline: .now() + killGrace) {
+            if process.isRunning { kill(pid, SIGKILL) }
+        }
+    }
+
+    private func run(_ arguments: [String], stdin: Data?, session: String?, failure: VaultError) async throws -> Data {
+        guard let executable = Self.executable() else { throw VaultError.notInstalled }
+        let child = Child()
+        let result: Result<Data, VaultError> = await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    continuation.resume(returning: Self.runSync(executable: executable, arguments: arguments,
+                                                                stdin: stdin, session: session,
+                                                                failure: failure, child: child))
+                }
+            }
+        } onCancel: {
+            child.cancel()
+        }
+        try Task.checkCancellation()
+        return try result.get()
+    }
+
+    private static func runSync(executable: URL, arguments: [String], stdin: Data?, session: String?,
+                                failure: VaultError, child: Child) -> Result<Data, VaultError> {
         let process = Process()
         process.executableURL = executable
         process.arguments = arguments
@@ -152,26 +204,45 @@ struct BitwardenCLIProvider: VaultProvider {
         let input = Pipe()
         process.standardInput = stdin == nil ? FileHandle.nullDevice : input
         do { try process.run() } catch { return .failure(.notInstalled) }
-        if let stdin {
-            input.fileHandleForWriting.write(stdin)
-            try? input.fileHandleForWriting.close()
+        guard child.attach(process) else {
+            stop(process)
+            process.waitUntilExit()
+            return .failure(failure)
         }
-        let timer = DispatchWorkItem { if process.isRunning { process.terminate() } }
-        DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: timer)
+        // The timeout starts before anything that could block.
+        var timedOut = false
+        let deadline = DispatchWorkItem {
+            timedOut = true
+            stop(process)
+        }
+        DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: deadline)
+        if let stdin {
+            // On its own queue: a child that never reads cannot block us.
+            let writer = input.fileHandleForWriting
+            DispatchQueue.global().async {
+                try? writer.write(contentsOf: stdin)
+                try? writer.close()
+            }
+        }
         var data = Data()
+        var overflow = false
+        let reader = output.fileHandleForReading
         while true {
-            let chunk = output.fileHandleForReading.availableData
+            let chunk = reader.availableData
             if chunk.isEmpty { break }
-            data.append(chunk)
-            if data.count > maxOutputBytes {
-                process.terminate()
-                timer.cancel()
-                return .failure(.tooLarge)
+            if !overflow {
+                data.append(chunk)
+                if data.count > maxOutputBytes {
+                    overflow = true
+                    data = Data()
+                    stop(process)
+                }
             }
         }
         process.waitUntilExit()
-        let timedOut = !timer.isCancelled && process.terminationReason == .uncaughtSignal
-        timer.cancel()
+        deadline.cancel()
+        if child.isCancelled { return .failure(failure) }
+        if overflow { return .failure(.tooLarge) }
         if timedOut { return .failure(.timedOut) }
         return process.terminationStatus == 0 ? .success(data) : .failure(failure)
     }
@@ -179,96 +250,155 @@ struct BitwardenCLIProvider: VaultProvider {
 
 // MARK: - Broker
 
-/// Holds unlocked vault sessions for widget instances, in memory only, and
-/// ends them. A widget gets item metadata and opaque handles; copying a field
-/// is done here and the value goes straight to the pasteboard.
+/// Holds unlocked vault sessions, in memory only, and ends them. A widget
+/// gets item metadata and opaque handles; copying a field is done here and
+/// the value goes straight to the pasteboard.
 ///
-/// A session ends (memory dropped, provider lock attempted) after
-/// `idleLockMinutes` without a user vault action — background refreshes do
-/// not count — at `maxSessionMinutes` after unlock, on screen lock, sleep,
-/// quit, and whenever the runtime stops the widget (disable, removal,
-/// revoke, reload). Every end bumps a generation first, so a late unlock,
-/// listing or copy cannot bring anything back.
+/// Sessions are per provider, not per widget: Bitwarden's CLI keeps one
+/// session per profile, so every copy of a vault widget shares it, and
+/// ending it for one ends it for all. Calls into a provider run one at a
+/// time, so a lock can never overtake an unlock or the other way round.
+///
+/// A session ends after `idleLockMinutes` without a user vault action
+/// (refreshes do not count), at `maxSessionMinutes` after unlock (both on a
+/// monotonic clock), on screen lock, sleep and quit, and whenever the runtime
+/// stops or reloads a vault widget. Ending bumps the generation first,
+/// cancels the provider work in flight, clears a password BarShelf put on the
+/// clipboard if it is still there, and then asks the provider to lock. Work
+/// that finishes later checks the generation and the deadlines again, and
+/// publishes nothing.
 @MainActor
 final class VaultBroker {
     struct Session {
         var key: String
         var generation: UUID
-        var unlockedAt: Date
-        var lastUserActionAt: Date
+        var unlockedAt: TimeInterval
+        var lastUserActionAt: TimeInterval
         var idle: TimeInterval
         var max: TimeInterval
-        /// Opaque handle → item id, for this session only.
-        var handles: [String: String] = [:]
+        /// Widget instance → opaque handle → item id, for this session.
+        var handles: [String: [String: String]] = [:]
+
+        func expired(at now: TimeInterval) -> Bool {
+            now - lastUserActionAt >= idle || now - unlockedAt >= max
+        }
     }
 
     private var sessions: [String: Session] = [:]
-    /// Bumped on every lock, so work started before it is discarded.
+    /// Provider → generation of the unlock now being asked for.
+    private var pendingUnlocks: [String: UUID] = [:]
+    /// Provider → the current generation; bumped by every end.
     private var generations: [String: UUID] = [:]
+    /// Provider → provider work in flight, cancelled when the session ends.
+    private var operations: [String: [UUID: Task<Void, Never>]] = [:]
+    /// Provider → the tail of its serial call chain.
+    private var chains: [String: Task<Void, Never>] = [:]
+    /// The pasteboard change BarShelf made with a vault field, if any.
+    private var ownedChangeCount: Int?
+
+    private var screenLocked = false
+    private var sleeping = false
+    private var terminating = false
+    private var blocked: Bool { screenLocked || sleeping || terminating }
+
     private let provider: VaultProvider
-    private let now: () -> Date
-    private var observers: [NSObjectProtocol] = []
+    private let now: () -> TimeInterval
+    private var observers: [(NotificationCenter, NSObjectProtocol)] = []
     private var sweepTimer: Timer?
-    /// Asks the runtime to redraw the widget after a state change.
-    var onChange: ((String) -> Void)?
-    /// Shows a short message on the widget's behalf.
+
+    /// Asks the runtime to redraw vault widgets after a state change.
+    var onChange: (() -> Void)?
     var toast: (String) -> Void = { message in ToastCenter.shared.show(message) }
     /// The host-owned password prompt; nil means cancelled. Swappable in tests.
     var promptForPassword: (_ title: String, _ message: String) -> String? = VaultBroker.securePrompt
     /// Where copied fields go; a private pasteboard in tests.
     var pasteboard: NSPasteboard = .general
 
-    init(provider: VaultProvider = BitwardenCLIProvider(), now: @escaping () -> Date = Date.init) {
+    init(provider: VaultProvider = BitwardenCLIProvider(),
+         now: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
         self.provider = provider
         self.now = now
     }
 
     func start() {
         guard observers.isEmpty else { return }
-        let lockAll: (Notification) -> Void = { [weak self] _ in
-            Task { @MainActor in self?.lockAll() }
+        let distributed = DistributedNotificationCenter.default()
+        let workspace = NSWorkspace.shared.notificationCenter
+        func observe(_ center: NotificationCenter, _ name: Notification.Name, _ body: @escaping @MainActor () -> Void) {
+            observers.append((center, center.addObserver(forName: name, object: nil, queue: .main) { _ in
+                MainActor.assumeIsolated { body() }
+            }))
         }
-        observers.append(DistributedNotificationCenter.default().addObserver(
-            forName: Notification.Name("com.apple.screenIsLocked"), object: nil, queue: .main, using: lockAll))
-        observers.append(NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.willSleepNotification, object: nil, queue: .main, using: lockAll))
-        observers.append(NotificationCenter.default.addObserver(
-            forName: NSApplication.willTerminateNotification, object: nil, queue: .main, using: lockAll))
-        sweepTimer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.sweep() }
+        observe(distributed, Notification.Name("com.apple.screenIsLocked")) { [weak self] in
+            self?.screenLocked = true
+            self?.lockAll()
         }
+        observe(distributed, Notification.Name("com.apple.screenIsUnlocked")) { [weak self] in self?.screenLocked = false }
+        observe(workspace, NSWorkspace.willSleepNotification) { [weak self] in
+            self?.sleeping = true
+            self?.lockAll()
+        }
+        observe(workspace, NSWorkspace.didWakeNotification) { [weak self] in self?.sleeping = false }
+        observe(NotificationCenter.default, NSApplication.willTerminateNotification) { [weak self] in
+            self?.terminating = true
+            self?.lockAll()
+        }
+        let timer = Timer(timeInterval: 15, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.sweep() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        sweepTimer = timer
     }
 
-    func isUnlocked(_ widgetID: String) -> Bool {
+    /// For tests: what the screen-lock, sleep and quit notifications set.
+    func setBlocked(screenLocked: Bool = false, sleeping: Bool = false) {
+        self.screenLocked = screenLocked
+        self.sleeping = sleeping
+        if blocked { lockAll() }
+    }
+
+    func isUnlocked(_ permission: Manifest.VaultPermission) -> Bool {
         sweep()
-        return sessions[widgetID] != nil
+        return sessions[permission.provider] != nil
     }
 
     // MARK: User actions
 
     func unlock(widgetID: String, permission: Manifest.VaultPermission, widgetName: String) {
-        guard sessions[widgetID] == nil else { return }
-        let generation = generations[widgetID] ?? UUID()
-        generations[widgetID] = generation
+        let provider = permission.provider
+        sweep()
+        guard !blocked, sessions[provider] == nil, pendingUnlocks[provider] == nil else { return }
+        let generation = UUID()
+        generations[provider] = generation
+        pendingUnlocks[provider] = generation
         let title = String(localized: "Unlock Bitwarden")
         let message = String(localized: "\(widgetName) asks BarShelf to unlock your vault. BarShelf passes the master password to the Bitwarden CLI, keeps only the session it returns, and locks again after \(Int(permission.idleSeconds / 60)) minutes without use.")
-        guard let password = promptForPassword(title, message), !password.isEmpty else { return }
-        let provider = self.provider
-        Task {
+        let password = promptForPassword(title, message)
+        // The prompt is modal: anything may have happened while it was open.
+        guard pendingUnlocks[provider] == generation, !blocked, let password, !password.isEmpty else {
+            if pendingUnlocks[provider] == generation { pendingUnlocks[provider] = nil }
+            return
+        }
+        let vault = self.provider
+        track(provider) { [weak self] in
             do {
-                let key = try await provider.unlock(password: password)
-                guard self.generations[widgetID] == generation else {
-                    await provider.lock(session: key) // locked meanwhile: discard
+                let key = try await self?.serial(provider) { try await vault.unlock(password: password) }
+                guard let self, let key else { return }
+                guard self.pendingUnlocks[provider] == generation, self.generations[provider] == generation, !self.blocked else {
+                    _ = try? await self.serial(provider) { await vault.lock(session: key) }
                     return
                 }
+                self.pendingUnlocks[provider] = nil
                 let at = self.now()
-                self.sessions[widgetID] = Session(key: key, generation: generation, unlockedAt: at,
-                                                  lastUserActionAt: at, idle: permission.idleSeconds, max: permission.maxSeconds)
-                self.onChange?(widgetID)
-            } catch let error as VaultError {
-                self.toast(error.message)
+                self.sessions[provider] = Session(key: key, generation: generation, unlockedAt: at, lastUserActionAt: at,
+                                                  idle: permission.idleSeconds, max: permission.maxSeconds)
+                self.onChange?()
+            } catch is CancellationError {
+                return
             } catch {
-                self.toast(VaultError.unlockFailed.message)
+                guard let self, self.pendingUnlocks[provider] == generation else { return }
+                self.pendingUnlocks[provider] = nil
+                self.toast(((error as? VaultError) ?? .unlockFailed).message)
             }
         }
     }
@@ -276,21 +406,22 @@ final class VaultBroker {
     /// Copies one field of the item a handle names to the pasteboard, marked
     /// concealed and transient, and clears it after `clearAfter` seconds if
     /// it is still there. Counts as a user action.
-    func copy(widgetID: String, handle: String, field: VaultField, clearAfter: Int = 30) {
+    func copy(widgetID: String, permission: Manifest.VaultPermission, handle: String, field: VaultField, clearAfter: Int = 30) {
+        let provider = permission.provider
         sweep()
-        guard var session = sessions[widgetID], let itemID = session.handles[handle] else {
+        guard !blocked, var session = sessions[provider], let itemID = session.handles[widgetID]?[handle] else {
             toast(VaultError.locked.message)
             return
         }
         session.lastUserActionAt = now()
-        sessions[widgetID] = session
+        sessions[provider] = session
         let generation = session.generation
         let key = session.key
-        let provider = self.provider
-        Task {
+        let vault = self.provider
+        track(provider) { [weak self] in
             do {
-                let value = try await provider.value(of: field, itemID: itemID, session: key)
-                guard self.sessions[widgetID]?.generation == generation else { return }
+                let value = try await self?.serial(provider) { try await vault.value(of: field, itemID: itemID, session: key) }
+                guard let self, let value, self.isCurrent(provider, generation) else { return }
                 let pasteboard = self.pasteboard
                 pasteboard.clearContents()
                 pasteboard.declareTypes([.string, Self.concealedType, Self.transientType], owner: nil)
@@ -298,35 +429,39 @@ final class VaultBroker {
                 pasteboard.setString("", forType: Self.concealedType)
                 pasteboard.setString("", forType: Self.transientType)
                 let changeCount = pasteboard.changeCount
-                DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(max(clearAfter, 5))) {
-                    if pasteboard.changeCount == changeCount { pasteboard.clearContents() }
+                self.ownedChangeCount = changeCount
+                DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(max(clearAfter, 5))) { [weak self] in
+                    MainActor.assumeIsolated { self?.clearOwnedPasteboard(ifChangeCount: changeCount) }
                 }
                 self.toast(Self.copiedMessage(field))
-            } catch let error as VaultError {
-                self.toast(error.message)
+            } catch is CancellationError {
+                return
             } catch {
-                self.toast(VaultError.failed.message)
+                guard let self, self.isCurrent(provider, generation) else { return }
+                self.toast(((error as? VaultError) ?? .failed).message)
             }
         }
     }
 
-    func lock(widgetID: String) {
-        end(widgetID, runProviderLock: true)
+    func lock(_ permission: Manifest.VaultPermission) {
+        end(provider: permission.provider)
     }
 
     // MARK: For the workflow source
 
     /// The vault's state and item metadata for a widget's `vault.items`
     /// source. Not a user action: a refresh never keeps a vault unlocked.
-    func itemsSource(widgetID: String) async -> JSONValue {
+    func itemsSource(widgetID: String, permission: Manifest.VaultPermission) async -> JSONValue {
+        let provider = permission.provider
         sweep()
-        guard let session = sessions[widgetID] else { return .object(["state": .string("locked"), "items": .array([])]) }
+        let lockedValue: JSONValue = .object(["state": .string("locked"), "items": .array([])])
+        guard !blocked, let session = sessions[provider] else { return lockedValue }
         let generation = session.generation
+        let key = session.key
+        let vault = self.provider
         do {
-            let items = try await provider.items(session: session.key)
-            guard var current = sessions[widgetID], current.generation == generation else {
-                return .object(["state": .string("locked"), "items": .array([])])
-            }
+            let items = try await serial(provider) { try await vault.items(session: key) }
+            guard isCurrent(provider, generation), var current = sessions[provider] else { return lockedValue }
             let limit = 500
             var handles: [String: String] = [:]
             var rows: [JSONValue] = []
@@ -340,46 +475,103 @@ final class VaultBroker {
                     "totp": .bool(item.hasTOTP), "hasUsername": .bool(!(item.username ?? "").isEmpty),
                 ]))
             }
-            current.handles = handles
-            sessions[widgetID] = current
+            current.handles[widgetID] = handles
+            sessions[provider] = current
             return .object(["state": .string("unlocked"), "items": .array(rows),
                             "count": .number(Double(items.count)), "truncated": .bool(items.count > limit)])
-        } catch let error as VaultError {
-            if error == .locked { end(widgetID, runProviderLock: false) }
-            return .object(["state": .string(error == .locked ? "locked" : "error"), "items": .array([]),
-                            "error": .string(error.message)])
         } catch {
-            return .object(["state": .string("error"), "items": .array([]), "error": .string(VaultError.failed.message)])
+            guard isCurrent(provider, generation) else { return lockedValue }
+            let vaultError = (error as? VaultError) ?? .failed
+            if vaultError == .locked {
+                end(provider: provider, runProviderLock: false)
+                return lockedValue
+            }
+            return .object(["state": .string("error"), "items": .array([]), "error": .string(vaultError.message)])
         }
     }
 
     // MARK: Ending sessions
 
-    /// Ends every session (screen lock, sleep, quit).
+    /// Ends every session and pending unlock (screen lock, sleep, quit).
     func lockAll() {
-        for id in Array(sessions.keys) { end(id, runProviderLock: true) }
+        let providers = Set(sessions.keys).union(pendingUnlocks.keys).union(operations.keys)
+        for provider in providers { end(provider: provider) }
     }
 
-    /// Ends one instance's session: the generation moves first, then memory
-    /// is dropped, then the provider is asked to lock.
-    func end(_ widgetID: String, runProviderLock: Bool) {
-        generations[widgetID] = UUID()
-        guard let session = sessions.removeValue(forKey: widgetID) else { return }
+    /// Ends the session a vault widget uses (it was disabled, removed,
+    /// reloaded or revoked). Shared: every copy of the widget loses it.
+    func endWidget(_ widgetID: String, permission: Manifest.VaultPermission?) {
+        guard let permission else { return }
+        end(provider: permission.provider)
+    }
+
+    /// The generation moves first, then work in flight is cancelled, a
+    /// clipboard copy cleared, memory dropped, and the provider asked to lock.
+    func end(provider: String, runProviderLock: Bool = true) {
+        generations[provider] = UUID()
+        pendingUnlocks[provider] = nil
+        for task in operations.removeValue(forKey: provider)?.values ?? [:].values { task.cancel() }
+        clearOwnedPasteboard(ifChangeCount: nil)
+        guard let session = sessions.removeValue(forKey: provider) else { return }
         if runProviderLock {
-            let provider = self.provider
+            let vault = self.provider
             let key = session.key
-            Task { await provider.lock(session: key) }
+            Task { _ = try? await self.serial(provider) { await vault.lock(session: key) } }
         }
-        onChange?(widgetID)
+        onChange?()
     }
 
     private func sweep() {
         let at = now()
-        for (id, session) in sessions
-        where at.timeIntervalSince(session.lastUserActionAt) >= session.idle
-            || at.timeIntervalSince(session.unlockedAt) >= session.max {
-            end(id, runProviderLock: true)
+        for (provider, session) in sessions where session.expired(at: at) {
+            end(provider: provider)
         }
+    }
+
+    /// The session started under `generation` is still the one, still
+    /// within its lifetimes, and nothing is blocking vault work.
+    private func isCurrent(_ provider: String, _ generation: UUID) -> Bool {
+        guard !blocked, let session = sessions[provider], session.generation == generation else { return false }
+        if session.expired(at: now()) {
+            end(provider: provider)
+            return false
+        }
+        return true
+    }
+
+    private func clearOwnedPasteboard(ifChangeCount expected: Int?) {
+        guard let owned = ownedChangeCount else { return }
+        if let expected, expected != owned { return }
+        if pasteboard.changeCount == owned { pasteboard.clearContents() }
+        ownedChangeCount = nil
+    }
+
+    // MARK: Provider work
+
+    /// Runs provider calls one at a time per provider.
+    private func serial<T: Sendable>(_ provider: String, _ operation: @escaping @Sendable () async throws -> T) async throws -> T {
+        let previous = chains[provider]
+        let task = Task<T, Error> {
+            await previous?.value
+            try Task.checkCancellation()
+            return try await operation()
+        }
+        chains[provider] = Task { _ = try? await task.value }
+        return try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: {
+            task.cancel()
+        }
+    }
+
+    /// Keeps a task so ending the session can cancel it.
+    private func track(_ provider: String, _ body: @escaping @MainActor () async -> Void) {
+        let id = UUID()
+        let task = Task { @MainActor [weak self] in
+            await body()
+            self?.operations[provider]?[id] = nil
+        }
+        operations[provider, default: [:]][id] = task
     }
 
     // MARK: Pieces
