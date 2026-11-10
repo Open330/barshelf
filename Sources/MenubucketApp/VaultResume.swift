@@ -28,10 +28,18 @@ enum ResumeFailure: Error, Equatable, Sendable {
     case invalid
 }
 
+/// Whether Touch ID can be asked for right now.
+enum BiometryState: Equatable, Sendable {
+    case available
+    /// Nothing usable at the moment (lid closed, sensor busy): sealed copies stay.
+    case unavailable
+    /// Locked out, or every finger removed: sealed copies are void.
+    case invalid
+}
+
 /// Seals a secret for Touch ID resume and opens it again. Swappable in tests.
 protocol VaultKeySealer: Sendable {
-    /// Touch ID can be asked for right now.
-    var biometryAvailable: Bool { get }
+    var biometry: BiometryState { get }
     func seal(_ secret: Data, aad: Data) throws -> SealedSecret
     /// Asks for Touch ID, then opens with the Secure Enclave. Cancelling the
     /// calling task cancels the prompt.
@@ -48,10 +56,14 @@ protocol VaultKeySealer: Sendable {
 struct SecureEnclaveSealer: VaultKeySealer {
     static let info = Data("barshelf.vault.resume.v1".utf8)
 
-    var biometryAvailable: Bool {
-        guard SecureEnclave.isAvailable else { return false }
+    var biometry: BiometryState {
+        guard SecureEnclave.isAvailable else { return .unavailable }
         var error: NSError?
-        return LAContext().canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error)
+        if LAContext().canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) { return .available }
+        switch (error as? LAError)?.code {
+        case .biometryLockout?, .biometryNotEnrolled?: return .invalid
+        default: return .unavailable
+        }
     }
 
     func seal(_ secret: Data, aad: Data) throws -> SealedSecret {

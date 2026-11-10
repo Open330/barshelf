@@ -363,14 +363,20 @@ final class VaultBroker {
         let provider = permission.provider
         sweep()
         guard !blocked, sessions[provider] == nil, pendingUnlocks[provider] == nil else { return }
-        if !usePassword, let resume = resumes[provider], sealer.biometryAvailable {
+        let biometry = sealer.biometry
+        if resumes[provider] != nil, biometry == .invalid {
+            // Locked out or every finger removed: the sealed copy is void.
+            end(provider: provider)
+            toast(String(localized: "Touch ID can no longer reopen the vault. Unlock with the master password."))
+        }
+        if !usePassword, let resume = resumes[provider], biometry == .available {
             reopen(resume, widgetID: widgetID, permission: permission, widgetName: widgetName)
             return
         }
         let generation = UUID()
         generations[provider] = generation
         pendingUnlocks[provider] = generation
-        let offerTouchID = sealer.biometryAvailable
+        let offerTouchID = biometry == .available
         let rememberKey = "vault.touchID.\(provider)"
         let title = String(localized: "Unlock Bitwarden")
         var message = String(localized: "\(widgetName) asks BarShelf to unlock your vault. BarShelf passes the master password to the Bitwarden CLI, keeps only the session it returns, and locks again after \(Int(permission.idleSeconds / 60)) minutes without use.")
@@ -448,7 +454,9 @@ final class VaultBroker {
             let outcome = await work.value
             guard let self else { return }
             self.operations[provider]?[id] = nil
-            // Checked again after the Secure Enclave, right before installing.
+            // Checked again after the Secure Enclave, right before installing;
+            // the sweep hard-ends a copy whose 8 hours ran out meanwhile.
+            self.sweep()
             guard self.pendingUnlocks[provider] == generation, self.generations[provider] == generation, !self.blocked,
                   let live = self.resumes[provider], live.id == resume.id, self.now() < live.deadline else {
                 if self.pendingUnlocks[provider] == generation { self.pendingUnlocks[provider] = nil }
@@ -571,7 +579,7 @@ final class VaultBroker {
     private func lockedState(_ provider: String) -> JSONValue {
         .object(["state": .string("locked"), "items": .array([]),
                  "resumable": .bool(resumes[provider] != nil),
-                 "biometry": sealer.biometryAvailable ? .string("touchID") : .null])
+                 "biometry": sealer.biometry == .available ? .string("touchID") : .null])
     }
 
     // MARK: Ending sessions
@@ -643,17 +651,19 @@ final class VaultBroker {
         guard !blocked, var session = sessions[provider] else { return nil }
         session.idle = min(session.idle, permission.idleSeconds)
         session.max = min(session.max, permission.maxSeconds)
+        // Stored first, so a soft end hands the tightened limits to the sealed copy.
+        sessions[provider] = session
         if session.expired(at: now()) {
             end(provider: provider, hard: false)
             return nil
         }
-        sessions[provider] = session
         return session
     }
 
     /// The session started under `generation` is still the one, still
     /// within its lifetimes, and nothing is blocking vault work.
     private func isCurrent(_ provider: String, _ generation: UUID) -> Bool {
+        sweep()
         guard !blocked, let session = sessions[provider], session.generation == generation else { return false }
         if session.expired(at: now()) {
             end(provider: provider, hard: false)
