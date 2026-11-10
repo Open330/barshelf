@@ -27,22 +27,29 @@ function runCLI(path, args) {
   task.executableURL = $.NSURL.fileURLWithPath(path)
   task.arguments = $(args)
   const out = $.NSPipe.pipe
-  const err = $.NSPipe.pipe
+  // stderr goes to a temporary file, not a second pipe: a pipe nobody reads
+  // until stdout ends could fill and stall the CLI.
+  const errPath = $.NSTemporaryDirectory().js + 'barshelf-tailscale-' + $.NSUUID.UUID.UUIDString.js
+  $.NSFileManager.defaultManager.createFileAtPathContentsAttributes(errPath, $.NSData.data, $())
+  const errHandle = $.NSFileHandle.fileHandleForWritingAtPath(errPath)
   task.standardOutput = out
-  task.standardError = err
+  task.standardError = errHandle
   task.standardInput = $.NSFileHandle.fileHandleWithNullDevice
   // The Mac app's binary only acts as a CLI when TERM is set; without it,
   // as under BarShelf's minimal environment, it tries to start the GUI.
   const env = $.NSProcessInfo.processInfo.environment.mutableCopy
   if (env.objectForKey('TERM').isNil()) env.setObjectForKey('dumb', 'TERM')
   task.environment = env
-  if (!task.launchAndReturnError(null)) return { code: -1, stdout: '', stderr: 'could not launch' }
+  const cleanup = () => { errHandle.closeFile; $.NSFileManager.defaultManager.removeItemAtPathError(errPath, null) }
+  if (!task.launchAndReturnError(null)) { cleanup(); return { code: -1, stdout: '', stderr: 'could not launch' } }
   // Read stdout to the end before waiting, so a large tailnet cannot fill
   // the pipe and stall the CLI. BarShelf's exec timeout bounds the whole run.
   const data = out.fileHandleForReading.readDataToEndOfFile
   task.waitUntilExit
-  const errData = err.fileHandleForReading.readDataToEndOfFile
   const text = (d) => $.NSString.alloc.initWithDataEncoding(d, $.NSUTF8StringEncoding).js || ''
+  const errAll = $.NSData.dataWithContentsOfFile(errPath)
+  const errData = errAll.isNil() ? $.NSData.data : errAll.subdataWithRange($.NSMakeRange(0, Math.min(errAll.length, 4096)))
+  cleanup()
   return { code: task.terminationStatus, stdout: text(data), stderr: text(errData) }
 }
 

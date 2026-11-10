@@ -8,7 +8,7 @@
     "check": {
       "use": "exec",
       "with": {
-        "command": ["/bin/sh", "-c", "out=$(/usr/bin/curl -sS -o /dev/null --proto =http,https --max-time \"$2\" -A BarShelf-SiteMonitor -w '{\"code\":\"%{http_code}\",\"time\":\"%{time_total}\",\"exit\":%{exitcode}}' --url \"$1\" 2>/dev/null); [ -n \"$out\" ] || out='{\"code\":\"0\",\"time\":null,\"exit\":-1}'; printf '%s' \"$out\"", "site-monitor", "${settings.url}", "${string(coalesce(settings.timeout, 10))}"],
+        "command": ["/bin/sh", "-c", "out=$(/usr/bin/curl -q -sS --globoff -o /dev/null --range 0-65535 --max-filesize 10485760 --proto =http,https --max-time \"$2\" -A BarShelf-SiteMonitor -w '{\"code\":\"%{http_code}\",\"time\":\"%{time_total}\",\"exit\":%{exitcode}}' --url \"$1\" 2>/dev/null); [ -n \"$out\" ] || out='{\"code\":\"0\",\"time\":null,\"exit\":-1}'; printf '%s' \"$out\"", "site-monitor", "${settings.url}", "${string(coalesce(settings.timeout, 10))}"],
         "timeoutMs": 35000
       }
     }

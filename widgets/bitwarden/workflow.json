@@ -10,7 +10,7 @@
         "command": [
           "/bin/sh",
           "-c",
-          "b=; for c in \"$(command -v bw 2>/dev/null)\" /opt/homebrew/bin/bw /usr/local/bin/bw \"$HOME\"/.nvm/versions/node/*/bin/bw \"$HOME/.volta/bin/bw\" \"$HOME/.npm-global/bin/bw\" \"$HOME/.local/bin/bw\" \"$HOME/Library/pnpm/bw\" \"$HOME/.bun/bin/bw\"; do if [ -n \"$c\" ] && [ -x \"$c\" ]; then b=$c; break; fi; done; if [ -z \"$b\" ]; then printf '{\"installed\":false}'; exit 0; fi; out=$(PATH=\"$(/usr/bin/dirname \"$b\"):$PATH\" BW_NOINTERACTION=true \"$b\" status 2>/dev/null) || { printf '{\"installed\":true,\"ok\":false}'; exit 0; }; case \"$out\" in \"{\"*) ;; *) printf '{\"installed\":true,\"ok\":false}'; exit 0;; esac; printf '%s' \"$out\" | /usr/bin/sed -E 's/\"user(Email|Id)\":(\"[^\"]*\"|null),?//g; s/,}/}/g'",
+          "b=; for c in \"$(command -v bw 2>/dev/null)\" /opt/homebrew/bin/bw /usr/local/bin/bw \"$HOME\"/.nvm/versions/node/*/bin/bw \"$HOME/.volta/bin/bw\" \"$HOME/.npm-global/bin/bw\" \"$HOME/.local/bin/bw\" \"$HOME/Library/pnpm/bw\" \"$HOME/.bun/bin/bw\"; do if [ -n \"$c\" ] && [ -x \"$c\" ]; then b=$c; break; fi; done; if [ -z \"$b\" ]; then printf '{\"installed\":false}'; exit 0; fi; out=$(PATH=\"$(/usr/bin/dirname \"$b\"):$PATH\" BW_NOINTERACTION=true \"$b\" status 2>/dev/null) || { printf '{\"installed\":true,\"ok\":false}'; exit 0; }; case \"$out\" in \"{\"*) ;; *) printf '{\"installed\":true,\"ok\":false}'; exit 0;; esac; o='{\"installed\":true,\"ok\":true}'; for k in status lastSync serverUrl; do v=$(printf '%s' \"$out\" | /usr/bin/plutil -extract \"$k\" raw -o - - 2>/dev/null) && o=$(printf '%s' \"$o\" | /usr/bin/plutil -insert \"$k\" -string \"$v\" -o - -); done; printf '%s' \"$o\"",
           "bitwarden"
         ],
         "timeoutMs": 20000

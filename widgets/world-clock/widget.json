@@ -6,55 +6,155 @@
   "version": "0.1.0",
   "minHostVersion": "0.7.21",
   "icon": "globe",
-  "bucket": { "group": "Everyday", "order": 41, "size": "M" },
-
-  "entry": { "kind": "workflow", "main": "workflow.json" },
-
-  "refresh": { "onOpen": true, "interval": 20, "staleAfterSec": 30, "triggers": ["wake"] },
-
-  "statusItem": { "mode": "text", "icon": "globe" },
-
+  "bucket": {
+    "group": "Everyday",
+    "order": 41,
+    "size": "M"
+  },
+  "entry": {
+    "kind": "workflow",
+    "main": "workflow.json"
+  },
+  "refresh": {
+    "onOpen": true,
+    "interval": 20,
+    "staleAfterSec": 30,
+    "triggers": [
+      "wake"
+    ]
+  },
+  "statusItem": {
+    "mode": "text",
+    "icon": "globe"
+  },
   "permissions": {
     "exec": [
       {
         "command": "/bin/date",
-        "allowedArgs": [["+{\"time\":\"%H:%M\",\"hour\":1%H,\"ymd\":%Y%m%d,\"wd\":%u,\"abbr\":\"%Z\",\"off\":\"%z\"}"]],
+        "allowedArgs": [
+          [
+            "+{\"time\":\"%H:%M\",\"hour\":1%H,\"ymd\":%Y%m%d,\"wd\":%u,\"abbr\":\"%Z\",\"off\":\"%z\"}"
+          ]
+        ],
         "maxOutputBytes": 4096,
         "sensitiveOutput": false
       },
       {
-        "command": "/usr/bin/env",
-        "allowedArgs": [["*", "/bin/date", "+{\"time\":\"%H:%M\",\"hour\":1%H,\"ymd\":%Y%m%d,\"wd\":%u,\"abbr\":\"%Z\",\"off\":\"%z\"}"]],
+        "command": "/bin/sh",
+        "allowedArgs": [
+          [
+            "-c",
+            "TZ=\"$1\"; export TZ; exec /bin/date '+{\"time\":\"%H:%M\",\"hour\":1%H,\"ymd\":%Y%m%d,\"wd\":%u,\"abbr\":\"%Z\",\"off\":\"%z\"}'",
+            "world-clock",
+            "*"
+          ]
+        ],
         "maxOutputBytes": 4096,
         "sensitiveOutput": false
       }
     ]
   },
-
   "settings": [
-    { "key": "label1", "title": "City 1 name", "type": "string", "default": "Seoul" },
-    { "key": "zone1", "title": "City 1 time zone", "type": "string", "default": "Asia/Seoul" },
-    { "key": "label2", "title": "City 2 name", "type": "string", "default": "San Francisco" },
-    { "key": "zone2", "title": "City 2 time zone", "type": "string", "default": "America/Los_Angeles" },
-    { "key": "label3", "title": "City 3 name", "type": "string", "default": "New York" },
-    { "key": "zone3", "title": "City 3 time zone", "type": "string", "default": "America/New_York" },
-    { "key": "label4", "title": "City 4 name", "type": "string", "default": "London" },
-    { "key": "zone4", "title": "City 4 time zone", "type": "string", "default": "Europe/London" },
-    { "key": "label5", "title": "City 5 name", "type": "string", "default": "" },
-    { "key": "zone5", "title": "City 5 time zone", "type": "string", "default": "" },
     {
-      "key": "menuBarCity", "title": "Menu bar shows", "type": "enum", "default": "2",
-      "options": ["1", "2", "3", "4", "5"],
-      "optionTitles": ["City 1", "City 2", "City 3", "City 4", "City 5"]
+      "key": "label1",
+      "title": "City 1 name",
+      "type": "string",
+      "default": "Seoul"
     },
-    { "key": "workStart", "title": "Working hours start", "type": "integer", "default": 9, "min": 0, "max": 23 },
-    { "key": "workEnd", "title": "Working hours end", "type": "integer", "default": 18, "min": 1, "max": 24 }
+    {
+      "key": "zone1",
+      "title": "City 1 time zone",
+      "type": "string",
+      "default": "Asia/Seoul"
+    },
+    {
+      "key": "label2",
+      "title": "City 2 name",
+      "type": "string",
+      "default": "San Francisco"
+    },
+    {
+      "key": "zone2",
+      "title": "City 2 time zone",
+      "type": "string",
+      "default": "America/Los_Angeles"
+    },
+    {
+      "key": "label3",
+      "title": "City 3 name",
+      "type": "string",
+      "default": "New York"
+    },
+    {
+      "key": "zone3",
+      "title": "City 3 time zone",
+      "type": "string",
+      "default": "America/New_York"
+    },
+    {
+      "key": "label4",
+      "title": "City 4 name",
+      "type": "string",
+      "default": "London"
+    },
+    {
+      "key": "zone4",
+      "title": "City 4 time zone",
+      "type": "string",
+      "default": "Europe/London"
+    },
+    {
+      "key": "label5",
+      "title": "City 5 name",
+      "type": "string",
+      "default": ""
+    },
+    {
+      "key": "zone5",
+      "title": "City 5 time zone",
+      "type": "string",
+      "default": ""
+    },
+    {
+      "key": "menuBarCity",
+      "title": "Menu bar shows",
+      "type": "enum",
+      "default": "2",
+      "options": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5"
+      ],
+      "optionTitles": [
+        "City 1",
+        "City 2",
+        "City 3",
+        "City 4",
+        "City 5"
+      ]
+    },
+    {
+      "key": "workStart",
+      "title": "Working hours start",
+      "type": "integer",
+      "default": 9,
+      "min": 0,
+      "max": 23
+    },
+    {
+      "key": "workEnd",
+      "title": "Working hours end",
+      "type": "integer",
+      "default": 18,
+      "min": 1,
+      "max": 24
+    }
   ],
-
   "appearance": {
     "accent": "purple"
   },
-
   "localizations": {
     "ko": {
       "World Clock": "세계 시계",

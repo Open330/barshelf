@@ -2,7 +2,7 @@
   "$schema": "https://barshelf.jiun.dev/schema/workflow-0.1.json",
   "schemaVersion": 1,
   "kind": "workflow",
-  "_comment": "Pods in one namespace of kubectl's current context. kubectl's go-template output builds one small JSON array (name, phase, ready, highest restart count, waiting reason, node, created), so no secrets or specs reach BarShelf. The context comes from `kubectl config view -o jsonpath={.current-context}`, which prints only that name. A pod is a problem when it is not Succeeded, not terminating and not ready; the alert counts only problems older than the grace period so a rollout does not notify. If the cluster cannot be reached the refresh fails, which is no reading for the alert.",
+  "_comment": "Pods in one namespace of kubectl's current context. kubectl's go-template output builds one small JSON array (name, phase, ready, highest restart count, waiting reason, node, created), so no secrets or specs reach BarShelf. The context comes from `kubectl config view -o jsonpath={.current-context}`, which prints only that name. A pod is a problem when it is not Succeeded, not terminating and not ready; the alert counts only problems in pods older than the 'ignore younger than' setting, so a fresh rollout does not notify. It measures pod age, not how long a pod has been unready: an old pod that turns unready notifies at once. If the cluster cannot be reached the refresh fails, which is no reading for the alert.",
   "sources": {
     "context": {
       "use": "exec",

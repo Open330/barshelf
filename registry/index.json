@@ -1288,7 +1288,7 @@
       "permissions": {
         "exec": [
           "/bin/date",
-          "/usr/bin/env"
+          "/bin/sh"
         ],
         "keychain": false,
         "notifications": false

@@ -16,10 +16,11 @@
       "use": "exec",
       "with": {
         "command": [
-          "/usr/bin/env",
-          "TZ=${coalesce(settings.zone1, 'UTC')}",
-          "/bin/date",
-          "+{\"time\":\"%H:%M\",\"hour\":1%H,\"ymd\":%Y%m%d,\"wd\":%u,\"abbr\":\"%Z\",\"off\":\"%z\"}"
+          "/bin/sh",
+          "-c",
+          "TZ=\"$1\"; export TZ; exec /bin/date '+{\"time\":\"%H:%M\",\"hour\":1%H,\"ymd\":%Y%m%d,\"wd\":%u,\"abbr\":\"%Z\",\"off\":\"%z\"}'",
+          "world-clock",
+          "${coalesce(settings.zone1, 'UTC')}"
         ]
       }
     },
@@ -27,10 +28,11 @@
       "use": "exec",
       "with": {
         "command": [
-          "/usr/bin/env",
-          "TZ=${coalesce(settings.zone2, 'UTC')}",
-          "/bin/date",
-          "+{\"time\":\"%H:%M\",\"hour\":1%H,\"ymd\":%Y%m%d,\"wd\":%u,\"abbr\":\"%Z\",\"off\":\"%z\"}"
+          "/bin/sh",
+          "-c",
+          "TZ=\"$1\"; export TZ; exec /bin/date '+{\"time\":\"%H:%M\",\"hour\":1%H,\"ymd\":%Y%m%d,\"wd\":%u,\"abbr\":\"%Z\",\"off\":\"%z\"}'",
+          "world-clock",
+          "${coalesce(settings.zone2, 'UTC')}"
         ]
       }
     },
@@ -38,10 +40,11 @@
       "use": "exec",
       "with": {
         "command": [
-          "/usr/bin/env",
-          "TZ=${coalesce(settings.zone3, 'UTC')}",
-          "/bin/date",
-          "+{\"time\":\"%H:%M\",\"hour\":1%H,\"ymd\":%Y%m%d,\"wd\":%u,\"abbr\":\"%Z\",\"off\":\"%z\"}"
+          "/bin/sh",
+          "-c",
+          "TZ=\"$1\"; export TZ; exec /bin/date '+{\"time\":\"%H:%M\",\"hour\":1%H,\"ymd\":%Y%m%d,\"wd\":%u,\"abbr\":\"%Z\",\"off\":\"%z\"}'",
+          "world-clock",
+          "${coalesce(settings.zone3, 'UTC')}"
         ]
       }
     },
@@ -49,10 +52,11 @@
       "use": "exec",
       "with": {
         "command": [
-          "/usr/bin/env",
-          "TZ=${coalesce(settings.zone4, 'UTC')}",
-          "/bin/date",
-          "+{\"time\":\"%H:%M\",\"hour\":1%H,\"ymd\":%Y%m%d,\"wd\":%u,\"abbr\":\"%Z\",\"off\":\"%z\"}"
+          "/bin/sh",
+          "-c",
+          "TZ=\"$1\"; export TZ; exec /bin/date '+{\"time\":\"%H:%M\",\"hour\":1%H,\"ymd\":%Y%m%d,\"wd\":%u,\"abbr\":\"%Z\",\"off\":\"%z\"}'",
+          "world-clock",
+          "${coalesce(settings.zone4, 'UTC')}"
         ]
       }
     },
@@ -60,10 +64,11 @@
       "use": "exec",
       "with": {
         "command": [
-          "/usr/bin/env",
-          "TZ=${coalesce(settings.zone5, 'UTC')}",
-          "/bin/date",
-          "+{\"time\":\"%H:%M\",\"hour\":1%H,\"ymd\":%Y%m%d,\"wd\":%u,\"abbr\":\"%Z\",\"off\":\"%z\"}"
+          "/bin/sh",
+          "-c",
+          "TZ=\"$1\"; export TZ; exec /bin/date '+{\"time\":\"%H:%M\",\"hour\":1%H,\"ymd\":%Y%m%d,\"wd\":%u,\"abbr\":\"%Z\",\"off\":\"%z\"}'",
+          "world-clock",
+          "${coalesce(settings.zone5, 'UTC')}"
         ]
       }
     }

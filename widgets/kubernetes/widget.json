@@ -71,13 +71,13 @@
     {
       "key": "alertOnNotReady",
       "type": "boolean",
-      "title": "Notify when pods stay not ready",
+      "title": "Notify when older pods are not ready",
       "default": true
     },
     {
       "key": "graceMinutes",
       "type": "integer",
-      "title": "Grace period (minutes)",
+      "title": "Ignore pods younger than (minutes)",
       "min": 1,
       "max": 120,
       "default": 5
@@ -91,8 +91,6 @@
       "Kubernetes": "Kubernetes 파드",
       "Namespace": "네임스페이스",
       "List every pod": "모든 Pod 보기",
-      "Notify when pods stay not ready": "Pod가 계속 준비되지 않으면 알림",
-      "Grace period (minutes)": "유예 시간 (분)",
       "Running": "실행 중",
       "Pending": "대기",
       "Failed": "실패",
@@ -104,7 +102,9 @@
       "Not ready": "준비되지 않음",
       "Search pods": "Pod 검색",
       "Copied": "복사됨",
-      "${transforms.context} · ${settings.namespace}: ${string(count(transforms.readyPods))}/${string(transforms.active)} ready": "${transforms.context} · ${settings.namespace}: ${string(count(transforms.readyPods))}/${string(transforms.active)} 준비됨"
+      "${transforms.context} · ${settings.namespace}: ${string(count(transforms.readyPods))}/${string(transforms.active)} ready": "${transforms.context} · ${settings.namespace}: ${string(count(transforms.readyPods))}/${string(transforms.active)} 준비됨",
+      "Notify when older pods are not ready": "오래된 Pod가 준비되지 않으면 알림",
+      "Ignore pods younger than (minutes)": "이보다 새 Pod는 무시 (분)"
     }
   }
 }

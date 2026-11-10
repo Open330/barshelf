@@ -23,7 +23,7 @@
         "template": {
           "id": "hn-${h.objectID}",
           "title": "${coalesce(h.title, '(untitled)')}",
-          "link": "${coalesce(h.url, concat('https://news.ycombinator.com/item?id=', h.objectID))}",
+          "link": "${if(or(eq(text.truncate(coalesce(h.url, ''), 8), 'https://…'), eq(text.truncate(coalesce(h.url, ''), 7), 'http://…')), h.url, concat('https://news.ycombinator.com/item?id=', h.objectID))}",
           "item": "https://news.ycombinator.com/item?id=${h.objectID}",
           "meta": "${if(transforms.ko, concat(string(coalesce(h.points, 0)), '점 · 댓글 ', string(coalesce(h.num_comments, 0)), ' · ', date.relative(mul(number(h.created_at_i), 1000))), concat(string(coalesce(h.points, 0)), ' points · ', string(coalesce(h.num_comments, 0)), ' comments · ', date.relative(mul(number(h.created_at_i), 1000))))}"
         }

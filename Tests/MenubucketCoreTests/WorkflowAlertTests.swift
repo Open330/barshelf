@@ -111,6 +111,18 @@ final class WorkflowAlertTests: XCTestCase {
         XCTAssertNil(try evaluate(broken, level: .number(1)).first?.active)
     }
 
+    /// The app's language translates an alert's text; that must not look
+    /// like a new rule and reset what the alert has seen.
+    func testWordingDoesNotChangeTheRule() throws {
+        let english = ["low": WorkflowDefinition.AlertDef(when: "${lt(sources.battery.level, 20)}", title: "Low", body: "Charge")]
+        let korean = ["low": WorkflowDefinition.AlertDef(when: "${lt(sources.battery.level, 20)}", title: "낮음", body: "충전")]
+        XCTAssertEqual(try evaluate(english, level: .number(5)).first?.revision,
+                       try evaluate(korean, level: .number(5)).first?.revision)
+        let stricter = ["low": WorkflowDefinition.AlertDef(when: "${lt(sources.battery.level, 10)}", title: "Low")]
+        XCTAssertNotEqual(try evaluate(english, level: .number(5)).first?.revision,
+                          try evaluate(stricter, level: .number(5)).first?.revision)
+    }
+
     func testAlertsDecodeFromWorkflowJSON() throws {
         let json = #"{"schemaVersion":1,"sources":{},"view":{"type":"text","text":"x"},"alerts":{"hot":{"when":"${true}","title":"Hot","cooldownSec":120}}}"#
         let definition = try WorkflowDefinition.decode(from: Data(json.utf8))
