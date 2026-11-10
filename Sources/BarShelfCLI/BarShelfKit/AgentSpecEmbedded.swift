@@ -61,7 +61,8 @@ except `schemaVersion`, `id`, `name`, and `entry`.
 From BarShelf 0.7.5, optional `localizations` maps language codes to exact
 display-text translations, for example `{"ko":{"My Widget":"내 위젯"}}`.
 It translates the widget name, setting titles/options' display titles, and
-workflow UI templates before expansion. `${…}` expressions must be preserved
+workflow UI templates before expansion, plus (0.7.22+) an action's `toast` and
+workflow `alerts` titles and bodies. `${…}` expressions must be preserved
 exactly (reordering is allowed). Commands, source definitions, action payloads,
 stored setting values, ids and permissions stay unchanged. Missing or malformed
 translations fall back to the original text. Exec/script widgets localize their

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://barshelf.jiun.dev/schema/widget-0.1.json",
+  "schemaVersion": 1,
+  "id": "dev.barshelf.hacker-news",
+  "name": "Hacker News",
+  "version": "0.1.0",
+  "minHostVersion": "0.7.21",
+  "icon": "newspaper.fill",
+  "bucket": { "group": "Developer", "order": 50, "size": "L" },
+
+  "entry": { "kind": "workflow", "main": "workflow.json" },
+
+  "refresh": { "onOpen": true, "interval": 900, "staleAfterSec": 900, "triggers": ["wake"] },
+
+  "permissions": {
+    "network": ["hn.algolia.com"]
+  },
+
+  "settings": [
+    { "key": "count", "title": "Stories", "type": "integer", "default": 10, "min": 3, "max": 30 }
+  ],
+
+  "appearance": {
+    "accent": "orange"
+  },
+
+  "localizations": {
+    "ko": {
+      "Hacker News": "해커 뉴스",
+      "Stories": "기사 수",
+      "Search stories": "기사 검색",
+      "Open Hacker News": "해커 뉴스 열기",
+      "Open comments": "댓글 열기",
+      "No stories": "기사 없음",
+      "The front page came back empty. Try again in a moment.": "첫 페이지가 비어 있습니다. 잠시 후 다시 시도하세요.",
+      "Hacker News: ${string(count(transforms.rows))} stories": "해커 뉴스: 기사 ${string(count(transforms.rows))}개"
+    }
+  }
+}

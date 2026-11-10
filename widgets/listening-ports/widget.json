@@ -1,0 +1,77 @@
+{
+  "$schema": "https://barshelf.jiun.dev/schema/widget-0.1.json",
+  "schemaVersion": 1,
+  "id": "dev.barshelf.listening-ports",
+  "name": "Listening Ports",
+  "version": "0.1.0",
+  "minHostVersion": "0.7.21",
+  "icon": "network",
+  "bucket": {
+    "group": "Developer",
+    "order": 30,
+    "size": "M"
+  },
+  "entry": {
+    "kind": "workflow",
+    "main": "workflow.json"
+  },
+  "refresh": {
+    "onOpen": true,
+    "interval": 30,
+    "staleAfterSec": 30
+  },
+  "permissions": {
+    "exec": [
+      {
+        "command": "/bin/sh",
+        "allowedArgs": [
+          [
+            "-c",
+            "/usr/sbin/lsof -nP +c 0 -iTCP -sTCP:LISTEN -F pcn 2>/dev/null | /usr/bin/awk '/^p/{pid=substr($0,2);next} /^c/{cmd=substr($0,2);gsub(/\\\\/,\"\\\\\\\\\",cmd);gsub(/\"/,\"\\\\\\\"\",cmd);next} /^n/{a=substr($0,2);i=match(a,/:[0-9]+$/);if(!i)next;port=substr(a,i+1);h=substr(a,1,i-1);s=(h==\"*\")?\"all\":((h==\"127.0.0.1\"||h==\"[::1]\"||h==\"localhost\")?\"local\":\"addr\");k=pid\":\"port;if(!(k in sc)){o[++n]=k;P[k]=pid;C[k]=cmd;N[k]=port;sc[k]=s;H[k]=h}else if(s==\"all\"||(s==\"local\"&&sc[k]==\"addr\")){sc[k]=s;H[k]=h}} END{printf \"{\\\"ports\\\":[\";for(j=1;j<=n;j++){k=o[j];t=(sc[k]==\"addr\")?H[k]:\"localhost\";printf \"%s{\\\"id\\\":\\\"%s\\\",\\\"port\\\":%s,\\\"pid\\\":%s,\\\"name\\\":\\\"%s\\\",\\\"scope\\\":\\\"%s\\\",\\\"address\\\":\\\"%s\\\",\\\"target\\\":\\\"%s:%s\\\"}\",(j>1?\",\":\"\"),k,N[k],P[k],C[k],sc[k],H[k],t,N[k]}print \"]}\"}'"
+          ]
+        ],
+        "maxOutputBytes": 262144,
+        "sensitiveOutput": false
+      }
+    ]
+  },
+  "settings": [
+    {
+      "key": "scope",
+      "title": "Show",
+      "type": "enum",
+      "default": "all",
+      "options": [
+        "all",
+        "local",
+        "exposed"
+      ],
+      "optionTitles": [
+        "All listeners",
+        "This Mac only (loopback)",
+        "Reachable from the network"
+      ]
+    }
+  ],
+  "appearance": {
+    "accent": "purple",
+    "density": "compact"
+  },
+  "localizations": {
+    "ko": {
+      "Listening Ports": "열린 포트",
+      "Show": "표시",
+      "All listeners": "모든 리스너",
+      "This Mac only (loopback)": "이 Mac에서만 (루프백)",
+      "Reachable from the network": "네트워크에서 접근 가능",
+      "Nothing listening": "대기 중인 포트 없음",
+      "No TCP port of yours is open for connections right now.": "지금 연결을 기다리는 내 TCP 포트가 없습니다.",
+      "Filter ports or processes": "포트나 프로세스로 거르기",
+      "${row.name}": "${row.name}",
+      "Copied ${row.target}": "${row.target} 복사됨",
+      "Open": "열기",
+      "${string(transforms.total)} ports": "포트 ${string(transforms.total)}개",
+      "Only your own processes are listed.": "내 프로세스만 표시됩니다."
+    }
+  }
+}

@@ -1,0 +1,106 @@
+{
+  "$schema": "https://barshelf.jiun.dev/schema/workflow-0.1.json",
+  "schemaVersion": 1,
+  "kind": "workflow",
+  "_comment": "Uptime and response time for one URL. The http source only parses JSON, so /usr/bin/curl does the request and its -w write-out prints a JSON line. The shell wrapper always exits 0 so a site that cannot be reached is a 'down' reading rather than a failed refresh; curl's own exit code says why. --proto keeps the URL setting to http and https, and --url keeps a value starting with '-' from being read as an option. A refresh whose URL is not http(s) is no reading (null) for the alerts.",
+
+  "sources": {
+    "check": {
+      "use": "exec",
+      "with": {
+        "command": ["/bin/sh", "-c", "out=$(/usr/bin/curl -sS -o /dev/null --proto =http,https --max-time \"$2\" -A BarShelf-SiteMonitor -w '{\"code\":\"%{http_code}\",\"time\":\"%{time_total}\",\"exit\":%{exitcode}}' --url \"$1\" 2>/dev/null); [ -n \"$out\" ] || out='{\"code\":\"0\",\"time\":null,\"exit\":-1}'; printf '%s' \"$out\"", "site-monitor", "${settings.url}", "${string(coalesce(settings.timeout, 10))}"],
+        "timeoutMs": 35000
+      }
+    }
+  },
+
+  "transforms": {
+    "ko": { "use": "assign", "from": "or(eq(coalesce(widget.locale, ''), 'ko'), or(eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko-…'), eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko_…')))" },
+    "validURL": { "use": "assign", "from": "or(eq(text.truncate(coalesce(settings.url, ''), 7), 'http://…'), eq(text.truncate(coalesce(settings.url, ''), 8), 'https://…'))" },
+    "code": { "use": "assign", "from": "number(sources.check.code)" },
+    "exit": { "use": "assign", "from": "number(sources.check.exit)" },
+    "ms": { "use": "assign", "from": "if(eq(number(sources.check.time), null), null, round(mul(number(sources.check.time), 1000)))" },
+    "hasReading": { "use": "assign", "from": "and(transforms.validURL, ne(transforms.exit, -1))" },
+    "isUp": { "use": "assign", "from": "and(eq(transforms.exit, 0), gte(transforms.code, 200), lt(transforms.code, 400))" },
+    "up": { "use": "assign", "from": "if(transforms.hasReading, transforms.isUp, null)" },
+    "down": { "use": "assign", "from": "if(transforms.hasReading, not(transforms.isUp), null)" },
+    "slow": { "use": "assign", "from": "and(transforms.isUp, gt(coalesce(transforms.ms, 0), coalesce(settings.slowMs, 1000)))" },
+    "reason": {
+      "use": "assign",
+      "from": "if(transforms.ko, if(ne(transforms.exit, 0), switch(transforms.exit, 6, '호스트를 찾을 수 없음', 7, '연결할 수 없음', 28, '시간 초과', 35, 'TLS 오류', 60, '인증서 오류', 1, 'http 또는 https URL만 됩니다', 3, 'URL 형식이 잘못됨', 52, '빈 응답', 56, '연결이 끊김', concat('curl 오류 ', string(transforms.exit))), concat('HTTP ', string(transforms.code))), if(ne(transforms.exit, 0), switch(transforms.exit, 6, 'Host not found', 7, 'Could not connect', 28, 'Timed out', 35, 'TLS error', 60, 'Certificate error', 1, 'Only http and https URLs work', 3, 'Malformed URL', 52, 'Empty reply', 56, 'Connection dropped', concat('curl error ', string(transforms.exit))), concat('HTTP ', string(transforms.code))))"
+    },
+    "msText": { "use": "assign", "from": "if(eq(transforms.ms, null), '—', concat(string(transforms.ms), ' ms'))" },
+    "stateWord": { "use": "assign", "from": "if(not(transforms.validURL), if(transforms.ko, 'URL 확인', 'Check URL'), if(transforms.isUp, if(transforms.slow, if(transforms.ko, '느림', 'Slow'), if(transforms.ko, '정상', 'Up')), if(transforms.ko, '다운', 'Down')))" },
+    "tint": { "use": "assign", "from": "if(not(transforms.hasReading), 'secondary', if(transforms.isUp, if(transforms.slow, 'warning', 'good'), 'danger'))" },
+    "downSince": { "use": "assign", "from": "if(eq(transforms.down, true), coalesce(storage.downSince, now()), null)" },
+    "downTitle": { "use": "assign", "from": "if(transforms.ko, concat(settings.url, ' 응답 없음'), concat(settings.url, ' is down'))" },
+    "upTitle": { "use": "assign", "from": "if(transforms.ko, concat(settings.url, ' 복구됨'), concat(settings.url, ' is back up'))" },
+    "upBody": { "use": "assign", "from": "if(transforms.ko, concat(transforms.msText, ' 만에 응답 (HTTP ', string(transforms.code), ')'), concat('Answered in ', transforms.msText, ' (HTTP ', string(transforms.code), ')'))" }
+  },
+
+  "view": {
+    "type": "vstack",
+    "spacing": 6,
+    "action": { "type": "openURL", "url": "${if(transforms.validURL, settings.url, 'https://github.com/Open330/barshelf')}" },
+    "children": [
+      {
+        "type": "hstack",
+        "spacing": 6,
+        "children": [
+          { "type": "image", "source": { "kind": "sfSymbol", "name": "${if(transforms.isUp, 'checkmark.circle.fill', if(transforms.hasReading, 'xmark.octagon.fill', 'questionmark.circle'))}" }, "size": 14, "tint": "${transforms.tint}" },
+          { "type": "text", "text": "${settings.url}", "role": "caption", "foreground": "secondary", "lineLimit": 1, "truncation": "middle" },
+          { "type": "spacer" },
+          { "type": "badge", "text": "${transforms.stateWord}", "tint": "${transforms.tint}" }
+        ]
+      },
+      {
+        "switch": "${if(not(transforms.validURL), 'invalid', if(transforms.isUp, 'up', 'down'))}",
+        "cases": {
+          "invalid": { "type": "banner", "icon": "link.badge.plus", "tone": "warning", "text": "Enter an http:// or https:// address in the widget settings." },
+          "up": {
+            "type": "vstack",
+            "spacing": 2,
+            "children": [
+              { "type": "text", "text": "${transforms.msText}", "size": 34, "role": "title", "monospacedDigit": true },
+              { "type": "text", "text": "HTTP ${string(transforms.code)} · response time", "role": "caption", "foreground": "secondary" }
+            ]
+          }
+        },
+        "default": {
+          "type": "vstack",
+          "spacing": 2,
+          "children": [
+            { "type": "text", "text": "${transforms.reason}", "role": "title", "foreground": "danger", "lineLimit": 2 },
+            { "type": "text", "text": "Down since ${date.clock(transforms.downSince)}", "role": "caption", "foreground": "secondary" }
+          ]
+        }
+      }
+    ]
+  },
+
+  "store": {
+    "downSince": { "value": "${if(eq(transforms.down, null), storage.downSince, transforms.downSince)}" }
+  },
+
+  "status": {
+    "label": "${if(not(transforms.hasReading), '', if(transforms.isUp, transforms.msText, if(transforms.ko, '다운', 'down')))}",
+    "icon": "${if(transforms.isUp, 'antenna.radiowaves.left.and.right', 'antenna.radiowaves.left.and.right.slash')}",
+    "tint": "${if(eq(transforms.down, true), 'danger', if(transforms.slow, 'warning', ''))}",
+    "tooltip": "${settings.url}: ${transforms.stateWord}${if(transforms.isUp, concat(' · ', transforms.msText), '')}"
+  },
+
+  "alerts": {
+    "down": {
+      "when": "${transforms.down}",
+      "title": "${transforms.downTitle}",
+      "body": "${transforms.reason}",
+      "cooldownSec": 900
+    },
+    "recovered": {
+      "when": "${transforms.up}",
+      "title": "${transforms.upTitle}",
+      "body": "${transforms.upBody}",
+      "cooldownSec": 900
+    }
+  }
+}

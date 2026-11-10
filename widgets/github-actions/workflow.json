@@ -1,0 +1,128 @@
+{
+  "$schema": "https://barshelf.jiun.dev/schema/workflow-0.1.json",
+  "schemaVersion": 1,
+  "kind": "workflow",
+  "_comment": "Recent GitHub Actions runs through the gh CLI. `runs` is the list; `branch` is the latest completed run on the watched branch, which drives the menu bar and the alerts. A cancelled or skipped run is no reading (null), so it neither raises nor clears the failing state.",
+
+  "sources": {
+    "runs": {
+      "use": "exec",
+      "with": {
+        "command": ["gh", "run", "list", "-R", "${settings.repo}", "--limit", "8", "--json", "databaseId,name,displayTitle,status,conclusion,headBranch,event,createdAt,url"],
+        "discover": ["/opt/homebrew/bin/gh", "/usr/local/bin/gh", "PATH"],
+        "timeoutMs": 20000
+      }
+    },
+    "branch": {
+      "use": "exec",
+      "with": {
+        "command": ["gh", "run", "list", "-R", "${settings.repo}", "--branch", "${settings.branch}", "--status", "completed", "--limit", "1", "--json", "databaseId,name,displayTitle,conclusion,headBranch,createdAt,url"],
+        "discover": ["/opt/homebrew/bin/gh", "/usr/local/bin/gh", "PATH"],
+        "timeoutMs": 20000
+      }
+    }
+  },
+
+  "transforms": {
+    "ko": { "use": "assign", "from": "or(eq(coalesce(widget.locale, ''), 'ko'), or(eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko-…'), eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko_…')))" },
+    "rows": {
+      "use": "template",
+      "with": {
+        "forEach": "$.sources.runs",
+        "as": "run",
+        "template": {
+          "id": "run-${string(run.databaseId)}",
+          "title": "${coalesce(run.displayTitle, run.name)}",
+          "detail": "${concat(run.name, ' · ', run.headBranch, ' · ', date.relative(date.ms(run.createdAt)))}",
+          "url": "${run.url}",
+          "icon": "${if(ne(run.status, 'completed'), if(eq(run.status, 'in_progress'), 'arrow.triangle.2.circlepath', 'clock'), switch(run.conclusion, 'success', 'checkmark.circle.fill', 'failure', 'xmark.circle.fill', 'timed_out', 'clock.badge.exclamationmark', 'startup_failure', 'xmark.octagon.fill', 'cancelled', 'slash.circle', 'skipped', 'arrow.uturn.right.circle', 'action_required', 'exclamationmark.circle.fill', 'circle'))}",
+          "tint": "${if(ne(run.status, 'completed'), 'accent', switch(run.conclusion, 'success', 'good', 'failure', 'danger', 'timed_out', 'danger', 'startup_failure', 'danger', 'action_required', 'warning', 'secondary'))}",
+          "word": "${if(transforms.ko, if(ne(run.status, 'completed'), if(eq(run.status, 'in_progress'), '실행 중', '대기 중'), switch(run.conclusion, 'success', '성공', 'failure', '실패', 'timed_out', '시간 초과', 'startup_failure', '시작 실패', 'cancelled', '취소됨', 'skipped', '건너뜀', 'action_required', '조치 필요', 'neutral', '중립', coalesce(run.conclusion, '—'))), if(ne(run.status, 'completed'), if(eq(run.status, 'in_progress'), 'Running', 'Queued'), switch(run.conclusion, 'success', 'Passed', 'failure', 'Failed', 'timed_out', 'Timed out', 'startup_failure', 'Startup failed', 'cancelled', 'Cancelled', 'skipped', 'Skipped', 'action_required', 'Action required', 'neutral', 'Neutral', coalesce(run.conclusion, '—'))))}"
+        }
+      }
+    },
+    "last": { "use": "assign", "from": "$.sources.branch.0" },
+    "lastFailing": { "use": "assign", "from": "if(eq(transforms.last, null), null, switch(transforms.last.conclusion, 'success', false, 'failure', true, 'timed_out', true, 'startup_failure', true, null))" },
+    "lastPassing": { "use": "assign", "from": "if(eq(transforms.last, null), null, switch(transforms.last.conclusion, 'success', true, 'failure', false, 'timed_out', false, 'startup_failure', false, null))" },
+    "lastWord": { "use": "assign", "from": "if(eq(transforms.last, null), '', if(transforms.ko, switch(transforms.last.conclusion, 'success', '통과', 'failure', '실패', 'timed_out', '시간 초과', 'startup_failure', '실패', 'cancelled', '취소됨', 'skipped', '건너뜀', '—'), switch(transforms.last.conclusion, 'success', 'Passing', 'failure', 'Failing', 'timed_out', 'Timed out', 'startup_failure', 'Failing', 'cancelled', 'Cancelled', 'skipped', 'Skipped', '—')))" },
+    "lastTint": { "use": "assign", "from": "if(eq(transforms.lastFailing, true), 'danger', if(eq(transforms.lastPassing, true), 'good', 'secondary'))" },
+    "lastIcon": { "use": "assign", "from": "if(eq(transforms.lastFailing, true), 'xmark.circle.fill', if(eq(transforms.lastPassing, true), 'checkmark.circle.fill', 'circle.dashed'))" },
+    "failTitle": { "use": "assign", "from": "if(transforms.ko, concat(settings.repo, ' ', settings.branch, ' 빌드 실패'), concat(settings.repo, ' ', settings.branch, ' is failing'))" },
+    "failBody": { "use": "assign", "from": "concat(coalesce(transforms.last.name, ''), ': ', coalesce(transforms.last.displayTitle, ''))" },
+    "okTitle": { "use": "assign", "from": "if(transforms.ko, concat(settings.repo, ' ', settings.branch, ' 다시 통과'), concat(settings.repo, ' ', settings.branch, ' is passing again'))" }
+  },
+
+  "view": {
+    "type": "vstack",
+    "spacing": 8,
+    "children": [
+      {
+        "type": "hstack",
+        "spacing": 6,
+        "action": { "type": "openURL", "url": "https://github.com/${settings.repo}/actions" },
+        "children": [
+          { "type": "image", "source": { "kind": "sfSymbol", "name": "${transforms.lastIcon}" }, "size": 14, "tint": "${transforms.lastTint}" },
+          { "type": "text", "text": "${settings.repo}", "role": "body", "lineLimit": 1, "truncation": "middle" },
+          { "type": "spacer" },
+          { "type": "badge", "text": "${settings.branch} ${transforms.lastWord}", "tint": "${transforms.lastTint}" }
+        ]
+      },
+      { "type": "divider" },
+      {
+        "switch": "${if(eq(count(transforms.rows), 0), 'none', 'some')}",
+        "cases": {
+          "none": { "type": "empty", "icon": "bolt.horizontal.circle", "title": "No workflow runs", "subtitle": "This repository has no Actions runs yet." }
+        },
+        "default": {
+          "type": "list",
+          "spacing": 2,
+          "items": {
+            "forEach": "$.transforms.rows",
+            "as": "row",
+            "template": {
+              "type": "hstack",
+              "id": "${row.id}",
+              "spacing": 8,
+              "action": { "type": "openURL", "url": "${row.url}" },
+              "children": [
+                { "type": "image", "source": { "kind": "sfSymbol", "name": "${row.icon}" }, "size": 14, "tint": "${row.tint}" },
+                {
+                  "type": "vstack",
+                  "spacing": 1,
+                  "widthFill": true,
+                  "children": [
+                    { "type": "text", "text": "${row.title}", "role": "body", "lineLimit": 1 },
+                    { "type": "text", "text": "${row.detail}", "role": "caption", "foreground": "secondary", "lineLimit": 1 }
+                  ]
+                },
+                { "type": "text", "text": "${row.word}", "role": "caption", "foreground": "${row.tint}", "lineLimit": 1 }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  },
+
+  "status": {
+    "label": "${transforms.lastWord}",
+    "icon": "${transforms.lastIcon}",
+    "tint": "${if(eq(transforms.lastFailing, true), 'danger', '')}",
+    "tooltip": "${settings.repo} ${settings.branch}: ${transforms.lastWord}"
+  },
+
+  "alerts": {
+    "failing": {
+      "when": "${transforms.lastFailing}",
+      "title": "${transforms.failTitle}",
+      "body": "${transforms.failBody}",
+      "cooldownSec": 900
+    },
+    "recovered": {
+      "when": "${transforms.lastPassing}",
+      "title": "${transforms.okTitle}",
+      "body": "${transforms.failBody}",
+      "cooldownSec": 900
+    }
+  }
+}

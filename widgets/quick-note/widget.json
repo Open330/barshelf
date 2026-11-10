@@ -1,0 +1,59 @@
+{
+  "$schema": "https://barshelf.jiun.dev/schema/widget-0.1.json",
+  "schemaVersion": 1,
+  "id": "dev.barshelf.quick-note",
+  "name": "Quick Note",
+  "version": "0.1.0",
+  "minHostVersion": "0.7.21",
+  "icon": "note.text",
+  "bucket": {
+    "group": "Everyday",
+    "order": 50,
+    "size": "S"
+  },
+  "entry": {
+    "kind": "workflow",
+    "main": "workflow.json"
+  },
+  "refresh": {
+    "onOpen": true,
+    "interval": null,
+    "staleAfterSec": 3600
+  },
+  "statusItem": {
+    "mode": "text",
+    "icon": "note.text"
+  },
+  "permissions": {},
+  "settings": [
+    {
+      "key": "note",
+      "title": "Note",
+      "type": "string",
+      "default": ""
+    },
+    {
+      "key": "title",
+      "title": "Heading (optional)",
+      "type": "string",
+      "default": ""
+    }
+  ],
+  "appearance": {
+    "accent": "yellow",
+    "cardStyle": "tinted"
+  },
+  "localizations": {
+    "ko": {
+      "Quick Note": "빠른 메모",
+      "Note": "메모",
+      "Heading (optional)": "제목 (선택)",
+      "${settings.title}": "${settings.title}",
+      "${settings.note}": "${settings.note}",
+      "Copy": "복사",
+      "Copied": "복사됨",
+      "No note yet": "아직 메모 없음",
+      "Write one in this widget’s settings (⋯ ▸ Settings).": "이 위젯 설정(⋯ ▸ 설정)에서 메모를 쓰세요."
+    }
+  }
+}

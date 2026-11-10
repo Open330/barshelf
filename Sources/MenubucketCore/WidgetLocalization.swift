@@ -17,6 +17,7 @@ import Foundation
 /// a translation can reorder an expression but never sees the user's data.
 /// Only display text is looked up — the widget's name, setting titles and
 /// option titles, and the workflow's view text, titles, labels, placeholders,
+/// action toasts, alert titles and bodies,
 /// accessibility labels and status label/tooltip. Commands, actions, paths,
 /// URLs, setting values and the permission set are never touched, so the
 /// permission hash and everything a widget runs stay the same in every
@@ -139,6 +140,8 @@ public struct WidgetLocalization: Equatable, Sendable {
     ]
     /// Subtrees that carry behavior or data, never display text.
     static let skippedKeys: Set<String> = ["action", "source", "drag", "value"]
+    /// The one display string inside an action: the toast it shows.
+    static let actionTextKeys: Set<String> = ["toast"]
 
     /// The workflow with its view, empty state and status text translated.
     /// Sources, transforms and storage are the original.
@@ -158,6 +161,12 @@ public struct WidgetLocalization: Equatable, Sendable {
             }
             localized.status = status
         }
+        localized.alerts = definition.alerts?.mapValues { alert in
+            var alert = alert
+            alert.title = text(alert.title)
+            alert.body = alert.body.map(text)
+            return alert
+        }
         return localized
     }
 
@@ -169,7 +178,13 @@ public struct WidgetLocalization: Equatable, Sendable {
         case let .object(object):
             var out: [String: JSONValue] = [:]
             for (key, item) in object {
-                if Self.skippedKeys.contains(key) {
+                if key == "action", case var .object(action) = item {
+                    // Behavior stays; only the toast is shown text.
+                    for textKey in Self.actionTextKeys {
+                        if case let .string(string)? = action[textKey] { action[textKey] = .string(text(string)) }
+                    }
+                    out[key] = .object(action)
+                } else if Self.skippedKeys.contains(key) {
                     out[key] = item
                 } else if Self.textKeys.contains(key), case let .string(string) = item {
                     out[key] = .string(text(string))

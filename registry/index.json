@@ -914,6 +914,540 @@
       },
       "homepage": "https://github.com/Open330/barshelf",
       "minHostVersion": "0.7.17"
+    },
+    {
+      "id": "dev.barshelf.bluetooth-battery",
+      "accent": "blue",
+      "name": "Bluetooth Battery",
+      "description": "Battery levels of connected Bluetooth devices — AirPods left/right/case, Magic Mouse, Keyboard and Trackpad — with meters, the lowest level in the menu bar, and an alert when one runs low.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "battery.75percent",
+      "kind": "workflow",
+      "tags": [
+        "system",
+        "bluetooth",
+        "battery",
+        "airpods",
+        "alerts",
+        "workflow"
+      ],
+      "category": "System",
+      "readme": "https://github.com/Open330/barshelf/blob/main/widgets/bluetooth-battery/README.md",
+      "install": {
+        "url": "https://github.com/Open330/barshelf/tree/main/widgets/bluetooth-battery",
+        "bundled": "bluetooth-battery"
+      },
+      "permissions": {
+        "exec": [
+          "/usr/bin/osascript"
+        ],
+        "keychain": false,
+        "notifications": true
+      },
+      "homepage": "https://github.com/Open330/barshelf",
+      "minHostVersion": "0.7.21"
+    },
+    {
+      "id": "dev.barshelf.listening-ports",
+      "accent": "purple",
+      "name": "Listening Ports",
+      "description": "Local TCP listeners sorted by port — process, pid, and whether each is loopback-only or open to the network — with search, copy and open-in-browser.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "network",
+      "kind": "workflow",
+      "tags": [
+        "developer",
+        "ports",
+        "lsof",
+        "network",
+        "server",
+        "workflow"
+      ],
+      "category": "Developer",
+      "readme": "https://github.com/Open330/barshelf/blob/main/widgets/listening-ports/README.md",
+      "install": {
+        "url": "https://github.com/Open330/barshelf/tree/main/widgets/listening-ports",
+        "bundled": "listening-ports"
+      },
+      "permissions": {
+        "exec": [
+          "/bin/sh"
+        ],
+        "keychain": false,
+        "notifications": false
+      },
+      "homepage": "https://github.com/Open330/barshelf",
+      "minHostVersion": "0.7.21"
+    },
+    {
+      "id": "dev.barshelf.internet-quality",
+      "accent": "blue",
+      "name": "Internet Quality",
+      "description": "Download and upload speed plus responsiveness (RPM) with a rating, from Apple's built-in networkQuality. Runs on demand or at most every six hours, never in the background.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "speedometer",
+      "kind": "workflow",
+      "tags": [
+        "system",
+        "network",
+        "speed-test",
+        "internet",
+        "networkquality",
+        "workflow"
+      ],
+      "category": "System",
+      "readme": "https://github.com/Open330/barshelf/blob/main/widgets/internet-quality/README.md",
+      "install": {
+        "url": "https://github.com/Open330/barshelf/tree/main/widgets/internet-quality",
+        "bundled": "internet-quality"
+      },
+      "permissions": {
+        "exec": [
+          "/usr/bin/networkQuality"
+        ],
+        "keychain": false,
+        "notifications": false
+      },
+      "homepage": "https://github.com/Open330/barshelf",
+      "minHostVersion": "0.7.21"
+    },
+    {
+      "id": "dev.barshelf.homebrew-updates",
+      "accent": "orange",
+      "name": "Homebrew Updates",
+      "description": "Outdated Homebrew formulae and casks with installed → current versions, a count for the menu bar, and a one-click copy of the upgrade command.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "mug",
+      "kind": "workflow",
+      "tags": [
+        "developer",
+        "homebrew",
+        "brew",
+        "updates",
+        "packages",
+        "workflow"
+      ],
+      "category": "Developer",
+      "requires": "Homebrew",
+      "readme": "https://github.com/Open330/barshelf/blob/main/widgets/homebrew-updates/README.md",
+      "install": {
+        "url": "https://github.com/Open330/barshelf/tree/main/widgets/homebrew-updates",
+        "bundled": "homebrew-updates"
+      },
+      "permissions": {
+        "exec": [
+          "/bin/sh"
+        ],
+        "keychain": false,
+        "notifications": false
+      },
+      "homepage": "https://github.com/Open330/barshelf",
+      "minHostVersion": "0.7.21"
+    },
+    {
+      "id": "dev.barshelf.quick-note",
+      "accent": "yellow",
+      "name": "Quick Note",
+      "description": "A short note on your shelf, with an optional heading and a copy button; promote it to the menu bar to keep a reminder in view.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "note.text",
+      "kind": "workflow",
+      "tags": [
+        "note",
+        "memo",
+        "reminder",
+        "text",
+        "workflow"
+      ],
+      "category": "Everyday",
+      "readme": "https://github.com/Open330/barshelf/blob/main/widgets/quick-note/README.md",
+      "install": {
+        "url": "https://github.com/Open330/barshelf/tree/main/widgets/quick-note",
+        "bundled": "quick-note"
+      },
+      "permissions": {
+        "keychain": false,
+        "notifications": false
+      },
+      "homepage": "https://github.com/Open330/barshelf",
+      "minHostVersion": "0.7.21"
+    },
+    {
+      "id": "dev.barshelf.github-actions",
+      "accent": "green",
+      "name": "GitHub Actions",
+      "description": "Recent GitHub Actions runs for one repository with status colors; click a run to open it. The menu bar shows the watched branch's latest result, with notifications when it starts failing and when it passes again.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "bolt.horizontal.circle.fill",
+      "kind": "workflow",
+      "tags": [
+        "developer",
+        "github",
+        "ci",
+        "actions",
+        "workflow"
+      ],
+      "category": "Developer",
+      "requires": "gh CLI",
+      "install": {
+        "url": "https://github.com/Open330/barshelf/tree/main/widgets/github-actions",
+        "bundled": "github-actions"
+      },
+      "permissions": {
+        "exec": [
+          "gh"
+        ],
+        "keychain": false,
+        "notifications": true
+      },
+      "homepage": "https://github.com/Open330/barshelf",
+      "minHostVersion": "0.7.21"
+    },
+    {
+      "id": "dev.barshelf.site-monitor",
+      "accent": "blue",
+      "name": "Site Monitor",
+      "description": "Checks one http(s) URL with curl: up or down, response time, and why it failed. The menu bar shows milliseconds or \"down\", with notifications when the site goes down and when it recovers.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "antenna.radiowaves.left.and.right",
+      "kind": "workflow",
+      "tags": [
+        "developer",
+        "uptime",
+        "monitor",
+        "latency",
+        "http"
+      ],
+      "category": "Developer",
+      "install": {
+        "url": "https://github.com/Open330/barshelf/tree/main/widgets/site-monitor",
+        "bundled": "site-monitor"
+      },
+      "permissions": {
+        "exec": [
+          "/bin/sh"
+        ],
+        "keychain": false,
+        "notifications": true
+      },
+      "homepage": "https://github.com/Open330/barshelf",
+      "minHostVersion": "0.7.21"
+    },
+    {
+      "id": "dev.barshelf.docker",
+      "accent": "blue",
+      "name": "Docker",
+      "description": "Running containers (optionally stopped ones too) with image, status and ports from the Docker CLI; works with Docker Desktop, OrbStack, Colima or Rancher Desktop. The menu bar can show the running count.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "shippingbox.fill",
+      "kind": "workflow",
+      "tags": [
+        "developer",
+        "docker",
+        "containers",
+        "orbstack"
+      ],
+      "category": "Developer",
+      "requires": "Docker CLI",
+      "install": {
+        "url": "https://github.com/Open330/barshelf/tree/main/widgets/docker",
+        "bundled": "docker"
+      },
+      "permissions": {
+        "exec": [
+          "/bin/sh"
+        ],
+        "keychain": false,
+        "notifications": false
+      },
+      "homepage": "https://github.com/Open330/barshelf",
+      "minHostVersion": "0.7.21"
+    },
+    {
+      "id": "dev.barshelf.tailscale",
+      "accent": "purple",
+      "name": "Tailscale",
+      "description": "Tailscale connection state, this Mac's address, the exit node in use, and every device in your tailnet with OS and last seen. The menu bar shows on or off, with an optional notification when Tailscale disconnects.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "network",
+      "kind": "workflow",
+      "tags": [
+        "system",
+        "network",
+        "vpn",
+        "tailscale"
+      ],
+      "category": "System",
+      "requires": "Tailscale app or tailscale CLI",
+      "install": {
+        "url": "https://github.com/Open330/barshelf/tree/main/widgets/tailscale",
+        "bundled": "tailscale"
+      },
+      "permissions": {
+        "exec": [
+          "/usr/bin/osascript"
+        ],
+        "keychain": false,
+        "notifications": true
+      },
+      "homepage": "https://tailscale.com/",
+      "minHostVersion": "0.7.21"
+    },
+    {
+      "id": "dev.barshelf.kubernetes",
+      "accent": "blue",
+      "name": "Kubernetes",
+      "description": "kubectl's current context and the pods in one namespace: phase counts, ready count, and every pod that isn't ready with its reason and restarts. Optional notification when pods stay not ready past a grace period.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "square.stack.3d.up.fill",
+      "kind": "workflow",
+      "tags": [
+        "developer",
+        "kubernetes",
+        "k8s",
+        "kubectl",
+        "pods"
+      ],
+      "category": "Developer",
+      "requires": "kubectl",
+      "install": {
+        "url": "https://github.com/Open330/barshelf/tree/main/widgets/kubernetes",
+        "bundled": "kubernetes"
+      },
+      "permissions": {
+        "exec": [
+          "kubectl"
+        ],
+        "keychain": false,
+        "notifications": true
+      },
+      "homepage": "https://kubernetes.io/",
+      "minHostVersion": "0.7.21"
+    },
+    {
+      "id": "dev.barshelf.bitwarden",
+      "accent": "blue",
+      "name": "Bitwarden",
+      "description": "Bitwarden CLI vault status from `bw status` only: locked, unlocked or logged out, last sync and server. No session, no unlock, no item data. Optional notification when the vault hasn't synced in N days.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "lock.shield.fill",
+      "kind": "workflow",
+      "tags": [
+        "security",
+        "bitwarden",
+        "password",
+        "vault"
+      ],
+      "category": "Security",
+      "requires": "Bitwarden CLI (bw)",
+      "install": {
+        "url": "https://github.com/Open330/barshelf/tree/main/widgets/bitwarden",
+        "bundled": "bitwarden"
+      },
+      "permissions": {
+        "exec": [
+          "/bin/sh"
+        ],
+        "keychain": false,
+        "notifications": true
+      },
+      "homepage": "https://bitwarden.com/help/cli/",
+      "minHostVersion": "0.7.21"
+    },
+    {
+      "id": "dev.barshelf.world-clock",
+      "accent": "purple",
+      "name": "World Clock",
+      "description": "Local time in up to five cities, with the day offset, the hour difference and dimmed rows outside working hours.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "globe",
+      "kind": "workflow",
+      "tags": [
+        "clock",
+        "time zone",
+        "everyday",
+        "workflow"
+      ],
+      "category": "Everyday",
+      "install": {
+        "url": "https://github.com/Open330/barshelf/tree/main/widgets/world-clock",
+        "bundled": "world-clock"
+      },
+      "permissions": {
+        "exec": [
+          "/bin/date",
+          "/usr/bin/env"
+        ],
+        "keychain": false,
+        "notifications": false
+      },
+      "homepage": "https://github.com/Open330/barshelf",
+      "minHostVersion": "0.7.21"
+    },
+    {
+      "id": "dev.barshelf.countdown",
+      "accent": "pink",
+      "name": "Countdown",
+      "description": "A D-day counter for one or two dates: D-12, D-day or D+3 in big type, the date and the days left, with a notification on the day.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "calendar.badge.clock",
+      "kind": "workflow",
+      "tags": [
+        "countdown",
+        "d-day",
+        "everyday",
+        "workflow"
+      ],
+      "category": "Everyday",
+      "install": {
+        "url": "https://github.com/Open330/barshelf/tree/main/widgets/countdown",
+        "bundled": "countdown"
+      },
+      "permissions": {
+        "exec": [
+          "/bin/date"
+        ],
+        "keychain": false,
+        "notifications": true
+      },
+      "homepage": "https://github.com/Open330/barshelf",
+      "minHostVersion": "0.7.21"
+    },
+    {
+      "id": "dev.barshelf.air-quality",
+      "accent": "green",
+      "name": "Air Quality",
+      "description": "PM2.5 and PM10 for any latitude/longitude from Open-Meteo (no key), graded on the Korean scale, with US/EU AQI and a notification when PM2.5 gets bad.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "aqi.medium",
+      "kind": "workflow",
+      "tags": [
+        "air quality",
+        "pm2.5",
+        "fine dust",
+        "http",
+        "workflow"
+      ],
+      "category": "Everyday",
+      "install": {
+        "url": "https://github.com/Open330/barshelf/tree/main/widgets/air-quality",
+        "bundled": "air-quality"
+      },
+      "permissions": {
+        "keychain": false,
+        "notifications": true,
+        "network": [
+          "air-quality-api.open-meteo.com"
+        ]
+      },
+      "homepage": "https://open-meteo.com/en/docs/air-quality-api",
+      "minHostVersion": "0.7.21"
+    },
+    {
+      "id": "dev.barshelf.crypto",
+      "accent": "orange",
+      "name": "Crypto",
+      "description": "Coin prices and 24-hour change from CoinGecko's public API (no key) in USD, KRW, EUR, JPY or GBP; one coin can sit in the menu bar.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "bitcoinsign.circle.fill",
+      "kind": "workflow",
+      "tags": [
+        "crypto",
+        "bitcoin",
+        "price",
+        "finance",
+        "http",
+        "workflow"
+      ],
+      "category": "Everyday",
+      "install": {
+        "url": "https://github.com/Open330/barshelf/tree/main/widgets/crypto",
+        "bundled": "crypto"
+      },
+      "permissions": {
+        "keychain": false,
+        "notifications": false,
+        "network": [
+          "api.coingecko.com"
+        ]
+      },
+      "homepage": "https://www.coingecko.com/",
+      "minHostVersion": "0.7.21"
+    },
+    {
+      "id": "dev.barshelf.hacker-news",
+      "accent": "orange",
+      "name": "Hacker News",
+      "description": "The Hacker News front page through the public Algolia API (no key): title, points, comments and age; a row opens the story, the bubble opens the discussion.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "newspaper.fill",
+      "kind": "workflow",
+      "tags": [
+        "developer",
+        "news",
+        "hacker news",
+        "http",
+        "workflow"
+      ],
+      "category": "Developer",
+      "install": {
+        "url": "https://github.com/Open330/barshelf/tree/main/widgets/hacker-news",
+        "bundled": "hacker-news"
+      },
+      "permissions": {
+        "keychain": false,
+        "notifications": false,
+        "network": [
+          "hn.algolia.com"
+        ]
+      },
+      "homepage": "https://news.ycombinator.com/",
+      "minHostVersion": "0.7.21"
+    },
+    {
+      "id": "dev.barshelf.break-reminder",
+      "accent": "green",
+      "name": "Break Reminder",
+      "description": "Reminds you to stand up and rest your eyes every N minutes with a notification; a live ring counts down, with Took a break, Snooze and Pause/Resume.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "figure.stand",
+      "kind": "script",
+      "tags": [
+        "health",
+        "break",
+        "reminder",
+        "timer",
+        "script"
+      ],
+      "category": "Everyday",
+      "requires": "Deno runtime",
+      "install": {
+        "url": "https://github.com/Open330/barshelf/tree/main/widgets/break-reminder",
+        "bundled": "break-reminder"
+      },
+      "permissions": {
+        "keychain": false,
+        "notifications": true
+      },
+      "homepage": "https://github.com/Open330/barshelf",
+      "minHostVersion": "0.7.21"
     }
   ],
   "packs": [
@@ -921,12 +1455,14 @@
       "id": "everyday",
       "name": "Everyday",
       "icon": "sun.max",
-      "description": "The date, the weather, what's next on your calendar and your reminders.",
+      "description": "The date, the weather and air quality, other cities' time, a countdown, your next meeting and your reminders.",
       "widgetIDs": [
         "dev.barshelf.today",
         "dev.barshelf.weather",
+        "dev.barshelf.air-quality",
+        "dev.barshelf.world-clock",
+        "dev.barshelf.countdown",
         "dev.barshelf.next-meeting",
-        "dev.barshelf.calendar",
         "dev.barshelf.reminders"
       ]
     },
@@ -934,12 +1470,13 @@
       "id": "system",
       "name": "System",
       "icon": "cpu",
-      "description": "CPU, memory, temperatures, network and battery, ready for the menu bar.",
+      "description": "CPU, memory, temperatures, network, battery and your Bluetooth devices, ready for the menu bar.",
       "widgetIDs": [
         "dev.barshelf.system",
         "dev.barshelf.sensors",
         "dev.barshelf.network",
         "dev.barshelf.battery-meter",
+        "dev.barshelf.bluetooth-battery",
         "dev.barshelf.keep-awake"
       ]
     },
@@ -947,11 +1484,13 @@
       "id": "developer",
       "name": "Developer",
       "icon": "chevron.left.forwardslash.chevron.right",
-      "description": "Agent usage, GitHub, your projects and the inbox that needs you. Some need their own CLI.",
+      "description": "CI runs, a site you watch, open ports, Homebrew updates, agent usage and the inbox that needs you. Some need their own CLI.",
       "widgetIDs": [
+        "dev.barshelf.github-actions",
+        "dev.barshelf.site-monitor",
+        "dev.barshelf.listening-ports",
+        "dev.barshelf.homebrew-updates",
         "dev.barshelf.aas-usage",
-        "dev.barshelf.codex-reset",
-        "dev.barshelf.github-status",
         "dev.barshelf.developer-inbox",
         "dev.barshelf.project-status"
       ]
@@ -966,6 +1505,18 @@
         "dev.barshelf.downloads-new",
         "dev.barshelf.quick-shelf",
         "dev.barshelf.clipboard-shelf"
+      ]
+    },
+    {
+      "id": "infrastructure",
+      "name": "Infrastructure",
+      "icon": "server.rack",
+      "description": "Your tailnet, containers, a Kubernetes namespace and your password vault's sync. Each needs its own CLI.",
+      "widgetIDs": [
+        "dev.barshelf.tailscale",
+        "dev.barshelf.docker",
+        "dev.barshelf.kubernetes",
+        "dev.barshelf.bitwarden"
       ]
     }
   ]

@@ -139,6 +139,23 @@ final class WidgetLocalizationTests: XCTestCase {
 
     /// Display strings in a view, empty state or status, as the translator
     /// sees them: behavior and data subtrees are skipped.
+    /// Toasts inside actions: the one shown string in a behavior subtree.
+    private func actionToasts(_ value: JSONValue) -> [String] {
+        switch value {
+        case let .array(items):
+            return items.flatMap(actionToasts)
+        case let .object(object):
+            var found: [String] = []
+            for (key, item) in object {
+                if key == "action", case let .string(toast)? = item.objectValue?["toast"] { found.append(toast) }
+                found += actionToasts(item)
+            }
+            return found
+        default:
+            return []
+        }
+    }
+
     private func displayStrings(_ value: JSONValue) -> [String] {
         switch value {
         case let .array(items):
@@ -163,7 +180,16 @@ final class WidgetLocalizationTests: XCTestCase {
         case let .object(object):
             var out: [String: JSONValue] = [:]
             for (key, item) in object {
-                if WidgetLocalization.skippedKeys.contains(key) {
+                if key == "action", case var .object(action) = item {
+                    if case .string? = action["toast"] { action["toast"] = .string("") }
+                    out[key] = .object(action)
+                } else if key == "alerts", case let .object(alerts) = item {
+                    out[key] = .object(alerts.mapValues { alert in
+                        guard case var .object(fields) = alert else { return alert }
+                        for textKey in ["title", "body"] where fields[textKey] != nil { fields[textKey] = .string("") }
+                        return .object(fields)
+                    })
+                } else if WidgetLocalization.skippedKeys.contains(key) {
                     out[key] = item
                 } else if Self.displayKeys.contains(key), case .string = item {
                     out[key] = .string("")
@@ -194,6 +220,8 @@ final class WidgetLocalizationTests: XCTestCase {
             if let workflow {
                 shown += displayStrings(workflow.view) + (workflow.empty.map(displayStrings) ?? [])
                 if let status = workflow.status { shown += displayStrings(try json(status)) }
+                shown += actionToasts(workflow.view) + (workflow.empty.map(actionToasts) ?? [])
+                for alert in (workflow.alerts ?? [:]).values { shown += [alert.title] + [alert.body].compactMap { $0 } }
             }
             for (source, translated) in localization.table {
                 XCTAssertTrue(shown.contains(source), "\(name): \"\(source)\" is not text this widget shows")
@@ -500,5 +528,25 @@ final class WidgetLocalizationTests: XCTestCase {
         XCTAssertEqual(try Manifest.decode(from: Data(wrongType.utf8)).localizations?.tables, [:])
         let absent = #"{"schemaVersion":1,"id":"x","name":"X","entry":{"kind":"workflow"}}"#
         XCTAssertNil(try Manifest.decode(from: Data(absent.utf8)).localizations)
+    }
+
+    /// Toasts are the shown text inside an action, and alert titles and
+    /// bodies are shown by macOS: both are translated; behavior is not.
+    func testActionToastsAndAlertTextAreTranslated() throws {
+        let manifest = try Manifest.decode(from: Data("""
+        { "schemaVersion": 1, "id": "t", "name": "T", "entry": { "kind": "workflow" },
+          "localizations": { "ko": { "T": "티", "Copied": "복사됨", "Low": "낮음", "At ${x}": "${x} 상태" } } }
+        """.utf8))
+        let definition = try WorkflowDefinition.decode(from: Data(#"""
+        {"schemaVersion":1,"sources":{},"view":{"type":"button","title":"Copy","action":{"type":"copy","value":"Copied","toast":"Copied"}},
+         "alerts":{"a":{"when":"${true}","title":"Low","body":"At ${x}"}}}
+        """#.utf8))
+        let localized = try XCTUnwrap(manifest.localization(for: "ko")).workflow(definition)
+        let action = localized.view.objectValue?["action"]?.objectValue
+        XCTAssertEqual(action?["toast"], .string("복사됨"))
+        XCTAssertEqual(action?["value"], .string("Copied"), "what is copied is behavior, not display text")
+        XCTAssertEqual(localized.alerts?["a"]?.title, "낮음")
+        XCTAssertEqual(localized.alerts?["a"]?.body, "${x} 상태")
+        XCTAssertEqual(localized.alerts?["a"]?.when, "${true}")
     }
 }

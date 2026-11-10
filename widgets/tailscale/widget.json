@@ -1,0 +1,80 @@
+{
+  "$schema": "https://barshelf.jiun.dev/schema/widget-0.1.json",
+  "schemaVersion": 1,
+  "id": "dev.barshelf.tailscale",
+  "name": "Tailscale",
+  "version": "0.1.0",
+  "minHostVersion": "0.7.21",
+  "icon": "network",
+  "bucket": {
+    "group": "System",
+    "order": 14,
+    "size": "M"
+  },
+  "entry": {
+    "kind": "workflow",
+    "main": "workflow.json"
+  },
+  "refresh": {
+    "onOpen": true,
+    "interval": 60,
+    "staleAfterSec": 60,
+    "runInBackground": true,
+    "triggers": [
+      "wake"
+    ]
+  },
+  "statusItem": {
+    "mode": "dynamic",
+    "icon": "network"
+  },
+  "permissions": {
+    "exec": [
+      {
+        "command": "/usr/bin/osascript",
+        "allowedArgs": [
+          [
+            "-l",
+            "JavaScript",
+            "./tailscale.js"
+          ]
+        ],
+        "maxOutputBytes": 1048576,
+        "sensitiveOutput": true
+      }
+    ],
+    "notifications": true
+  },
+  "settings": [
+    {
+      "key": "showOffline",
+      "type": "boolean",
+      "title": "Show offline devices",
+      "default": true
+    },
+    {
+      "key": "alertOnDisconnect",
+      "type": "boolean",
+      "title": "Notify when Tailscale disconnects",
+      "default": true
+    }
+  ],
+  "appearance": {
+    "accent": "purple"
+  },
+  "localizations": {
+    "ko": {
+      "Tailscale": "Tailscale 네트워크",
+      "Show offline devices": "오프라인 기기도 보기",
+      "Notify when Tailscale disconnects": "Tailscale 연결이 끊기면 알림",
+      "${transforms.onlineBadge} online": "${transforms.onlineBadge} 온라인",
+      "Tailscale not found": "Tailscale을 찾을 수 없음",
+      "Install the Tailscale app or the tailscale CLI.": "Tailscale 앱이나 tailscale CLI를 설치하세요.",
+      "No devices to show": "표시할 기기 없음",
+      "Other devices in your tailnet appear here.": "tailnet의 다른 기기가 여기에 나타납니다.",
+      "Search devices": "기기 검색",
+      "Copied": "복사됨",
+      "Tailscale: ${transforms.stateWord} · ${transforms.onlineBadge} online": "Tailscale: ${transforms.stateWord} · ${transforms.onlineBadge} 온라인"
+    }
+  }
+}

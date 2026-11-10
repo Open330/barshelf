@@ -1,0 +1,135 @@
+{
+  "schemaVersion": 1,
+  "kind": "workflow",
+  "_comment": "Hacker News front page through the public Algolia HN API (no key). A row opens the story; the bubble opens the HN discussion.",
+  "sources": {
+    "hn": {
+      "use": "http",
+      "with": {
+        "url": "https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=${coalesce(settings.count, 10)}"
+      }
+    }
+  },
+  "transforms": {
+    "ko": {
+      "use": "assign",
+      "from": "or(eq(coalesce(widget.locale, ''), 'ko'), or(eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko-…'), eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko_…')))"
+    },
+    "rows": {
+      "use": "template",
+      "with": {
+        "forEach": "$.sources.hn.hits",
+        "as": "h",
+        "template": {
+          "id": "hn-${h.objectID}",
+          "title": "${coalesce(h.title, '(untitled)')}",
+          "link": "${coalesce(h.url, concat('https://news.ycombinator.com/item?id=', h.objectID))}",
+          "item": "https://news.ycombinator.com/item?id=${h.objectID}",
+          "meta": "${if(transforms.ko, concat(string(coalesce(h.points, 0)), '점 · 댓글 ', string(coalesce(h.num_comments, 0)), ' · ', date.relative(mul(number(h.created_at_i), 1000))), concat(string(coalesce(h.points, 0)), ' points · ', string(coalesce(h.num_comments, 0)), ' comments · ', date.relative(mul(number(h.created_at_i), 1000))))}"
+        }
+      }
+    }
+  },
+  "view": {
+    "type": "vstack",
+    "spacing": 4,
+    "children": [
+      {
+        "type": "hstack",
+        "spacing": 6,
+        "children": [
+          {
+            "type": "image",
+            "source": {
+              "kind": "sfSymbol",
+              "name": "y.square.fill"
+            },
+            "size": 14,
+            "tint": "accent"
+          },
+          {
+            "type": "text",
+            "text": "Hacker News",
+            "role": "caption",
+            "foreground": "secondary"
+          },
+          {
+            "type": "spacer"
+          },
+          {
+            "type": "button",
+            "icon": "arrow.up.right.square",
+            "action": {
+              "type": "openURL",
+              "url": "https://news.ycombinator.com/"
+            },
+            "accessibilityLabel": "Open Hacker News"
+          }
+        ]
+      },
+      {
+        "type": "list",
+        "spacing": 2,
+        "searchPlaceholder": "Search stories",
+        "items": {
+          "forEach": "$.transforms.rows",
+          "as": "s",
+          "template": {
+            "type": "hstack",
+            "id": "${s.id}",
+            "spacing": 6,
+            "padding": 4,
+            "desktopRole": "item",
+            "action": {
+              "type": "openURL",
+              "url": "${s.link}"
+            },
+            "children": [
+              {
+                "type": "vstack",
+                "spacing": 1,
+                "widthFill": true,
+                "children": [
+                  {
+                    "type": "text",
+                    "text": "${s.title}",
+                    "role": "body",
+                    "lineLimit": 2,
+                    "desktopRole": "title"
+                  },
+                  {
+                    "type": "text",
+                    "text": "${s.meta}",
+                    "role": "caption",
+                    "foreground": "secondary",
+                    "lineLimit": 1,
+                    "desktopRole": "detail"
+                  }
+                ]
+              },
+              {
+                "type": "button",
+                "icon": "bubble.left",
+                "action": {
+                  "type": "openURL",
+                  "url": "${s.item}"
+                },
+                "accessibilityLabel": "Open comments",
+                "desktopRole": "hide"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "empty": {
+    "type": "empty",
+    "icon": "newspaper",
+    "title": "No stories",
+    "subtitle": "The front page came back empty. Try again in a moment."
+  },
+  "status": {
+    "tooltip": "Hacker News: ${string(count(transforms.rows))} stories"
+  }
+}

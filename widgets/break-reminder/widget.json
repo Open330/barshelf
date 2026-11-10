@@ -1,0 +1,48 @@
+{
+  "$schema": "https://barshelf.jiun.dev/schema/widget-0.1.json",
+  "schemaVersion": 1,
+  "id": "dev.barshelf.break-reminder",
+  "name": "Break Reminder",
+  "version": "0.1.0",
+  "minHostVersion": "0.7.21",
+  "icon": "figure.stand",
+  "bucket": { "group": "Everyday", "order": 45, "size": "S" },
+
+  "entry": { "kind": "script", "runtime": "deno-ts@1" },
+  "source": { "kind": "script", "output": "viewtree" },
+
+  "refresh": {
+    "onOpen": true,
+    "interval": null,
+    "staleAfterSec": 60
+  },
+
+  "statusItem": { "mode": "text", "icon": "figure.stand" },
+
+  "permissions": {
+    "notifications": true
+  },
+
+  "settings": [
+    {
+      "key": "intervalMinutes",
+      "type": "integer",
+      "title": "Remind me every (minutes)",
+      "default": 50,
+      "min": 5,
+      "max": 180
+    }
+  ],
+
+  "appearance": {
+    "accent": "green",
+    "cardStyle": "tinted"
+  },
+
+  "localizations": {
+    "ko": {
+      "Break Reminder": "휴식 알림",
+      "Remind me every (minutes)": "알림 간격(분)"
+    }
+  }
+}

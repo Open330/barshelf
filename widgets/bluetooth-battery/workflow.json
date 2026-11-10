@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 1,
+  "kind": "workflow",
+  "_comment": "Bluetooth device batteries: a JXA helper reads system_profiler (names, AirPods left/right/case) and ioreg BatteryPercent (HID devices), read-only and without a shell. Lowest level goes to the menu bar; a rising-edge alert fires when it drops to the setting.",
+  "sources": {
+    "bt": {
+      "use": "exec",
+      "with": {
+        "command": [
+          "/usr/bin/osascript",
+          "-l",
+          "JavaScript",
+          "./bluetooth-battery.js"
+        ],
+        "timeoutMs": 15000,
+        "maxOutputBytes": 65536
+      }
+    }
+  },
+  "transforms": {
+    "ko": {
+      "use": "assign",
+      "from": "or(eq(coalesce(widget.locale, ''), 'ko'), or(eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko-…'), eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko_…')))"
+    },
+    "devices": {
+      "use": "assign",
+      "from": "coalesce(sources.bt.devices, [])"
+    },
+    "lowest": {
+      "use": "assign",
+      "from": "sources.bt.lowest"
+    },
+    "lowPct": {
+      "use": "assign",
+      "from": "coalesce(number(settings.lowPct), 20)"
+    },
+    "tip": {
+      "use": "assign",
+      "from": "if(eq(transforms.lowest, null), '—', concat(transforms.lowest.name, ' ', string(transforms.lowest.level), '%'))"
+    }
+  },
+  "view": {
+    "switch": "${if(gt(count(transforms.devices), 0), 'list', 'empty')}",
+    "cases": {
+      "list": {
+        "type": "vstack",
+        "action": {
+          "type": "openURL",
+          "url": "x-apple.systempreferences:com.apple.BluetoothSettings"
+        },
+        "spacing": 10,
+        "children": {
+          "forEach": "$.transforms.devices",
+          "as": "device",
+          "template": {
+            "type": "vstack",
+            "id": "${device.id}",
+            "spacing": 3,
+            "desktopRole": "item",
+            "children": [
+              {
+                "type": "hstack",
+                "spacing": 6,
+                "children": [
+                  {
+                    "type": "image",
+                    "source": {
+                      "kind": "sfSymbol",
+                      "name": "${device.icon}"
+                    },
+                    "size": 14,
+                    "tint": "secondary"
+                  },
+                  {
+                    "type": "text",
+                    "text": "${device.name}",
+                    "role": "body",
+                    "lineLimit": 1,
+                    "desktopRole": "title"
+                  },
+                  {
+                    "type": "spacer"
+                  },
+                  {
+                    "type": "text",
+                    "text": "${string(device.level)}%",
+                    "role": "body",
+                    "monospacedDigit": true,
+                    "foreground": "${if(lte(device.level, transforms.lowPct), 'danger', if(lte(device.level, 40), 'warning', 'good'))}",
+                    "desktopRole": "value"
+                  }
+                ]
+              },
+              {
+                "type": "progress",
+                "style": "linear",
+                "value": "${div(device.level, 100)}",
+                "tint": "${if(lte(device.level, transforms.lowPct), 'danger', if(lte(device.level, 40), 'warning', 'good'))}"
+              },
+              {
+                "type": "text",
+                "text": "${if(transforms.ko, device.detailKo, device.detail)}",
+                "role": "caption",
+                "foreground": "secondary",
+                "lineLimit": 1,
+                "desktopRole": "detail"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "default": {
+      "type": "empty",
+      "action": {
+        "type": "openURL",
+        "url": "x-apple.systempreferences:com.apple.BluetoothSettings"
+      },
+      "icon": "battery.0percent",
+      "title": "No Bluetooth batteries",
+      "subtitle": "Connect AirPods, a Magic Mouse, Keyboard or Trackpad and it shows up here."
+    }
+  },
+  "status": {
+    "label": "${if(eq(transforms.lowest, null), '—', concat(string(transforms.lowest.level), '%'))}",
+    "icon": "${if(eq(transforms.lowest, null), 'battery.0percent', if(gt(transforms.lowest.level, 60), 'battery.100percent', if(gt(transforms.lowest.level, 25), 'battery.50percent', 'battery.25percent')))}",
+    "tint": "${if(and(ne(transforms.lowest, null), lte(transforms.lowest.level, transforms.lowPct)), 'danger', '')}",
+    "tooltip": "Lowest: ${transforms.tip}"
+  },
+  "alerts": {
+    "low": {
+      "when": "${if(eq(transforms.lowest, null), null, lte(transforms.lowest.level, transforms.lowPct))}",
+      "title": "${transforms.lowest.name} is at ${string(transforms.lowest.level)}%",
+      "body": "Charge it soon.",
+      "cooldownSec": 3600
+    }
+  }
+}

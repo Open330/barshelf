@@ -1,0 +1,52 @@
+{
+  "$schema": "https://barshelf.jiun.dev/schema/widget-0.1.json",
+  "schemaVersion": 1,
+  "id": "dev.barshelf.crypto",
+  "name": "Crypto",
+  "version": "0.1.0",
+  "minHostVersion": "0.7.21",
+  "icon": "bitcoinsign.circle.fill",
+  "bucket": { "group": "Everyday", "order": 44, "size": "M" },
+
+  "entry": { "kind": "workflow", "main": "workflow.json" },
+
+  "refresh": { "onOpen": true, "interval": 600, "staleAfterSec": 600 },
+
+  "statusItem": { "mode": "text", "icon": "bitcoinsign.circle.fill" },
+
+  "permissions": {
+    "network": ["api.coingecko.com"]
+  },
+
+  "settings": [
+    { "key": "coins", "title": "Coins (CoinGecko ids, comma-separated)", "type": "string", "default": "bitcoin,ethereum" },
+    {
+      "key": "currency", "title": "Currency", "type": "enum", "default": "usd",
+      "options": ["usd", "krw", "eur", "jpy", "gbp"],
+      "optionTitles": ["US dollar ($)", "Korean won (₩)", "Euro (€)", "Japanese yen (¥)", "British pound (£)"]
+    },
+    { "key": "menuBarCoin", "title": "Menu bar coin (id)", "type": "string", "default": "bitcoin" }
+  ],
+
+  "appearance": {
+    "accent": "orange"
+  },
+
+  "localizations": {
+    "ko": {
+      "Crypto": "암호화폐",
+      "Coins (CoinGecko ids, comma-separated)": "코인 (CoinGecko id, 쉼표로 구분)",
+      "Currency": "통화",
+      "US dollar ($)": "미국 달러 ($)",
+      "Korean won (₩)": "원 (₩)",
+      "Euro (€)": "유로 (€)",
+      "Japanese yen (¥)": "엔 (¥)",
+      "British pound (£)": "영국 파운드 (£)",
+      "Menu bar coin (id)": "메뉴 막대 코인 (id)",
+      "24h change · CoinGecko · ${date.clock(date.ms(transforms.first.last_updated))}": "24시간 변동 · CoinGecko · ${date.clock(date.ms(transforms.first.last_updated))}",
+      "No coins found": "코인을 찾지 못함",
+      "Use CoinGecko ids such as bitcoin,ethereum,solana in widget settings.": "위젯 설정에 bitcoin,ethereum,solana 같은 CoinGecko id를 입력하세요.",
+      "${transforms.menu.name} ${transforms.menu.price} (${transforms.menu.change}, 24h)": "${transforms.menu.name} ${transforms.menu.price} (24시간 ${transforms.menu.change})"
+    }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "$schema": "https://barshelf.jiun.dev/schema/widget-0.1.json",
+  "schemaVersion": 1,
+  "id": "dev.barshelf.air-quality",
+  "name": "Air Quality",
+  "version": "0.1.0",
+  "minHostVersion": "0.7.21",
+  "icon": "aqi.medium",
+  "bucket": { "group": "Everyday", "order": 43, "size": "M" },
+
+  "entry": { "kind": "workflow", "main": "workflow.json" },
+
+  "refresh": { "onOpen": true, "interval": 900, "staleAfterSec": 1800, "runInBackground": true, "triggers": ["wake"] },
+
+  "statusItem": { "mode": "text", "icon": "aqi.medium" },
+
+  "permissions": {
+    "network": ["air-quality-api.open-meteo.com"],
+    "notifications": true
+  },
+
+  "settings": [
+    { "key": "place", "title": "Place name", "type": "string", "default": "Seoul" },
+    { "key": "lat", "title": "Latitude", "type": "string", "default": "37.57" },
+    { "key": "lon", "title": "Longitude", "type": "string", "default": "126.98" },
+    { "key": "notify", "title": "Notify when PM2.5 is high", "type": "boolean", "default": true },
+    { "key": "alertPM25", "title": "PM2.5 alert level (µg/m³)", "type": "integer", "default": 36, "min": 5, "max": 300 }
+  ],
+
+  "appearance": {
+    "accent": "green"
+  },
+
+  "localizations": {
+    "ko": {
+      "Air Quality": "미세먼지",
+      "Place name": "장소 이름",
+      "Latitude": "위도",
+      "Longitude": "경도",
+      "Notify when PM2.5 is high": "초미세먼지가 높으면 알림",
+      "PM2.5 alert level (µg/m³)": "초미세먼지 알림 기준 (µg/m³)",
+      "PM2.5": "초미세먼지",
+      "PM10": "미세먼지",
+      "${settings.place} PM2.5 ${transforms.show.pm25} µg/m³ (${transforms.show.w25}) · PM10 ${transforms.show.pm10} µg/m³ (${transforms.show.w10})": "${settings.place} 초미세먼지 ${transforms.show.pm25} µg/m³ (${transforms.show.w25}) · 미세먼지 ${transforms.show.pm10} µg/m³ (${transforms.show.w10})",
+      "US AQI ${transforms.show.us} · EU AQI ${transforms.show.eu} · ${transforms.show.at}": "미국 AQI ${transforms.show.us} · 유럽 AQI ${transforms.show.eu} · ${transforms.show.at}"
+    }
+  }
+}

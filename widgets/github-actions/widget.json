@@ -1,0 +1,93 @@
+{
+  "$schema": "https://barshelf.jiun.dev/schema/widget-0.1.json",
+  "schemaVersion": 1,
+  "id": "dev.barshelf.github-actions",
+  "name": "GitHub Actions",
+  "version": "0.1.0",
+  "minHostVersion": "0.7.21",
+  "icon": "bolt.horizontal.circle.fill",
+  "bucket": {
+    "group": "Developer",
+    "order": 45,
+    "size": "M"
+  },
+  "entry": {
+    "kind": "workflow",
+    "main": "workflow.json"
+  },
+  "refresh": {
+    "onOpen": true,
+    "interval": 300,
+    "staleAfterSec": 300,
+    "runInBackground": true,
+    "triggers": [
+      "wake"
+    ]
+  },
+  "statusItem": {
+    "mode": "dynamic",
+    "icon": "bolt.horizontal.circle.fill"
+  },
+  "permissions": {
+    "exec": [
+      {
+        "command": "gh",
+        "allowedArgs": [
+          [
+            "run",
+            "list",
+            "-R",
+            "*",
+            "--limit",
+            "8",
+            "--json",
+            "databaseId,name,displayTitle,status,conclusion,headBranch,event,createdAt,url"
+          ],
+          [
+            "run",
+            "list",
+            "-R",
+            "*",
+            "--branch",
+            "*",
+            "--status",
+            "completed",
+            "--limit",
+            "1",
+            "--json",
+            "databaseId,name,displayTitle,conclusion,headBranch,createdAt,url"
+          ]
+        ],
+        "maxOutputBytes": 262144,
+        "sensitiveOutput": true
+      }
+    ],
+    "notifications": true
+  },
+  "settings": [
+    {
+      "key": "repo",
+      "type": "string",
+      "title": "Repository (owner/name)",
+      "default": "Open330/barshelf"
+    },
+    {
+      "key": "branch",
+      "type": "string",
+      "title": "Branch to watch",
+      "default": "main"
+    }
+  ],
+  "appearance": {
+    "accent": "green"
+  },
+  "localizations": {
+    "ko": {
+      "GitHub Actions": "GitHub Actions 빌드",
+      "Repository (owner/name)": "저장소 (소유자/이름)",
+      "Branch to watch": "지켜볼 브랜치",
+      "No workflow runs": "워크플로 실행 없음",
+      "This repository has no Actions runs yet.": "이 저장소에는 아직 Actions 실행 기록이 없습니다."
+    }
+  }
+}

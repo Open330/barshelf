@@ -1,0 +1,215 @@
+{
+  "$schema": "https://barshelf.jiun.dev/schema/workflow-0.1.json",
+  "schemaVersion": 1,
+  "kind": "workflow",
+  "_comment": "Bitwarden CLI vault status from `bw status` only: no session, no unlock, no sync, no item data. A fixed shell wrapper finds bw (Homebrew, npm under nvm/volta and similar; npm's bw is a node script, so its own bin folder goes first on PATH), and sed drops userEmail and userId before the output reaches BarShelf. BarShelf passes no BW_SESSION, so a logged-in vault reads as locked even while a terminal has it unlocked. A missing reading is null for the stale-sync alert.",
+  "sources": {
+    "bw": {
+      "use": "exec",
+      "with": {
+        "command": [
+          "/bin/sh",
+          "-c",
+          "b=; for c in \"$(command -v bw 2>/dev/null)\" /opt/homebrew/bin/bw /usr/local/bin/bw \"$HOME\"/.nvm/versions/node/*/bin/bw \"$HOME/.volta/bin/bw\" \"$HOME/.npm-global/bin/bw\" \"$HOME/.local/bin/bw\" \"$HOME/Library/pnpm/bw\" \"$HOME/.bun/bin/bw\"; do if [ -n \"$c\" ] && [ -x \"$c\" ]; then b=$c; break; fi; done; if [ -z \"$b\" ]; then printf '{\"installed\":false}'; exit 0; fi; out=$(PATH=\"$(/usr/bin/dirname \"$b\"):$PATH\" BW_NOINTERACTION=true \"$b\" status 2>/dev/null) || { printf '{\"installed\":true,\"ok\":false}'; exit 0; }; case \"$out\" in \"{\"*) ;; *) printf '{\"installed\":true,\"ok\":false}'; exit 0;; esac; printf '%s' \"$out\" | /usr/bin/sed -E 's/\"user(Email|Id)\":(\"[^\"]*\"|null),?//g; s/,}/}/g'",
+          "bitwarden"
+        ],
+        "timeoutMs": 20000
+      }
+    }
+  },
+  "transforms": {
+    "ko": {
+      "use": "assign",
+      "from": "or(eq(coalesce(widget.locale, ''), 'ko'), or(eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko-…'), eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko_…')))"
+    },
+    "ok": {
+      "use": "assign",
+      "from": "and(ne(sources.bw.installed, false), ne(sources.bw.ok, false), ne(string(sources.bw.status), ''))"
+    },
+    "state": {
+      "use": "assign",
+      "from": "if(eq(sources.bw.installed, false), 'missing', if(transforms.ok, sources.bw.status, 'error'))"
+    },
+    "stateWord": {
+      "use": "assign",
+      "from": "if(transforms.ko, switch(transforms.state, 'locked', '잠김', 'unlocked', '잠금 해제됨', 'unauthenticated', '로그아웃됨', 'missing', 'bw 없음', '읽을 수 없음'), switch(transforms.state, 'locked', 'Locked', 'unlocked', 'Unlocked', 'unauthenticated', 'Logged out', 'missing', 'bw not found', 'Unreadable'))"
+    },
+    "icon": {
+      "use": "assign",
+      "from": "switch(transforms.state, 'locked', 'lock.fill', 'unlocked', 'lock.open.fill', 'unauthenticated', 'person.crop.circle.badge.xmark', 'lock.slash')"
+    },
+    "tint": {
+      "use": "assign",
+      "from": "switch(transforms.state, 'locked', 'good', 'unlocked', 'warning', 'unauthenticated', 'secondary', 'secondary')"
+    },
+    "syncMs": {
+      "use": "assign",
+      "from": "date.ms(sources.bw.lastSync)"
+    },
+    "ageDays": {
+      "use": "assign",
+      "from": "if(eq(transforms.syncMs, null), null, div(sub(now(), transforms.syncMs), 86400000))"
+    },
+    "stale": {
+      "use": "assign",
+      "from": "and(ne(transforms.ageDays, null), gt(coalesce(transforms.ageDays, 0), coalesce(settings.staleDays, 7)))"
+    },
+    "syncText": {
+      "use": "assign",
+      "from": "if(eq(transforms.syncMs, null), if(transforms.ko, '없음', 'Never'), date.relative(transforms.syncMs))"
+    },
+    "server": {
+      "use": "assign",
+      "from": "if(eq(string(sources.bw.serverUrl), ''), if(transforms.ko, 'bitwarden.com (기본)', 'bitwarden.com (default)'), sources.bw.serverUrl)"
+    },
+    "staleReading": {
+      "use": "assign",
+      "from": "if(and(transforms.ok, ne(transforms.state, 'unauthenticated'), ne(transforms.syncMs, null), coalesce(settings.alertOnStale, true)), transforms.stale, null)"
+    },
+    "alertTitle": {
+      "use": "assign",
+      "from": "if(transforms.ko, concat('Bitwarden을 ', string(round(coalesce(transforms.ageDays, 0))), '일 동안 동기화하지 않았습니다'), concat('Bitwarden hasn’t synced in ', string(round(coalesce(transforms.ageDays, 0))), ' days'))"
+    },
+    "alertBody": {
+      "use": "assign",
+      "from": "if(transforms.ko, '터미널에서 bw sync를 실행하거나 Bitwarden 앱을 여세요.', 'Run bw sync in Terminal or open a Bitwarden app.')"
+    }
+  },
+  "view": {
+    "type": "vstack",
+    "spacing": 8,
+    "children": [
+      {
+        "type": "hstack",
+        "spacing": 8,
+        "children": [
+          {
+            "type": "image",
+            "source": {
+              "kind": "sfSymbol",
+              "name": "${transforms.icon}"
+            },
+            "size": 22,
+            "tint": "${transforms.tint}"
+          },
+          {
+            "type": "text",
+            "text": "${transforms.stateWord}",
+            "role": "title",
+            "lineLimit": 1
+          },
+          {
+            "type": "spacer"
+          }
+        ]
+      },
+      {
+        "switch": "${transforms.state}",
+        "cases": {
+          "missing": {
+            "type": "empty",
+            "icon": "lock.slash",
+            "title": "Bitwarden CLI not found",
+            "subtitle": "Install it with Homebrew (bitwarden-cli) or npm (@bitwarden/cli)."
+          },
+          "error": {
+            "type": "banner",
+            "icon": "exclamationmark.triangle",
+            "tone": "warning",
+            "text": "bw status did not answer. Check the Bitwarden CLI in Terminal."
+          },
+          "unauthenticated": {
+            "type": "banner",
+            "icon": "person.crop.circle.badge.questionmark",
+            "tone": "secondary",
+            "text": "Not logged in. Run bw login in Terminal."
+          }
+        },
+        "default": {
+          "type": "vstack",
+          "spacing": 5,
+          "children": [
+            {
+              "type": "hstack",
+              "spacing": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "text": "Last sync",
+                  "role": "caption",
+                  "foreground": "secondary"
+                },
+                {
+                  "type": "spacer"
+                },
+                {
+                  "type": "text",
+                  "text": "${transforms.syncText}",
+                  "role": "caption",
+                  "foreground": "${if(transforms.stale, 'warning', 'primary')}"
+                }
+              ]
+            },
+            {
+              "type": "hstack",
+              "spacing": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "text": "Server",
+                  "role": "caption",
+                  "foreground": "secondary"
+                },
+                {
+                  "type": "spacer"
+                },
+                {
+                  "type": "text",
+                  "text": "${transforms.server}",
+                  "role": "caption",
+                  "lineLimit": 1,
+                  "truncation": "middle"
+                }
+              ]
+            },
+            {
+              "switch": "${if(transforms.stale, 'stale', 'fresh')}",
+              "cases": {
+                "stale": {
+                  "type": "banner",
+                  "icon": "arrow.triangle.2.circlepath",
+                  "tone": "warning",
+                  "text": "Not synced for more than ${string(coalesce(settings.staleDays, 7))} days."
+                }
+              },
+              "default": {
+                "type": "none"
+              }
+            },
+            {
+              "type": "text",
+              "text": "Shows status only. BarShelf never unlocks the vault or reads items.",
+              "role": "caption",
+              "foreground": "tertiary",
+              "lineLimit": 2
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "status": {
+    "label": "${transforms.stateWord}",
+    "icon": "${transforms.icon}",
+    "tint": "${if(transforms.stale, 'warning', '')}",
+    "tooltip": "Bitwarden: ${transforms.stateWord} · ${transforms.syncText}"
+  },
+  "alerts": {
+    "stale": {
+      "when": "${transforms.staleReading}",
+      "title": "${transforms.alertTitle}",
+      "body": "${transforms.alertBody}",
+      "cooldownSec": 86400
+    }
+  }
+}

@@ -1,0 +1,297 @@
+{
+  "$schema": "https://barshelf.jiun.dev/schema/workflow-0.1.json",
+  "schemaVersion": 1,
+  "kind": "workflow",
+  "_comment": "Tailscale state from `tailscale status --json`, through tailscale.js (JXA) because the CLI's Peer map has to become a list before a workflow can iterate it. The helper only reads status. A CLI that could not be reached is no reading (null) for the disconnect alert, so a hiccup never notifies.",
+  "sources": {
+    "ts": {
+      "use": "exec",
+      "with": {
+        "command": [
+          "/usr/bin/osascript",
+          "-l",
+          "JavaScript",
+          "./tailscale.js"
+        ],
+        "timeoutMs": 15000
+      }
+    }
+  },
+  "transforms": {
+    "ko": {
+      "use": "assign",
+      "from": "or(eq(coalesce(widget.locale, ''), 'ko'), or(eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko-…'), eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko_…')))"
+    },
+    "state": {
+      "use": "assign",
+      "from": "if(sources.ts.ok, sources.ts.backendState, if(sources.ts.installed, 'Unreachable', 'Missing'))"
+    },
+    "connected": {
+      "use": "assign",
+      "from": "eq(transforms.state, 'Running')"
+    },
+    "stateWord": {
+      "use": "assign",
+      "from": "if(transforms.ko, switch(transforms.state, 'Running', '연결됨', 'Stopped', '꺼짐', 'Starting', '연결 중', 'NeedsLogin', '로그인 필요', 'NeedsMachineAuth', '기기 승인 필요', 'Unreachable', 'Tailscale 응답 없음', 'Missing', '설치되지 않음', '연결 안 됨'), switch(transforms.state, 'Running', 'Connected', 'Stopped', 'Off', 'Starting', 'Connecting', 'NeedsLogin', 'Needs login', 'NeedsMachineAuth', 'Needs approval', 'Unreachable', 'Tailscale not responding', 'Missing', 'Not installed', 'Not connected'))"
+    },
+    "tint": {
+      "use": "assign",
+      "from": "switch(transforms.state, 'Running', 'good', 'Starting', 'accent', 'NeedsLogin', 'warning', 'NeedsMachineAuth', 'warning', 'secondary')"
+    },
+    "visiblePeers": {
+      "use": "assign",
+      "from": "if(settings.showOffline, sources.ts.peers, transforms.onlinePeers)"
+    },
+    "onlinePeers": {
+      "use": "filter",
+      "from": "$.sources.ts.peers",
+      "with": {
+        "field": "online",
+        "equals": true
+      }
+    },
+    "rows": {
+      "use": "template",
+      "with": {
+        "forEach": "$.transforms.visiblePeers",
+        "as": "p",
+        "template": {
+          "id": "peer-${p.id}",
+          "name": "${p.name}",
+          "detail": "${concat(p.ip, if(eq(p.os, ''), '', concat(' · ', p.os)))}",
+          "ip": "${p.ip}",
+          "icon": "${switch(p.os, 'macOS', 'laptopcomputer', 'iOS', 'iphone', 'android', 'candybarphone', 'windows', 'pc', 'linux', 'server.rack', 'tvOS', 'appletv', 'desktopcomputer')}",
+          "seen": "${if(p.online, if(transforms.ko, '온라인', 'Online'), if(eq(p.lastSeen, null), if(transforms.ko, '오프라인', 'Offline'), date.relative(p.lastSeen)))}",
+          "tint": "${if(p.online, 'good', 'secondary')}",
+          "exitWord": "${if(p.exitNode, if(transforms.ko, '출구 노드', 'Exit node'), '')}"
+        }
+      }
+    },
+    "selfLine": {
+      "use": "assign",
+      "from": "concat(sources.ts.self.name, if(eq(string(sources.ts.self.ip), ''), '', concat(' · ', sources.ts.self.ip)))"
+    },
+    "exitLine": {
+      "use": "assign",
+      "from": "if(eq(sources.ts.exitNode, null), if(transforms.ko, '출구 노드 없음', 'No exit node'), concat(if(transforms.ko, '출구 노드: ', 'Exit node: '), sources.ts.exitNode))"
+    },
+    "onlineBadge": {
+      "use": "assign",
+      "from": "concat(string(coalesce(sources.ts.onlineCount, 0)), '/', string(coalesce(sources.ts.peerCount, 0)))"
+    },
+    "disconnected": {
+      "use": "assign",
+      "from": "if(and(sources.ts.ok, coalesce(settings.alertOnDisconnect, true)), not(transforms.connected), null)"
+    },
+    "alertTitle": {
+      "use": "assign",
+      "from": "if(transforms.ko, concat('Tailscale: ', transforms.stateWord), concat('Tailscale is ', if(eq(transforms.state, 'Stopped'), 'off', 'disconnected')))"
+    },
+    "alertBody": {
+      "use": "assign",
+      "from": "if(transforms.ko, concat('이 Mac(', sources.ts.self.name, ')이 tailnet에서 끊겼습니다.'), concat('This Mac (', sources.ts.self.name, ') left the tailnet: ', transforms.stateWord, '.'))"
+    }
+  },
+  "view": {
+    "type": "vstack",
+    "spacing": 8,
+    "children": [
+      {
+        "type": "hstack",
+        "spacing": 6,
+        "children": [
+          {
+            "type": "image",
+            "source": {
+              "kind": "sfSymbol",
+              "name": "${if(transforms.connected, 'network', 'network.slash')}"
+            },
+            "size": 15,
+            "tint": "${transforms.tint}"
+          },
+          {
+            "type": "text",
+            "text": "${transforms.stateWord}",
+            "role": "body",
+            "lineLimit": 1
+          },
+          {
+            "type": "spacer"
+          },
+          {
+            "type": "badge",
+            "text": "${transforms.onlineBadge} online",
+            "tint": "${if(transforms.connected, 'accent', 'secondary')}"
+          }
+        ]
+      },
+      {
+        "switch": "${if(not(sources.ts.installed), 'missing', if(not(sources.ts.ok), 'error', 'ok'))}",
+        "cases": {
+          "missing": {
+            "type": "empty",
+            "icon": "network.slash",
+            "title": "Tailscale not found",
+            "subtitle": "Install the Tailscale app or the tailscale CLI."
+          },
+          "error": {
+            "type": "banner",
+            "icon": "exclamationmark.triangle",
+            "tone": "warning",
+            "text": "${coalesce(sources.ts.error, 'Tailscale did not answer.')}"
+          }
+        },
+        "default": {
+          "type": "vstack",
+          "spacing": 6,
+          "children": [
+            {
+              "type": "hstack",
+              "spacing": 6,
+              "children": [
+                {
+                  "type": "image",
+                  "source": {
+                    "kind": "sfSymbol",
+                    "name": "laptopcomputer"
+                  },
+                  "size": 12,
+                  "tint": "secondary"
+                },
+                {
+                  "type": "text",
+                  "text": "${transforms.selfLine}",
+                  "role": "caption",
+                  "foreground": "secondary",
+                  "lineLimit": 1
+                },
+                {
+                  "type": "spacer"
+                },
+                {
+                  "type": "text",
+                  "text": "${transforms.exitLine}",
+                  "role": "caption",
+                  "foreground": "${if(eq(sources.ts.exitNode, null), 'tertiary', 'accent')}",
+                  "lineLimit": 1
+                }
+              ]
+            },
+            {
+              "switch": "${if(gt(count(sources.ts.health), 0), 'warn', 'fine')}",
+              "cases": {
+                "warn": {
+                  "type": "banner",
+                  "icon": "stethoscope",
+                  "tone": "warning",
+                  "text": "${string(get(sources.ts.health, 0))}"
+                }
+              },
+              "default": {
+                "type": "none"
+              }
+            },
+            {
+              "type": "divider"
+            },
+            {
+              "switch": "${if(eq(count(transforms.rows), 0), 'none', 'list')}",
+              "cases": {
+                "none": {
+                  "type": "empty",
+                  "icon": "person.2.slash",
+                  "title": "No devices to show",
+                  "subtitle": "Other devices in your tailnet appear here."
+                }
+              },
+              "default": {
+                "type": "list",
+                "spacing": 2,
+                "searchPlaceholder": "Search devices",
+                "items": {
+                  "forEach": "$.transforms.rows",
+                  "as": "row",
+                  "template": {
+                    "type": "hstack",
+                    "id": "${row.id}",
+                    "spacing": 8,
+                    "action": {
+                      "type": "copyText",
+                      "value": "${row.ip}",
+                      "toast": "Copied"
+                    },
+                    "children": [
+                      {
+                        "type": "image",
+                        "source": {
+                          "kind": "sfSymbol",
+                          "name": "${row.icon}"
+                        },
+                        "size": 14,
+                        "tint": "${row.tint}"
+                      },
+                      {
+                        "type": "vstack",
+                        "spacing": 1,
+                        "widthFill": true,
+                        "children": [
+                          {
+                            "type": "text",
+                            "text": "${row.name}",
+                            "role": "body",
+                            "lineLimit": 1
+                          },
+                          {
+                            "type": "text",
+                            "text": "${row.detail}",
+                            "role": "caption",
+                            "foreground": "secondary",
+                            "lineLimit": 1
+                          }
+                        ]
+                      },
+                      {
+                        "type": "vstack",
+                        "spacing": 1,
+                        "children": [
+                          {
+                            "type": "text",
+                            "text": "${row.seen}",
+                            "role": "caption",
+                            "foreground": "${row.tint}",
+                            "lineLimit": 1
+                          },
+                          {
+                            "type": "text",
+                            "text": "${row.exitWord}",
+                            "role": "caption",
+                            "foreground": "accent",
+                            "lineLimit": 1
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "status": {
+    "label": "${if(transforms.connected, if(eq(sources.ts.exitNode, null), if(transforms.ko, '켜짐', 'On'), concat('→ ', sources.ts.exitNode)), if(sources.ts.installed, if(transforms.ko, '꺼짐', 'Off'), ''))}",
+    "icon": "${if(transforms.connected, 'network', 'network.slash')}",
+    "tint": "${if(or(eq(transforms.state, 'NeedsLogin'), eq(transforms.state, 'NeedsMachineAuth')), 'warning', '')}",
+    "tooltip": "Tailscale: ${transforms.stateWord} · ${transforms.onlineBadge} online"
+  },
+  "alerts": {
+    "disconnected": {
+      "when": "${transforms.disconnected}",
+      "title": "${transforms.alertTitle}",
+      "body": "${transforms.alertBody}",
+      "cooldownSec": 1800
+    }
+  }
+}
