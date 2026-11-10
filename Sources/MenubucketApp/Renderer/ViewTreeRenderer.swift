@@ -29,7 +29,19 @@ private struct WidgetContentIsActiveKey: EnvironmentKey {
     static let defaultValue = true
 }
 
+private struct WidgetPinnedNowKey: EnvironmentKey {
+    static let defaultValue: Date? = nil
+}
+
 extension EnvironmentValues {
+    /// A fixed "now" for host-side clocks (countdowns). Only recorded
+    /// demos set it (`landing-media`), so a frame shows the moment its data
+    /// was staged at rather than whenever it happened to be rendered.
+    var widgetPinnedNow: Date? {
+        get { self[WidgetPinnedNowKey.self] }
+        set { self[WidgetPinnedNowKey.self] = newValue }
+    }
+
     /// False for pages kept in the horizontal pager only for swipe layout.
     /// Side-effectful/render-loop leaves use it to suspend offscreen work.
     var widgetContentIsActive: Bool {
@@ -572,10 +584,13 @@ private struct CountdownProgressView: View {
     let node: UINode
     @Environment(\.widgetAppearance) private var appearance
     @Environment(\.widgetContentIsActive) private var contentIsActive
+    @Environment(\.widgetPinnedNow) private var pinnedNow
 
     @ViewBuilder
     var body: some View {
-        if contentIsActive {
+        if let pinnedNow {
+            content(at: pinnedNow)
+        } else if contentIsActive {
             TimelineView(.periodic(from: .now, by: 1)) { timeline in
                 content(at: timeline.date)
             }

@@ -4,6 +4,7 @@
 #
 #   scripts/render-landing-media.sh            # everything
 #   scripts/render-landing-media.sh hero popup # only these (hero, popup, stills)
+#   scripts/render-landing-media.sh film       # the landing film (not in "everything")
 #
 # Needs ffmpeg (brew install ffmpeg). Runs offscreen: no window, no screen
 # recording, and a throwaway home folder, so it never reads or writes your

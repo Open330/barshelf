@@ -3,7 +3,7 @@ import CoreImage
 import MenubucketCore
 import SwiftUI
 
-/// `barshelf-app landing-media <dir> [hero] [popup] [stills]` records the
+/// `barshelf-app landing-media <dir> [hero] [popup] [stills] [film]` records the
 /// landing page's videos and stills (site/shots) from the real app views.
 ///
 /// Regenerate every release (see docs/RELEASING.md, "Landing page media"):
@@ -68,6 +68,23 @@ enum LandingMediaMode {
         if all || only.contains("stills") {
             ok = LandingStills(demo: demo).render(to: dir) && ok
         }
+        // The film is asked for by name: film (the landing page's cut, as
+        // film.*), film-keynote, film-trailer, or film-preview (a few
+        // stills of each).
+        if only.contains("film") {
+            ok = LandingFilm(demo: demo, style: LandingFilm.landing).record(to: dir, ffmpeg: ffmpeg, name: "film") && ok
+        }
+        for style in LandingFilm.Style.allCases where only.contains("film-\(style.rawValue)") {
+            ok = LandingFilm(demo: demo, style: style).record(to: dir, ffmpeg: ffmpeg) && ok
+        }
+        if only.contains("film-preview") {
+            for style in LandingFilm.Style.allCases {
+                let times = style == .keynote
+                    ? [1.6, 3.4, 5.2, 6.7, 9.0, 13.0, 20.0, 28.5, 34.5, 39.5, 44.5]
+                    : [0.9, 2.6, 6.0, 9.6, 15.0, 20.5, 25.0, 28.5, 32.5]
+                ok = LandingFilm(demo: demo, style: style).record(to: dir, ffmpeg: ffmpeg, previewTimes: times) && ok
+            }
+        }
         return ok ? 0 : 1
     }
 
@@ -93,6 +110,21 @@ enum LandingMediaMode {
     }
 }
 
+// MARK: - Plates
+
+/// One recorded scene as a function of time: the landing clips and every
+/// shot of the film draw from these. `frame(at:)` gives the scene at `t`
+/// seconds, `size` points at `scale` pixels each. Some plates drive real
+/// views that keep state between frames (a pager, a search field), so a
+/// plate's times should not go backwards.
+@MainActor
+protocol LandingPlate: AnyObject {
+    var size: CGSize { get }
+    var scale: CGFloat { get }
+    func prepare() -> Bool
+    func frame(at t: Double) -> CGImage?
+}
+
 // MARK: - Encoding
 
 /// Streams frames to ffmpeg as raw RGBA and writes an MP4 and a WebM.
@@ -104,7 +136,7 @@ final class LandingEncoder {
     private let context: CGContext
     let outputs: [URL]
 
-    init?(ffmpeg: String, size: CGSize, fps: Int, mp4: URL, webm: URL?) {
+    init?(ffmpeg: String, size: CGSize, fps: Int, mp4: URL, webm: URL?, crf: (mp4: Int, webm: Int) = (18, 36)) {
         self.size = size
         let width = Int(size.width), height = Int(size.height)
         buffer = [UInt8](repeating: 0, count: width * height * 4)
@@ -119,7 +151,7 @@ final class LandingEncoder {
             "-f", "rawvideo", "-pix_fmt", "rgba", "-s", "\(width)x\(height)", "-r", "\(fps)", "-i", "-",
             "-vf", "scale=out_color_matrix=bt709:out_range=tv,format=yuv420p",
             "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709",
-            "-c:v", "libx264", "-preset", "slow", "-crf", "18", "-tune", "animation",
+            "-c:v", "libx264", "-preset", "slow", "-crf", "\(crf.mp4)", "-tune", "animation",
             "-movflags", "+faststart", mp4.path,
         ]
         var outputs = [mp4]
@@ -127,7 +159,7 @@ final class LandingEncoder {
             arguments += [
                 "-vf", "scale=out_color_matrix=bt709:out_range=tv,format=yuv420p",
                 "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709",
-                "-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "36", "-row-mt", "1",
+                "-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "\(crf.webm)", "-row-mt", "1",
                 "-deadline", "good", "-cpu-used", "2", webm.path,
             ]
             outputs.append(webm)
@@ -164,11 +196,15 @@ final class LandingEncoder {
 /// reach the same view graph the way they would on screen.
 @MainActor
 final class HostedView<Content: View> {
-    let hosting: NSHostingView<Content>
+    let hosting: NSHostingView<AnyView>
     private let window: NSWindow
 
+    /// Every hosted view's clocks read `HostedView.now`: the demo's staged
+    /// moment, not the time of rendering.
+    static var now: Date? { LandingDemo.stagedNow }
+
     init(_ view: Content, dark: Bool) {
-        hosting = NSHostingView(rootView: view)
+        hosting = NSHostingView(rootView: AnyView(view.environment(\.widgetPinnedNow, Self.now)))
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 10, height: 10),
                           styleMask: [.borderless], backing: .buffered, defer: false)
         window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
@@ -441,6 +477,9 @@ struct LandingMenuBar {
     let width: CGFloat
     let dark: Bool
     var clock = "Thu Nov 12  4:48 PM"
+    /// The app menus on the left (Finder, File, …); off for a crop of the
+    /// right end alone.
+    var showsMenus = true
 
     private static let font = NSFont.systemFont(ofSize: 13, weight: .medium)
 
@@ -464,6 +503,7 @@ struct LandingMenuBar {
             LinearGradient(colors: [(dark ? Color.black : Color.white).opacity(dark ? 0.18 : 0.22), .clear],
                            startPoint: .top, endPoint: .bottom)
                 .frame(width: width, height: Self.height)
+            if showsMenus {
             HStack(spacing: 20) {
                 Image(systemName: "apple.logo").font(.system(size: 14, weight: .medium))
                 Text(verbatim: "Finder").font(.system(size: 13, weight: .bold))
@@ -474,6 +514,7 @@ struct LandingMenuBar {
             }
             .frame(height: Self.height)
             .offset(x: 18)
+            }
             Image(systemName: "battery.75percent").font(.system(size: 15, weight: .regular))
                 .frame(width: 30, height: Self.height).offset(x: batteryX - 15)
             Image(systemName: "wifi").font(.system(size: 13, weight: .semibold))

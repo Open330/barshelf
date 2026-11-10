@@ -335,6 +335,30 @@
     .feature:nth-child(2) mark { background: var(--blue); }
     .feature:nth-child(3) mark { background: var(--green); }
 
+    .feature:nth-child(4) mark { background: var(--accent); }
+    .feature:nth-child(5) mark { background: var(--gold); }
+
+    /* The film: a dark screening band, the video at full width. */
+    .film {
+      background: #0b0c12;
+      color: #f2f1ee;
+    }
+    .film .label { color: #b9a6ff; }
+    .film .section-head p { color: rgba(242, 241, 238, 0.66); }
+    .film-frame {
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 40px 90px rgba(0, 0, 0, 0.55);
+      background: #000;
+    }
+    .film-frame video {
+      display: block;
+      width: 100%;
+      height: auto;
+      aspect-ratio: 16 / 9;
+    }
+
     .band {
       background: var(--paper-2);
       border-block: 1px solid var(--line);
@@ -640,6 +664,7 @@
         <span>BarShelf</span>
       </a>
       <nav class="links" aria-label="Sections">
+        <a href="#film"><span class="en">Film</span><span class="ko">필름</span></a>
         <a href="#features"><span class="en">Features</span><span class="ko">기능</span></a>
         <a href="#showcase"><span class="en">Showcase</span><span class="ko">구성</span></a>
         <a href="widgets/"><span class="en">Widgets</span><span class="ko">위젯</span></a>
@@ -698,6 +723,26 @@
       </div>
     </section>
 
+    <section class="film" id="film">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <div class="label"><span class="en">The Film</span><span class="ko">필름</span></div>
+          <h2 class="en">BarShelf in 33 seconds.</h2>
+          <h2 class="ko">33초로 보는 BarShelf.</h2>
+          <p class="en">Recorded from the app's own views, not a mock-up: the cluster, the cards, the shelf, a widget built from a command, the desktop and the dock, and the permission card.</p>
+          <p class="ko">목업이 아니라 앱의 실제 화면으로 만들었습니다. 클러스터, 카드, 선반, 명령 하나로 만든 위젯, 데스크톱과 독, 권한 카드까지.</p>
+        </div>
+        <div class="film-frame reveal">
+          <video class="autoplay" muted loop playsinline controls preload="none" poster="shots/film.jpg" width="1920" height="1080"
+                 aria-label="BarShelf film: a crowded menu bar folds into one cluster; its chips show live readings and open native cards; the shelf is searched from the keyboard; a CLI's JSON becomes a widget; widgets sit on the desktop and in a dock that switches profiles; a widget asks for permission before it runs">
+            <source data-src="shots/film.webm" type="video/webm" />
+            <source data-src="shots/film.mp4" type="video/mp4" />
+            <img src="shots/film.jpg" width="1920" height="1080" loading="lazy" alt="A frame of the BarShelf film: the System card open under the menu bar cluster" />
+          </video>
+        </div>
+      </div>
+    </section>
+
     <section id="features">
       <div class="wrap">
         <div class="section-head reveal">
@@ -728,6 +773,27 @@
             <h3 class="ko">네이티브 macOS 감각</h3>
             <p class="en">SwiftUI, SF Symbols, dark mode, app settings, and a real status item. No browser shell.</p>
             <p class="ko">SwiftUI, SF Symbols, 다크모드, 설정 화면, 실제 status item. 브라우저 껍데기가 아닙니다.</p>
+          </article>
+          <article class="feature">
+            <mark>04</mark>
+            <h3 class="en">Keyboard all the way</h3>
+            <h3 class="ko">끝까지 키보드로</h3>
+            <p class="en">⌘F searches every widget. Arrows choose one, ⌥⌘ and an arrow moves it, Return opens its settings, Delete removes it. In the menu bar, ← and → step from card to card.</p>
+            <p class="ko">⌘F로 모든 위젯을 검색합니다. 화살표로 고르고, ⌥⌘+화살표로 옮기고, Return으로 설정을 열고, Delete로 지웁니다. 메뉴바 카드에서는 ← →로 다음 카드로 넘어갑니다.</p>
+          </article>
+          <article class="feature">
+            <mark>05</mark>
+            <h3 class="en">Asks before it runs</h3>
+            <h3 class="ko">실행 전에 묻습니다</h3>
+            <p class="en">A widget declares what it runs, reads and reaches; nothing runs until you allow it, and every decision and command lands in an audit log. A red dot on the icon means one is waiting. An update that only drops permissions keeps your approval.</p>
+            <p class="ko">위젯은 실행할 명령, 읽을 경로, 접속할 곳을 선언하고, 허용하기 전에는 아무것도 실행하지 않습니다. 모든 결정과 실행은 감사 로그에 남습니다. 아이콘의 빨간 점은 기다리는 위젯이 있다는 뜻입니다. 권한을 줄이기만 한 업데이트는 승인을 유지합니다.</p>
+          </article>
+          <article class="feature">
+            <mark>06</mark>
+            <h3 class="en">Desktop and dock</h3>
+            <h3 class="ko">데스크톱과 독</h3>
+            <p class="en">Put any widget on the desktop as a macOS widget, mirrored from the same view. The optional BarShelf Dock holds apps, folders and live widgets, with profiles you switch by key, swipe or Focus.</p>
+            <p class="ko">어떤 위젯이든 같은 화면 그대로 macOS 데스크톱 위젯으로 둘 수 있습니다. 선택 기능인 BarShelf Dock에는 앱, 폴더, 실시간 위젯을 두고 단축키, 스와이프, 집중 모드로 프로필을 바꿉니다.</p>
           </article>
         </div>
       </div>
