@@ -66,6 +66,39 @@ final class PermissionNarrowingTests: XCTestCase {
         XCTAssertFalse(covered(P(exec: [Exec(command: "date", allowedArgs: [["-u"]])]), by: P(exec: [iso])))
     }
 
+    /// The first matching entry decides what a run gets. Dropping an entry
+    /// hands its runs to the next one for the same command, which must not
+    /// give them more.
+    func testDroppingAnEntryCannotHandItsRunsToARicherOne() {
+        let plain = Exec(command: "/usr/bin/env", allowedArgs: [])
+        let withToken = Exec(command: "/usr/bin/env", allowedArgs: [], env: ["TOKEN"])
+        XCTAssertFalse(covered(P(exec: [withToken]), by: P(exec: [plain, withToken])))
+        XCTAssertFalse(covered(P(exec: [withToken, plain]), by: P(exec: [plain, withToken])), "reordering")
+        let bigger = Exec(command: "/usr/bin/env", allowedArgs: [], maxOutputBytes: 1_000_000)
+        let smaller = Exec(command: "/usr/bin/env", allowedArgs: [], maxOutputBytes: 10)
+        XCTAssertFalse(covered(P(exec: [bigger]), by: P(exec: [smaller, bigger])))
+        // Shrinking an entry's patterns hands the dropped ones on too.
+        let both = Exec(command: "/usr/bin/env", allowedArgs: [[], ["-i"]])
+        let bare = Exec(command: "/usr/bin/env", allowedArgs: [])
+        let anyWithToken = Exec(command: "/usr/bin/env", env: ["TOKEN"])
+        XCTAssertFalse(covered(P(exec: [Exec(command: "/usr/bin/env", allowedArgs: [["-i"]]), anyWithToken]),
+                               by: P(exec: [both, anyWithToken])))
+        // Dropping an entry is fine when the next one gives no more.
+        XCTAssertTrue(covered(P(exec: [bare]), by: P(exec: [withToken, bare])))
+        // Or when the next one is for another command.
+        XCTAssertTrue(covered(P(exec: [Exec(command: "/bin/date", env: ["TOKEN"])]),
+                              by: P(exec: [plain, Exec(command: "/bin/date", env: ["TOKEN"])])))
+    }
+
+    /// Marking any command sensitive covers the whole widget, so dropping the
+    /// one marked command would unmark the others.
+    func testDroppingTheOnlySensitiveCommandAsksAgain() {
+        let secret = Exec(command: "/usr/bin/security", allowedArgs: [], sensitiveOutput: true)
+        let date = Exec(command: "/bin/date", allowedArgs: [])
+        XCTAssertFalse(covered(P(exec: [date]), by: P(exec: [secret, date])))
+        XCTAssertTrue(covered(P(exec: [secret]), by: P(exec: [secret, date])))
+    }
+
     func testExecEnvOutputAndSensitivity() {
         func exec(env: [String]? = nil, max: Int? = nil, sensitive: Bool? = nil) -> P {
             P(exec: [Exec(command: "/bin/x", allowedArgs: [], env: env, maxOutputBytes: max, sensitiveOutput: sensitive)])
@@ -95,7 +128,7 @@ final class PermissionNarrowingTests: XCTestCase {
         func add(_ id: String) { lock.lock(); events.append(id); lock.unlock() }
     }
 
-    func testApprovalMovesToANarrowerSetAndIsAudited() {
+    func testApprovalCoversANarrowerSetAndIsAuditedOnce() {
         let url = fileURL()
         let store = PermissionStore(fileURL: url)
         let carried = Carried()
@@ -104,14 +137,25 @@ final class PermissionNarrowingTests: XCTestCase {
         let narrow = manifest(P(network: ["a.com"]))
         store.approve(wide)
         XCTAssertEqual(store.status(for: narrow), .approved)
-        XCTAssertEqual(carried.events, ["dev.test.narrow"])
         XCTAssertEqual(store.status(for: narrow), .approved)
-        XCTAssertEqual(carried.events.count, 1, "carried once, then the hash matches")
-        // The approval is now for the narrower set, on disk too.
+        XCTAssertEqual(carried.events, ["dev.test.narrow"], "audited once, not on every check")
+        // Survives a relaunch: the record still holds the approved set.
         let reloaded = PermissionStore(fileURL: url)
         XCTAssertEqual(reloaded.status(for: narrow), .approved)
-        XCTAssertEqual(reloaded.record(forWidget: narrow.id)?.permissions, narrow.permissions)
-        XCTAssertEqual(reloaded.status(for: wide), .pending, "widening back asks again")
+        XCTAssertEqual(reloaded.record(forWidget: narrow.id)?.permissions, wide.permissions)
+    }
+
+    /// Copies of a widget (`<id>`, `<id>--<label>`) share one record and may
+    /// declare different sets: checking the narrower copy must not take the
+    /// approval from the wider one.
+    func testCheckingANarrowerCopyLeavesTheWiderCopyApproved() {
+        let store = PermissionStore(fileURL: fileURL())
+        let wide = manifest(P(network: ["a.com", "b.com"]))
+        let narrow = manifest(P(network: ["a.com"]))
+        store.approve(wide)
+        XCTAssertEqual(store.status(for: narrow), .approved)
+        XCTAssertEqual(store.status(for: wide), .approved)
+        XCTAssertEqual(store.status(for: narrow), .approved)
     }
 
     func testWiderOrDeniedOrUnknownSetsAskAgain() {
@@ -143,7 +187,7 @@ final class PermissionNarrowingTests: XCTestCase {
         try JSONEncoder().encode(legacy).write(to: url)
 
         let narrow = manifest(P(network: ["a.com"]))
-        XCTAssertEqual(PermissionStore(fileURL: url).status(for: narrow), .pending)
+        XCTAssertEqual(PermissionStore(fileURL: url).status(for: narrow), .pending, "a hash alone cannot be judged")
 
         let store = PermissionStore(fileURL: url)
         XCTAssertEqual(store.status(for: wide), .approved)
