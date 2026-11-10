@@ -1375,39 +1375,73 @@ enum ExpressionCompiler {
 /// Compiled expressions and templates, keyed by their text.
 ///
 /// The texts come from workflow files, so the set is small and repeats
-/// exactly. Bounded anyway: a runaway set of distinct texts empties the
-/// cache instead of growing it. Thread-safe — widgets evaluate concurrently
-/// off the main actor.
+/// exactly. Bounded anyway, by entries and by bytes: a runaway set of
+/// distinct texts empties the cache instead of growing it. Text without
+/// `${` is never stored; it needs no compiling. Thread-safe — widgets
+/// evaluate concurrently off the main actor.
 final class CompiledExpressionCache: @unchecked Sendable {
     static let shared = CompiledExpressionCache()
     static let limit = 4096
+    static let byteLimit = 4 << 20
+
+    /// A key that matches the exact bytes. `String` equality is canonical
+    /// equivalence, so "é" and "e\u{301}" would share an entry and the
+    /// second text would get the first one's literal back.
+    private struct Key: Hashable {
+        let text: String
+        static func == (lhs: Key, rhs: Key) -> Bool { lhs.text.utf8.elementsEqual(rhs.text.utf8) }
+        func hash(into hasher: inout Hasher) {
+            let hashed: Void? = text.utf8.withContiguousStorageIfAvailable {
+                hasher.combine(bytes: UnsafeRawBufferPointer($0))
+            }
+            if hashed == nil {
+                var copy = text
+                copy.withUTF8 { hasher.combine(bytes: UnsafeRawBufferPointer($0)) }
+            }
+        }
+    }
 
     private let lock = NSLock()
-    private var expressions: [String: CompiledExpression] = [:]
-    private var templates: [String: CompiledTemplate] = [:]
+    private var expressions: [Key: CompiledExpression] = [:]
+    private var templates: [Key: CompiledTemplate] = [:]
+    private var bytes = 0
 
     func expression(_ raw: String) -> CompiledExpression {
+        let key = Key(text: raw)
         lock.lock()
-        if let hit = expressions[raw] { lock.unlock(); return hit }
+        if let hit = expressions[key] { lock.unlock(); return hit }
         lock.unlock()
         let compiled = ExpressionCompiler.compile(raw)
         lock.lock()
-        if expressions.count >= Self.limit { expressions.removeAll(keepingCapacity: true) }
-        expressions[raw] = compiled
+        makeRoom(for: raw)
+        expressions[key] = compiled
         lock.unlock()
         return compiled
     }
 
     func template(_ text: String) -> CompiledTemplate {
+        guard text.contains("${") else { return .plain }
+        let key = Key(text: text)
         lock.lock()
-        if let hit = templates[text] { lock.unlock(); return hit }
+        if let hit = templates[key] { lock.unlock(); return hit }
         lock.unlock()
         let compiled = ExpressionCompiler.compileTemplate(text)
         lock.lock()
-        if templates.count >= Self.limit { templates.removeAll(keepingCapacity: true) }
-        templates[text] = compiled
+        makeRoom(for: text)
+        templates[key] = compiled
         lock.unlock()
         return compiled
+    }
+
+    /// Caller holds the lock.
+    private func makeRoom(for text: String) {
+        let size = text.utf8.count
+        if expressions.count + templates.count >= Self.limit || bytes + size > Self.byteLimit {
+            expressions.removeAll(keepingCapacity: true)
+            templates.removeAll(keepingCapacity: true)
+            bytes = 0
+        }
+        bytes += size
     }
 
     var count: Int {

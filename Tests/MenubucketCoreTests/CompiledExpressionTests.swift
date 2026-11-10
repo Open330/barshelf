@@ -46,9 +46,24 @@ final class CompiledExpressionTests: XCTestCase {
         XCTAssertEqual(try label("${if(true, 'ok', \(deep))}"), "ok")
     }
 
+    /// Canonically equal text with different bytes keeps its own bytes.
+    func testCacheKeysAreExactBytes() throws {
+        XCTAssertEqual(try label("${'\u{00E9}'}")?.unicodeScalars.map(\.value), [0xE9])
+        XCTAssertEqual(try label("${'e\u{0301}'}")?.unicodeScalars.map(\.value), [0x65, 0x301])
+    }
+
+    func testPlainTextIsNotCached() {
+        let cache = CompiledExpressionCache()
+        for i in 0..<100 { _ = cache.template("plain \(i)") }
+        XCTAssertEqual(cache.count, 0)
+    }
+
     func testTheCacheIsBounded() {
         let cache = CompiledExpressionCache()
         for i in 0..<(CompiledExpressionCache.limit + 10) { _ = cache.expression("n\(i)") }
         XCTAssertLessThanOrEqual(cache.count, CompiledExpressionCache.limit)
+        let big = String(repeating: "x", count: 1 << 20)
+        for i in 0..<10 { _ = cache.expression("\(i)\(big)") }
+        XCTAssertLessThan(cache.count, 10, "the byte budget empties it before 10 MB")
     }
 }
