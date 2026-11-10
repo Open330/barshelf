@@ -12,9 +12,17 @@ final class VaultBrokerTests: XCTestCase {
         var itemsDelayNs: UInt64 = 0
         var locked: [String?] = []
         var calls: [String] = []
+        /// Runs once on the main actor just before an unlock returns.
+        var beforeUnlockReturns: (@MainActor () -> Void)?
         func unlock(password: String) async throws -> String {
             lock.withLock { calls.append("unlock") }
             if unlockDelayNs > 0 { try await Task.sleep(nanoseconds: unlockDelayNs) }
+            if let hook = lock.withLock({ () -> (@MainActor () -> Void)? in
+                defer { beforeUnlockReturns = nil }
+                return beforeUnlockReturns
+            }) {
+                await MainActor.run { hook() }
+            }
             guard password == "right" else { throw VaultError.unlockFailed }
             return "session-key-abcdefghijklmnop"
         }
@@ -210,6 +218,25 @@ final class VaultBrokerTests: XCTestCase {
         XCTAssertFalse(broker.isUnlocked(permission))
         XCTAssertEqual(provider.lock.withLock { provider.calls }, ["unlock", "lock"])
         XCTAssertEqual(provider.lock.withLock { provider.locked }, [nil])
+    }
+
+    /// The provider unlocked, but the session ended before the broker
+    /// accepted the key, and the user unlocked again at once: the old
+    /// unlock's cleanup must not lock the new session.
+    func testALateUnlockDoesNotLockTheNextSession() async throws {
+        let provider = FakeProvider()
+        let broker = makeBroker(provider)
+        let relocked = expectation(description: "second unlock accepted")
+        provider.beforeUnlockReturns = { [permission] in
+            broker.lockAll()
+            broker.onChange = { relocked.fulfill() }
+            broker.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden")
+        }
+        broker.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden")
+        await fulfillment(of: [relocked], timeout: 2)
+        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertEqual(provider.lock.withLock { provider.calls }, ["unlock", "lock", "unlock"])
+        XCTAssertTrue(broker.isUnlocked(permission))
     }
 
     /// A widget granted a shorter session cannot use a longer one another

@@ -317,10 +317,10 @@ final class VaultBroker {
             do {
                 let key = try await work.value
                 guard let self else { return }
+                // Ended meanwhile: end already queued a provider lock behind
+                // this unlock. Queuing another here could land after a newer
+                // unlock and lock that session instead.
                 guard self.pendingUnlocks[provider] == generation, self.generations[provider] == generation, !self.blocked else {
-                    // Ended meanwhile: end queued a lock too; this one covers
-                    // a key that arrived after it.
-                    _ = self.serialTask(provider, generation: nil) { await vault.lock(session: key) }
                     return
                 }
                 self.pendingUnlocks[provider] = nil
