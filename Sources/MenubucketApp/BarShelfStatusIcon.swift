@@ -38,27 +38,44 @@ enum BarShelfStatusIcon {
             : accessibilityName
     }
 
-    /// `base` with a small dot at its top-trailing corner, cut out of the mark
-    /// by a clear ring so it reads at menu bar size. Still a template image,
-    /// so it follows a light or dark menu bar like the mark itself.
+    /// `base` with a red dot at its top-trailing corner, cut out of the mark
+    /// by a clear ring so it reads at menu bar size.
+    ///
+    /// The dot used to be part of a template image, so the menu bar painted
+    /// it the same black or white as the mark and it read as a nick in the
+    /// logo, not an alert. A template image cannot hold a colour, so this one
+    /// is not a template: its drawing handler runs at draw time, in the menu
+    /// bar's appearance, and tints the mark with `labelColor` itself — the
+    /// same tint the cluster gives the mark — then adds the red dot, the
+    /// colour cluster chips already use for their alert dot.
     static func badgedImage(_ base: NSImage) -> NSImage {
-        let size = base.size
-        let image = NSImage(size: size, flipped: false) { rect in
-            base.draw(in: rect)
-            let diameter = max(5, min(rect.width, rect.height) * 0.36)
-            let dot = NSRect(
-                x: rect.maxX - diameter, y: rect.maxY - diameter,
-                width: diameter, height: diameter
-            )
-            NSGraphicsContext.current?.compositingOperation = .clear
-            NSBezierPath(ovalIn: dot.insetBy(dx: -1.5, dy: -1.5)).fill()
-            NSGraphicsContext.current?.compositingOperation = .sourceOver
-            NSColor.black.setFill()
+        let image = NSImage(size: base.size, flipped: false) { rect in
+            let dot = badgeRect(in: rect)
+            let mark = NSImage(size: rect.size, flipped: false) { bounds in
+                base.draw(in: bounds)
+                NSColor.labelColor.set()
+                bounds.fill(using: .sourceAtop)
+                NSGraphicsContext.current?.compositingOperation = .clear
+                NSBezierPath(ovalIn: dot.insetBy(dx: -badgeRing, dy: -badgeRing)).fill()
+                return true
+            }
+            mark.draw(in: rect)
+            NSColor.systemRed.setFill()
             NSBezierPath(ovalIn: dot).fill()
             return true
         }
-        image.isTemplate = true
+        image.isTemplate = false
         return image
+    }
+
+    /// The clear ring between the dot and the mark.
+    static let badgeRing: CGFloat = 1.5
+
+    /// Where the dot sits in an image of `rect`: a circle at the
+    /// top-trailing corner, big enough to read as a dot, not a speck.
+    static func badgeRect(in rect: NSRect) -> NSRect {
+        let diameter = max(6, (min(rect.width, rect.height) * 0.4).rounded())
+        return NSRect(x: rect.maxX - diameter, y: rect.maxY - diameter, width: diameter, height: diameter)
     }
 
     static func image(for symbol: String, fallback: String) -> NSImage {

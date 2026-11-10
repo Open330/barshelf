@@ -242,7 +242,17 @@ extension MenuBarController {
                 )
                 // Hidden while a chip is in focus: its room is the chips'.
                 if markAlpha > 0 {
-                    drawTemplate(badged ? BarShelfStatusIcon.badgedImage(mark) : mark, in: markRect, alpha: markAlpha)
+                    if badged {
+                        // Already tinted, with its red dot: drawn as is.
+                        let badgedMark = BarShelfStatusIcon.badgedImage(mark)
+                        let fitted = NSRect(
+                            x: markRect.midX - badgedMark.size.width / 2, y: markRect.minY,
+                            width: badgedMark.size.width, height: badgedMark.size.height
+                        )
+                        badgedMark.draw(in: fitted, from: .zero, operation: .sourceOver, fraction: markAlpha, respectFlipped: true, hints: nil)
+                    } else {
+                        drawTemplate(mark, in: markRect, alpha: markAlpha)
+                    }
                 }
             }
             return true
