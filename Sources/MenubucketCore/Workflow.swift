@@ -566,7 +566,7 @@ public enum WorkflowEngine {
         /// Guards against stack overflow from pathologically nested templates or
         /// expressions (e.g. `count(count(count(…)))` or deeply nested arrays).
         /// Legitimate widget views nest a handful of levels; 256 is generous.
-        static let maxDepth = 256
+        static let maxDepth = ExpressionCompiler.maxDepth
 
         /// Non-crashing `Double`→`Int`. Swift's `Int(_:)` traps on NaN,
         /// infinity, and finite-but-out-of-range values — all reachable from
@@ -658,60 +658,53 @@ public enum WorkflowEngine {
         /// `"${expr}"` alone keeps the expression's type; anything else
         /// becomes string concatenation.
         mutating func interpolate(_ text: String) throws -> JSONValue {
-            guard text.contains("${") else { return .string(text) }
-            var pieces: [JSONValue] = []
-            var literal = ""
-            var rest = Substring(text)
-            while let start = rest.range(of: "${") {
-                literal += rest[..<start.lowerBound]
-                guard let end = rest[start.upperBound...].firstIndex(of: "}") else {
-                    throw WorkflowError.badExpression(text)
-                }
-                if !literal.isEmpty {
-                    pieces.append(.string(literal))
-                    literal = ""
-                }
-                pieces.append(try evaluateExpression(String(rest[start.upperBound..<end])))
-                rest = rest[rest.index(after: end)...]
+            guard case let .pieces(pieces) = CompiledExpressionCache.shared.template(text) else {
+                return .string(text)
             }
-            literal += rest
-            if !literal.isEmpty { pieces.append(.string(literal)) }
-            if pieces.count == 1 { return pieces[0] }
-            return .string(pieces.map(\.stringified).joined())
+            if pieces.count == 1, case let .expression(expression) = pieces[0] {
+                return try evaluate(expression)
+            }
+            var values: [JSONValue] = []
+            values.reserveCapacity(pieces.count)
+            for piece in pieces {
+                switch piece {
+                case let .text(literal): values.append(.string(literal))
+                case let .expression(expression): values.append(try evaluate(expression))
+                case let .unterminated(whole): throw WorkflowError.badExpression(whole)
+                }
+            }
+            if values.count == 1 { return values[0] }
+            return .string(values.map(\.stringified).joined())
         }
 
         // MARK: expressions — number literal | function call | path
 
         mutating func evaluateExpression(_ raw: String) throws -> JSONValue {
+            try evaluate(CompiledExpressionCache.shared.expression(raw))
+        }
+
+        /// One step per node, counted against `maxDepth` exactly as the text
+        /// evaluator counted each nested expression.
+        mutating func evaluate(_ expression: CompiledExpression) throws -> JSONValue {
             depth += 1
             defer { depth -= 1 }
             guard depth <= Self.maxDepth else {
                 throw WorkflowError.badExpression("expression nesting exceeds \(Self.maxDepth) levels")
             }
-            let expr = raw.trimmingCharacters(in: .whitespaces)
-            guard !expr.isEmpty else { throw WorkflowError.badExpression(raw) }
-            if let number = Double(expr) { return .number(number) }
-            // String literal: 'text' or "text" (quotes let comparisons/coalesce
-            // reference constants, e.g. eq(status, "success")).
-            if expr.count >= 2,
-               let first = expr.first, let last = expr.last, first == last,
-               first == "\"" || first == "'" {
-                return .string(String(expr.dropFirst().dropLast()))
+            switch expression {
+            case let .literal(value):
+                return value
+            case let .path(segments, raw):
+                return try resolvePath(segments: segments, raw: raw)
+            case let .invalid(error):
+                throw error
+            case let .call(name, args):
+                if let value = try evaluateLazily(name, args) { return value }
+                var values: [JSONValue] = []
+                values.reserveCapacity(args.count)
+                for arg in args { values.append(try evaluate(arg)) }
+                return try call(name, args: values)
             }
-            if expr == "true" { return .bool(true) }
-            if expr == "false" { return .bool(false) }
-            if expr == "null" { return .null }
-            if expr.hasSuffix(")"), let paren = expr.firstIndex(of: "(") {
-                let name = String(expr[..<paren])
-                let inner = String(expr[expr.index(after: paren)..<expr.index(before: expr.endIndex)])
-                if isFunctionName(name) {
-                    let sources = try splitArguments(inner)
-                    if let value = try evaluateLazily(name, sources) { return value }
-                    let args = try sources.map { try evaluateExpression($0) }
-                    return try call(name, args: args)
-                }
-            }
-            return try resolvePath(expr)
         }
 
         /// The logic functions, evaluated only as far as their result needs.
@@ -721,21 +714,21 @@ public enum WorkflowEngine {
         /// a dozen `if(eq(sel,'x'), …)`; evaluated eagerly, every refresh
         /// computed all twelve readings to keep one (15% of an idle app's CPU
         /// in a profile). nil for any other function.
-        private mutating func evaluateLazily(_ name: String, _ args: [String]) throws -> JSONValue? {
+        private mutating func evaluateLazily(_ name: String, _ args: [CompiledExpression]) throws -> JSONValue? {
             switch name {
             case "if":
                 guard args.count >= 2 else { return .null }
-                if Self.truthy(try evaluateExpression(args[0])) { return try evaluateExpression(args[1]) }
-                return args.count >= 3 ? try evaluateExpression(args[2]) : .null
+                if Self.truthy(try evaluate(args[0])) { return try evaluate(args[1]) }
+                return args.count >= 3 ? try evaluate(args[2]) : .null
             case "and":
-                for arg in args where !Self.truthy(try evaluateExpression(arg)) { return .bool(false) }
+                for arg in args where !Self.truthy(try evaluate(arg)) { return .bool(false) }
                 return .bool(true)
             case "or":
-                for arg in args where Self.truthy(try evaluateExpression(arg)) { return .bool(true) }
+                for arg in args where Self.truthy(try evaluate(arg)) { return .bool(true) }
                 return .bool(false)
             case "coalesce":
                 for arg in args {
-                    let value = try evaluateExpression(arg)
+                    let value = try evaluate(arg)
                     if value.isNull { continue }
                     if case let .string(text) = value, text.isEmpty { continue }
                     return value
@@ -749,66 +742,23 @@ public enum WorkflowEngine {
                 // evaluated — a setting that picks one of a dozen readings
                 // reads as one call rather than a dozen nested ifs.
                 guard let first = args.first else { return .null }
-                let value = try evaluateExpression(first)
+                let value = try evaluate(first)
                 var index = 1
                 while index + 1 < args.count {
-                    if try evaluateExpression(args[index]) == value {
-                        return try evaluateExpression(args[index + 1])
+                    if try evaluate(args[index]) == value {
+                        return try evaluate(args[index + 1])
                     }
                     index += 2
                 }
-                return index < args.count ? try evaluateExpression(args[index]) : .null
+                return index < args.count ? try evaluate(args[index]) : .null
             case "default":
                 guard let first = args.first else { return .null }
-                let value = try evaluateExpression(first)
+                let value = try evaluate(first)
                 if Self.truthy(value) { return value }
-                return args.count >= 2 ? try evaluateExpression(args[1]) : .null
+                return args.count >= 2 ? try evaluate(args[1]) : .null
             default:
                 return nil
             }
-        }
-
-        private func isFunctionName(_ name: String) -> Bool {
-            !name.isEmpty && name.allSatisfy { $0.isLetter || $0.isNumber || $0 == "." || $0 == "_" }
-        }
-
-        /// Splits a call's arguments on top-level commas.
-        ///
-        /// Commas inside nested calls *and* inside string literals are part of
-        /// the argument, not separators — `concat(a, ', ', b)` joins three
-        /// arguments, the middle one being a literal comma.
-        private func splitArguments(_ inner: String) throws -> [String] {
-            if let cached = ArgumentSplitCache.shared.lookup(inner) { return cached }
-            let split = Self.split(inner)
-            ArgumentSplitCache.shared.store(split, for: inner)
-            return split
-        }
-
-        private static func split(_ inner: String) -> [String] {
-            let trimmed = inner.trimmingCharacters(in: .whitespaces)
-            guard !trimmed.isEmpty else { return [] }
-            var args: [String] = []
-            var depth = 0
-            var quote: Character?
-            var current = ""
-            for char in trimmed {
-                if let open = quote {
-                    current.append(char)
-                    if char == open { quote = nil }
-                    continue
-                }
-                switch char {
-                case "'", "\"": quote = char; current.append(char)
-                case "(": depth += 1; current.append(char)
-                case ")": depth -= 1; current.append(char)
-                case "," where depth == 0:
-                    args.append(current)
-                    current = ""
-                default: current.append(char)
-                }
-            }
-            args.append(current)
-            return args
         }
 
         private mutating func call(_ name: String, args: [JSONValue]) throws -> JSONValue {
@@ -1034,10 +984,7 @@ public enum WorkflowEngine {
 
         // MARK: path resolution
 
-        private mutating func resolvePath(_ raw: String) throws -> JSONValue {
-            var path = raw
-            if path.hasPrefix("$.") { path.removeFirst(2) }
-            let segments = path.split(separator: ".").map(String.init)
+        private mutating func resolvePath(segments: [String], raw: String) throws -> JSONValue {
             guard let head = segments.first else { throw WorkflowError.badExpression(raw) }
 
             var value: JSONValue
@@ -1296,43 +1243,210 @@ extension JSONValue {
 }
 
 
-// MARK: - Argument split cache
+// MARK: - Compiled expressions
 
-/// Argument lists already split, keyed by the text inside a call's parentheses.
+/// One `${…}` expression, parsed once.
 ///
-/// Splitting walks the text character by character and rebuilds each argument
-/// as a new string, and it runs for every call in every expression on every
-/// refresh. A menu bar widget evaluates the same expressions every couple of
-/// seconds all day — profiled, this split was the largest single cost of
-/// evaluation. The result depends on nothing but the text, and the texts come
-/// from workflow files, so the set is small and repeats exactly.
+/// Evaluation used to re-read the expression text on every refresh: trim
+/// it, try it as a number, look for quotes and parentheses, cut out each
+/// argument as a new string, then do the same for every argument. A menu bar
+/// widget evaluates the same few dozen expressions every couple of seconds
+/// all day, so the parse is done once per distinct text and kept.
 ///
-/// Bounded anyway: a runaway set of distinct expressions (a template that
-/// interpolates into its own expression text) empties the cache instead of
-/// growing it. Thread-safe — widgets evaluate concurrently off the main actor.
-final class ArgumentSplitCache: @unchecked Sendable {
-    static let shared = ArgumentSplitCache()
-    static let limit = 4096
+/// The tree only records what the text says. Everything that depends on the
+/// data — which branch of an `if` runs, whether a path resolves, the nesting
+/// limit — is still decided while evaluating, in the same order as before,
+/// so a compiled expression gives the same value or the same error the text
+/// did. Text that would fail to parse becomes an `invalid` node that throws
+/// only when evaluation reaches it, as the text did.
+indirect enum CompiledExpression: Sendable {
+    case literal(JSONValue)
+    case call(name: String, args: [CompiledExpression])
+    /// `$.` already stripped and split on dots; `raw` is the trimmed text,
+    /// for the error a missing root reports.
+    case path(segments: [String], raw: String)
+    case invalid(WorkflowError)
+}
 
-    private let lock = NSLock()
-    private var entries: [String: [String]] = [:]
+/// An interpolated string, split once into literal text and expressions.
+enum CompiledTemplate: Sendable {
+    case plain
+    case pieces([Piece])
 
-    func lookup(_ key: String) -> [String]? {
-        lock.lock()
-        defer { lock.unlock() }
-        return entries[key]
+    enum Piece: Sendable {
+        case text(String)
+        case expression(CompiledExpression)
+        /// An opening `${` with no closing `}`: the whole text is the error.
+        case unterminated(String)
+    }
+}
+
+enum ExpressionCompiler {
+    /// Guards against stack overflow from pathologically nested templates or
+    /// expressions. Legitimate widget views nest a handful of levels.
+    static let maxDepth = 256
+
+    static func compile(_ raw: String, depth: Int = 1) -> CompiledExpression {
+        guard depth <= maxDepth else {
+            return .invalid(.badExpression("expression nesting exceeds \(maxDepth) levels"))
+        }
+        let expr = raw.trimmingCharacters(in: .whitespaces)
+        guard !expr.isEmpty else { return .invalid(.badExpression(raw)) }
+        if let number = Double(expr) { return .literal(.number(number)) }
+        if expr.count >= 2,
+           let first = expr.first, let last = expr.last, first == last,
+           first == "\"" || first == "'" {
+            return .literal(.string(String(expr.dropFirst().dropLast())))
+        }
+        if expr == "true" { return .literal(.bool(true)) }
+        if expr == "false" { return .literal(.bool(false)) }
+        if expr == "null" { return .literal(.null) }
+        if expr.hasSuffix(")"), let paren = expr.firstIndex(of: "(") {
+            let name = String(expr[..<paren])
+            let inner = String(expr[expr.index(after: paren)..<expr.index(before: expr.endIndex)])
+            if isFunctionName(name) {
+                return .call(name: name, args: splitArguments(inner).map { compile($0, depth: depth + 1) })
+            }
+        }
+        var path = expr
+        if path.hasPrefix("$.") { path.removeFirst(2) }
+        return .path(segments: path.split(separator: ".").map(String.init), raw: expr)
     }
 
-    func store(_ value: [String], for key: String) {
+    static func compileTemplate(_ text: String) -> CompiledTemplate {
+        guard text.contains("${") else { return .plain }
+        var pieces: [CompiledTemplate.Piece] = []
+        var literal = ""
+        var rest = Substring(text)
+        while let start = rest.range(of: "${") {
+            literal += rest[..<start.lowerBound]
+            guard let end = rest[start.upperBound...].firstIndex(of: "}") else {
+                if !literal.isEmpty { pieces.append(.text(literal)) }
+                pieces.append(.unterminated(text))
+                return .pieces(pieces)
+            }
+            if !literal.isEmpty {
+                pieces.append(.text(literal))
+                literal = ""
+            }
+            pieces.append(.expression(compile(String(rest[start.upperBound..<end]))))
+            rest = rest[rest.index(after: end)...]
+        }
+        literal += rest
+        if !literal.isEmpty { pieces.append(.text(literal)) }
+        return .pieces(pieces)
+    }
+
+    static func isFunctionName(_ name: String) -> Bool {
+        !name.isEmpty && name.allSatisfy { $0.isLetter || $0.isNumber || $0 == "." || $0 == "_" }
+    }
+
+    /// Splits a call's arguments on top-level commas. Commas inside nested
+    /// calls and inside string literals belong to the argument —
+    /// `concat(a, ', ', b)` is three arguments, the middle one a comma.
+    static func splitArguments(_ inner: String) -> [String] {
+        let trimmed = inner.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return [] }
+        var args: [String] = []
+        var depth = 0
+        var quote: Character?
+        var current = ""
+        for char in trimmed {
+            if let open = quote {
+                current.append(char)
+                if char == open { quote = nil }
+                continue
+            }
+            switch char {
+            case "'", "\"": quote = char; current.append(char)
+            case "(": depth += 1; current.append(char)
+            case ")": depth -= 1; current.append(char)
+            case "," where depth == 0:
+                args.append(current)
+                current = ""
+            default: current.append(char)
+            }
+        }
+        args.append(current)
+        return args
+    }
+}
+
+/// Compiled expressions and templates, keyed by their text.
+///
+/// The texts come from workflow files, so the set is small and repeats
+/// exactly. Bounded anyway, by entries and by bytes: a runaway set of
+/// distinct texts empties the cache instead of growing it. Text without
+/// `${` is never stored; it needs no compiling. Thread-safe — widgets
+/// evaluate concurrently off the main actor.
+final class CompiledExpressionCache: @unchecked Sendable {
+    static let shared = CompiledExpressionCache()
+    static let limit = 4096
+    static let byteLimit = 4 << 20
+
+    /// A key that matches the exact bytes. `String` equality is canonical
+    /// equivalence, so "é" and "e\u{301}" would share an entry and the
+    /// second text would get the first one's literal back.
+    private struct Key: Hashable {
+        let text: String
+        static func == (lhs: Key, rhs: Key) -> Bool { lhs.text.utf8.elementsEqual(rhs.text.utf8) }
+        func hash(into hasher: inout Hasher) {
+            let hashed: Void? = text.utf8.withContiguousStorageIfAvailable {
+                hasher.combine(bytes: UnsafeRawBufferPointer($0))
+            }
+            if hashed == nil {
+                var copy = text
+                copy.withUTF8 { hasher.combine(bytes: UnsafeRawBufferPointer($0)) }
+            }
+        }
+    }
+
+    private let lock = NSLock()
+    private var expressions: [Key: CompiledExpression] = [:]
+    private var templates: [Key: CompiledTemplate] = [:]
+    private var bytes = 0
+
+    func expression(_ raw: String) -> CompiledExpression {
+        let key = Key(text: raw)
         lock.lock()
-        defer { lock.unlock() }
-        if entries.count >= Self.limit { entries.removeAll(keepingCapacity: true) }
-        entries[key] = value
+        if let hit = expressions[key] { lock.unlock(); return hit }
+        lock.unlock()
+        let compiled = ExpressionCompiler.compile(raw)
+        lock.lock()
+        makeRoom(for: raw)
+        expressions[key] = compiled
+        lock.unlock()
+        return compiled
+    }
+
+    func template(_ text: String) -> CompiledTemplate {
+        guard text.contains("${") else { return .plain }
+        let key = Key(text: text)
+        lock.lock()
+        if let hit = templates[key] { lock.unlock(); return hit }
+        lock.unlock()
+        let compiled = ExpressionCompiler.compileTemplate(text)
+        lock.lock()
+        makeRoom(for: text)
+        templates[key] = compiled
+        lock.unlock()
+        return compiled
+    }
+
+    /// Caller holds the lock.
+    private func makeRoom(for text: String) {
+        let size = text.utf8.count
+        if expressions.count + templates.count >= Self.limit || bytes + size > Self.byteLimit {
+            expressions.removeAll(keepingCapacity: true)
+            templates.removeAll(keepingCapacity: true)
+            bytes = 0
+        }
+        bytes += size
     }
 
     var count: Int {
         lock.lock()
         defer { lock.unlock() }
-        return entries.count
+        return expressions.count + templates.count
     }
 }
