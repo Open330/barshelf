@@ -89,11 +89,13 @@ final class PopoverShelfTests: XCTestCase {
             button, symbol: AppPreferences.defaultMenuBarSymbol, fallback: "tray.full", badged: true
         )
         XCTAssertEqual(button.accessibilityLabel(), "BarShelf, needs attention")
-        XCTAssertEqual(button.image?.isTemplate, true)
+        // Badged, the image carries the red dot, so it cannot be a template.
+        XCTAssertEqual(button.image?.isTemplate, false)
         BarShelfStatusIcon.configure(
             button, symbol: AppPreferences.defaultMenuBarSymbol, fallback: "tray.full", badged: false
         )
         XCTAssertEqual(button.accessibilityLabel(), "BarShelf")
+        XCTAssertEqual(button.image?.isTemplate, true)
     }
 
     // MARK: - Pins

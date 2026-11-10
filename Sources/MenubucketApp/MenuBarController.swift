@@ -114,6 +114,8 @@ final class MenuBarController {
     private var appearanceObservation: NSKeyValueObservation?
     /// Light or dark, as the cluster was last drawn.
     private var drawnLook: NSAppearance.Name?
+    /// The look the badged plain mark was last drawn for.
+    private var badgedLook: NSAppearance.Name?
     /// What the cluster image on the button shows, and the image itself:
     /// redrawing pixels that would not change is skipped.
     private var drawnPixels: ClusterPixels?
@@ -203,6 +205,15 @@ final class MenuBarController {
         appearanceObservation = mainItem.button?.observe(\.effectiveAppearance) { [weak self] button, _ in
             let look = Self.look(of: button.effectiveAppearance)
             DispatchQueue.main.async {
+                // The plain mark with its red attention dot is in colour
+                // too (`BarShelfStatusIcon.badgedImage`): drawn again the
+                // same way, once per change of look.
+                if let self, self.attention, self.appliedChips?.isEmpty ?? true, look != self.badgedLook {
+                    self.badgedLook = look
+                    self.appliedSymbol = nil
+                    self.redraw()
+                    return
+                }
                 guard let self, self.layout == .cluster, look != self.drawnLook,
                       let chips = self.appliedChips, !chips.isEmpty, let button = self.mainItem.button
                 else { return }
@@ -567,6 +578,7 @@ final class MenuBarController {
                 button, symbol: mainSymbol, fallback: AppPreferences.defaultMenuBarSymbol,
                 badged: attention
             )
+            badgedLook = attention ? Self.look(of: button.effectiveAppearance) : nil
             appliedSymbol = mainSymbol
             // `configure` resets the image position, so the strip has to be
             // laid out again even if its entries did not change.
