@@ -298,7 +298,7 @@ struct GalleryView: View {
             Text("Packs")
                 .font(.headline)
                 .accessibilityAddTraits(.isHeader)
-            Text("Sets of widgets that work well together. Each widget still asks before it runs.")
+            Text("Sets of widgets that work well together. Installing grants no permissions; a widget that needs one asks on its card.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             LazyVGrid(
@@ -311,7 +311,8 @@ struct GalleryView: View {
                     GalleryPackCard(
                         pack: pack,
                         members: members,
-                        missing: members.filter { !model.installedIDs.contains($0.id) }.count,
+                        missing: model.installable(in: pack).count,
+                        installedCount: members.filter { model.installedIDs.contains($0.id) }.count,
                         install: { model.installPack(pack) }
                     )
                 }
@@ -374,8 +375,9 @@ struct GalleryView: View {
 struct GalleryPackCard: View {
     let pack: RegistryPack
     let members: [RegistryWidgetEntry]
-    /// How many members are not installed.
+    /// How many members this BarShelf can still add.
     let missing: Int
+    let installedCount: Int
     let install: () -> Void
 
     var body: some View {
@@ -388,12 +390,16 @@ struct GalleryPackCard: View {
                     .accessibilityHidden(true)
                 Text(pack.name).font(.headline)
                 Spacer(minLength: Spacing.xs)
-                if missing == 0 {
+                if missing == 0 && installedCount == members.count {
                     Label("Installed", systemImage: StatusTone.success.symbol)
                         .font(.callout)
                         .foregroundStyle(StatusTone.success.color)
+                } else if missing == 0 {
+                    Text("Needs a newer BarShelf")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
                 } else {
-                    Button(missing == members.count
+                    Button(installedCount == 0
                            ? String(localized: "Install \(missing)", comment: "Pack button: install every widget in the pack")
                            : String(localized: "Install the other \(missing)", comment: "Pack button: install the pack's widgets not installed yet"),
                            action: install)

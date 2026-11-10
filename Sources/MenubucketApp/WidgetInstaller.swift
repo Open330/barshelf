@@ -386,7 +386,10 @@ final class WidgetInstaller {
     /// that one). Nothing is approved here: every widget still asks for its
     /// permissions on its card, as when installed alone.
     func installPack(name: String, entries: [RegistryWidgetEntry], completion: (() -> Void)? = nil) {
-        guard !entries.isEmpty, confirmPack(name: name, entries: entries) else { return }
+        // One pack at a time: two overlapping packs could both decide a shared
+        // widget is missing.
+        guard !packInFlight, !entries.isEmpty, confirmPack(name: name, entries: entries) else { return }
+        packInFlight = true
         let panel = DownloadProgressPanel(
             title: String(localized: "Installing \(name)", comment: "Progress panel title while a widget pack installs"),
             message: String(localized: "Getting widgets…")
@@ -395,7 +398,10 @@ final class WidgetInstaller {
         let task = Task { @MainActor in
             var installed: [String] = []
             var failed: [String] = []
+            var done: Set<String> = []
             for entry in entries {
+                // Let Cancel be handled between widgets, bundled ones included.
+                await Task.yield()
                 if Task.isCancelled { break }
                 panel.setMessage(String(localized: "Installing \(entry.name)…", comment: "Progress while one widget of a pack installs"))
                 do {
@@ -412,16 +418,33 @@ final class WidgetInstaller {
                     defer { if let staging { try? FileManager.default.removeItem(at: staging) } }
                     guard let candidate = discovery.candidates.first(where: { $0.manifest.id == entry.id }) else {
                         failed.append("\(entry.name): \(String(localized: "the widget wasn't found at its source"))")
+                        done.insert(entry.id)
+                        continue
+                    }
+                    // Checked again at the last moment: a pack adds, it never
+                    // replaces. Something else (the CLI, a scan that had not
+                    // caught up) may have installed it meanwhile.
+                    try Task.checkCancellation()
+                    if WidgetInstallFlow.isInstalled(id: entry.id) {
+                        done.insert(entry.id)
                         continue
                     }
                     try WidgetInstallFlow.install(candidate: candidate)
+                    done.insert(entry.id)
                     installed.append(String(localized: "Installed \(WidgetInstallFlow.describe(candidate))", comment: "A widget install finished; the argument names the widget."))
                 } catch is CancellationError {
                     break
                 } catch {
                     failed.append("\(entry.name): \(WidgetInstallFlow.userFacingDescription(of: error))")
+                    done.insert(entry.id)
                 }
             }
+            let cancelled = entries.filter { !done.contains($0.id) }
+            if !cancelled.isEmpty {
+                failed.append(String(localized: "Cancelled: \(cancelled.map(\.name).joined(separator: ", "))",
+                                     comment: "Pack install summary: widgets not installed because the install was cancelled"))
+            }
+            self.packInFlight = false
             panel.close()
             if !installed.isEmpty {
                 self.onInstalled?()
@@ -451,13 +474,38 @@ final class WidgetInstaller {
                 line += " — " + String(localized: "needs \(requires)", comment: "Pack confirmation: an external tool a widget needs")
             }
             lines.append(line)
+            let asks = Self.permissionPhrases(entry.permissions)
+            if !asks.isEmpty {
+                lines.append("   " + String(localized: "Will ask to: \(asks.joined(separator: ", "))",
+                                            comment: "Pack confirmation: what a widget declares it will ask for"))
+            }
         }
         lines.append("")
-        lines.append(String(localized: "Nothing runs automatically — each widget still asks for its own permissions on its card."))
+        lines.append(String(localized: "Installing grants no new permissions. A widget that needs one asks on its card before it runs."))
         alert.informativeText = lines.joined(separator: "\n")
         alert.addButton(withTitle: String(localized: "Install"))
         alert.addButton(withTitle: String(localized: "Cancel"))
         return alert.runModal() == .alertFirstButtonReturn
+    }
+
+    private var packInFlight = false
+
+    /// The registry's display-only permission summary as short phrases.
+    static func permissionPhrases(_ permissions: RegistryWidgetEntry.PermissionsSummary?) -> [String] {
+        guard let permissions else { return [] }
+        var phrases: [String] = []
+        if let exec = permissions.exec, !exec.isEmpty {
+            phrases.append(String(localized: "run \(exec.joined(separator: ", "))", comment: "Pack confirmation: commands"))
+        }
+        if let hosts = permissions.network, !hosts.isEmpty {
+            phrases.append(String(localized: "connect to \(hosts.joined(separator: ", "))", comment: "Pack confirmation: hosts"))
+        }
+        if let paths = permissions.readPaths, !paths.isEmpty {
+            phrases.append(String(localized: "read \(paths.joined(separator: ", "))", comment: "Pack confirmation: paths"))
+        }
+        if permissions.notifications == true { phrases.append(String(localized: "send notifications", comment: "Pack confirmation")) }
+        if permissions.keychain == true { phrases.append(String(localized: "use Keychain secrets", comment: "Pack confirmation")) }
+        return phrases
     }
 
     // MARK: internals (main thread)

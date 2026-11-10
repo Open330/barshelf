@@ -453,9 +453,15 @@ final class GalleryModel: ObservableObject {
         return pack.widgetIDs.compactMap { byID[$0] }
     }
 
+    /// The pack's widgets this BarShelf can add: not installed, and not
+    /// needing a newer BarShelf.
+    func installable(in pack: RegistryPack) -> [RegistryWidgetEntry] {
+        entries(in: pack).filter { !installedIDs.contains($0.id) && Self.needsNewerHost($0) == nil }
+    }
+
     /// Installs the pack's widgets that are not installed yet.
     func installPack(_ pack: RegistryPack) {
-        let missing = entries(in: pack).filter { !installedIDs.contains($0.id) }
+        let missing = installable(in: pack)
         WidgetInstaller.shared.installPack(name: pack.name, entries: missing) { [weak self] in
             self?.refreshInstalledStates()
         }

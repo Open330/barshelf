@@ -1970,6 +1970,17 @@
         }
       }
     },
+    "Cancelled: %@": {
+      "comment": "Pack install summary: widgets not installed because the install was cancelled",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "취소됨: %@"
+          }
+        }
+      }
+    },
     "Cannot create JavaScript runtime.": {
       "localizations": {
         "ko": {
@@ -5381,6 +5392,16 @@
         }
       }
     },
+    "Installing grants no new permissions. A widget that needs one asks on its card before it runs.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "설치만으로는 새 권한이 주어지지 않습니다. 권한이 필요한 위젯은 실행 전에 자기 카드에서 묻습니다."
+          }
+        }
+      }
+    },
     "Instance name must contain a letter or number.": {
       "localizations": {
         "ko": {
@@ -6664,6 +6685,16 @@
         }
       }
     },
+    "Needs a newer BarShelf": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "새 BarShelf가 필요합니다"
+          }
+        }
+      }
+    },
     "Needs no permissions": {
       "localizations": {
         "ko": {
@@ -7071,6 +7102,7 @@
       }
     },
     "Nothing runs automatically — each widget still asks for its own permissions on its card.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -9508,11 +9540,22 @@
       }
     },
     "Sets of widgets that work well together. Each widget still asks before it runs.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "함께 쓰기 좋은 위젯 묶음입니다. 각 위젯은 실행 전에 따로 권한을 묻습니다."
+          }
+        }
+      }
+    },
+    "Sets of widgets that work well together. Installing grants no permissions; a widget that needs one asks on its card.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "함께 쓰기 좋은 위젯 묶음입니다. 설치만으로는 권한이 주어지지 않으며, 권한이 필요한 위젯은 자기 카드에서 묻습니다."
           }
         }
       }
@@ -12447,6 +12490,17 @@
         }
       }
     },
+    "Will ask to: %@": {
+      "comment": "Pack confirmation: what a widget declares it will ask for",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "요청할 권한: %@"
+          }
+        }
+      }
+    },
     "Window actions must run inside a shortcut callback.": {
       "localizations": {
         "ko": {
@@ -12657,6 +12711,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "com.apple.ActivityMonitor 또는 https://…"
+          }
+        }
+      }
+    },
+    "connect to %@": {
+      "comment": "Pack confirmation: hosts",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 접속"
           }
         }
       }
@@ -12922,6 +12987,17 @@
         }
       }
     },
+    "read %@": {
+      "comment": "Pack confirmation: paths",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 읽기"
+          }
+        }
+      }
+    },
     "resize window": {
       "comment": "Fills \"Could not %@\" when a window action fails.",
       "localizations": {
@@ -12933,12 +13009,34 @@
         }
       }
     },
+    "run %@": {
+      "comment": "Pack confirmation: commands",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 실행"
+          }
+        }
+      }
+    },
     "see how on its project page": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "프로젝트 페이지에서 방법 보기"
+          }
+        }
+      }
+    },
+    "send notifications": {
+      "comment": "Pack confirmation",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "알림 보내기"
           }
         }
       }
@@ -12981,6 +13079,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@에서 예상치 못한 비HTTP 응답을 받았습니다"
+          }
+        }
+      }
+    },
+    "use Keychain secrets": {
+      "comment": "Pack confirmation",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "키체인 비밀값 사용"
           }
         }
       }
