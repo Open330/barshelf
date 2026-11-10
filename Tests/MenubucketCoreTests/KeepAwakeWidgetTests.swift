@@ -212,7 +212,9 @@ final class KeepAwakeWidgetTests: XCTestCase {
         }
         cases.append(("stale", { try self.writeStatus(["onAC": true, "phase": "ac", "blockers": []], updatedSecondsAgo: 60) }))
         cases.append(("bad-created", {
-            let until = ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600))
+            // Off the minute boundary: the helper and the workflow read the
+            // clock a moment apart, and 3600 s exactly read "1:00" or "59m".
+            let until = ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600 - 30))
             try self.writeStatus(["onAC": true, "phase": "override", "blockers": [],
                                   "override": ["id": "A", "until": until, "createdAt": "", "lidClosed": false,
                                                "lidClosedEffective": true]])
