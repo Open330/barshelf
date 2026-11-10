@@ -248,6 +248,17 @@ interval polling).
 
 ---
 
+### `widget.requested` — BarShelf 0.7.22
+
+Workflow templates (sources included) can read `widget.requested`: `true` only
+on a refresh the user asked for (the card's Refresh, a `refresh` action), never
+on open, interval, resize or a settings change. Use it to keep expensive work
+(a speed test, a large download) for an explicit request:
+`"${if(or(widget.requested, <due by schedule>), 'run', 'skip')}"`.
+
+Note that `${…}` in a command is a workflow template even inside a shell script:
+write shell defaults as `[ -n "$x" ] || x=0`, not `${x:-0}`.
+
 ## 8C. Workflow alerts (`alerts`) — BarShelf 0.7.21
 
 A workflow can notify when one of its own values changes state, without a

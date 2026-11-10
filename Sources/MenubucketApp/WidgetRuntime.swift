@@ -276,6 +276,8 @@ final class WidgetRuntime: ObservableObject {
     let auditLog = AuditLog()
     let permissionStore: PermissionStore
     private let notificationService = NotificationService()
+    /// Widgets whose next workflow refresh the user asked for.
+    private var userRequestedRefreshIDs: Set<String> = []
     /// What each workflow alert last saw, and when it last fired.
     private let alertStates = AlertStateStore(
         fileURL: WidgetRuntime.applicationSupportDirectory.appendingPathComponent("alert-state.json")
@@ -2010,6 +2012,15 @@ final class WidgetRuntime: ObservableObject {
         refresh(widget, manual: manual)
     }
 
+    /// A refresh the user asked for (a Refresh button, a refresh action).
+    /// Workflows see `widget.requested: true` on it, so expensive work — a
+    /// speed test — can wait for an explicit request instead of running on
+    /// every open, resize or settings change.
+    func requestRefresh(widgetID: String) {
+        userRequestedRefreshIDs.insert(widgetID)
+        refresh(widgetID: widgetID, manual: true)
+    }
+
     /// Refreshes stale widgets (system-wake batch). While the popup is closed
     /// only `runInBackground` widgets run (invariant 3).
     func refreshStaleWidgets(backgroundOnly: Bool) {
@@ -2346,6 +2357,7 @@ final class WidgetRuntime: ObservableObject {
         // refresh at nearly the same moment — reading this state there, and
         // recording which workflows use it, raced.
         let visible = isCardVisible(id)
+        let requested = userRequestedRefreshIDs.remove(id) != nil
         let widgetContext: JSONValue = .object([
             "locale": .string(WidgetLocalization.appLanguage),
             // `size` lets a workflow switch layout per bucket size; `visible`
@@ -2353,6 +2365,8 @@ final class WidgetRuntime: ObservableObject {
             // reads 46 SMC keys instead of 129 with its card closed).
             "size": .string(effectiveSize(for: id)),
             "visible": .bool(visible),
+            // True only on a refresh the user asked for (`requestRefresh`).
+            "requested": .bool(requested),
         ])
 
         let startedAt = markRefreshStarted(widgetID: id)

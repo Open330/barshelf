@@ -107,7 +107,7 @@ private struct MenuBarCardFrame: View {
                 .hoverHint(LocalizedStringKey(title))
                 .accessibilityLabel(title)
             }
-            Button { runtime.refresh(widgetID: widget.id) } label: {
+            Button { runtime.requestRefresh(widgetID: widget.id) } label: {
                 Image(systemName: "arrow.clockwise")
             }
             .buttonStyle(.icon)

@@ -1,24 +1,14 @@
 # Internet Quality
 
-Download and upload speed and responsiveness, measured by Apple's built-in
-`networkQuality` tool.
+Two measurements at two costs:
 
-## What it shows
+- **Connection** — every refresh (5 minutes while visible, about 20 minutes in the
+  background) pings 1.1.1.1 five times: latency, jitter and packet loss. Almost no
+  data, so it can live in the menu bar and notify you when the connection drops
+  or turns unstable (turn that off in the widget's settings).
+- **Speed** — Apple's built-in `networkQuality`, capped at 10 seconds: download,
+  upload and responsiveness (RPM). It runs once a day by default, every 6 hours,
+  or only when you press **Test now**. A test moves a few hundred MB on a fast line,
+  so pick "Only when I press Test now" on a metered connection.
 
-- Download and upload in Mbps.
-- Responsiveness in RPM (round trips per minute under load) with Apple's
-  rating: Low below 300, Medium below 1000, High from 1000.
-- Idle latency and the interface the test used.
-- The download speed in the menu bar, if you add it there.
-
-## Bandwidth
-
-A single test can move hundreds of megabytes, more than a gigabyte on a fast
-line. So the widget never polls: it runs when you open it and the last result
-is more than six hours old, or when you press **Run test again**. It does not
-run on wake or in the background. A test takes about 10 to 20 seconds and is
-capped at 30.
-
-## Permissions
-
-It runs exactly `/usr/bin/networkQuality -c -M 30` and nothing else.
+The last speed result is kept between tests. Needs BarShelf 0.7.22 or later.
