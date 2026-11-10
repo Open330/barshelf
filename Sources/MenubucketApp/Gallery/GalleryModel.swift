@@ -27,6 +27,8 @@ final class GalleryModel: ObservableObject {
     @Published var kindFilter: GalleryKindFilter = .all
     @Published var selectedCategory: String?
     @Published private(set) var entries: [RegistryWidgetEntry] = []
+    /// Curated sets from the registry (`packs`), shown above the widgets.
+    @Published private(set) var packs: [RegistryPack] = []
     @Published private(set) var installedIDs: Set<String> = []
     /// Installed widget's `widget.json` version, keyed by entry id — the input
     /// to update detection. Absent means "not installed" or "version unknown".
@@ -338,8 +340,9 @@ final class GalleryModel: ObservableObject {
 
     /// Screenshot/preview support: inject entries directly (no registry
     /// fetch, no requirement probes) so offscreen renders are deterministic.
-    func setEntries(forPreview entries: [RegistryWidgetEntry]) {
+    func setEntries(forPreview entries: [RegistryWidgetEntry], packs: [RegistryPack] = []) {
         self.entries = entries
+        self.packs = packs
         self.hasLoadedOnce = true
     }
 
@@ -363,6 +366,7 @@ final class GalleryModel: ObservableObject {
                       self.loadGeneration == generation
                 else { return }
                 self.entries = result.index.widgets
+                self.packs = result.index.packs
                 self.warnings = result.warnings
                 self.sourceDescription = result.source.displayName
                 self.registryName = result.index.name
@@ -441,6 +445,20 @@ final class GalleryModel: ObservableObject {
             }
             return result
         }.value
+    }
+
+    /// A pack's widgets that the registry lists, in pack order.
+    func entries(in pack: RegistryPack) -> [RegistryWidgetEntry] {
+        let byID = Dictionary(entries.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return pack.widgetIDs.compactMap { byID[$0] }
+    }
+
+    /// Installs the pack's widgets that are not installed yet.
+    func installPack(_ pack: RegistryPack) {
+        let missing = entries(in: pack).filter { !installedIDs.contains($0.id) }
+        WidgetInstaller.shared.installPack(name: pack.name, entries: missing) { [weak self] in
+            self?.refreshInstalledStates()
+        }
     }
 
     /// Kicks off the existing GUI install flow (per-widget confirmation

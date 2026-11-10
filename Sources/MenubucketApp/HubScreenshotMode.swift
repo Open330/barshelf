@@ -39,11 +39,17 @@ enum HubScreenshotMode {
         // A deterministic loaded gallery as well as its real loading state.
         // Bundled registry data exercises the actual cards and Korean search
         // without depending on network timing or writing gallery installs.
-        if let registry = Bundle.main.resourceURL?.appendingPathComponent("registry/index.json"),
+        // A development build has no bundle resources; the checkout's index
+        // stands in.
+        let checkoutRegistry = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("registry/index.json")
+        if let registry = [Bundle.main.resourceURL?.appendingPathComponent("registry/index.json"), checkoutRegistry]
+            .compactMap({ $0 }).first(where: { FileManager.default.fileExists(atPath: $0.path) }),
            let data = try? Data(contentsOf: registry),
            let index = try? RegistryIndex.parse(data).index {
             let gallery = GalleryModel(widgetsDirectory: WidgetRuntime.userWidgetsRoot)
-            gallery.setEntries(forPreview: index.widgets)
+            gallery.setEntries(forPreview: index.widgets, packs: index.packs)
             ok = render(GalleryView(model: gallery, runtime: runtime),
                         size: NSSize(width: 840, height: 720), name: "gallery-loaded", to: dir) && ok
             gallery.searchText = "날씨"

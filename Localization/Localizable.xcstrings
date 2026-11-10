@@ -1025,6 +1025,26 @@
         }
       }
     },
+    "Adds %lld widgets:": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯 %lld개를 추가합니다:"
+          }
+        }
+      }
+    },
+    "Adds 1 widget:": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯 1개를 추가합니다:"
+          }
+        }
+      }
+    },
     "Adds the Apple Dock's apps, folders, and files to this profile.": {
       "localizations": {
         "ko": {
@@ -4424,6 +4444,16 @@
         }
       }
     },
+    "Getting widgets…": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯을 가져오는 중…"
+          }
+        }
+      }
+    },
     "GitHub Actions runs": {
       "localizations": {
         "ko": {
@@ -5124,6 +5154,17 @@
         }
       }
     },
+    "Install %lld": {
+      "comment": "Pack button: install every widget in the pack",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld개 설치"
+          }
+        }
+      }
+    },
     "Install Deno with “brew install deno”, then retry. Workflow and Command widgets do not need Deno.": {
       "localizations": {
         "ko": {
@@ -5205,12 +5246,34 @@
         }
       }
     },
+    "Install the %@ pack?": {
+      "comment": "Confirmation title for installing a widget pack",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 팩을 설치할까요?"
+          }
+        }
+      }
+    },
     "Install the newer version from the registry": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "레지스트리에서 새 버전 설치"
+          }
+        }
+      }
+    },
+    "Install the other %lld": {
+      "comment": "Pack button: install the pack's widgets not installed yet",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "나머지 %lld개 설치"
           }
         }
       }
@@ -5282,6 +5345,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "설치됨, 업데이트 있음"
+          }
+        }
+      }
+    },
+    "Installing %@": {
+      "comment": "Progress panel title while a widget pack installs",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 설치 중"
+          }
+        }
+      }
+    },
+    "Installing %@…": {
+      "comment": "Progress while one widget of a pack installs",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 설치 중…"
           }
         }
       }
@@ -6985,6 +7070,16 @@
         }
       }
     },
+    "Nothing runs automatically — each widget still asks for its own permissions on its card.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "자동으로 실행되는 것은 없습니다. 각 위젯이 자기 카드에서 따로 권한을 묻습니다."
+          }
+        }
+      }
+    },
     "Notifications": {
       "comment": "Privacy by capability",
       "localizations": {
@@ -7386,6 +7481,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "다른 위젯"
+          }
+        }
+      }
+    },
+    "Packs": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "팩"
           }
         }
       }
@@ -9398,6 +9503,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "알림 보내기"
+          }
+        }
+      }
+    },
+    "Sets of widgets that work well together. Each widget still asks before it runs.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "함께 쓰기 좋은 위젯 묶음입니다. 각 위젯은 실행 전에 따로 권한을 묻습니다."
           }
         }
       }
@@ -12746,6 +12861,7 @@
       }
     },
     "needs %@": {
+      "comment": "Pack confirmation: an external tool a widget needs",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -12834,6 +12950,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "측정 대상 아이콘"
+          }
+        }
+      }
+    },
+    "the widget wasn't found at its source": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "소스에서 위젯을 찾지 못했습니다"
           }
         }
       }

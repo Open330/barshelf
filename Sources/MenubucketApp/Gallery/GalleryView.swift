@@ -236,6 +236,9 @@ struct GalleryView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: Spacing.l) {
                     notices
+                    if !model.filtersAreActive, !model.packs.isEmpty {
+                        packsSection
+                    }
                     ForEach(model.sections) { section in
                         sectionView(section)
                     }
@@ -289,6 +292,34 @@ struct GalleryView: View {
             .disabled(model.isLoading)
     }
 
+    /// Packs: curated sets installed together, above the shelves.
+    private var packsSection: some View {
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            Text("Packs")
+                .font(.headline)
+                .accessibilityAddTraits(.isHeader)
+            Text("Sets of widgets that work well together. Each widget still asks before it runs.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 290), spacing: Spacing.s, alignment: .top)],
+                alignment: .leading,
+                spacing: Spacing.s
+            ) {
+                ForEach(model.packs) { pack in
+                    let members = model.entries(in: pack)
+                    GalleryPackCard(
+                        pack: pack,
+                        members: members,
+                        missing: members.filter { !model.installedIDs.contains($0.id) }.count,
+                        install: { model.installPack(pack) }
+                    )
+                }
+            }
+            .padding(.top, Spacing.xxs)
+        }
+    }
+
     /// One shelf: title + count, a one-line subtitle, and an adaptive grid of
     /// cards (two columns at hub width, one when narrow).
     private func sectionView(_ section: GalleryModel.GallerySection) -> some View {
@@ -335,5 +366,54 @@ struct GalleryView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.top, Spacing.xxs)
         }
+    }
+}
+
+/// A pack in the gallery: what it is, what it adds, and one button for
+/// whatever is not installed yet.
+struct GalleryPackCard: View {
+    let pack: RegistryPack
+    let members: [RegistryWidgetEntry]
+    /// How many members are not installed.
+    let missing: Int
+    let install: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            HStack(spacing: Spacing.xs) {
+                Image(systemName: pack.icon ?? "square.stack.3d.up")
+                    .font(.title3)
+                    .foregroundStyle(.tint)
+                    .frame(width: 28)
+                    .accessibilityHidden(true)
+                Text(pack.name).font(.headline)
+                Spacer(minLength: Spacing.xs)
+                if missing == 0 {
+                    Label("Installed", systemImage: StatusTone.success.symbol)
+                        .font(.callout)
+                        .foregroundStyle(StatusTone.success.color)
+                } else {
+                    Button(missing == members.count
+                           ? String(localized: "Install \(missing)", comment: "Pack button: install every widget in the pack")
+                           : String(localized: "Install the other \(missing)", comment: "Pack button: install the pack's widgets not installed yet"),
+                           action: install)
+                        .buttonStyle(.glass(.primary))
+                        .controlSize(.small)
+                }
+            }
+            if let description = pack.description, !description.isEmpty {
+                Text(description)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Text(members.map(\.name).joined(separator: " · "))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(Spacing.s)
+        .cardSurface()
+        .accessibilityElement(children: .contain)
     }
 }

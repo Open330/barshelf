@@ -380,6 +380,86 @@ final class WidgetInstaller {
         install(input: entry.install.url, completion: completion)
     }
 
+    /// Installs a registry pack: one confirmation for the set, then each
+    /// widget in turn, then one summary. Only the widget each entry names is
+    /// taken from its source (a repository with several widgets adds just
+    /// that one). Nothing is approved here: every widget still asks for its
+    /// permissions on its card, as when installed alone.
+    func installPack(name: String, entries: [RegistryWidgetEntry], completion: (() -> Void)? = nil) {
+        guard !entries.isEmpty, confirmPack(name: name, entries: entries) else { return }
+        let panel = DownloadProgressPanel(
+            title: String(localized: "Installing \(name)", comment: "Progress panel title while a widget pack installs"),
+            message: String(localized: "Getting widgets…")
+        )
+        panel.show()
+        let task = Task { @MainActor in
+            var installed: [String] = []
+            var failed: [String] = []
+            for entry in entries {
+                if Task.isCancelled { break }
+                panel.setMessage(String(localized: "Installing \(entry.name)…", comment: "Progress while one widget of a pack installs"))
+                do {
+                    let discovery: WidgetDiscovery.Result
+                    var staging: URL?
+                    if let bundled = entry.install.bundled,
+                       let directory = WidgetInstallFlow.bundledWidgetDirectory(named: bundled) {
+                        discovery = try WidgetInstallFlow.discoverBundledWidget(at: directory)
+                    } else {
+                        let prepared = try await WidgetInstallFlow.prepare(input: entry.install.url) { _, _ in }
+                        discovery = prepared.discovery
+                        staging = prepared.stagingRoot
+                    }
+                    defer { if let staging { try? FileManager.default.removeItem(at: staging) } }
+                    guard let candidate = discovery.candidates.first(where: { $0.manifest.id == entry.id }) else {
+                        failed.append("\(entry.name): \(String(localized: "the widget wasn't found at its source"))")
+                        continue
+                    }
+                    try WidgetInstallFlow.install(candidate: candidate)
+                    installed.append(String(localized: "Installed \(WidgetInstallFlow.describe(candidate))", comment: "A widget install finished; the argument names the widget."))
+                } catch is CancellationError {
+                    break
+                } catch {
+                    failed.append("\(entry.name): \(WidgetInstallFlow.userFacingDescription(of: error))")
+                }
+            }
+            panel.close()
+            if !installed.isEmpty {
+                self.onInstalled?()
+                completion?()
+            }
+            self.showSummary(installed: installed, failed: failed)
+            if !installed.isEmpty { self.onOpenPopup?() }
+        }
+        panel.onCancel = { task.cancel() }
+    }
+
+    /// One confirmation for a pack: what it adds, and what each widget says
+    /// it will ask for (the registry's summary, display-only: the installed
+    /// manifest is what each widget's card asks about).
+    private func confirmPack(name: String, entries: [RegistryWidgetEntry]) -> Bool {
+        NSApp.activate()
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Install the \(name) pack?", comment: "Confirmation title for installing a widget pack")
+        var lines: [String] = [
+            entries.count == 1
+                ? String(localized: "Adds 1 widget:")
+                : String(localized: "Adds \(entries.count) widgets:"),
+        ]
+        for entry in entries {
+            var line = "• \(entry.name)"
+            if let requires = entry.requires, !requires.isEmpty {
+                line += " — " + String(localized: "needs \(requires)", comment: "Pack confirmation: an external tool a widget needs")
+            }
+            lines.append(line)
+        }
+        lines.append("")
+        lines.append(String(localized: "Nothing runs automatically — each widget still asks for its own permissions on its card."))
+        alert.informativeText = lines.joined(separator: "\n")
+        alert.addButton(withTitle: String(localized: "Install"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+
     // MARK: internals (main thread)
 
     private func installBundledWidget(at directory: URL, completion: (() -> Void)?) {
