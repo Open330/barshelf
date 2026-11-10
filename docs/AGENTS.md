@@ -386,7 +386,10 @@ The popup ignores `desktopRole`.
 Declared in `permissions`; approval is **per-widget and all-at-once**: the host
 hashes the whole declared set and asks the user to approve on first run.
 **Deny-by-default** — nothing gated runs until approved. Changing the declared
-permissions invalidates approval (re-approval required).
+permissions invalidates approval (re-approval required), except when an update
+only removes or narrows grants the user already approved: then the approval
+still holds. Adding or widening anything — a path, host, variable, argv
+pattern, output limit, an exec entry's position — asks again.
 
 ```jsonc
 "permissions": {
