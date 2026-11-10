@@ -326,7 +326,7 @@
                     },
                     {
                       "type": "text",
-                      "text": "Shows status only. BarShelf never unlocks the vault or reads items.",
+                      "text": "Unlocking happens in BarShelf's own prompt. This widget never sees a password.",
                       "role": "caption",
                       "foreground": "tertiary",
                       "lineLimit": 2

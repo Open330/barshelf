@@ -200,6 +200,8 @@ struct WidgetSettingsView: View {
             Text("Widget On", comment: "Inspector switch that turns a widget on or off everywhere")
         }
         .toggleStyle(.switch)
+        // A switch drops its title from accessibility; name it.
+        .accessibilityLabel(Text("Widget On", comment: "Inspector switch that turns a widget on or off everywhere"))
         if !isEnabled {
             settingsHint(String(localized: "Turned off: it doesn't refresh and isn't in the popup."))
         }
@@ -621,6 +623,8 @@ struct WidgetSettingsView: View {
                 set: { menuBarDraft.enabled = $0 }
             ))
             .toggleStyle(.switch)
+            // A switch drops its title from accessibility; name it.
+            .accessibilityLabel(Text("Show in the menu bar"))
 
             if menuBarDraft.enabled {
                 if isCluster {
@@ -1404,6 +1408,8 @@ struct WidgetSettingsView: View {
 
             Toggle("Show header", isOn: showHeaderBinding)
                 .toggleStyle(.switch)
+                // A switch drops its title from accessibility; name it.
+                .accessibilityLabel(Text("Show header"))
                 .font(.callout)
 
             Button("Reset to widget default") { appearanceDraft = authorBase }

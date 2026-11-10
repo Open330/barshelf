@@ -66,7 +66,21 @@ final class PopoverSurface: NSObject, PopupSurface, NSPopoverDelegate {
         popover.animates = false
         popover.contentSize = contentSize
         popover.delegate = self
+        dismissObserver = NotificationCenter.default.addObserver(
+            forName: Self.dismissAll, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.hide() }
+        }
     }
+
+    deinit {
+        if let dismissObserver { NotificationCenter.default.removeObserver(dismissObserver) }
+    }
+
+    /// Closes every menu bar popup, before a modal prompt that a popup
+    /// would otherwise sit on top of (popups float above modal panels).
+    static let dismissAll = Notification.Name("dev.barshelf.popups.dismissAll")
+    private var dismissObserver: NSObjectProtocol?
 
     var isShown: Bool {
         popover.isShown

@@ -400,6 +400,8 @@ struct WidgetBuilderView: View {
 
             Toggle("Only keep rows that match", isOn: $model.filterEnabled)
                 .toggleStyle(.switch)
+                // A switch drops its title from accessibility; name it.
+                .accessibilityLabel(Text("Only keep rows that match"))
                 .onChange(of: model.filterEnabled) { _, on in
                     if on, model.filterField.isEmpty {
                         model.filterField = model.detectedFields.first ?? ""
@@ -420,6 +422,8 @@ struct WidgetBuilderView: View {
 
             Toggle("Sort rows", isOn: $model.sortEnabled)
                 .toggleStyle(.switch)
+                // A switch drops its title from accessibility; name it.
+                .accessibilityLabel(Text("Sort rows"))
                 .onChange(of: model.sortEnabled) { _, on in
                     if on, model.sortField.isEmpty {
                         model.sortField = model.detectedFields.first ?? ""
@@ -438,6 +442,8 @@ struct WidgetBuilderView: View {
 
             Toggle("Limit number of rows", isOn: $model.limitEnabled)
                 .toggleStyle(.switch)
+                // A switch drops its title from accessibility; name it.
+                .accessibilityLabel(Text("Limit number of rows"))
             if model.limitEnabled {
                 Stepper("Show at most \(model.limitCount)", value: $model.limitCount, in: 1...100)
                     .font(.callout)
@@ -833,6 +839,8 @@ struct WidgetBuilderView: View {
 
             Toggle("Show header", isOn: $model.appearanceShowHeader)
                 .toggleStyle(.switch)
+                // A switch drops its title from accessibility; name it.
+                .accessibilityLabel(Text("Show header"))
         }
     }
 

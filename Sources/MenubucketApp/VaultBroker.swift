@@ -727,6 +727,8 @@ final class VaultBroker {
 
     /// A host-owned secure field: widget code never sees it or what is typed.
     static func securePrompt(title: String, message: String, offerTouchID: Bool, touchIDDefault: Bool) -> PasswordAnswer? {
+        // The card's popup floats above modal panels and would cover the prompt.
+        NotificationCenter.default.post(name: PopoverSurface.dismissAll, object: nil)
         NSApp.activate()
         let alert = NSAlert()
         alert.messageText = title

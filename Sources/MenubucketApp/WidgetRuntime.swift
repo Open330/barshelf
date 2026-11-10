@@ -748,6 +748,10 @@ final class WidgetRuntime: ObservableObject {
     func approvePermissions(widgetID: String) {
         guard let widget = widgets.first(where: { $0.id == widgetID }) else { return }
         permissionStore.approve(widget.manifest)
+        // The store is not observed: without this, Settings ▸ Privacy kept
+        // showing "Waiting for your permission" until you left the page
+        // (deny and revoke already announce their change).
+        objectWillChange.send()
         auditLog.record("permission.approved", widgetId: widgetID, detail: [
             "hash": .string(PermissionStore.permissionsHash(of: widget.manifest)),
         ])
