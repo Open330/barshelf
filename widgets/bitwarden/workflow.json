@@ -2,7 +2,7 @@
   "$schema": "https://barshelf.jiun.dev/schema/workflow-0.1.json",
   "schemaVersion": 1,
   "kind": "workflow",
-  "_comment": "Bitwarden CLI vault status from `bw status` only: no session, no unlock, no sync, no item data. A fixed shell wrapper finds bw (Homebrew, npm under nvm/volta and similar; npm's bw is a node script, so its own bin folder goes first on PATH), and sed drops userEmail and userId before the output reaches BarShelf. BarShelf passes no BW_SESSION, so a logged-in vault reads as locked even while a terminal has it unlocked. A missing reading is null for the stale-sync alert.",
+  "_comment": "Bitwarden CLI vault status from `bw status` only: no session, no unlock, no sync, no item data. A fixed shell wrapper finds bw (Homebrew, npm under nvm/volta and similar; npm's bw is a node script, so its own bin folder goes first on PATH), and sed drops userEmail and userId before the output reaches BarShelf. BarShelf passes no BW_SESSION, so a logged-in vault reads as locked even while a terminal has it unlocked. A missing reading is null for the stale-sync alert. When the user presses Unlock, BarShelf's built-in Bitwarden provider (permissions.vault) unlocks the vault: the master password goes to bw through stdin, only the session is kept, in memory, and it locks after 10 minutes without a vault action, 60 minutes at most, on screen lock, sleep or quit. The vault.items source gives item names, usernames, hosts and opaque handles; copying a field is done by the host straight to the clipboard (cleared after 30 s). No secret reaches this workflow.",
   "sources": {
     "bw": {
       "use": "exec",
@@ -15,6 +15,9 @@
         ],
         "timeoutMs": 20000
       }
+    },
+    "vault": {
+      "use": "vault.items"
     }
   },
   "transforms": {
@@ -32,7 +35,7 @@
     },
     "stateWord": {
       "use": "assign",
-      "from": "if(transforms.ko, switch(transforms.state, 'locked', '잠김', 'unlocked', '잠금 해제됨', 'unauthenticated', '로그아웃됨', 'missing', 'bw 없음', '읽을 수 없음'), switch(transforms.state, 'locked', 'Locked', 'unlocked', 'Unlocked', 'unauthenticated', 'Logged out', 'missing', 'bw not found', 'Unreadable'))"
+      "from": "if(transforms.unlocked, if(transforms.ko, '열림', 'Unlocked'), if(transforms.ko, switch(transforms.state, 'locked', '잠김', 'unlocked', '잠금 해제됨', 'unauthenticated', '로그아웃됨', 'missing', 'bw 없음', '읽을 수 없음'), switch(transforms.state, 'locked', 'Locked', 'unlocked', 'Unlocked', 'unauthenticated', 'Logged out', 'missing', 'bw not found', 'Unreadable')))"
     },
     "icon": {
       "use": "assign",
@@ -73,130 +76,301 @@
     "alertBody": {
       "use": "assign",
       "from": "if(transforms.ko, '터미널에서 bw sync를 실행하거나 Bitwarden 앱을 여세요.', 'Run bw sync in Terminal or open a Bitwarden app.')"
+    },
+    "unlocked": {
+      "use": "assign",
+      "from": "eq(sources.vault.state, 'unlocked')"
+    },
+    "vaultError": {
+      "use": "assign",
+      "from": "coalesce(sources.vault.error, '')"
+    },
+    "rows": {
+      "use": "assign",
+      "from": "coalesce(sources.vault.items, [])"
+    },
+    "countText": {
+      "use": "assign",
+      "from": "if(transforms.ko, concat('항목 ', string(coalesce(sources.vault.count, 0)), '개'), concat(string(coalesce(sources.vault.count, 0)), ' items'))"
     }
   },
   "view": {
-    "type": "vstack",
-    "spacing": 8,
-    "children": [
-      {
-        "type": "hstack",
-        "spacing": 8,
+    "switch": "${if(transforms.unlocked, 'unlocked', 'locked')}",
+    "cases": {
+      "unlocked": {
+        "type": "vstack",
+        "spacing": 6,
         "children": [
           {
-            "type": "image",
-            "source": {
-              "kind": "sfSymbol",
-              "name": "${transforms.icon}"
-            },
-            "size": 22,
-            "tint": "${transforms.tint}"
+            "type": "hstack",
+            "spacing": 6,
+            "children": [
+              {
+                "type": "image",
+                "source": {
+                  "kind": "sfSymbol",
+                  "name": "lock.open.fill"
+                },
+                "size": 13,
+                "tint": "good"
+              },
+              {
+                "type": "text",
+                "text": "${transforms.countText}",
+                "role": "caption",
+                "foreground": "secondary"
+              },
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "button",
+                "title": "Lock",
+                "icon": "lock",
+                "action": {
+                  "type": "vaultLock"
+                }
+              }
+            ]
           },
           {
-            "type": "text",
-            "text": "${transforms.stateWord}",
-            "role": "title",
-            "lineLimit": 1
-          },
-          {
-            "type": "spacer"
+            "type": "list",
+            "spacing": 2,
+            "searchPlaceholder": "Search vault",
+            "items": {
+              "forEach": "$.transforms.rows",
+              "as": "it",
+              "template": {
+                "type": "hstack",
+                "id": "${it.handle}",
+                "spacing": 6,
+                "padding": 4,
+                "desktopRole": "hide",
+                "children": [
+                  {
+                    "type": "vstack",
+                    "spacing": 1,
+                    "widthFill": true,
+                    "children": [
+                      {
+                        "type": "text",
+                        "text": "${it.name}",
+                        "role": "body",
+                        "lineLimit": 1
+                      },
+                      {
+                        "type": "text",
+                        "text": "${coalesce(it.username, '')}${if(and(it.username, it.host), ' · ', '')}${coalesce(it.host, '')}",
+                        "role": "caption",
+                        "foreground": "secondary",
+                        "lineLimit": 1
+                      }
+                    ]
+                  },
+                  {
+                    "type": "button",
+                    "icon": "person",
+                    "hidden": "${not(it.hasUsername)}",
+                    "action": {
+                      "type": "vaultCopy",
+                      "value": "${it.handle}",
+                      "field": "username"
+                    },
+                    "accessibilityLabel": "Copy username"
+                  },
+                  {
+                    "type": "button",
+                    "icon": "key",
+                    "action": {
+                      "type": "vaultCopy",
+                      "value": "${it.handle}",
+                      "field": "password"
+                    },
+                    "accessibilityLabel": "Copy password"
+                  },
+                  {
+                    "type": "button",
+                    "icon": "clock.badge.checkmark",
+                    "hidden": "${not(it.totp)}",
+                    "action": {
+                      "type": "vaultCopy",
+                      "value": "${it.handle}",
+                      "field": "totp"
+                    },
+                    "accessibilityLabel": "Copy verification code"
+                  }
+                ]
+              }
+            }
           }
         ]
       },
-      {
-        "switch": "${transforms.state}",
-        "cases": {
-          "missing": {
-            "type": "empty",
-            "icon": "lock.slash",
-            "title": "Bitwarden CLI not found",
-            "subtitle": "Install it with Homebrew (bitwarden-cli) or npm (@bitwarden/cli)."
-          },
-          "error": {
-            "type": "banner",
-            "icon": "exclamationmark.triangle",
-            "tone": "warning",
-            "text": "bw status did not answer. Check the Bitwarden CLI in Terminal."
-          },
-          "unauthenticated": {
-            "type": "banner",
-            "icon": "person.crop.circle.badge.questionmark",
-            "tone": "secondary",
-            "text": "Not logged in. Run bw login in Terminal."
-          }
-        },
-        "default": {
-          "type": "vstack",
-          "spacing": 5,
-          "children": [
-            {
-              "type": "hstack",
-              "spacing": 6,
-              "children": [
-                {
-                  "type": "text",
-                  "text": "Last sync",
-                  "role": "caption",
-                  "foreground": "secondary"
+      "locked": {
+        "type": "vstack",
+        "spacing": 8,
+        "children": [
+          {
+            "type": "vstack",
+            "spacing": 8,
+            "children": [
+              {
+                "type": "hstack",
+                "spacing": 8,
+                "children": [
+                  {
+                    "type": "image",
+                    "source": {
+                      "kind": "sfSymbol",
+                      "name": "${transforms.icon}"
+                    },
+                    "size": 22,
+                    "tint": "${transforms.tint}"
+                  },
+                  {
+                    "type": "text",
+                    "text": "${transforms.stateWord}",
+                    "role": "title",
+                    "lineLimit": 1
+                  },
+                  {
+                    "type": "spacer"
+                  }
+                ]
+              },
+              {
+                "switch": "${transforms.state}",
+                "cases": {
+                  "missing": {
+                    "type": "empty",
+                    "icon": "lock.slash",
+                    "title": "Bitwarden CLI not found",
+                    "subtitle": "Install it with Homebrew (bitwarden-cli) or npm (@bitwarden/cli)."
+                  },
+                  "error": {
+                    "type": "banner",
+                    "icon": "exclamationmark.triangle",
+                    "tone": "warning",
+                    "text": "bw status did not answer. Check the Bitwarden CLI in Terminal."
+                  },
+                  "unauthenticated": {
+                    "type": "banner",
+                    "icon": "person.crop.circle.badge.questionmark",
+                    "tone": "secondary",
+                    "text": "Not logged in. Run bw login in Terminal."
+                  }
                 },
-                {
-                  "type": "spacer"
-                },
-                {
-                  "type": "text",
-                  "text": "${transforms.syncText}",
-                  "role": "caption",
-                  "foreground": "${if(transforms.stale, 'warning', 'primary')}"
+                "default": {
+                  "type": "vstack",
+                  "spacing": 5,
+                  "children": [
+                    {
+                      "type": "hstack",
+                      "spacing": 6,
+                      "children": [
+                        {
+                          "type": "text",
+                          "text": "Last sync",
+                          "role": "caption",
+                          "foreground": "secondary"
+                        },
+                        {
+                          "type": "spacer"
+                        },
+                        {
+                          "type": "text",
+                          "text": "${transforms.syncText}",
+                          "role": "caption",
+                          "foreground": "${if(transforms.stale, 'warning', 'primary')}"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "hstack",
+                      "spacing": 6,
+                      "children": [
+                        {
+                          "type": "text",
+                          "text": "Server",
+                          "role": "caption",
+                          "foreground": "secondary"
+                        },
+                        {
+                          "type": "spacer"
+                        },
+                        {
+                          "type": "text",
+                          "text": "${transforms.server}",
+                          "role": "caption",
+                          "lineLimit": 1,
+                          "truncation": "middle"
+                        }
+                      ]
+                    },
+                    {
+                      "switch": "${if(transforms.stale, 'stale', 'fresh')}",
+                      "cases": {
+                        "stale": {
+                          "type": "banner",
+                          "icon": "arrow.triangle.2.circlepath",
+                          "tone": "warning",
+                          "text": "Not synced for more than ${string(coalesce(settings.staleDays, 7))} days."
+                        }
+                      },
+                      "default": {
+                        "type": "none"
+                      }
+                    },
+                    {
+                      "type": "text",
+                      "text": "Shows status only. BarShelf never unlocks the vault or reads items.",
+                      "role": "caption",
+                      "foreground": "tertiary",
+                      "lineLimit": 2
+                    }
+                  ]
                 }
-              ]
-            },
-            {
-              "type": "hstack",
-              "spacing": 6,
-              "children": [
-                {
-                  "type": "text",
-                  "text": "Server",
-                  "role": "caption",
-                  "foreground": "secondary"
-                },
-                {
-                  "type": "spacer"
-                },
-                {
-                  "type": "text",
-                  "text": "${transforms.server}",
-                  "role": "caption",
-                  "lineLimit": 1,
-                  "truncation": "middle"
-                }
-              ]
-            },
-            {
-              "switch": "${if(transforms.stale, 'stale', 'fresh')}",
-              "cases": {
-                "stale": {
-                  "type": "banner",
-                  "icon": "arrow.triangle.2.circlepath",
-                  "tone": "warning",
-                  "text": "Not synced for more than ${string(coalesce(settings.staleDays, 7))} days."
+              }
+            ]
+          },
+          {
+            "switch": "${if(eq(transforms.vaultError, ''), 'none', 'error')}",
+            "cases": {
+              "none": {
+                "type": "spacer"
+              },
+              "error": {
+                "type": "text",
+                "text": "${transforms.vaultError}",
+                "role": "caption",
+                "foreground": "secondary"
+              }
+            }
+          },
+          {
+            "type": "hstack",
+            "spacing": 8,
+            "children": [
+              {
+                "type": "button",
+                "title": "Unlock",
+                "icon": "lock.open",
+                "style": "borderedProminent",
+                "action": {
+                  "type": "vaultUnlock"
                 }
               },
-              "default": {
-                "type": "none"
+              {
+                "type": "text",
+                "text": "BarShelf asks for your master password and keeps only the session.",
+                "role": "caption",
+                "foreground": "secondary",
+                "lineLimit": 2
               }
-            },
-            {
-              "type": "text",
-              "text": "Shows status only. BarShelf never unlocks the vault or reads items.",
-              "role": "caption",
-              "foreground": "tertiary",
-              "lineLimit": 2
-            }
-          ]
-        }
+            ]
+          }
+        ]
       }
-    ]
+    }
   },
   "status": {
     "label": "${transforms.stateWord}",

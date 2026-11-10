@@ -3,13 +3,13 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.bitwarden",
   "name": "Bitwarden",
-  "version": "0.1.0",
-  "minHostVersion": "0.7.21",
+  "version": "0.2.0",
+  "minHostVersion": "0.7.22",
   "icon": "lock.shield.fill",
   "bucket": {
     "group": "Security",
     "order": 20,
-    "size": "S"
+    "size": "M"
   },
   "entry": {
     "kind": "workflow",
@@ -43,7 +43,12 @@
         "sensitiveOutput": true
       }
     ],
-    "notifications": true
+    "notifications": true,
+    "vault": {
+      "provider": "bitwarden",
+      "idleLockMinutes": 10,
+      "maxSessionMinutes": 60
+    }
   },
   "settings": [
     {
@@ -77,7 +82,14 @@
       "Server": "서버",
       "Not synced for more than ${string(coalesce(settings.staleDays, 7))} days.": "${string(coalesce(settings.staleDays, 7))}일 넘게 동기화하지 않았습니다.",
       "Shows status only. BarShelf never unlocks the vault or reads items.": "상태만 표시합니다. BarShelf는 보관함을 잠금 해제하거나 항목을 읽지 않습니다.",
-      "Bitwarden: ${transforms.stateWord} · ${transforms.syncText}": "Bitwarden: ${transforms.stateWord} · ${transforms.syncText}"
+      "Bitwarden: ${transforms.stateWord} · ${transforms.syncText}": "Bitwarden: ${transforms.stateWord} · ${transforms.syncText}",
+      "Unlock": "잠금 해제",
+      "BarShelf asks for your master password and keeps only the session.": "BarShelf가 마스터 비밀번호를 묻고 세션만 보관합니다.",
+      "Lock": "잠그기",
+      "Search vault": "보관함 검색",
+      "Copy username": "아이디 복사",
+      "Copy password": "비밀번호 복사",
+      "Copy verification code": "인증 코드 복사"
     }
   }
 }

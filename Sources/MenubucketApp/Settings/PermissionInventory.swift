@@ -10,7 +10,7 @@ import MenubucketCore
 /// grants beyond what widgets declare.
 enum PermissionInventory {
     enum Kind: CaseIterable, Hashable {
-        case commands, network, files, environment, keychain, notifications, quitApps, storage, system
+        case commands, network, files, environment, keychain, vault, notifications, quitApps, storage, system
 
         var title: String {
             switch self {
@@ -19,6 +19,7 @@ enum PermissionInventory {
             case .files: return String(localized: "Files and folders", comment: "Privacy by capability: paths widgets may read")
             case .environment: return String(localized: "Environment variables", comment: "Privacy by capability")
             case .keychain: return String(localized: "Keychain secrets", comment: "Privacy by capability")
+            case .vault: return String(localized: "Password vault", comment: "Privacy by capability: widgets BarShelf unlocks a password manager for")
             case .notifications: return String(localized: "Notifications", comment: "Privacy by capability")
             case .quitApps: return String(localized: "Quitting apps", comment: "Privacy by capability: widgets that may quit apps, asking each time")
             case .storage: return String(localized: "Saved data", comment: "Privacy by capability: widgets that keep small data on this Mac")
@@ -33,6 +34,7 @@ enum PermissionInventory {
             case .files: return "folder"
             case .environment: return "list.bullet.rectangle"
             case .keychain: return "key"
+            case .vault: return "lock.shield"
             case .notifications: return "bell"
             case .quitApps: return "xmark.app"
             case .storage: return "internaldrive"
@@ -89,6 +91,7 @@ enum PermissionInventory {
             for name in permissions.env ?? [] { add(.environment, name, holder) }
             for group in permissions.system ?? [] { add(.system, group, holder) }
             if permissions.keychain == true { add(.keychain, "", holder) }
+            if let vault = permissions.vault { add(.vault, vault.provider, holder) }
             if permissions.notifications == true { add(.notifications, "", holder) }
             if permissions.quitApps == true { add(.quitApps, "", holder) }
             if permissions.storage?.granted == true { add(.storage, "", holder) }

@@ -73,6 +73,10 @@ enum ActionRouter {
                 runtime?.requestRefresh(widgetID: widgetID)
             }
 
+        case "vaultUnlock", "vaultLock", "vaultCopy":
+            // Needs permissions.vault; the host's provider does the work.
+            Task { @MainActor in runtime?.performVaultAction(action, widgetID: widgetID) }
+
         case "event":
             // Script runtime: forwarded to the widget as `widget.action`.
             runtime?.sendScriptEvent(actionId: action.id, widgetID: widgetID)

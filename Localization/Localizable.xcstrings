@@ -132,6 +132,22 @@
         }
       }
     },
+    "%@ asks BarShelf to unlock your vault. BarShelf passes the master password to the Bitwarden CLI, keeps only the session it returns, and locks again after %lld minutes without use.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ asks BarShelf to unlock your vault. BarShelf passes the master password to the Bitwarden CLI, keeps only the session it returns, and locks again after %2$lld minutes without use."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 위젯이 보관함 잠금 해제를 요청합니다. BarShelf는 마스터 비밀번호를 Bitwarden CLI에 넘기고 돌려받은 세션만 보관하며, %lld분 동안 쓰지 않으면 다시 잠급니다."
+          }
+        }
+      }
+    },
     "%@ couldn't refresh. %@": {
       "comment": "VoiceOver: a manual refresh failed; the error follows",
       "localizations": {
@@ -1808,6 +1824,26 @@
         }
       }
     },
+    "Bitwarden couldn't do that.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitwarden이 그 작업을 하지 못했습니다."
+          }
+        }
+      }
+    },
+    "Bitwarden took too long to answer.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitwarden 응답이 너무 늦습니다."
+          }
+        }
+      }
+    },
     "Blank uses the widget's own colors. A \"show only\" value hides the item until a reading gets there.": {
       "localizations": {
         "ko": {
@@ -2503,6 +2539,16 @@
         }
       }
     },
+    "Code copied · clears in 30 s": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "코드를 복사했습니다 · 30초 뒤 지워짐"
+          }
+        }
+      }
+    },
     "Color": {
       "localizations": {
         "ko": {
@@ -2851,6 +2897,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "설정을 저장할 수 없음: %@"
+          }
+        }
+      }
+    },
+    "Couldn't unlock. Check the master password and that bw is logged in.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "잠금을 해제하지 못했습니다. 마스터 비밀번호와 bw 로그인 상태를 확인하세요."
           }
         }
       }
@@ -6208,6 +6264,16 @@
         }
       }
     },
+    "Master password": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "마스터 비밀번호"
+          }
+        }
+      }
+    },
     "Match": {
       "localizations": {
         "ko": {
@@ -7713,6 +7779,27 @@
           "stringUnit": {
             "state": "translated",
             "value": "이 위젯의 일부 기능에 최신 BarShelf가 필요합니다(“%@”). ⋯ 메뉴에서 업데이트를 확인하십시오."
+          }
+        }
+      }
+    },
+    "Password copied · clears in 30 s": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "비밀번호를 복사했습니다 · 30초 뒤 지워짐"
+          }
+        }
+      }
+    },
+    "Password vault": {
+      "comment": "Privacy by capability: widgets BarShelf unlocks a password manager for",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "비밀번호 보관함"
           }
         }
       }
@@ -10256,6 +10343,7 @@
       }
     },
     "Shows whether your Bitwarden vault is locked and when it last synced, and can warn when it hasn’t synced for a while. Needs the Bitwarden CLI (bw); it never unlocks the vault or reads items.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -10970,6 +11058,16 @@
         }
       }
     },
+    "The Bitwarden CLI (bw) isn't installed.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitwarden CLI(bw)가 설치되어 있지 않습니다."
+          }
+        }
+      }
+    },
     "The Dock needs attention. %@": {
       "localizations": {
         "ko": {
@@ -11242,6 +11340,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "업데이트가 설치되지 않음"
+          }
+        }
+      }
+    },
+    "The vault answer was too large to read.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "보관함 응답이 너무 커서 읽지 못했습니다."
+          }
+        }
+      }
+    },
+    "The vault is locked.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "보관함이 잠겨 있습니다."
           }
         }
       }
@@ -11890,6 +12008,57 @@
         }
       }
     },
+    "Unlock": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "잠금 해제"
+          }
+        }
+      }
+    },
+    "Unlock Bitwarden": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitwarden 잠금 해제"
+          }
+        }
+      }
+    },
+    "Unlock your Bitwarden vault from the card, search it, and copy a username, password or code that clears itself after 30 seconds. Locks on its own when unused. Needs the Bitwarden CLI (bw).": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "카드에서 Bitwarden 보관함을 열고 검색해, 아이디·비밀번호·인증 코드를 복사합니다(30초 뒤 클립보드에서 지워짐). 쓰지 않으면 저절로 잠깁니다. Bitwarden CLI(bw)가 필요합니다."
+          }
+        }
+      }
+    },
+    "Unlock your Bitwarden vault when you ask and copy fields you pick": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "요청할 때 Bitwarden 보관함을 열고 고른 항목을 복사합니다"
+          }
+        }
+      }
+    },
+    "Unlock your Bitwarden vault when you ask, list item names and copy a username, password or code you pick; locks after %lld minutes without use": {
+      "comment": "Approval card: the vault permission",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "요청할 때 Bitwarden 보관함을 열고, 항목 이름을 보여 주며, 고른 아이디·비밀번호·코드를 복사합니다. %lld분 동안 쓰지 않으면 잠급니다"
+          }
+        }
+      }
+    },
     "Unpin": {
       "localizations": {
         "ko": {
@@ -12190,6 +12359,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "모든 항목 스타일 사용"
+          }
+        }
+      }
+    },
+    "Username copied": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "아이디를 복사했습니다"
           }
         }
       }

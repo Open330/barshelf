@@ -131,6 +131,9 @@ enum WidgetPermissionSummary {
         if permissions.storage?.granted == true {
             lines.append(Line(symbol: "internaldrive", text: String(localized: "Save small amounts of data on this Mac")))
         }
+        if permissions.vault != nil {
+            lines.append(Line(symbol: "lock.shield", text: String(localized: "Unlock your Bitwarden vault when you ask and copy fields you pick")))
+        }
         let system = permissions.system ?? []
         if !system.isEmpty {
             lines.append(Line(symbol: "cpu", text: String(localized: "Read system information: \(list(system))", comment: "Permission summary: system readings such as cpu or memory")))

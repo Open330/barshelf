@@ -36,6 +36,15 @@ final class PermissionNarrowingTests: XCTestCase {
         XCTAssertFalse(covered(P(system: ["cpu", "disk"]), by: P(system: ["cpu"])))
     }
 
+    func testVaultGrantsMustBeIdentical() {
+        let vault = Manifest.VaultPermission(provider: "bitwarden", idleLockMinutes: 10)
+        XCTAssertTrue(covered(P(vault: vault), by: P(vault: vault)))
+        XCTAssertFalse(covered(P(), by: P(vault: vault)), "a vault widget is sensitive; dropping it would unmark the rest")
+        XCTAssertFalse(covered(P(vault: vault), by: P()))
+        XCTAssertFalse(covered(P(vault: .init(provider: "bitwarden", idleLockMinutes: 30)), by: P(vault: vault)), "longer sessions ask again")
+        XCTAssertTrue(PermissionStore.requiresApproval(for: Manifest(schemaVersion: 1, id: "v", name: "v", entry: .init(kind: "workflow"), permissions: P(vault: vault))))
+    }
+
     func testFlagsCanOnlyTurnOff() {
         XCTAssertTrue(covered(P(keychain: false), by: P(keychain: true)))
         XCTAssertTrue(covered(P(), by: P(notifications: true)))

@@ -229,6 +229,18 @@ public enum WidgetValidator {
                                          workflowFile: joinPath(prefix, workflowFileName ?? "workflow.json"))
         }
 
+        if let vault = manifest.permissions?.vault,
+           !Manifest.VaultPermission.providers.contains(vault.provider) {
+            report.issues.append(Issue(file: manifestFile, field: "permissions.vault.provider",
+                                       message: "unknown vault provider \"\(vault.provider)\"; supported: "
+                                           + Manifest.VaultPermission.providers.sorted().joined(separator: ", ")))
+        }
+        if manifest.permissions?.vault == nil,
+           workflow?.sources.values.contains(where: { $0.use == "vault.items" }) == true {
+            report.issues.append(Issue(file: manifestFile, field: "permissions.vault",
+                                       message: "vault.items sources need permissions.vault"))
+        }
+
         let requestedMetrics = WidgetDiscovery.requestedSystemMetrics(workflow)
         if !requestedMetrics.isEmpty {
             let declared = Set(

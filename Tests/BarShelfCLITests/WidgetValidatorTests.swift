@@ -331,4 +331,16 @@ final class WidgetValidatorTests: XCTestCase {
         let fields = WidgetValidator.validate(directory: dir).issues.map(\.field)
         XCTAssertEqual(Set(fields), ["alerts.low.when", "alerts.low.title"])
     }
+
+    func testVaultNeedsAKnownProviderAndThePermission() throws {
+        let unknown = try writeWidget("""
+        { "schemaVersion": 1, "id": "v", "name": "V", "entry": { "kind": "workflow" },
+          "permissions": { "vault": { "provider": "lastpass" } } }
+        """, extra: ["workflow.json": #"{"schemaVersion":1,"sources":{"v":{"use":"vault.items"}},"view":{"type":"text","text":"x"}}"#])
+        XCTAssertEqual(WidgetValidator.validate(directory: unknown).issues.map(\.field), ["permissions.vault.provider"])
+        let missing = try writeWidget("""
+        { "schemaVersion": 1, "id": "v", "name": "V", "entry": { "kind": "workflow" } }
+        """, extra: ["workflow.json": #"{"schemaVersion":1,"sources":{"v":{"use":"vault.items"}},"view":{"type":"text","text":"x"}}"#])
+        XCTAssertEqual(WidgetValidator.validate(directory: missing).issues.map(\.field), ["permissions.vault"])
+    }
 }

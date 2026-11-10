@@ -1239,8 +1239,8 @@
       "id": "dev.barshelf.bitwarden",
       "accent": "blue",
       "name": "Bitwarden",
-      "description": "Bitwarden CLI vault status from `bw status` only: locked, unlocked or logged out, last sync and server. No session, no unlock, no item data. Optional notification when the vault hasn't synced in N days.",
-      "version": "0.1.0",
+      "description": "Unlock your Bitwarden vault from the card, search items and copy a username, password or verification code (cleared from the clipboard after 30 s). BarShelf's built-in provider keeps only the session, in memory, and locks after 10 minutes without use, an hour at most, on screen lock and sleep. Also shows lock state and last sync.",
+      "version": "0.2.0",
       "author": "barshelf",
       "icon": "lock.shield.fill",
       "kind": "workflow",
@@ -1248,7 +1248,8 @@
         "security",
         "bitwarden",
         "password",
-        "vault"
+        "vault",
+        "totp"
       ],
       "category": "Security",
       "requires": "Bitwarden CLI (bw)",
@@ -1264,7 +1265,8 @@
         "notifications": true
       },
       "homepage": "https://bitwarden.com/help/cli/",
-      "minHostVersion": "0.7.21"
+      "minHostVersion": "0.7.22",
+      "readme": "https://github.com/Open330/barshelf/blob/main/widgets/bitwarden/README.md"
     },
     {
       "id": "dev.barshelf.world-clock",
