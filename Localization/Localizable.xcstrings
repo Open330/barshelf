@@ -12563,7 +12563,18 @@
         }
       }
     },
+    "You'll find more in the Gallery, including packs that add a few widgets at once: usage meters, one-time codes, system sensors, and more.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "갤러리에 더 있습니다. 위젯 몇 개를 한 번에 추가하는 팩도 있습니다: 사용량 미터, 일회용 코드, 시스템 센서 등."
+          }
+        }
+      }
+    },
     "You'll find more in the Gallery: usage meters, one-time codes, system sensors, and more.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {

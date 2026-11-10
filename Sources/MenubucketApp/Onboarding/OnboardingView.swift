@@ -146,7 +146,7 @@ struct OnboardingView: View {
         .padding(.horizontal, Spacing.s)
         .cardSurface()
         HStack(alignment: .firstTextBaseline) {
-            Text("You'll find more in the Gallery: usage meters, one-time codes, system sensors, and more.")
+            Text("You'll find more in the Gallery, including packs that add a few widgets at once: usage meters, one-time codes, system sensors, and more.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

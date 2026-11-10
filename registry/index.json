@@ -162,6 +162,39 @@
       "homepage": "https://github.com/Open330/aas"
     },
     {
+      "id": "dev.barshelf.aas-alerts",
+      "collection": "custom",
+      "accent": "orange",
+      "name": "aas Alerts",
+      "description": "Notifies once when any aas account runs low (default 20% left) and once when every account reports plenty again after a reset. A small opt-in companion to aas Usage, built on workflow alerts.",
+      "version": "0.1.0",
+      "author": "barshelf",
+      "icon": "bell.badge",
+      "kind": "workflow",
+      "tags": [
+        "dev",
+        "ai",
+        "aas",
+        "alerts",
+        "notifications",
+        "workflow"
+      ],
+      "category": "Developer",
+      "requires": "aas CLI",
+      "install": {
+        "url": "https://github.com/Open330/aas/tree/main/widgets/barshelf-aas-alerts"
+      },
+      "permissions": {
+        "exec": [
+          "aas"
+        ],
+        "keychain": false,
+        "notifications": true
+      },
+      "homepage": "https://github.com/Open330/aas",
+      "minHostVersion": "0.7.21"
+    },
+    {
       "id": "dev.barshelf.muxa-watch",
       "collection": "custom",
       "accent": "purple",
