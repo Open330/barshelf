@@ -5,7 +5,9 @@
 // reads the guard's status.json and writes or removes override.json, the
 // one request the guard accepts:
 //
-//   status                 → normalized JSON for the widget
+//   status                 → normalized JSON. The widget no longer runs this:
+//                            it reads both files itself (fs.json) and the
+//                            tests hold its workflow to this output.
 //   set <seconds> <lid>    → keep awake for that long (capped at 12 h)
 //   until <HH:MM> <lid>    → keep awake until the next such time (capped)
 //   cancel                 → remove the request

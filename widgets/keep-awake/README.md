@@ -24,7 +24,7 @@ request is active, the countdown to sleep just after unplugging, and a warning
 when the guard stops answering (no status for more than 15 seconds). It
 checks once a minute and whenever the popup opens; the guard rewrites its
 status every few seconds, so watching that folder would run the widget
-nonstop.
+nonstop. Checking reads the two files directly, with no process started.
 
 ## Settings
 
@@ -33,5 +33,6 @@ nonstop.
 
 ## Permissions
 
-It runs `/usr/bin/osascript` with its own `keep-awake.js` only (`status`,
-`set`, `until`, `cancel`), and reads the guard's folder.
+It reads the guard's folder (status and pending request, BarShelf 0.7.17+) and
+runs `/usr/bin/osascript` with its own `keep-awake.js` only to write or remove
+a request (`set`, `until`, `cancel`).

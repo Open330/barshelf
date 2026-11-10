@@ -76,8 +76,8 @@ Builder의 고급 UI는 `WorkflowGraph`를 편집 모델로 사용할 수 있다
 | 필드 | 설명 |
 | --- | --- |
 | `schemaVersion` | v1은 `1`. |
-| `sources` | 호스트가 실행하거나 주입하는 입력 단계. v1은 `exec`, `fs.directory`, `http`, `value`를 지원한다. |
-| `transforms` | 순수 변환 단계. v1은 `assign`, `filter`, `sort`, `limit`를 지원한다. |
+| `sources` | 호스트가 실행하거나 주입하는 입력 단계. v1은 `exec`, `fs.directory`, `fs.json`, `http`, `system`, `value`를 지원한다. |
+| `transforms` | 순수 변환 단계. v1은 `assign`, `template`, `filter`, `sort`, `limit`를 지원한다. |
 | `view` | 렌더링할 UINode 템플릿. 문자열 필드에서만 `${...}` 보간을 허용한다. |
 | `empty` | 반복 결과가 비어 있을 때 사용할 UINode. |
 | `status` | 메뉴바 status item의 label/tooltip. [메뉴바 승격](#메뉴바-승격) 참조. |
@@ -90,10 +90,17 @@ Builder의 고급 UI는 `WorkflowGraph`를 편집 모델로 사용할 수 있다
 | `use` | `with` 필드 | 출력 |
 | --- | --- | --- |
 | `fs.directory` | `path`, `watch`, `skipHidden`, `sortBy`, `sortDirection`, `limit` | `{ "items": [...] }` |
+| `fs.json` | `path`, `maxBytes` | `{ exists, valid, value, modifiedAt, size, path }` **BarShelf 0.7.17+** |
 | `exec` | `command`, `timeoutMs`, `output`, `maxOutputBytes` | stdout JSON |
 | `http` | `url`, `headers` | HTTPS JSON response |
 | `system` | `metrics`, `detail`, `sensors`, `io`, `mount`, `interface`, `processes` | CPU/메모리/디스크/센서/네트워크 측정값, CPU 상위 프로세스 |
 | `value` | any JSON literal | the literal JSON value |
+
+`fs.json`은 `permissions.readPaths` 안의 JSON 파일 하나를 프로세스 없이 읽는다. 다른 앱이 쓰는 상태 파일을 보여 줄 때 `cat`이나 스크립트를 띄우지 않고 쓴다.
+
+- 파일이 없으면 오류가 아니라 `exists: false`, JSON이 깨졌으면 `valid: false`인 값이 나온다. 위젯은 "설치 안 됨", "읽을 수 없음"을 직접 보여 줄 수 있다. 폴더째 없는 경우도 그 경로가 `readPaths` 안이면 `exists: false`다.
+- 파싱된 내용은 `value`에 있다(`sources.<id>.value.<field>`). `modifiedAt`은 Unix epoch milliseconds, `size`는 bytes.
+- 심볼릭 링크는 따라가지 않는다. 일반 파일이 아니거나(`FIFO`, 디렉터리), `readPaths` 밖이거나, `maxBytes`(기본 1 MB, 최대 5 MB)를 넘으면 갱신이 실패하고 감사 로그에 남는다.
 
 `fs.directory` item 필드는 고정이다.
 
@@ -322,6 +329,7 @@ SMC 온도가 없는 Mac에서는 HID 센서 이름). 접두사는 정확히 소
 | `use` | 필수 필드 | 설명 |
 | --- | --- | --- |
 | `assign` | `from` | 입력 경로의 값을 그대로 바인딩한다. |
+| `template` | `with` | 보간한 `with`를 그대로 결과로 쓴다. 표현식으로 객체를 만들거나 `forEach`로 목록을 다른 모양으로 바꿀 때 쓴다(`assign`은 값 하나만 넘긴다). **BarShelf 0.7.17+** |
 | `filter` | `from` | 입력 목록을 조건식으로 거른다. 조건식은 제한된 expression DSL만 사용한다. |
 | `sort` | `from` | 입력 목록을 지정한 key/direction으로 정렬한다. |
 | `limit` | `from` | 입력 목록의 앞쪽 N개만 유지한다. |
@@ -388,6 +396,9 @@ BarShelf에는 그 함수가 없어 워크플로 평가가 "unknown function" �
 | `now()` | 현재 시각을 Unix epoch milliseconds로 반환한다. |
 | `count(list)` | 목록 길이를 반환한다. |
 | `date.relative(ms)` | epoch milliseconds를 상대 시간 텍스트로 변환한다. |
+| `date.ms(text)` | ISO 8601 시각(소수 초 포함 가능)을 epoch milliseconds로. 숫자는 그대로, 날짜가 아니면 `null`. **BarShelf 0.7.17+** |
+| `date.clock(ms)` | epoch milliseconds를 현지 시각 `HH:mm`으로. **BarShelf 0.7.17+** |
+| `duration.short(seconds)` | 남은 시간을 짧게: 1시간 이상 `1:05`, 그다음 `12m`, `40s`. 음수는 0. **BarShelf 0.7.17+** |
 | `file.basename(path)` / `file.extension(path)` | 경로의 파일명 / 확장자. |
 | `text.truncate(s,n)` | 문자열을 최대 길이로 줄인다. |
 | `concat(a,b,...)` | 인자들의 문자열 표현을 이어붙인다. `${}` **안에서** 문자열을 만드는 유일한 방법이라 `if(...)`의 각 가지에 단위를 붙일 때 쓴다. |

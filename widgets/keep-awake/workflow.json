@@ -2,19 +2,92 @@
   "schemaVersion": 1,
   "kind": "workflow",
   "sources": {
-    "guard": {
-      "use": "exec",
+    "status": {
+      "use": "fs.json",
       "with": {
-        "command": [
-          "/usr/bin/osascript",
-          "-l",
-          "JavaScript",
-          "./keep-awake.js",
-          "status"
-        ],
-        "timeoutMs": 5000,
-        "output": "json",
-        "maxOutputBytes": 65536
+        "path": "~/Library/Application Support/PowerDisplayGuard/status.json",
+        "maxBytes": 262144
+      }
+    },
+    "pending": {
+      "use": "fs.json",
+      "with": {
+        "path": "~/Library/Application Support/PowerDisplayGuard/override.json",
+        "maxBytes": 65536
+      }
+    }
+  },
+  "transforms": {
+    "raw": {
+      "use": "assign",
+      "from": "sources.status.value"
+    },
+    "updatedMs": {
+      "use": "assign",
+      "from": "date.ms(transforms.raw.updatedAt)"
+    },
+    "age": {
+      "use": "assign",
+      "from": "if(eq(transforms.updatedMs, null), null, round(div(sub(now(), transforms.updatedMs), 1000)))"
+    },
+    "state": {
+      "use": "assign",
+      "from": "if(or(not(sources.status.exists), and(sources.status.valid, eq(transforms.raw, null))), 'missing', if(or(not(sources.status.valid), ne(transforms.raw.version, 1)), 'invalid', if(or(eq(transforms.age, null), gt(transforms.age, 15)), 'stale', 'ok')))"
+    },
+    "live": {
+      "use": "assign",
+      "from": "and(ne(transforms.state, 'missing'), ne(transforms.state, 'invalid'))"
+    },
+    "override": {
+      "use": "assign",
+      "from": "if(transforms.live, transforms.raw.override, null)"
+    },
+    "untilMs": {
+      "use": "assign",
+      "from": "if(transforms.override.until, coalesce(date.ms(transforms.override.until), 0), 0)"
+    },
+    "remaining": {
+      "use": "assign",
+      "from": "if(transforms.untilMs, duration.short(div(sub(transforms.untilMs, now()), 1000)), '')"
+    },
+    "graceText": {
+      "use": "assign",
+      "from": "if(and(transforms.live, eq(transforms.raw.phase, 'grace'), ne(number(transforms.raw.graceRemaining), null)), duration.short(transforms.raw.graceRemaining), '')"
+    },
+    "blockerList": {
+      "use": "assign",
+      "from": "if(transforms.live, transforms.raw.blockers, null)"
+    },
+    "guard": {
+      "use": "template",
+      "with": {
+        "state": "${transforms.state}",
+        "phase": "${if(transforms.live, coalesce(transforms.raw.phase, null), null)}",
+        "onAC": "${if(transforms.live, if(transforms.raw.onAC, true, false), null)}",
+        "holding": "${if(and(transforms.live, transforms.raw.holding), true, false)}",
+        "sleepDisabled": "${if(and(transforms.live, transforms.raw.sleepDisabled), true, false)}",
+        "ageSeconds": "${if(transforms.live, transforms.age, null)}",
+        "remaining": "${transforms.remaining}",
+        "untilText": "${if(transforms.untilMs, date.clock(transforms.untilMs), '')}",
+        "untilMs": "${transforms.untilMs}",
+        "fromMs": "${if(transforms.untilMs, coalesce(date.ms(transforms.override.createdAt), transforms.updatedMs, now()), 0)}",
+        "lidClosedEffective": "${if(transforms.untilMs, if(eq(transforms.override.lidClosedEffective, null), if(transforms.override.lidClosed, true, false), if(transforms.override.lidClosedEffective, true, false)), false)}",
+        "note": "${if(transforms.untilMs, default(transforms.override.note, ''), '')}",
+        "graceText": "${transforms.graceText}",
+        "requestPending": "${and(transforms.live, sources.pending.value.id, ne(coalesce(transforms.override.id, null), sources.pending.value.id))}",
+        "blockers": {
+          "forEach": "$.transforms.blockerList",
+          "as": "b",
+          "template": {
+            "id": "${concat(string(b.pid), '-', b.type)}",
+            "process": "${coalesce(b.process, concat('pid ', string(b.pid)))}",
+            "type": "${default(b.type, '')}",
+            "name": "${default(coalesce(b.assertionName, b.name), '')}"
+          }
+        },
+        "blockerCount": "${count(transforms.blockerList)}",
+        "icon": "${if(ne(transforms.state, 'ok'), 'exclamationmark.triangle', switch(transforms.raw.phase, 'override', 'cup.and.saucer.fill', 'grace', 'timer', 'ac', 'bolt.fill', 'moon.zzz'))}",
+        "menuLabel": "${if(ne(transforms.state, 'ok'), '!', switch(transforms.raw.phase, 'override', transforms.remaining, 'grace', transforms.graceText, ''))}"
       }
     }
   },
@@ -23,7 +96,7 @@
     "spacing": 10,
     "children": [
       {
-        "switch": "${sources.guard.state}",
+        "switch": "${transforms.guard.state}",
         "cases": {
           "missing": {
             "type": "banner",
@@ -33,7 +106,7 @@
           "stale": {
             "type": "banner",
             "tone": "warning",
-            "text": "PowerDisplayGuard stopped answering ${sources.guard.ageSeconds} s ago. What shows below may be out of date."
+            "text": "PowerDisplayGuard stopped answering ${transforms.guard.ageSeconds} s ago. What shows below may be out of date."
           },
           "invalid": {
             "type": "banner",
@@ -46,7 +119,7 @@
         }
       },
       {
-        "switch": "${sources.guard.phase}",
+        "switch": "${transforms.guard.phase}",
         "cases": {
           "override": {
             "type": "vstack",
@@ -68,7 +141,7 @@
                   {
                     "type": "text",
                     "role": "title",
-                    "text": "Awake for ${sources.guard.remaining}"
+                    "text": "Awake for ${transforms.guard.remaining}"
                   },
                   {
                     "type": "spacer"
@@ -77,7 +150,7 @@
                     "type": "text",
                     "role": "caption",
                     "foreground": "secondary",
-                    "text": "until ${sources.guard.untilText}"
+                    "text": "until ${transforms.guard.untilText}"
                   }
                 ]
               },
@@ -85,8 +158,8 @@
                 "type": "progress",
                 "style": "linear",
                 "countdown": {
-                  "from": "${sources.guard.fromMs}",
-                  "until": "${sources.guard.untilMs}"
+                  "from": "${transforms.guard.fromMs}",
+                  "until": "${transforms.guard.untilMs}"
                 },
                 "tintRules": [
                   {
@@ -96,7 +169,7 @@
                 ]
               },
               {
-                "switch": "${string(sources.guard.lidClosedEffective)}",
+                "switch": "${string(transforms.guard.lidClosedEffective)}",
                 "cases": {
                   "true": {
                     "type": "text",
@@ -113,7 +186,7 @@
                 }
               },
               {
-                "switch": "${sources.guard.note}",
+                "switch": "${transforms.guard.note}",
                 "cases": {
                   "": {
                     "type": "none"
@@ -123,7 +196,7 @@
                   "type": "text",
                   "role": "caption",
                   "foreground": "warning",
-                  "text": "${sources.guard.note}"
+                  "text": "${transforms.guard.note}"
                 }
               }
             ]
@@ -144,7 +217,7 @@
               {
                 "type": "text",
                 "role": "title",
-                "text": "On battery: sleep in ${sources.guard.graceText}"
+                "text": "On battery: sleep in ${transforms.guard.graceText}"
               }
             ]
           },
@@ -194,7 +267,7 @@
         }
       },
       {
-        "switch": "${sources.guard.requestPending}",
+        "switch": "${transforms.guard.requestPending}",
         "cases": {
           "true": {
             "type": "text",
@@ -286,7 +359,7 @@
         "spacing": 6,
         "children": [
           {
-            "switch": "${sources.guard.phase}",
+            "switch": "${transforms.guard.phase}",
             "cases": {
               "override": {
                 "type": "button",
@@ -329,7 +402,7 @@
         }
       },
       {
-        "switch": "${sources.guard.blockerCount}",
+        "switch": "${transforms.guard.blockerCount}",
         "cases": {
           "0": {
             "type": "none"
@@ -343,7 +416,7 @@
               "type": "list",
               "spacing": 2,
               "items": {
-                "forEach": "$.sources.guard.blockers",
+                "forEach": "$.transforms.guard.blockers",
                 "as": "b",
                 "template": {
                   "type": "hstack",
@@ -386,8 +459,8 @@
     ]
   },
   "status": {
-    "label": "${sources.guard.menuLabel}",
-    "icon": "${sources.guard.icon}",
-    "tooltip": "${if(eq(sources.guard.phase, 'override'), concat('Awake until ', sources.guard.untilText), if(eq(sources.guard.state, 'ok'), 'Keep Awake', 'PowerDisplayGuard isn’t answering'))}"
+    "label": "${transforms.guard.menuLabel}",
+    "icon": "${transforms.guard.icon}",
+    "tooltip": "${if(eq(transforms.guard.phase, 'override'), concat('Awake until ', transforms.guard.untilText), if(eq(transforms.guard.state, 'ok'), 'Keep Awake', 'PowerDisplayGuard isn’t answering'))}"
   }
 }

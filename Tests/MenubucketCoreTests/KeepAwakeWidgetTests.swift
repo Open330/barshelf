@@ -52,19 +52,48 @@ final class KeepAwakeWidgetTests: XCTestCase {
         let icon: String?
     }
 
-    private func render(lidClosed: Bool = false) throws -> Rendered {
-        let (status, json) = try helper("status")
-        XCTAssertEqual(status, 0)
-        let source = try JSONDecoder().decode(JSONValue.self, from: Data(json.utf8))
+    /// The two files exactly as the widget's `fs.json` sources read them.
+    private func guardSources() throws -> [String: JSONValue] {
+        let directory = try FileSource.openAuthorizedDirectory(path: guardDir.path, readPaths: [guardDir.path])
+        return [
+            "status": try FileSource.readJSON(named: "status.json", in: directory,
+                                              displayPath: "status.json", maxBytes: 262_144),
+            "pending": try FileSource.readJSON(named: "override.json", in: directory,
+                                               displayPath: "override.json", maxBytes: 65_536),
+        ]
+    }
+
+    private func evaluate(lidClosed: Bool = false) throws -> WorkflowEngine.Output {
         let definition = try JSONDecoder().decode(
             WorkflowDefinition.self, from: Data(contentsOf: widgetDir.appendingPathComponent("workflow.json"))
         )
-        let output = try WorkflowEngine.evaluate(
-            definition, sources: ["guard": source],
+        return try WorkflowEngine.evaluate(
+            definition, sources: try guardSources(),
             settings: .object(["lidClosed": .bool(lidClosed), "untilTime": .string("18:00")])
         )
+    }
+
+    private func render(lidClosed: Bool = false) throws -> Rendered {
+        let output = try evaluate(lidClosed: lidClosed)
         let tree = String(decoding: try JSONEncoder().encode(output.viewTree), as: UTF8.self)
         return Rendered(text: tree, label: output.statusLabel, icon: output.statusIcon)
+    }
+
+    /// `transforms.guard`, the object the view reads, pulled out of the
+    /// workflow by rendering a view that is only that object.
+    private func normalized() throws -> [String: JSONValue] {
+        var definition = try JSONSerialization.jsonObject(
+            with: Data(contentsOf: widgetDir.appendingPathComponent("workflow.json"))) as! [String: Any]
+        definition["view"] = ["type": "text", "text": "${string(transforms.guard)}"]
+        definition.removeValue(forKey: "status")
+        let decoded = try JSONDecoder().decode(
+            WorkflowDefinition.self, from: JSONSerialization.data(withJSONObject: definition))
+        let output = try WorkflowEngine.evaluate(
+            decoded, sources: try guardSources(),
+            settings: .object(["lidClosed": .bool(false), "untilTime": .string("18:00")]))
+        let tree = try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(output.viewTree))
+        let text = try XCTUnwrap(tree.objectValue?["text"]?.stringValue)
+        return try XCTUnwrap(JSONDecoder().decode(JSONValue.self, from: Data(text.utf8)).objectValue)
     }
 
     // MARK: - Phases
@@ -73,6 +102,8 @@ final class KeepAwakeWidgetTests: XCTestCase {
     /// its folder ran an osascript every five seconds around the clock
     /// (175k runs in two weeks on one Mac). Poll instead.
     func testDoesNotRunOnEveryGuardHeartbeat() throws {
+        // Reading status is no longer a process at all (fs.json), but an fs
+        // trigger would still re-render every five seconds for nothing.
         let manifest = try Manifest.decode(from: Data(contentsOf: widgetDir.appendingPathComponent("widget.json")))
         let refresh = try XCTUnwrap(manifest.refresh)
         XCTAssertFalse(refresh.triggers?.contains { if case .fs = $0 { return true } else { return false } } ?? false)
@@ -157,6 +188,51 @@ final class KeepAwakeWidgetTests: XCTestCase {
             let rendered = try render()
             XCTAssertTrue(rendered.text.contains(text), "\(name): expected “\(text)”")
             XCTAssertFalse(rendered.text.contains("isn’t running"), name)
+        }
+    }
+
+    // MARK: - Same reading as the old helper
+
+    /// Status used to come from `keep-awake.js status` through osascript.
+    /// The workflow now derives it from the files. For every phase, a stale
+    /// guard, a pending request and a missing guard, each field must match
+    /// what the helper says (the helper keeps `status` as this reference;
+    /// the manifest no longer lets the widget run it).
+    func testWorkflowReadsTheSameAsTheHelper() throws {
+        let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .appendingPathComponent("Fixtures/PowerDisplayGuard")
+        var cases: [(String, () throws -> Void)] = [("missing", {})]
+        for name in ["ac", "grace", "battery", "override", "override-capped", "override-lid-ignored"] {
+            cases.append((name, {
+                var status = try XCTUnwrap(JSONSerialization.jsonObject(
+                    with: Data(contentsOf: fixtures.appendingPathComponent("status-\(name).json"))) as? [String: Any])
+                status.removeValue(forKey: "updatedAt")
+                try self.writeStatus(status)
+            }))
+        }
+        cases.append(("stale", { try self.writeStatus(["onAC": true, "phase": "ac", "blockers": []], updatedSecondsAgo: 60) }))
+        cases.append(("invalid", { try Data("{".utf8).write(to: self.guardDir.appendingPathComponent("status.json")) }))
+        cases.append(("pending", {
+            try self.writeStatus(["onAC": true, "phase": "ac", "blockers": [
+                ["pid": 7, "type": "PreventSystemSleep"], ["pid": 8, "process": "caffeinate"]]])
+            try self.helper("set", "3600", "false")
+        }))
+        for (name, setUp) in cases {
+            try? FileManager.default.removeItem(at: guardDir)
+            try FileManager.default.createDirectory(at: guardDir, withIntermediateDirectories: true)
+            try setUp()
+            let (code, json) = try helper("status")
+            XCTAssertEqual(code, 0, name)
+            let expected = try XCTUnwrap(JSONDecoder().decode(JSONValue.self, from: Data(json.utf8)).objectValue)
+            let actual = try normalized()
+            for (key, value) in expected {
+                // Ages derive from "now", which the two read a moment apart.
+                if key == "ageSeconds", let a = actual[key]?.numberValue, let e = value.numberValue {
+                    XCTAssertLessThanOrEqual(abs(a - e), 1, "\(name).\(key)")
+                    continue
+                }
+                XCTAssertEqual(actual[key], value, "\(name).\(key)")
+            }
         }
     }
 

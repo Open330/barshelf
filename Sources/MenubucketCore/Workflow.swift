@@ -836,6 +836,23 @@ public enum WorkflowEngine {
             case "date.relative":
                 guard let ms = args.first?.numberValue, ms.isFinite else { return .string("") }
                 return .string(Self.relative(fromMs: ms, nowMs: nowMs))
+            case "date.ms":
+                // ISO 8601 text to Unix ms; a number passes through. null when
+                // it isn't a date, so a missing field stays visibly missing.
+                switch args.first {
+                case let .number(ms)? where ms.isFinite: return .number(ms)
+                case let .string(text)?: return Self.parseISODate(text).map { .number($0) } ?? .null
+                default: return .null
+                }
+            case "date.clock":
+                // Unix ms to the local wall clock, "HH:mm".
+                guard let ms = args.first?.numberValue, ms.isFinite, abs(ms) < 8.64e15 else { return .string("") }
+                return .string(Self.clock(ms: ms))
+            case "duration.short":
+                // Seconds to a short countdown: "1:05" from an hour, then
+                // "12m", then "40s". Negative counts as zero.
+                guard let seconds = Self.asNumber(args.first), seconds.isFinite else { return .string("") }
+                return .string(Self.shortDuration(seconds))
             case "file.basename":
                 guard let path = args.first?.stringValue else { return .string("") }
                 return .string((path as NSString).lastPathComponent)
@@ -974,6 +991,37 @@ public enum WorkflowEngine {
             }
         }
 
+        private static let isoFormatters: [ISO8601DateFormatter] = {
+            let plain = ISO8601DateFormatter()
+            let fractional = ISO8601DateFormatter()
+            fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            return [plain, fractional]
+        }()
+
+        static func parseISODate(_ text: String) -> Double? {
+            let trimmed = text.trimmingCharacters(in: .whitespaces)
+            for formatter in isoFormatters {
+                if let date = formatter.date(from: trimmed) { return date.timeIntervalSince1970 * 1000 }
+            }
+            return nil
+        }
+
+        static func clock(ms: Double) -> String {
+            let parts = Calendar.current.dateComponents(
+                [.hour, .minute], from: Date(timeIntervalSince1970: ms / 1000)
+            )
+            let hour = parts.hour ?? 0, minute = parts.minute ?? 0
+            return (hour < 10 ? "0" : "") + "\(hour):" + (minute < 10 ? "0" : "") + "\(minute)"
+        }
+
+        static func shortDuration(_ seconds: Double) -> String {
+            let total = clampedInt(max(0, seconds).rounded())
+            let hours = total / 3600, minutes = (total % 3600) / 60
+            if hours > 0 { return "\(hours):" + (minutes < 10 ? "0" : "") + "\(minutes)" }
+            if minutes > 0 { return "\(minutes)m" }
+            return "\(total)s"
+        }
+
         static func relative(fromMs: Double, nowMs: Double) -> String {
             let seconds = max(0, (nowMs - fromMs) / 1000)
             if seconds < 60 { return "just now" }
@@ -1045,6 +1093,11 @@ public enum WorkflowEngine {
             switch use {
             case "assign":
                 return input
+            case "template":
+                // The expanded `with`: builds an object (or an array through
+                // `forEach`) from expressions, which `assign` — one value
+                // passed through — cannot.
+                return params
             case "limit":
                 guard case let .array(items) = input else { return input }
                 let count = Self.clampedInt(params.objectValue?["count"]?.numberValue ?? 0)

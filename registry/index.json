@@ -854,7 +854,7 @@
       "accent": "orange",
       "name": "Keep Awake",
       "description": "Keep the Mac awake for 1, 2 or 4 hours or until a set time — never indefinitely — and see what else is keeping it awake. Works with PowerDisplayGuard, which owns the power policy; BarShelf only asks.",
-      "version": "0.1.2",
+      "version": "0.2.0",
       "author": "barshelf",
       "icon": "cup.and.saucer",
       "kind": "workflow",
@@ -880,7 +880,7 @@
         "notifications": false
       },
       "homepage": "https://github.com/Open330/barshelf",
-      "minHostVersion": "0.7.5"
+      "minHostVersion": "0.7.17"
     }
   ]
 }

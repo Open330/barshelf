@@ -68,6 +68,10 @@ public enum FileSource {
         case notADirectory(String)
         case unauthorizedPath(String)
         case posix(String, Int32)
+        case notARegularFile(String)
+        case tooLarge(String, Int)
+        case badFileName(String)
+        case badMaxBytes(Int)
 
         public var errorDescription: String? {
             switch self {
@@ -77,6 +81,10 @@ public enum FileSource {
                 return "path is not covered by permissions.readPaths: \(path)"
             case let .posix(path, code):
                 return "filesystem access failed for \(path): \(String(cString: strerror(code)))"
+            case let .notARegularFile(path): return "not a regular file: \(path)"
+            case let .tooLarge(path, limit): return "\(path) is larger than \(limit) bytes"
+            case let .badFileName(path): return "fs.json needs a file path, got \(path)"
+            case let .badMaxBytes(cap): return "fs.json maxBytes must be a whole number from 1 to \(cap)"
             }
         }
     }
@@ -181,6 +189,160 @@ public enum FileSource {
             items = Array(items.prefix(limit))
         }
         return .object(["items": .array(items), "path": .string(params.path)])
+    }
+
+    // MARK: - fs.json
+
+    /// `fs.json` parameters: one small JSON file a widget reads instead of
+    /// spawning a process to `cat` it.
+    public struct JSONFileParams: Sendable, Equatable {
+        public static let defaultMaxBytes = 1 << 20
+        public static let maxBytesCap = 5 << 20
+
+        public var path: String
+        public var maxBytes: Int
+
+        public init(from params: JSONValue) throws {
+            guard let object = params.objectValue,
+                  let path = object["path"]?.stringValue, !path.isEmpty else {
+                throw FileSourceError.missingPath
+            }
+            guard !path.contains("\0") else { throw FileSourceError.badFileName(path) }
+            self.path = (path as NSString).expandingTildeInPath
+            switch object["maxBytes"] {
+            case nil, .some(.null):
+                self.maxBytes = Self.defaultMaxBytes
+            case let .some(.number(limit))
+                where limit.isFinite && limit >= 1 && limit == limit.rounded() && limit <= Double(Self.maxBytesCap):
+                self.maxBytes = Int(limit)
+            default:
+                throw FileSourceError.badMaxBytes(Self.maxBytesCap)
+            }
+        }
+    }
+
+    /// Reads one JSON file under `readPaths`.
+    ///
+    /// A missing or unparsable file is a reading, not an error: a widget that
+    /// watches another program's state file has to say "not installed" or
+    /// "garbled" rather than fail. The result is always
+    /// `{ exists, valid, value, modifiedAt, size, path }`.
+    ///
+    /// Access is bound the way `fs.directory` binds it: the parent directory
+    /// is opened and proven to sit inside a read root by device/inode, then
+    /// the file is opened relative to that descriptor without following a
+    /// symlink. No pathname is reopened after the check. A parent that does
+    /// not exist yet can't be walked, so it counts as missing only when the
+    /// path lies lexically inside a root; anything else is unauthorized, as
+    /// it would be if the folder existed.
+    public static func readJSON(
+        _ params: JSONFileParams,
+        authorizedBy readPaths: [String]
+    ) throws -> JSONValue {
+        let url = URL(fileURLWithPath: params.path).standardizedFileURL
+        let name = url.lastPathComponent
+        guard !params.path.hasSuffix("/"), !name.isEmpty, name != ".", name != "..", name != "/" else {
+            throw FileSourceError.badFileName(params.path)
+        }
+        let parentPath = url.deletingLastPathComponent().path
+        let directory: AuthorizedDirectory
+        do {
+            directory = try openAuthorizedDirectory(path: parentPath, readPaths: readPaths)
+        } catch FileSourceError.notADirectory {
+            guard missingIsAuthorized(url, readPaths: readPaths) else {
+                throw FileSourceError.unauthorizedPath(params.path)
+            }
+            return missing(params.path)
+        }
+        return try readJSON(named: name, in: directory, displayPath: params.path, maxBytes: params.maxBytes)
+    }
+
+    /// Reads `name` relative to an authorized directory. Exposed for tests.
+    public static func readJSON(
+        named name: String,
+        in directory: AuthorizedDirectory,
+        displayPath: String,
+        maxBytes: Int
+    ) throws -> JSONValue {
+        let descriptor = name.withCString {
+            Darwin.openat(directory.fileDescriptor, $0, O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK)
+        }
+        guard descriptor >= 0 else {
+            switch errno {
+            case ENOENT: return missing(displayPath)
+            case ELOOP: throw FileSourceError.notARegularFile(displayPath)
+            default: throw FileSourceError.posix(displayPath, errno)
+            }
+        }
+        defer { Darwin.close(descriptor) }
+        var status = stat()
+        guard fstat(descriptor, &status) == 0 else { throw FileSourceError.posix(displayPath, errno) }
+        guard (status.st_mode & S_IFMT) == S_IFREG else { throw FileSourceError.notARegularFile(displayPath) }
+        guard status.st_size <= off_t(maxBytes) else { throw FileSourceError.tooLarge(displayPath, maxBytes) }
+
+        // Read to EOF but never past the cap: the file can grow between the
+        // fstat and the read.
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 64 * 1024)
+        while true {
+            let count = Darwin.read(descriptor, &buffer, buffer.count)
+            if count < 0 {
+                if errno == EINTR { continue }
+                throw FileSourceError.posix(displayPath, errno)
+            }
+            if count == 0 { break }
+            data.append(buffer, count: count)
+            if data.count > maxBytes { throw FileSourceError.tooLarge(displayPath, maxBytes) }
+        }
+
+        let modifiedMs = (
+            Double(status.st_mtimespec.tv_sec) + Double(status.st_mtimespec.tv_nsec) / 1_000_000_000
+        ) * 1000
+        let value = try? JSONValue.parse(data)
+        return .object([
+            "exists": .bool(true),
+            "valid": .bool(value != nil),
+            "value": value ?? .null,
+            "modifiedAt": .number(modifiedMs),
+            "size": .number(Double(data.count)),
+            "path": .string(displayPath),
+        ])
+    }
+
+    private static func missing(_ path: String) -> JSONValue {
+        .object([
+            "exists": .bool(false), "valid": .bool(false), "value": .null,
+            "modifiedAt": .null, "size": .null, "path": .string(path),
+        ])
+    }
+
+    /// A file whose folder does not exist is "missing" only when it would be
+    /// readable if it did. The path has to lie inside a root by name, and the
+    /// nearest folder on the way that does exist must either pass the same
+    /// device/inode check as a real read (it sits at or under the root) or be
+    /// a folder above a root that is itself absent, so nothing under the root
+    /// can exist yet. That is the "app not installed" case: its whole support
+    /// folder is gone.
+    private static func missingIsAuthorized(_ url: URL, readPaths: [String]) -> Bool {
+        let target = url.pathComponents
+        let roots = readPaths.map {
+            URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath).standardizedFileURL.pathComponents
+        }
+        let covering = roots.filter { target.count > $0.count && Array(target.prefix($0.count)) == $0 }
+        guard !covering.isEmpty else { return false }
+
+        var ancestor = url.deletingLastPathComponent()
+        while ancestor.pathComponents.count > 1 {
+            var isDirectory: ObjCBool = false
+            if FileManager.default.fileExists(atPath: ancestor.path, isDirectory: &isDirectory) { break }
+            ancestor = ancestor.deletingLastPathComponent()
+        }
+        let depth = ancestor.pathComponents.count
+        if covering.contains(where: { depth < $0.count }) {
+            // Above a root, so that root is absent.
+            return true
+        }
+        return (try? openAuthorizedDirectory(path: ancestor.path, readPaths: readPaths)) != nil
     }
 
     private static func openDirectory(path: String) throws -> AuthorizedDirectory {

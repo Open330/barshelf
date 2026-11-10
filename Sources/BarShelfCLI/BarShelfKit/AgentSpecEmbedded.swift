@@ -715,7 +715,7 @@ EOF
   }
 }
 ```
-Workflow sources: `use` is `"exec"`, `"fs.directory"`, `"http"`, `"system"`, or
+Workflow sources: `use` is `"exec"`, `"fs.directory"`, `"fs.json"`, `"http"`, `"system"`, or
 `"value"`. Values flow
 into `${...}` expressions in `transforms`/`view`: reference source output as
 `$.sources.<id>.<path>`, transforms as `transforms.<id>`, settings as
@@ -724,7 +724,7 @@ into `${...}` expressions in `transforms`/`view`: reference source output as
 transforms; preserve user/provider data and action identifiers. Missing or
 unknown language should retain the original text for older hosts.
 Built-in expression functions: `string`, `concat`, `now`, `count`,
-`coalesce`, `date.relative`, `file.basename`, `file.extension`, `text.truncate`,
+`coalesce`, `date.relative`, `date.ms`, `date.clock`, `duration.short`, `file.basename`, `file.extension`, `text.truncate`,
 `if`, `and`, `or`, `not`, comparisons and arithmetic, plus (BarShelf 0.3.11+)
 `switch(value, case1, result1, …, fallback)` — pick one of many readings by a
 setting without nesting ifs — and `get(object, key)` for a key chosen at run
@@ -732,7 +732,20 @@ time. A widget using those declares `"minHostVersion": "0.3.11"` in
 `widget.json`, so a BarShelf that is too old refuses it with "update BarShelf"
 instead of failing with an "unknown function" error card. (Hosts before 0.3.11
 do not know the field, so it protects from 0.3.11 on.)
-Built-in transforms (`use`): `assign`, `limit`, `filter`, `sort`. Repeat with
+Built-in transforms (`use`): `assign`, `template`, `limit`, `filter`, `sort`.
+`template` returns its expanded `with`: build an object from expressions, or
+reshape a list with `forEach` (`assign` only passes one value through).
+
+**`fs.json`** (BarShelf 0.7.17+) reads one JSON file under `readPaths` in
+process, with no subprocess: `{ "use": "fs.json", "with": { "path": "~/…/status.json" } }`
+gives `{ exists, valid, value, modifiedAt, size, path }`. A missing file (or
+missing folder inside `readPaths`) is `exists: false` and garbled JSON is
+`valid: false`, so the widget can say so instead of failing. Symlinks are not
+followed; a non-regular file, a path outside `readPaths`, or a file over
+`maxBytes` (default 1 MB, cap 5 MB) fails the refresh. Use it instead of an
+`exec` that only `cat`s a state file. `date.ms(iso)` → epoch ms (null if not a
+date), `date.clock(ms)` → local `HH:mm`, `duration.short(seconds)` → `1:05` /
+`12m` / `40s`. Declare `"minHostVersion": "0.7.17"` when using any of these. Repeat with
 `{ "forEach": "$.transforms.x", "as": "item", "template": { … "${item.field}" … } }`.
 Provide an `"empty"` node for the zero-items case.
 
