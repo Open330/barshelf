@@ -986,7 +986,13 @@ final class WidgetRuntime: ObservableObject {
         nativeRefreshes.reload(keeping: seenIDs, changed: changedIDs)
         // Changed code or a removed widget: no alert raised under the old one
         // may still go out, and monitoring is re-learned on the next refresh.
-        for id in Set(previous.keys).subtracting(seenIDs).union(changedIDs) { alertGate.invalidate(id) }
+        // Every workflow widget counts as changed here: its workflow.json can
+        // change without widget.json, and pending alerts are rare enough that
+        // dropping one on a rescan costs nothing.
+        let workflowIDs = Set(previous.values.filter { $0.manifest.entry.kind == "workflow" }.map(\.id))
+        for id in Set(previous.keys).subtracting(seenIDs).union(changedIDs).union(workflowIDs) {
+            alertGate.invalidate(id)
+        }
         if !alertMonitoringIDs.isDisjoint(with: changedIDs) || !alertMonitoringIDs.isSubset(of: seenIDs) {
             alertMonitoringIDs = alertMonitoringIDs.intersection(seenIDs).subtracting(changedIDs)
             scheduler.setMonitoringWidgetIDs(alertMonitoringIDs)
@@ -1396,6 +1402,8 @@ final class WidgetRuntime: ObservableObject {
     /// re-enabling while the previous process is still shutting down.
     private func stopWidgetExecution(_ id: String) {
         alertGate.invalidate(id)
+        // A stopped widget does not monitor; its next refresh re-learns it.
+        if alertMonitoringIDs.remove(id) != nil { scheduler.setMonitoringWidgetIDs(alertMonitoringIDs) }
         for task in runActionTasks.removeValue(forKey: id)?.values ?? [:].values { task.cancel() }
         nativeRefreshTasks.removeValue(forKey: id)?.task.cancel()
         nativeRefreshes.cancel(id)
@@ -2152,9 +2160,11 @@ final class WidgetRuntime: ObservableObject {
             && widget.manifest.permissions?.notifications == true
             && widget.manifest.refresh?.runInBackground == true
             && widget.manifest.refresh?.popupOnly != true
-        let before = alertMonitoringIDs
         if monitors { alertMonitoringIDs.insert(widget.id) } else { alertMonitoringIDs.remove(widget.id) }
-        if alertMonitoringIDs != before { scheduler.setMonitoringWidgetIDs(alertMonitoringIDs) }
+        // Always forwarded: the Scheduler drops ids it is not configured with
+        // (a disabled widget), and must get them back when they return. It
+        // ignores an unchanged set.
+        scheduler.setMonitoringWidgetIDs(alertMonitoringIDs)
     }
 
     private func checkNativeRefresh(_ widget: LoadedWidget, token: NativeRefreshGate.Token) throws {
@@ -3343,6 +3353,7 @@ final class WidgetRuntime: ObservableObject {
     /// Drops per-widget state for removed widget ids (hot reload cleanup).
     private func removeWidgetState(notIn liveIDs: Set<String>) {
         readingHistory.retain(liveIDs)
+        alertStates.retain(widgetIDs: liveIDs)
         // A throttled cache write outlives the widget by up to
         // `persistIntervalSec`; left alone it would re-create the cache file
         // of a widget removed by hot reload, and a reinstall would show it.

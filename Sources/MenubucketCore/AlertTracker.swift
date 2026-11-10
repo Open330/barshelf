@@ -115,6 +115,19 @@ public final class AlertStateStore: @unchecked Sendable {
         if states.count != before { persistLocked() }
     }
 
+    /// Keeps only these widget instances' state (hot-reload cleanup, for
+    /// widgets removed outside the app).
+    public func retain(widgetIDs: Set<String>) {
+        lock.lock()
+        defer { lock.unlock() }
+        let before = states.count
+        states = states.filter { key, _ in
+            guard let widget = key.split(separator: "\u{1F}", maxSplits: 1).first else { return false }
+            return widgetIDs.contains(String(widget))
+        }
+        if states.count != before { persistLocked() }
+    }
+
     public func state(widgetID: String, alertID: String) -> AlertTracker.State? {
         lock.lock()
         defer { lock.unlock() }
