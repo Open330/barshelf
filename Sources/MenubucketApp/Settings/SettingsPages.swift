@@ -333,8 +333,38 @@ struct PrivacySettingsPage: View {
             } header: {
                 Text("Widget Permissions")
             } footer: {
-                Text("A widget can only run commands, use the network, or read files it declared, and only after you allow it. Revoking stops the widget until you allow it again on its card. Copies of a widget share its permissions.")
+                Text("BarShelf runs only the commands a widget declared, reaches only the hosts it declared, and reads only the paths it declared, after you allow it. A command you allow runs with your access, network included, so allow only widgets you trust. Revoking stops the widget until you allow it again on its card. Copies of a widget share its permissions.")
                     .formFooter()
+            }
+
+            let groups = PermissionInventory.build(runtime.widgets.map {
+                PermissionInventory.Input(id: $0.id, name: $0.displayName, manifest: $0.manifest,
+                                          state: runtime.permissionState(for: $0))
+            })
+            if !groups.isEmpty {
+                Section {
+                    ForEach(groups, id: \.kind) { group in
+                        DisclosureGroup {
+                            ForEach(group.entries, id: \.self) { entry in
+                                CapabilityEntryRow(entry: entry)
+                            }
+                        } label: {
+                            Label {
+                                Text(group.kind.title)
+                                Text(group.widgetCount == 1
+                                     ? String(localized: "1 widget")
+                                     : String(localized: "\(group.widgetCount) widgets"))
+                            } icon: {
+                                Image(systemName: group.kind.symbol)
+                            }
+                        }
+                    }
+                } header: {
+                    Text("By Capability")
+                } footer: {
+                    Text("What installed widgets may use, grouped by kind. The activity log shows what they actually did.")
+                        .formFooter()
+                }
             }
 
             Section {
@@ -346,6 +376,34 @@ struct PrivacySettingsPage: View {
                     Text("Activity log")
                     Text("Every permission decision and every command or request a widget made.")
                 }
+            }
+        }
+    }
+
+    /// One command, host or path, and the widgets that may use it.
+    private struct CapabilityEntryRow: View {
+        let entry: PermissionInventory.Entry
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: Spacing.hair) {
+                if !entry.detail.isEmpty {
+                    Text(entry.detail)
+                        .font(.callout.monospaced())
+                        .textSelection(.enabled)
+                }
+                Text(entry.widgets.map { "\($0.name) (\(Self.stateText($0.state)))" }.joined(separator: ", "))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .accessibilityElement(children: .combine)
+        }
+
+        static func stateText(_ state: WidgetRuntime.PermissionState) -> String {
+            switch state {
+            case .allowed: return String(localized: "allowed", comment: "Privacy by capability: a widget's permission state")
+            case .denied: return String(localized: "denied", comment: "Privacy by capability: a widget's permission state")
+            case .notAsked: return String(localized: "waiting", comment: "Privacy by capability: a widget's permission state")
+            case .notNeeded: return String(localized: "no approval needed", comment: "Privacy by capability: a widget's permission state")
             }
         }
     }

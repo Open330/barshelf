@@ -54,6 +54,11 @@ new SDK to learn.
 - **🔒 Permission-gated** — widget capabilities are declared, approved, enforced, and recorded in an audit log.
   A red dot on the menu bar icon says when a widget is waiting for you; an update
   that only drops permissions keeps its approval, anything new asks again.
+  Settings ▸ Privacy lists what installed widgets may use, by capability.
+- **🙈 No account, no analytics** — on its own, BarShelf connects only to GitHub
+  (updates, the widget gallery) and to install links you open
+  ([privacy](docs/PRIVACY.md)). A command you allow a widget to run has your
+  access, network included, so allow only widgets you trust.
 
 ## Three execution layers, one widget model
 
