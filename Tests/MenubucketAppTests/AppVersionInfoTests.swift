@@ -76,4 +76,20 @@ final class AppVersionInfoTests: XCTestCase {
         XCTAssertTrue(script.contains("__APP_COMMIT__"), "build_app.sh never fills the commit in")
     }
 
+    /// A widget's readPaths can reach the folders macOS guards; its one-time
+    /// prompt shows these strings, and showed a blank line without them
+    /// (seen on a first run on 0.7.20).
+    func testTheInfoPlistTemplateExplainsEveryGuardedFolderPrompt() throws {
+        let template = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("scripts/Info.plist.template")
+        let contents = try String(contentsOf: template, encoding: .utf8)
+        for key in ["NSDownloadsFolderUsageDescription", "NSDocumentsFolderUsageDescription",
+                    "NSDesktopFolderUsageDescription", "NSNetworkVolumesUsageDescription",
+                    "NSRemovableVolumesUsageDescription"] {
+            XCTAssertTrue(contents.contains("<key>\(key)</key>"), "no explanation for \(key)")
+        }
+    }
+
 }
