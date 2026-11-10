@@ -1737,6 +1737,16 @@
         }
       }
     },
+    "Battery, Weather and more are in the Gallery. Change this any time in BarShelf ▸ Menu Bar.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "배터리, 날씨 등은 갤러리에 있습니다. 언제든 BarShelf ▸ 메뉴 막대에서 바꿀 수 있습니다."
+          }
+        }
+      }
+    },
     "Behavior": {
       "comment": "Menu bar settings tab",
       "localizations": {
@@ -1856,6 +1866,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "CPU·메모리·디스크 사용량을 색상 막대로 보여 줍니다. 메뉴 막대에도 값을 표시할 수 있습니다."
+          }
+        }
+      }
+    },
+    "CPU, memory and disk, with the CPU reading in the menu bar.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CPU, 메모리, 디스크를 보여 주고, CPU 값은 메뉴 막대에 표시합니다."
           }
         }
       }
@@ -6747,6 +6767,7 @@
       }
     },
     "None of your widgets can do that yet. Widgets like System, Battery, and Weather in the Gallery can; turn it on later in BarShelf ▸ Menu Bar.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -10247,6 +10268,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "시스템 설정 ▸ 개인정보 보호 및 보안 ▸ 손쉬운 사용을 열었습니다. 이 아이콘을 목록으로 끌어 넣고 BarShelf를 켜십시오."
+          }
+        }
+      }
+    },
+    "System isn't in this copy of BarShelf. Add it from the Gallery instead.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 BarShelf에는 System 위젯이 들어 있지 않습니다. 갤러리에서 추가하세요."
+          }
+        }
+      }
+    },
+    "System was added but hasn't loaded yet. Turn it on later in BarShelf ▸ Menu Bar.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System을 추가했지만 아직 불러오지 못했습니다. 나중에 BarShelf ▸ 메뉴 막대에서 켜세요."
           }
         }
       }

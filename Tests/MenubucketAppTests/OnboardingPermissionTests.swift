@@ -36,6 +36,17 @@ final class OnboardingPermissionTests: XCTestCase {
         }
     }
 
+    /// The welcome's menu bar step offers to add the bundled System widget
+    /// in one click, without a permission prompt: it must stay
+    /// permission-free and able to show in the menu bar.
+    func testSystemCanBeOfferedForTheMenuBarWithoutAPrompt() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let manifest = try Manifest.decode(from: Data(contentsOf: root.appendingPathComponent("widgets/system/widget.json")))
+        XCTAssertFalse(PermissionStore.requiresApproval(for: manifest))
+        XCTAssertEqual(manifest.statusItem?.isPromotable, true)
+    }
+
     private func manifest(readPaths: [String]) throws -> Manifest {
         let paths = readPaths.map { "\"\($0)\"" }.joined(separator: ", ")
         return try Manifest.decode(from: Data("""

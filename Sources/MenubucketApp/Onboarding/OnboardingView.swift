@@ -81,6 +81,8 @@ struct OnboardingView: View {
     @ObservedObject private var hotkey = HotkeyRegistrationCoordinator.shared
     @State private var step: Step
     @State private var loginError: String?
+    /// Why adding System for the menu bar step failed, if it did.
+    @State private var addError: String?
     /// Bumped on each Allow: the permission store is not observable.
     @State private var approvals = 0
 
@@ -275,7 +277,30 @@ struct OnboardingView: View {
         title("Values in the menu bar", "A widget can also show its reading right in the menu bar — a battery level, CPU load, a temperature.")
         let candidates = runtime.menuBarCandidates
         if candidates.isEmpty {
-            Text("None of your widgets can do that yet. Widgets like System, Battery, and Weather in the Gallery can; turn it on later in BarShelf ▸ Menu Bar.")
+            // The starters show nothing in the menu bar, so offer the one
+            // that does and needs no permission: day one should not end on
+            // "none of your widgets can".
+            HStack(spacing: Spacing.xs) {
+                Image(systemName: "cpu")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 22)
+                VStack(alignment: .leading, spacing: Spacing.hair) {
+                    Text("System")
+                    Text("CPU, memory and disk, with the CPU reading in the menu bar.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button("Add") { addSystemToMenuBar() }
+            }
+            .padding(.vertical, Spacing.xs)
+            .padding(.horizontal, Spacing.s)
+            .cardSurface()
+            if let addError {
+                StatusBanner(tone: .critical, message: addError)
+            }
+            Text("Battery, Weather and more are in the Gallery. Change this any time in BarShelf ▸ Menu Bar.")
+                .font(.callout)
                 .foregroundStyle(.secondary)
         } else {
             VStack(spacing: 0) {
@@ -294,6 +319,35 @@ struct OnboardingView: View {
             Text("Change this any time in BarShelf ▸ Menu Bar.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
+        }
+    }
+
+    /// Installs the bundled System widget onto the starters' page and shows
+    /// its reading in the menu bar. It ships inside the app, so there is no
+    /// download to confirm, and it asks for no permission.
+    private func addSystemToMenuBar() {
+        addError = nil
+        do {
+            guard let directory = WidgetInstallFlow.bundledWidgetDirectory(named: "system"),
+                  let candidate = try WidgetInstallFlow.discoverBundledWidget(at: directory).candidates.first
+            else {
+                addError = String(localized: "System isn't in this copy of BarShelf. Add it from the Gallery instead.")
+                return
+            }
+            if !WidgetInstallFlow.isInstalled(id: candidate.manifest.id) {
+                try WidgetInstallFlow.install(candidate: candidate)
+            }
+            runtime.loadWidgets()
+            guard let widget = runtime.widgets.first(where: { $0.manifest.id == candidate.manifest.id }) else {
+                addError = String(localized: "System was added but hasn't loaded yet. Turn it on later in BarShelf ▸ Menu Bar.")
+                return
+            }
+            if runtime.prefs.override(for: widget.id)?.group == nil {
+                runtime.prefs.setOverride(group: WidgetRuntime.starterPage, order: 100, size: nil, for: widget.id)
+            }
+            runtime.updateMenuBarPlacement(for: widget.id) { $0.enabled = true }
+        } catch {
+            addError = WidgetInstallFlow.userFacingDescription(of: error)
         }
     }
 
