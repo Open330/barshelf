@@ -991,17 +991,15 @@ public enum WorkflowEngine {
             }
         }
 
-        private static let isoFormatters: [ISO8601DateFormatter] = {
-            let plain = ISO8601DateFormatter()
-            let fractional = ISO8601DateFormatter()
-            fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            return [plain, fractional]
-        }()
+        private static let isoStyles: [Date.ISO8601FormatStyle] = [
+            Date.ISO8601FormatStyle(),
+            Date.ISO8601FormatStyle(includingFractionalSeconds: true),
+        ]
 
         static func parseISODate(_ text: String) -> Double? {
             let trimmed = text.trimmingCharacters(in: .whitespaces)
-            for formatter in isoFormatters {
-                if let date = formatter.date(from: trimmed) { return date.timeIntervalSince1970 * 1000 }
+            for style in isoStyles {
+                if let date = try? style.parse(trimmed) { return date.timeIntervalSince1970 * 1000 }
             }
             return nil
         }
