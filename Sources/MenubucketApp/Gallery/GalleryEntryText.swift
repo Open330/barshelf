@@ -206,7 +206,7 @@ enum GalleryEntryText {
         case "dev.barshelf.kubernetes":
             return String(localized: "Shows your current kubectl context and how the pods in a namespace are doing, listing any that aren’t ready. Needs kubectl with access to a cluster.")
         case "dev.barshelf.bitwarden":
-            return String(localized: "Shows whether your Bitwarden vault is locked and when it last synced, and can warn when it hasn’t synced for a while. Needs the Bitwarden CLI (bw); it never unlocks the vault or reads items.")
+            return String(localized: "Unlock your Bitwarden vault from the card, search it, and copy a username, password or code that clears itself after 30 seconds. Locks on its own when unused. Needs the Bitwarden CLI (bw).")
         case "dev.barshelf.world-clock":
             return String(localized: "Shows the local time in up to five cities, with Today/Tomorrow, the hour difference, and dimmed rows outside working hours or on weekends. Runs the system date command, no network.")
         case "dev.barshelf.countdown":

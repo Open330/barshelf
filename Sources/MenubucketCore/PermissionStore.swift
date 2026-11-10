@@ -132,6 +132,7 @@ public final class PermissionStore: @unchecked Sendable {
             || permissions?.keychain == true
             || permissions?.notifications == true
             || permissions?.storage?.granted == true
+            || permissions?.vault != nil
     }
 
     /// Told the first time an approval is found to cover a changed, narrower

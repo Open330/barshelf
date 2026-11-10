@@ -265,6 +265,32 @@ on open, interval, resize or a settings change. Use it to keep expensive work
 Note that `${…}` in a command is a workflow template even inside a shell script:
 write shell defaults as `[ -n "$x" ] || x=0`, not `${x:-0}`.
 
+## 8D. Password vaults (`permissions.vault`) — BarShelf 0.7.22
+
+A widget can let BarShelf unlock a password manager and offer its items, without
+ever seeing a secret. BarShelf drives the manager itself (built-in providers
+only; today `"bitwarden"`, the `bw` CLI); the widget cannot choose its commands.
+
+```jsonc
+"permissions": { "vault": { "provider": "bitwarden", "idleLockMinutes": 10, "maxSessionMinutes": 60 } }
+```
+
+- Source `{ "use": "vault.items" }` → `{ state: "locked"|"unlocked"|"error", items: [{ handle, name,
+  username, host, totp, hasUsername }], count, truncated, error? }`. `handle` is an
+  opaque token valid only for the current unlock; there is no item id, password,
+  note or TOTP seed.
+- Actions: `{ "type": "vaultUnlock" }` (BarShelf's own password prompt; the
+  master password goes to the provider through stdin and is not kept),
+  `{ "type": "vaultLock" }`, `{ "type": "vaultCopy", "value": "${it.handle}", "field":
+  "username"|"password"|"totp" }` (straight to the clipboard, marked concealed,
+  cleared after 30 s).
+- The session lives in memory only. It ends after `idleLockMinutes` (1–60,
+  default 10) without a vault action by the user (refreshes do not count),
+  `maxSessionMinutes` after unlock (5–480, default 60), on screen lock, sleep,
+  quit, and when the widget is disabled, removed, reloaded or its permission
+  revoked. A vault widget's renders are never cached to disk.
+- Any change to `vault` asks for approval again.
+
 ## 8C. Workflow alerts (`alerts`) — BarShelf 0.7.21
 
 A workflow can notify when one of its own values changes state, without a

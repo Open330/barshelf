@@ -329,6 +329,11 @@ public struct Manifest: Codable, Equatable {
         /// confirms each one. Launching apps (`openApp`) needs no grant —
         /// quitting can lose work, so it does.
         public var quitApps: Bool?
+        /// A password manager BarShelf unlocks on the user's behalf through a
+        /// built-in provider (`VaultBroker`). The widget never sees the
+        /// session or a secret: it gets item names and opaque handles, and
+        /// asks the host to copy a field.
+        public var vault: VaultPermission?
 
         public init(
             exec: [ExecPermission]? = nil,
@@ -339,7 +344,8 @@ public struct Manifest: Codable, Equatable {
             notifications: Bool? = nil,
             storage: StoragePermission? = nil,
             system: [String]? = nil,
-            quitApps: Bool? = nil
+            quitApps: Bool? = nil,
+            vault: VaultPermission? = nil
         ) {
             self.exec = exec
             self.network = network
@@ -350,10 +356,11 @@ public struct Manifest: Codable, Equatable {
             self.storage = storage
             self.system = system
             self.quitApps = quitApps
+            self.vault = vault
         }
 
         private enum CodingKeys: String, CodingKey {
-            case exec, network, readPaths, env, keychain, notifications, storage, system, quitApps
+            case exec, network, readPaths, env, keychain, notifications, storage, system, quitApps, vault
             /// A stale, never-enforced draft shape. Keep the key solely so
             /// ingestion can reject it with an actionable field-level error.
             case files
@@ -377,6 +384,7 @@ public struct Manifest: Codable, Equatable {
             storage = try container.decodeIfPresent(StoragePermission.self, forKey: .storage)
             system = try container.decodeIfPresent([String].self, forKey: .system)
             quitApps = try container.decodeIfPresent(Bool.self, forKey: .quitApps)
+            vault = try container.decodeIfPresent(VaultPermission.self, forKey: .vault)
         }
 
         public func encode(to encoder: Encoder) throws {
@@ -390,7 +398,31 @@ public struct Manifest: Codable, Equatable {
             try container.encodeIfPresent(storage, forKey: .storage)
             try container.encodeIfPresent(system, forKey: .system)
             try container.encodeIfPresent(quitApps, forKey: .quitApps)
+            try container.encodeIfPresent(vault, forKey: .vault)
         }
+    }
+
+    /// `permissions.vault`: which built-in provider, and how long an unlock
+    /// may last. Idle counts only the user's own vault actions, never
+    /// background refreshes; the session ends at the cap regardless.
+    public struct VaultPermission: Codable, Equatable, Sendable {
+        /// The built-in provider id. Only "bitwarden" exists.
+        public var provider: String
+        /// Lock after this many minutes without a user vault action (1–60, default 10).
+        public var idleLockMinutes: Int?
+        /// Lock this many minutes after unlocking, whatever happens (5–480, default 60).
+        public var maxSessionMinutes: Int?
+
+        public static let providers: Set<String> = ["bitwarden"]
+
+        public init(provider: String, idleLockMinutes: Int? = nil, maxSessionMinutes: Int? = nil) {
+            self.provider = provider
+            self.idleLockMinutes = idleLockMinutes
+            self.maxSessionMinutes = maxSessionMinutes
+        }
+
+        public var idleSeconds: TimeInterval { TimeInterval(min(max(idleLockMinutes ?? 10, 1), 60) * 60) }
+        public var maxSeconds: TimeInterval { TimeInterval(min(max(maxSessionMinutes ?? 60, 5), 480) * 60) }
     }
 
     /// Per-widget storage grant. Accepts two JSON shapes for back-compat:

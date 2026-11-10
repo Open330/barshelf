@@ -46,8 +46,10 @@ struct LoadedWidget: Identifiable {
     var size: String { manifest.bucket?.size ?? "M" }
 
     /// Sensitive widgets never log stdout and never cache renders to disk.
+    /// A vault widget always is: its card lists item names.
     var isSensitive: Bool {
-        manifest.permissions?.exec?.contains { $0.sensitiveOutput == true } ?? false
+        (manifest.permissions?.exec?.contains { $0.sensitiveOutput == true } ?? false)
+            || manifest.permissions?.vault != nil
     }
 }
 
@@ -283,6 +285,13 @@ final class WidgetRuntime: ObservableObject {
         fileURL: WidgetRuntime.applicationSupportDirectory.appendingPathComponent("alert-state.json")
     )
     let alertGate = AlertDeliveryGate()
+    /// Unlocked password-vault sessions, in memory only (`VaultBroker`).
+    lazy var vaultBroker: VaultBroker = MainActor.assumeIsolated {
+        let broker = VaultBroker()
+        broker.onChange = { [weak self] id in self?.refresh(widgetID: id, manual: true) }
+        broker.start()
+        return broker
+    }
     /// Widgets whose workflow alerts need refreshes off-page too (Scheduler).
     private var alertMonitoringIDs: Set<String> = []
     private var scriptSupervisorStorage: RuntimeSupervisor?
@@ -881,6 +890,12 @@ final class WidgetRuntime: ObservableObject {
                 description: String(localized: "Read settings from the environment: \(env.joined(separator: ", "))")
             ))
         }
+        if let vault = permissions?.vault {
+            rows.append(PermissionRequest(
+                symbol: "lock.shield.fill",
+                description: String(localized: "Unlock your Bitwarden vault when you ask, list item names and copy a username, password or code you pick; locks after \(Int(vault.idleSeconds / 60)) minutes without use", comment: "Approval card: the vault permission")
+            ))
+        }
         if rows.isEmpty {
             rows.append(PermissionRequest(symbol: "checkmark.seal.fill", description: String(localized: "No special permissions")))
         }
@@ -994,6 +1009,10 @@ final class WidgetRuntime: ObservableObject {
         let workflowIDs = Set(previous.values.filter { $0.manifest.entry.kind == "workflow" }.map(\.id))
         for id in Set(previous.keys).subtracting(seenIDs).union(changedIDs).union(workflowIDs) {
             alertGate.invalidate(id)
+        }
+        // A removed widget, or changed code, holds no vault session.
+        for id in Set(previous.keys).subtracting(seenIDs).union(changedIDs) {
+            MainActor.assumeIsolated { vaultBroker.end(id, runProviderLock: true) }
         }
         if !alertMonitoringIDs.isDisjoint(with: changedIDs) || !alertMonitoringIDs.isSubset(of: seenIDs) {
             alertMonitoringIDs = alertMonitoringIDs.intersection(seenIDs).subtracting(changedIDs)
@@ -1404,6 +1423,8 @@ final class WidgetRuntime: ObservableObject {
     /// re-enabling while the previous process is still shutting down.
     private func stopWidgetExecution(_ id: String) {
         alertGate.invalidate(id)
+        // Disable, removal, revoke, denial: the vault locks with the widget.
+        MainActor.assumeIsolated { vaultBroker.end(id, runProviderLock: true) }
         // A stopped widget does not monitor; its next refresh re-learns it.
         if alertMonitoringIDs.remove(id) != nil { scheduler.setMonitoringWidgetIDs(alertMonitoringIDs) }
         for task in runActionTasks.removeValue(forKey: id)?.values ?? [:].values { task.cancel() }
@@ -2012,6 +2033,27 @@ final class WidgetRuntime: ObservableObject {
         refresh(widget, manual: manual)
     }
 
+    /// Vault actions from a widget's buttons: the host does the work, the
+    /// widget names only an opaque handle and a field.
+    @MainActor
+    func performVaultAction(_ action: NodeAction, widgetID: String) {
+        guard let widget = widgets.first(where: { $0.id == widgetID }),
+              let permission = widget.manifest.permissions?.vault,
+              Manifest.VaultPermission.providers.contains(permission.provider),
+              !prefs.isDisabled(widgetID), gatePermissions(for: widget) else { return }
+        switch action.type {
+        case "vaultUnlock":
+            vaultBroker.unlock(widgetID: widgetID, permission: permission, widgetName: widget.displayName)
+        case "vaultLock":
+            vaultBroker.lock(widgetID: widgetID)
+        case "vaultCopy":
+            guard let handle = action.value, let field = action.field.flatMap(VaultField.init(rawValue:)) else { return }
+            vaultBroker.copy(widgetID: widgetID, handle: handle, field: field)
+        default:
+            break
+        }
+    }
+
     /// A refresh the user asked for (a Refresh button, a refresh action).
     /// Workflows see `widget.requested: true` on it, so expensive work — a
     /// speed test — can wait for an explicit request instead of running on
@@ -2520,9 +2562,17 @@ final class WidgetRuntime: ObservableObject {
                     )
                 case "value":
                     sourceValues[sourceID] = value
+                case "vault.items":
+                    // Metadata and opaque handles from the host's own
+                    // provider; never a secret, never a session.
+                    guard widget.manifest.permissions?.vault != nil else {
+                        throw RuntimeError.invalidWorkflow("vault.items needs permissions.vault")
+                    }
+                    let broker = await MainActor.run { self.vaultBroker }
+                    sourceValues[sourceID] = await broker.itemsSource(widgetID: widget.id)
                 default:
                     throw RuntimeError.invalidWorkflow(
-                        "unknown source use \"\(source.use)\" (v1: exec, fs.directory, fs.json, http, system, value)"
+                        "unknown source use \"\(source.use)\" (v1: exec, fs.directory, fs.json, http, system, value, vault.items)"
                     )
                 }
             }

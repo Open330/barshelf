@@ -521,6 +521,9 @@ public struct NodeAction: Codable, Equatable {
     /// `copyText`: clear the clipboard after N seconds (only if the pasteboard
     /// was not changed by someone else in the meantime). For sensitive values.
     public var clearAfterSec: Int?
+    /// `vaultCopy`: which field of the item `value` (an opaque handle)
+    /// names — "username", "password" or "totp".
+    public var field: String?
 
     public init(
         type: String,
@@ -531,7 +534,8 @@ public struct NodeAction: Codable, Equatable {
         toast: String? = nil,
         command: [String]? = nil,
         thenRefresh: Bool? = nil,
-        clearAfterSec: Int? = nil
+        clearAfterSec: Int? = nil,
+        field: String? = nil
     ) {
         self.type = type
         self.value = value
@@ -542,10 +546,11 @@ public struct NodeAction: Codable, Equatable {
         self.command = command
         self.thenRefresh = thenRefresh
         self.clearAfterSec = clearAfterSec
+        self.field = field
     }
 
     private enum CodingKeys: String, CodingKey {
-        case type, value, url, path, id, toast, command, thenRefresh, clearAfterSec
+        case type, value, url, path, id, toast, command, thenRefresh, clearAfterSec, field
     }
 
     public init(from decoder: Decoder) throws {
@@ -566,5 +571,6 @@ public struct NodeAction: Codable, Equatable {
         command = try container.decodeIfPresent([String].self, forKey: .command)
         thenRefresh = try container.decodeIfPresent(Bool.self, forKey: .thenRefresh)
         clearAfterSec = try container.decodeIfPresent(Int.self, forKey: .clearAfterSec)
+        field = try container.decodeIfPresent(String.self, forKey: .field)
     }
 }

@@ -25,6 +25,9 @@ public enum PermissionNarrowing {
             && flag(new.notifications, within: old.notifications)
             && flag(new.quitApps, within: old.quitApps)
             && storage(new.storage, within: old.storage)
+            // A vault grant is covered only by the same grant: a longer
+            // session or another provider asks again.
+            && (new.vault == nil || new.vault == old.vault)
             // Sensitivity is the whole widget's (no logged output, no cached
             // renders) when any command is marked: dropping the one marked
             // command would unmark the rest.
