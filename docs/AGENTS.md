@@ -654,6 +654,8 @@ To list a widget in the gallery, add an entry to `registry/index.json`. That
 entry — **not the manifest** — carries `category` (gallery grouping chip) and
 `screenshot` (preview image) and `readme` (a rendered Markdown/details URL), alongside `id`, `name`, `requires`, `permissions`,
 and the install source. See `docs/REGISTRY.md`. Keep it out of `widget.json`.
+The index may also list `packs` (0.7.21+): named sets of widget ids the gallery
+installs with one confirmation; each widget still asks for its own permissions.
 
 ---
 

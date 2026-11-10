@@ -882,5 +882,58 @@
       "homepage": "https://github.com/Open330/barshelf",
       "minHostVersion": "0.7.17"
     }
+  ],
+  "packs": [
+    {
+      "id": "everyday",
+      "name": "Everyday",
+      "icon": "sun.max",
+      "description": "The date, the weather, what's next on your calendar and your reminders.",
+      "widgetIDs": [
+        "dev.barshelf.today",
+        "dev.barshelf.weather",
+        "dev.barshelf.next-meeting",
+        "dev.barshelf.calendar",
+        "dev.barshelf.reminders"
+      ]
+    },
+    {
+      "id": "system",
+      "name": "System",
+      "icon": "cpu",
+      "description": "CPU, memory, temperatures, network and battery, ready for the menu bar.",
+      "widgetIDs": [
+        "dev.barshelf.system",
+        "dev.barshelf.sensors",
+        "dev.barshelf.network",
+        "dev.barshelf.battery-meter",
+        "dev.barshelf.keep-awake"
+      ]
+    },
+    {
+      "id": "developer",
+      "name": "Developer",
+      "icon": "chevron.left.forwardslash.chevron.right",
+      "description": "Agent usage, GitHub, your projects and the inbox that needs you. Some need their own CLI.",
+      "widgetIDs": [
+        "dev.barshelf.aas-usage",
+        "dev.barshelf.codex-reset",
+        "dev.barshelf.github-status",
+        "dev.barshelf.developer-inbox",
+        "dev.barshelf.project-status"
+      ]
+    },
+    {
+      "id": "files",
+      "name": "Files",
+      "icon": "folder",
+      "description": "What just arrived in Downloads, recent files, and a shelf to drop things on.",
+      "widgetIDs": [
+        "dev.barshelf.recent-files-grid",
+        "dev.barshelf.downloads-new",
+        "dev.barshelf.quick-shelf",
+        "dev.barshelf.clipboard-shelf"
+      ]
+    }
   ]
 }

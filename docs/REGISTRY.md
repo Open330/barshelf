@@ -81,6 +81,31 @@ swift run barshelf-app screenshot assets/widget-previews
 사용자가 클릭했을 때 기본 브라우저로 연다. 두 필드는 모두 표시용이며
 위젯 권한이나 설치 내용에는 영향을 주지 않는다.
 
+### 팩(packs) — BarShelf 0.7.21+
+
+최상위 `packs`(선택)는 함께 설치하면 좋은 위젯 묶음이다. 갤러리는 위젯 목록 위에
+팩 카드를 보여 주고, 한 번 확인하면 아직 설치하지 않은 위젯을 차례로 설치한다.
+
+```json
+"packs": [
+  {
+    "id": "system",
+    "name": "System",
+    "icon": "cpu",
+    "description": "CPU, memory, temperatures, network and battery, ready for the menu bar.",
+    "widgetIDs": ["dev.barshelf.system", "dev.barshelf.sensors", "dev.barshelf.network"]
+  }
+]
+```
+
+- `widgetIDs`는 이 index의 `widgets`에 있는 id만 남긴다(순서 유지, 중복 제거). 모르는 id는
+  경고와 함께 빠지고, 남는 위젯이 없거나 `id`·`name`이 비었거나 id가 겹치는 팩은 건너뛴다.
+  잘못된 팩 하나가 index 전체나 위젯 목록을 깨뜨리지 않는다.
+- 팩 설치는 **설치 확인만 한 번**이다. 권한 승인은 묶지 않는다: 각 위젯은 따로 설치했을 때와
+  똑같이 자기 카드에서 권한을 묻는다. 각 entry의 소스에서는 그 entry의 id와 같은 위젯 하나만
+  설치한다.
+- `packs`를 모르는 이전 BarShelf는 이 키를 무시하고 위젯 목록만 쓴다(`schemaVersion`은 1 유지).
+
 ### 표시 전 검증 규칙
 
 소비자(갤러리, 도구)는 인덱스를 표시하기 전에 다음을 검증한다.

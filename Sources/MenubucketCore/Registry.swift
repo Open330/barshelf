@@ -14,17 +14,44 @@ public struct RegistryIndex: Equatable, Sendable {
     /// ISO-8601 timestamp, kept verbatim for display.
     public var updatedAt: String?
     public var widgets: [RegistryWidgetEntry]
+    /// Curated sets installed together ("Developer", "System"). Optional and
+    /// additive: an index without `packs`, or an app that predates them,
+    /// works as before.
+    public var packs: [RegistryPack]
 
     public init(
         schemaVersion: Int,
         name: String? = nil,
         updatedAt: String? = nil,
-        widgets: [RegistryWidgetEntry]
+        widgets: [RegistryWidgetEntry],
+        packs: [RegistryPack] = []
     ) {
         self.schemaVersion = schemaVersion
         self.name = name
         self.updatedAt = updatedAt
         self.widgets = widgets
+        self.packs = packs
+    }
+}
+
+/// A named set of registry widgets offered together. Installing a pack is
+/// one confirmation for the set; each widget still asks for its own
+/// permissions on its card, exactly as if installed alone.
+public struct RegistryPack: Codable, Equatable, Sendable, Identifiable {
+    public var id: String
+    public var name: String
+    public var description: String?
+    /// SF Symbol name.
+    public var icon: String?
+    /// Registry widget ids, in the order to show and install them.
+    public var widgetIDs: [String]
+
+    public init(id: String, name: String, description: String? = nil, icon: String? = nil, widgetIDs: [String]) {
+        self.id = id
+        self.name = name
+        self.description = description
+        self.icon = icon
+        self.widgetIDs = widgetIDs
     }
 }
 
@@ -271,13 +298,50 @@ extension RegistryIndex {
             entries.append(entry)
         }
 
+        let packs = validatedPacks(raw.packs?.items ?? [], known: Set(entries.map(\.id)), warnings: &warnings)
+        warnings += raw.packs?.warnings ?? []
+
         let index = RegistryIndex(
             schemaVersion: raw.schemaVersion,
             name: raw.name,
             updatedAt: raw.updatedAt,
-            widgets: entries
+            widgets: entries,
+            packs: packs
         )
         return (index, warnings)
+    }
+
+    /// Packs keep only widgets the index actually lists (once each, in
+    /// order); a pack left empty, or without an id or name, is skipped.
+    private static func validatedPacks(
+        _ packs: [RegistryPack], known: Set<String>, warnings: inout [String]
+    ) -> [RegistryPack] {
+        var seenPacks: Set<String> = []
+        return packs.compactMap { pack in
+            guard !pack.id.trimmingCharacters(in: .whitespaces).isEmpty,
+                  !pack.name.trimmingCharacters(in: .whitespaces).isEmpty else {
+                warnings.append("skipped pack \"\(pack.id)\": empty id or name")
+                return nil
+            }
+            guard seenPacks.insert(pack.id).inserted else {
+                warnings.append("skipped pack \"\(pack.id)\": duplicate id")
+                return nil
+            }
+            var seen: Set<String> = []
+            var ids: [String] = []
+            for id in pack.widgetIDs where seen.insert(id).inserted {
+                if known.contains(id) { ids.append(id) } else {
+                    warnings.append("pack \"\(pack.id)\": unknown widget \"\(id)\" left out")
+                }
+            }
+            guard !ids.isEmpty else {
+                warnings.append("skipped pack \"\(pack.id)\": no listed widgets")
+                return nil
+            }
+            var kept = pack
+            kept.widgetIDs = ids
+            return kept
+        }
     }
 
     private static func validationProblem(_ entry: RegistryWidgetEntry) -> String? {
@@ -298,6 +362,36 @@ extension RegistryIndex {
         var name: String?
         var updatedAt: String?
         var widgets: LossyEntries
+        var packs: LossyPacks?
+    }
+
+    /// Like `LossyEntries`: one malformed pack never takes the index down.
+    private struct LossyPacks: Decodable {
+        var items: [RegistryPack] = []
+        var warnings: [String] = []
+
+        init(from decoder: Decoder) throws {
+            guard var container = try? decoder.unkeyedContainer() else {
+                warnings.append("ignored packs: not a list")
+                return
+            }
+            var position = 0
+            while !container.isAtEnd {
+                if let pack = try? container.decode(RegistryPack.self) {
+                    items.append(pack)
+                } else {
+                    _ = try? container.decode(SkipValue.self)
+                    warnings.append("skipped pack at position \(position): malformed")
+                }
+                position += 1
+            }
+        }
+
+        /// Decodes anything without reading it, so the cursor moves past a
+        /// broken element (a failed decode does not advance it).
+        private struct SkipValue: Decodable {
+            init(from decoder: Decoder) throws {}
+        }
     }
 
     /// Decodes each array element independently so one malformed entry (e.g.
