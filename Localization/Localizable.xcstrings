@@ -6261,6 +6261,7 @@
       }
     },
     "Measures download and upload speed and responsiveness with Apple’s built-in networkQuality, on demand or at most every six hours. Each test uses a lot of data.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -12330,6 +12331,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "폴더 감시"
+          }
+        }
+      }
+    },
+    "Watches latency and packet loss with a light ping every few minutes, and runs a short speed test once a day or when you ask. Notifies when the connection drops. Uses built-in macOS tools.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "몇 분마다 가벼운 ping으로 지연과 손실을 지켜보고, 하루 한 번 또는 원할 때 짧은 속도 측정을 합니다. 연결이 끊기면 알려 줍니다. macOS 기본 도구를 씁니다."
           }
         }
       }

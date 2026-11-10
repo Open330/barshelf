@@ -190,7 +190,7 @@ enum GalleryEntryText {
         case "dev.barshelf.listening-ports":
             return String(localized: "Lists the TCP ports your processes are listening on, with the process name, pid and whether each is reachable from the network. Uses the built-in lsof.")
         case "dev.barshelf.internet-quality":
-            return String(localized: "Measures download and upload speed and responsiveness with Apple’s built-in networkQuality, on demand or at most every six hours. Each test uses a lot of data.")
+            return String(localized: "Watches latency and packet loss with a light ping every few minutes, and runs a short speed test once a day or when you ask. Notifies when the connection drops. Uses built-in macOS tools.")
         case "dev.barshelf.homebrew-updates":
             return String(localized: "Shows which Homebrew formulae and casks have updates, with installed and current versions. Requires Homebrew.")
         case "dev.barshelf.quick-note":

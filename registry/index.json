@@ -985,7 +985,7 @@
       "id": "dev.barshelf.internet-quality",
       "accent": "blue",
       "name": "Internet Quality",
-      "description": "Download and upload speed plus responsiveness (RPM) with a rating, from Apple's built-in networkQuality. Runs on demand or at most every six hours, never in the background.",
+      "description": "Latency, jitter and packet loss every few minutes from a light ping (almost no data), plus a capped 10-second speed test (download, upload, responsiveness) once a day, every 6 hours or only on demand. Notifies when the connection drops or turns unstable.",
       "version": "0.1.0",
       "author": "barshelf",
       "icon": "speedometer",
@@ -994,8 +994,9 @@
         "system",
         "network",
         "speed-test",
+        "latency",
         "internet",
-        "networkquality",
+        "alerts",
         "workflow"
       ],
       "category": "System",
@@ -1006,13 +1007,13 @@
       },
       "permissions": {
         "exec": [
-          "/usr/bin/networkQuality"
+          "/bin/sh"
         ],
         "keychain": false,
-        "notifications": false
+        "notifications": true
       },
       "homepage": "https://github.com/Open330/barshelf",
-      "minHostVersion": "0.7.21"
+      "minHostVersion": "0.7.22"
     },
     {
       "id": "dev.barshelf.homebrew-updates",
@@ -1476,6 +1477,7 @@
         "dev.barshelf.sensors",
         "dev.barshelf.network",
         "dev.barshelf.battery-meter",
+        "dev.barshelf.internet-quality",
         "dev.barshelf.bluetooth-battery",
         "dev.barshelf.keep-awake"
       ]

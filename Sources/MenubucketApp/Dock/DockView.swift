@@ -698,7 +698,7 @@ struct DockView: View {
             })
         case .widget(let id):
             entries.append(.action(String(localized: "Show in BarShelf")) { DockActions.open(item) })
-            entries.append(.action(String(localized: "Refresh")) { runtime.refresh(widgetID: id) })
+            entries.append(.action(String(localized: "Refresh")) { runtime.requestRefresh(widgetID: id) })
         case .spacer, .separator:
             break
         }

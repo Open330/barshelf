@@ -4,11 +4,11 @@
   "id": "dev.barshelf.internet-quality",
   "name": "Internet Quality",
   "version": "0.1.0",
-  "minHostVersion": "0.7.21",
+  "minHostVersion": "0.7.22",
   "icon": "speedometer",
   "bucket": {
     "group": "System",
-    "order": 32,
+    "order": 15,
     "size": "M"
   },
   "entry": {
@@ -17,29 +17,68 @@
   },
   "refresh": {
     "onOpen": true,
-    "interval": null,
-    "staleAfterSec": 21600,
-    "popupOnly": true
-  },
-  "statusItem": {
-    "mode": "text",
-    "icon": "speedometer"
+    "interval": 300,
+    "staleAfterSec": 300,
+    "runInBackground": true
   },
   "permissions": {
     "exec": [
       {
-        "command": "/usr/bin/networkQuality",
+        "command": "/bin/sh",
         "allowedArgs": [
           [
             "-c",
-            "-M",
-            "30"
+            "out=$(/sbin/ping -q -c 5 -i 0.2 -t 4 1.1.1.1 2>/dev/null); loss=$(printf '%s' \"$out\" | /usr/bin/sed -n 's/.* \\([0-9.]*\\)% packet loss.*/\\1/p'); rtt=$(printf '%s' \"$out\" | /usr/bin/sed -n 's#.*= \\([0-9.]*\\)/\\([0-9.]*\\)/\\([0-9.]*\\)/\\([0-9.]*\\) ms#\\2 \\4#p'); if [ -n \"$rtt\" ]; then [ -n \"$loss\" ] || loss=0; set -- $rtt; printf '{\"ok\":true,\"avg\":%s,\"jitter\":%s,\"loss\":%s}' \"$1\" \"$2\" \"$loss\"; else [ -n \"$loss\" ] || loss=100; printf '{\"ok\":false,\"loss\":%s}' \"$loss\"; fi",
+            "internet-quality"
+          ]
+        ],
+        "maxOutputBytes": 4096,
+        "sensitiveOutput": false
+      },
+      {
+        "command": "/bin/sh",
+        "allowedArgs": [
+          [
+            "-c",
+            "if [ \"$1\" = run ]; then /usr/bin/networkQuality -c -M 10 2>/dev/null || printf '{\"error\":true}'; else printf '{\"skipped\":true}'; fi",
+            "internet-quality",
+            "*"
           ]
         ],
         "maxOutputBytes": 262144,
         "sensitiveOutput": false
       }
-    ]
+    ],
+    "storage": true,
+    "notifications": true
+  },
+  "settings": [
+    {
+      "key": "schedule",
+      "title": "Speed test",
+      "type": "enum",
+      "default": "daily",
+      "options": [
+        "daily",
+        "6h",
+        "manual"
+      ],
+      "optionTitles": [
+        "Once a day",
+        "Every 6 hours",
+        "Only when I press Test now"
+      ]
+    },
+    {
+      "key": "alerts",
+      "title": "Notify when the connection drops or turns unstable",
+      "type": "boolean",
+      "default": true
+    }
+  ],
+  "statusItem": {
+    "mode": "text",
+    "icon": "speedometer"
   },
   "appearance": {
     "accent": "blue"
@@ -47,17 +86,22 @@
   "localizations": {
     "ko": {
       "Internet Quality": "인터넷 품질",
+      "Speed test": "속도 측정",
+      "Once a day": "하루 한 번",
+      "Every 6 hours": "6시간마다",
+      "Only when I press Test now": "지금 측정을 누를 때만",
+      "Notify when the connection drops or turns unstable": "연결이 끊기거나 불안정해지면 알림",
+      "Jitter ${string(round(coalesce(transforms.jitter, 0)))} ms · loss ${string(round(transforms.loss))}% · to 1.1.1.1": "흔들림 ${string(round(coalesce(transforms.jitter, 0)))} ms · 손실 ${string(round(transforms.loss))}% · 1.1.1.1 기준",
       "Download": "다운로드",
       "Upload": "업로드",
-      "Responsiveness": "응답성",
-      "${transforms.down} Mbps": "${transforms.down} Mbps",
-      "${transforms.rpm} RPM · ${transforms.rating}": "${transforms.rpm} RPM · ${transforms.rating}",
-      "Idle latency ${transforms.idle} ms · ${transforms.iface}": "유휴 지연 ${transforms.idle} ms · ${transforms.iface}",
-      "Run test again": "다시 측정",
-      "Tested at ${transforms.when}. Each test moves a lot of data, so it runs only when you open it after 6 hours or press Run test again.": "${transforms.when}에 측정했습니다. 측정할 때마다 데이터를 많이 쓰므로 6시간이 지난 뒤 열거나 ‘다시 측정’을 누를 때만 실행합니다.",
-      "Couldn’t measure": "측정하지 못함",
-      "networkQuality returned no result. Check the connection and try again.": "networkQuality가 결과를 내지 못했습니다. 연결을 확인하고 다시 시도하세요.",
-      "Download ${transforms.down} Mbps · Upload ${transforms.up} Mbps · ${transforms.rpm} RPM": "다운로드 ${transforms.down} Mbps · 업로드 ${transforms.up} Mbps · ${transforms.rpm} RPM"
+      "${transforms.rating} · ${transforms.rpm} RPM · tested ${transforms.testedAgo}": "${transforms.rating} · ${transforms.rpm} RPM · ${transforms.testedAgo} 측정",
+      "No speed test yet. Each test moves a few hundred MB, for about 10 seconds.": "아직 속도를 측정하지 않았습니다. 측정 한 번에 약 10초 동안 수백 MB를 씁니다.",
+      "Test now": "지금 측정",
+      "The last test didn't finish.": "지난 측정이 끝나지 않았습니다.",
+      "The internet connection is down": "인터넷 연결이 끊겼습니다",
+      "No reply from 1.1.1.1.": "1.1.1.1에서 응답이 없습니다.",
+      "The internet connection is unstable": "인터넷 연결이 불안정합니다",
+      "${string(round(transforms.loss))}% loss, ${transforms.latency} ms to 1.1.1.1.": "1.1.1.1까지 손실 ${string(round(transforms.loss))}%, ${transforms.latency} ms."
     }
   }
 }

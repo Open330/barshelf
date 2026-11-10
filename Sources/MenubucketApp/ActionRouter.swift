@@ -68,9 +68,9 @@ enum ActionRouter {
 
         case "refresh":
             if let targetID = action.id {
-                runtime?.refresh(widgetID: targetID)
+                runtime?.requestRefresh(widgetID: targetID)
             } else {
-                runtime?.refresh(widgetID: widgetID)
+                runtime?.requestRefresh(widgetID: widgetID)
             }
 
         case "event":

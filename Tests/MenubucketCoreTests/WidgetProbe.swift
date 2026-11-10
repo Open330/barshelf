@@ -9,6 +9,7 @@ import XCTest
 ///
 ///     BARSHELF_PROBE_DIR=widgets/system swift test --filter WidgetProbe
 ///     BARSHELF_PROBE_SETTINGS='{"city":"Seoul"}'   # optional overrides
+///     BARSHELF_PROBE_REQUESTED=1                   # as if the user pressed Refresh
 ///
 /// `system` sources are not run here (they need the app's samplers).
 final class WidgetProbe: XCTestCase {
@@ -25,7 +26,9 @@ final class WidgetProbe: XCTestCase {
            case let .object(overrides) = try JSONValue.parse(Data(raw.utf8)) {
             for (key, value) in overrides { settings[key] = value }
         }
-        let widget: JSONValue = .object(["locale": .string("en"), "size": .string(manifest.bucket?.size ?? "M"), "visible": .bool(true)])
+        let requested = ProcessInfo.processInfo.environment["BARSHELF_PROBE_REQUESTED"] == "1"
+        let widget: JSONValue = .object(["locale": .string("en"), "size": .string(manifest.bucket?.size ?? "M"),
+                                         "visible": .bool(true), "requested": .bool(requested)])
         let params = try WorkflowEngine.resolvedSourceParams(definition, settings: .object(settings), widget: widget)
 
         var sources: [String: JSONValue] = [:]

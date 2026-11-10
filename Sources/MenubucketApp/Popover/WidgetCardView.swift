@@ -280,7 +280,7 @@ struct WidgetCardView: View {
 
     fileprivate func retry() {
         pendingRefreshOutcome = RefreshBaseline(model.snapshot)
-        runtime.refresh(widgetID: widget.id)
+        runtime.requestRefresh(widgetID: widget.id)
         // Loading starts synchronously. A refresh turned away (disabled,
         // waiting for approval, too new for this BarShelf) never loads, so
         // nothing is pending — the next automatic load is not announced.
