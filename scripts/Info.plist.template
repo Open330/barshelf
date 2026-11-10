@@ -41,6 +41,19 @@
     <string>NSApplication</string>
     <key>NSAppleEventsUsageDescription</key>
     <string>BarShelf widgets can read Now Playing and Reminders when you allow it, to show them in the menu bar.</string>
+    <!-- What macOS shows under its one-time folder prompt, when a widget
+         the user allowed reads a path there (its readPaths). Without these
+         the prompt carries no explanation at all. -->
+    <key>NSDownloadsFolderUsageDescription</key>
+    <string>A widget you allowed reads files in Downloads, such as Recent Files showing what arrived last.</string>
+    <key>NSDocumentsFolderUsageDescription</key>
+    <string>A widget you allowed reads files in Documents to show them on your shelf.</string>
+    <key>NSDesktopFolderUsageDescription</key>
+    <string>A widget you allowed reads files on your Desktop to show them on your shelf.</string>
+    <key>NSNetworkVolumesUsageDescription</key>
+    <string>A widget you allowed reads files on a network volume to show them on your shelf.</string>
+    <key>NSRemovableVolumesUsageDescription</key>
+    <string>A widget you allowed reads files on a removable drive to show them on your shelf.</string>
     <key>CFBundleURLTypes</key>
     <array>
         <dict>
