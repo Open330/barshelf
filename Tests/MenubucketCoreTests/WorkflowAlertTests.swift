@@ -62,6 +62,20 @@ final class WorkflowAlertTests: XCTestCase {
         XCTAssertNil(AlertStateStore(fileURL: url).state(widgetID: "w", alertID: "a"))
     }
 
+    /// Alerts a workflow no longer declares are dropped, so a re-added id
+    /// starts over instead of reusing an old edge.
+    func testReconcileDropsUndeclaredAlerts() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("alerts-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let store = AlertStateStore(fileURL: url)
+        _ = store.record(widgetID: "w", samples: [sample(false)], nowMs: 0)
+        store.reconcile(widgetID: "w", alertIDs: ["a"])
+        XCTAssertNotNil(store.state(widgetID: "w", alertID: "a"))
+        store.reconcile(widgetID: "w", alertIDs: [])
+        XCTAssertNil(store.state(widgetID: "w", alertID: "a"))
+        XCTAssertTrue(store.record(widgetID: "w", samples: [sample(true)], nowMs: 1).isEmpty, "back to a first reading")
+    }
+
     // MARK: - Engine
 
     private func evaluate(_ alerts: [String: WorkflowDefinition.AlertDef], level: JSONValue) throws -> [WorkflowEngine.AlertSample] {

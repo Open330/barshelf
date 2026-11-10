@@ -314,6 +314,14 @@ final class WidgetValidatorTests: XCTestCase {
         XCTAssertTrue(report.isValid, "\(report.issues)")
     }
 
+    func testAlertsNeedAPositiveInterval() throws {
+        let dir = try writeWidget("""
+        { "schemaVersion": 1, "id": "a", "name": "A", "minHostVersion": "0.7.21", "entry": { "kind": "workflow" },
+          "refresh": { "interval": 0, "runInBackground": true }, "permissions": { "notifications": true } }
+        """, extra: ["workflow.json": alertWorkflow])
+        XCTAssertEqual(WidgetValidator.validate(directory: dir).issues.map(\.field), ["refresh"])
+    }
+
     func testAlertWithoutAnExpressionIsReported() throws {
         let workflow = #"{"schemaVersion":1,"sources":{},"view":{"type":"text","text":"x"},"alerts":{"low":{"when":"true","title":" "}}}"#
         let dir = try writeWidget("""

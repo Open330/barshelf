@@ -268,19 +268,28 @@ script. Each entry under the top-level `alerts` object of `workflow.json`:
   error) is "no reading" and changes nothing.
 - The host notifies on a **rising edge**: false at the last reading, true now.
   Never on the first reading (launch, a new alert), never while it stays true,
-  and not again within `cooldownSec` (default 3600) of the last notification.
-  A changed alert definition starts over. The state is the host's; `store`
-  cannot touch it.
+  and not again within `cooldownSec` (default 3600) of the last alert. A rising
+  edge inside the cooldown is used up, not postponed: the condition has to fall
+  and rise again. "Last alert" means the last attempt; one macOS refused still
+  counts. A changed alert definition starts over, and so does an alert id that
+  was removed and added back. The state is the host's; `store` cannot touch it.
+- Make an unavailable reading `null`, not `false`:
+  `${if(eq(x, null), null, lte(x, 20))}`. `false` re-arms the alert, so a
+  failed fetch followed by another low reading would notify again.
 - `title`/`body` are templates; an alert whose text fails to expand does not fire.
 - Requirements, checked by `barshelf validate`: `permissions.notifications: true`,
   `minHostVersion` ≥ 0.7.21 (older hosts ignore `alerts`), and a refresh that
   runs while the popup is closed: `refresh.interval` plus
-  `refresh.runInBackground: true`, not `popupOnly`. Background polling is
-  relaxed (about 4× the interval, at least a minute) and pauses in battery
-  saver, so alerts arrive within minutes, not instantly, and never while
-  BarShelf is quit or the Mac sleeps.
-- Every delivered or failed alert is written to the activity log
-  (`notify.alert`, `notify.alert.failed`).
+  `refresh.runInBackground: true`, not `popupOnly`.
+- Cadence: while the popup is closed, and while it shows another page, the
+  widget refreshes at its interval × 4 × the app's refresh multiplier (at least
+  60 s), so `interval: 300` checks every 20 minutes. Battery saver ("pause while
+  closed") stops that unless the widget is in the menu bar, where it keeps its
+  own interval. Nothing is checked while BarShelf is quit or the Mac sleeps.
+  Plan for alerts that are timely, not instant.
+- Every alert is written to the activity log: `notify.alert` (shown),
+  `notify.alert.failed` (macOS refused or failed), `notify.alert.dropped` (the
+  widget was disabled, removed, reloaded or revoked before macOS answered).
 
 ---
 

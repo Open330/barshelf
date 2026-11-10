@@ -280,6 +280,9 @@ final class WidgetRuntime: ObservableObject {
     private let alertStates = AlertStateStore(
         fileURL: WidgetRuntime.applicationSupportDirectory.appendingPathComponent("alert-state.json")
     )
+    let alertGate = AlertDeliveryGate()
+    /// Widgets whose workflow alerts need refreshes off-page too (Scheduler).
+    private var alertMonitoringIDs: Set<String> = []
     private var scriptSupervisorStorage: RuntimeSupervisor?
     /// `host.secret.*` values, per widget instance. Removing a widget erases
     /// that instance's entries.
@@ -981,6 +984,13 @@ final class WidgetRuntime: ObservableObject {
             for task in runActionTasks.removeValue(forKey: id)?.values ?? [:].values { task.cancel() }
         }
         nativeRefreshes.reload(keeping: seenIDs, changed: changedIDs)
+        // Changed code or a removed widget: no alert raised under the old one
+        // may still go out, and monitoring is re-learned on the next refresh.
+        for id in Set(previous.keys).subtracting(seenIDs).union(changedIDs) { alertGate.invalidate(id) }
+        if !alertMonitoringIDs.isDisjoint(with: changedIDs) || !alertMonitoringIDs.isSubset(of: seenIDs) {
+            alertMonitoringIDs = alertMonitoringIDs.intersection(seenIDs).subtracting(changedIDs)
+            scheduler.setMonitoringWidgetIDs(alertMonitoringIDs)
+        }
         storage.retain(widgetIDs: seenIDs)
         let workflowURLs = Set(loaded.filter { $0.manifest.entry.kind == "workflow" }.compactMap {
             try? WidgetEntryResolver.resolve(directory: $0.directory, main: $0.manifest.entry.main, defaultName: "workflow.json")
@@ -1385,6 +1395,7 @@ final class WidgetRuntime: ObservableObject {
     /// disabling and permission withdrawal use this path, including rapid
     /// re-enabling while the previous process is still shutting down.
     private func stopWidgetExecution(_ id: String) {
+        alertGate.invalidate(id)
         for task in runActionTasks.removeValue(forKey: id)?.values ?? [:].values { task.cancel() }
         nativeRefreshTasks.removeValue(forKey: id)?.task.cancel()
         nativeRefreshes.cancel(id)
@@ -2107,22 +2118,43 @@ final class WidgetRuntime: ObservableObject {
     private func deliverAlert(_ alert: WorkflowEngine.AlertSample, for widget: LoadedWidget) {
         let manifest = widget.manifest
         let store = permissionStore
+        let gate = alertGate
+        let widgetID = widget.id
+        let generation = gate.permit(widgetID)
         let authorization = ScriptRequestAuthorization(isApproved: {
-            manifest.permissions?.notifications == true && store.status(for: manifest) == .approved
+            gate.isCurrent(widgetID, generation)
+                && manifest.permissions?.notifications == true
+                && store.status(for: manifest) == .approved
         })
         let service = notificationService
         let audit = auditLog
-        let widgetID = widget.id
-        Task {
+        let key = UUID()
+        let task = Task {
+            defer { gate.finish(widgetID, key) }
             do {
                 try await service.show(title: alert.title, body: alert.body, authorization: authorization)
                 audit.record("notify.alert", widgetId: widgetID, detail: ["alert": .string(alert.id)])
+            } catch is CancellationError {
+                audit.record("notify.alert.dropped", widgetId: widgetID, detail: ["alert": .string(alert.id)])
             } catch {
                 audit.record("notify.alert.failed", widgetId: widgetID, detail: [
                     "alert": .string(alert.id), "error": .string(error.localizedDescription),
                 ])
             }
         }
+        gate.track(widgetID, key, task)
+    }
+
+    /// Keeps the Scheduler's off-page monitoring set in step with which
+    /// workflows have alerts that can fire (main actor).
+    private func noteAlertMonitoring(_ widget: LoadedWidget, hasAlerts: Bool) {
+        let monitors = hasAlerts
+            && widget.manifest.permissions?.notifications == true
+            && widget.manifest.refresh?.runInBackground == true
+            && widget.manifest.refresh?.popupOnly != true
+        let before = alertMonitoringIDs
+        if monitors { alertMonitoringIDs.insert(widget.id) } else { alertMonitoringIDs.remove(widget.id) }
+        if alertMonitoringIDs != before { scheduler.setMonitoringWidgetIDs(alertMonitoringIDs) }
     }
 
     private func checkNativeRefresh(_ widget: LoadedWidget, token: NativeRefreshGate.Token) throws {
@@ -2328,6 +2360,9 @@ final class WidgetRuntime: ObservableObject {
             if self.nativeRefreshes.isCurrent(id, token: token), let reads = outcome.readsWidgetVisibility {
                 self.recordVisibilityUse(widgetID: id, reads: reads, visible: visible)
             }
+            if self.nativeRefreshes.isCurrent(id, token: token), let hasAlerts = outcome.hasAlerts {
+                self.noteAlertMonitoring(widget, hasAlerts: hasAlerts)
+            }
             self.finishRefresh(widget: widget, outcome: outcome.result, startedAt: startedAt, token: token)
         }
         nativeRefreshTasks[id] = (token, task)
@@ -2338,6 +2373,8 @@ final class WidgetRuntime: ObservableObject {
     private struct WorkflowRefreshOutcome {
         var result: Result<RefreshSuccess, Error>
         var readsWidgetVisibility: Bool?
+        /// Whether the workflow declares alerts (nil when it never decoded).
+        var hasAlerts: Bool?
     }
 
     /// Main actor only — see `refreshWidgetsAwaitingVisibility`.
@@ -2372,7 +2409,8 @@ final class WidgetRuntime: ObservableObject {
             settings: settings, widgetContext: widgetContext, token: token
         )
         return WorkflowRefreshOutcome(
-            result: result, readsWidgetVisibility: cached.readsWidgetVisibility
+            result: result, readsWidgetVisibility: cached.readsWidgetVisibility,
+            hasAlerts: !(cached.definition.alerts ?? [:]).isEmpty
         )
     }
 
@@ -2474,6 +2512,7 @@ final class WidgetRuntime: ObservableObject {
             // Alerts: decided against host-held state after a refresh that is
             // still current, delivered only to a widget that declared
             // notifications and is still allowed when macOS answers.
+            alertStates.reconcile(widgetID: widget.id, alertIDs: Set(output.alerts.map(\.id)))
             if !output.alerts.isEmpty, widget.manifest.permissions?.notifications == true {
                 try checkNativeRefresh(widget, token: token)
                 let firing = alertStates.record(

@@ -299,9 +299,10 @@ public enum WidgetValidator {
                                     + " older BarShelf ignores them"))
         }
         let refresh = manifest.refresh
-        if refresh?.popupOnly == true || refresh?.interval == nil || refresh?.runInBackground != true {
+        let interval = refresh?.interval ?? 0
+        if refresh?.popupOnly == true || !(interval.isFinite && interval > 0) || refresh?.runInBackground != true {
             issues.append(Issue(file: manifestFile, field: "refresh",
-                                message: "workflow alerts are checked when the widget refreshes; set refresh.interval"
+                                message: "workflow alerts are checked when the widget refreshes; set a positive refresh.interval"
                                     + " and refresh.runInBackground: true (and not popupOnly) so they can fire"
                                     + " while the popup is closed"))
         }

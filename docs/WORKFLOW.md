@@ -572,14 +572,22 @@ the manifest's `statusItem.presentation` defaults.
   "읽지 못함"으로 보고 아무것도 바꾸지 않는다.
 - 알림은 **false → true로 바뀔 때만** 간다. 첫 읽기(앱 시작, 새 알림)에는 보내지
   않고, true가 이어지는 동안에도 보내지 않으며, 보낸 뒤 `cooldownSec`(기본
-  3600초) 안에는 다시 보내지 않는다. 정의가 바뀌면 처음부터 다시 센다. 이 상태는
+  3600초) 안에는 다시 보내지 않는다. 쿨다운 중에 생긴 상승은 미뤄지지 않고 사라지므로,
+  다시 false가 됐다가 true가 돼야 한다. "보낸 것"은 보내려고 시도한 것이며 macOS가
+  거부해도 센다. 정의가 바뀌거나 지웠던 id를 다시 넣으면 처음부터 다시 센다. 이 상태는
   호스트가 따로 보관하므로 `store`로 건드릴 수 없다.
+- 값을 못 읽었을 때는 `false`가 아니라 `null`을 내야 한다:
+  `${if(eq(x, null), null, lte(x, 20))}`. `false`는 알림을 다시 장전하므로, 실패 후
+  다시 낮은 값이 오면 알림이 또 간다.
 - 필요 조건(`barshelf validate`가 확인): `permissions.notifications: true`,
   `minHostVersion` 0.7.21 이상, 팝업이 닫혀 있어도 새로고침되도록
-  `refresh.interval` + `refresh.runInBackground: true`(그리고 `popupOnly` 아님).
-  백그라운드 주기는 느슨해지고(약 4배, 최소 1분) 배터리 절약 모드에서 멈추므로
-  알림은 몇 분 안에 오며, BarShelf가 꺼져 있거나 Mac이 잠자는 동안에는 오지 않는다.
-- 보낸 알림과 실패한 알림은 활동 기록에 남는다(`notify.alert`, `notify.alert.failed`).
+  양수 `refresh.interval` + `refresh.runInBackground: true`(그리고 `popupOnly` 아님).
+- 주기: 팝업이 닫혀 있거나 다른 페이지를 보고 있을 때는 interval × 4 × 앱의 새로고침
+  배율(최소 60초)마다 확인한다. `interval: 300`이면 20분마다다. 배터리 절약("닫혀
+  있을 때 멈춤")을 켜면 멈추고, 메뉴바에 올린 위젯만 자기 주기를 유지한다. BarShelf가
+  꺼져 있거나 Mac이 잠자는 동안에는 확인하지 않는다. 즉시가 아니라 "제때" 오는 알림이다.
+- 알림은 활동 기록에 남는다: `notify.alert`(표시됨), `notify.alert.failed`(macOS 거부·실패),
+  `notify.alert.dropped`(macOS 응답 전에 위젯이 꺼지거나 지워지거나 다시 로드되거나 권한이 취소됨).
 
 ## forEach 템플릿
 

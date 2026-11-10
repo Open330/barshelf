@@ -8,6 +8,9 @@ import Foundation
 /// not while it stays true, not again within its cooldown, and not on a
 /// reading it could not take (nil leaves the state as it was, so a failed
 /// refresh neither fires nor re-arms). A changed definition starts over.
+/// A rising edge inside the cooldown is used up, not postponed: the alert
+/// has to fall and rise again after the cooldown. "Fired" means BarShelf
+/// tried to notify; a notification macOS refuses still counts.
 ///
 /// The state is the host's, never the widget's: a widget cannot write it
 /// through `store`, so it cannot make itself fire.
@@ -87,6 +90,19 @@ public final class AlertStateStore: @unchecked Sendable {
         }
         if changed { persistLocked() }
         return firing
+    }
+
+    /// Drops a widget's state for alerts its workflow no longer declares, so
+    /// removed alerts do not pile up and a re-added id starts over.
+    public func reconcile(widgetID: String, alertIDs: Set<String>) {
+        lock.lock()
+        defer { lock.unlock() }
+        let prefix = "\(widgetID)\u{1F}"
+        let before = states.count
+        states = states.filter { key, _ in
+            !key.hasPrefix(prefix) || alertIDs.contains(String(key.dropFirst(prefix.count)))
+        }
+        if states.count != before { persistLocked() }
     }
 
     /// Forgets a widget's alerts (removed widget): a reinstall starts fresh.
