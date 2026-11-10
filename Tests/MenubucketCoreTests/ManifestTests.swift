@@ -127,6 +127,18 @@ final class ManifestTests: XCTestCase {
         XCTAssertEqual(String(data: boolData, encoding: .utf8), "true")
     }
 
+    /// `barshelf install` lists what a widget may do before it lands; a
+    /// vault grant has to be on that list.
+    func testPermissionSummaryNamesAVaultGrant() throws {
+        let manifest = try Manifest.decode(from: Data("""
+        { "schemaVersion": 1, "id": "dev.example.vault", "name": "Vault",
+          "entry": { "kind": "workflow" },
+          "permissions": { "vault": { "provider": "bitwarden" } } }
+        """.utf8))
+        XCTAssertEqual(WidgetDiscovery.permissionSummary(for: manifest),
+                       ["vault: BarShelf unlocks bitwarden when you ask; the widget sees item names, never secrets"])
+    }
+
     func testReadPathsIsCanonicalAndLegacyFilesIsRejected() throws {
         let canonical = Data("""
         { "schemaVersion": 1, "id": "dev.example.files", "name": "Files",

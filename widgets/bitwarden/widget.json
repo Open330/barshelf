@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.bitwarden",
   "name": "Bitwarden",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "minHostVersion": "0.7.23",
   "icon": "lock.shield.fill",
   "bucket": {
@@ -81,7 +81,6 @@
       "Last sync": "마지막 동기화",
       "Server": "서버",
       "Not synced for more than ${string(coalesce(settings.staleDays, 7))} days.": "${string(coalesce(settings.staleDays, 7))}일 넘게 동기화하지 않았습니다.",
-      "Shows status only. BarShelf never unlocks the vault or reads items.": "상태만 표시합니다. BarShelf는 보관함을 잠금 해제하거나 항목을 읽지 않습니다.",
       "Bitwarden: ${transforms.stateWord} · ${transforms.syncText}": "Bitwarden: ${transforms.stateWord} · ${transforms.syncText}",
       "Unlock": "잠금 해제",
       "BarShelf asks for your master password and keeps only the session.": "BarShelf가 마스터 비밀번호를 묻고 세션만 보관합니다.",
@@ -91,7 +90,8 @@
       "Copy password": "비밀번호 복사",
       "Copy verification code": "인증 코드 복사",
       "Unlock with Touch ID": "Touch ID로 열기",
-      "Use Password": "비밀번호 사용"
+      "Use Password": "비밀번호 사용",
+      "Unlocking happens in BarShelf's own prompt. This widget never sees a password.": "잠금 해제는 BarShelf 자체 창에서 합니다. 이 위젯은 비밀번호를 보지 못합니다."
     }
   }
 }

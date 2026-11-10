@@ -265,7 +265,7 @@ on open, interval, resize or a settings change. Use it to keep expensive work
 Note that `${…}` in a command is a workflow template even inside a shell script:
 write shell defaults as `[ -n "$x" ] || x=0`, not `${x:-0}`.
 
-## 8D. Password vaults (`permissions.vault`) — BarShelf 0.7.22
+## 8D. Password vaults (`permissions.vault`) — BarShelf 0.7.22 (Touch ID 0.7.23)
 
 A widget can let BarShelf unlock a password manager and offer its items, without
 ever seeing a secret. BarShelf drives the manager itself (built-in providers
@@ -276,12 +276,15 @@ only; today `"bitwarden"`, the `bw` CLI); the widget cannot choose its commands.
 ```
 
 - Source `{ "use": "vault.items" }` → `{ state: "locked"|"unlocked"|"error", items: [{ handle, name,
-  username, host, totp, hasUsername }], count, truncated, error? }`. `handle` is an
+  username, host, totp, hasUsername }], count, truncated, error?, resumable, biometry? }`.
+  `resumable` (0.7.23): Touch ID can reopen the vault; `biometry: "touchID"` when
+  Touch ID is usable right now (not, say, with the lid closed). `handle` is an
   opaque token valid only for the current unlock; there is no item id, password,
   note or TOTP seed.
 - Actions: `{ "type": "vaultUnlock" }` (BarShelf's own password prompt; the
   master password goes to the provider through stdin and is not kept),
-  `{ "type": "vaultLock" }`, `{ "type": "vaultCopy", "value": "${it.handle}", "field":
+  `{ "type": "vaultUnlock", "value": "password" }` skips Touch ID,
+  `{ "type": "vaultLock" }` (always a full lock), `{ "type": "vaultCopy", "value": "${it.handle}", "field":
   "username"|"password"|"totp" }` (straight to the clipboard, marked concealed,
   cleared after 30 s).
 - The session lives in memory only. It ends after `idleLockMinutes` (1–60,
@@ -289,6 +292,12 @@ only; today `"bitwarden"`, the `bw` CLI); the widget cannot choose its commands.
   `maxSessionMinutes` after unlock (5–480, default 60), on screen lock, sleep,
   quit, and when the widget is disabled, removed, reloaded or its permission
   revoked. A vault widget's renders are never cached to disk.
+- Touch ID (0.7.23, the user's choice at the password prompt, off by default):
+  the session is also sealed to a Secure Enclave key that needs current
+  biometrics, in memory, for 8 hours after the password. Idle, the session cap
+  and screen lock/sleep then lock softly (bw stays unlocked; Touch ID reopens,
+  with the same or tighter limits); Lock, quit, widget changes, the 8 hours, an
+  invalid session and a Touch ID lockout or enrollment change lock bw fully.
 - Any change to `vault` asks for approval again.
 
 ## 8C. Workflow alerts (`alerts`) — BarShelf 0.7.21

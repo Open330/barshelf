@@ -111,6 +111,9 @@ public enum WidgetDiscovery {
         } else if usesSystemSource(workflow) {
             lines.append("system: missing required telemetry declaration")
         }
+        if let vault = manifest.permissions?.vault {
+            lines.append("vault: BarShelf unlocks \(vault.provider) when you ask; the widget sees item names, never secrets")
+        }
         return lines
     }
 
