@@ -307,7 +307,7 @@ public struct Manifest: Codable, Equatable {
         }
     }
 
-    public struct Permissions: Codable, Equatable, Sendable {
+    public struct Permissions: Codable, Equatable {
         public var exec: [ExecPermission]?
         public var network: [String]?
         public var readPaths: [String]?
@@ -398,7 +398,7 @@ public struct Manifest: Codable, Equatable {
     /// `"storage": { "maxBytes": N }`. `granted` is false only for an explicit
     /// `false`; `maxBytes` caps the serialized namespace (host clamps to its
     /// own hard ceiling), nil meaning the host default.
-    public struct StoragePermission: Codable, Equatable, Sendable {
+    public struct StoragePermission: Codable, Equatable {
         public var maxBytes: Int?
         public var granted: Bool
 
@@ -434,7 +434,7 @@ public struct Manifest: Codable, Equatable {
 
     /// One exec allowlist entry. `allowedArgs` is a list of argv patterns
     /// (excluding the command itself); `"*"` matches exactly one argument.
-    public struct ExecPermission: Codable, Equatable, Sendable {
+    public struct ExecPermission: Codable, Equatable {
         public var command: String
         public var allowedArgs: [[String]]?
         public var env: [String]?
