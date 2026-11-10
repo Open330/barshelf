@@ -318,6 +318,12 @@ final class WidgetRuntime: ObservableObject {
         self.permissionStore = permissionStore ?? PermissionStore(
             fileURL: Self.applicationSupportDirectory.appendingPathComponent("permissions.json")
         )
+        // An update that only dropped permissions keeps its approval
+        // without asking; the audit log still says it happened.
+        let carriedAudit = auditLog
+        self.permissionStore.onApprovalCarried = { widgetID, hash in
+            carriedAudit.record("permission.narrowed", widgetId: widgetID, detail: ["hash": .string(hash)])
+        }
         self.scriptSupervisorStorage = scriptSupervisor
         self.refreshStatsStore = refreshStatsStore ?? RefreshStatsStore(
             fileURL: Self.applicationSupportDirectory

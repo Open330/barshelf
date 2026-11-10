@@ -5,8 +5,10 @@ import Foundation
 ///
 /// A record stores a SHA-256 hash of the widget's declared permissions; when
 /// the manifest's permissions change, the stored hash no longer matches and
-/// the widget returns to `.pending` (re-approval required). No widget may
-/// execute anything until its current permission set is `.approved`.
+/// the widget returns to `.pending` (re-approval required) — unless the new
+/// set only drops grants from an approved one (`PermissionNarrowing`), which
+/// the approval then covers. No widget may execute anything until
+/// its current permission set is `.approved`.
 public final class PermissionStore: @unchecked Sendable {
     public enum Status: Equatable, Sendable {
         case pending
@@ -53,6 +55,18 @@ public final class PermissionStore: @unchecked Sendable {
         /// "approved" | "denied"
         public var decision: String
         public var decidedAt: Date
+        /// The permissions the decision was made on, so an update that only
+        /// drops some of them keeps the approval (`PermissionNarrowing`).
+        /// Absent in records written before it was kept; filled in the next
+        /// time the hash shows the manifest still asks for exactly those.
+        public var permissions: Manifest.Permissions?
+
+        public init(hash: String, decision: String, decidedAt: Date, permissions: Manifest.Permissions? = nil) {
+            self.hash = hash
+            self.decision = decision
+            self.decidedAt = decidedAt
+            self.permissions = permissions
+        }
     }
 
     private let fileURL: URL
@@ -88,6 +102,15 @@ public final class PermissionStore: @unchecked Sendable {
     /// a reloaded manifest that changed them is hashed afresh.
     private var hashes: [String: (permissions: Manifest.Permissions?, hash: String)] = [:]
 
+    /// Whether a changed set is covered by its widget's approval, worked out
+    /// once per pair of sets: status is asked for on every menu bar update.
+    private struct CoverageKey: Hashable {
+        let widgetId: String
+        let approvedHash: String
+        let hash: String
+    }
+    private var coverage: [CoverageKey: Bool] = [:]
+
     private func hashLocked(of manifest: Manifest) -> String {
         if let cached = hashes[manifest.id], cached.permissions == manifest.permissions { return cached.hash }
         let hash = Self.permissionsHash(of: manifest)
@@ -111,13 +134,46 @@ public final class PermissionStore: @unchecked Sendable {
             || permissions?.storage?.granted == true
     }
 
+    /// Told the first time an approval is found to cover a changed, narrower
+    /// permission set without asking (widget id, new hash), so the host can
+    /// say so in its audit log. Called outside the store's lock. Set once,
+    /// before the store is used.
+    public var onApprovalCarried: (@Sendable (_ widgetId: String, _ hash: String) -> Void)?
+
     public func status(for manifest: Manifest) -> Status {
         guard Self.requiresApproval(for: manifest) else { return .approved }
+        var carried: String?
+        let status = statusLocked(for: manifest, carried: &carried)
+        if let carried { onApprovalCarried?(manifest.id, carried) }
+        return status
+    }
+
+    private func statusLocked(for manifest: Manifest, carried: inout String?) -> Status {
         lock.lock()
         defer { lock.unlock() }
-        guard let record = records[manifest.id] else { return .pending }
-        guard record.hash == hashLocked(of: manifest) else {
-            return .pending // permissions changed → re-approval required
+        guard var record = records[manifest.id] else { return .pending }
+        let hash = hashLocked(of: manifest)
+        guard record.hash == hash else {
+            // Permissions changed. An approval covers the new set only when
+            // it asks for nothing beyond what was approved; anything added
+            // or widened asks again, and a denial always does.
+            //
+            // The record is left as it is: copies of a widget (`<id>` and
+            // `<id>--<label>`) share it and may declare different sets, so
+            // moving it to this one would take it from the others.
+            guard record.decision == "approved", let approved = record.permissions else { return .pending }
+            let key = CoverageKey(widgetId: manifest.id, approvedHash: record.hash, hash: hash)
+            if let known = coverage[key] { return known ? .approved : .pending }
+            let covered = PermissionNarrowing.isCovered(manifest.permissions, by: approved)
+            coverage[key] = covered
+            if covered { carried = hash }
+            return covered ? .approved : .pending
+        }
+        if record.permissions == nil, manifest.permissions != nil {
+            // The hash vouches that these are the permissions decided on.
+            record.permissions = manifest.permissions
+            records[manifest.id] = record
+            persistLocked()
         }
         return record.decision == "approved" ? .approved : .denied
     }
@@ -151,7 +207,8 @@ public final class PermissionStore: @unchecked Sendable {
         records[manifest.id] = Record(
             hash: Self.permissionsHash(of: manifest),
             decision: decision,
-            decidedAt: date
+            decidedAt: date,
+            permissions: manifest.permissions
         )
         persistLocked()
     }
