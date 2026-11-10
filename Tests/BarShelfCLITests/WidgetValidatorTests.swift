@@ -292,4 +292,35 @@ final class WidgetValidatorTests: XCTestCase {
             XCTAssertTrue(report.isValid, "\(name): \(report.issues)")
         }
     }
+
+    // MARK: - Workflow alerts
+
+    private let alertWorkflow = #"{"schemaVersion":1,"sources":{},"view":{"type":"text","text":"x"},"alerts":{"low":{"when":"${true}","title":"Low"}}}"#
+
+    func testAlertsNeedNotificationsHostVersionAndBackgroundRefresh() throws {
+        let dir = try writeWidget("""
+        { "schemaVersion": 1, "id": "a", "name": "A", "entry": { "kind": "workflow" } }
+        """, extra: ["workflow.json": alertWorkflow])
+        let fields = Set(WidgetValidator.validate(directory: dir).issues.map(\.field))
+        XCTAssertTrue(fields.isSuperset(of: ["permissions.notifications", "minHostVersion", "refresh"]), "\(fields)")
+    }
+
+    func testAWellFormedAlertWidgetIsValid() throws {
+        let dir = try writeWidget("""
+        { "schemaVersion": 1, "id": "a", "name": "A", "minHostVersion": "0.7.21", "entry": { "kind": "workflow" },
+          "refresh": { "interval": 300, "runInBackground": true }, "permissions": { "notifications": true } }
+        """, extra: ["workflow.json": alertWorkflow])
+        let report = WidgetValidator.validate(directory: dir)
+        XCTAssertTrue(report.isValid, "\(report.issues)")
+    }
+
+    func testAlertWithoutAnExpressionIsReported() throws {
+        let workflow = #"{"schemaVersion":1,"sources":{},"view":{"type":"text","text":"x"},"alerts":{"low":{"when":"true","title":" "}}}"#
+        let dir = try writeWidget("""
+        { "schemaVersion": 1, "id": "a", "name": "A", "minHostVersion": "0.7.21", "entry": { "kind": "workflow" },
+          "refresh": { "interval": 300, "runInBackground": true }, "permissions": { "notifications": true } }
+        """, extra: ["workflow.json": workflow])
+        let fields = WidgetValidator.validate(directory: dir).issues.map(\.field)
+        XCTAssertEqual(Set(fields), ["alerts.low.when", "alerts.low.title"])
+    }
 }

@@ -552,6 +552,35 @@ the manifest's `statusItem.presentation` defaults.
 활용 예: 방문 카운터(`visit-counter`), "지난번 이후 변화" 델타(`downloads-new`),
 비싼 결과 캐시(TTL), 마지막 정상 값 보존 등.
 
+## 알림 (alerts)
+
+워크플로는 자기 값이 바뀌는 순간에 macOS 알림을 보낼 수 있다(BarShelf 0.7.21+).
+최상위 `alerts` 블록의 각 항목은 새로고침이 성공할 때마다 평가된다.
+
+```json
+"alerts": {
+  "low": {
+    "when": "${lt(sources.data.pct, 20)}",
+    "title": "배터리 ${string(sources.data.pct)}%",
+    "body": "곧 충전하세요.",
+    "cooldownSec": 1800
+  }
+}
+```
+
+- `when`은 `${...}` 표현식이고 **명시적인 true/false만** 센다. 숫자, 빈 값, 오류는
+  "읽지 못함"으로 보고 아무것도 바꾸지 않는다.
+- 알림은 **false → true로 바뀔 때만** 간다. 첫 읽기(앱 시작, 새 알림)에는 보내지
+  않고, true가 이어지는 동안에도 보내지 않으며, 보낸 뒤 `cooldownSec`(기본
+  3600초) 안에는 다시 보내지 않는다. 정의가 바뀌면 처음부터 다시 센다. 이 상태는
+  호스트가 따로 보관하므로 `store`로 건드릴 수 없다.
+- 필요 조건(`barshelf validate`가 확인): `permissions.notifications: true`,
+  `minHostVersion` 0.7.21 이상, 팝업이 닫혀 있어도 새로고침되도록
+  `refresh.interval` + `refresh.runInBackground: true`(그리고 `popupOnly` 아님).
+  백그라운드 주기는 느슨해지고(약 4배, 최소 1분) 배터리 절약 모드에서 멈추므로
+  알림은 몇 분 안에 오며, BarShelf가 꺼져 있거나 Mac이 잠자는 동안에는 오지 않는다.
+- 보낸 알림과 실패한 알림은 활동 기록에 남는다(`notify.alert`, `notify.alert.failed`).
+
 ## forEach 템플릿
 
 `children` 또는 `items`는 배열 대신 `forEach` 템플릿 객체가 될 수 있다.

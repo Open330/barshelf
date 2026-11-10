@@ -276,6 +276,10 @@ final class WidgetRuntime: ObservableObject {
     let auditLog = AuditLog()
     let permissionStore: PermissionStore
     private let notificationService = NotificationService()
+    /// What each workflow alert last saw, and when it last fired.
+    private let alertStates = AlertStateStore(
+        fileURL: WidgetRuntime.applicationSupportDirectory.appendingPathComponent("alert-state.json")
+    )
     private var scriptSupervisorStorage: RuntimeSupervisor?
     /// `host.secret.*` values, per widget instance. Removing a widget erases
     /// that instance's entries.
@@ -1210,6 +1214,7 @@ final class WidgetRuntime: ObservableObject {
     private func purgeInstanceData(_ id: String) throws {
         try secretStore.removeAll(widgetId: id)
         try storage.removeAll(widgetId: id)
+        alertStates.forget(widgetID: id)
     }
 
     /// Creates a second independently configurable instance of an installed
@@ -2096,6 +2101,30 @@ final class WidgetRuntime: ObservableObject {
             && permissionStore.status(for: widget.manifest) == .approved
     }
 
+    /// Shows one fired workflow alert. The authorization is re-read after
+    /// macOS answers its prompt: a widget revoked in the meantime notifies
+    /// nothing.
+    private func deliverAlert(_ alert: WorkflowEngine.AlertSample, for widget: LoadedWidget) {
+        let manifest = widget.manifest
+        let store = permissionStore
+        let authorization = ScriptRequestAuthorization(isApproved: {
+            manifest.permissions?.notifications == true && store.status(for: manifest) == .approved
+        })
+        let service = notificationService
+        let audit = auditLog
+        let widgetID = widget.id
+        Task {
+            do {
+                try await service.show(title: alert.title, body: alert.body, authorization: authorization)
+                audit.record("notify.alert", widgetId: widgetID, detail: ["alert": .string(alert.id)])
+            } catch {
+                audit.record("notify.alert.failed", widgetId: widgetID, detail: [
+                    "alert": .string(alert.id), "error": .string(error.localizedDescription),
+                ])
+            }
+        }
+    }
+
     private func checkNativeRefresh(_ widget: LoadedWidget, token: NativeRefreshGate.Token) throws {
         guard nativeRefreshMayContinue(widget, token: token) else { throw CancellationError() }
     }
@@ -2441,6 +2470,17 @@ final class WidgetRuntime: ObservableObject {
                 definition, sources: sourceValues, settings: settings,
                 storage: storageSnapshot, widget: widgetContext
             )
+
+            // Alerts: decided against host-held state after a refresh that is
+            // still current, delivered only to a widget that declared
+            // notifications and is still allowed when macOS answers.
+            if !output.alerts.isEmpty, widget.manifest.permissions?.notifications == true {
+                try checkNativeRefresh(widget, token: token)
+                let firing = alertStates.record(
+                    widgetID: widget.id, samples: output.alerts, nowMs: Date().timeIntervalSince1970 * 1000
+                )
+                for alert in firing { deliverAlert(alert, for: widget) }
+            }
 
             // Commit the store block after a successful eval. Failures here are
             // non-fatal (e.g. quota) — the view already rendered; log and move on.
