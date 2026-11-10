@@ -1,0 +1,63 @@
+{
+  "$schema": "https://barshelf.jiun.dev/schema/widget-0.1.json",
+  "schemaVersion": 1,
+  "id": "dev.barshelf.internet-quality",
+  "name": "Internet Quality",
+  "version": "0.1.0",
+  "minHostVersion": "0.7.21",
+  "icon": "speedometer",
+  "bucket": {
+    "group": "System",
+    "order": 32,
+    "size": "M"
+  },
+  "entry": {
+    "kind": "workflow",
+    "main": "workflow.json"
+  },
+  "refresh": {
+    "onOpen": true,
+    "interval": null,
+    "staleAfterSec": 21600,
+    "popupOnly": true
+  },
+  "statusItem": {
+    "mode": "text",
+    "icon": "speedometer"
+  },
+  "permissions": {
+    "exec": [
+      {
+        "command": "/usr/bin/networkQuality",
+        "allowedArgs": [
+          [
+            "-c",
+            "-M",
+            "30"
+          ]
+        ],
+        "maxOutputBytes": 262144,
+        "sensitiveOutput": false
+      }
+    ]
+  },
+  "appearance": {
+    "accent": "blue"
+  },
+  "localizations": {
+    "ko": {
+      "Internet Quality": "인터넷 품질",
+      "Download": "다운로드",
+      "Upload": "업로드",
+      "Responsiveness": "응답성",
+      "${transforms.down} Mbps": "${transforms.down} Mbps",
+      "${transforms.rpm} RPM · ${transforms.rating}": "${transforms.rpm} RPM · ${transforms.rating}",
+      "Idle latency ${transforms.idle} ms · ${transforms.iface}": "유휴 지연 ${transforms.idle} ms · ${transforms.iface}",
+      "Run test again": "다시 측정",
+      "Tested at ${transforms.when}. Each test moves a lot of data, so it runs only when you open it after 6 hours or press Run test again.": "${transforms.when}에 측정했습니다. 측정할 때마다 데이터를 많이 쓰므로 6시간이 지난 뒤 열거나 ‘다시 측정’을 누를 때만 실행합니다.",
+      "Couldn’t measure": "측정하지 못함",
+      "networkQuality returned no result. Check the connection and try again.": "networkQuality가 결과를 내지 못했습니다. 연결을 확인하고 다시 시도하세요.",
+      "Download ${transforms.down} Mbps · Upload ${transforms.up} Mbps · ${transforms.rpm} RPM": "다운로드 ${transforms.down} Mbps · 업로드 ${transforms.up} Mbps · ${transforms.rpm} RPM"
+    }
+  }
+}

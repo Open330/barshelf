@@ -1,0 +1,281 @@
+{
+  "schemaVersion": 1,
+  "kind": "workflow",
+  "_comment": "Outdated Homebrew formulae and casks from `brew outdated --json=v2`, run through a fixed /bin/sh wrapper that finds brew at /opt/homebrew or /usr/local and reports missing/failed as JSON. HOMEBREW_NO_AUTO_UPDATE keeps it from git-fetching taps; brew may still refresh its API cache. Read-only: the button copies `brew upgrade`, nothing is upgraded from the widget. Every 3 hours while visible.",
+  "sources": {
+    "brew": {
+      "use": "exec",
+      "with": {
+        "command": [
+          "/bin/sh",
+          "-c",
+          "for b in /opt/homebrew/bin/brew /usr/local/bin/brew; do if [ -x \"$b\" ]; then HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ENV_HINTS=1 HOMEBREW_NO_ANALYTICS=1 \"$b\" outdated --json=v2 2>/dev/null && exit 0; echo '{\"error\":\"failed\"}'; exit 0; fi; done; echo '{\"error\":\"missing\"}'"
+        ],
+        "timeoutMs": 120000,
+        "maxOutputBytes": 1048576
+      }
+    }
+  },
+  "transforms": {
+    "ko": {
+      "use": "assign",
+      "from": "or(eq(coalesce(widget.locale, ''), 'ko'), or(eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko-…'), eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko_…')))"
+    },
+    "state": {
+      "use": "assign",
+      "from": "if(eq(sources.brew.error, null), if(eq(sources.brew.formulae, null), 'failed', 'ok'), if(eq(sources.brew.error, 'missing'), 'missing', 'failed'))"
+    },
+    "showF": {
+      "use": "assign",
+      "from": "ne(settings.show, 'casks')"
+    },
+    "showC": {
+      "use": "assign",
+      "from": "ne(settings.show, 'formulae')"
+    },
+    "formulae": {
+      "use": "template",
+      "with": {
+        "forEach": "$.sources.brew.formulae",
+        "as": "f",
+        "template": {
+          "id": "formula-${f.name}",
+          "name": "${f.name}",
+          "kind": "formula",
+          "from": "${coalesce(get(f.installed_versions, 0), '?')}",
+          "to": "${coalesce(f.current_version, '?')}",
+          "pinned": "${if(f.pinned, true, false)}"
+        }
+      }
+    },
+    "casks": {
+      "use": "template",
+      "with": {
+        "forEach": "$.sources.brew.casks",
+        "as": "c",
+        "template": {
+          "id": "cask-${c.name}",
+          "name": "${c.name}",
+          "kind": "cask",
+          "from": "${coalesce(get(c.installed_versions, 0), '?')}",
+          "to": "${coalesce(c.current_version, '?')}",
+          "pinned": "${if(c.pinned, true, false)}"
+        }
+      }
+    },
+    "fCount": {
+      "use": "assign",
+      "from": "if(transforms.showF, count(coalesce(transforms.formulae, [])), 0)"
+    },
+    "cCount": {
+      "use": "assign",
+      "from": "if(transforms.showC, count(coalesce(transforms.casks, [])), 0)"
+    },
+    "total": {
+      "use": "assign",
+      "from": "add(transforms.fCount, transforms.cCount)"
+    },
+    "summary": {
+      "use": "assign",
+      "from": "if(transforms.ko, concat('포뮬러 ', string(transforms.fCount), '개 · 캐스크 ', string(transforms.cCount), '개'), concat(string(transforms.fCount), if(eq(transforms.fCount, 1), ' formula', ' formulae'), ' · ', string(transforms.cCount), if(eq(transforms.cCount, 1), ' cask', ' casks')))"
+    },
+    "upgradeCmd": {
+      "use": "assign",
+      "from": "switch(coalesce(settings.show, 'all'), 'formulae', 'brew upgrade --formula', 'casks', 'brew upgrade --cask', 'brew upgrade')"
+    }
+  },
+  "view": {
+    "switch": "${if(ne(transforms.state, 'ok'), transforms.state, if(gt(transforms.total, 0), 'list', 'clear'))}",
+    "cases": {
+      "list": {
+        "type": "vstack",
+        "spacing": 8,
+        "children": [
+          {
+            "type": "hstack",
+            "spacing": 6,
+            "children": [
+              {
+                "type": "text",
+                "text": "${string(transforms.total)}",
+                "role": "title",
+                "size": 30,
+                "monospacedDigit": true,
+                "desktopRole": "value"
+              },
+              {
+                "type": "text",
+                "text": "${transforms.summary}",
+                "role": "caption",
+                "foreground": "secondary",
+                "lineLimit": 1
+              },
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "button",
+                "title": "Copy upgrade command",
+                "icon": "doc.on.doc",
+                "action": {
+                  "type": "copyText",
+                  "value": "${transforms.upgradeCmd}",
+                  "toast": "Copied"
+                }
+              }
+            ]
+          },
+          {
+            "type": "scroll",
+            "children": [
+              {
+                "type": "vstack",
+                "spacing": 8,
+                "children": [
+                  {
+                    "switch": "${if(and(transforms.showF, gt(count(coalesce(transforms.formulae, [])), 0)), 'on', 'off')}",
+                    "cases": {
+                      "on": {
+                        "type": "section",
+                        "title": "Formulae",
+                        "spacing": 3,
+                        "children": {
+                          "forEach": "$.transforms.formulae",
+                          "as": "row",
+                          "template": {
+                            "type": "hstack",
+                            "id": "${row.id}",
+                            "spacing": 6,
+                            "children": [
+                              {
+                                "type": "text",
+                                "text": "${row.name}",
+                                "role": "body",
+                                "lineLimit": 1,
+                                "truncation": "middle"
+                              },
+                              {
+                                "switch": "${if(row.pinned, 'pinned', 'no')}",
+                                "cases": {
+                                  "pinned": {
+                                    "type": "badge",
+                                    "text": "pinned",
+                                    "tone": "neutral"
+                                  }
+                                },
+                                "default": {
+                                  "type": "none"
+                                }
+                              },
+                              {
+                                "type": "spacer"
+                              },
+                              {
+                                "type": "text",
+                                "text": "${row.from} → ${row.to}",
+                                "role": "caption",
+                                "foreground": "secondary",
+                                "monospacedDigit": true,
+                                "lineLimit": 1,
+                                "truncation": "middle"
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "default": {
+                      "type": "none"
+                    }
+                  },
+                  {
+                    "switch": "${if(and(transforms.showC, gt(count(coalesce(transforms.casks, [])), 0)), 'on', 'off')}",
+                    "cases": {
+                      "on": {
+                        "type": "section",
+                        "title": "Casks",
+                        "spacing": 3,
+                        "children": {
+                          "forEach": "$.transforms.casks",
+                          "as": "row",
+                          "template": {
+                            "type": "hstack",
+                            "id": "${row.id}",
+                            "spacing": 6,
+                            "children": [
+                              {
+                                "type": "text",
+                                "text": "${row.name}",
+                                "role": "body",
+                                "lineLimit": 1,
+                                "truncation": "middle"
+                              },
+                              {
+                                "switch": "${if(row.pinned, 'pinned', 'no')}",
+                                "cases": {
+                                  "pinned": {
+                                    "type": "badge",
+                                    "text": "pinned",
+                                    "tone": "neutral"
+                                  }
+                                },
+                                "default": {
+                                  "type": "none"
+                                }
+                              },
+                              {
+                                "type": "spacer"
+                              },
+                              {
+                                "type": "text",
+                                "text": "${row.from} → ${row.to}",
+                                "role": "caption",
+                                "foreground": "secondary",
+                                "monospacedDigit": true,
+                                "lineLimit": 1,
+                                "truncation": "middle"
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "default": {
+                      "type": "none"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "clear": {
+        "type": "empty",
+        "icon": "checkmark.circle",
+        "title": "Everything is up to date",
+        "subtitle": "brew outdated found nothing to upgrade."
+      },
+      "missing": {
+        "type": "empty",
+        "icon": "mug",
+        "title": "Homebrew isn’t installed",
+        "subtitle": "Install it from brew.sh to see outdated packages here.",
+        "action": {
+          "type": "openURL",
+          "url": "https://brew.sh"
+        }
+      }
+    },
+    "default": {
+      "type": "empty",
+      "icon": "exclamationmark.triangle",
+      "title": "brew outdated failed",
+      "subtitle": "Run brew outdated in Terminal to see why."
+    }
+  },
+  "status": {
+    "label": "${if(eq(transforms.state, 'ok'), string(transforms.total), '—')}",
+    "tooltip": "${string(transforms.total)} Homebrew updates"
+  }
+}

@@ -1,0 +1,210 @@
+{
+  "$schema": "https://barshelf.jiun.dev/schema/workflow-0.1.json",
+  "schemaVersion": 1,
+  "kind": "workflow",
+  "_comment": "Containers from the Docker CLI (Docker Desktop, OrbStack, Colima, Rancher Desktop: whatever `docker` points at, including its current context). `docker ps --format '{{json .}}'` prints one JSON object per line, so a fixed shell wrapper joins the lines into one array and reports whether the CLI exists and whether the daemon answered. It never starts, stops or changes a container.",
+  "sources": {
+    "docker": {
+      "use": "exec",
+      "with": {
+        "command": [
+          "/bin/sh",
+          "-c",
+          "d=$(command -v docker 2>/dev/null); if [ -z \"$d\" ]; then for c in \"$HOME/.orbstack/bin/docker\" \"$HOME/.docker/bin/docker\" /Applications/Docker.app/Contents/Resources/bin/docker /Applications/OrbStack.app/Contents/MacOS/xbin/docker \"$HOME/.rd/bin/docker\"; do if [ -x \"$c\" ]; then d=$c; break; fi; done; fi; if [ -z \"$d\" ]; then printf '{\"installed\":false,\"running\":false,\"containers\":[]}'; exit 0; fi; if [ \"$1\" = true ]; then a=-a; else a=; fi; out=$(\"$d\" ps $a --format '{{json .}}' 2>/dev/null) || { printf '{\"installed\":true,\"running\":false,\"containers\":[]}'; exit 0; }; printf '{\"installed\":true,\"running\":true,\"containers\":[%s]}' \"$(printf '%s\\n' \"$out\" | /usr/bin/paste -sd, -)\"",
+          "docker",
+          "${if(settings.showStopped, 'true', 'false')}"
+        ],
+        "timeoutMs": 15000
+      }
+    }
+  },
+  "transforms": {
+    "ko": {
+      "use": "assign",
+      "from": "or(eq(coalesce(widget.locale, ''), 'ko'), or(eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko-…'), eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko_…')))"
+    },
+    "running": {
+      "use": "filter",
+      "from": "$.sources.docker.containers",
+      "with": {
+        "field": "State",
+        "equals": "running"
+      }
+    },
+    "runningCount": {
+      "use": "assign",
+      "from": "count(transforms.running)"
+    },
+    "total": {
+      "use": "assign",
+      "from": "count(sources.docker.containers)"
+    },
+    "rows": {
+      "use": "template",
+      "with": {
+        "forEach": "$.sources.docker.containers",
+        "as": "c",
+        "template": {
+          "id": "c-${c.ID}",
+          "name": "${c.Names}",
+          "image": "${c.Image}",
+          "status": "${c.Status}",
+          "ports": "${string(c.Ports)}",
+          "hasPorts": "${ne(string(c.Ports), '')}",
+          "icon": "${switch(c.State, 'running', 'shippingbox.fill', 'paused', 'pause.circle.fill', 'restarting', 'arrow.clockwise.circle.fill', 'dead', 'xmark.octagon.fill', 'created', 'shippingbox', 'stop.circle')}",
+          "tint": "${switch(c.State, 'running', 'good', 'paused', 'warning', 'restarting', 'warning', 'dead', 'danger', 'secondary')}"
+        }
+      }
+    },
+    "summary": {
+      "use": "assign",
+      "from": "if(transforms.ko, concat('실행 중 ', string(transforms.runningCount), if(settings.showStopped, concat(' · 전체 ', string(transforms.total)), '')), concat(string(transforms.runningCount), ' running', if(settings.showStopped, concat(' · ', string(transforms.total), ' total'), '')))"
+    }
+  },
+  "view": {
+    "type": "vstack",
+    "spacing": 8,
+    "children": [
+      {
+        "switch": "${if(not(sources.docker.installed), 'missing', if(not(sources.docker.running), 'down', if(eq(transforms.total, 0), 'none', 'list')))}",
+        "cases": {
+          "missing": {
+            "type": "empty",
+            "icon": "shippingbox",
+            "title": "Docker CLI not found",
+            "subtitle": "Install Docker Desktop, OrbStack or another Docker runtime."
+          },
+          "down": {
+            "type": "empty",
+            "icon": "powersleep",
+            "title": "Docker isn’t running",
+            "subtitle": "Start Docker Desktop, OrbStack or your Docker runtime."
+          },
+          "none": {
+            "type": "empty",
+            "icon": "shippingbox",
+            "title": "No containers running",
+            "subtitle": "Containers you start show up here."
+          }
+        },
+        "default": {
+          "type": "vstack",
+          "spacing": 6,
+          "children": [
+            {
+              "type": "hstack",
+              "spacing": 6,
+              "children": [
+                {
+                  "type": "image",
+                  "source": {
+                    "kind": "sfSymbol",
+                    "name": "shippingbox.fill"
+                  },
+                  "size": 14,
+                  "tint": "accent"
+                },
+                {
+                  "type": "text",
+                  "text": "${transforms.summary}",
+                  "role": "body",
+                  "monospacedDigit": true
+                },
+                {
+                  "type": "spacer"
+                }
+              ]
+            },
+            {
+              "type": "list",
+              "spacing": 2,
+              "searchPlaceholder": "Search containers",
+              "items": {
+                "forEach": "$.transforms.rows",
+                "as": "row",
+                "template": {
+                  "type": "hstack",
+                  "id": "${row.id}",
+                  "spacing": 8,
+                  "action": {
+                    "type": "copyText",
+                    "value": "${row.name}",
+                    "toast": "Copied"
+                  },
+                  "children": [
+                    {
+                      "type": "image",
+                      "source": {
+                        "kind": "sfSymbol",
+                        "name": "${row.icon}"
+                      },
+                      "size": 14,
+                      "tint": "${row.tint}"
+                    },
+                    {
+                      "type": "vstack",
+                      "spacing": 1,
+                      "widthFill": true,
+                      "children": [
+                        {
+                          "type": "hstack",
+                          "spacing": 6,
+                          "children": [
+                            {
+                              "type": "text",
+                              "text": "${row.name}",
+                              "role": "body",
+                              "lineLimit": 1
+                            },
+                            {
+                              "type": "spacer"
+                            },
+                            {
+                              "type": "text",
+                              "text": "${row.status}",
+                              "role": "caption",
+                              "foreground": "${row.tint}",
+                              "lineLimit": 1
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "text": "${row.image}",
+                          "role": "caption",
+                          "foreground": "secondary",
+                          "lineLimit": 1,
+                          "truncation": "middle"
+                        },
+                        {
+                          "switch": "${if(row.hasPorts, 'ports', 'none')}",
+                          "cases": {
+                            "ports": {
+                              "type": "text",
+                              "text": "${row.ports}",
+                              "role": "code",
+                              "foreground": "tertiary",
+                              "lineLimit": 1,
+                              "truncation": "tail"
+                            }
+                          },
+                          "default": {
+                            "type": "none"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "status": {
+    "label": "${if(sources.docker.running, string(transforms.runningCount), if(sources.docker.installed, if(transforms.ko, '꺼짐', 'off'), ''))}",
+    "tooltip": "${if(sources.docker.running, transforms.summary, if(transforms.ko, 'Docker가 실행 중이 아닙니다', 'Docker isn’t running'))}"
+  }
+}

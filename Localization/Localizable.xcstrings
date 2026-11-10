@@ -2301,6 +2301,16 @@
         }
       }
     },
+    "Checks a website every minute and shows whether it is up and how fast it answered, with alerts when it goes down or comes back. Uses the built-in curl; nothing to install.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "웹사이트를 1분마다 확인해 살아 있는지와 응답 속도를 보여 주고, 다운되거나 복구되면 알려 줍니다. macOS에 들어 있는 curl을 쓰므로 따로 설치할 것이 없습니다."
+          }
+        }
+      }
+    },
     "Chips appear left to right in this order. At most %lld widgets are shown; colours come from each widget's accent.": {
       "localizations": {
         "ko": {
@@ -2891,6 +2901,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "위젯 목록을 새로고침할 수 없습니다. 이미 불러온 위젯을 표시합니다."
+          }
+        }
+      }
+    },
+    "Counts down to one or two dates and shows D-12, D-day or D+3 with the days left; the menu bar shows the D-label. Can notify you on the day.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "하나 또는 두 날짜까지 남은 날을 D-12, D-day, D+3과 남은 일수로 보여 주고, 메뉴 막대에는 D-표시를 띄웁니다. 당일에 알림을 보낼 수 있습니다."
           }
         }
       }
@@ -5642,6 +5662,16 @@
         }
       }
     },
+    "Keeps a short note on your shelf, and in the menu bar if you like. Write it in the widget’s settings; it needs no permissions.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "짧은 메모를 선반에, 원하면 메뉴 막대에도 띄워 둡니다. 위젯 설정에서 쓰며 권한이 필요 없습니다."
+          }
+        }
+      }
+    },
     "Keeps the item the same width as a reading goes from 9 to 10. A longer reading widens it once and it stays that wide.": {
       "localizations": {
         "ko": {
@@ -5967,6 +5997,36 @@
         }
       }
     },
+    "Lists the Hacker News front page with points, comments and age; click a story to open it or the bubble for its comments. From the public Algolia HN API, no key.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "해커 뉴스 첫 페이지를 점수, 댓글 수, 올라온 시간과 함께 보여 주며, 기사를 누르면 원문을, 말풍선을 누르면 댓글을 엽니다. 공개 Algolia HN API를 쓰며 키가 필요 없습니다."
+          }
+        }
+      }
+    },
+    "Lists the TCP ports your processes are listening on, with the process name, pid and whether each is reachable from the network. Uses the built-in lsof.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "내 프로세스가 열어 둔 TCP 포트를 프로세스 이름, pid, 네트워크 접근 가능 여부와 함께 보여 줍니다. 기본 내장 lsof를 씁니다."
+          }
+        }
+      }
+    },
+    "Lists your Docker containers with image, status and ports, and can show how many are running in the menu bar. Needs Docker Desktop, OrbStack or another Docker CLI.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Docker 컨테이너를 이미지, 상태, 포트와 함께 보여 주고, 실행 중인 개수를 메뉴 막대에 띄울 수 있습니다. Docker Desktop, OrbStack 같은 Docker CLI가 필요합니다."
+          }
+        }
+      }
+    },
     "Live preview": {
       "localizations": {
         "ko": {
@@ -6196,6 +6256,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "최대 파일 수: %lld"
+          }
+        }
+      }
+    },
+    "Measures download and upload speed and responsiveness with Apple’s built-in networkQuality, on demand or at most every six hours. Each test uses a lot of data.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple 내장 networkQuality로 다운로드·업로드 속도와 응답성을 측정합니다. 필요할 때나 최대 6시간마다만 실행하며, 측정마다 데이터를 많이 씁니다."
           }
         }
       }
@@ -8570,6 +8640,16 @@
         }
       }
     },
+    "Reminds you every 50 minutes (adjustable) to stand up and rest your eyes, and shows the time until the next break. Has Took a break, Snooze and Pause; needs Deno.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "50분(조정 가능)마다 일어나 눈을 쉬라고 알려 주고, 다음 휴식까지 남은 시간을 보여 줍니다. 쉬었어요, 미루기, 일시 정지 버튼이 있으며 Deno가 필요합니다."
+          }
+        }
+      }
+    },
     "Remove": {
       "localizations": {
         "ko": {
@@ -10110,6 +10190,96 @@
           "stringUnit": {
             "state": "translated",
             "value": "칩으로 표시됩니다. 레이블, 너비, 텍스트, 그래프, 스타일은 설정 ▸ 메뉴 막대에서 위젯 표시 방식이 ‘텍스트와 항목’일 때 적용됩니다."
+          }
+        }
+      }
+    },
+    "Shows PM2.5 and PM10 with Korean-standard grades plus US and EU AQI for a place you set, and notifies when PM2.5 reaches your alert level. From Open-Meteo, no key.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "설정한 장소의 초미세먼지·미세먼지를 한국 기준 등급과 미국·유럽 AQI로 보여 주고, 초미세먼지가 알림 기준에 닿으면 알려 줍니다. Open-Meteo에서 받아 오며 키가 필요 없습니다."
+          }
+        }
+      }
+    },
+    "Shows the battery level of each connected Bluetooth device, including AirPods earbuds and case, and alerts you when one drops low. Uses only built-in macOS tools.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "연결된 블루투스 기기마다 배터리 잔량을 보여 주고(AirPods 양쪽과 케이스 포함), 잔량이 낮아지면 알려 줍니다. macOS 기본 도구만 씁니다."
+          }
+        }
+      }
+    },
+    "Shows the latest GitHub Actions runs for a repository and alerts you when the watched branch’s build fails or recovers. Needs the GitHub CLI (gh), signed in.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "저장소의 최근 GitHub Actions 실행을 보여 주고, 지켜보는 브랜치의 빌드가 실패하거나 복구되면 알려 줍니다. 로그인된 GitHub CLI(gh)가 필요합니다."
+          }
+        }
+      }
+    },
+    "Shows the local time in up to five cities, with Today/Tomorrow, the hour difference, and dimmed rows outside working hours or on weekends. Runs the system date command, no network.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "최대 다섯 도시의 현지 시각을 오늘/내일과 시차와 함께 보여 주고, 업무 시간 밖이나 주말이면 흐리게 표시합니다. 시스템 date 명령을 쓰며 네트워크는 쓰지 않습니다."
+          }
+        }
+      }
+    },
+    "Shows the price and 24-hour change of the coins you list, with one coin in the menu bar. From CoinGecko’s public API every 10 minutes, no key needed.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "지정한 코인의 시세와 24시간 변동을 보여 주고, 코인 하나를 메뉴 막대에 띄웁니다. CoinGecko 공개 API에서 10분마다 받아 오며 키가 필요 없습니다."
+          }
+        }
+      }
+    },
+    "Shows whether Tailscale is connected, which exit node you use, and which devices in your tailnet are online. Needs the Tailscale app or the tailscale CLI.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tailscale 연결 여부, 사용 중인 출구 노드, tailnet에서 온라인인 기기를 보여 줍니다. Tailscale 앱이나 tailscale CLI가 필요합니다."
+          }
+        }
+      }
+    },
+    "Shows whether your Bitwarden vault is locked and when it last synced, and can warn when it hasn’t synced for a while. Needs the Bitwarden CLI (bw); it never unlocks the vault or reads items.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitwarden 보관함이 잠겨 있는지와 마지막 동기화 시각을 보여 주고, 오래 동기화하지 않으면 알려 줄 수 있습니다. Bitwarden CLI(bw)가 필요하며, 보관함을 잠금 해제하거나 항목을 읽지 않습니다."
+          }
+        }
+      }
+    },
+    "Shows which Homebrew formulae and casks have updates, with installed and current versions. Requires Homebrew.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "업데이트가 있는 Homebrew 포뮬러와 캐스크를 설치된 버전·최신 버전과 함께 보여 줍니다. Homebrew가 필요합니다."
+          }
+        }
+      }
+    },
+    "Shows your current kubectl context and how the pods in a namespace are doing, listing any that aren’t ready. Needs kubectl with access to a cluster.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "현재 kubectl 컨텍스트와 네임스페이스의 Pod 상태를 보여 주고, 준비되지 않은 Pod를 나열합니다. 클러스터에 접근할 수 있는 kubectl이 필요합니다."
           }
         }
       }

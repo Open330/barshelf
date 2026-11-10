@@ -1,0 +1,49 @@
+{
+  "$schema": "https://barshelf.jiun.dev/schema/widget-0.1.json",
+  "schemaVersion": 1,
+  "id": "dev.barshelf.countdown",
+  "name": "Countdown",
+  "version": "0.1.0",
+  "minHostVersion": "0.7.21",
+  "icon": "calendar.badge.clock",
+  "bucket": { "group": "Everyday", "order": 42, "size": "S" },
+
+  "entry": { "kind": "workflow", "main": "workflow.json" },
+
+  "refresh": { "onOpen": true, "interval": 300, "staleAfterSec": 300, "runInBackground": true, "triggers": ["wake"] },
+
+  "statusItem": { "mode": "text", "icon": "calendar.badge.clock" },
+
+  "permissions": {
+    "exec": [
+      {
+        "command": "/bin/date",
+        "allowedArgs": [["+{\"today\":\"%Y-%m-%dT00:00:00Z\"}"]],
+        "maxOutputBytes": 1024,
+        "sensitiveOutput": false
+      }
+    ],
+    "notifications": true
+  },
+
+  "settings": [
+    { "key": "title1", "title": "Event", "type": "string", "default": "New Year" },
+    { "key": "date1", "title": "Date (YYYY-MM-DD)", "type": "string", "default": "2027-01-01" },
+    { "key": "title2", "title": "Second event (optional)", "type": "string", "default": "" },
+    { "key": "date2", "title": "Second date (YYYY-MM-DD)", "type": "string", "default": "" }
+  ],
+
+  "appearance": {
+    "accent": "pink"
+  },
+
+  "localizations": {
+    "ko": {
+      "Countdown": "디데이",
+      "Event": "이벤트",
+      "Date (YYYY-MM-DD)": "날짜 (YYYY-MM-DD)",
+      "Second event (optional)": "두 번째 이벤트 (선택)",
+      "Second date (YYYY-MM-DD)": "두 번째 날짜 (YYYY-MM-DD)"
+    }
+  }
+}

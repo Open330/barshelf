@@ -1,0 +1,73 @@
+{
+  "$schema": "https://barshelf.jiun.dev/schema/widget-0.1.json",
+  "schemaVersion": 1,
+  "id": "dev.barshelf.bluetooth-battery",
+  "name": "Bluetooth Battery",
+  "version": "0.1.0",
+  "minHostVersion": "0.7.21",
+  "icon": "battery.75percent",
+  "bucket": {
+    "group": "System",
+    "order": 13,
+    "size": "M"
+  },
+  "entry": {
+    "kind": "workflow",
+    "main": "workflow.json"
+  },
+  "refresh": {
+    "onOpen": true,
+    "interval": 300,
+    "staleAfterSec": 120,
+    "runInBackground": true,
+    "triggers": [
+      "wake"
+    ]
+  },
+  "statusItem": {
+    "mode": "text",
+    "icon": "battery.75percent"
+  },
+  "permissions": {
+    "exec": [
+      {
+        "command": "/usr/bin/osascript",
+        "allowedArgs": [
+          [
+            "-l",
+            "JavaScript",
+            "./bluetooth-battery.js"
+          ]
+        ],
+        "maxOutputBytes": 65536,
+        "sensitiveOutput": false
+      }
+    ],
+    "notifications": true
+  },
+  "settings": [
+    {
+      "key": "lowPct",
+      "title": "Alert at or below (%)",
+      "type": "integer",
+      "min": 5,
+      "max": 50,
+      "default": 20
+    }
+  ],
+  "appearance": {
+    "accent": "blue"
+  },
+  "localizations": {
+    "ko": {
+      "Bluetooth Battery": "블루투스 배터리",
+      "Alert at or below (%)": "알림 기준 (% 이하)",
+      "No Bluetooth batteries": "블루투스 배터리 없음",
+      "Connect AirPods, a Magic Mouse, Keyboard or Trackpad and it shows up here.": "AirPods, Magic Mouse, 키보드, 트랙패드를 연결하면 여기에 나타납니다.",
+      "${string(device.level)}%": "${string(device.level)}%",
+      "Lowest: ${transforms.tip}": "가장 낮음: ${transforms.tip}",
+      "${transforms.lowest.name} is at ${string(transforms.lowest.level)}%": "${transforms.lowest.name} 배터리 ${string(transforms.lowest.level)}%",
+      "Charge it soon.": "곧 충전하세요."
+    }
+  }
+}

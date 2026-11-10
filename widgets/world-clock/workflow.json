@@ -1,0 +1,254 @@
+{
+  "schemaVersion": 1,
+  "kind": "workflow",
+  "_comment": "World clock: one /bin/date per city through /usr/bin/env TZ=<zone> (the expression DSL has no time zones). Day offset compares each city's date with the local one; the hour difference comes from %z.",
+  "sources": {
+    "local": {
+      "use": "exec",
+      "with": {
+        "command": [
+          "/bin/date",
+          "+{\"time\":\"%H:%M\",\"hour\":1%H,\"ymd\":%Y%m%d,\"wd\":%u,\"abbr\":\"%Z\",\"off\":\"%z\"}"
+        ]
+      }
+    },
+    "z1": {
+      "use": "exec",
+      "with": {
+        "command": [
+          "/bin/sh",
+          "-c",
+          "TZ=\"$1\"; export TZ; exec /bin/date '+{\"time\":\"%H:%M\",\"hour\":1%H,\"ymd\":%Y%m%d,\"wd\":%u,\"abbr\":\"%Z\",\"off\":\"%z\"}'",
+          "world-clock",
+          "${coalesce(settings.zone1, 'UTC')}"
+        ]
+      }
+    },
+    "z2": {
+      "use": "exec",
+      "with": {
+        "command": [
+          "/bin/sh",
+          "-c",
+          "TZ=\"$1\"; export TZ; exec /bin/date '+{\"time\":\"%H:%M\",\"hour\":1%H,\"ymd\":%Y%m%d,\"wd\":%u,\"abbr\":\"%Z\",\"off\":\"%z\"}'",
+          "world-clock",
+          "${coalesce(settings.zone2, 'UTC')}"
+        ]
+      }
+    },
+    "z3": {
+      "use": "exec",
+      "with": {
+        "command": [
+          "/bin/sh",
+          "-c",
+          "TZ=\"$1\"; export TZ; exec /bin/date '+{\"time\":\"%H:%M\",\"hour\":1%H,\"ymd\":%Y%m%d,\"wd\":%u,\"abbr\":\"%Z\",\"off\":\"%z\"}'",
+          "world-clock",
+          "${coalesce(settings.zone3, 'UTC')}"
+        ]
+      }
+    },
+    "z4": {
+      "use": "exec",
+      "with": {
+        "command": [
+          "/bin/sh",
+          "-c",
+          "TZ=\"$1\"; export TZ; exec /bin/date '+{\"time\":\"%H:%M\",\"hour\":1%H,\"ymd\":%Y%m%d,\"wd\":%u,\"abbr\":\"%Z\",\"off\":\"%z\"}'",
+          "world-clock",
+          "${coalesce(settings.zone4, 'UTC')}"
+        ]
+      }
+    },
+    "z5": {
+      "use": "exec",
+      "with": {
+        "command": [
+          "/bin/sh",
+          "-c",
+          "TZ=\"$1\"; export TZ; exec /bin/date '+{\"time\":\"%H:%M\",\"hour\":1%H,\"ymd\":%Y%m%d,\"wd\":%u,\"abbr\":\"%Z\",\"off\":\"%z\"}'",
+          "world-clock",
+          "${coalesce(settings.zone5, 'UTC')}"
+        ]
+      }
+    }
+  },
+  "transforms": {
+    "ko": {
+      "use": "assign",
+      "from": "or(eq(coalesce(widget.locale, ''), 'ko'), or(eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko-…'), eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko_…')))"
+    },
+    "slots": {
+      "use": "template",
+      "with": [
+        {
+          "n": 1,
+          "label": "${coalesce(settings.label1, settings.zone1, '')}",
+          "zone": "${coalesce(settings.zone1, '')}",
+          "on": "${ne(coalesce(settings.zone1), null)}",
+          "d": "${sources.z1}"
+        },
+        {
+          "n": 2,
+          "label": "${coalesce(settings.label2, settings.zone2, '')}",
+          "zone": "${coalesce(settings.zone2, '')}",
+          "on": "${ne(coalesce(settings.zone2), null)}",
+          "d": "${sources.z2}"
+        },
+        {
+          "n": 3,
+          "label": "${coalesce(settings.label3, settings.zone3, '')}",
+          "zone": "${coalesce(settings.zone3, '')}",
+          "on": "${ne(coalesce(settings.zone3), null)}",
+          "d": "${sources.z3}"
+        },
+        {
+          "n": 4,
+          "label": "${coalesce(settings.label4, settings.zone4, '')}",
+          "zone": "${coalesce(settings.zone4, '')}",
+          "on": "${ne(coalesce(settings.zone4), null)}",
+          "d": "${sources.z4}"
+        },
+        {
+          "n": 5,
+          "label": "${coalesce(settings.label5, settings.zone5, '')}",
+          "zone": "${coalesce(settings.zone5, '')}",
+          "on": "${ne(coalesce(settings.zone5), null)}",
+          "d": "${sources.z5}"
+        }
+      ]
+    },
+    "active": {
+      "use": "filter",
+      "from": "$.transforms.slots",
+      "with": {
+        "field": "on",
+        "equals": true
+      }
+    },
+    "localMins": {
+      "use": "assign",
+      "from": "mul(if(lt(number(sources.local.off), 0), -1, 1), add(mul(round(sub(div(max(number(sources.local.off), mul(number(sources.local.off), -1)), 100), 0.4999)), 60), sub(max(number(sources.local.off), mul(number(sources.local.off), -1)), mul(round(sub(div(max(number(sources.local.off), mul(number(sources.local.off), -1)), 100), 0.4999)), 100))))"
+    },
+    "calc": {
+      "use": "template",
+      "with": {
+        "forEach": "$.transforms.active",
+        "as": "c",
+        "template": {
+          "n": "${c.n}",
+          "label": "${c.label}",
+          "zone": "${c.zone}",
+          "time": "${c.d.time}",
+          "hour": "${sub(c.d.hour, 100)}",
+          "valid": "${or(ne(c.d.abbr, 'UTC'), contains(string(c.zone), 'UTC'))}",
+          "work": "${and(lte(c.d.wd, 5), gte(sub(c.d.hour, 100), settings.workStart), lt(sub(c.d.hour, 100), settings.workEnd))}",
+          "day": "${if(gt(c.d.ymd, sources.local.ymd), 1, if(lt(c.d.ymd, sources.local.ymd), -1, 0))}",
+          "diff": "${round(div(sub(mul(if(lt(number(c.d.off), 0), -1, 1), add(mul(round(sub(div(max(number(c.d.off), mul(number(c.d.off), -1)), 100), 0.4999)), 60), sub(max(number(c.d.off), mul(number(c.d.off), -1)), mul(round(sub(div(max(number(c.d.off), mul(number(c.d.off), -1)), 100), 0.4999)), 100)))), transforms.localMins), 60), 2)}"
+        }
+      }
+    },
+    "rows": {
+      "use": "template",
+      "with": {
+        "forEach": "$.transforms.calc",
+        "as": "r",
+        "template": {
+          "id": "city-${string(r.n)}",
+          "label": "${r.label}",
+          "time": "${r.time}",
+          "tone": "${if(r.work, 'primary', 'tertiary')}",
+          "icon": "${if(and(gte(r.hour, 6), lt(r.hour, 18)), 'sun.max.fill', 'moon.fill')}",
+          "iconTint": "${if(and(gte(r.hour, 6), lt(r.hour, 18)), 'warning', 'secondary')}",
+          "detail": "${if(r.valid, concat(if(transforms.ko, switch(r.day, 1, '내일', -1, '어제', '오늘'), switch(r.day, 1, 'Tomorrow', -1, 'Yesterday', 'Today')), ' · ', if(eq(r.diff, 0), if(transforms.ko, '같은 시각', 'Same time'), concat(if(gt(r.diff, 0), '+', ''), string(r.diff), if(transforms.ko, '시간', 'h')))), if(transforms.ko, concat('알 수 없는 시간대: ', r.zone), concat('Unknown time zone: ', r.zone)))}"
+        }
+      }
+    },
+    "menu": {
+      "use": "assign",
+      "from": "get(transforms.slots, sub(number(coalesce(settings.menuBarCity, '2')), 1))"
+    }
+  },
+  "view": {
+    "type": "vstack",
+    "spacing": 6,
+    "children": [
+      {
+        "type": "vstack",
+        "spacing": 6,
+        "children": {
+          "forEach": "$.transforms.rows",
+          "as": "row",
+          "template": {
+            "type": "hstack",
+            "id": "${row.id}",
+            "spacing": 8,
+            "desktopRole": "item",
+            "children": [
+              {
+                "type": "image",
+                "source": {
+                  "kind": "sfSymbol",
+                  "name": "${row.icon}"
+                },
+                "size": 13,
+                "tint": "${row.iconTint}"
+              },
+              {
+                "type": "vstack",
+                "spacing": 1,
+                "widthFill": true,
+                "children": [
+                  {
+                    "type": "text",
+                    "text": "${row.label}",
+                    "role": "body",
+                    "lineLimit": 1,
+                    "foreground": "${row.tone}",
+                    "desktopRole": "title"
+                  },
+                  {
+                    "type": "text",
+                    "text": "${row.detail}",
+                    "role": "caption",
+                    "foreground": "secondary",
+                    "lineLimit": 1,
+                    "desktopRole": "detail"
+                  }
+                ]
+              },
+              {
+                "type": "text",
+                "text": "${row.time}",
+                "size": 22,
+                "role": "title",
+                "monospacedDigit": true,
+                "foreground": "${row.tone}",
+                "desktopRole": "value"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "text",
+        "text": "Dimmed: outside ${string(settings.workStart)}:00–${string(settings.workEnd)}:00 or a weekend",
+        "role": "caption",
+        "foreground": "tertiary",
+        "lineLimit": 1,
+        "desktopRole": "hide"
+      }
+    ]
+  },
+  "empty": {
+    "type": "empty",
+    "icon": "globe",
+    "title": "No cities",
+    "subtitle": "Add a city and an IANA time zone such as Asia/Seoul in widget settings."
+  },
+  "status": {
+    "prefix": "${if(eq(coalesce(transforms.menu.zone, ''), ''), '', transforms.menu.label)}",
+    "label": "${if(eq(coalesce(transforms.menu.zone, ''), ''), '', transforms.menu.d.time)}",
+    "tooltip": "${transforms.menu.label} ${transforms.menu.d.time} (${transforms.menu.zone})"
+  }
+}

@@ -1,0 +1,89 @@
+{
+  "$schema": "https://barshelf.jiun.dev/schema/widget-0.1.json",
+  "schemaVersion": 1,
+  "id": "dev.barshelf.homebrew-updates",
+  "name": "Homebrew Updates",
+  "version": "0.1.0",
+  "minHostVersion": "0.7.21",
+  "icon": "mug",
+  "bucket": {
+    "group": "Developer",
+    "order": 40,
+    "size": "M"
+  },
+  "entry": {
+    "kind": "workflow",
+    "main": "workflow.json"
+  },
+  "refresh": {
+    "onOpen": true,
+    "interval": 10800,
+    "staleAfterSec": 10800
+  },
+  "statusItem": {
+    "mode": "dynamic",
+    "icon": "mug"
+  },
+  "permissions": {
+    "exec": [
+      {
+        "command": "/bin/sh",
+        "allowedArgs": [
+          [
+            "-c",
+            "for b in /opt/homebrew/bin/brew /usr/local/bin/brew; do if [ -x \"$b\" ]; then HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ENV_HINTS=1 HOMEBREW_NO_ANALYTICS=1 \"$b\" outdated --json=v2 2>/dev/null && exit 0; echo '{\"error\":\"failed\"}'; exit 0; fi; done; echo '{\"error\":\"missing\"}'"
+          ]
+        ],
+        "maxOutputBytes": 1048576,
+        "sensitiveOutput": false
+      }
+    ]
+  },
+  "settings": [
+    {
+      "key": "show",
+      "title": "Show",
+      "type": "enum",
+      "default": "all",
+      "options": [
+        "all",
+        "formulae",
+        "casks"
+      ],
+      "optionTitles": [
+        "Formulae and casks",
+        "Formulae only",
+        "Casks only"
+      ]
+    }
+  ],
+  "appearance": {
+    "accent": "orange",
+    "density": "compact"
+  },
+  "localizations": {
+    "ko": {
+      "Homebrew Updates": "Homebrew 업데이트",
+      "Show": "표시",
+      "Formulae and casks": "포뮬러와 캐스크",
+      "Formulae only": "포뮬러만",
+      "Casks only": "캐스크만",
+      "${string(transforms.total)}": "${string(transforms.total)}",
+      "${transforms.summary}": "${transforms.summary}",
+      "Everything is up to date": "모두 최신입니다",
+      "brew outdated found nothing to upgrade.": "brew outdated에 업그레이드할 항목이 없습니다.",
+      "Homebrew isn’t installed": "Homebrew가 설치되어 있지 않음",
+      "Install it from brew.sh to see outdated packages here.": "brew.sh에서 설치하면 오래된 패키지를 여기서 볼 수 있습니다.",
+      "brew outdated failed": "brew outdated 실패",
+      "Run brew outdated in Terminal to see why.": "터미널에서 brew outdated를 실행해 원인을 확인하세요.",
+      "Copy upgrade command": "업그레이드 명령 복사",
+      "Copied": "복사됨",
+      "${row.name}": "${row.name}",
+      "${row.from} → ${row.to}": "${row.from} → ${row.to}",
+      "Formulae": "포뮬러",
+      "Casks": "캐스크",
+      "pinned": "고정됨",
+      "${string(transforms.total)} Homebrew updates": "Homebrew 업데이트 ${string(transforms.total)}개"
+    }
+  }
+}

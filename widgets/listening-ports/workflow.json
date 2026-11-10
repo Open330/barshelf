@@ -1,0 +1,149 @@
+{
+  "schemaVersion": 1,
+  "kind": "workflow",
+  "_comment": "Local TCP listeners: lsof -F (pid, command, address) folded by awk into JSON, one row per process+port, IPv4/IPv6 duplicates merged, sorted by port. Read-only: no stop/kill action, because quitApp refuses non-app processes (dev servers) and a run action with a free pid argument would be a general kill switch. lsof without root sees only this user's processes.",
+  "sources": {
+    "ports": {
+      "use": "exec",
+      "with": {
+        "command": [
+          "/bin/sh",
+          "-c",
+          "/usr/sbin/lsof -nP +c 0 -iTCP -sTCP:LISTEN -F pcn 2>/dev/null | /usr/bin/awk '/^p/{pid=substr($0,2);next} /^c/{cmd=substr($0,2);gsub(/\\\\/,\"\\\\\\\\\",cmd);gsub(/\"/,\"\\\\\\\"\",cmd);next} /^n/{a=substr($0,2);i=match(a,/:[0-9]+$/);if(!i)next;port=substr(a,i+1);h=substr(a,1,i-1);s=(h==\"*\")?\"all\":((h==\"127.0.0.1\"||h==\"[::1]\"||h==\"localhost\")?\"local\":\"addr\");k=pid\":\"port;if(!(k in sc)){o[++n]=k;P[k]=pid;C[k]=cmd;N[k]=port;sc[k]=s;H[k]=h}else if(s==\"all\"||(s==\"local\"&&sc[k]==\"addr\")){sc[k]=s;H[k]=h}} END{printf \"{\\\"ports\\\":[\";for(j=1;j<=n;j++){k=o[j];t=(sc[k]==\"addr\")?H[k]:\"localhost\";printf \"%s{\\\"id\\\":\\\"%s\\\",\\\"port\\\":%s,\\\"pid\\\":%s,\\\"name\\\":\\\"%s\\\",\\\"scope\\\":\\\"%s\\\",\\\"address\\\":\\\"%s\\\",\\\"target\\\":\\\"%s:%s\\\"}\",(j>1?\",\":\"\"),k,N[k],P[k],C[k],sc[k],H[k],t,N[k]}print \"]}\"}'"
+        ],
+        "timeoutMs": 10000,
+        "maxOutputBytes": 262144
+      }
+    }
+  },
+  "transforms": {
+    "ko": {
+      "use": "assign",
+      "from": "or(eq(coalesce(widget.locale, ''), 'ko'), or(eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko-…'), eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko_…')))"
+    },
+    "byPort": {
+      "use": "sort",
+      "from": "$.sources.ports.ports",
+      "with": {
+        "by": "port",
+        "direction": "ascending"
+      }
+    },
+    "rows": {
+      "use": "template",
+      "with": {
+        "forEach": "$.transforms.byPort",
+        "as": "p",
+        "template": {
+          "id": "${p.id}",
+          "port": "${p.port}",
+          "pid": "${p.pid}",
+          "name": "${p.name}",
+          "target": "${p.target}",
+          "show": "${switch(coalesce(settings.scope, 'all'), 'local', eq(p.scope, 'local'), 'exposed', ne(p.scope, 'local'), true)}",
+          "where": "${switch(p.scope, 'all', if(transforms.ko, '모든 인터페이스', 'all interfaces'), 'local', if(transforms.ko, '이 Mac만', 'this Mac only'), p.address)}",
+          "tone": "${if(eq(p.scope, 'local'), 'secondary', 'warning')}"
+        }
+      }
+    },
+    "visible": {
+      "use": "filter",
+      "from": "$.transforms.rows",
+      "with": {
+        "field": "show",
+        "equals": true
+      }
+    },
+    "total": {
+      "use": "assign",
+      "from": "count(transforms.visible)"
+    }
+  },
+  "view": {
+    "switch": "${if(gt(transforms.total, 0), 'list', 'empty')}",
+    "cases": {
+      "list": {
+        "type": "vstack",
+        "spacing": 6,
+        "children": [
+          {
+            "type": "list",
+            "spacing": 4,
+            "searchPlaceholder": "Filter ports or processes",
+            "items": {
+              "forEach": "$.transforms.visible",
+              "as": "row",
+              "template": {
+                "type": "hstack",
+                "id": "${row.id}",
+                "spacing": 8,
+                "action": {
+                  "type": "copyText",
+                  "value": "${row.target}",
+                  "toast": "Copied ${row.target}"
+                },
+                "children": [
+                  {
+                    "type": "text",
+                    "text": "${string(row.port)}",
+                    "role": "code",
+                    "monospacedDigit": true,
+                    "lineLimit": 1
+                  },
+                  {
+                    "type": "vstack",
+                    "spacing": 1,
+                    "children": [
+                      {
+                        "type": "text",
+                        "text": "${row.name}",
+                        "role": "body",
+                        "lineLimit": 1,
+                        "truncation": "middle"
+                      },
+                      {
+                        "type": "text",
+                        "text": "${concat('pid ', string(row.pid), ' · ', row.where)}",
+                        "role": "caption",
+                        "foreground": "${row.tone}",
+                        "lineLimit": 1
+                      }
+                    ]
+                  },
+                  {
+                    "type": "spacer"
+                  },
+                  {
+                    "type": "button",
+                    "title": "Open",
+                    "icon": "safari",
+                    "action": {
+                      "type": "openURL",
+                      "url": "http://${row.target}"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "text",
+            "text": "Only your own processes are listed.",
+            "role": "caption",
+            "foreground": "tertiary"
+          }
+        ]
+      }
+    },
+    "default": {
+      "type": "empty",
+      "icon": "network.slash",
+      "title": "Nothing listening",
+      "subtitle": "No TCP port of yours is open for connections right now."
+    }
+  },
+  "status": {
+    "label": "${string(transforms.total)}",
+    "tooltip": "${string(transforms.total)} ports"
+  }
+}

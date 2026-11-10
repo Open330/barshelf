@@ -1,0 +1,180 @@
+{
+  "schemaVersion": 1,
+  "kind": "workflow",
+  "_comment": "Crypto prices from CoinGecko's public /coins/markets (no key; an array, so the coins list can be any length). Prices get thousands separators through integer group math, since the DSL has no number formatter.",
+  "sources": {
+    "data": {
+      "use": "http",
+      "with": {
+        "url": "https://api.coingecko.com/api/v3/coins/markets?vs_currency=${coalesce(settings.currency, 'usd')}&ids=${coalesce(settings.coins, 'bitcoin,ethereum')}&price_change_percentage=24h",
+        "headers": {
+          "Accept": "application/json"
+        }
+      }
+    }
+  },
+  "transforms": {
+    "sym": {
+      "use": "assign",
+      "from": "switch(coalesce(settings.currency, 'usd'), 'usd', '$', 'krw', '₩', 'eur', '€', 'jpy', '¥', 'gbp', '£', '')"
+    },
+    "calc": {
+      "use": "template",
+      "with": {
+        "forEach": "$.sources.data",
+        "as": "c",
+        "template": {
+          "id": "${c.id}",
+          "name": "${c.name}",
+          "symbol": "${c.symbol}",
+          "p": "${number(c.current_price)}",
+          "a": "${round(number(c.current_price))}",
+          "g3": "${round(sub(div(round(number(c.current_price)), 1000000000), 0.4999999))}",
+          "g2": "${sub(round(sub(div(round(number(c.current_price)), 1000000), 0.4999999)), mul(round(sub(div(round(number(c.current_price)), 1000000000), 0.4999999)), 1000))}",
+          "g1": "${sub(round(sub(div(round(number(c.current_price)), 1000), 0.4999999)), mul(round(sub(div(round(number(c.current_price)), 1000000), 0.4999999)), 1000))}",
+          "g0": "${sub(round(number(c.current_price)), mul(round(sub(div(round(number(c.current_price)), 1000), 0.4999999)), 1000))}",
+          "ch": "${if(eq(number(c.price_change_percentage_24h), null), null, round(number(c.price_change_percentage_24h), 2))}"
+        }
+      }
+    },
+    "rows": {
+      "use": "template",
+      "with": {
+        "forEach": "$.transforms.calc",
+        "as": "r",
+        "template": {
+          "id": "coin-${r.id}",
+          "coin": "${r.id}",
+          "name": "${r.name}",
+          "symbol": "${r.symbol}",
+          "price": "${if(eq(r.p, null), '—', concat(transforms.sym, if(gte(r.a, 1000000000), concat(string(r.g3), ',', concat(if(lt(r.g2, 10), '00', if(lt(r.g2, 100), '0', '')), string(r.g2)), ',', concat(if(lt(r.g1, 10), '00', if(lt(r.g1, 100), '0', '')), string(r.g1)), ',', concat(if(lt(r.g0, 10), '00', if(lt(r.g0, 100), '0', '')), string(r.g0))), if(gte(r.a, 1000000), concat(string(r.g2), ',', concat(if(lt(r.g1, 10), '00', if(lt(r.g1, 100), '0', '')), string(r.g1)), ',', concat(if(lt(r.g0, 10), '00', if(lt(r.g0, 100), '0', '')), string(r.g0))), if(gte(r.a, 1000), concat(string(r.g1), ',', concat(if(lt(r.g0, 10), '00', if(lt(r.g0, 100), '0', '')), string(r.g0))), if(gte(r.p, 1), string(round(r.p, 2)), string(round(r.p, 6))))))))}",
+          "change": "${if(eq(r.ch, null), '—', concat(if(gt(r.ch, 0), '+', ''), string(r.ch), '%'))}",
+          "tone": "${if(eq(r.ch, null), 'secondary', if(gt(r.ch, 0), 'good', if(lt(r.ch, 0), 'danger', 'secondary')))}",
+          "arrow": "${if(eq(r.ch, null), 'minus', if(gt(r.ch, 0), 'arrow.up.right', if(lt(r.ch, 0), 'arrow.down.right', 'minus')))}"
+        }
+      }
+    },
+    "picked": {
+      "use": "filter",
+      "from": "$.transforms.rows",
+      "with": {
+        "field": "coin",
+        "equals": "${coalesce(settings.menuBarCoin, 'bitcoin')}"
+      }
+    },
+    "menu": {
+      "use": "assign",
+      "from": "coalesce(get(transforms.picked, 0), get(transforms.rows, 0))"
+    },
+    "first": {
+      "use": "assign",
+      "from": "get(sources.data, 0)"
+    }
+  },
+  "view": {
+    "type": "vstack",
+    "spacing": 6,
+    "children": [
+      {
+        "type": "vstack",
+        "spacing": 6,
+        "children": {
+          "forEach": "$.transforms.rows",
+          "as": "row",
+          "template": {
+            "type": "hstack",
+            "id": "${row.id}",
+            "spacing": 8,
+            "desktopRole": "item",
+            "action": {
+              "type": "openURL",
+              "url": "https://www.coingecko.com/en/coins/${row.coin}"
+            },
+            "children": [
+              {
+                "type": "vstack",
+                "spacing": 0,
+                "widthFill": true,
+                "children": [
+                  {
+                    "type": "text",
+                    "text": "${row.name}",
+                    "role": "body",
+                    "lineLimit": 1,
+                    "desktopRole": "title"
+                  },
+                  {
+                    "type": "text",
+                    "text": "${row.symbol}",
+                    "role": "caption",
+                    "foreground": "secondary",
+                    "lineLimit": 1
+                  }
+                ]
+              },
+              {
+                "type": "vstack",
+                "spacing": 0,
+                "children": [
+                  {
+                    "type": "text",
+                    "text": "${row.price}",
+                    "size": 17,
+                    "role": "title",
+                    "monospacedDigit": true,
+                    "lineLimit": 1,
+                    "desktopRole": "value"
+                  },
+                  {
+                    "type": "hstack",
+                    "spacing": 2,
+                    "children": [
+                      {
+                        "type": "spacer"
+                      },
+                      {
+                        "type": "image",
+                        "source": {
+                          "kind": "sfSymbol",
+                          "name": "${row.arrow}"
+                        },
+                        "size": 9,
+                        "tint": "${row.tone}"
+                      },
+                      {
+                        "type": "text",
+                        "text": "${row.change}",
+                        "role": "caption",
+                        "foreground": "${row.tone}",
+                        "monospacedDigit": true,
+                        "desktopRole": "detail"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "text",
+        "text": "24h change · CoinGecko · ${date.clock(date.ms(transforms.first.last_updated))}",
+        "role": "caption",
+        "foreground": "tertiary",
+        "lineLimit": 1,
+        "desktopRole": "hide"
+      }
+    ]
+  },
+  "empty": {
+    "type": "empty",
+    "icon": "bitcoinsign.circle",
+    "title": "No coins found",
+    "subtitle": "Use CoinGecko ids such as bitcoin,ethereum,solana in widget settings."
+  },
+  "status": {
+    "label": "${coalesce(transforms.menu.price, '')}",
+    "tooltip": "${transforms.menu.name} ${transforms.menu.price} (${transforms.menu.change}, 24h)"
+  }
+}

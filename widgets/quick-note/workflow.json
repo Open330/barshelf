@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "kind": "workflow",
+  "_comment": "A short note on the shelf. BarShelf has no text-input node, so the note is a string setting edited in the widget's settings and shown on the card; it can also be promoted to the menu bar (clipped to 14 characters there). No permissions, no sources, no polling.",
+  "sources": {},
+  "transforms": {
+    "note": {
+      "use": "assign",
+      "from": "coalesce(settings.note, '')"
+    },
+    "has": {
+      "use": "assign",
+      "from": "if(settings.note, true, false)"
+    }
+  },
+  "view": {
+    "switch": "${if(transforms.has, 'note', 'empty')}",
+    "cases": {
+      "note": {
+        "type": "vstack",
+        "spacing": 6,
+        "children": [
+          {
+            "switch": "${if(settings.title, 'yes', 'no')}",
+            "cases": {
+              "yes": {
+                "type": "text",
+                "text": "${settings.title}",
+                "role": "caption",
+                "foreground": "secondary",
+                "lineLimit": 1,
+                "desktopRole": "title"
+              }
+            },
+            "default": {
+              "type": "none"
+            }
+          },
+          {
+            "type": "text",
+            "text": "${settings.note}",
+            "role": "body",
+            "desktopRole": "value"
+          },
+          {
+            "type": "hstack",
+            "children": [
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "button",
+                "title": "Copy",
+                "icon": "doc.on.doc",
+                "action": {
+                  "type": "copyText",
+                  "value": "${settings.note}",
+                  "toast": "Copied"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "default": {
+      "type": "empty",
+      "icon": "note.text",
+      "title": "No note yet",
+      "subtitle": "Write one in this widget’s settings (⋯ ▸ Settings)."
+    }
+  },
+  "status": {
+    "label": "${if(transforms.has, transforms.note, '—')}",
+    "tooltip": "${if(transforms.has, transforms.note, '')}"
+  }
+}

@@ -575,7 +575,9 @@ public enum WorkflowEngine {
             let cooldown = max(0, alert.cooldownSec ?? WorkflowDefinition.AlertDef.defaultCooldownSec)
             alertSamples.append(AlertSample(
                 id: id, active: active, title: title, body: body, cooldownMs: cooldown * 1000,
-                revision: "\(alert.when)\u{1F}\(alert.title)\u{1F}\(alert.body ?? "")\u{1F}\(cooldown)"
+                // The rule, not its wording: translated text (the app's
+                // language) must not reset what the alert has seen.
+                revision: "\(alert.when)\u{1F}\(cooldown)"
             ))
         }
 

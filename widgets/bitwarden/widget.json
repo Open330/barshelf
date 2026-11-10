@@ -1,0 +1,83 @@
+{
+  "$schema": "https://barshelf.jiun.dev/schema/widget-0.1.json",
+  "schemaVersion": 1,
+  "id": "dev.barshelf.bitwarden",
+  "name": "Bitwarden",
+  "version": "0.1.0",
+  "minHostVersion": "0.7.21",
+  "icon": "lock.shield.fill",
+  "bucket": {
+    "group": "Security",
+    "order": 20,
+    "size": "S"
+  },
+  "entry": {
+    "kind": "workflow",
+    "main": "workflow.json"
+  },
+  "refresh": {
+    "onOpen": true,
+    "interval": 900,
+    "staleAfterSec": 900,
+    "runInBackground": true,
+    "triggers": [
+      "wake"
+    ]
+  },
+  "statusItem": {
+    "mode": "icon",
+    "icon": "lock.shield.fill"
+  },
+  "permissions": {
+    "exec": [
+      {
+        "command": "/bin/sh",
+        "allowedArgs": [
+          [
+            "-c",
+            "b=; for c in \"$(command -v bw 2>/dev/null)\" /opt/homebrew/bin/bw /usr/local/bin/bw \"$HOME\"/.nvm/versions/node/*/bin/bw \"$HOME/.volta/bin/bw\" \"$HOME/.npm-global/bin/bw\" \"$HOME/.local/bin/bw\" \"$HOME/Library/pnpm/bw\" \"$HOME/.bun/bin/bw\"; do if [ -n \"$c\" ] && [ -x \"$c\" ]; then b=$c; break; fi; done; if [ -z \"$b\" ]; then printf '{\"installed\":false}'; exit 0; fi; out=$(PATH=\"$(/usr/bin/dirname \"$b\"):$PATH\" BW_NOINTERACTION=true \"$b\" status 2>/dev/null) || { printf '{\"installed\":true,\"ok\":false}'; exit 0; }; case \"$out\" in \"{\"*) ;; *) printf '{\"installed\":true,\"ok\":false}'; exit 0;; esac; o='{\"installed\":true,\"ok\":true}'; for k in status lastSync serverUrl; do v=$(printf '%s' \"$out\" | /usr/bin/plutil -extract \"$k\" raw -o - - 2>/dev/null) && o=$(printf '%s' \"$o\" | /usr/bin/plutil -insert \"$k\" -string \"$v\" -o - -); done; printf '%s' \"$o\"",
+            "bitwarden"
+          ]
+        ],
+        "maxOutputBytes": 16384,
+        "sensitiveOutput": true
+      }
+    ],
+    "notifications": true
+  },
+  "settings": [
+    {
+      "key": "staleDays",
+      "type": "integer",
+      "title": "Warn after days without sync",
+      "min": 1,
+      "max": 90,
+      "default": 7
+    },
+    {
+      "key": "alertOnStale",
+      "type": "boolean",
+      "title": "Notify when sync is overdue",
+      "default": true
+    }
+  ],
+  "appearance": {
+    "accent": "blue"
+  },
+  "localizations": {
+    "ko": {
+      "Bitwarden": "Bitwarden 보관함",
+      "Warn after days without sync": "동기화 없이 며칠 지나면 경고",
+      "Notify when sync is overdue": "동기화가 밀리면 알림",
+      "Bitwarden CLI not found": "Bitwarden CLI를 찾을 수 없음",
+      "Install it with Homebrew (bitwarden-cli) or npm (@bitwarden/cli).": "Homebrew(bitwarden-cli)나 npm(@bitwarden/cli)으로 설치하세요.",
+      "bw status did not answer. Check the Bitwarden CLI in Terminal.": "bw status가 응답하지 않았습니다. 터미널에서 Bitwarden CLI를 확인하세요.",
+      "Not logged in. Run bw login in Terminal.": "로그인되어 있지 않습니다. 터미널에서 bw login을 실행하세요.",
+      "Last sync": "마지막 동기화",
+      "Server": "서버",
+      "Not synced for more than ${string(coalesce(settings.staleDays, 7))} days.": "${string(coalesce(settings.staleDays, 7))}일 넘게 동기화하지 않았습니다.",
+      "Shows status only. BarShelf never unlocks the vault or reads items.": "상태만 표시합니다. BarShelf는 보관함을 잠금 해제하거나 항목을 읽지 않습니다.",
+      "Bitwarden: ${transforms.stateWord} · ${transforms.syncText}": "Bitwarden: ${transforms.stateWord} · ${transforms.syncText}"
+    }
+  }
+}

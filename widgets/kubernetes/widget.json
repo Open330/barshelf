@@ -1,0 +1,110 @@
+{
+  "$schema": "https://barshelf.jiun.dev/schema/widget-0.1.json",
+  "schemaVersion": 1,
+  "id": "dev.barshelf.kubernetes",
+  "name": "Kubernetes",
+  "version": "0.1.0",
+  "minHostVersion": "0.7.21",
+  "icon": "square.stack.3d.up.fill",
+  "bucket": {
+    "group": "Developer",
+    "order": 60,
+    "size": "M"
+  },
+  "entry": {
+    "kind": "workflow",
+    "main": "workflow.json"
+  },
+  "refresh": {
+    "onOpen": true,
+    "interval": 120,
+    "staleAfterSec": 120,
+    "runInBackground": true,
+    "triggers": [
+      "wake"
+    ]
+  },
+  "statusItem": {
+    "mode": "dynamic",
+    "icon": "square.stack.3d.up.fill"
+  },
+  "permissions": {
+    "exec": [
+      {
+        "command": "kubectl",
+        "allowedArgs": [
+          [
+            "config",
+            "view",
+            "-o",
+            "jsonpath={.current-context}"
+          ],
+          [
+            "get",
+            "pods",
+            "-n",
+            "*",
+            "--request-timeout=8s",
+            "-o",
+            "go-template=[{{range $i, $p := .items}}{{if $i}},{{end}}{{$ready := true}}{{$restarts := 0.0}}{{$reason := \"\"}}{{if not .status.containerStatuses}}{{$ready = false}}{{end}}{{range .status.containerStatuses}}{{if not .ready}}{{$ready = false}}{{end}}{{if gt .restartCount $restarts}}{{$restarts = .restartCount}}{{end}}{{if .state.waiting}}{{$reason = or .state.waiting.reason \"Waiting\"}}{{end}}{{end}}{\"name\":{{printf \"%q\" .metadata.name}},\"phase\":{{printf \"%q\" (or .status.phase \"Unknown\")}},\"terminating\":{{if .metadata.deletionTimestamp}}true{{else}}false{{end}},\"ready\":{{$ready}},\"restarts\":{{$restarts}},\"reason\":{{printf \"%q\" $reason}},\"node\":{{printf \"%q\" (or .spec.nodeName \"\")}},\"created\":{{printf \"%q\" .metadata.creationTimestamp}}}{{end}}]"
+          ]
+        ],
+        "maxOutputBytes": 2097152,
+        "sensitiveOutput": true
+      }
+    ],
+    "notifications": true
+  },
+  "settings": [
+    {
+      "key": "namespace",
+      "type": "string",
+      "title": "Namespace",
+      "default": "default"
+    },
+    {
+      "key": "showAll",
+      "type": "boolean",
+      "title": "List every pod",
+      "default": false
+    },
+    {
+      "key": "alertOnNotReady",
+      "type": "boolean",
+      "title": "Notify when older pods are not ready",
+      "default": true
+    },
+    {
+      "key": "graceMinutes",
+      "type": "integer",
+      "title": "Ignore pods younger than (minutes)",
+      "min": 1,
+      "max": 120,
+      "default": 5
+    }
+  ],
+  "appearance": {
+    "accent": "blue"
+  },
+  "localizations": {
+    "ko": {
+      "Kubernetes": "Kubernetes 파드",
+      "Namespace": "네임스페이스",
+      "List every pod": "모든 Pod 보기",
+      "Running": "실행 중",
+      "Pending": "대기",
+      "Failed": "실패",
+      "Completed": "완료",
+      "Ready": "준비됨",
+      "No pods": "Pod 없음",
+      "Nothing runs in this namespace.": "이 네임스페이스에서 실행 중인 것이 없습니다.",
+      "Every pod is ready.": "모든 Pod가 준비되었습니다.",
+      "Not ready": "준비되지 않음",
+      "Search pods": "Pod 검색",
+      "Copied": "복사됨",
+      "${transforms.context} · ${settings.namespace}: ${string(count(transforms.readyPods))}/${string(transforms.active)} ready": "${transforms.context} · ${settings.namespace}: ${string(count(transforms.readyPods))}/${string(transforms.active)} 준비됨",
+      "Notify when older pods are not ready": "오래된 Pod가 준비되지 않으면 알림",
+      "Ignore pods younger than (minutes)": "이보다 새 Pod는 무시 (분)"
+    }
+  }
+}

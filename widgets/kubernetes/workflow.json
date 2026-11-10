@@ -1,0 +1,469 @@
+{
+  "$schema": "https://barshelf.jiun.dev/schema/workflow-0.1.json",
+  "schemaVersion": 1,
+  "kind": "workflow",
+  "_comment": "Pods in one namespace of kubectl's current context. kubectl's go-template output builds one small JSON array (name, phase, ready, highest restart count, waiting reason, node, created), so no secrets or specs reach BarShelf. The context comes from `kubectl config view -o jsonpath={.current-context}`, which prints only that name. A pod is a problem when it is not Succeeded, not terminating and not ready; the alert counts only problems in pods older than the 'ignore younger than' setting, so a fresh rollout does not notify. It measures pod age, not how long a pod has been unready: an old pod that turns unready notifies at once. If the cluster cannot be reached the refresh fails, which is no reading for the alert.",
+  "sources": {
+    "context": {
+      "use": "exec",
+      "with": {
+        "command": [
+          "kubectl",
+          "config",
+          "view",
+          "-o",
+          "jsonpath={.current-context}"
+        ],
+        "discover": [
+          "/opt/homebrew/bin/kubectl",
+          "/usr/local/bin/kubectl",
+          "~/.orbstack/bin/kubectl",
+          "/Applications/Docker.app/Contents/Resources/bin/kubectl",
+          "~/.rd/bin/kubectl",
+          "PATH"
+        ],
+        "parse": "text",
+        "timeoutMs": 10000
+      }
+    },
+    "pods": {
+      "use": "exec",
+      "with": {
+        "command": [
+          "kubectl",
+          "get",
+          "pods",
+          "-n",
+          "${settings.namespace}",
+          "--request-timeout=8s",
+          "-o",
+          "go-template=[{{range $i, $p := .items}}{{if $i}},{{end}}{{$ready := true}}{{$restarts := 0.0}}{{$reason := \"\"}}{{if not .status.containerStatuses}}{{$ready = false}}{{end}}{{range .status.containerStatuses}}{{if not .ready}}{{$ready = false}}{{end}}{{if gt .restartCount $restarts}}{{$restarts = .restartCount}}{{end}}{{if .state.waiting}}{{$reason = or .state.waiting.reason \"Waiting\"}}{{end}}{{end}}{\"name\":{{printf \"%q\" .metadata.name}},\"phase\":{{printf \"%q\" (or .status.phase \"Unknown\")}},\"terminating\":{{if .metadata.deletionTimestamp}}true{{else}}false{{end}},\"ready\":{{$ready}},\"restarts\":{{$restarts}},\"reason\":{{printf \"%q\" $reason}},\"node\":{{printf \"%q\" (or .spec.nodeName \"\")}},\"created\":{{printf \"%q\" .metadata.creationTimestamp}}}{{end}}]"
+        ],
+        "discover": [
+          "/opt/homebrew/bin/kubectl",
+          "/usr/local/bin/kubectl",
+          "~/.orbstack/bin/kubectl",
+          "/Applications/Docker.app/Contents/Resources/bin/kubectl",
+          "~/.rd/bin/kubectl",
+          "PATH"
+        ],
+        "timeoutMs": 20000
+      }
+    }
+  },
+  "transforms": {
+    "ko": {
+      "use": "assign",
+      "from": "or(eq(coalesce(widget.locale, ''), 'ko'), or(eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko-…'), eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko_…')))"
+    },
+    "pods": {
+      "use": "template",
+      "with": {
+        "forEach": "$.sources.pods",
+        "as": "p",
+        "template": {
+          "id": "pod-${p.name}",
+          "name": "${p.name}",
+          "phase": "${if(p.terminating, 'Terminating', p.phase)}",
+          "ready": "${p.ready}",
+          "problem": "${and(ne(p.phase, 'Succeeded'), not(p.terminating), not(p.ready))}",
+          "stuck": "${and(ne(p.phase, 'Succeeded'), not(p.terminating), not(p.ready), gte(div(sub(now(), coalesce(date.ms(p.created), now())), 60000), coalesce(settings.graceMinutes, 5)))}",
+          "why": "${coalesce(p.reason, if(p.terminating, 'Terminating', p.phase))}",
+          "restartText": "${if(gt(p.restarts, 0), concat('↻ ', string(p.restarts)), '')}",
+          "age": "${date.relative(date.ms(p.created))}",
+          "node": "${string(p.node)}",
+          "tint": "${if(p.terminating, 'secondary', if(eq(p.phase, 'Succeeded'), 'secondary', if(p.ready, 'good', if(eq(p.phase, 'Failed'), 'danger', 'warning'))))}",
+          "icon": "${if(p.terminating, 'hourglass', switch(p.phase, 'Succeeded', 'checkmark.circle', 'Failed', 'xmark.octagon.fill', 'Pending', 'clock', if(p.ready, 'circle.fill', 'exclamationmark.triangle.fill')))}"
+        }
+      }
+    },
+    "running": {
+      "use": "filter",
+      "from": "$.transforms.pods",
+      "with": {
+        "field": "phase",
+        "equals": "Running"
+      }
+    },
+    "pending": {
+      "use": "filter",
+      "from": "$.transforms.pods",
+      "with": {
+        "field": "phase",
+        "equals": "Pending"
+      }
+    },
+    "failed": {
+      "use": "filter",
+      "from": "$.transforms.pods",
+      "with": {
+        "field": "phase",
+        "equals": "Failed"
+      }
+    },
+    "succeeded": {
+      "use": "filter",
+      "from": "$.transforms.pods",
+      "with": {
+        "field": "phase",
+        "equals": "Succeeded"
+      }
+    },
+    "readyPods": {
+      "use": "filter",
+      "from": "$.transforms.pods",
+      "with": {
+        "field": "ready",
+        "equals": true
+      }
+    },
+    "problems": {
+      "use": "filter",
+      "from": "$.transforms.pods",
+      "with": {
+        "field": "problem",
+        "equals": true
+      }
+    },
+    "stuck": {
+      "use": "filter",
+      "from": "$.transforms.pods",
+      "with": {
+        "field": "stuck",
+        "equals": true
+      }
+    },
+    "total": {
+      "use": "assign",
+      "from": "count(transforms.pods)"
+    },
+    "active": {
+      "use": "assign",
+      "from": "sub(count(transforms.pods), count(transforms.succeeded))"
+    },
+    "context": {
+      "use": "assign",
+      "from": "coalesce(sources.context, '—')"
+    },
+    "stuckCount": {
+      "use": "assign",
+      "from": "count(transforms.stuck)"
+    },
+    "alertTitle": {
+      "use": "assign",
+      "from": "if(transforms.ko, concat(settings.namespace, ': 준비되지 않은 Pod ', string(transforms.stuckCount), '개'), concat(string(transforms.stuckCount), if(eq(transforms.stuckCount, 1), ' pod', ' pods'), ' not ready in ', settings.namespace))"
+    },
+    "alertBody": {
+      "use": "assign",
+      "from": "concat(transforms.context, ' · ', coalesce(transforms.stuck.0.name, ''), ' ', coalesce(transforms.stuck.0.why, ''))"
+    }
+  },
+  "view": {
+    "type": "vstack",
+    "spacing": 8,
+    "children": [
+      {
+        "type": "hstack",
+        "spacing": 6,
+        "children": [
+          {
+            "type": "image",
+            "source": {
+              "kind": "sfSymbol",
+              "name": "square.stack.3d.up.fill"
+            },
+            "size": 14,
+            "tint": "${if(gt(count(transforms.problems), 0), 'warning', 'accent')}"
+          },
+          {
+            "type": "text",
+            "text": "${transforms.context}",
+            "role": "body",
+            "lineLimit": 1,
+            "truncation": "middle"
+          },
+          {
+            "type": "spacer"
+          },
+          {
+            "type": "badge",
+            "text": "${settings.namespace}",
+            "tint": "secondary"
+          }
+        ]
+      },
+      {
+        "type": "hstack",
+        "spacing": 12,
+        "children": [
+          {
+            "type": "vstack",
+            "spacing": 0,
+            "children": [
+              {
+                "type": "text",
+                "text": "${string(count(transforms.running))}",
+                "role": "title",
+                "monospacedDigit": true
+              },
+              {
+                "type": "text",
+                "text": "Running",
+                "role": "caption",
+                "foreground": "secondary"
+              }
+            ]
+          },
+          {
+            "type": "vstack",
+            "spacing": 0,
+            "children": [
+              {
+                "type": "text",
+                "text": "${string(count(transforms.pending))}",
+                "role": "title",
+                "monospacedDigit": true,
+                "foreground": "${if(gt(count(transforms.pending), 0), 'warning', 'primary')}"
+              },
+              {
+                "type": "text",
+                "text": "Pending",
+                "role": "caption",
+                "foreground": "secondary"
+              }
+            ]
+          },
+          {
+            "type": "vstack",
+            "spacing": 0,
+            "children": [
+              {
+                "type": "text",
+                "text": "${string(count(transforms.failed))}",
+                "role": "title",
+                "monospacedDigit": true,
+                "foreground": "${if(gt(count(transforms.failed), 0), 'danger', 'primary')}"
+              },
+              {
+                "type": "text",
+                "text": "Failed",
+                "role": "caption",
+                "foreground": "secondary"
+              }
+            ]
+          },
+          {
+            "type": "vstack",
+            "spacing": 0,
+            "children": [
+              {
+                "type": "text",
+                "text": "${string(count(transforms.succeeded))}",
+                "role": "title",
+                "monospacedDigit": true
+              },
+              {
+                "type": "text",
+                "text": "Completed",
+                "role": "caption",
+                "foreground": "secondary"
+              }
+            ]
+          },
+          {
+            "type": "spacer"
+          },
+          {
+            "type": "vstack",
+            "spacing": 0,
+            "children": [
+              {
+                "type": "text",
+                "text": "${string(count(transforms.readyPods))}/${string(transforms.active)}",
+                "role": "title",
+                "monospacedDigit": true,
+                "foreground": "${if(gt(count(transforms.problems), 0), 'warning', 'good')}"
+              },
+              {
+                "type": "text",
+                "text": "Ready",
+                "role": "caption",
+                "foreground": "secondary"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "divider"
+      },
+      {
+        "switch": "${if(eq(transforms.total, 0), 'empty', if(settings.showAll, 'all', if(gt(count(transforms.problems), 0), 'problems', 'fine')))}",
+        "cases": {
+          "empty": {
+            "type": "empty",
+            "icon": "square.stack.3d.up.slash",
+            "title": "No pods",
+            "subtitle": "Nothing runs in this namespace."
+          },
+          "fine": {
+            "type": "hstack",
+            "spacing": 6,
+            "children": [
+              {
+                "type": "image",
+                "source": {
+                  "kind": "sfSymbol",
+                  "name": "checkmark.circle.fill"
+                },
+                "size": 13,
+                "tint": "good"
+              },
+              {
+                "type": "text",
+                "text": "Every pod is ready.",
+                "role": "caption",
+                "foreground": "secondary"
+              }
+            ]
+          },
+          "problems": {
+            "type": "section",
+            "title": "Not ready",
+            "spacing": 2,
+            "children": [
+              {
+                "type": "list",
+                "spacing": 2,
+                "items": {
+                  "forEach": "$.transforms.problems",
+                  "as": "row",
+                  "template": {
+                    "type": "hstack",
+                    "id": "${row.id}",
+                    "spacing": 8,
+                    "action": {
+                      "type": "copyText",
+                      "value": "${row.name}",
+                      "toast": "Copied"
+                    },
+                    "children": [
+                      {
+                        "type": "image",
+                        "source": {
+                          "kind": "sfSymbol",
+                          "name": "${row.icon}"
+                        },
+                        "size": 13,
+                        "tint": "${row.tint}"
+                      },
+                      {
+                        "type": "vstack",
+                        "spacing": 1,
+                        "widthFill": true,
+                        "children": [
+                          {
+                            "type": "text",
+                            "text": "${row.name}",
+                            "role": "body",
+                            "lineLimit": 1,
+                            "truncation": "middle"
+                          },
+                          {
+                            "type": "text",
+                            "text": "${row.why} · ${row.age}",
+                            "role": "caption",
+                            "foreground": "${row.tint}",
+                            "lineLimit": 1
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "text": "${row.restartText}",
+                        "role": "caption",
+                        "foreground": "secondary",
+                        "monospacedDigit": true
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "default": {
+          "type": "list",
+          "spacing": 2,
+          "searchPlaceholder": "Search pods",
+          "items": {
+            "forEach": "$.transforms.pods",
+            "as": "row",
+            "template": {
+              "type": "hstack",
+              "id": "${row.id}",
+              "spacing": 8,
+              "action": {
+                "type": "copyText",
+                "value": "${row.name}",
+                "toast": "Copied"
+              },
+              "children": [
+                {
+                  "type": "image",
+                  "source": {
+                    "kind": "sfSymbol",
+                    "name": "${row.icon}"
+                  },
+                  "size": 13,
+                  "tint": "${row.tint}"
+                },
+                {
+                  "type": "vstack",
+                  "spacing": 1,
+                  "widthFill": true,
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "${row.name}",
+                      "role": "body",
+                      "lineLimit": 1,
+                      "truncation": "middle"
+                    },
+                    {
+                      "type": "text",
+                      "text": "${row.why} · ${row.age}",
+                      "role": "caption",
+                      "foreground": "${row.tint}",
+                      "lineLimit": 1
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "text": "${row.restartText}",
+                  "role": "caption",
+                  "foreground": "secondary",
+                  "monospacedDigit": true
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  },
+  "status": {
+    "label": "${concat(string(count(transforms.readyPods)), '/', string(transforms.active))}",
+    "tint": "${if(gt(count(transforms.problems), 0), 'warning', '')}",
+    "tooltip": "${transforms.context} · ${settings.namespace}: ${string(count(transforms.readyPods))}/${string(transforms.active)} ready"
+  },
+  "alerts": {
+    "notReady": {
+      "when": "${if(coalesce(settings.alertOnNotReady, true), gt(transforms.stuckCount, 0), null)}",
+      "title": "${transforms.alertTitle}",
+      "body": "${transforms.alertBody}",
+      "cooldownSec": 1800
+    }
+  }
+}
