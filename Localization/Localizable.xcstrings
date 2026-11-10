@@ -8891,6 +8891,16 @@
         }
       }
     },
+    "Reopen with Touch ID for the next 8 hours": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "앞으로 8시간 동안 Touch ID로 다시 열기"
+          }
+        }
+      }
+    },
     "Reorder %@": {
       "extractionState": "stale",
       "localizations": {
@@ -11769,6 +11779,36 @@
         }
       }
     },
+    "Touch ID can no longer reopen the vault. Unlock with the master password.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Touch ID로 더 이상 보관함을 열 수 없습니다. 마스터 비밀번호로 잠금 해제하세요."
+          }
+        }
+      }
+    },
+    "Touch ID couldn't be set up; the vault will ask for the master password next time.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Touch ID를 설정하지 못했습니다. 다음에는 마스터 비밀번호를 묻습니다."
+          }
+        }
+      }
+    },
+    "Touch ID isn't available right now. Use the master password.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "지금은 Touch ID를 쓸 수 없습니다. 마스터 비밀번호를 사용하세요."
+          }
+        }
+      }
+    },
     "Trailing value": {
       "localizations": {
         "ko": {
@@ -12319,6 +12359,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "허용된 폴더 사용"
+          }
+        }
+      }
+    },
+    "Use Password": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "비밀번호 사용"
           }
         }
       }
@@ -12877,6 +12927,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "윈도우 동작은 단축키 콜백 안에서 실행해야 합니다."
+          }
+        }
+      }
+    },
+    "With Touch ID on, the Bitwarden CLI stays unlocked for up to 8 hours so Touch ID can reopen it here; Lock ends that at once.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Touch ID를 켜면 Bitwarden CLI가 최대 8시간 동안 열린 채로 남아 여기서 Touch ID로 다시 열 수 있습니다. 잠그기를 누르면 바로 끝납니다."
           }
         }
       }
@@ -13460,6 +13520,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@에서 예상치 못한 비HTTP 응답을 받았습니다"
+          }
+        }
+      }
+    },
+    "unlock Bitwarden for %@": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@에서 Bitwarden 잠금 해제"
           }
         }
       }

@@ -195,6 +195,17 @@ struct BitwardenCLIProvider: VaultProvider {
 /// cancelled calls, also when only an unlock was pending. Work that finishes
 /// later checks the generation and the deadlines again and publishes nothing.
 ///
+/// Touch ID resume (opt-in at the password prompt): the session key is also
+/// sealed to a Secure Enclave key that needs current biometrics
+/// (`SecureEnclaveSealer`), in memory only, for 8 hours from the password
+/// unlock. Then idle, the session cap, a stricter grant, screen lock and sleep
+/// end the session *softly*: the plaintext key and everything above go, but
+/// bw is not locked, so Touch ID can reopen it. Lock, quit, widget changes,
+/// the 8 hours running out, a provider that reports the session invalid, and
+/// a Touch ID lockout or enrollment change end it *hard*: the sealed copy is
+/// discarded and bw is locked. A soft lock protects the key BarShelf keeps;
+/// it does not revoke the CLI session, which is why it is opt-in.
+///
 /// On quit, memory is dropped synchronously, but the provider lock runs as
 /// a child process and may not finish before BarShelf exits; the CLI's own
 /// session then stays until bw is locked or its session key is discarded.
@@ -215,7 +226,39 @@ final class VaultBroker {
         }
     }
 
+    /// A session key sealed for Touch ID resume, and the limits it carries.
+    struct Resume {
+        let id: UUID
+        let provider: String
+        let sealed: SealedSecret
+        /// Password unlock + `resumeWindow`; a resume never moves it.
+        let deadline: TimeInterval
+        /// The tightest idle/max limits the session had; a resume never loosens them.
+        var idle: TimeInterval
+        var max: TimeInterval
+
+        var aad: Data { Self.aad(provider: provider, id: id, deadline: deadline) }
+
+        /// Binds the envelope to this provider, resume and deadline.
+        static func aad(provider: String, id: UUID, deadline: TimeInterval) -> Data {
+            Data("barshelf.vault.resume.v1|\(provider)|\(id.uuidString)|\(deadline)".utf8)
+        }
+    }
+
+    /// What the host password prompt returns.
+    struct PasswordAnswer {
+        var password: String
+        /// The user ticked "Reopen with Touch ID".
+        var touchID: Bool
+    }
+
+    static let resumeWindow: TimeInterval = 8 * 3600
+
     private var sessions: [String: Session] = [:]
+    private var resumes: [String: Resume] = [:]
+    /// Providers whose pending unlock is a password unlock already sent to
+    /// the provider: ending it voids any older sealed key, so it ends hard.
+    private var pendingPasswordUnlocks: Set<String> = []
     /// Provider → generation of the unlock now being asked for.
     private var pendingUnlocks: [String: UUID] = [:]
     /// Provider → the current generation; bumped by every end.
@@ -233,6 +276,7 @@ final class VaultBroker {
     private var blocked: Bool { screenLocked || sleeping || terminating }
 
     private let provider: VaultProvider
+    private let sealer: VaultKeySealer
     private let now: () -> TimeInterval
     private var observers: [(NotificationCenter, NSObjectProtocol)] = []
     private var sweepTimer: Timer?
@@ -241,13 +285,20 @@ final class VaultBroker {
     var onChange: (() -> Void)?
     var toast: (String) -> Void = { message in ToastCenter.shared.show(message) }
     /// The host-owned password prompt; nil means cancelled. Swappable in tests.
-    var promptForPassword: (_ title: String, _ message: String) -> String? = VaultBroker.securePrompt
+    var promptForPassword: (_ title: String, _ message: String, _ offerTouchID: Bool, _ touchIDDefault: Bool) -> PasswordAnswer?
+        = VaultBroker.securePrompt
+    /// Remembers the Touch ID checkbox per provider; a private suite in tests.
+    var defaults: UserDefaults = .standard
     /// Where copied fields go; a private pasteboard in tests.
     var pasteboard: NSPasteboard = .general
 
+    /// The default clock keeps counting through sleep and ignores wall-clock
+    /// changes, so the 8-hour resume window includes a night asleep.
     init(provider: VaultProvider = BitwardenCLIProvider(),
-         now: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
+         sealer: VaultKeySealer = SecureEnclaveSealer(),
+         now: @escaping () -> TimeInterval = { Double(clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW)) / 1e9 }) {
         self.provider = provider
+        self.sealer = sealer
         self.now = now
     }
 
@@ -262,18 +313,22 @@ final class VaultBroker {
         }
         observe(distributed, Notification.Name("com.apple.screenIsLocked")) { [weak self] in
             self?.screenLocked = true
-            self?.lockAll()
+            self?.lockAll(hard: false)
         }
         observe(distributed, Notification.Name("com.apple.screenIsUnlocked")) { [weak self] in self?.screenLocked = false }
         observe(workspace, NSWorkspace.willSleepNotification) { [weak self] in
             self?.sleeping = true
-            self?.lockAll()
+            self?.lockAll(hard: false)
         }
-        observe(workspace, NSWorkspace.didWakeNotification) { [weak self] in self?.sleeping = false }
+        // No timer runs during sleep: the resume window is checked on wake.
+        observe(workspace, NSWorkspace.didWakeNotification) { [weak self] in
+            self?.sleeping = false
+            self?.sweep()
+        }
         // Memory goes now; the provider lock is best effort (see above).
         observe(NotificationCenter.default, NSApplication.willTerminateNotification) { [weak self] in
             self?.terminating = true
-            self?.lockAll()
+            self?.lockAll(hard: true)
         }
         let timer = Timer(timeInterval: 15, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.sweep() }
@@ -286,7 +341,7 @@ final class VaultBroker {
     func setBlocked(screenLocked: Bool = false, sleeping: Bool = false) {
         self.screenLocked = screenLocked
         self.sleeping = sleeping
-        if blocked { lockAll() }
+        if blocked { lockAll(hard: false) }
     }
 
     func isUnlocked(_ permission: Manifest.VaultPermission) -> Bool {
@@ -294,24 +349,51 @@ final class VaultBroker {
         return sessions[permission.provider] != nil
     }
 
+    /// Touch ID can reopen this provider's vault (a sealed copy is kept).
+    func isResumable(_ permission: Manifest.VaultPermission) -> Bool {
+        sweep()
+        return resumes[permission.provider] != nil
+    }
+
     // MARK: User actions
 
-    func unlock(widgetID: String, permission: Manifest.VaultPermission, widgetName: String) {
+    /// Reopens with Touch ID when a sealed copy exists and Touch ID is
+    /// available, unless `usePassword`; otherwise asks for the master password.
+    func unlock(widgetID: String, permission: Manifest.VaultPermission, widgetName: String, usePassword: Bool = false) {
         let provider = permission.provider
         sweep()
         guard !blocked, sessions[provider] == nil, pendingUnlocks[provider] == nil else { return }
+        let biometry = sealer.biometry
+        if resumes[provider] != nil, biometry == .invalid {
+            // Locked out or every finger removed: the sealed copy is void.
+            end(provider: provider)
+            toast(String(localized: "Touch ID can no longer reopen the vault. Unlock with the master password."))
+        }
+        if !usePassword, let resume = resumes[provider], biometry == .available {
+            reopen(resume, widgetID: widgetID, permission: permission, widgetName: widgetName)
+            return
+        }
         let generation = UUID()
         generations[provider] = generation
         pendingUnlocks[provider] = generation
+        let offerTouchID = biometry == .available
+        let rememberKey = "vault.touchID.\(provider)"
         let title = String(localized: "Unlock Bitwarden")
-        let message = String(localized: "\(widgetName) asks BarShelf to unlock your vault. BarShelf passes the master password to the Bitwarden CLI, keeps only the session it returns, and locks again after \(Int(permission.idleSeconds / 60)) minutes without use.")
-        let password = promptForPassword(title, message)
+        var message = String(localized: "\(widgetName) asks BarShelf to unlock your vault. BarShelf passes the master password to the Bitwarden CLI, keeps only the session it returns, and locks again after \(Int(permission.idleSeconds / 60)) minutes without use.")
+        if offerTouchID {
+            message += "\n\n" + String(localized: "With Touch ID on, the Bitwarden CLI stays unlocked for up to 8 hours so Touch ID can reopen it here; Lock ends that at once.")
+        }
+        let answer = promptForPassword(title, message, offerTouchID, defaults.bool(forKey: rememberKey))
         // The prompt is modal: anything may have happened while it was open.
-        guard pendingUnlocks[provider] == generation, !blocked, let password, !password.isEmpty else {
+        guard pendingUnlocks[provider] == generation, !blocked, let answer, !answer.password.isEmpty else {
             if pendingUnlocks[provider] == generation { pendingUnlocks[provider] = nil }
             return
         }
+        if offerTouchID { defaults.set(answer.touchID, forKey: rememberKey) }
+        let wantsResume = offerTouchID && answer.touchID
+        let password = answer.password
         let vault = self.provider
+        pendingPasswordUnlocks.insert(provider)
         let work = enqueue(provider, generation: generation) { try await vault.unlock(password: password) }
         Task { @MainActor [weak self] in
             do {
@@ -324,16 +406,83 @@ final class VaultBroker {
                     return
                 }
                 self.pendingUnlocks[provider] = nil
+                self.pendingPasswordUnlocks.remove(provider)
                 let at = self.now()
                 self.sessions[provider] = Session(key: key, generation: generation, unlockedAt: at, lastUserActionAt: at,
                                                   idle: permission.idleSeconds, max: permission.maxSeconds)
+                // bw issued a new session key: an older sealed copy is void.
+                self.resumes[provider] = nil
+                if wantsResume { self.sealForResume(key, provider: provider, permission: permission, at: at) }
                 self.onChange?()
             } catch is CancellationError {
                 return
             } catch {
                 guard let self, self.pendingUnlocks[provider] == generation else { return }
                 self.pendingUnlocks[provider] = nil
+                self.pendingPasswordUnlocks.remove(provider)
                 self.toast(((error as? VaultError) ?? .unlockFailed).message)
+            }
+        }
+    }
+
+    private func sealForResume(_ key: String, provider: String, permission: Manifest.VaultPermission, at: TimeInterval) {
+        let id = UUID()
+        let deadline = at + Self.resumeWindow
+        guard let sealed = try? sealer.seal(Data(key.utf8), aad: Resume.aad(provider: provider, id: id, deadline: deadline)) else {
+            toast(String(localized: "Touch ID couldn't be set up; the vault will ask for the master password next time."))
+            return
+        }
+        resumes[provider] = Resume(id: id, provider: provider, sealed: sealed, deadline: deadline,
+                                   idle: permission.idleSeconds, max: permission.maxSeconds)
+    }
+
+    /// Touch ID, then the Secure Enclave opens the sealed key. Tracked like
+    /// provider work: ending the session cancels the prompt.
+    private func reopen(_ resume: Resume, widgetID: String, permission: Manifest.VaultPermission, widgetName: String) {
+        let provider = permission.provider
+        let generation = UUID()
+        generations[provider] = generation
+        pendingUnlocks[provider] = generation
+        let sealer = self.sealer
+        let sealed = resume.sealed
+        let aad = resume.aad
+        let reason = String(localized: "unlock Bitwarden for \(widgetName)")
+        let work = Task { await sealer.open(sealed, aad: aad, reason: reason) }
+        let id = UUID()
+        operations[provider, default: [:]][id] = { work.cancel() }
+        Task { @MainActor [weak self] in
+            let outcome = await work.value
+            guard let self else { return }
+            self.operations[provider]?[id] = nil
+            // Checked again after the Secure Enclave, right before installing;
+            // the sweep hard-ends a copy whose 8 hours ran out meanwhile.
+            self.sweep()
+            guard self.pendingUnlocks[provider] == generation, self.generations[provider] == generation, !self.blocked,
+                  let live = self.resumes[provider], live.id == resume.id, self.now() < live.deadline else {
+                if self.pendingUnlocks[provider] == generation { self.pendingUnlocks[provider] = nil }
+                return
+            }
+            self.pendingUnlocks[provider] = nil
+            switch outcome {
+            case let .success(data):
+                guard let key = String(data: data, encoding: .utf8), !key.isEmpty else {
+                    self.end(provider: provider)
+                    return
+                }
+                let at = self.now()
+                self.sessions[provider] = Session(key: key, generation: generation, unlockedAt: at, lastUserActionAt: at,
+                                                  idle: min(live.idle, permission.idleSeconds),
+                                                  max: min(live.max, permission.maxSeconds))
+                self.onChange?()
+            case .failure(.cancelled):
+                return
+            case .failure(.fallback):
+                self.unlock(widgetID: widgetID, permission: permission, widgetName: widgetName, usePassword: true)
+            case .failure(.unavailable):
+                self.toast(String(localized: "Touch ID isn't available right now. Use the master password."))
+            case .failure(.invalid):
+                self.end(provider: provider)
+                self.toast(String(localized: "Touch ID can no longer reopen the vault. Unlock with the master password."))
             }
         }
     }
@@ -388,15 +537,14 @@ final class VaultBroker {
     /// source. Not a user action: a refresh never keeps a vault unlocked.
     func itemsSource(widgetID: String, permission: Manifest.VaultPermission) async -> JSONValue {
         let provider = permission.provider
-        let lockedValue: JSONValue = .object(["state": .string("locked"), "items": .array([])])
-        guard let session = admit(permission) else { return lockedValue }
+        guard let session = admit(permission) else { return lockedState(provider) }
         let generation = session.generation
         let key = session.key
         let vault = self.provider
         let work = enqueue(provider, generation: generation) { try await vault.items(session: key) }
         do {
             let items = try await withTaskCancellationHandler { try await work.value } onCancel: { work.cancel() }
-            guard isCurrent(provider, generation), var current = sessions[provider] else { return lockedValue }
+            guard isCurrent(provider, generation), var current = sessions[provider] else { return lockedState(provider) }
             let limit = 500
             var handles: [String: String] = [:]
             var rows: [JSONValue] = []
@@ -413,24 +561,35 @@ final class VaultBroker {
             current.handles[widgetID] = handles
             sessions[provider] = current
             return .object(["state": .string("unlocked"), "items": .array(rows),
-                            "count": .number(Double(items.count)), "truncated": .bool(items.count > limit)])
+                            "count": .number(Double(items.count)), "truncated": .bool(items.count > limit),
+                            "resumable": .bool(resumes[provider] != nil)])
         } catch {
-            guard isCurrent(provider, generation) else { return lockedValue }
+            guard isCurrent(provider, generation) else { return lockedState(provider) }
             let vaultError = (error as? VaultError) ?? .failed
             if vaultError == .locked {
+                // The session is invalid, and so is its sealed copy.
                 end(provider: provider, runProviderLock: false)
-                return lockedValue
+                return lockedState(provider)
             }
             return .object(["state": .string("error"), "items": .array([]), "error": .string(vaultError.message)])
         }
     }
 
+    /// What a locked vault shows: whether Touch ID can reopen it now.
+    private func lockedState(_ provider: String) -> JSONValue {
+        .object(["state": .string("locked"), "items": .array([]),
+                 "resumable": .bool(resumes[provider] != nil),
+                 "biometry": sealer.biometry == .available ? .string("touchID") : .null])
+    }
+
     // MARK: Ending sessions
 
-    /// Ends every session and pending unlock (screen lock, sleep, quit).
-    func lockAll() {
-        let providers = Set(sessions.keys).union(pendingUnlocks.keys).union(operations.keys)
-        for provider in providers { end(provider: provider) }
+    /// Ends every session and pending unlock: softly on screen lock and
+    /// sleep (a sealed copy survives), hard on quit.
+    func lockAll(hard: Bool = true) {
+        var providers = Set(sessions.keys).union(pendingUnlocks.keys).union(operations.keys)
+        if hard { providers.formUnion(resumes.keys) }
+        for provider in providers { end(provider: provider, hard: hard) }
     }
 
     /// Ends the session a vault widget uses (it was disabled, removed,
@@ -441,28 +600,46 @@ final class VaultBroker {
     }
 
     /// The generation moves first, then calls in flight or queued are
-    /// cancelled, a clipboard copy cleared, memory dropped, and a provider
-    /// lock queued behind the cancelled calls, so it runs once they stopped.
-    func end(provider: String, runProviderLock: Bool = true) {
+    /// cancelled, a clipboard copy cleared and memory dropped. A soft end
+    /// (only when a sealed copy exists, and no password unlock was under
+    /// way) stops there and tightens the copy's limits. A hard end also
+    /// discards the sealed copy and queues a provider lock behind the
+    /// cancelled calls, so it runs once they stopped.
+    func end(provider: String, hard: Bool = true, runProviderLock: Bool = true) {
         generations[provider] = UUID()
         let hadPending = pendingUnlocks.removeValue(forKey: provider) != nil
+        let passwordUnderWay = pendingPasswordUnlocks.remove(provider) != nil
         for cancel in operations.removeValue(forKey: provider)?.values ?? [:].values { cancel() }
         clearOwnedPasteboard(ifChangeCount: nil)
         let session = sessions.removeValue(forKey: provider)
-        guard session != nil || hadPending else { return }
+        if !hard, !passwordUnderWay, var resume = resumes[provider] {
+            if let session {
+                resume.idle = min(resume.idle, session.idle)
+                resume.max = min(resume.max, session.max)
+                resumes[provider] = resume
+                onChange?()
+            }
+            return
+        }
+        let resume = resumes.removeValue(forKey: provider)
+        guard session != nil || hadPending || resume != nil else { return }
         if runProviderLock {
-            // Without a key too: a cancelled unlock may have unlocked bw.
+            // Without a key too: a cancelled unlock may have unlocked bw, and
+            // a sealed copy's session is still open in bw.
             let vault = self.provider
             let key = session?.key
             _ = serialTask(provider, generation: nil) { await vault.lock(session: key) }
         }
-        if session != nil { onChange?() }
+        if session != nil || resume != nil { onChange?() }
     }
 
     private func sweep() {
         let at = now()
-        for (provider, session) in sessions where session.expired(at: at) {
+        for (provider, resume) in resumes where at >= resume.deadline {
             end(provider: provider)
+        }
+        for (provider, session) in sessions where session.expired(at: at) {
+            end(provider: provider, hard: false)
         }
     }
 
@@ -474,20 +651,22 @@ final class VaultBroker {
         guard !blocked, var session = sessions[provider] else { return nil }
         session.idle = min(session.idle, permission.idleSeconds)
         session.max = min(session.max, permission.maxSeconds)
+        // Stored first, so a soft end hands the tightened limits to the sealed copy.
+        sessions[provider] = session
         if session.expired(at: now()) {
-            end(provider: provider)
+            end(provider: provider, hard: false)
             return nil
         }
-        sessions[provider] = session
         return session
     }
 
     /// The session started under `generation` is still the one, still
     /// within its lifetimes, and nothing is blocking vault work.
     private func isCurrent(_ provider: String, _ generation: UUID) -> Bool {
+        sweep()
         guard !blocked, let session = sessions[provider], session.generation == generation else { return false }
         if session.expired(at: now()) {
-            end(provider: provider)
+            end(provider: provider, hard: false)
             return false
         }
         return true
@@ -547,7 +726,7 @@ final class VaultBroker {
     }
 
     /// A host-owned secure field: widget code never sees it or what is typed.
-    static func securePrompt(title: String, message: String) -> String? {
+    static func securePrompt(title: String, message: String, offerTouchID: Bool, touchIDDefault: Bool) -> PasswordAnswer? {
         NSApp.activate()
         let alert = NSAlert()
         alert.messageText = title
@@ -557,10 +736,15 @@ final class VaultBroker {
         alert.accessoryView = field
         alert.addButton(withTitle: String(localized: "Unlock"))
         alert.addButton(withTitle: String(localized: "Cancel"))
+        if offerTouchID {
+            alert.showsSuppressionButton = true
+            alert.suppressionButton?.title = String(localized: "Reopen with Touch ID for the next 8 hours")
+            alert.suppressionButton?.state = touchIDDefault ? .on : .off
+        }
         alert.window.initialFirstResponder = field
         guard alert.runModal() == .alertFirstButtonReturn else { return nil }
         let value = field.stringValue
         field.stringValue = ""
-        return value
+        return PasswordAnswer(password: value, touchID: offerTouchID && alert.suppressionButton?.state == .on)
     }
 }
