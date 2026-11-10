@@ -211,6 +211,12 @@ final class KeepAwakeWidgetTests: XCTestCase {
             }))
         }
         cases.append(("stale", { try self.writeStatus(["onAC": true, "phase": "ac", "blockers": []], updatedSecondsAgo: 60) }))
+        cases.append(("bad-created", {
+            let until = ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600))
+            try self.writeStatus(["onAC": true, "phase": "override", "blockers": [],
+                                  "override": ["id": "A", "until": until, "createdAt": "", "lidClosed": false,
+                                               "lidClosedEffective": true]])
+        }))
         cases.append(("invalid", { try Data("{".utf8).write(to: self.guardDir.appendingPathComponent("status.json")) }))
         cases.append(("pending", {
             try self.writeStatus(["onAC": true, "phase": "ac", "blockers": [
@@ -234,6 +240,18 @@ final class KeepAwakeWidgetTests: XCTestCase {
                 XCTAssertEqual(actual[key], value, "\(name).\(key)")
             }
         }
+    }
+
+    /// A status without `lidClosedEffective` (or with null) must not claim
+    /// the Mac stays awake with the lid closed. The helper fell back to the
+    /// request's `lidClosed`; the workflow says what is safe instead. The
+    /// guard always writes the field, so this only guards a bad file.
+    func testUnknownLidStateIsNotReportedAsAwake() throws {
+        let until = ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600))
+        try writeStatus(["onAC": true, "phase": "override", "blockers": [],
+                         "override": ["id": "A", "until": until, "lidClosed": true, "lidClosedEffective": NSNull()]])
+        XCTAssertTrue(try render().text.contains("Closing the lid still sleeps."))
+        XCTAssertEqual(try normalized()["lidClosedEffective"], .bool(false))
     }
 
     // MARK: - Requests

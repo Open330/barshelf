@@ -270,7 +270,9 @@ public enum FileSource {
         guard descriptor >= 0 else {
             switch errno {
             case ENOENT: return missing(displayPath)
-            case ELOOP: throw FileSourceError.notARegularFile(displayPath)
+            // A symlink (ELOOP with O_NOFOLLOW), or a socket or device
+            // that refuses a plain open: not a file this source reads.
+            case ELOOP, EOPNOTSUPP, ENXIO, ENODEV: throw FileSourceError.notARegularFile(displayPath)
             default: throw FileSourceError.posix(displayPath, errno)
             }
         }

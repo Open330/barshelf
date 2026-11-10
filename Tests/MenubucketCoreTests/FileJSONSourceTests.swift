@@ -89,6 +89,29 @@ final class FileJSONSourceTests: XCTestCase {
         XCTAssertThrowsError(try read(folder.appendingPathComponent("secret.json").path))
     }
 
+    /// A folder that doesn't exist yet behind a symlink that leads out of
+    /// the root is not "missing": the walk stops at the symlinked folder and
+    /// that one fails the device/inode check.
+    func testMissingBehindAnEscapingSymlinkIsRefused() throws {
+        let folder = root.appendingPathComponent("away")
+        try FileManager.default.createSymbolicLink(at: folder, withDestinationURL: outside)
+        XCTAssertThrowsError(try read(folder.appendingPathComponent("missing/status.json").path))
+    }
+
+    /// Once authorized, reads go through the open folder: replacing its
+    /// path with a symlink to somewhere else changes nothing.
+    func testReadsStayOnTheAuthorizedFolder() throws {
+        let folder = root.appendingPathComponent("app")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try Data(#"{"who":"inside"}"#.utf8).write(to: folder.appendingPathComponent("s.json"))
+        try Data(#"{"who":"outside"}"#.utf8).write(to: outside.appendingPathComponent("s.json"))
+        let directory = try FileSource.openAuthorizedDirectory(path: folder.path, readPaths: [root.path])
+        try FileManager.default.moveItem(at: folder, to: root.appendingPathComponent("app-old"))
+        try FileManager.default.createSymbolicLink(at: folder, withDestinationURL: outside)
+        let out = try FileSource.readJSON(named: "s.json", in: directory, displayPath: "s.json", maxBytes: 1024)
+        XCTAssertEqual(out.objectValue?["value"]?.objectValue?["who"], .string("inside"))
+    }
+
     func testFIFOIsRefusedWithoutBlocking() throws {
         let fifo = root.appendingPathComponent("pipe.json")
         XCTAssertEqual(mkfifo(fifo.path, 0o600), 0)
