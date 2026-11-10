@@ -290,7 +290,8 @@ public final class ExecService {
         timeoutMs: Int,
         workingDirectory: URL?,
         extraEnvironment: [String: String]? = nil,
-        stdoutLimit: Int = ExecService.maxStdoutBytes
+        stdoutLimit: Int = ExecService.maxStdoutBytes,
+        stdin: Data? = nil
     ) async -> Result<Capture, ExecError> {
         let control = ProcessControl()
         return await withTaskCancellationHandler {
@@ -303,6 +304,7 @@ public final class ExecService {
                         workingDirectory: workingDirectory,
                         extraEnvironment: extraEnvironment,
                         stdoutLimit: stdoutLimit,
+                        stdin: stdin,
                         control: control
                     ))
                 }
@@ -334,6 +336,7 @@ public final class ExecService {
         workingDirectory: URL?,
         extraEnvironment: [String: String]?,
         stdoutLimit: Int,
+        stdin: Data? = nil,
         control: ProcessControl
     ) -> Result<Capture, ExecError> {
         defer { control.finish() }
@@ -366,7 +369,10 @@ public final class ExecService {
         let stderrPipe = Pipe()
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
-        process.standardInput = FileHandle.nullDevice
+        // Optional input, written after launch on its own queue so a child
+        // that never reads cannot block us; the timeout already runs.
+        let stdinPipe = stdin.map { _ in Pipe() }
+        process.standardInput = stdinPipe ?? FileHandle.nullDevice
 
         let captureState = CaptureState()
         let readGroup = DispatchGroup()
@@ -384,6 +390,16 @@ public final class ExecService {
             Self.closePipe(stdoutPipe)
             Self.closePipe(stderrPipe)
             return .failure(.launchFailed(error.localizedDescription))
+        }
+
+        if let stdin, let stdinPipe {
+            let writer = stdinPipe.fileHandleForWriting
+            // A child that exits without reading must not SIGPIPE the app.
+            _ = fcntl(writer.fileDescriptor, F_SETNOSIGPIPE, 1)
+            DispatchQueue.global(qos: .userInitiated).async {
+                try? writer.write(contentsOf: stdin)
+                try? writer.close()
+            }
         }
 
         let deadline = ReadDeadline(DispatchTime.now() + .milliseconds(max(timeoutMs, 1)))

@@ -9,7 +9,8 @@ final class VaultBrokerTests: XCTestCase {
         let lock = NSLock()
         var unlockDelayNs: UInt64 = 0
         var valueDelayNs: UInt64 = 0
-        var locked: [String] = []
+        var itemsDelayNs: UInt64 = 0
+        var locked: [String?] = []
         var calls: [String] = []
         func unlock(password: String) async throws -> String {
             lock.withLock { calls.append("unlock") }
@@ -18,13 +19,20 @@ final class VaultBrokerTests: XCTestCase {
             return "session-key-abcdefghijklmnop"
         }
         func items(session: String) async throws -> [VaultItem] {
-            [VaultItem(id: "item-1", name: "GitHub", username: "june", host: "github.com", hasTOTP: true)]
+            lock.withLock { calls.append("items") }
+            if itemsDelayNs > 0 {
+                do { try await Task.sleep(nanoseconds: itemsDelayNs) } catch {
+                    lock.withLock { calls.append("items-cancelled") }
+                    throw error
+                }
+            }
+            return [VaultItem(id: "item-1", name: "GitHub", username: "june", host: "github.com", hasTOTP: true)]
         }
         func value(of field: VaultField, itemID: String, session: String) async throws -> String {
             if valueDelayNs > 0 { try await Task.sleep(nanoseconds: valueDelayNs) }
             return "\(field.rawValue)-of-\(itemID) "
         }
-        func lock(session: String) async { lock.withLock { locked.append(session); calls.append("lock") } }
+        func lock(session: String?) async { lock.withLock { locked.append(session); calls.append("lock") } }
     }
 
     private var clock: TimeInterval = 1_000
@@ -154,6 +162,135 @@ final class VaultBrokerTests: XCTestCase {
         try await Task.sleep(nanoseconds: 100_000_000)
         XCTAssertEqual(provider.lock.withLock { provider.calls }, ["unlock", "lock", "unlock"])
         XCTAssertTrue(broker.isUnlocked(permission), "the old lock did not end the new session")
+    }
+
+    /// Screen lock while a listing runs cancels the provider call itself,
+    /// and the provider lock runs only after it stopped.
+    func testScreenLockCancelsARunningListing() async throws {
+        let provider = FakeProvider()
+        let broker = makeBroker(provider)
+        try await unlocked(broker)
+        provider.itemsDelayNs = 5_000_000_000
+        let listing = Task { await broker.itemsSource(widgetID: "w", permission: permission) }
+        try await Task.sleep(nanoseconds: 100_000_000)
+        broker.setBlocked(screenLocked: true)
+        let result = await listing.value
+        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertEqual(result.objectValue?["state"], .string("locked"))
+        XCTAssertEqual(provider.lock.withLock { provider.calls }, ["unlock", "items", "items-cancelled", "lock"])
+    }
+
+    /// A listing queued behind a running copy never starts once the session ended.
+    func testAQueuedListingNeverRunsAfterLock() async throws {
+        let provider = FakeProvider()
+        let broker = makeBroker(provider)
+        try await unlocked(broker)
+        let item = try await firstHandle(broker)
+        provider.valueDelayNs = 300_000_000
+        broker.copy(widgetID: "w", permission: permission, handle: item, field: .password)
+        let listing = Task { await broker.itemsSource(widgetID: "w", permission: permission) }
+        try await Task.sleep(nanoseconds: 50_000_000)
+        broker.lock(permission)
+        _ = await listing.value
+        try await Task.sleep(nanoseconds: 400_000_000)
+        XCTAssertEqual(provider.lock.withLock { provider.calls }, ["unlock", "items", "lock"])
+        XCTAssertNil(broker.pasteboard.string(forType: .string))
+    }
+
+    /// An unlock cancelled before its key was accepted still locks the
+    /// provider: bw may already have unlocked.
+    func testCancelledPendingUnlockStillLocksTheProvider() async throws {
+        let provider = FakeProvider()
+        provider.unlockDelayNs = 300_000_000
+        let broker = makeBroker(provider)
+        broker.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden")
+        try await Task.sleep(nanoseconds: 50_000_000)
+        broker.lockAll()
+        try await Task.sleep(nanoseconds: 400_000_000)
+        XCTAssertFalse(broker.isUnlocked(permission))
+        XCTAssertEqual(provider.lock.withLock { provider.calls }, ["unlock", "lock"])
+        XCTAssertEqual(provider.lock.withLock { provider.locked }, [nil])
+    }
+
+    /// A widget granted a shorter session cannot use a longer one another
+    /// widget unlocked; its limit tightens the shared session.
+    func testAStricterGrantBoundsTheSharedSession() async throws {
+        let broker = makeBroker(FakeProvider())
+        try await unlocked(broker)
+        let strict = Manifest.VaultPermission(provider: "bitwarden", idleLockMinutes: 2, maxSessionMinutes: 5)
+        clock += 3 * 60
+        let source = await broker.itemsSource(widgetID: "strict", permission: strict)
+        XCTAssertEqual(source.objectValue?["state"], .string("locked"), "3 minutes idle is past the 2-minute grant")
+        XCTAssertFalse(broker.isUnlocked(permission))
+
+        try await unlocked(broker)
+        _ = await broker.itemsSource(widgetID: "strict", permission: strict)
+        clock += 90
+        let handle = try await firstHandle(broker)
+        for _ in 0..<3 {
+            clock += 90
+            broker.copy(widgetID: "w", permission: permission, handle: handle, field: .username)
+        }
+        XCTAssertFalse(broker.isUnlocked(permission), "6 minutes in: past the 5-minute cap the strict widget added")
+    }
+
+    // MARK: The real runner, against synthetic helpers
+
+    private func helper(_ script: String) throws -> URL {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("vault-helper-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appendingPathComponent("bw")
+        try ("#!/bin/sh\n" + script).write(to: url, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: url.path)
+        addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
+        return url
+    }
+
+    /// The password arrives on stdin, never argv; failures carry no stderr.
+    func testRunnerPassesThePasswordOnStdin() async throws {
+        let url = try helper(#"""
+        [ "$1 $2 $3 $4" = "unlock --passwordfile /dev/stdin --raw" ] || exit 2
+        read -r line
+        [ "$line" = "right" ] || { echo "wrong: $line" >&2; exit 1; }
+        printf 'c2Vzc2lvbi1rZXktZm9yLXRlc3Rpbmc='
+        """#)
+        let provider = BitwardenCLIProvider(executableOverride: url, timeout: 5)
+        let key = try await provider.unlock(password: "right")
+        XCTAssertEqual(key, "c2Vzc2lvbi1rZXktZm9yLXRlc3Rpbmc=")
+        do {
+            _ = try await provider.unlock(password: "nope")
+            XCTFail("a wrong password unlocks nothing")
+        } catch {
+            XCTAssertEqual(error as? VaultError, .unlockFailed)
+        }
+    }
+
+    /// A descendant holding the output pipe cannot keep a run alive past
+    /// its timeout, and cancelling the caller stops the run quickly.
+    func testRunnerTimeoutAndCancelReachDescendants() async throws {
+        let url = try helper("/bin/sleep 30 &\n/bin/sleep 30\n")
+        let provider = BitwardenCLIProvider(executableOverride: url, timeout: 1)
+        let started = Date()
+        do {
+            _ = try await provider.items(session: "s")
+            XCTFail("expected a timeout")
+        } catch {
+            XCTAssertEqual(error as? VaultError, .timedOut)
+        }
+        XCTAssertLessThan(Date().timeIntervalSince(started), 5)
+
+        let slow = BitwardenCLIProvider(executableOverride: url, timeout: 30)
+        let run = Task { try await slow.items(session: "s") }
+        try await Task.sleep(nanoseconds: 200_000_000)
+        let cancelledAt = Date()
+        run.cancel()
+        do {
+            _ = try await run.value
+            XCTFail("expected cancellation")
+        } catch {
+            XCTAssertTrue(error is CancellationError)
+        }
+        XCTAssertLessThan(Date().timeIntervalSince(cancelledAt), 5)
     }
 
     func testCancelledOrWrongPasswordStaysLocked() async throws {
