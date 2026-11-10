@@ -224,6 +224,11 @@ public enum WidgetValidator {
             ))
         }
 
+        if let alerts = workflow?.alerts, !alerts.isEmpty {
+            report.issues += alertIssues(alerts, manifest: manifest, manifestFile: manifestFile,
+                                         workflowFile: joinPath(prefix, workflowFileName ?? "workflow.json"))
+        }
+
         let requestedMetrics = WidgetDiscovery.requestedSystemMetrics(workflow)
         if !requestedMetrics.isEmpty {
             let declared = Set(
@@ -272,6 +277,50 @@ public enum WidgetValidator {
                 ))
             }
         }
+    }
+
+    /// The first BarShelf that reads workflow `alerts`; older ones ignore
+    /// the key and the widget would silently never notify.
+    public static let alertsMinHostVersion = "0.7.21"
+
+    static func alertIssues(
+        _ alerts: [String: WorkflowDefinition.AlertDef], manifest: Manifest,
+        manifestFile: String, workflowFile: String
+    ) -> [Issue] {
+        var issues: [Issue] = []
+        if manifest.permissions?.notifications != true {
+            issues.append(Issue(file: manifestFile, field: "permissions.notifications",
+                                message: "workflow alerts need permissions.notifications: true"))
+        }
+        let required = manifest.minHostVersion?.trimmingCharacters(in: .whitespaces) ?? ""
+        if required.isEmpty || SemanticVersionOrder.isNewer(alertsMinHostVersion, than: required) {
+            issues.append(Issue(file: manifestFile, field: "minHostVersion",
+                                message: "workflow alerts need minHostVersion \(alertsMinHostVersion) or later;"
+                                    + " older BarShelf ignores them"))
+        }
+        let refresh = manifest.refresh
+        let interval = refresh?.interval ?? 0
+        if refresh?.popupOnly == true || !(interval.isFinite && interval > 0) || refresh?.runInBackground != true {
+            issues.append(Issue(file: manifestFile, field: "refresh",
+                                message: "workflow alerts are checked when the widget refreshes; set a positive refresh.interval"
+                                    + " and refresh.runInBackground: true (and not popupOnly) so they can fire"
+                                    + " while the popup is closed"))
+        }
+        for id in alerts.keys.sorted() {
+            guard let alert = alerts[id] else { continue }
+            if !alert.when.contains("${") {
+                issues.append(Issue(file: workflowFile, field: "alerts.\(id).when",
+                                    message: "when must be a ${…} expression that yields true or false"))
+            }
+            if alert.title.trimmingCharacters(in: .whitespaces).isEmpty {
+                issues.append(Issue(file: workflowFile, field: "alerts.\(id).title", message: "title must not be empty"))
+            }
+            if let cooldown = alert.cooldownSec, !(cooldown.isFinite && cooldown >= 0) {
+                issues.append(Issue(file: workflowFile, field: "alerts.\(id).cooldownSec",
+                                    message: "cooldownSec must be a number of seconds, 0 or more"))
+            }
+        }
+        return issues
     }
 
     private static func validateWorkflow(

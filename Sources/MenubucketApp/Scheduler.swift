@@ -55,6 +55,10 @@ final class Scheduler {
     /// the visibility and `runInBackground` gates exist to spare *hidden*
     /// widgets, which these are not.
     private var menuBarWidgetIDs: Set<String> = []
+    /// Widgets with workflow alerts and `runInBackground`: off the visible
+    /// page they keep the background cadence even while the popup is open,
+    /// or an alert would stop watching whenever another page is showing.
+    private var monitoringWidgetIDs: Set<String> = []
     /// Whether App Nap is currently being held off. Test surface: the
     /// assertion itself is opaque, and "does a promoted widget keep polling"
     /// is not something a unit test can observe.
@@ -119,6 +123,7 @@ final class Scheduler {
         lastAutoRefreshAt = lastAutoRefreshAt.filter { liveIDs.contains($0.key) }
         visibleWidgetIDs.formIntersection(liveIDs)
         menuBarWidgetIDs.formIntersection(liveIDs)
+        monitoringWidgetIDs.formIntersection(liveIDs)
         // `setMenuBarWidgetIDs` normally owns this transition, but a reload
         // or disable removes ids directly during configuration.  Release the
         // assertion here too; otherwise the now-empty promoted set can keep
@@ -190,6 +195,13 @@ final class Scheduler {
         return Date(timeIntervalSinceReferenceDate: next)
     }
 
+    func setMonitoringWidgetIDs(_ ids: Set<String>) {
+        let normalized = ids.intersection(Set(widgets.map(\.id)))
+        guard normalized != monitoringWidgetIDs else { return }
+        monitoringWidgetIDs = normalized
+        rebuildIntervalTimers()
+    }
+
     func setMenuBarWidgetIDs(_ ids: Set<String>) {
         let liveIDs = Set(widgets.map(\.id))
         let normalized = ids.intersection(liveIDs)
@@ -232,6 +244,11 @@ final class Scheduler {
     }
 
     var activeIntervalTimerCount: Int { intervalTimers.count }
+
+    /// The cadence a widget's interval timer runs at, if it has one.
+    func intervalSeconds(for widgetID: String) -> TimeInterval? {
+        intervalMembers.first(where: { $0.value.contains(widgetID) })?.key
+    }
 
     func intervalTimerIdentity(for widgetID: String) -> ObjectIdentifier? {
         guard let interval = intervalMembers.first(where: { $0.value.contains(widgetID) })?.key,
@@ -287,12 +304,14 @@ final class Scheduler {
         for widget in widgets {
             if widget.manifest.refresh?.popupOnly == true { continue }
             let promoted = menuBarWidgetIDs.contains(widget.id)
-            if popupIsOpen, !promoted, !visibleWidgetIDs.contains(widget.id) { continue }
+            let offPage = popupIsOpen && !promoted && !visibleWidgetIDs.contains(widget.id)
+            if offPage, !monitoringWidgetIDs.contains(widget.id) { continue }
             let base = widgetIntervalOverrides[widget.id] ?? widget.manifest.refresh?.interval
             let configured = promoted ? (intervalOverrides[widget.id] ?? base) : base
             guard let interval = SchedulePolicy.effectiveInterval(
                 configured: configured,
-                popupOpen: popupIsOpen,
+                // An off-page monitor runs as if the popup were closed.
+                popupOpen: popupIsOpen && !offPage,
                 runInBackground: widget.manifest.refresh?.runInBackground ?? false,
                 multiplier: refreshMultiplier,
                 pauseWhenClosed: pauseWhenClosed,
@@ -408,7 +427,9 @@ final class Scheduler {
             return true
         }
         if popupIsOpen {
-            return visibleWidgetIDs.contains(widgetID)
+            if visibleWidgetIDs.contains(widgetID) { return true }
+            return monitoringWidgetIDs.contains(widgetID)
+                && !pauseWhenClosed && widget.manifest.refresh?.runInBackground == true
         }
         return !pauseWhenClosed && widget.manifest.refresh?.runInBackground == true
     }

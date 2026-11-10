@@ -39,6 +39,21 @@
     },
     "status": {
       "$ref": "#/definitions/status"
+    },
+    "alerts": {
+      "type": "object",
+      "description": "Notifications on the widget's own values (BarShelf 0.7.21+). Fires when `when` turns from false to true; needs permissions.notifications and background refresh.",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["when", "title"],
+        "additionalProperties": false,
+        "properties": {
+          "when": { "type": "string", "description": "${...} expression yielding true or false" },
+          "title": { "type": "string" },
+          "body": { "type": "string" },
+          "cooldownSec": { "type": "number", "minimum": 0, "default": 3600 }
+        }
+      }
     }
   },
   "additionalProperties": true,

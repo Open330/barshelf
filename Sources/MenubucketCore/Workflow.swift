@@ -18,6 +18,11 @@ public struct WorkflowDefinition: Codable, Equatable, Sendable {
     /// namespace (optionally with a TTL). Keeps the engine pure — it computes
     /// *what* to write; the host performs the side effect.
     public var store: [String: StoreDef]?
+    /// Notifications on the widget's own values: each entry's `when` is
+    /// evaluated after every successful refresh, and the host notifies when
+    /// it turns from false to true (see `AlertDef`, `AlertTracker`). Like
+    /// `store`, the engine only computes; the host decides and delivers.
+    public var alerts: [String: AlertDef]?
 
     public init(
         schemaVersion: Int = 1,
@@ -27,7 +32,8 @@ public struct WorkflowDefinition: Codable, Equatable, Sendable {
         view: JSONValue,
         empty: JSONValue? = nil,
         status: StatusDef? = nil,
-        store: [String: StoreDef]? = nil
+        store: [String: StoreDef]? = nil,
+        alerts: [String: AlertDef]? = nil
     ) {
         self.schemaVersion = schemaVersion
         self.kind = kind
@@ -37,6 +43,7 @@ public struct WorkflowDefinition: Codable, Equatable, Sendable {
         self.empty = empty
         self.status = status
         self.store = store
+        self.alerts = alerts
     }
 
     /// The `widget.*` context key a workflow reads to find out whether its
@@ -237,6 +244,27 @@ public struct WorkflowDefinition: Codable, Equatable, Sendable {
         }
     }
 
+    /// One alert. `when` is a `${…}` expression over the same context as the
+    /// view; only an explicit `true`/`false` counts (anything else, or an
+    /// error, is no reading and changes nothing). `title` and `body` are
+    /// templates expanded at the same moment. After firing, the alert stays
+    /// quiet for `cooldownSec` (default 3600) even if it re-arms.
+    public struct AlertDef: Codable, Equatable, Sendable {
+        public var when: String
+        public var title: String
+        public var body: String?
+        public var cooldownSec: Double?
+
+        public init(when: String, title: String, body: String? = nil, cooldownSec: Double? = nil) {
+            self.when = when
+            self.title = title
+            self.body = body
+            self.cooldownSec = cooldownSec
+        }
+
+        public static let defaultCooldownSec: Double = 3600
+    }
+
     public static func decode(from data: Data) throws -> WorkflowDefinition {
         try JSONDecoder().decode(WorkflowDefinition.self, from: data)
     }
@@ -277,6 +305,27 @@ public enum WorkflowEngine {
         }
     }
 
+    /// One alert's state at one refresh. `active` is nil when the
+    /// condition could not be read (an error, a missing value, not a bool).
+    public struct AlertSample: Sendable, Equatable {
+        public var id: String
+        public var active: Bool?
+        public var title: String
+        public var body: String?
+        public var cooldownMs: Double
+        /// Identifies the definition; a changed alert starts over.
+        public var revision: String
+
+        public init(id: String, active: Bool?, title: String, body: String?, cooldownMs: Double, revision: String) {
+            self.id = id
+            self.active = active
+            self.title = title
+            self.body = body
+            self.cooldownMs = cooldownMs
+            self.revision = revision
+        }
+    }
+
     public struct Output: Sendable {
         public var viewTree: UINode
         public var statusLabel: String?
@@ -296,6 +345,8 @@ public enum WorkflowEngine {
         public var usedEmpty: Bool
         /// Values the `store` block computed for the host to persist.
         public var writes: [StorageWrite]
+        /// Each alert's reading at this refresh, for the host's tracker.
+        public var alerts: [AlertSample] = []
 
         public init(
             viewTree: UINode,
@@ -511,7 +562,24 @@ public enum WorkflowEngine {
             }
         }
 
-        return Output(
+        var alertSamples: [AlertSample] = []
+        for id in (definition.alerts ?? [:]).keys.sorted() {
+            guard let alert = definition.alerts?[id] else { continue }
+            // A condition that cannot be read is no reading: it neither
+            // fires nor re-arms. Text that cannot be expanded keeps the
+            // alert from firing with a broken message.
+            var active = (try? context.interpolate(alert.when)).flatMap(metricActive)
+            let title = (try? context.interpolate(alert.title).stringified) ?? ""
+            let body = alert.body.flatMap { try? context.interpolate($0).stringified }
+            if title.isEmpty || (alert.body != nil && body == nil) { active = nil }
+            let cooldown = max(0, alert.cooldownSec ?? WorkflowDefinition.AlertDef.defaultCooldownSec)
+            alertSamples.append(AlertSample(
+                id: id, active: active, title: title, body: body, cooldownMs: cooldown * 1000,
+                revision: "\(alert.when)\u{1F}\(alert.title)\u{1F}\(alert.body ?? "")\u{1F}\(cooldown)"
+            ))
+        }
+
+        var output = Output(
             viewTree: viewTree,
             statusLabel: statusLabel,
             statusMetrics: statusMetrics,
@@ -524,6 +592,8 @@ public enum WorkflowEngine {
             usedEmpty: usedEmpty,
             writes: writes
         )
+        output.alerts = alertSamples
+        return output
     }
 
     /// Only explicit booleans (or their string wire representation) control

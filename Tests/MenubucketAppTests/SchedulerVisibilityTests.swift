@@ -54,6 +54,28 @@ final class SchedulerVisibilityTests: XCTestCase {
         XCTAssertEqual(scheduler.activeIntervalTimerCount, 0)
     }
 
+    /// A widget with workflow alerts keeps watching off the visible page:
+    /// at the closed-popup cadence while another page shows, as when closed.
+    func testAlertMonitorsKeepBackgroundCadenceOffPage() throws {
+        let scheduler = Scheduler()
+        let monitor = widget("aas-alerts", interval: 300, runInBackground: true)
+        let plain = widget("weather", interval: 300, runInBackground: true)
+        scheduler.configure(widgets: [monitor, plain])
+        scheduler.setMonitoringWidgetIDs([monitor.id])
+        scheduler.popupOpened()
+        scheduler.setVisibleWidgetIDs([])
+        XCTAssertEqual(scheduler.activeIntervalWidgetIDs, [monitor.id], "off-page, only the monitor keeps a timer")
+        XCTAssertEqual(scheduler.intervalSeconds(for: monitor.id), 1200, "300 s relaxed fourfold, as if closed")
+        scheduler.setVisibleWidgetIDs([monitor.id])
+        XCTAssertEqual(scheduler.intervalSeconds(for: monitor.id), 300, "on its page it polls at its own interval")
+        scheduler.popupClosed()
+        XCTAssertEqual(scheduler.intervalSeconds(for: monitor.id), 1200)
+        scheduler.setMonitoringWidgetIDs([])
+        scheduler.popupOpened()
+        scheduler.setVisibleWidgetIDs([])
+        XCTAssertTrue(scheduler.activeIntervalWidgetIDs.isEmpty)
+    }
+
     private func widget(
         _ id: String,
         interval: Double? = nil,

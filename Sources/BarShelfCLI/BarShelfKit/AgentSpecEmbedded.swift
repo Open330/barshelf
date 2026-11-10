@@ -45,7 +45,7 @@ Pick the **least powerful** layer that does the job:
 |---|---|---|
 | **workflow** | Data comes from a local command, a directory listing, an HTTPS JSON GET, or pasted/literal JSON, and the view is a straightforward mapping of that data. **Prefer this.** No code, declarative, safest. | Host-executed or literal sources → pure transforms → templated view. |
 | **exec** | You need a shell/binary to compute the whole view and can emit UINode JSON (or feed a builtin data adapter). | Your command runs each refresh; stdout is the view (or adapter input). |
-| **script** | You need persistent state, timers/countdowns, click handlers that mutate state, secrets, or notifications — i.e. interactivity/logic a template can't express. | A long-lived Deno process talking JSON-RPC to the host via the `barshelf` SDK. |
+| **script** | You need persistent state, timers/countdowns, click handlers that mutate state, secrets, or free-form notifications — i.e. interactivity/logic a template can't express. (A workflow can notify on its own values with `alerts`, §8C.) | A long-lived Deno process talking JSON-RPC to the host via the `barshelf` SDK. |
 
 Rule of thumb: **workflow first**; drop to **exec** only if the shell already
 produces what you want; use **script** only when you need live logic/state.
@@ -250,6 +250,52 @@ neutral (field-wise, user wins). `accent` recolors progress/meter/badge/link;
 
 Triggered refreshes respect scheduler coalescing (they won't double-fire with
 interval polling).
+
+---
+
+## 8C. Workflow alerts (`alerts`) — BarShelf 0.7.21
+
+A workflow can notify when one of its own values changes state, without a
+script. Each entry under the top-level `alerts` object of `workflow.json`:
+
+```json
+"alerts": {
+  "low": {
+    "when": "${lte(sources.usage.worstRemainingPct, settings.lowPct)}",
+    "title": "An agent account is down to ${string(round(sources.usage.worstRemainingPct))}% left",
+    "body": "Open BarShelf to see which account.",
+    "cooldownSec": 3600
+  }
+}
+```
+
+- `when` is a `${…}` expression over the same context as the view. Only an
+  explicit `true`/`false` counts; anything else (a number, a missing value, an
+  error) is "no reading" and changes nothing.
+- The host notifies on a **rising edge**: false at the last reading, true now.
+  Never on the first reading (launch, a new alert), never while it stays true,
+  and not again within `cooldownSec` (default 3600) of the last alert. A rising
+  edge inside the cooldown is used up, not postponed: the condition has to fall
+  and rise again. "Last alert" means the last attempt; one macOS refused still
+  counts. A changed alert definition starts over, and so does an alert id that
+  was removed and added back. The state is the host's; `store` cannot touch it.
+- Make an unavailable reading `null`, not `false`:
+  `${if(eq(x, null), null, lte(x, 20))}`. `false` re-arms the alert, so a
+  failed fetch followed by another low reading would notify again.
+- `title`/`body` are templates; an alert whose text fails to expand does not fire.
+- Requirements, checked by `barshelf validate`: `permissions.notifications: true`,
+  `minHostVersion` ≥ 0.7.21 (older hosts ignore `alerts`), and a refresh that
+  runs while the popup is closed: `refresh.interval` plus
+  `refresh.runInBackground: true`, not `popupOnly`.
+- Cadence: while the popup is closed, and while it shows another page, the
+  widget refreshes at its interval × 4 × the app's refresh multiplier (at least
+  60 s), so `interval: 300` checks every 20 minutes. Battery saver ("pause while
+  closed") stops that unless the widget is in the menu bar, where it keeps its
+  own interval. Nothing is checked while BarShelf is quit or the Mac sleeps.
+  Plan for alerts that are timely, not instant.
+- Every alert is written to the activity log: `notify.alert` (shown),
+  `notify.alert.failed` (macOS refused or failed), `notify.alert.dropped` (the
+  widget was disabled, removed, reloaded or revoked before macOS answered).
 
 ---
 
