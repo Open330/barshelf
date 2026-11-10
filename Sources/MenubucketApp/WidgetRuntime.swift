@@ -2062,7 +2062,9 @@ final class WidgetRuntime: ObservableObject {
               !prefs.isDisabled(widgetID), gatePermissions(for: widget) else { return }
         switch action.type {
         case "vaultUnlock":
-            vaultBroker.unlock(widgetID: widgetID, permission: permission, widgetName: widget.displayName)
+            // "password" skips Touch ID: the card's Use Password button.
+            vaultBroker.unlock(widgetID: widgetID, permission: permission, widgetName: widget.displayName,
+                               usePassword: action.value == "password")
         case "vaultLock":
             vaultBroker.lock(permission)
         case "vaultCopy":

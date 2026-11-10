@@ -3,8 +3,8 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.bitwarden",
   "name": "Bitwarden",
-  "version": "0.2.0",
-  "minHostVersion": "0.7.22",
+  "version": "0.3.0",
+  "minHostVersion": "0.7.23",
   "icon": "lock.shield.fill",
   "bucket": {
     "group": "Security",
@@ -89,7 +89,9 @@
       "Search vault": "보관함 검색",
       "Copy username": "아이디 복사",
       "Copy password": "비밀번호 복사",
-      "Copy verification code": "인증 코드 복사"
+      "Copy verification code": "인증 코드 복사",
+      "Unlock with Touch ID": "Touch ID로 열기",
+      "Use Password": "비밀번호 사용"
     }
   }
 }

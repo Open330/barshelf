@@ -2,7 +2,7 @@
   "$schema": "https://barshelf.jiun.dev/schema/workflow-0.1.json",
   "schemaVersion": 1,
   "kind": "workflow",
-  "_comment": "Bitwarden CLI vault status from `bw status` only: no session, no unlock, no sync, no item data. A fixed shell wrapper finds bw (Homebrew, npm under nvm/volta and similar; npm's bw is a node script, so its own bin folder goes first on PATH), and sed drops userEmail and userId before the output reaches BarShelf. BarShelf passes no BW_SESSION, so a logged-in vault reads as locked even while a terminal has it unlocked. A missing reading is null for the stale-sync alert. When the user presses Unlock, BarShelf's built-in Bitwarden provider (permissions.vault) unlocks the vault: the master password goes to bw through stdin, only the session is kept, in memory, and it locks after 10 minutes without a vault action, 60 minutes at most, on screen lock, sleep or quit. The vault.items source gives item names, usernames, hosts and opaque handles; copying a field is done by the host straight to the clipboard (cleared after 30 s). No secret reaches this workflow.",
+  "_comment": "Bitwarden CLI vault status from `bw status` only: no session, no unlock, no sync, no item data. A fixed shell wrapper finds bw (Homebrew, npm under nvm/volta and similar; npm's bw is a node script, so its own bin folder goes first on PATH), and sed drops userEmail and userId before the output reaches BarShelf. BarShelf passes no BW_SESSION, so a logged-in vault reads as locked even while a terminal has it unlocked. A missing reading is null for the stale-sync alert. When the user presses Unlock, BarShelf's built-in Bitwarden provider (permissions.vault) unlocks the vault: the master password goes to bw through stdin, only the session is kept, in memory, and it locks after 10 minutes without a vault action, 60 minutes at most, on screen lock, sleep or quit. If the user ticks Touch ID at the password prompt, BarShelf keeps the session sealed to the Secure Enclave for 8 hours: idle, screen lock and sleep then lock softly and Touch ID reopens it (vault.items reports resumable and biometry); Lock locks bw completely. The vault.items source gives item names, usernames, hosts and opaque handles; copying a field is done by the host straight to the clipboard (cleared after 30 s). No secret reaches this workflow.",
   "sources": {
     "bw": {
       "use": "exec",
@@ -92,6 +92,10 @@
     "countText": {
       "use": "assign",
       "from": "if(transforms.ko, concat('항목 ', string(coalesce(sources.vault.count, 0)), '개'), concat(string(coalesce(sources.vault.count, 0)), ' items'))"
+    },
+    "touchReady": {
+      "use": "assign",
+      "from": "and(coalesce(sources.vault.resumable, false), eq(coalesce(sources.vault.biometry, ''), 'touchID'))"
     }
   },
   "view": {
@@ -347,26 +351,55 @@
             }
           },
           {
-            "type": "hstack",
-            "spacing": 8,
-            "children": [
-              {
-                "type": "button",
-                "title": "Unlock",
-                "icon": "lock.open",
-                "style": "borderedProminent",
-                "action": {
-                  "type": "vaultUnlock"
-                }
+            "switch": "${if(transforms.touchReady, 'touch', 'password')}",
+            "cases": {
+              "touch": {
+                "type": "hstack",
+                "spacing": 8,
+                "children": [
+                  {
+                    "type": "button",
+                    "title": "Unlock with Touch ID",
+                    "icon": "touchid",
+                    "style": "borderedProminent",
+                    "action": {
+                      "type": "vaultUnlock"
+                    }
+                  },
+                  {
+                    "type": "button",
+                    "title": "Use Password",
+                    "style": "bordered",
+                    "action": {
+                      "type": "vaultUnlock",
+                      "value": "password"
+                    }
+                  }
+                ]
               },
-              {
-                "type": "text",
-                "text": "BarShelf asks for your master password and keeps only the session.",
-                "role": "caption",
-                "foreground": "secondary",
-                "lineLimit": 2
+              "password": {
+                "type": "hstack",
+                "spacing": 8,
+                "children": [
+                  {
+                    "type": "button",
+                    "title": "Unlock",
+                    "icon": "lock.open",
+                    "style": "borderedProminent",
+                    "action": {
+                      "type": "vaultUnlock"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "text": "BarShelf asks for your master password and keeps only the session.",
+                    "role": "caption",
+                    "foreground": "secondary",
+                    "lineLimit": 2
+                  }
+                ]
               }
-            ]
+            }
           }
         ]
       }

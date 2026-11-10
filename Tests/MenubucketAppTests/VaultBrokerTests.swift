@@ -43,12 +43,43 @@ final class VaultBrokerTests: XCTestCase {
         func lock(session: String?) async { lock.withLock { locked.append(session); calls.append("lock") } }
     }
 
+    /// Seals by keeping the secret with its AAD; opening returns what the
+    /// test scripts (Touch ID result) and checks the AAD.
+    private final class FakeSealer: VaultKeySealer, @unchecked Sendable {
+        let lock = NSLock()
+        var available = true
+        var outcome: ResumeFailure?
+        var openDelayNs: UInt64 = 0
+        var opened = 0
+        var store: [Data: (Data, Data)] = [:]
+        var biometryAvailable: Bool { lock.withLock { available } }
+        func seal(_ secret: Data, aad: Data) throws -> SealedSecret {
+            let id = Data(UUID().uuidString.utf8)
+            lock.withLock { store[id] = (secret, aad) }
+            return SealedSecret(enclaveKey: id, ephemeralPublic: Data(), salt: Data(), box: Data())
+        }
+        func open(_ sealed: SealedSecret, aad: Data, reason: String) async -> Result<Data, ResumeFailure> {
+            if openDelayNs > 0 {
+                do { try await Task.sleep(nanoseconds: openDelayNs) } catch { return .failure(.cancelled) }
+            }
+            return lock.withLock {
+                opened += 1
+                if let outcome { return .failure(outcome) }
+                guard let (secret, sealedAAD) = store[sealed.enclaveKey], sealedAAD == aad else { return .failure(.invalid) }
+                return .success(secret)
+            }
+        }
+    }
+
     private var clock: TimeInterval = 1_000
     private let permission = Manifest.VaultPermission(provider: "bitwarden", idleLockMinutes: 10, maxSessionMinutes: 60)
 
-    private func makeBroker(_ provider: FakeProvider, password: String? = "right") -> VaultBroker {
-        let broker = VaultBroker(provider: provider, now: { [unowned self] in self.clock })
-        broker.promptForPassword = { _, _ in password }
+    private func makeBroker(_ provider: FakeProvider, password: String? = "right",
+                            sealer: FakeSealer? = nil, touchID: Bool = false) -> VaultBroker {
+        let fake = sealer ?? { let none = FakeSealer(); none.available = false; return none }()
+        let broker = VaultBroker(provider: provider, sealer: fake, now: { [unowned self] in self.clock })
+        broker.promptForPassword = { _, _, offered, _ in password.map { .init(password: $0, touchID: offered && touchID) } }
+        broker.defaults = UserDefaults(suiteName: "barshelf-vault-test-\(UUID().uuidString)")!
         broker.toast = { _ in }
         broker.pasteboard = NSPasteboard(name: NSPasteboard.Name("barshelf-vault-test-\(UUID().uuidString)"))
         return broker
@@ -318,6 +349,151 @@ final class VaultBrokerTests: XCTestCase {
             XCTAssertTrue(error is CancellationError)
         }
         XCTAssertLessThan(Date().timeIntervalSince(cancelledAt), 5)
+    }
+
+    // MARK: Touch ID resume
+
+    private func unlockedWithTouchID(_ broker: VaultBroker) async throws {
+        try await unlocked(broker)
+        XCTAssertTrue(broker.isResumable(permission))
+    }
+
+    private func reopened(_ broker: VaultBroker) async {
+        let changed = expectation(description: "reopened")
+        broker.onChange = { changed.fulfill() }
+        broker.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden")
+        await fulfillment(of: [changed], timeout: 2)
+        broker.onChange = nil
+    }
+
+    /// Screen lock and idle end softly: no bw lock, and Touch ID reopens
+    /// without the master password or another provider unlock.
+    func testSoftLocksReopenWithTouchID() async throws {
+        let provider = FakeProvider()
+        let sealer = FakeSealer()
+        let broker = makeBroker(provider, sealer: sealer, touchID: true)
+        try await unlockedWithTouchID(broker)
+        broker.setBlocked(screenLocked: true)
+        XCTAssertFalse(broker.isUnlocked(permission))
+        broker.setBlocked()
+        await reopened(broker)
+        XCTAssertTrue(broker.isUnlocked(permission))
+        let handle = try await firstHandle(broker)
+        clock += 11 * 60
+        XCTAssertFalse(broker.isUnlocked(permission), "idle ends it")
+        await reopened(broker)
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertEqual(provider.lock.withLock { provider.calls }, ["unlock", "items"], "no bw lock, one password unlock")
+        XCTAssertEqual(sealer.lock.withLock { sealer.opened }, 2)
+    }
+
+    /// Lock, the 8-hour window and quit end hard, also with only a sealed
+    /// copy left: the copy goes and bw is locked without a key.
+    func testHardLocksDiscardTheSealedCopyAndLockBw() async throws {
+        let provider = FakeProvider()
+        let broker = makeBroker(provider, sealer: FakeSealer(), touchID: true)
+        try await unlockedWithTouchID(broker)
+        broker.setBlocked(screenLocked: true)
+        broker.setBlocked()
+        broker.lock(permission)
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertFalse(broker.isResumable(permission))
+        XCTAssertEqual(provider.lock.withLock { provider.locked }, [nil], "locked with only the sealed copy left")
+
+        try await unlockedWithTouchID(broker)
+        broker.setBlocked(sleeping: true)
+        clock += 8 * 3600
+        broker.setBlocked()
+        XCTAssertFalse(broker.isResumable(permission), "8 hours after the password, asleep or not")
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertEqual(provider.lock.withLock { provider.locked.count }, 2)
+    }
+
+    /// Without the box ticked nothing is sealed, and every lock is hard.
+    func testWithoutTouchIDEveryLockIsHard() async throws {
+        let provider = FakeProvider()
+        let broker = makeBroker(provider, sealer: FakeSealer(), touchID: false)
+        try await unlocked(broker)
+        XCTAssertFalse(broker.isResumable(permission))
+        broker.setBlocked(screenLocked: true)
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertEqual(provider.lock.withLock { provider.calls }, ["unlock", "lock"])
+    }
+
+    /// Cancel keeps the copy and asks nothing; a changed enrollment voids it;
+    /// Use Password goes to the password prompt.
+    func testTouchIDOutcomes() async throws {
+        let provider = FakeProvider()
+        let sealer = FakeSealer()
+        var prompts = 0
+        let broker = makeBroker(provider, sealer: sealer, touchID: true)
+        broker.promptForPassword = { _, _, offered, _ in prompts += 1; return .init(password: "right", touchID: offered) }
+        try await unlockedWithTouchID(broker)
+        XCTAssertEqual(prompts, 1)
+        broker.setBlocked(screenLocked: true)
+        broker.setBlocked()
+
+        sealer.outcome = .cancelled
+        broker.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden")
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertFalse(broker.isUnlocked(permission))
+        XCTAssertTrue(broker.isResumable(permission))
+        XCTAssertEqual(prompts, 1, "cancel opens no password prompt")
+
+        sealer.outcome = .fallback
+        broker.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden")
+        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertEqual(prompts, 2, "Use Password asks for it")
+        XCTAssertTrue(broker.isUnlocked(permission))
+        XCTAssertTrue(broker.isResumable(permission), "a new copy for the new session key")
+
+        broker.setBlocked(screenLocked: true)
+        broker.setBlocked()
+        sealer.outcome = .invalid
+        broker.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden")
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertFalse(broker.isResumable(permission), "enrollment changed: hard lock")
+        XCTAssertEqual(provider.lock.withLock { provider.locked }, [nil])
+    }
+
+    /// The screen locks while Touch ID is up: the prompt is cancelled and
+    /// nothing is installed; the copy survives.
+    func testScreenLockDuringTouchIDInstallsNothing() async throws {
+        let sealer = FakeSealer()
+        let broker = makeBroker(FakeProvider(), sealer: sealer, touchID: true)
+        try await unlockedWithTouchID(broker)
+        broker.setBlocked(screenLocked: true)
+        broker.setBlocked()
+        sealer.openDelayNs = 300_000_000
+        broker.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden")
+        broker.setBlocked(screenLocked: true)
+        try await Task.sleep(nanoseconds: 400_000_000)
+        broker.setBlocked()
+        XCTAssertFalse(broker.isUnlocked(permission))
+        XCTAssertTrue(broker.isResumable(permission))
+    }
+
+    /// A reopened session keeps the tightest limits it ever had.
+    func testReopenKeepsTheTightestLimits() async throws {
+        let broker = makeBroker(FakeProvider(), sealer: FakeSealer(), touchID: true)
+        try await unlockedWithTouchID(broker)
+        let strict = Manifest.VaultPermission(provider: "bitwarden", idleLockMinutes: 2, maxSessionMinutes: 5)
+        _ = await broker.itemsSource(widgetID: "strict", permission: strict)
+        clock += 3 * 60
+        XCTAssertFalse(broker.isUnlocked(permission), "past the strict 2-minute idle")
+        await reopened(broker)
+        clock += 3 * 60
+        XCTAssertFalse(broker.isUnlocked(permission), "the reopened session kept the 2-minute idle")
+    }
+
+    /// The real envelope round trip needs this Mac's Secure Enclave and a
+    /// finger, so it only checks that sealing never needs either.
+    func testSecureEnclaveSealingNeedsNoPrompt() throws {
+        let sealer = SecureEnclaveSealer()
+        guard sealer.biometryAvailable else { throw XCTSkip("no Touch ID available here") }
+        let sealed = try sealer.seal(Data("session".utf8), aad: Data("aad".utf8))
+        XCTAssertFalse(sealed.box.isEmpty)
+        XCTAssertFalse(sealed.box.contains(Data("session".utf8)))
     }
 
     func testCancelledOrWrongPasswordStaysLocked() async throws {

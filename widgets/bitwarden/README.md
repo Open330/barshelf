@@ -13,10 +13,17 @@ and cleared from the clipboard after 30 seconds.
   when the Mac sleeps, when BarShelf quits, and when the widget is disabled,
   removed or its permission revoked. Locking clears a copied password that is
   still on the clipboard.
+- **Touch ID** (optional): tick "Reopen with Touch ID for the next 8 hours" in the
+  password prompt. After an idle lock, screen lock or sleep the card then shows
+  **Unlock with Touch ID** (and **Use Password**). BarShelf keeps the session
+  sealed to your Mac's Secure Enclave, in memory only; only a current fingerprint
+  can open it. In the meantime the Bitwarden CLI stays unlocked. **Lock**, quitting
+  BarShelf, a fingerprint change, or 8 hours since you typed the password lock
+  Bitwarden fully.
 - Bitwarden's CLI keeps one session per profile: unlocking here replaces a session
   you unlocked in a terminal, and locking here locks `bw` for both.
 - While locked it shows the vault state and when it last synced, and can notify
   you when it hasn't synced for a while.
 
 Needs the Bitwarden CLI (`bw`) installed with Homebrew, npm, volta or bun, logged
-in once (`bw login`), and BarShelf 0.7.22 or later.
+in once (`bw login`), and BarShelf 0.7.22 or later (Touch ID: 0.7.23).
