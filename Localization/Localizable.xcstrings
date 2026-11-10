@@ -742,6 +742,16 @@
         }
       }
     },
+    "A notification when an AI account runs low, and another when its limits reset. Needs the aas command-line tool.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI 계정 사용량이 얼마 안 남았을 때와 한도가 초기화됐을 때 알림을 보냅니다. aas 명령줄 도구가 필요합니다."
+          }
+        }
+      }
+    },
     "A right click always opens the item's menu, which can still show the card.": {
       "localizations": {
         "ko": {
@@ -12563,7 +12573,18 @@
         }
       }
     },
+    "You'll find more in the Gallery, including packs that add a few widgets at once: usage meters, one-time codes, system sensors, and more.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "갤러리에 더 있습니다. 위젯 몇 개를 한 번에 추가하는 팩도 있습니다: 사용량 미터, 일회용 코드, 시스템 센서 등."
+          }
+        }
+      }
+    },
     "You'll find more in the Gallery: usage meters, one-time codes, system sensors, and more.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {

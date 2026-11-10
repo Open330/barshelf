@@ -83,6 +83,7 @@ enum GalleryEntryText {
         "dev.menubucket.stashbar-recent-files": Official(installURL: "https://github.com/jiunbae/stashbar", keywords: ["recent", "folder", "최근 파일", "파일", "폴더", "썸네일"]),
         "dev.barshelf.battery-meter": Official(installURL: repo + "battery-meter", keywords: ["battery", "charge", "power", "배터리", "충전", "전원"], names: ["ko": "배터리"]),
         "dev.barshelf.aas-usage": Official(installURL: "https://github.com/Open330/aas/tree/main/widgets/barshelf-aas-usage", keywords: ["usage", "quota", "claude", "codex", "사용량", "한도"]),
+        "dev.barshelf.aas-alerts": Official(installURL: "https://github.com/Open330/aas/tree/main/widgets/barshelf-aas-alerts", keywords: ["alerts", "notifications", "usage", "quota", "claude", "codex", "알림", "사용량", "한도"]),
         "dev.barshelf.muxa-watch": Official(installURL: "https://github.com/Open330/muxa/tree/main/widgets/muxa-watch", keywords: ["agents", "monitor", "에이전트", "모니터링"]),
         "dev.barshelf.otpeek": Official(installURL: "https://github.com/jiunbae/otpeek/tree/main/widgets/otpeek", keywords: ["otp", "2fa", "one-time code", "authenticator", "인증", "인증 코드", "일회용 비밀번호", "보안"]),
         "dev.barshelf.codex-reset": Official(installURL: repo + "codex-reset", keywords: ["codex", "quota", "reset", "한도", "초기화"], names: ["ko": "Codex 초기화"]),
@@ -123,6 +124,8 @@ enum GalleryEntryText {
             return String(localized: "Your battery level as a large percentage and a colored meter.")
         case "dev.barshelf.aas-usage":
             return String(localized: "How much of each AI account’s usage is left and when it resets. Needs the aas command-line tool.")
+        case "dev.barshelf.aas-alerts":
+            return String(localized: "A notification when an AI account runs low, and another when its limits reset. Needs the aas command-line tool.")
         case "dev.barshelf.muxa-watch":
             return String(localized: "What each muxa coding agent is doing, on this Mac or over SSH. Needs the muxa command-line tool and Deno.")
         case "dev.barshelf.otpeek":
