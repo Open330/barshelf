@@ -193,6 +193,44 @@ final class WorkflowEngineTests: XCTestCase {
         XCTAssertEqual(output.expandedItemCount, 2) // clamped to Int.max → keeps all
     }
 
+    func testDateAndDurationFunctions() throws {
+        let def = try definition("""
+        { "schemaVersion": 1, "sources": {},
+          "view": { "type": "text", "id": "t", "text": "${concat(date.ms('2026-11-10T02:19:15Z'), '|', date.ms('2026-11-10T02:19:15.250Z'), '|', date.ms('nope'), '|', date.ms(5), '|', date.ms(null), '|', duration.short(3930), '|', duration.short(720), '|', duration.short(40.4), '|', duration.short(-5), '|', duration.short('x'), '|', date.clock('x'))}" } }
+        """)
+        let output = try WorkflowEngine.evaluate(def, sources: [:], settings: .object([:]), nowMs: nowMs)
+        XCTAssertEqual(output.viewTree.text, "1794277155000|1794277155250||5||1:05|12m|40s|0s||")
+    }
+
+    func testDateClockIsLocalHoursAndMinutes() throws {
+        var components = DateComponents()
+        components.year = 2026; components.month = 11; components.day = 10
+        components.hour = 7; components.minute = 5
+        let ms = try XCTUnwrap(Calendar.current.date(from: components)).timeIntervalSince1970 * 1000
+        let def = try definition("""
+        { "schemaVersion": 1, "sources": {},
+          "view": { "type": "text", "id": "t", "text": "${date.clock(\(ms))}" } }
+        """)
+        XCTAssertEqual(try WorkflowEngine.evaluate(def, sources: [:], settings: .object([:]), nowMs: nowMs).viewTree.text, "07:05")
+    }
+
+    /// `template` returns its expanded `with`, so a workflow can build an
+    /// object, including a mapped list, which `assign` cannot.
+    func testTemplateTransformBuildsObjects() throws {
+        let def = try definition("""
+        { "schemaVersion": 1, "sources": {},
+          "transforms": {
+            "o": { "use": "template", "with": {
+              "n": "${add(1, 2)}",
+              "rows": { "forEach": "$.sources.s.items", "as": "i", "template": { "id": "${concat('r', i.k)}" } } } } },
+          "view": { "type": "text", "id": "t", "text": "${concat(transforms.o.n, transforms.o.rows.1.id)}" } }
+        """)
+        let output = try WorkflowEngine.evaluate(
+            def, sources: ["s": .object(["items": .array([.object(["k": .string("a")]), .object(["k": .string("b")])])])],
+            settings: .object([:]), nowMs: nowMs)
+        XCTAssertEqual(output.viewTree.text, "3rb")
+    }
+
     func testDateRelativeWithHugeNegativeDoesNotCrash() throws {
         let def = try definition("""
         { "schemaVersion": 1, "sources": {},

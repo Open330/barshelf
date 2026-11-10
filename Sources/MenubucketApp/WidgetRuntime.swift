@@ -2388,6 +2388,27 @@ final class WidgetRuntime: ObservableObject {
                     if fsParams.watch {
                         registerWorkflowWatch(widgetID: widget.id, directory: listing.directory)
                     }
+                case "fs.json":
+                    let jsonParams = try FileSource.JSONFileParams(from: value)
+                    let readPaths = effectiveReadPaths(for: widget)
+                    do {
+                        sourceValues[sourceID] = try await Task.detached(priority: .userInitiated) {
+                            try FileSource.readJSON(jsonParams, authorizedBy: readPaths)
+                        }.value
+                    } catch let error as FileSource.FileSourceError {
+                        let reason: String
+                        switch error {
+                        case .unauthorizedPath: reason = "path not in permissions.readPaths or a picked folder"
+                        case .notARegularFile: reason = "not a regular file"
+                        case .tooLarge: reason = "over maxBytes"
+                        default: throw error
+                        }
+                        auditLog.record("file.blocked", widgetId: widget.id, detail: [
+                            "path": .string(jsonParams.path), "reason": .string(reason),
+                        ])
+                        throw error
+                    }
+                    try checkNativeRefresh(widget, token: token)
                 case "exec":
                     sourceValues[sourceID] = try await runWorkflowExecSource(
                         widget: widget, params: value
@@ -2404,7 +2425,7 @@ final class WidgetRuntime: ObservableObject {
                     sourceValues[sourceID] = value
                 default:
                     throw RuntimeError.invalidWorkflow(
-                        "unknown source use \"\(source.use)\" (v1: exec, fs.directory, http, system, value)"
+                        "unknown source use \"\(source.use)\" (v1: exec, fs.directory, fs.json, http, system, value)"
                     )
                 }
             }

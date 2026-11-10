@@ -55,6 +55,7 @@
           "enum": [
             "exec",
             "fs.directory",
+            "fs.json",
             "http",
             "system",
             "value"
@@ -81,6 +82,25 @@
             "properties": {
               "with": {
                 "$ref": "#/definitions/fsDirectoryOptions"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "use": {
+                "const": "fs.json"
+              }
+            },
+            "required": [
+              "use"
+            ]
+          },
+          "then": {
+            "properties": {
+              "with": {
+                "$ref": "#/definitions/fsJsonOptions"
               }
             }
           }
@@ -125,6 +145,25 @@
         }
       ],
       "additionalProperties": true
+    },
+    "fsJsonOptions": {
+      "description": "Reads one JSON file (BarShelf 0.7.17+). Output: exists, valid, value (the parsed JSON, or null), modifiedAt (Unix ms), size (bytes), path. A missing or unparsable file is a reading, not an error.",
+      "type": "object",
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/definitions/templateString"
+        },
+        "maxBytes": {
+          "description": "Largest file accepted, in bytes. Default 1048576, at most 5242880.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5242880
+        }
+      },
+      "additionalProperties": false
     },
     "fsDirectoryOptions": {
       "description": "Lists one directory. Output items expose id, path, name, modifiedAt (Unix ms), size (bytes), isDirectory, and ext.",
@@ -208,6 +247,7 @@
           "type": "string",
           "enum": [
             "assign",
+            "template",
             "filter",
             "sort",
             "limit"
