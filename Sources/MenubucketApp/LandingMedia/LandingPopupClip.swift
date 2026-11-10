@@ -7,7 +7,7 @@ import SwiftUI
 /// search and "cpu" is typed, its first result highlighted; esc closes
 /// search and a second click closes the popup.
 @MainActor
-struct LandingPopupClip {
+final class LandingPopupClip: LandingPlate {
     let demo: LandingDemo
 
     static let duration = 13.0
@@ -24,114 +24,147 @@ struct LandingPopupClip {
     static let findClose = 9.0
     static let close = 10.2
 
-    private var scale: CGFloat { LandingMediaMode.pixelSize.width / Self.size.width }
+    var size: CGSize { Self.size }
+    let scale: CGFloat
+    /// Light or dark desktop; the landing clip is light.
+    let dark: Bool
 
-    func record(to dir: URL, ffmpeg: String) -> Bool {
-        guard let wallpaper = LandingWallpaper.make(size: Self.size, dark: Self.dark) else { return false }
-        let bar = LandingMenuBar(width: Self.size.width, dark: Self.dark)
+    private var wallpaper: LandingWallpaper!
+    private var bar: LandingMenuBar!
+    private var host: HostedView<AnyView>!
+    private var search: HostedView<AnyView>!
+    private var popupSize: CGSize = .zero
+    private var popupFrame: CGRect = .zero
+    private var itemRect: CGRect = .zero
+    private var pointer: LandingPath!
+    private var clusterLayer: LandingLayer?
+    private var typedIndex = -1
+
+    init(demo: LandingDemo, scale: CGFloat? = nil,
+         dark: Bool? = nil) {
+        self.demo = demo
+        self.scale = scale ?? LandingMediaMode.pixelSize.width / Self.size.width
+        self.dark = dark ?? Self.dark
+    }
+
+    func prepare() -> Bool {
+        guard let wallpaper = LandingWallpaper.make(size: Self.size, dark: dark) else { return false }
+        self.wallpaper = wallpaper
+        let bar = LandingMenuBar(width: Self.size.width, dark: dark)
+        self.bar = bar
         demo.stage(at: 0)
         let cluster = LandingCluster(chips: demo.clusterChips(), events: [])
         let colors = demo.chipColors(cluster.chips)
         let itemRight = bar.itemRight
         let mark = cluster.markPoint(itemRight: itemRight)
         let itemWidth = CGFloat(ClusterGeometry(count: cluster.chips.count).itemWidth) + 2 * MenuBarController.clusterItemInset
-        let itemRect = CGRect(x: itemRight - itemWidth, y: 2, width: itemWidth, height: LandingMenuBar.height - 4)
+        itemRect = CGRect(x: itemRight - itemWidth, y: 2, width: itemWidth, height: LandingMenuBar.height - 4)
 
         let pager = demo.pager
         pager.index = 0
         demo.runtime.prefs.setGroupsOrder(["Today", "System"])
-        let host = HostedView(AnyView(RootView(runtime: demo.runtime, pager: pager)), dark: Self.dark)
+        host = HostedView(AnyView(RootView(runtime: demo.runtime, pager: pager)), dark: dark)
         // The search sheet is the real `SearchOverlay`, hosted on its own so
         // the redrawn glass can go between it and the shelf (offscreen
         // drawing leaves the system glass out).
         let searchWidth = RootView.defaultSize.width - 2 * Spacing.xs
-        let search = HostedView(AnyView(
+        search = HostedView(AnyView(
             SearchOverlay(runtime: demo.runtime, pager: pager, isPresented: .constant(true))
                 .frame(width: searchWidth)
-        ), dark: Self.dark)
+        ), dark: dark)
         guard let first = host.layer(scale: scale * 1.25, settle: 0.6) else { return false }
-        let popupSize = first.size
+        popupSize = first.size
         var popupX = itemRect.midX - popupSize.width / 2
         popupX = min(popupX, Self.size.width - popupSize.width - 8)
-        let popupFrame = CGRect(x: popupX, y: LandingMenuBar.height + 7, width: popupSize.width, height: popupSize.height)
+        popupFrame = CGRect(x: popupX, y: LandingMenuBar.height + 7, width: popupSize.width, height: popupSize.height)
 
         let start = CGPoint(x: itemRight + 40, y: 120)
         let inside = CGPoint(x: popupFrame.midX + 40, y: popupFrame.minY + 230)
-        let pointer = LandingPath(keys: [
+        pointer = LandingPath(keys: [
             (0, start), (0.35, start), (Self.open - 0.12, mark), (Self.open + 0.35, mark),
             (Self.open + 1.0, inside), (Self.close - 0.75, inside), (Self.close - 0.1, mark),
             (Self.close + 0.3, mark), (Self.close + 1.3, start),
         ])
+        clusterLayer = cluster.image(cluster.state(at: 0), colors: colors, dark: dark, scale: scale)
+        typedIndex = -1
+        return true
+    }
 
+    /// Times must not go backwards: the pager and the search field keep
+    /// their state between frames, as they do on screen.
+    func frame(at t: Double) -> CGImage? {
+        demo.stage(at: t)
+        let pager = demo.pager
+
+        // Drive the real pager the way a two-finger swipe does.
+        if t >= Self.swipe, t < Self.swipeEnd {
+            if !pager.isSwiping, pager.index == 0 { pager.beginSwipe() }
+            pager.updateSwipe(totalDeltaX: -swipeOffset(t, width: popupSize.width), pageCount: 2)
+        } else if t >= Self.swipeEnd, pager.isSwiping {
+            pager.index = 1
+            pager.dragOffset = 0
+            pager.cancelSwipe()
+        }
+        if let next = Self.typed.lastIndex(where: { $0.t <= t }), next > typedIndex {
+            typedIndex = next
+            type(Self.typed[next].text, in: search.hosting)
+        }
+        if t >= Self.close + 0.3, pager.index != 0 {
+            // Closed: back to the first page and an empty search for the
+            // next loop.
+            type("", in: search.hosting)
+            typedIndex = -1
+            pager.index = 0
+        }
+
+        let popupAlpha = min(Ease.out(t, Self.open, Self.open + 0.12), 1 - Ease.out(t, Self.close, Self.close + 0.12))
+        var shelf: LandingLayer?
+        var sheet: (layer: LandingLayer, alpha: Double)?
+        if popupAlpha > 0 {
+            guard let layer = host.layer(scale: scale * 1.25) else { return nil }
+            shelf = layer
+            // The sheet springs in (`Motion.press`) and fades out.
+            let sheetAlpha = min(Ease.spring(t, Self.find, duration: 0.3), 1 - Ease.out(t, Self.findClose, Self.findClose + 0.18))
+            if t >= Self.find, t < Self.findClose + 0.18 {
+                guard let layer = search.layer(scale: scale * 1.25) else { return nil }
+                sheet = (layer, min(max(sheetAlpha, 0), 1))
+            }
+        }
+        let press = max(
+            Ease.window(t, Self.open - 0.08, Self.open + 0.1, rise: 0.06, fall: 0.1),
+            Ease.window(t, Self.close - 0.08, Self.close + 0.1, rise: 0.06, fall: 0.1)
+        )
+        let keyCaps: (keys: [String], alpha: Double)? = {
+            for (time, keys) in [(Self.find, ["⌘", "F"]), (Self.findClose, ["esc"])]
+            where t >= time - 0.3 && t < time + 0.8 {
+                return (keys, Ease.window(t, time - 0.3, time + 0.8, rise: 0.15, fall: 0.25))
+            }
+            return nil
+        }()
+        let highlight = t >= Self.open && t < Self.close ? 1.0 : 0
+        let scene = PopupScene(
+            wallpaper: wallpaper, bar: bar, cluster: clusterLayer,
+            clusterX: bar.itemRight - MenuBarController.clusterItemInset - (clusterLayer?.size.width ?? 0),
+            itemRect: itemRect, highlight: highlight, shelf: shelf, popupAlpha: popupAlpha, sheet: sheet,
+            popupFrame: popupFrame,
+            pointer: pointer.at(t), press: press, keyCaps: keyCaps
+        )
+        return landingFrame(scene, size: Self.size, scale: scale)
+    }
+
+    func record(to dir: URL, ffmpeg: String) -> Bool {
+        guard prepare() else { return false }
         guard let encoder = LandingEncoder(
             ffmpeg: ffmpeg, size: LandingMediaMode.pixelSize, fps: LandingMediaMode.fps,
             mp4: dir.appendingPathComponent("popup-shelf.mp4"),
             webm: dir.appendingPathComponent("popup-shelf.webm")
         ) else { return false }
-
-        let clusterLayer = cluster.image(cluster.state(at: 0), colors: colors, dark: Self.dark, scale: scale)
-        var typedIndex = -1
         var poster: CGImage?
         let posterTime = 7.6
         let frames = Int(Self.duration * Double(LandingMediaMode.fps))
         for index in 0..<frames {
             let t = Double(index) / Double(LandingMediaMode.fps)
-            demo.stage(at: t)
-
-            // Drive the real pager the way a two-finger swipe does.
-            if t >= Self.swipe, t < Self.swipeEnd {
-                if !pager.isSwiping, pager.index == 0 { pager.beginSwipe() }
-                pager.updateSwipe(totalDeltaX: -swipeOffset(t, width: popupSize.width), pageCount: 2)
-            } else if t >= Self.swipeEnd, pager.isSwiping {
-                pager.index = 1
-                pager.dragOffset = 0
-                pager.cancelSwipe()
-            }
-            if let next = Self.typed.lastIndex(where: { $0.t <= t }), next > typedIndex {
-                typedIndex = next
-                type(Self.typed[next].text, in: search.hosting)
-            }
-            if t >= Self.close + 0.3, pager.index != 0 {
-                // Closed: back to the first page and an empty search for the
-                // next loop.
-                type("", in: search.hosting)
-                typedIndex = -1
-                pager.index = 0
-            }
-
-            let popupAlpha = min(Ease.out(t, Self.open, Self.open + 0.12), 1 - Ease.out(t, Self.close, Self.close + 0.12))
-            var shelf: LandingLayer?
-            var sheet: (layer: LandingLayer, alpha: Double)?
-            if popupAlpha > 0 {
-                guard let layer = host.layer(scale: scale * 1.25) else { return false }
-                shelf = layer
-                // The sheet springs in (`Motion.press`) and fades out.
-                let sheetAlpha = min(Ease.spring(t, Self.find, duration: 0.3), 1 - Ease.out(t, Self.findClose, Self.findClose + 0.18))
-                if t >= Self.find, t < Self.findClose + 0.18 {
-                    guard let layer = search.layer(scale: scale * 1.25) else { return false }
-                    sheet = (layer, min(max(sheetAlpha, 0), 1))
-                }
-            }
-            let press = max(
-                Ease.window(t, Self.open - 0.08, Self.open + 0.1, rise: 0.06, fall: 0.1),
-                Ease.window(t, Self.close - 0.08, Self.close + 0.1, rise: 0.06, fall: 0.1)
-            )
-            let keyCaps: (keys: [String], alpha: Double)? = {
-                for (time, keys) in [(Self.find, ["⌘", "F"]), (Self.findClose, ["esc"])]
-                where t >= time - 0.3 && t < time + 0.8 {
-                    return (keys, Ease.window(t, time - 0.3, time + 0.8, rise: 0.15, fall: 0.25))
-                }
-                return nil
-            }()
-            let highlight = t >= Self.open && t < Self.close ? 1.0 : 0
-            let scene = PopupScene(
-                wallpaper: wallpaper, bar: bar, cluster: clusterLayer,
-                clusterX: itemRight - MenuBarController.clusterItemInset - (clusterLayer?.size.width ?? 0),
-                itemRect: itemRect, highlight: highlight, shelf: shelf, popupAlpha: popupAlpha, sheet: sheet,
-                popupFrame: popupFrame,
-                pointer: pointer.at(t), press: press, keyCaps: keyCaps
-            )
-            guard let frame = landingFrame(scene, size: Self.size, scale: scale) else { return false }
+            guard let frame = frame(at: t) else { return false }
             encoder.append(frame)
             if abs(t - posterTime) < 0.5 / Double(LandingMediaMode.fps) { poster = frame }
         }

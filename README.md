@@ -21,7 +21,9 @@ usage, OTP codes, GitHub reviews, recent files — or anything your own scripts 
 [**Build a Widget**](docs/WIDGET-SPEC.md) ·
 [**Publish**](docs/PUBLISHING.md)
 
-<img src="assets/media/popover.png" width="360" alt="BarShelf popover with native Today, Battery, Weather, and aas usage widgets" />
+<a href="https://barshelf.jiun.dev/#film"><img src="assets/media/film-poster.jpg" width="640" alt="BarShelf film: the menu bar cluster with the System card open. Click to watch on barshelf.jiun.dev" /></a>
+
+<sub>▶ <a href="https://barshelf.jiun.dev/#film">Watch the 33-second film</a></sub>
 
 </div>
 
@@ -35,9 +37,14 @@ widgets. Any command-line tool you already have becomes a widget in minutes; no
 new SDK to learn.
 
 - **🪟 One icon, many widgets** — bucket pages, trackpad swipe, pinned row, ⌘F search.
+- **⌨️ Keyboard all the way** — arrows choose a widget, ⌥⌘-arrows move it,
+  Return opens its settings, Delete removes it, Esc clears; ← → step through
+  the menu bar's cards.
 - **📊 Live in the menu bar** — opt a widget in and its value updates right on
   the bar (`✦ 42% · 61% · 58°`), sharing the BarShelf icon or on its own.
   Or show them as a cluster of small chips beside the icon.
+- **🖥️ On the desktop too** — any widget can appear as a macOS desktop widget,
+  mirrored from the same view.
 - **🧭 A dock, if you want one** — put apps, folders, links, Shortcuts, and live
   widgets on a screen-edge dock, alongside the Apple Dock or instead of it, and
   switch profiles (⌃⌥1–9, swipe, Focus) — the Apple Dock's apps can follow.
@@ -45,6 +52,8 @@ new SDK to learn.
 - **🎨 Native, not web** — SwiftUI rendering, dark mode, SF Symbols, vibrancy. No Electron.
 - **🧩 Three ways to build** — declarative workflows, a Shortcuts-style visual builder, or full scripts.
 - **🔒 Permission-gated** — widget capabilities are declared, approved, enforced, and recorded in an audit log.
+  A red dot on the menu bar icon says when a widget is waiting for you; an update
+  that only drops permissions keeps its approval, anything new asks again.
 
 ## Three execution layers, one widget model
 

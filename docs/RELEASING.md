@@ -226,7 +226,14 @@ ffmpeg로 인코딩하므로, 화면 녹화도 실제 마우스도 필요 없다
 brew install ffmpeg                        # 처음 한 번
 scripts/render-landing-media.sh            # 전부 (약 3분)
 scripts/render-landing-media.sh hero       # 하나만: hero | popup | stills
+scripts/render-landing-media.sh film       # 랜딩 필름 (전부에는 포함 안 됨, 약 1분)
 ```
+
+- 필름(`film.{mp4,webm,jpg}`)은 위 클립과 같은 장면(plate)에 필름 전용 장면
+  (메뉴바 정리, 위젯 만들기, 데스크톱·독, 권한)을 더해 카메라·자막·전환으로
+  편집한 33초 영상이다(`LandingFilm.swift`, 톤은 `LandingFilm.landing`).
+  키노트 톤은 `film-keynote`, 스틸 미리보기는 `film-preview`로 뽑는다.
+  README 포스터 `assets/media/film-poster.jpg`는 `film.jpg`를 복사한 것이다.
 
 - 산출물: `hero-menubar.{mp4,webm,jpg}`(히어로), `popup-shelf.{mp4,webm,jpg}`
   (쇼케이스), `og-image.jpg`, `popover-{light,dark}.png`, `tile-*.png`,

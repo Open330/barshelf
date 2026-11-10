@@ -13,7 +13,14 @@ final class LandingDemo {
     let pager = PagerState()
     /// The moment the demo is set at; every reading's age and countdown is
     /// measured from it.
-    let now = Date()
+    /// The staged menu bar's clock (`LandingMenuBar.clock`): Thu Nov 12,
+    /// 4:48 PM, in this Mac's time zone, so times the widgets work out
+    /// (Keep Awake's "until") agree with it.
+    let now: Date = LandingDemo.stagedNow
+
+    nonisolated static let stagedNow: Date = Calendar.current.date(from: DateComponents(
+        year: 2026, month: 11, day: 12, hour: 16, minute: 48, second: 5
+    )) ?? Date()
 
     /// Widget instance ids, in the order the menu bar cluster shows them.
     enum ID {
@@ -218,20 +225,29 @@ final class LandingDemo {
                 ]),
             ]
         case "dev.barshelf.keep-awake":
-            // What the widget's helper reports for an override 1 h 42 min
-            // from its end (its `status` output, in shape).
+            // PowerDisplayGuard's status file as the widget's `fs.json`
+            // source reads it: an override 1 h 42 min from its end, lid
+            // closed allowed, on battery.
+            let iso = { (ms: Double) in ISO8601DateFormatter().string(from: Date(timeIntervalSince1970: ms / 1000)) }
             let until = nowMs + (102 * 60 + 30) * 1000
-            return [
-                "guard": .object([
-                    "state": .string("ok"), "phase": .string("override"), "onAC": .bool(false),
-                    "holding": .bool(true), "sleepDisabled": .bool(false), "ageSeconds": .number(1),
-                    "remaining": .string("1:42"), "untilText": .string("18:30"), "graceText": .string(""),
-                    "untilMs": .number(until), "fromMs": .number(until - 3 * 3600 * 1000),
-                    "lidClosedEffective": .bool(true), "note": .string(""), "requestPending": .bool(false),
-                    "blockers": .array([]), "blockerCount": .number(0),
-                    "icon": .string("cup.and.saucer.fill"), "menuLabel": .string("1:42"),
+            let status: JSONValue = .object([
+                "version": .number(1), "updatedAt": .string(iso(nowMs - 1000)),
+                "onAC": .bool(false), "phase": .string("override"), "holding": .bool(true),
+                "sleepDisabled": .bool(false), "blockers": .array([]),
+                "override": .object([
+                    "id": .string("landing"), "until": .string(iso(until)),
+                    "createdAt": .string(iso(until - 3 * 3600 * 1000)),
+                    "lidClosed": .bool(true), "lidClosedEffective": .bool(true), "source": .string("barshelf"),
                 ]),
-            ]
+            ])
+            let file = { (value: JSONValue, name: String) -> JSONValue in
+                .object([
+                    "exists": .bool(value != .null), "valid": .bool(true), "value": value,
+                    "modifiedAt": .number(nowMs - 1000), "size": .number(512),
+                    "path": .string("~/Library/Application Support/PowerDisplayGuard/\(name)"),
+                ])
+            }
+            return ["status": file(status, "status.json"), "pending": file(.null, "override.json")]
         case "dev.barshelf.today":
             return ["data": .object([
                 "weekday": .string("Thursday"), "month": .string("Nov"), "day": .string("12"),
