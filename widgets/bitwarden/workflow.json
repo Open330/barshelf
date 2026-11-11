@@ -47,7 +47,7 @@
     },
     "syncMs": {
       "use": "assign",
-      "from": "date.ms(sources.bw.lastSync)"
+      "from": "date.ms(coalesce(sources.vault.lastSync, sources.bw.lastSync))"
     },
     "ageDays": {
       "use": "assign",
@@ -63,11 +63,11 @@
     },
     "server": {
       "use": "assign",
-      "from": "if(eq(string(sources.bw.serverUrl), ''), if(transforms.ko, 'bitwarden.com (기본)', 'bitwarden.com (default)'), sources.bw.serverUrl)"
+      "from": "if(eq(string(coalesce(sources.vault.server, sources.bw.serverUrl)), ''), if(transforms.ko, 'bitwarden.com (기본)', 'bitwarden.com (default)'), coalesce(sources.vault.server, sources.bw.serverUrl))"
     },
     "staleReading": {
       "use": "assign",
-      "from": "if(and(transforms.ok, ne(sources.bw.status, 'unauthenticated'), ne(transforms.syncMs, null), coalesce(settings.alertOnStale, true)), transforms.stale, null)"
+      "from": "if(and(transforms.ok, ne(transforms.state, 'unauthenticated'), ne(transforms.syncMs, null), coalesce(settings.alertOnStale, true)), transforms.stale, null)"
     },
     "alertTitle": {
       "use": "assign",
@@ -75,7 +75,7 @@
     },
     "alertBody": {
       "use": "assign",
-      "from": "if(transforms.ko, '터미널에서 bw sync를 실행하거나 Bitwarden 앱을 여세요.', 'Run bw sync in Terminal or open a Bitwarden app.')"
+      "from": "if(transforms.ko, 'BarShelf에서 잠금을 해제하면 동기화됩니다.', 'Unlocking it in BarShelf syncs it.')"
     },
     "unlocked": {
       "use": "assign",

@@ -53,6 +53,15 @@ enum VaultAccount: String, Sendable {
     case signedIn, signedOut, unknown
 }
 
+/// What `bw status` says about BarShelf's profile. No secret in it.
+struct VaultStatus: Equatable, Sendable {
+    var account: VaultAccount
+    var lastSync: String?
+    var server: String?
+
+    static let unknown = VaultStatus(account: .unknown)
+}
+
 /// What signing in needs. The password is passed on stdin, never argv.
 struct VaultSignIn: Sendable {
     var server: String?
@@ -61,6 +70,11 @@ struct VaultSignIn: Sendable {
     /// Bitwarden's two-step method number (0 authenticator, 1 email, 3 YubiKey OTP).
     var method: Int?
     var code: String?
+    /// A personal API key, for accounts Bitwarden asks to verify this new
+    /// device by emailed code (which bw only takes interactively). Passed in
+    /// the child's environment only; the password then unlocks.
+    var clientID: String?
+    var clientSecret: String?
 }
 
 /// A password manager BarShelf drives itself. The widget cannot choose its
@@ -76,8 +90,9 @@ protocol VaultProvider: Sendable {
     /// Pulls the vault from the server into BarShelf's profile. Unlocking
     /// only decrypts the local copy, so it is done once per unlock.
     func sync(session: String) async throws
-    /// Whether BarShelf's profile has an account (not whether it is unlocked).
-    func account() async -> VaultAccount
+    /// Whether BarShelf's profile has an account (not whether it is
+    /// unlocked), when it last synced and with which server.
+    func status() async -> VaultStatus
     /// Signs BarShelf's profile in and returns the session it unlocks.
     func signIn(_ request: VaultSignIn) async throws -> String
     /// Server and email of the account the user's own CLI uses, to prefill
@@ -138,36 +153,59 @@ struct BitwardenCLIProvider: VaultProvider {
         return try Self.sessionKey(output.stdout, failure: .unlockFailed)
     }
 
+    /// A large vault can take a while; longer than other calls.
     func sync(session: String) async throws {
-        _ = try await run(["sync"], stdin: nil, session: session, failure: .failed)
+        let output = try await capture(["sync"], stdin: nil, session: session, timeout: max(timeout, 120))
+        guard output.exitCode == 0 else { throw VaultError.failed }
     }
 
-    func account() async -> VaultAccount {
+    func status() async -> VaultStatus {
         guard let output = try? await capture(["status"], stdin: nil, session: nil), output.exitCode == 0,
-              let status = (try? JSONSerialization.jsonObject(with: output.stdout) as? [String: Any])?["status"] as? String
+              let object = try? JSONSerialization.jsonObject(with: output.stdout) as? [String: Any],
+              let status = object["status"] as? String
         else { return .unknown }
-        return status == "unauthenticated" ? .signedOut : .signedIn
+        return VaultStatus(account: status == "unauthenticated" ? .signedOut : .signedIn,
+                           lastSync: object["lastSync"] as? String, server: object["serverUrl"] as? String)
     }
 
     func signIn(_ request: VaultSignIn) async throws -> String {
         let input = Data((request.password + "\n").utf8)
-        guard input.count <= Self.maxPasswordBytes, !request.email.isEmpty else { throw VaultError.signInFailed }
-        if let server = request.server, !server.isEmpty {
-            // Only https servers; the profile is signed out here, which
-            // `config server` requires.
-            guard let url = URL(string: server), url.scheme == "https", url.host != nil else { throw VaultError.signInFailed }
-            let config = try await capture(["config", "server", url.absoluteString], stdin: nil, session: nil)
-            guard config.exitCode == 0 else { throw VaultError.signInFailed }
+        guard input.count <= Self.maxPasswordBytes, !request.email.isEmpty, !request.email.hasPrefix("-") else {
+            throw VaultError.signInFailed
         }
-        var arguments = ["login", request.email, "--passwordfile", "/dev/stdin", "--raw"]
+        // The profile is signed out here, which `config server` requires.
+        // An empty field resets it to bitwarden.com, so a mistyped server
+        // does not stick; anything else must be https.
+        var server = "bitwarden.com"
+        if let typed = request.server, !typed.isEmpty {
+            guard let url = URL(string: typed), url.scheme == "https", url.host != nil else { throw VaultError.signInFailed }
+            server = url.absoluteString
+        }
+        let config = try await capture(["config", "server", server], stdin: nil, session: nil)
+        guard config.exitCode == 0 else { throw VaultError.signInFailed }
+
+        if let clientID = request.clientID, let secret = request.clientSecret, !clientID.isEmpty, !secret.isEmpty {
+            // API-key login signs in without unlocking; the password unlocks.
+            let login = try await capture(["login", "--apikey"], stdin: nil, session: nil,
+                                          environment: ["BW_CLIENTID": clientID, "BW_CLIENTSECRET": secret])
+            guard login.exitCode == 0 else { throw VaultError.signInFailed }
+            let unlocked = try await capture(["unlock", "--passwordfile", "/dev/stdin", "--raw"], stdin: input, session: nil)
+            guard unlocked.exitCode == 0 else { throw VaultError.unlockFailed }
+            return try Self.sessionKey(unlocked.stdout, failure: .unlockFailed)
+        }
+
+        var arguments = ["login", "--passwordfile", "/dev/stdin", "--raw"]
         if let method = request.method {
             arguments += ["--method", String(method)]
             // The one-time code goes in argv: bw has no other way to take it.
             if let code = request.code, !code.isEmpty { arguments += ["--code", code] }
         }
+        arguments += ["--", request.email]
         let output = try await capture(arguments, stdin: input, session: nil)
         guard output.exitCode == 0 else {
-            if Self.mentions(output.stderr, "code is required") || Self.mentions(output.stderr, "two-step") {
+            // "Code is required." covers two-step and new-device checks;
+            // several two-step methods without --method: "No provider selected."
+            if ["code is required", "two-step", "no provider selected"].contains(where: { Self.mentions(output.stderr, $0) }) {
                 throw VaultError.twoFactorRequired
             }
             throw VaultError.signInFailed
@@ -244,8 +282,8 @@ struct BitwardenCLIProvider: VaultProvider {
     /// One bw run in BarShelf's profile (or, for `suggestedAccount` only,
     /// the user's default one). Launch errors map to `VaultError`; the
     /// caller classifies a non-zero exit.
-    func capture(_ arguments: [String], stdin: Data?, session: String?,
-                 ownProfile: Bool = true) async throws -> ExecService.Capture {
+    func capture(_ arguments: [String], stdin: Data?, session: String?, ownProfile: Bool = true,
+                 environment extra: [String: String] = [:], timeout: TimeInterval? = nil) async throws -> ExecService.Capture {
         guard let executable = executableOverride ?? Self.executable() else { throw VaultError.notInstalled }
         let home = NSHomeDirectory()
         var environment = [
@@ -256,6 +294,7 @@ struct BitwardenCLIProvider: VaultProvider {
             "LANG": "en_US.UTF-8",
         ]
         if let session { environment["BW_SESSION"] = session }
+        environment.merge(extra) { _, new in new }
         if ownProfile {
             try? FileManager.default.createDirectory(at: dataDirectory, withIntermediateDirectories: true,
                                                      attributes: [.posixPermissions: 0o700])
@@ -263,7 +302,7 @@ struct BitwardenCLIProvider: VaultProvider {
         }
         let result = await ExecService.capture(
             command: [executable.path] + arguments, discover: nil,
-            timeoutMs: Int(timeout * 1000), workingDirectory: URL(fileURLWithPath: home),
+            timeoutMs: Int((timeout ?? self.timeout) * 1000), workingDirectory: URL(fileURLWithPath: home),
             extraEnvironment: environment, stdoutLimit: Self.maxOutputBytes, stdin: stdin)
         try Task.checkCancellation()
         switch result {
@@ -373,15 +412,17 @@ final class VaultBroker {
     }
 
     /// A two-step login answer. An empty code with the email method asks
-    /// Bitwarden to send one.
+    /// Bitwarden to send one; `useAPIKey` switches to API-key sign-in.
     struct TwoFactorAnswer {
         var method: Int
         var code: String
+        var useAPIKey = false
     }
 
     private var sessions: [String: Session] = [:]
-    /// Provider → whether BarShelf's own profile has an account, as last seen.
-    private var accounts: [String: VaultAccount] = [:]
+    /// Provider → BarShelf's own profile as last seen: account, last sync, server.
+    private var statuses: [String: VaultStatus] = [:]
+    private func account(_ provider: String) -> VaultAccount { statuses[provider]?.account ?? .unknown }
     private var resumes: [String: Resume] = [:]
     /// Providers whose pending unlock is a password unlock already sent to
     /// the provider: ending it voids any older sealed key, so it ends hard.
@@ -423,6 +464,8 @@ final class VaultBroker {
                           _ offerTouchID: Bool, _ touchIDDefault: Bool) -> SignInAnswer? = VaultBroker.signInPrompt
     /// The host-owned two-step code prompt; `emailSent` once a code went out.
     var promptForTwoFactor: (_ emailSent: Bool) -> TwoFactorAnswer? = VaultBroker.twoFactorPrompt
+    /// The host-owned API-key prompt (client_id, client_secret).
+    var promptForAPIKey: () -> (id: String, secret: String)? = VaultBroker.apiKeyPrompt
     /// Remembers the Touch ID checkbox per provider; a private suite in tests.
     var defaults: UserDefaults = .standard
     /// Where copied fields go; a private pasteboard in tests.
@@ -509,7 +552,7 @@ final class VaultBroker {
             reopen(resume, widgetID: widgetID, permission: permission, widgetName: widgetName)
             return
         }
-        if accounts[provider] == .signedOut {
+        if account(provider) == .signedOut {
             signIn(widgetID: widgetID, permission: permission, widgetName: widgetName)
             return
         }
@@ -547,7 +590,8 @@ final class VaultBroker {
                 // Ended meanwhile: end already queued a provider lock behind
                 // this unlock. Queuing another here could land after a newer
                 // unlock and lock that session instead.
-                self.install(key, provider: provider, generation: generation, permission: permission, wantsResume: wantsResume)
+                self.install(key, provider: provider, generation: generation, permission: permission,
+                             wantsResume: wantsResume, syncAfter: true)
             } catch is CancellationError {
                 return
             } catch {
@@ -557,7 +601,7 @@ final class VaultBroker {
                 let vaultError = (error as? VaultError) ?? .unlockFailed
                 if vaultError == .signedOut {
                     // BarShelf's own profile has no account yet: sign in instead.
-                    self.accounts[provider] = .signedOut
+                    self.statuses[provider, default: .unknown].account = .signedOut
                     self.onChange?()
                     self.signIn(widgetID: widgetID, permission: permission, widgetName: widgetName)
                     return
@@ -574,11 +618,11 @@ final class VaultBroker {
     /// Installs a session a password unlock or sign-in returned, unless the
     /// attempt ended meanwhile (end then already queued a provider lock).
     private func install(_ key: String, provider: String, generation: UUID,
-                         permission: Manifest.VaultPermission, wantsResume: Bool) {
+                         permission: Manifest.VaultPermission, wantsResume: Bool, syncAfter: Bool) {
         guard pendingUnlocks[provider] == generation, generations[provider] == generation, !blocked else { return }
         pendingUnlocks[provider] = nil
         pendingPasswordUnlocks.remove(provider)
-        accounts[provider] = .signedIn
+        statuses[provider, default: .unknown].account = .signedIn
         let at = now()
         sessions[provider] = Session(key: key, generation: generation, unlockedAt: at, lastUserActionAt: at,
                                      idle: permission.idleSeconds, max: permission.maxSeconds)
@@ -586,12 +630,15 @@ final class VaultBroker {
         resumes[provider] = nil
         if wantsResume { sealForResume(key, provider: provider, permission: permission, at: at) }
         onChange?()
-        // Then fetch what changed on the server; the list redraws when done.
-        // A failure keeps the local copy (offline is fine).
+        // Unlocking only decrypts the local copy: fetch what changed on the
+        // server (sign-in already did), then redraw. A failure keeps the
+        // local copy (offline is fine).
+        guard syncAfter else { return }
         let vault = self.provider
         let sync = enqueue(provider, generation: generation) { try await vault.sync(session: key) }
         Task { @MainActor [weak self] in
             guard (try? await sync.value) != nil, let self, self.isCurrent(provider, generation) else { return }
+            await self.refreshStatus(provider)
             self.onChange?()
         }
     }
@@ -641,16 +688,31 @@ final class VaultBroker {
                     let key = try await self.enqueue(provider, generation: generation) { try await vault.signIn(attempt) }.value
                     self.audit("vault.signed_in", widgetID, ["provider": .string(provider),
                                                               "ms": .number(((self.now() - startedAt) * 1000).rounded())])
-                    self.install(key, provider: provider, generation: generation, permission: permission, wantsResume: wantsResume)
+                    self.install(key, provider: provider, generation: generation, permission: permission,
+                                 wantsResume: wantsResume, syncAfter: false)
                     return
-                } catch VaultError.twoFactorRequired where (request.code ?? "").isEmpty {
+                } catch VaultError.twoFactorRequired where (request.code ?? "").isEmpty && request.clientID == nil {
                     // Asked for a code (or, by email, just sent one).
                     guard stillPending(), let factor = self.promptForTwoFactor(request.method == 1), stillPending() else {
                         return giveUp()
                     }
+                    if factor.useAPIKey {
+                        guard let key = self.promptForAPIKey(), stillPending(), !key.id.isEmpty, !key.secret.isEmpty else {
+                            return giveUp()
+                        }
+                        request.clientID = key.id
+                        request.clientSecret = key.secret
+                        request.method = nil
+                        request.code = nil
+                        continue
+                    }
                     request.method = factor.method
                     request.code = factor.code.isEmpty ? nil : factor.code
-                    if request.code == nil, factor.method != 1 { return giveUp() }
+                    if request.code == nil, factor.method != 1 {
+                        giveUp()
+                        self.toast(String(localized: "Enter the code to sign in."))
+                        return
+                    }
                 } catch is CancellationError {
                     return
                 } catch {
@@ -786,7 +848,7 @@ final class VaultBroker {
     func itemsSource(widgetID: String, permission: Manifest.VaultPermission) async -> JSONValue {
         let provider = permission.provider
         guard let session = admit(permission) else {
-            if pendingUnlocks[provider] == nil { await refreshAccount(provider) }
+            if pendingUnlocks[provider] == nil { await refreshStatus(provider) }
             return lockedState(provider)
         }
         let generation = session.generation
@@ -816,7 +878,10 @@ final class VaultBroker {
             sessions[provider] = current
             return .object(["state": .string("unlocked"), "items": .array(rows),
                             "count": .number(Double(items.count)), "truncated": .bool(items.count > limit),
-                            "resumable": .bool(resumes[provider] != nil)])
+                            "resumable": .bool(resumes[provider] != nil),
+                            "account": .string(VaultAccount.signedIn.rawValue),
+                            "lastSync": statuses[provider]?.lastSync.map(JSONValue.string) ?? .null,
+                            "server": statuses[provider]?.server.map(JSONValue.string) ?? .null])
         } catch {
             guard isCurrent(provider, generation) else { return lockedState(provider) }
             let vaultError = (error as? VaultError) ?? .failed
@@ -829,19 +894,22 @@ final class VaultBroker {
         }
     }
 
-    /// Whether BarShelf's own profile has an account, read with `bw status`
-    /// (no session, no secret) behind any provider call already queued.
-    private func refreshAccount(_ provider: String) async {
+    /// BarShelf's own profile as `bw status` reads it (no session, no
+    /// secret), behind any provider call already queued. An unreadable
+    /// answer keeps what was known.
+    private func refreshStatus(_ provider: String) async {
         let vault = self.provider
-        let state = try? await serialTask(provider, generation: nil) { await vault.account() }.value
-        if let state, state != .unknown || accounts[provider] == nil { accounts[provider] = state }
+        guard let status = try? await serialTask(provider, generation: nil, { await vault.status() }).value else { return }
+        if status.account != .unknown || statuses[provider] == nil { statuses[provider] = status }
     }
 
     /// What a locked vault shows: whether it is being unlocked, whether
     /// BarShelf's profile needs signing in, and whether Touch ID can reopen it now.
     private func lockedState(_ provider: String) -> JSONValue {
         .object(["state": .string(pendingUnlocks[provider] != nil ? "unlocking" : "locked"), "items": .array([]),
-                 "account": .string((accounts[provider] ?? .unknown).rawValue),
+                 "account": .string(account(provider).rawValue),
+                 "lastSync": statuses[provider]?.lastSync.map(JSONValue.string) ?? .null,
+                 "server": statuses[provider]?.server.map(JSONValue.string) ?? .null,
                  "resumable": .bool(resumes[provider] != nil),
                  "biometry": sealer.biometry == .available ? .string("touchID") : .null])
     }
@@ -1042,7 +1110,7 @@ final class VaultBroker {
         alert.messageText = String(localized: "Two-Step Login")
         alert.informativeText = emailSent
             ? String(localized: "Bitwarden sent a code to your email. Enter it here.")
-            : String(localized: "Enter the code from your authenticator app or security key. To get a code by email, choose Email and leave the code empty.")
+            : String(localized: "Enter the code from your authenticator app or security key, or from an email Bitwarden already sent (choose Email). To have one emailed, choose Email and leave the code empty.\n\nNo two-step login on your account? Bitwarden is checking this new device by email, which only works with an API key here: choose Use API Key.")
         let methods: [(Int, String)] = [(0, String(localized: "Authenticator app")),
                                         (1, String(localized: "Email")),
                                         (3, String(localized: "YubiKey OTP"))]
@@ -1061,10 +1129,40 @@ final class VaultBroker {
         alert.accessoryView = stack
         alert.addButton(withTitle: String(localized: "Continue"))
         alert.addButton(withTitle: String(localized: "Cancel"))
+        alert.addButton(withTitle: String(localized: "Use API Key…"))
         alert.window.initialFirstResponder = code
-        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
+        let response = alert.runModal()
+        if response == .alertThirdButtonReturn { return TwoFactorAnswer(method: 0, code: "", useAPIKey: true) }
+        guard response == .alertFirstButtonReturn else { return nil }
         return TwoFactorAnswer(method: methods[max(popup.indexOfSelectedItem, 0)].0,
                                code: code.stringValue.trimmingCharacters(in: .whitespaces))
+    }
+
+    /// Host-owned API-key fields; the secret is a secure field.
+    static func apiKeyPrompt() -> (id: String, secret: String)? {
+        NSApp.activate()
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Sign In with an API Key")
+        alert.informativeText = String(localized: "In the Bitwarden web vault, open Settings ▸ Security ▸ Keys ▸ View API Key. BarShelf passes the key to the Bitwarden CLI for this sign-in only and does not keep it; your master password then unlocks.")
+        let id = NSTextField(frame: .zero)
+        id.placeholderString = "client_id"
+        let secret = NSSecureTextField(frame: .zero)
+        secret.placeholderString = "client_secret"
+        for field in [id, secret] {
+            field.translatesAutoresizingMaskIntoConstraints = false
+            field.widthAnchor.constraint(equalToConstant: 300).isActive = true
+        }
+        let stack = NSStackView(views: [id, secret])
+        stack.orientation = .vertical
+        stack.spacing = 8
+        stack.frame = NSRect(x: 0, y: 0, width: 300, height: 56)
+        alert.accessoryView = stack
+        alert.addButton(withTitle: String(localized: "Sign In"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
+        alert.window.initialFirstResponder = id
+        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
+        defer { secret.stringValue = "" }
+        return (id.stringValue.trimmingCharacters(in: .whitespaces), secret.stringValue.trimmingCharacters(in: .whitespaces))
     }
 
     /// A host-owned secure field: widget code never sees it or what is typed.

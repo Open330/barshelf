@@ -4008,12 +4008,33 @@
         }
       }
     },
+    "Enter the code from your authenticator app or security key, or from an email Bitwarden already sent (choose Email). To have one emailed, choose Email and leave the code empty.\n\nNo two-step login on your account? Bitwarden is checking this new device by email, which only works with an API key here: choose Use API Key.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "인증 앱이나 보안 키의 코드, 또는 Bitwarden이 이미 보낸 이메일의 코드를 입력하세요(이메일 선택). 이메일로 받으려면 이메일을 고르고 코드를 비워 두세요.\n\n계정에 2단계 로그인이 없나요? Bitwarden이 이 새 기기를 이메일로 확인하는 중이며, 여기서는 API 키로만 진행할 수 있습니다. API 키 사용을 고르세요."
+          }
+        }
+      }
+    },
     "Enter the code from your authenticator app or security key. To get a code by email, choose Email and leave the code empty.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "인증 앱이나 보안 키의 코드를 입력하세요. 이메일로 받으려면 이메일을 고르고 코드는 비워 두세요."
+          }
+        }
+      }
+    },
+    "Enter the code to sign in.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "로그인하려면 코드를 입력하세요."
           }
         }
       }
@@ -5239,6 +5260,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "전체 화면 앱에서는 Dock이 가장자리에서 기다리다가 포인터를 대면 나옵니다."
+          }
+        }
+      }
+    },
+    "In the Bitwarden web vault, open Settings ▸ Security ▸ Keys ▸ View API Key. BarShelf passes the key to the Bitwarden CLI for this sign-in only and does not keep it; your master password then unlocks.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitwarden 웹 보관함에서 설정 ▸ 보안 ▸ 키 ▸ API 키 보기를 여세요. BarShelf는 이번 로그인에만 키를 Bitwarden CLI에 전달하고 보관하지 않으며, 잠금은 마스터 비밀번호로 해제합니다."
           }
         }
       }
@@ -10618,6 +10649,16 @@
         }
       }
     },
+    "Sign In with an API Key": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "API 키로 로그인"
+          }
+        }
+      }
+    },
     "Sign in to Bitwarden in BarShelf first.": {
       "localizations": {
         "ko": {
@@ -12605,6 +12646,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ 명령 템플릿 사용"
+          }
+        }
+      }
+    },
+    "Use API Key…": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "API 키 사용…"
           }
         }
       }
