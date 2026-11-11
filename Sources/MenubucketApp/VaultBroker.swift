@@ -690,6 +690,9 @@ final class VaultBroker {
                                                               "ms": .number(((self.now() - startedAt) * 1000).rounded())])
                     self.install(key, provider: provider, generation: generation, permission: permission,
                                  wantsResume: wantsResume, syncAfter: false)
+                    // Sign-in synced: pick up its time and server for the card.
+                    await self.refreshStatus(provider)
+                    self.onChange?()
                     return
                 } catch VaultError.twoFactorRequired where (request.code ?? "").isEmpty && request.clientID == nil {
                     // Asked for a code (or, by email, just sent one).
@@ -1105,6 +1108,7 @@ final class VaultBroker {
 
     /// Host-owned two-step prompt: the method and its code.
     static func twoFactorPrompt(emailSent: Bool) -> TwoFactorAnswer? {
+        NotificationCenter.default.post(name: PopoverSurface.dismissAll, object: nil)
         NSApp.activate()
         let alert = NSAlert()
         alert.messageText = String(localized: "Two-Step Login")
@@ -1140,6 +1144,7 @@ final class VaultBroker {
 
     /// Host-owned API-key fields; the secret is a secure field.
     static func apiKeyPrompt() -> (id: String, secret: String)? {
+        NotificationCenter.default.post(name: PopoverSurface.dismissAll, object: nil)
         NSApp.activate()
         let alert = NSAlert()
         alert.messageText = String(localized: "Sign In with an API Key")
