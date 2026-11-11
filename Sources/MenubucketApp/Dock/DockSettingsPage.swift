@@ -28,12 +28,24 @@ struct DockSettingsPage: View {
 
     private var config: DockConfiguration { store.configuration }
 
+    /// The Dock's mode, its profiles and the active profile's items.
+    private var stats: [SettingsStat] {
+        [
+            SettingsStat(value: config.mode == .off ? String(localized: "Off", comment: "Dock summary: no BarShelf Dock")
+                                                    : String(localized: "On", comment: "Dock summary: BarShelf Dock shown"),
+                         label: String(localized: "BarShelf Dock")),
+            SettingsStat(value: "\(config.profiles.count)", label: String(localized: "Profiles")),
+            SettingsStat(value: "\(config.activeProfile.items.count)",
+                         label: String(localized: "Items in \(config.activeProfile.name)")),
+        ]
+    }
+
     private var selectedProfile: DockProfile {
         config.profiles.first { $0.id == selectedProfileID } ?? config.activeProfile
     }
 
     var body: some View {
-        SettingsPage {
+        SettingsPage(.dock, stats: stats) {
             modeSection
             if let error = store.lastError {
                 Section {
@@ -134,6 +146,7 @@ struct DockSettingsPage: View {
             }
         } header: {
             Text("Dock")
+                .settingsSectionTitle()
         } footer: {
             Text("Profiles below also work with the BarShelf Dock off: they can switch the Apple Dock's apps.")
                 .formFooter()
@@ -282,6 +295,7 @@ struct DockSettingsPage: View {
             }
         } header: {
             Text("Profiles")
+                .settingsSectionTitle()
         } footer: {
             Text("Each profile has its own dock items, and can carry an Apple Dock layout and a popup page. Drag to reorder; the first nine get ⌃⌥1–9.")
                 .formFooter()
@@ -379,6 +393,7 @@ struct DockSettingsPage: View {
             addMenu(profileID: profile.id)
         } header: {
             Text("Items in \(profile.name)")
+                .settingsSectionTitle()
         }
     }
 
@@ -577,6 +592,7 @@ struct DockSettingsPage: View {
             }
         } header: {
             Text("Apple Dock Layout")
+                .settingsSectionTitle()
         } footer: {
             Text("Arrange the Apple Dock the way you want it for this profile, then save. Switching restarts the Dock briefly; open apps and windows stay as they are. The previous layout is backed up first.")
                 .formFooter()
@@ -614,6 +630,7 @@ struct DockSettingsPage: View {
             }
         } header: {
             Text("Switching")
+                .settingsSectionTitle()
         } footer: {
             Text("To follow a Focus: in Shortcuts, add a personal automation for when the Focus turns on, with the Open URLs action and this link. From Terminal: barshelf dock use \"\(profile.name)\".")
                 .formFooter()

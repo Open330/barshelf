@@ -48,7 +48,7 @@ struct AutomationSettingsView: View {
                         }
                     }
                 }
-            } header: { Text("Keyboard & Windows") }
+            } header: { Text("Keyboard & Windows").settingsSectionTitle() }
             .onAppear { controller.refreshSystemShortcutConflicts() }
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
                 controller.refreshSystemShortcutConflicts()
@@ -111,7 +111,7 @@ struct AutomationSettingsView: View {
                 }
                 Text("Edit shortcuts and window actions in JavaScript. Save applies your changes; Revert Draft restores the saved script.")
                     .font(.caption).foregroundStyle(.secondary)
-            } header: { Text("Extension Script") }
+            } header: { Text("Extension Script").settingsSectionTitle() }
             footer: { Text("Saved separately from the original file. Original tool settings are unchanged.").formFooter() }
 
             SwiftUI.Section {
@@ -120,7 +120,7 @@ struct AutomationSettingsView: View {
                 }
                 Text("Screen numbers follow macOS display order, primary first. Check this list after reconnecting monitors.")
                     .font(.caption).foregroundStyle(.secondary)
-            } header: { Text("Displays") }
+            } header: { Text("Displays").settingsSectionTitle() }
         }
         .onAppear {
             displays = AutomationWindows.displays

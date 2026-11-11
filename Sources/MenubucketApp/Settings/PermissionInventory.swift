@@ -71,6 +71,12 @@ enum PermissionInventory {
         let state: WidgetRuntime.PermissionState
     }
 
+    /// Only what is in effect: allowed widgets and those that need no
+    /// approval. Waiting and denied requests grant nothing yet.
+    static func inEffect(_ inputs: [Input]) -> [Group] {
+        build(inputs.filter { $0.state == .allowed || $0.state == .notNeeded })
+    }
+
     static func build(_ widgets: [Input]) -> [Group] {
         var buckets: [Kind: [String: [Holder]]] = [:]
         func add(_ kind: Kind, _ detail: String, _ holder: Holder) {

@@ -35,6 +35,24 @@ final class PermissionInventoryTests: XCTestCase {
         XCTAssertEqual(groups.map(\.kind), [.quitApps, .system])
     }
 
+    /// Privacy ▸ Allowed ▸ By Capability lists what is in effect: a waiting
+    /// or denied request is not access, and no-approval access still is.
+    func testInEffectLeavesOutWaitingAndDeniedRequests() throws {
+        let allowed = try manifest("a", #"{"network":["api.example.com"]}"#)
+        let waiting = try manifest("w", #"{"vault":{"provider":"bitwarden"},"network":["evil.example"]}"#)
+        let denied = try manifest("d", #"{"readPaths":["~/Documents"]}"#)
+        let free = try manifest("s", #"{"system":["cpu"]}"#)
+        let groups = PermissionInventory.inEffect([
+            .init(id: "a", name: "Allowed", manifest: allowed, state: .allowed),
+            .init(id: "w", name: "Waiting", manifest: waiting, state: .notAsked),
+            .init(id: "d", name: "Denied", manifest: denied, state: .denied),
+            .init(id: "s", name: "System", manifest: free, state: .notNeeded),
+        ])
+        let names = Set(groups.flatMap(\.entries).flatMap(\.widgets).map(\.name))
+        XCTAssertEqual(names, ["Allowed", "System"])
+        XCTAssertFalse(groups.flatMap(\.entries).map(\.detail).contains("evil.example"))
+    }
+
     func testNothingDeclaredMeansNoGroups() throws {
         let plain = try manifest("plain", "{}")
         XCTAssertTrue(PermissionInventory.build([.init(id: "plain", name: "Plain", manifest: plain, state: .notNeeded)]).isEmpty)

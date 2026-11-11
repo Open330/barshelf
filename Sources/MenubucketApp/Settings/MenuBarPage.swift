@@ -25,7 +25,7 @@ struct MenuBarPage: View {
     private var isCluster: Bool { appPrefs.preferences.menuBarLayout == .cluster }
 
     var body: some View {
-        SettingsPage {
+        SettingsPage(.menuBar, stats: stats) {
             MenuBarHiddenBanner { id in runtime.widgets.first { $0.id == id }?.displayName }
             layoutSection
             itemsSection
@@ -34,6 +34,19 @@ struct MenuBarPage: View {
                 overridesSection
             }
         }
+    }
+
+    /// How many widgets are in the menu bar, how many could be, and how
+    /// they are shown.
+    private var stats: [SettingsStat] {
+        let shown = store.entries.filter { !$0.isEmpty }.count
+        let possible = runtime.widgets.filter { $0.manifest.statusItem != nil }.count
+        return [
+            SettingsStat(value: "\(shown)", label: String(localized: "In the menu bar")),
+            SettingsStat(value: "\(possible)", label: String(localized: "Can show a reading")),
+            SettingsStat(value: isCluster ? String(localized: "Cluster") : String(localized: "Items"),
+                         label: String(localized: "Shown as")),
+        ]
     }
 
     /// The chips the bar draws now.
@@ -100,6 +113,7 @@ struct MenuBarPage: View {
             }
         } header: {
             Text("In the Menu Bar")
+                .settingsSectionTitle()
         } footer: {
             Text(isCluster
                 ? "Chips appear left to right in this order. At most \(MenuBarPolicy.maxEntries) widgets are shown; colours come from each widget's accent."
@@ -166,6 +180,7 @@ struct MenuBarPage: View {
             }
         } header: {
             Text("Style for All Items")
+                .settingsSectionTitle()
         } footer: {
             Text("Every item uses this style unless its own settings change it.")
                 .formFooter()
@@ -185,6 +200,7 @@ struct MenuBarPage: View {
                 }
             } header: {
                 Text("Items With Their Own Style")
+                    .settingsSectionTitle()
             }
         }
     }

@@ -289,6 +289,8 @@ enum ControlMetrics {
     static let inset: CGFloat = 13
     static let smallInset: CGFloat = 10
     static let keyCap: CGFloat = 16
+    /// The ring around a chosen tile in a picker grid.
+    static let selectionRing: CGFloat = 2
 }
 
 /// Shadows by how far something floats above the page.

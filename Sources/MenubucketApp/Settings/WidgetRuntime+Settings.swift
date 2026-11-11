@@ -85,8 +85,17 @@ extension WidgetRuntime {
 /// A manifest's declared permissions as sentences a person can judge.
 enum WidgetPermissionSummary {
     struct Line: Hashable {
+        enum Tone: Hashable {
+            case normal
+            /// Secrets, the vault, environment variables, quitting apps.
+            case sensitive
+            /// Something the widget uses without declaring it: it will be blocked.
+            case blocked
+        }
+
         let symbol: String
         let text: String
+        var tone: Tone = .normal
     }
 
     /// - Parameter workflow: the widget's workflow when known, which reveals a
@@ -97,10 +106,10 @@ enum WidgetPermissionSummary {
         // these, which matters more than what it is allowed.
         if (manifest.permissions?.exec ?? []).isEmpty,
            WidgetDiscovery.manifestRequiresExecPermission(manifest, workflow: workflow) {
-            lines.append(Line(symbol: "exclamationmark.triangle", text: String(localized: "Runs a command it hasn't declared, so it will be blocked")))
+            lines.append(Line(symbol: "exclamationmark.triangle", text: String(localized: "Runs a command it hasn't declared, so it will be blocked"), tone: .blocked))
         }
         if (manifest.permissions?.system ?? []).isEmpty, WidgetDiscovery.usesSystemSource(workflow) {
-            lines.append(Line(symbol: "exclamationmark.triangle", text: String(localized: "Reads system information it hasn't declared, so it will be blocked")))
+            lines.append(Line(symbol: "exclamationmark.triangle", text: String(localized: "Reads system information it hasn't declared, so it will be blocked"), tone: .blocked))
         }
         guard let permissions = manifest.permissions else { return lines }
         let exec = permissions.exec ?? []
@@ -116,23 +125,23 @@ enum WidgetPermissionSummary {
             lines.append(Line(symbol: "folder", text: String(localized: "Read \(list(paths))", comment: "Permission summary: paths the widget may read")))
         }
         if permissions.keychain == true {
-            lines.append(Line(symbol: "key", text: String(localized: "Read its own secrets from the Keychain")))
+            lines.append(Line(symbol: "key", text: String(localized: "Read its own secrets from the Keychain"), tone: .sensitive))
         }
         if permissions.notifications == true {
             lines.append(Line(symbol: "bell", text: String(localized: "Send notifications")))
         }
         if permissions.quitApps == true {
-            lines.append(Line(symbol: "xmark.app", text: String(localized: "Quit apps you choose, asking each time")))
+            lines.append(Line(symbol: "xmark.app", text: String(localized: "Quit apps you choose, asking each time"), tone: .sensitive))
         }
         let environment = permissions.env ?? []
         if !environment.isEmpty {
-            lines.append(Line(symbol: "list.bullet.rectangle", text: String(localized: "Read the environment variables \(list(environment))", comment: "Permission summary: environment variables the widget may read")))
+            lines.append(Line(symbol: "list.bullet.rectangle", text: String(localized: "Read the environment variables \(list(environment))", comment: "Permission summary: environment variables the widget may read"), tone: .sensitive))
         }
         if permissions.storage?.granted == true {
             lines.append(Line(symbol: "internaldrive", text: String(localized: "Save small amounts of data on this Mac")))
         }
         if permissions.vault != nil {
-            lines.append(Line(symbol: "lock.shield", text: String(localized: "Unlock your Bitwarden vault when you ask and copy fields you pick")))
+            lines.append(Line(symbol: "lock.shield", text: String(localized: "Unlock your Bitwarden vault when you ask and copy fields you pick"), tone: .sensitive))
         }
         let system = permissions.system ?? []
         if !system.isEmpty {
