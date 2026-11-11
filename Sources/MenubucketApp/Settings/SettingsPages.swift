@@ -3,18 +3,6 @@ import MenubucketCore
 import ServiceManagement
 import SwiftUI
 
-/// One settings page: a single grouped form, the way System Settings lays
-/// out a pane. No page nests another picker inside it (R13 §4.1).
-struct SettingsPage<Content: View>: View {
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        Form { content }
-            .formStyle(.grouped)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-    }
-}
-
 /// A preference write that failed, shown where the user made the change.
 private struct PrefsErrorSection: View {
     @ObservedObject var appPrefs: AppPrefs
@@ -41,32 +29,19 @@ struct GeneralSettingsPage: View {
     ]
 
     var body: some View {
-        SettingsPage {
+        SettingsPage(.general) {
             Section {
-                Picker("Menu bar icon", selection: Binding(
+                MenuBarIconGrid(selection: Binding(
                     get: { appPrefs.preferences.menuBarSymbol },
                     set: { value in appPrefs.update { $0.menuBarSymbol = value } }
-                )) {
-                    ForEach(Self.symbolPresets, id: \.self) { symbol in
-                        Label {
-                            Text(Self.name(for: symbol))
-                        } icon: {
-                            Self.icon(for: symbol)
-                        }
-                        .tag(symbol)
-                    }
-                    if !Self.symbolPresets.contains(appPrefs.preferences.menuBarSymbol) {
-                        Text(appPrefs.preferences.menuBarSymbol)
-                            .tag(appPrefs.preferences.menuBarSymbol)
-                    }
-                }
-                .accessibilityLabel("Menu bar icon")
-            } footer: {
-                Text("The icon BarShelf shows in the menu bar.")
-                    .formFooter()
+                ))
+            } header: {
+                Text("Menu Bar Icon")
+                    .settingsSectionTitle()
             }
 
             Section {
+                // A value of something: segmented (see the rule atop Components).
                 Picker(selection: Binding(
                     get: { appPrefs.preferences.popupHeight },
                     set: { value in appPrefs.update { $0.popupHeight = value } }
@@ -78,6 +53,7 @@ struct GeneralSettingsPage: View {
                     Text("Popup height")
                     Text("How tall the popup grows before its pages scroll. It is shorter when there is less to show.")
                 }
+                .pickerStyle(.segmented)
                 .accessibilityLabel("Popup height")
             }
 
@@ -166,6 +142,55 @@ struct GeneralSettingsPage: View {
     }
 }
 
+/// The menu bar icon choices as they look in the bar: each one on a strip
+/// of menu bar, the chosen one ringed in the accent colour.
+private struct MenuBarIconGrid: View {
+    @Binding var selection: String
+
+    /// As many columns as fit: six in a wide window, fewer when narrow.
+    private let columns = [GridItem(.adaptive(minimum: ControlMetrics.height * 3), spacing: Spacing.xs)]
+
+    var body: some View {
+        LazyVGrid(columns: columns, spacing: Spacing.xs) {
+            ForEach(choices, id: \.self) { symbol in
+                Button { selection = symbol } label: {
+                    VStack(spacing: Spacing.xxs) {
+                        GeneralSettingsPage.icon(for: symbol)
+                            .font(.title3.weight(.medium))
+                            .frame(maxWidth: .infinity, minHeight: ControlMetrics.height)
+                            .background(
+                                RoundedRectangle(cornerRadius: Radius.control, style: .continuous)
+                                    .fill(Fill.hover)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: Radius.control, style: .continuous)
+                                    .strokeBorder(Color.accentColor, lineWidth: symbol == selection ? ControlMetrics.selectionRing : 0)
+                            )
+                        Text(GeneralSettingsPage.name(for: symbol))
+                            .font(.caption)
+                            .foregroundStyle(symbol == selection ? .primary : .secondary)
+                            .lineLimit(1)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(GeneralSettingsPage.name(for: symbol))
+                .accessibilityAddTraits(symbol == selection ? .isSelected : [])
+            }
+        }
+        .padding(.vertical, Spacing.xxs)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Menu bar icon")
+    }
+
+    /// The presets, plus a custom symbol set elsewhere so it stays visible.
+    private var choices: [String] {
+        GeneralSettingsPage.symbolPresets.contains(selection)
+            ? GeneralSettingsPage.symbolPresets
+            : GeneralSettingsPage.symbolPresets + [selection]
+    }
+}
+
 // MARK: - Shortcuts
 
 struct ShortcutsSettingsPage: View {
@@ -173,7 +198,7 @@ struct ShortcutsSettingsPage: View {
     @ObservedObject private var registration = HotkeyRegistrationCoordinator.shared
 
     var body: some View {
-        SettingsPage {
+        SettingsPage(.shortcuts, stats: stats) {
             Section {
                 LabeledContent {
                     KeyRecorder(
@@ -191,18 +216,18 @@ struct ShortcutsSettingsPage: View {
                 }
             } header: {
                 Text("Global")
+                    .settingsSectionTitle()
             }
 
             Section {
                 ForEach(Self.appShortcuts, id: \.keys) { shortcut in
                     LabeledContent(shortcut.title) {
-                        Text(shortcut.keys)
-                            .font(.body.monospaced())
-                            .foregroundStyle(.secondary)
+                        KeyCombo(keys: shortcut.keys)
                     }
                 }
             } header: {
                 Text("In BarShelf")
+                    .settingsSectionTitle()
             } footer: {
                 Text("These work in the popup and in this window.")
                     .formFooter()
@@ -210,9 +235,38 @@ struct ShortcutsSettingsPage: View {
         }
     }
 
+    private var stats: [SettingsStat] {
+        let enabled = appPrefs.preferences.popupHotkeyEnabled && !appPrefs.preferences.popupHotkey.isEmpty
+        return [
+            SettingsStat(value: enabled ? HotkeyGrammar.displayText(appPrefs.preferences.popupHotkey)
+                                       : String(localized: "Off", comment: "Shortcuts summary: no global shortcut set"),
+                         label: String(localized: "Opens BarShelf")),
+            SettingsStat(value: "\(Self.appShortcuts.count)", label: String(localized: "Shortcuts in BarShelf")),
+        ]
+    }
+
     private struct AppShortcut {
         let title: String
         let keys: String
+    }
+
+    /// Keys as keycaps: "⌘F" one cap, "← →" two, "…" between caps plain.
+    private struct KeyCombo: View {
+        let keys: String
+
+        var body: some View {
+            HStack(spacing: Spacing.xxs) {
+                ForEach(Array(keys.split(separator: " ").enumerated()), id: \.offset) { _, part in
+                    if part == "…" {
+                        Text(part).foregroundStyle(.secondary)
+                    } else {
+                        KeyCap(String(part))
+                    }
+                }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(keys)
+        }
     }
 
     private static let appShortcuts = [
@@ -233,8 +287,35 @@ struct UpdatesSettingsPage: View {
     @ObservedObject private var status = UpdateStatus.shared
 
     var body: some View {
-        SettingsPage {
+        SettingsPage(.updates) {
             Section {
+                // The version is the page's figure: big, with what the last
+                // check found beside it.
+                HStack(spacing: Spacing.s) {
+                    Image(systemName: statusTone.symbol)
+                        .font(.largeTitle)
+                        .foregroundStyle(statusTone.color)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: Spacing.hair) {
+                        MetricText(value: AppVersionInfo.current.versionLabel, size: .compact)
+                            .textSelection(.enabled)
+                        Text(statusLine)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                        if let checked = status.lastChecked {
+                            Text("Last checked \(checked.formatted(.relative(presentation: .named)))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Spacer()
+                    Button("Check Now") { UpdateChecker.check(explicit: true) }
+                        .buttonStyle(.glass(status.available == nil ? .secondary : .primary))
+                        .disabled(status.isChecking)
+                }
+                .padding(.vertical, Spacing.xxs)
+                .accessibilityElement(children: .contain)
+
                 Toggle(isOn: Binding(
                     get: { appPrefs.preferences.checkForUpdatesAutomatically },
                     set: { value in appPrefs.update { $0.checkForUpdatesAutomatically = value } }
@@ -242,17 +323,8 @@ struct UpdatesSettingsPage: View {
                     Text("Check for updates automatically")
                     Text("Look for a new version each time BarShelf starts.")
                 }
+                .toggleStyle(.switch)
                 .accessibilityLabel("Check for updates automatically")
-
-                LabeledContent {
-                    Button("Check Now") { UpdateChecker.check(explicit: true) }
-                        .disabled(status.isChecking)
-                } label: {
-                    Text(statusLine)
-                    if let checked = status.lastChecked {
-                        Text("Last checked \(checked.formatted(.relative(presentation: .named)))")
-                    }
-                }
 
                 if let skipped = appPrefs.preferences.skippedUpdateVersion {
                     LabeledContent {
@@ -268,12 +340,9 @@ struct UpdatesSettingsPage: View {
                 }
             }
 
+            if AppVersionInfo.current.build != nil || AppVersionInfo.current.sourceCommit != nil
+                || UpdateChecker.isUsingOverriddenFeed {
             Section {
-                LabeledContent("Version") {
-                    Text(AppVersionInfo.current.versionLabel)
-                        .monospacedDigit()
-                        .textSelection(.enabled)
-                }
                 if let build = AppVersionInfo.current.build {
                     LabeledContent("Build") {
                         Text(build).monospacedDigit().textSelection(.enabled)
@@ -299,10 +368,18 @@ struct UpdatesSettingsPage: View {
                 }
             } header: {
                 Text("This Copy")
+                    .settingsSectionTitle()
+            }
             }
 
             PrefsErrorSection(appPrefs: appPrefs)
         }
+    }
+
+    private var statusTone: StatusTone {
+        if status.available != nil { return .info }
+        if status.lastChecked != nil, !status.isChecking { return .success }
+        return .info
     }
 
     private var statusLine: String {
@@ -317,52 +394,69 @@ struct UpdatesSettingsPage: View {
 
 struct PrivacySettingsPage: View {
     @ObservedObject var runtime: WidgetRuntime
+    @State private var grouping: Grouping = .byWidget
+
+    enum Grouping: Hashable { case byWidget, byCapability }
 
     var body: some View {
-        SettingsPage {
-            let needing = runtime.widgets.filter { runtime.permissionState(for: $0) != .notNeeded }
-            Section {
-                if needing.isEmpty {
+        let needing = runtime.widgets.filter { runtime.permissionState(for: $0) != .notNeeded }
+        let waiting = needing.filter { runtime.permissionState(for: $0) == .notAsked }
+        let denied = needing.filter { runtime.permissionState(for: $0) == .denied }
+        let allowed = needing.filter { runtime.permissionState(for: $0) == .allowed }
+        SettingsPage(.privacy, stats: Self.stats(allowed: allowed, waiting: waiting, denied: denied)) {
+            if needing.isEmpty {
+                Section {
                     Text("No installed widget asks for permissions.")
                         .foregroundStyle(.secondary)
-                } else {
-                    ForEach(needing) { widget in
-                        PermissionRow(runtime: runtime, widget: widget)
-                    }
                 }
-            } header: {
-                Text("Widget Permissions")
-            } footer: {
-                Text("BarShelf runs only the commands a widget declared, reaches only the hosts it declared, and reads only the paths it declared, after you allow it. A command you allow runs with your access, network included, so allow only widgets you trust. Revoking stops the widget until you allow it again on its card. Copies of a widget share its permissions.")
-                    .formFooter()
             }
 
-            let groups = PermissionInventory.build(runtime.widgets.map {
-                PermissionInventory.Input(id: $0.id, name: $0.displayName, manifest: $0.manifest,
-                                          state: runtime.permissionState(for: $0))
-            })
-            if !groups.isEmpty {
+            // What needs a decision comes first.
+            if !waiting.isEmpty {
                 Section {
-                    ForEach(groups, id: \.kind) { group in
-                        DisclosureGroup {
-                            ForEach(group.entries, id: \.self) { entry in
-                                CapabilityEntryRow(entry: entry)
-                            }
-                        } label: {
-                            Label {
-                                Text(group.kind.title)
-                                Text(group.widgetCount == 1
-                                     ? String(localized: "1 widget")
-                                     : String(localized: "\(group.widgetCount) widgets"))
-                            } icon: {
-                                Image(systemName: group.kind.symbol)
-                            }
+                    ForEach(waiting) { PermissionRow(runtime: runtime, widget: $0) }
+                } header: {
+                    // The inner style wins: the tone colour over the title's.
+                    Label("Waiting for You", systemImage: PermissionWaiting.symbol)
+                        .foregroundStyle(PermissionWaiting.tone.color)
+                        .settingsSectionTitle()
+                }
+            }
+            if !denied.isEmpty {
+                Section {
+                    ForEach(denied) { PermissionRow(runtime: runtime, widget: $0) }
+                } header: {
+                    Text("Denied")
+                        .settingsSectionTitle()
+                }
+            }
+
+            if !allowed.isEmpty || !inEffectGroups.isEmpty {
+                Section {
+                    switch grouping {
+                    case .byWidget:
+                        if allowed.isEmpty {
+                            Text("No widget is allowed yet.").foregroundStyle(.secondary)
                         }
+                        ForEach(allowed) { PermissionRow(runtime: runtime, widget: $0) }
+                    case .byCapability:
+                        capabilityRows
                     }
                 } header: {
-                    Text("By Capability")
+                    HStack {
+                        Text("Allowed")
+                            .settingsSectionTitle()
+                        Spacer()
+                        Picker("Group", selection: $grouping) {
+                            Text("By Widget").tag(Grouping.byWidget)
+                            Text("By Capability").tag(Grouping.byCapability)
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .fixedSize()
+                    }
                 } footer: {
-                    Text("What installed widgets may use, grouped by kind. The activity log shows what they actually did.")
+                    Text("BarShelf runs only the commands a widget declared, reaches only the hosts it declared, and reads only the paths it declared, after you allow it. A command you allow runs with your access, network included, so allow only widgets you trust. Revoking stops the widget until you allow it again on its card. Copies of a widget share its permissions.")
                         .formFooter()
                 }
             }
@@ -372,9 +466,58 @@ struct PrivacySettingsPage: View {
                     Button("Show in Finder") {
                         NSWorkspace.shared.activateFileViewerSelecting([AuditLog.defaultFileURL()])
                     }
+                    .buttonStyle(.glass(.secondary))
                 } label: {
                     Text("Activity log")
                     Text("Every permission decision and every command or request a widget made.")
+                }
+            }
+        }
+    }
+
+    /// Allowed, waiting and (when any) denied widgets, and how many of the
+    /// allowed hold sensitive access: secrets, the vault, environment variables.
+    static func stats(allowed: [LoadedWidget], waiting: [LoadedWidget], denied: [LoadedWidget]) -> [SettingsStat] {
+        // Access, not requests: a widget waiting for you holds nothing yet.
+        let sensitive = allowed.filter { widget in
+            WidgetPermissionSummary.lines(for: widget.manifest).contains { $0.tone == .sensitive }
+        }
+        var stats = [
+            SettingsStat(value: "\(allowed.count)", label: String(localized: "Allowed", comment: "Privacy summary: widgets allowed")),
+            SettingsStat(value: "\(waiting.count)", label: String(localized: "Waiting for you", comment: "Privacy summary: widgets waiting for a decision"),
+                         tone: waiting.isEmpty ? nil : PermissionWaiting.tone),
+            SettingsStat(value: "\(sensitive.count)", label: String(localized: "Sensitive access", comment: "Privacy summary: widgets with access to secrets, the vault or environment variables")),
+        ]
+        if !denied.isEmpty {
+            stats.append(SettingsStat(value: "\(denied.count)", label: String(localized: "Denied", comment: "Privacy summary: widgets denied")))
+        }
+        return stats
+    }
+
+    /// Access in effect, grouped by kind: allowed widgets and those that
+    /// need no approval. Waiting and denied requests are not in effect.
+    private var inEffectGroups: [PermissionInventory.Group] {
+        PermissionInventory.inEffect(runtime.widgets.map {
+            PermissionInventory.Input(id: $0.id, name: $0.displayName, manifest: $0.manifest,
+                                      state: runtime.permissionState(for: $0))
+        })
+    }
+
+    /// The access in effect grouped by kind, each kind expandable.
+    @ViewBuilder private var capabilityRows: some View {
+        ForEach(inEffectGroups, id: \.kind) { group in
+            DisclosureGroup {
+                ForEach(group.entries, id: \.self) { entry in
+                    CapabilityEntryRow(entry: entry)
+                }
+            } label: {
+                Label {
+                    Text(group.kind.title)
+                    Text(group.widgetCount == 1
+                         ? String(localized: "1 widget")
+                         : String(localized: "\(group.widgetCount) widgets"))
+                } icon: {
+                    Image(systemName: group.kind.symbol)
                 }
             }
         }
@@ -414,57 +557,48 @@ struct PrivacySettingsPage: View {
 
         var body: some View {
             let state = runtime.permissionState(for: widget)
-            VStack(alignment: .leading, spacing: Spacing.xxs) {
-                HStack(spacing: Spacing.xs) {
-                    WidgetMark(widget: widget, runtime: runtime)
+            HStack(alignment: .top, spacing: Spacing.s) {
+                WidgetMark(widget: widget, runtime: runtime)
+                VStack(alignment: .leading, spacing: Spacing.xxs) {
                     Text(widget.displayName).font(.headline)
-                    Spacer()
-                    stateBadge(state)
-                    switch state {
-                    case .allowed:
-                        Button("Revoke") { runtime.revokePermissions(widgetID: widget.id) }
-                            .buttonStyle(.glass(.secondary))
-                            .controlSize(.small)
-                            .help("Stop this widget until you allow it again")
-                    case .denied:
-                        PermissionDecisionButtons(widgetName: widget.displayName) {
-                            runtime.approvePermissions(widgetID: widget.id)
+                    FlowLayout {
+                        ForEach(WidgetPermissionSummary.lines(for: widget.manifest), id: \.self) { line in
+                            PermissionChip(line: line)
                         }
-                    case .notAsked:
-                        PermissionDecisionButtons(
-                            widgetName: widget.displayName,
-                            onDeny: { runtime.denyPermissions(widgetID: widget.id) },
-                            onAllow: { runtime.approvePermissions(widgetID: widget.id) }
-                        )
-                    case .notNeeded:
-                        EmptyView()
                     }
                 }
-                ForEach(WidgetPermissionSummary.lines(for: widget.manifest), id: \.self) { line in
-                    Label(line.text, systemImage: line.symbol)
-                        .font(.callout)
+                Spacer(minLength: Spacing.xs)
+                switch state {
+                case .allowed:
+                    // Always there for keyboard, VoiceOver and automation;
+                    // quiet (text until hovered) because the decision is made.
+                    Button("Revoke") { runtime.revokePermissions(widgetID: widget.id) }
+                        .buttonStyle(.glass(.plain))
+                        .controlSize(.small)
+                        .help("Stop this widget until you allow it again")
+                    Label("Allowed", systemImage: StatusTone.success.symbol)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
+                        .labelStyle(.titleAndIcon)
+                        .symbolRenderingMode(.multicolor)
+                case .denied:
+                    PermissionDecisionButtons(widgetName: widget.displayName) {
+                        runtime.approvePermissions(widgetID: widget.id)
+                    }
+                case .notAsked:
+                    PermissionDecisionButtons(
+                        widgetName: widget.displayName,
+                        onDeny: { runtime.denyPermissions(widgetID: widget.id) },
+                        onAllow: { runtime.approvePermissions(widgetID: widget.id) }
+                    )
+                case .notNeeded:
+                    EmptyView()
                 }
             }
             .padding(.vertical, Spacing.xxs)
+            .contentShape(Rectangle())
             .accessibilityElement(children: .contain)
-        }
-
-        @ViewBuilder
-        private func stateBadge(_ state: WidgetRuntime.PermissionState) -> some View {
-            switch state {
-            case .allowed:
-                Label("Allowed", systemImage: StatusTone.success.symbol)
-                    .foregroundStyle(StatusTone.success.color)
-            case .denied:
-                Label("Denied", systemImage: StatusTone.critical.symbol)
-                    .foregroundStyle(StatusTone.critical.color)
-            case .notAsked:
-                Label(PermissionWaiting.title, systemImage: PermissionWaiting.symbol)
-                    .foregroundStyle(PermissionWaiting.tone.color)
-            case .notNeeded:
-                EmptyView()
-            }
+            .accessibilityLabel(widget.displayName)
         }
     }
 }
@@ -487,7 +621,7 @@ struct AdvancedSettingsPage: View {
     }
 
     var body: some View {
-        SettingsPage {
+        SettingsPage(.advanced, stats: stats) {
             Section {
                 // The multiplier scales every widget's interval, so a larger
                 // number means waiting longer between refreshes.
@@ -518,6 +652,7 @@ struct AdvancedSettingsPage: View {
                     .foregroundStyle(.secondary)
             } header: {
                 Text("Battery and Network")
+                    .settingsSectionTitle()
             }
 
             Section {
@@ -531,6 +666,7 @@ struct AdvancedSettingsPage: View {
                 }
             } header: {
                 Text("Refresh History")
+                    .settingsSectionTitle()
             } footer: {
                 HStack {
                     Text("How each widget's recent refreshes went.")
@@ -566,6 +702,21 @@ struct AdvancedSettingsPage: View {
         } message: {
             Text("Pages, order, and sizes go back to each widget's defaults. Widgets and their settings stay.")
         }
+    }
+
+    /// How the widgets' last refreshes went, as the page's figures.
+    private var stats: [SettingsStat] {
+        let outcomes = runtime.widgets.map { refreshStats.stats[$0.id]?.lastOutcomeWasSuccess }
+        let failing = outcomes.filter { $0 == false }.count
+        return [
+            SettingsStat(value: "\(outcomes.filter { $0 == true }.count)",
+                         label: String(localized: "Working", comment: "Advanced summary: widgets whose last refresh worked")),
+            SettingsStat(value: "\(failing)",
+                         label: String(localized: "Failing", comment: "Advanced summary: widgets whose last refresh failed"),
+                         tone: failing > 0 ? .critical : nil),
+            SettingsStat(value: "\(outcomes.filter { $0 == nil }.count)",
+                         label: String(localized: "Not run yet")),
+        ]
     }
 
     static func openLogsFolder() {

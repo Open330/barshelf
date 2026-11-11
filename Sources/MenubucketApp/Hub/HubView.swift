@@ -30,10 +30,11 @@ struct HubView: View {
             detail
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(nsColor: .windowBackgroundColor))
-                // The window toolbar carries the page's name; no second
-                // header repeats it inside the page.
+                // The toolbar carries the page's name; pages with their own
+                // header say what they are for there, so the subtitle (which
+                // the toolbar truncates) only stays for the others.
                 .navigationTitle(model.tab.title)
-                .navigationSubtitle(model.tab.subtitle)
+                .navigationSubtitle(model.tab.hasPageHeader ? "" : model.tab.subtitle)
         }
     }
 
@@ -94,7 +95,7 @@ struct HubView: View {
         case .create:
             HubCreateView(runtime: runtime) { model.tab = .shelf }
         case .automation:
-            SettingsPage { AutomationSettingsView() }
+            SettingsPage(.automation) { AutomationSettingsView() }
         case .general:
             GeneralSettingsPage(appPrefs: appPrefs)
         case .shortcuts:

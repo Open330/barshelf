@@ -1214,6 +1214,7 @@
       }
     },
     "Allowed": {
+      "comment": "Privacy summary: widgets allowed",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -1956,6 +1957,16 @@
         }
       }
     },
+    "By Widget": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯별"
+          }
+        }
+      }
+    },
     "CPU, memory and disk use as colored meters. Can show a reading in the menu bar.": {
       "localizations": {
         "ko": {
@@ -1992,6 +2003,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "값 탭에서 단위도 변경할 수 있습니다."
+          }
+        }
+      }
+    },
+    "Can show a reading": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "값 표시 가능"
           }
         }
       }
@@ -3191,6 +3212,7 @@
       }
     },
     "Denied": {
+      "comment": "Privacy summary: widgets denied",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -4113,7 +4135,7 @@
       }
     },
     "Failing": {
-      "comment": "A widget's last refresh failed",
+      "comment": "A widget's last refresh failed\nAdvanced summary: widgets whose last refresh failed",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -4695,6 +4717,16 @@
         }
       }
     },
+    "Group": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "묶기"
+          }
+        }
+      }
+    },
     "HTTP JSON": {
       "localizations": {
         "ko": {
@@ -5141,6 +5173,16 @@
         }
       }
     },
+    "In the menu bar": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "메뉴 막대에 있음"
+          }
+        }
+      }
+    },
     "Inactive": {
       "localizations": {
         "ko": {
@@ -5519,6 +5561,16 @@
       }
     },
     "Item": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "항목"
+          }
+        }
+      }
+    },
+    "Items": {
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -6369,6 +6421,16 @@
         }
       }
     },
+    "Menu Bar Icon": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "메뉴 막대 아이콘"
+          }
+        }
+      }
+    },
     "Menu bar icon": {
       "localizations": {
         "ko": {
@@ -7054,6 +7116,16 @@
         }
       }
     },
+    "No widget is allowed yet.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "아직 허용한 위젯이 없습니다."
+          }
+        }
+      }
+    },
     "No widgets installed": {
       "localizations": {
         "ko": {
@@ -7281,11 +7353,23 @@
       }
     },
     "Off": {
+      "comment": "Dock summary: no BarShelf Dock\nShortcuts summary: no global shortcut set",
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "끔"
+          }
+        }
+      }
+    },
+    "On": {
+      "comment": "Dock summary: BarShelf Dock shown",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "켬"
           }
         }
       }
@@ -7600,6 +7684,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "이 위젯의 설정을 열고 허용된 폴더에 표시된 폴더를 선택하십시오. macOS 개인정보 보호 설정에서 다른 폴더를 허용해도 위젯 자체의 권한은 바뀌지 않습니다."
+          }
+        }
+      }
+    },
+    "Opens BarShelf": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BarShelf 열기"
           }
         }
       }
@@ -9727,6 +9821,17 @@
         }
       }
     },
+    "Sensitive access": {
+      "comment": "Privacy summary: widgets with access to secrets, the vault or environment variables",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "민감한 접근"
+          }
+        }
+      }
+    },
     "Sets of widgets that work well together. Each widget still asks before it runs.": {
       "extractionState": "stale",
       "localizations": {
@@ -9865,6 +9970,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "단축키"
+          }
+        }
+      }
+    },
+    "Shortcuts in BarShelf": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BarShelf 안 단축키"
           }
         }
       }
@@ -10278,6 +10393,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "마지막 정상 결과 표시 중 — 최근 새로고침 실패"
+          }
+        }
+      }
+    },
+    "Shown as": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "표시 방식"
           }
         }
       }
@@ -11159,6 +11284,7 @@
       }
     },
     "The icon BarShelf shows in the menu bar.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -12514,6 +12640,16 @@
         }
       }
     },
+    "Waiting for You": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "확인 대기 중"
+          }
+        }
+      }
+    },
     "Waiting for macOS to allow BarShelf…": {
       "localizations": {
         "ko": {
@@ -12525,6 +12661,7 @@
       }
     },
     "Waiting for you": {
+      "comment": "Privacy summary: widgets waiting for a decision",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -12677,6 +12814,7 @@
       }
     },
     "What installed widgets may use, grouped by kind. The activity log shows what they actually did.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -12768,6 +12906,7 @@
       }
     },
     "Widget Permissions": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -12953,7 +13092,7 @@
       }
     },
     "Working": {
-      "comment": "A widget's last refresh succeeded",
+      "comment": "A widget's last refresh succeeded\nAdvanced summary: widgets whose last refresh worked",
       "localizations": {
         "ko": {
           "stringUnit": {

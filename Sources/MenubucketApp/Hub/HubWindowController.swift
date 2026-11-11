@@ -69,6 +69,14 @@ enum HubTab: String, CaseIterable, Identifiable {
         }
     }
 
+    /// Settings-style pages draw their own header (tile, name, purpose).
+    var hasPageHeader: Bool {
+        switch self {
+        case .shelf, .gallery, .create: return false
+        case .menuBar, .dock, .automation, .general, .shortcuts, .updates, .privacy, .advanced: return true
+        }
+    }
+
     var subtitle: String {
         switch self {
         case .shelf: return String(localized: "Arrange your pages and widgets.")
