@@ -395,6 +395,7 @@ struct UpdatesSettingsPage: View {
 struct PrivacySettingsPage: View {
     @ObservedObject var runtime: WidgetRuntime
     @State private var grouping: Grouping = .byWidget
+    @State private var confirmingAllowAll = false
 
     enum Grouping: Hashable { case byWidget, byCapability }
 
@@ -416,10 +417,29 @@ struct PrivacySettingsPage: View {
                 Section {
                     ForEach(waiting) { PermissionRow(runtime: runtime, widget: $0) }
                 } header: {
-                    // The inner style wins: the tone colour over the title's.
-                    Label("Waiting for You", systemImage: PermissionWaiting.symbol)
-                        .foregroundStyle(PermissionWaiting.tone.color)
-                        .settingsSectionTitle()
+                    HStack {
+                        // The inner style wins: the tone colour over the title's.
+                        Label("Waiting for You", systemImage: PermissionWaiting.symbol)
+                            .foregroundStyle(PermissionWaiting.tone.color)
+                            .settingsSectionTitle()
+                        Spacer()
+                        if waiting.count > 1 {
+                            Button("Allow All…") { confirmingAllowAll = true }
+                                .buttonStyle(.glass(.secondary))
+                                .controlSize(.small)
+                                .help("Allow every widget waiting for you, after one confirmation")
+                        }
+                    }
+                }
+                .confirmationDialog(Self.allowAllTitle(waiting), isPresented: $confirmingAllowAll, titleVisibility: .visible) {
+                    Button("Allow All") {
+                        for widget in Self.distinctManifests(waiting) {
+                            runtime.approvePermissions(widgetID: widget.id)
+                        }
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text(Self.allowAllMessage(waiting))
                 }
             }
             if !denied.isEmpty {
@@ -473,6 +493,33 @@ struct PrivacySettingsPage: View {
                 }
             }
         }
+    }
+
+    /// One widget per manifest: copies share their permissions, so allowing
+    /// one allows them all.
+    static func distinctManifests(_ widgets: [LoadedWidget]) -> [LoadedWidget] {
+        var seen = Set<String>()
+        return widgets.filter { seen.insert($0.manifest.id).inserted }
+    }
+
+    static func allowAllTitle(_ waiting: [LoadedWidget]) -> String {
+        String(localized: "Allow \(distinctManifests(waiting).count) widgets?", comment: "Privacy: Allow All confirmation title")
+    }
+
+    /// Names the widgets, and says which ask for sensitive access, so one
+    /// confirmation still shows what is being allowed.
+    static func allowAllMessage(_ waiting: [LoadedWidget]) -> String {
+        let widgets = distinctManifests(waiting)
+        let names = widgets.map(\.displayName).formatted(.list(type: .and))
+        let sensitive = widgets.filter { widget in
+            WidgetPermissionSummary.lines(for: widget.manifest).contains { $0.tone == .sensitive }
+        }
+        var message = String(localized: "\(names) will run the commands, reach the hosts and read the paths they declared, with your access.", comment: "Privacy: Allow All confirmation")
+        if !sensitive.isEmpty {
+            let names = sensitive.map(\.displayName).formatted(.list(type: .and))
+            message += " " + String(localized: "Sensitive access: \(names).", comment: "Privacy: Allow All confirmation, widgets with secrets, vault or environment access")
+        }
+        return message
     }
 
     /// Allowed, waiting and (when any) denied widgets, and how many of the
@@ -576,11 +623,17 @@ struct PrivacySettingsPage: View {
                         .buttonStyle(.glass(.plain))
                         .controlSize(.small)
                         .help("Stop this widget until you allow it again")
-                    Label("Allowed", systemImage: StatusTone.success.symbol)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .labelStyle(.titleAndIcon)
-                        .symbolRenderingMode(.multicolor)
+                    // The check in the success colour; multicolour drew it
+                    // in the accent (blue).
+                    Label {
+                        Text("Allowed")
+                    } icon: {
+                        Image(systemName: StatusTone.success.symbol)
+                            .foregroundStyle(StatusTone.success.color)
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .labelStyle(.titleAndIcon)
                 case .denied:
                     PermissionDecisionButtons(widgetName: widget.displayName) {
                         runtime.approvePermissions(widgetID: widget.id)

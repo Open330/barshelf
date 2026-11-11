@@ -8,13 +8,19 @@ import SwiftUI
 /// Unlike `screenshot`, this draws through `NSHostingView`, which renders
 /// native controls, and it runs in the app bundle, so the strings come out
 /// in the app's language: add `-AppleLanguages "(ko)"` to see the Korean UI.
+/// A development build has no bundle: compile the catalog next to the
+/// binary first (`xcrun xcstringstool compile Localization/Localizable.xcstrings
+/// --output-directory "$(swift build --show-bin-path)"`) and the flag works there too.
+///
+/// `--dark` renders in the dark appearance; `--only <prefix>` renders only
+/// the shots whose name starts with it (`--only hub-privacy`).
 ///
 /// It builds a live runtime, which seeds starter widgets and writes state
 /// under the home folder, so it refuses to run unless `CFFIXED_USER_HOME`
 /// points somewhere disposable.
 enum HubScreenshotMode {
     @MainActor
-    static func run(outputDir: String) -> Int32 {
+    static func run(outputDir: String, dark: Bool = false, only: String? = nil) -> Int32 {
         guard let home = ProcessInfo.processInfo.environment["CFFIXED_USER_HOME"], !home.isEmpty else {
             FileHandle.standardError.write(Data(
                 "screenshot-hub writes widget state; set CFFIXED_USER_HOME to a scratch folder\n".utf8
@@ -22,6 +28,9 @@ enum HubScreenshotMode {
             return 2
         }
         _ = NSApplication.shared
+        appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+        NSApp.appearance = appearance
+        filter = only
         let dir = URL(fileURLWithPath: (outputDir as NSString).expandingTildeInPath)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
 
@@ -111,12 +120,17 @@ enum HubScreenshotMode {
         return ok ? 0 : 1
     }
 
+    @MainActor private static var appearance: NSAppearance?
+    @MainActor private static var filter: String?
+
     @MainActor
     private static func render<Content: View>(_ view: Content, size: NSSize, name: String, to dir: URL) -> Bool {
+        if let filter, !name.hasPrefix(filter) { return true }
         let hosting = NSHostingView(rootView: view.frame(width: size.width, height: size.height)
             .background(Color(nsColor: .windowBackgroundColor)))
         hosting.frame = NSRect(origin: .zero, size: size)
         let window = NSWindow(contentRect: hosting.frame, styleMask: [.titled], backing: .buffered, defer: false)
+        window.appearance = appearance
         window.contentView = hosting
         hosting.layoutSubtreeIfNeeded()
         RunLoop.main.run(until: Date().addingTimeInterval(0.4))

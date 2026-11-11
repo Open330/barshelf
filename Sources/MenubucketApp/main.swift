@@ -113,8 +113,12 @@ if commandLineArguments.count >= 2, commandLineArguments[1] == "screenshot" {
 // `barshelf-app screenshot-hub <dir>` renders the BarShelf window, onboarding,
 // and the popup in the app's language (see HubScreenshotMode).
 if commandLineArguments.count >= 2, commandLineArguments[1] == "screenshot-hub" {
-    let outDir = commandLineArguments.count >= 3 ? commandLineArguments[2] : "./hub-shots"
-    exit(MainActor.assumeIsolated { HubScreenshotMode.run(outputDir: outDir) })
+    let rest = Array(commandLineArguments.dropFirst(2))
+    let outDir = rest.first.flatMap { $0.hasPrefix("-") ? nil : $0 } ?? "./hub-shots"
+    let only = rest.firstIndex(of: "--only").flatMap { rest.indices.contains($0 + 1) ? rest[$0 + 1] : nil }
+    exit(MainActor.assumeIsolated {
+        HubScreenshotMode.run(outputDir: outDir, dark: rest.contains("--dark"), only: only)
+    })
 }
 
 // `barshelf-app landing-media <dir> [hero|popup|stills…]` records the

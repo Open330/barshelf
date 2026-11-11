@@ -304,6 +304,17 @@
         }
       }
     },
+    "%@ will run the commands, reach the hosts and read the paths they declared, with your access.": {
+      "comment": "Privacy: Allow All confirmation",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 위젯이 선언한 명령을 실행하고, 선언한 호스트에 연결하고, 선언한 경로를 읽습니다. 모두 사용자 권한으로 실행됩니다."
+          }
+        }
+      }
+    },
     "%@ · version %@": {
       "localizations": {
         "en": {
@@ -1233,6 +1244,37 @@
         }
       }
     },
+    "Allow %lld widgets?": {
+      "comment": "Privacy: Allow All confirmation title",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯 %lld개를 허용할까요?"
+          }
+        }
+      }
+    },
+    "Allow All": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "모두 허용"
+          }
+        }
+      }
+    },
+    "Allow All…": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "모두 허용…"
+          }
+        }
+      }
+    },
     "Allow BarShelf": {
       "localizations": {
         "ko": {
@@ -1249,6 +1291,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "시스템 설정 → 개인정보 보호 및 보안 → 손쉬운 사용에서 BarShelf를 허용한 후 확장을 다시 켜십시오."
+          }
+        }
+      }
+    },
+    "Allow every widget waiting for you, after one confirmation": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "확인 대기 중인 위젯을 한 번 확인 후 모두 허용합니다"
           }
         }
       }
@@ -10280,6 +10332,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "민감한 접근"
+          }
+        }
+      }
+    },
+    "Sensitive access: %@.": {
+      "comment": "Privacy: Allow All confirmation, widgets with secrets, vault or environment access",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "민감한 접근: %@."
           }
         }
       }
