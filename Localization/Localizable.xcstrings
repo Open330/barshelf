@@ -10125,6 +10125,17 @@
         }
       }
     },
+    "Show All %lld": {
+      "comment": "A long list: show every row",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld개 모두 보기"
+          }
+        }
+      }
+    },
     "Show All Widgets": {
       "localizations": {
         "ko": {
@@ -10161,6 +10172,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "데스크탑 보기"
+          }
+        }
+      }
+    },
+    "Show Fewer": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "접기"
           }
         }
       }
