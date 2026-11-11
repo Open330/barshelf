@@ -437,6 +437,8 @@ final class VaultBroker {
     private var pendingPasswordUnlocks: Set<String> = []
     /// Provider → generation of the unlock now being asked for.
     private var pendingUnlocks: [String: UUID] = [:]
+    /// Providers whose sign-out is queued: no unlock or sign-in until it ran.
+    private var signingOut: Set<String> = []
     /// Provider → the current generation; bumped by every end.
     private var generations: [String: UUID] = [:]
     /// Provider → how to cancel each call in flight or queued.
@@ -549,7 +551,7 @@ final class VaultBroker {
     func unlock(widgetID: String, permission: Manifest.VaultPermission, widgetName: String, usePassword: Bool = false) {
         let provider = permission.provider
         sweep()
-        guard !blocked, sessions[provider] == nil, pendingUnlocks[provider] == nil else { return }
+        guard !blocked, sessions[provider] == nil, pendingUnlocks[provider] == nil, !signingOut.contains(provider) else { return }
         let biometry = sealer.biometry
         if resumes[provider] != nil, biometry == .invalid {
             // Locked out or every finger removed: the sealed copy is void.
@@ -656,7 +658,7 @@ final class VaultBroker {
     /// two-step code is asked for when the account needs one.
     func signIn(widgetID: String, permission: Manifest.VaultPermission, widgetName: String) {
         let provider = permission.provider
-        guard !blocked, sessions[provider] == nil, pendingUnlocks[provider] == nil else { return }
+        guard !blocked, sessions[provider] == nil, pendingUnlocks[provider] == nil, !signingOut.contains(provider) else { return }
         let generation = UUID()
         generations[provider] = generation
         pendingUnlocks[provider] = generation
@@ -862,20 +864,27 @@ final class VaultBroker {
     func signOut(widgetID: String, permission: Manifest.VaultPermission) {
         let provider = permission.provider
         sweep()
-        guard !blocked, pendingUnlocks[provider] == nil, account(provider) != .signedOut,
-              confirmSignOut(), !blocked, pendingUnlocks[provider] == nil else { return }
+        guard !blocked, pendingUnlocks[provider] == nil, !signingOut.contains(provider), account(provider) != .signedOut,
+              confirmSignOut(), !blocked, pendingUnlocks[provider] == nil, !signingOut.contains(provider) else { return }
+        signingOut.insert(provider)
         end(provider: provider)
         let vault = self.provider
         let work = serialTask(provider, generation: nil) { try await vault.signOut() }
         Task { @MainActor [weak self] in
-            let done = (try? await work.value) != nil
+            let result: Result<Void, Error>
+            do { try await work.value; result = .success(()) } catch { result = .failure(error) }
             guard let self else { return }
-            await self.refreshStatus(provider)
-            if done {
+            self.signingOut.remove(provider)
+            switch result {
+            case .success:
+                // Known now, whatever a later `bw status` manages to say.
+                self.statuses[provider] = VaultStatus(account: .signedOut, server: self.statuses[provider]?.server)
                 self.audit("vault.signed_out", widgetID, ["provider": .string(provider)])
                 self.toast(String(localized: "Signed out of Bitwarden in BarShelf"))
-            } else {
-                self.toast(VaultError.failed.message)
+            case let .failure(error):
+                await self.refreshStatus(provider)
+                let reason = ((error as? VaultError) ?? .failed).message
+                self.toast(String(localized: "The vault is locked, but signing out failed. \(reason)"))
             }
             self.onChange?()
         }

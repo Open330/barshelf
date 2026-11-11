@@ -12063,6 +12063,16 @@
         }
       }
     },
+    "The vault is locked, but signing out failed. %@": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "보관함은 잠갔지만 로그아웃하지 못했습니다. %@"
+          }
+        }
+      }
+    },
     "The vault is locked.": {
       "localizations": {
         "ko": {

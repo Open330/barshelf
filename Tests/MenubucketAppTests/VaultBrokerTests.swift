@@ -645,6 +645,10 @@ final class VaultBrokerTests: XCTestCase {
         changed.assertForOverFulfill = false
         broker.onChange = { if events.contains("vault.signed_out") { changed.fulfill() } }
         broker.signOut(widgetID: "w", permission: permission)
+        var asked = 0
+        broker.promptForPassword = { _, _, _, _ in asked += 1; return nil }
+        broker.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden")
+        XCTAssertEqual(asked, 0, "no password prompt while the sign-out is queued")
         await fulfillment(of: [changed], timeout: 2)
         XCTAssertFalse(broker.isUnlocked(permission))
         XCTAssertFalse(broker.isResumable(permission), "the sealed copy goes too")

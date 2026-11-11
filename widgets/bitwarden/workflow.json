@@ -348,6 +348,7 @@
                           "type": "button",
                           "title": "Sign Out…",
                           "icon": "rectangle.portrait.and.arrow.right",
+                          "hidden": "${transforms.unlocking}",
                           "action": {
                             "type": "vaultSignOut"
                           },
