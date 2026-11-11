@@ -262,7 +262,8 @@ extension HostedView {
 /// Renders one scene frame.
 @MainActor
 func landingFrame<V: View>(_ view: V, size: CGSize, scale: CGFloat) -> CGImage? {
-    let renderer = ImageRenderer(content: view.frame(width: size.width, height: size.height))
+    let renderer = ImageRenderer(content: view.frame(width: size.width, height: size.height)
+        .environment(\.widgetStillRender, true))
     renderer.scale = scale
     renderer.isOpaque = true
     return renderer.cgImage

@@ -577,6 +577,11 @@ Shared/common fields: `id` (stable identity, needed for lists & action routing),
 `searchPlaceholder` enables a host-local search field on a `list`. Each
 whitespace-delimited query term filters against visible row text recursively;
 action payloads are excluded and typing does not re-run the widget.
+A searchable list, or one with more than 12 rows, keeps an auto-height card
+from growing without bound (0.7.26): its rows scroll inside about ten rows
+(320 pt), the search field staying above them. In a fixed-height card, which
+scrolls already, the list fills the card. Set `height` on the list to choose
+the cap yourself (it then applies in every card).
 ```json
 { "type": "section", "title": "Recent", "spacing": 4, "children": [
   { "type": "text", "text": "item" }

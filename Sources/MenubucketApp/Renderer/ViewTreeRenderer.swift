@@ -33,6 +33,14 @@ private struct WidgetPinnedNowKey: EnvironmentKey {
     static let defaultValue: Date? = nil
 }
 
+private struct WidgetStillRenderKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+private struct WidgetCardScrollsKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
 extension EnvironmentValues {
     /// A fixed "now" for host-side clocks (countdowns). Only recorded
     /// demos set it (`landing-media`), so a frame shows the moment its data
@@ -40,6 +48,20 @@ extension EnvironmentValues {
     var widgetPinnedNow: Date? {
         get { self[WidgetPinnedNowKey.self] }
         set { self[WidgetPinnedNowKey.self] = newValue }
+    }
+
+    /// True when the tree is drawn to a still image (`ImageRenderer`:
+    /// registry previews, landing media), where a scroll view draws nothing.
+    var widgetStillRender: Bool {
+        get { self[WidgetStillRenderKey.self] }
+        set { self[WidgetStillRenderKey.self] = newValue }
+    }
+
+    /// True inside a card that already scrolls its content (a fixed height,
+    /// a pinned card): lists there fill the card instead of capping.
+    var widgetCardScrolls: Bool {
+        get { self[WidgetCardScrollsKey.self] }
+        set { self[WidgetCardScrollsKey.self] = newValue }
     }
 
     /// False for pages kept in the horizontal pager only for swipe layout.
@@ -255,7 +277,8 @@ struct NodeView: View {
             NodeListView(
                 items: node.items ?? node.children ?? [],
                 searchPlaceholder: node.searchPlaceholder,
-                spacing: (node.spacing ?? Spacing.xxs) * scale
+                spacing: (node.spacing ?? Spacing.xxs) * scale,
+                maxHeight: node.height.map { CGFloat($0) * scale }
             )
         case .grid:
             gridView
@@ -641,11 +664,37 @@ private struct CountdownProgressView: View {
 /// A regular list unless `searchPlaceholder` is present. Searchable lists keep
 /// their query entirely in SwiftUI state and filter visible row text locally,
 /// so typing never re-runs the widget or exposes the query to its process.
+///
+/// A searchable or long list never grows an auto-height card without bound:
+/// its rows scroll inside `maxHeight` (the node's `height`, else
+/// `defaultMaxHeight`), with the search field kept above them. A vault or a feed of hundreds of
+/// rows used to make an auto-height card as tall as all of them.
 private struct NodeListView: View {
     let items: [UINode]
     let searchPlaceholder: String?
     let spacing: Double
+    var maxHeight: CGFloat?
     @State private var query = ""
+    @State private var rowsHeight: CGFloat = 0
+    @Environment(\.widgetStillRender) private var stillRender
+    @Environment(\.widgetCardScrolls) private var cardScrolls
+
+    /// About ten list rows.
+    static let defaultMaxHeight: CGFloat = 320
+    /// From this many rows a list without a search field is capped too.
+    static let longList = 12
+
+    /// Decided from the unfiltered rows, so the view does not change shape
+    /// (and lose the query) while typing.
+    /// A card that scrolls already bounds the list; a cap there would only
+    /// leave a tall card half empty. The author's own `height` still applies.
+    private var isCapped: Bool {
+        if maxHeight != nil { return true }
+        if cardScrolls { return false }
+        return searchPlaceholder != nil || items.count > Self.longList
+    }
+
+    private var cap: CGFloat { maxHeight ?? Self.defaultMaxHeight }
 
     private var filteredItems: [UINode] {
         guard searchPlaceholder != nil else { return items }
@@ -673,11 +722,33 @@ private struct NodeListView: View {
                     .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, Spacing.s)
-            } else {
+            } else if !isCapped {
                 NodeChildrenView(nodes: filteredItems)
+            } else if stillRender {
+                // A still image cannot scroll: the first rows, clipped.
+                NodeChildrenView(nodes: filteredItems)
+                    .frame(maxHeight: cap, alignment: .top)
+                    .clipped()
+            } else {
+                ScrollView(.vertical, showsIndicators: true) {
+                    NodeChildrenView(nodes: filteredItems)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                        .background(GeometryReader { proxy in
+                            Color.clear.preference(key: ListRowsHeightKey.self, value: proxy.size.height)
+                        })
+                }
+                .scrollBounceBehavior(.basedOnSize)
+                // As tall as the rows, up to the cap: short lists stay short.
+                .frame(height: rowsHeight > 0 ? min(rowsHeight, cap) : nil)
+                .onPreferenceChange(ListRowsHeightKey.self) { rowsHeight = $0 }
             }
         }
     }
+}
+
+private struct ListRowsHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
 /// Linear meter as a custom capsule (track + fill) rather than `ProgressView`.
