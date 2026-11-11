@@ -387,6 +387,9 @@ struct RootView: View {
                     runtime.objectWillChange.send()
                 }
             }
+            if page.widgets.isEmpty {
+                EmptyPageCard(runtime: runtime, page: page.group) { onCommand(.addWidget) }
+            }
             let rows = cardRows(page.widgets)
             ForEach(Array(rows.enumerated()), id: \.element.id) { _, row in
                 HStack(alignment: .top, spacing: Self.cardGap) {
@@ -401,8 +404,12 @@ struct RootView: View {
                     }
                 }
             }
-            if pager.isEditing {
-                Button { onCommand(.addWidget) } label: {
+            if pager.isEditing, !page.widgets.isEmpty {
+                Button {
+                    // Added from a page, a widget lands on that page.
+                    runtime.addNextWidget(toPage: page.group)
+                    onCommand(.addWidget)
+                } label: {
                     Label("Add Widget…", systemImage: "plus")
                         .frame(maxWidth: .infinity)
                 }

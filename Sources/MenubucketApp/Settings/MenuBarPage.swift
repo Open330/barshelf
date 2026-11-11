@@ -76,16 +76,27 @@ struct MenuBarPage: View {
             // (`Components.swift`, choices).
             .pickerStyle(.radioGroup)
             .accessibilityLabel("Show widgets as")
-            if isCluster {
-                if !chips.isEmpty {
-                    LabeledContent("Preview") {
+            // Both layouts show what the bar draws now, so switching between
+            // them shows the difference rather than describing it.
+            LabeledContent("Preview") {
+                if isCluster {
+                    if chips.isEmpty {
+                        Text("Nothing in the menu bar yet").foregroundStyle(.secondary)
+                    } else {
                         ClusterSettingsPreview(
                             chips: chips,
                             color: { runtime.chipColor(for: $0.widgetID) ?? .controlAccentColor },
                             markSymbol: appPrefs.preferences.menuBarSymbol
                         )
                     }
+                } else {
+                    MenuBarItemsPreview(
+                        entries: store.entries.filter { !$0.isEmpty },
+                        markSymbol: appPrefs.preferences.menuBarSymbol
+                    )
                 }
+            }
+            if isCluster {
                 Toggle(isOn: Binding(
                     get: { appPrefs.preferences.menuBarPulse },
                     set: { value in appPrefs.update { $0.menuBarPulse = value } }
@@ -111,6 +122,7 @@ struct MenuBarPage: View {
                     MenuBarItemRow(runtime: runtime, widget: widget, isCluster: isCluster)
                 }
             }
+            addWidgetRow
         } header: {
             Text("In the Menu Bar")
                 .settingsSectionTitle()
@@ -119,6 +131,34 @@ struct MenuBarPage: View {
                 ? "Chips appear left to right in this order. At most \(MenuBarPolicy.maxEntries) widgets are shown; colours come from each widget's accent."
                 : "Items that share the BarShelf icon appear next to it in this order. An item of its own can be moved by holding ⌘ and dragging it in the menu bar.")
                 .formFooter()
+        }
+    }
+
+    /// Widgets whose author did not offer a menu bar reading can still show
+    /// their icon and status there; the list above only carries the ones that
+    /// did, so the rest are added from here rather than only from each
+    /// widget's own settings.
+    @ViewBuilder
+    private var addWidgetRow: some View {
+        let others = runtime.menuBarAddableWidgets
+        let full = runtime.menuBarWidgetIDs.count >= MenuBarPolicy.maxEntries
+        LabeledContent {
+            Menu("Add Widget") {
+                ForEach(others) { widget in
+                    Button(widget.displayName) {
+                        runtime.updateMenuBarPlacement(for: widget.id) { $0.enabled = true }
+                    }
+                }
+            }
+            .fixedSize()
+            .disabled(others.isEmpty || full)
+        } label: {
+            Text("Another widget")
+            Text(full
+                ? "The menu bar is full. Turn an item off to make room."
+                : others.isEmpty
+                    ? "Every widget on your shelf is listed above."
+                    : "Widgets that publish no reading show their icon, and their status once they have one.")
         }
     }
 
@@ -306,6 +346,10 @@ private struct MenuBarItemRow: View {
                         .accessibilityLabel("Move \(widget.displayName) right")
                     }
 
+                    if isCluster {
+                        ClusterChipControls(runtime: runtime, widget: widget, placement: placement)
+                    }
+
                     Spacer()
                     Button("Customize…") {
                         HubWindowController.shared.showWidgetSettings(widgetID: widget.id, page: .menuBar)
@@ -333,5 +377,50 @@ private struct MenuBarItemRow: View {
             return String(localized: "Hidden until its reading reaches the level you set")
         }
         return store.entries.first { $0.widgetID == widget.id }?.label
+    }
+}
+
+/// What a chip can change without leaving the page: the icon on its face and
+/// the colour it is drawn in (the widget's accent, shared with its card).
+private struct ClusterChipControls: View {
+    @ObservedObject var runtime: WidgetRuntime
+    let widget: LoadedWidget
+    let placement: MenuBarPlacement
+
+    var body: some View {
+        TextField(
+            "",
+            text: Binding(
+                get: { placement.icon ?? "" },
+                set: { value in
+                    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                    runtime.updateMenuBarPlacement(for: widget.id) { $0.icon = trimmed.isEmpty ? nil : trimmed }
+                }
+            ),
+            prompt: Text("Icon", comment: "Placeholder: a chip's icon (SF Symbol or emoji)")
+        )
+        .labelsHidden()
+        .textFieldStyle(.roundedBorder)
+        .frame(width: 90)
+        .help("An SF Symbol name or an emoji for the chip. Empty uses the widget's icon.")
+        .accessibilityLabel("Chip icon for \(widget.displayName)")
+
+        let current = runtime.prefs.effectiveAppearance(for: widget.manifest, widgetID: widget.id).accent
+        Menu {
+            ForEach(AccentPalette.swatches) { swatch in
+                Toggle(swatch.name, isOn: Binding(
+                    get: { AccentPalette.matches(swatch.value, current) },
+                    set: { _ in runtime.setAccent(swatch.value, for: widget.id) }
+                ))
+            }
+        } label: {
+            Circle()
+                .fill(WidgetAppearance(accent: current).accentColor ?? .accentColor)
+                .frame(width: 12, height: 12)
+        }
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Chip colour")
+        .accessibilityLabel("Chip colour for \(widget.displayName)")
     }
 }

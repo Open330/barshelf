@@ -139,6 +139,15 @@ final class StatusItemController: NSObject {
                 self?.scheduleVisibilityCheck()
             }
             .store(in: &cancellables)
+        // A chip is drawn in its widget's accent, which is not part of the
+        // chip itself: without this a new colour waited for the next change
+        // of chips.
+        runtime.prefs.$appearanceOverrides
+            .dropFirst()
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.menuBar.invalidateChips() }
+            .store(in: &cancellables)
         startVisibilityMonitoring()
         appPrefs.$preferences
             .receive(on: RunLoop.main)

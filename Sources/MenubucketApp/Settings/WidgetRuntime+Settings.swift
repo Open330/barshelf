@@ -11,12 +11,14 @@ extension WidgetRuntime {
             prefs.setOverride(group: nil, order: nil, size: nil, for: widget.id)
         }
         prefs.setGroupsOrder([])
+        prefs.setKeptPages([])
         objectWillChange.send()
     }
 
     var hasLayoutChanges: Bool {
         let loaded = Set(widgets.map(\.id))
         return prefs.bucketOverrides.keys.contains(where: loaded.contains) || !prefs.groupOrder.isEmpty
+            || !prefs.keptPages.isEmpty
     }
 
     /// Runs a layout change — moving, reordering, resizing, turning widgets
@@ -47,6 +49,142 @@ extension WidgetRuntime {
             return lhs.localizedCaseInsensitiveCompare(rhs) == .orderedAscending
         }
         return (visibleOrder + hiddenOnly).map { WidgetPage(group: $0, widgets: sortMembers(grouped[$0] ?? [])) }
+    }
+
+    // MARK: - Page editing
+
+    /// A page is not stored on its own: it is the name its widgets share
+    /// (`bucket.group`, or the user's override of it). Renaming a page is
+    /// therefore renaming it on every widget it holds, switched-off ones
+    /// included, and keeping its place among the pages. Naming it after
+    /// another page merges the two, its widgets after that page's own — which
+    /// is also how a page is removed without removing any widget.
+    func renamePage(_ name: String, to newName: String) {
+        let pages = shelfPages
+        guard let plan = ShelfPageEdit.rename(
+            name, to: newName,
+            pages: pages.map { page in (page.group, page.widgets.map { ($0.id, $0.group) }) }
+        ) else { return }
+        for placement in plan.placements {
+            let existing = prefs.override(for: placement.id)
+            prefs.setOverride(group: placement.group, order: placement.order, size: existing?.size, for: placement.id)
+        }
+        prefs.setGroupsOrder(plan.pageOrder)
+        if prefs.isKeptPage(name) || newWidgetPage?.name == name {
+            let target = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+            let merging = pages.contains { $0.group == target }
+            if prefs.isKeptPage(name) {
+                prefs.setKeptPages(merging
+                    ? prefs.keptPages.filter { $0 != name }
+                    : prefs.keptPages.map { $0 == name ? target : $0 })
+            }
+            if newWidgetPage?.name == name { newWidgetPage = (target, newWidgetPage!.until) }
+        }
+        objectWillChange.send()
+    }
+
+    /// Makes an empty page at the end, or at `index`. Returns the name used,
+    /// or nil for an empty name. A name already taken returns that page.
+    @discardableResult
+    func createPage(_ name: String, at index: Int? = nil) -> String? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        var order = shelfPages.map(\.group)
+        guard !order.contains(trimmed) else { return trimmed }
+        order.insert(trimmed, at: min(max(index ?? order.count, 0), order.count))
+        prefs.setKeptPages(prefs.keptPages + [trimmed])
+        prefs.setGroupsOrder(order)
+        objectWillChange.send()
+        return trimmed
+    }
+
+    /// Removes a page that has no widgets. One with widgets is removed by
+    /// moving them (`renamePage` onto another page).
+    func removeEmptyPage(_ name: String) {
+        guard shelfPages.first(where: { $0.group == name })?.widgets.isEmpty ?? true else { return }
+        prefs.setKeptPages(prefs.keptPages.filter { $0 != name })
+        prefs.setGroupsOrder(shelfPages.map(\.group).filter { $0 != name })
+        if newWidgetPage?.name == name { newWidgetPage = nil }
+        objectWillChange.send()
+    }
+
+    /// Moves a widget to the end of a page.
+    func moveWidgetToEnd(_ id: String, ofPage page: String) {
+        guard let widget = widgets.first(where: { $0.id == id }) else { return }
+        let count = shelfPages.first { $0.group == page }?.widgets.filter { $0.id != id }.count ?? 0
+        prefs.setOverride(
+            group: widget.group == page ? nil : page,
+            order: Double(count), size: prefs.override(for: id)?.size, for: id
+        )
+        objectWillChange.send()
+    }
+
+    /// How long "add a widget here" keeps waiting for the widget: long
+    /// enough to browse the gallery, short enough not to catch a widget
+    /// installed for some other reason much later.
+    static let newWidgetPageWindow: TimeInterval = 10 * 60
+
+    /// Asks that the next widget installed land on `page`, at its end.
+    func addNextWidget(toPage page: String) {
+        newWidgetPage = (page, Date().addingTimeInterval(Self.newWidgetPageWindow))
+    }
+
+    /// Called by `loadWidgets` with the widgets that just appeared. A widget
+    /// someone already placed (a copy, which stays beside its original) keeps
+    /// its place.
+    func landNewWidgets(_ ids: [String]) {
+        guard let target = newWidgetPage, !ids.isEmpty else { return }
+        newWidgetPage = nil
+        guard target.until > Date(),
+              shelfPages.contains(where: { $0.group == target.name }) else { return }
+        var count = shelfPages.first { $0.group == target.name }?.widgets.count ?? 0
+        for id in ids where prefs.override(for: id)?.group == nil {
+            let manifestGroup = widgets.first { $0.id == id }?.group
+            prefs.setOverride(
+                group: manifestGroup == target.name ? nil : target.name,
+                order: Double(count), size: prefs.override(for: id)?.size, for: id
+            )
+            count += 1
+        }
+    }
+
+    /// Puts a page at `index` among the pages (clamped).
+    func movePage(_ name: String, to index: Int) {
+        var order = shelfPages.map(\.group)
+        guard let from = order.firstIndex(of: name) else { return }
+        order.remove(at: from)
+        order.insert(name, at: min(max(index, 0), order.count))
+        prefs.setGroupsOrder(order)
+        objectWillChange.send()
+    }
+
+    /// Turns every widget on a page on or off. A page whose widgets are all
+    /// off leaves the popup but stays on the Shelf board, ready to come back.
+    func setPageEnabled(_ name: String, _ enabled: Bool) {
+        guard let page = shelfPages.first(where: { $0.group == name }) else { return }
+        for widget in page.widgets { setWidgetDisabled(widget.id, !enabled) }
+    }
+
+    // MARK: - Menu bar
+
+    /// Widgets on the shelf that are not in the Menu Bar page's list — their
+    /// author offered no menu bar reading — but can still be put there.
+    var menuBarAddableWidgets: [LoadedWidget] {
+        let listed = Set(menuBarCandidates.map(\.id))
+        return widgets
+            .filter { !prefs.isDisabled($0.id) && !listed.contains($0.id) }
+            .sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
+    }
+
+    /// Sets a widget's accent — its card's tint and its chip's colour.
+    /// `nil` goes back to the widget's own.
+    func setAccent(_ accent: String?, for id: String) {
+        guard let widget = widgets.first(where: { $0.id == id }) else { return }
+        let base = WidgetPrefs.baseAppearance(for: widget.manifest)
+        var appearance = prefs.effectiveAppearance(for: widget.manifest, widgetID: id)
+        appearance.accent = accent ?? base.accent
+        prefs.setAppearanceOverride(appearance == base ? nil : appearance, for: id)
+        objectWillChange.send()
     }
 
     // MARK: - Permissions
@@ -180,5 +318,49 @@ extension LoadedWidget {
               let probe = try? JSONDecoder().decode(Probe.self, from: data)
         else { return (nil, nil) }
         return (probe.version, probe.description)
+    }
+}
+
+/// Renaming and merging pages as a plan over plain values, so the rules can
+/// be checked without a runtime.
+enum ShelfPageEdit {
+    struct Placement: Equatable {
+        let id: String
+        /// nil when the widget's own manifest already names the page.
+        let group: String?
+        let order: Double
+    }
+
+    struct Plan: Equatable {
+        let placements: [Placement]
+        let pageOrder: [String]
+    }
+
+    /// - Parameter pages: every page in order, each with its widgets in
+    ///   order as (id, the group its manifest names).
+    /// - Returns: nil when there is nothing to do: an empty or unchanged
+    ///   name, or no such page.
+    static func rename(
+        _ name: String, to newName: String,
+        pages: [(group: String, widgets: [(id: String, manifestGroup: String)])]
+    ) -> Plan? {
+        let target = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !target.isEmpty, target != name,
+              let source = pages.first(where: { $0.group == name }) else { return nil }
+        let order = pages.map(\.group)
+        let merging = order.contains(target)
+        // Merged widgets go after the ones already there.
+        let staying = merging ? (pages.first { $0.group == target }?.widgets ?? []) : []
+        let placements = (staying + source.widgets).enumerated().map { position, widget in
+            Placement(
+                id: widget.id,
+                group: widget.manifestGroup == target ? nil : target,
+                order: Double(position)
+            )
+        }
+        return Plan(
+            placements: placements,
+            pageOrder: merging ? order.filter { $0 != name } : order.map { $0 == name ? target : $0 }
+        )
     }
 }

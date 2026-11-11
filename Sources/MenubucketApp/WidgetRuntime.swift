@@ -221,6 +221,9 @@ final class WidgetRuntime: ObservableObject {
     /// Widget id the UI should jump to and highlight (post-install reveal, R11).
     /// Consumers clear it after handling.
     @Published var pendingReveal: String?
+    /// The page "add a widget here" was chosen on: the next widget installed
+    /// lands there (`landNewWidgets`) until `until`.
+    var newWidgetPage: (name: String, until: Date)?
     /// Live menu-bar text for promoted widgets. Observed by the menu bar only,
     /// so a 2 s status refresh never invalidates the popup's view tree.
     let menuBar = MenuBarStatusStore()
@@ -1056,6 +1059,9 @@ final class WidgetRuntime: ObservableObject {
         }
 
         widgets = loaded
+        if !previous.isEmpty {
+            landNewWidgets(loaded.filter { previous[$0.id] == nil }.map(\.id))
+        }
         // Remove per-widget state of widgets that disappeared (hot reload).
         removeWidgetState(notIn: seenIDs)
         refreshStatsStore.retain(widgetIDs: seenIDs)
@@ -1369,6 +1375,11 @@ final class WidgetRuntime: ObservableObject {
     /// pages. Widgets are unchanged so only this explicit action republishes.
     func moveWidget(id: String, toGroup group: String) {
         let trimmed = group.trimmingCharacters(in: .whitespacesAndNewlines)
+        // A page named here for the first time is one the user made: it
+        // stays when its widgets leave, as pages made with New Page do.
+        if !trimmed.isEmpty, !shelfPages.contains(where: { $0.group == trimmed }) {
+            prefs.setKeptPages(prefs.keptPages + [trimmed])
+        }
         prefs.setOverride(
             group: trimmed.isEmpty ? nil : trimmed,
             order: prefs.override(for: id)?.order,
@@ -1581,7 +1592,8 @@ final class WidgetRuntime: ObservableObject {
             group: { self.effectiveGroup(for: $0.id) },
             order: { self.effectiveOrder(for: $0.id) },
             isDisabled: { self.prefs.isDisabled($0.id) },
-            groupSort: { self.prefs.groupSortKey($0) ?? .greatestFiniteMagnitude }
+            groupSort: { self.prefs.groupSortKey($0) ?? .greatestFiniteMagnitude },
+            keptPages: prefs.keptPages
         )
     }
 
@@ -1593,10 +1605,14 @@ final class WidgetRuntime: ObservableObject {
         group: (LoadedWidget) -> String,
         order: (LoadedWidget) -> Double,
         isDisabled: (LoadedWidget) -> Bool,
-        groupSort: (String) -> Double = { _ in .greatestFiniteMagnitude }
+        groupSort: (String) -> Double = { _ in .greatestFiniteMagnitude },
+        keptPages: [String] = []
     ) -> [WidgetPage] {
         let visible = widgets.filter { !isDisabled($0) }
-        let grouped = Dictionary(grouping: visible, by: group)
+        var grouped = Dictionary(grouping: visible, by: group)
+        // A page the user made stays while it has no widget showing, as a
+        // place to add one; its switched-off widgets stay off.
+        for name in keptPages where grouped[name] == nil { grouped[name] = [] }
         return grouped
             .map { groupName, members in
                 WidgetPage(

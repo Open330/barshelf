@@ -17,6 +17,13 @@ struct ShelfView: View {
     @State private var duplicateName = ""
     @State private var actionError: String?
     @State private var dropHighlight: String?
+    /// The page being renamed, and the name typed for it.
+    @State private var renamingPage: String?
+    @State private var pageName = ""
+    /// The page whose removal is being confirmed.
+    @State private var removingPage: String?
+    /// The New Page name prompt.
+    @State private var askingForNewPage = false
     /// The inspector part a request ("Customize…") asked for, for that widget
     /// only; any other selection opens on General.
     @State private var requestedPage: (widgetID: String, page: WidgetSettingsView.InspectorTab)?
@@ -48,6 +55,14 @@ struct ShelfView: View {
                     Label("Add Widget", systemImage: "plus")
                 }
                 .help("Find a widget in the Gallery")
+                Button {
+                    pageName = ""
+                    askingForNewPage = true
+                } label: {
+                    Label("New Page", systemImage: "rectangle.stack.badge.plus")
+                }
+                .help("Add an empty page to the popup")
+                .disabled(runtime.widgets.isEmpty)
                 Button {
                     inspectorShown.toggle()
                 } label: {
@@ -88,6 +103,44 @@ struct ShelfView: View {
             }
         } message: { _ in
             Text("The copy has its own settings — for example one per server or account.")
+        }
+        .alert(
+            "Rename Page",
+            isPresented: Binding(
+                get: { renamingPage != nil },
+                set: { if !$0 { renamingPage = nil } }
+            ),
+            presenting: renamingPage
+        ) { name in
+            TextField("Page name", text: $pageName)
+            Button("Rename") { renamePage(name, to: pageName) }
+            Button("Cancel", role: .cancel) { renamingPage = nil }
+        } message: { _ in
+            Text("Use the name of another page to merge the two.")
+        }
+        .alert("New Page", isPresented: $askingForNewPage) {
+            TextField("Page name", text: $pageName)
+            Button("Add Page") { addPage(named: pageName) }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("It waits empty in the popup until you add widgets to it.")
+        }
+        .confirmationDialog(
+            "Remove the page \(removingPage.map(PageName.label) ?? "")?",
+            isPresented: Binding(
+                get: { removingPage != nil },
+                set: { if !$0 { removingPage = nil } }
+            ),
+            presenting: removingPage
+        ) { name in
+            ForEach(shelfPages.map(\.name).filter { $0 != name }, id: \.self) { other in
+                Button("Move Its Widgets to \(PageName.label(other))") {
+                    renamePage(name, to: other, actionName: String(localized: "Remove Page"))
+                }
+            }
+            Button("Cancel", role: .cancel) { removingPage = nil }
+        } message: { _ in
+            Text("No widget is removed: they stay installed, with their settings, on the page you choose.")
         }
         .alert(
             "Couldn't Do That",
@@ -217,12 +270,7 @@ struct ShelfView: View {
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
                 Spacer(minLength: 0)
-                Menu {
-                    Button("Move Page Left") { movePage(page.name, by: -1) }
-                        .disabled(index == 0)
-                    Button("Move Page Right") { movePage(page.name, by: 1) }
-                        .disabled(index == count - 1)
-                } label: {
+                Menu { pageMenu(page, index: index, count: count) } label: {
                     Image(systemName: "ellipsis.circle")
                 }
                 .menuStyle(.borderlessButton)
@@ -234,6 +282,14 @@ struct ShelfView: View {
             .accessibilityElement(children: .contain)
             .accessibilityLabel(Text("Page \(PageName.label(page.name)), ^[\(page.widgets.count) widget](inflect: true)"))
 
+            if page.widgets.isEmpty {
+                EmptyPageCard(runtime: runtime, page: page.name, addWidget: { model.tab = .gallery }, compact: true)
+                    .dropDestination(for: String.self) { ids, _ in
+                        guard let id = ids.first else { return false }
+                        move(id, toPage: page.name, before: nil)
+                        return true
+                    }
+            }
             ForEach(page.widgets) { widget in
                 chip(widget, in: page)
             }
@@ -261,6 +317,56 @@ struct ShelfView: View {
             RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
                 .fill(Fill.card)
         )
+    }
+
+    /// Everything a page can do. Pages are named groups of widgets, so these
+    /// act on the widgets they hold (`WidgetRuntime.renamePage`).
+    @ViewBuilder
+    private func pageMenu(_ page: ShelfPage, index: Int, count: Int) -> some View {
+        Button("Add Widget to This Page…") {
+            runtime.addNextWidget(toPage: page.name)
+            model.tab = .gallery
+        }
+        Button("Rename Page…") {
+            pageName = PageName.label(page.name)
+            renamingPage = page.name
+        }
+        Divider()
+        Button("Move to Start") { movePage(page.name, to: 0) }
+            .disabled(index == 0)
+        Button("Move Page Left") { movePage(page.name, by: -1) }
+            .disabled(index == 0)
+        Button("Move Page Right") { movePage(page.name, by: 1) }
+            .disabled(index == count - 1)
+        Button("Move to End") { movePage(page.name, to: count - 1) }
+            .disabled(index == count - 1)
+        Divider()
+        let allOff = !page.widgets.isEmpty && page.widgets.allSatisfy { runtime.prefs.isDisabled($0.id) }
+        Button(allOff ? "Turn On Page" : "Turn Off Page") {
+            runtime.changeLayout(allOff ? String(localized: "Turn On Page") : String(localized: "Turn Off Page"), undoManager: undoManager) {
+                runtime.setPageEnabled(page.name, allOff)
+            }
+        }
+        .help(allOff ? "Show this page's widgets in the popup again" : "Hide this page from the popup; its widgets stop refreshing")
+        Menu("Merge Into") {
+            ForEach(shelfPages.map(\.name).filter { $0 != page.name }, id: \.self) { other in
+                Button(PageName.label(other)) {
+                    renamePage(page.name, to: other, actionName: String(localized: "Merge Pages"))
+                }
+            }
+        }
+        .disabled(count < 2)
+        Divider()
+        if page.widgets.isEmpty {
+            Button("Remove Page", role: .destructive) {
+                runtime.changeLayout(String(localized: "Remove Page"), undoManager: undoManager) {
+                    runtime.removeEmptyPage(page.name)
+                }
+            }
+        } else {
+            Button("Remove Page…", role: .destructive) { removingPage = page.name }
+                .disabled(count < 2)
+        }
     }
 
     /// The chosen widget in the accent while the board has the keyboard, in
@@ -486,6 +592,34 @@ struct ShelfView: View {
             runtime.prefs.setGroupsOrder(order)
         }
         runtime.objectWillChange.send()
+    }
+
+    private func addPage(named name: String) {
+        runtime.changeLayout(String(localized: "New Page"), undoManager: undoManager) {
+            runtime.createPage(name)
+        }
+    }
+
+    private func movePage(_ name: String, to index: Int) {
+        runtime.changeLayout(String(localized: "Move Page"), undoManager: undoManager) {
+            runtime.movePage(name, to: index)
+        }
+    }
+
+    /// Renames a page, or merges it into the page named. Typing the label a
+    /// page is shown with leaves it alone: built-in page names are shown in
+    /// the app's language but stored in English.
+    private func renamePage(_ name: String, to newName: String, actionName: String? = nil) {
+        renamingPage = nil
+        removingPage = nil
+        let typed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !typed.isEmpty, typed != PageName.label(name) else { return }
+        // A page's label in the app's language means that page.
+        let target = shelfPages.map(\.name).first { PageName.label($0) == typed && $0 != name } ?? typed
+        let merging = shelfPages.contains { $0.name == target }
+        runtime.changeLayout(actionName ?? (merging ? String(localized: "Merge Pages") : String(localized: "Rename Page")), undoManager: undoManager) {
+            runtime.renamePage(name, to: target)
+        }
     }
 
     // MARK: - Actions

@@ -32,6 +32,10 @@ final class WidgetPrefs: ObservableObject {
     /// Explicit panel/group display order (0-based index per group name). Empty
     /// means "no manual order" — groups fall back to member order then name.
     @Published private(set) var groupOrder: [String: Double] = [:]
+    /// Pages the user made by name. A page is otherwise only the name its
+    /// widgets share, so it vanishes once empty; these stay, and an empty one
+    /// shows an "add a widget here" card in its place.
+    @Published private(set) var keptPages: [String] = []
     /// Menu-bar promotion, keyed by widget id. A widget with no entry falls
     /// back to its manifest's `statusItem.mode`.
     @Published private(set) var menuBarPlacements: [String: MenuBarPlacement] = [:]
@@ -51,6 +55,7 @@ final class WidgetPrefs: ObservableObject {
         /// Optional for backward compatibility with pre-R12 prefs files.
         var appearanceOverrides: [String: WidgetAppearance]?
         var groupOrder: [String: Double]?
+        var keptPages: [String]?
         /// Optional for backward compatibility with pre-menu-bar prefs files.
         var menuBarPlacements: [String: MenuBarPlacement]?
         var refreshIntervals: [String: Double]?
@@ -73,6 +78,18 @@ final class WidgetPrefs: ObservableObject {
         for (index, group) in orderedGroups.enumerated() { map[group] = Double(index) }
         guard map != groupOrder else { return }
         groupOrder = map
+        save()
+    }
+
+    // MARK: - Kept pages
+
+    func isKeptPage(_ name: String) -> Bool { keptPages.contains(name) }
+
+    func setKeptPages(_ names: [String]) {
+        var seen: Set<String> = []
+        let unique = names.filter { !$0.isEmpty && seen.insert($0).inserted }
+        guard unique != keptPages else { return }
+        keptPages = unique
         save()
     }
 
@@ -150,10 +167,11 @@ final class WidgetPrefs: ObservableObject {
         var overrides: [String: BucketOverride]
         var groupOrder: [String: Double]
         var disabled: Set<String>
+        var keptPages: [String] = []
     }
 
     var layoutState: LayoutState {
-        LayoutState(overrides: bucketOverrides, groupOrder: groupOrder, disabled: disabled)
+        LayoutState(overrides: bucketOverrides, groupOrder: groupOrder, disabled: disabled, keptPages: keptPages)
     }
 
     func restoreLayout(_ state: LayoutState) {
@@ -161,6 +179,7 @@ final class WidgetPrefs: ObservableObject {
         bucketOverrides = state.overrides
         groupOrder = state.groupOrder
         disabled = state.disabled
+        keptPages = state.keptPages
         save()
     }
 
@@ -330,6 +349,7 @@ final class WidgetPrefs: ObservableObject {
         bucketOverrides = persisted.bucketOverrides ?? [:]
         appearanceOverrides = persisted.appearanceOverrides ?? [:]
         groupOrder = persisted.groupOrder ?? [:]
+        keptPages = persisted.keptPages ?? []
         menuBarPlacements = persisted.menuBarPlacements ?? [:]
         refreshIntervals = (persisted.refreshIntervals ?? [:]).filter { $0.value.isFinite && $0.value > 0 }
     }
@@ -341,6 +361,7 @@ final class WidgetPrefs: ObservableObject {
             bucketOverrides: bucketOverrides.isEmpty ? nil : bucketOverrides,
             appearanceOverrides: appearanceOverrides.isEmpty ? nil : appearanceOverrides,
             groupOrder: groupOrder.isEmpty ? nil : groupOrder,
+            keptPages: keptPages.isEmpty ? nil : keptPages,
             menuBarPlacements: menuBarPlacements.isEmpty ? nil : menuBarPlacements,
             refreshIntervals: refreshIntervals.isEmpty ? nil : refreshIntervals
         )
