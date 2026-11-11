@@ -2,7 +2,7 @@
   "$schema": "https://barshelf.jiun.dev/schema/workflow-0.1.json",
   "schemaVersion": 1,
   "kind": "workflow",
-  "_comment": "Bitwarden CLI vault status from `bw status` only: no session, no unlock, no sync, no item data. A fixed shell wrapper finds bw (Homebrew, npm under nvm/volta and similar; npm's bw is a node script, so its own bin folder goes first on PATH), and sed drops userEmail and userId before the output reaches BarShelf. BarShelf passes no BW_SESSION, so a logged-in vault reads as locked even while a terminal has it unlocked. A missing reading is null for the stale-sync alert. When the user presses Unlock, BarShelf's built-in Bitwarden provider (permissions.vault) unlocks the vault: the master password goes to bw through stdin, only the session is kept, in memory, and it locks after 10 minutes without a vault action, 60 minutes at most, on screen lock, sleep or quit. If the user ticks Touch ID at the password prompt, BarShelf keeps the session sealed to the Secure Enclave for 8 hours: idle, screen lock and sleep then lock softly and Touch ID reopens it (vault.items reports resumable and biometry); Lock locks bw completely. The vault.items source gives item names, usernames, hosts and opaque handles; copying a field is done by the host straight to the clipboard (cleared after 30 s). No secret reaches this workflow.",
+  "_comment": "Bitwarden CLI vault status from `bw status` only: no session, no unlock, no sync, no item data. A fixed shell wrapper finds bw (Homebrew, npm under nvm/volta and similar; npm's bw is a node script, so its own bin folder goes first on PATH), and sed drops userEmail and userId before the output reaches BarShelf. BarShelf passes no BW_SESSION, so a logged-in vault reads as locked even while a terminal has it unlocked. A missing reading is null for the stale-sync alert. When the user presses Unlock, BarShelf's built-in Bitwarden provider (permissions.vault) unlocks the vault in BarShelf's own Bitwarden CLI profile (signed in once from the card, separate from the user's terminal bw so neither locks the other; vault.items reports account signedOut until then): the master password goes to bw through stdin, only the session is kept, in memory, and it locks after 10 minutes without a vault action, 60 minutes at most, on screen lock, sleep or quit. If the user ticks Touch ID at the password prompt, BarShelf keeps the session sealed to the Secure Enclave for 8 hours: idle, screen lock and sleep then lock softly and Touch ID reopens it (vault.items reports resumable and biometry); Lock locks bw completely. The vault.items source gives item names, usernames, hosts and opaque handles; copying a field is done by the host straight to the clipboard (cleared after 30 s). No secret reaches this workflow.",
   "sources": {
     "bw": {
       "use": "exec",
@@ -31,11 +31,11 @@
     },
     "state": {
       "use": "assign",
-      "from": "if(eq(sources.bw.installed, false), 'missing', if(transforms.ok, sources.bw.status, 'error'))"
+      "from": "if(eq(sources.bw.installed, false), 'missing', if(ne(coalesce(sources.vault.state, ''), ''), if(eq(sources.vault.state, 'unlocked'), 'unlocked', if(eq(coalesce(sources.vault.account, ''), 'signedOut'), 'unauthenticated', 'locked')), if(transforms.ok, sources.bw.status, 'error')))"
     },
     "stateWord": {
       "use": "assign",
-      "from": "if(transforms.unlocked, if(transforms.ko, '열림', 'Unlocked'), if(transforms.ko, switch(transforms.state, 'locked', '잠김', 'unlocked', '잠금 해제됨', 'unauthenticated', '로그아웃됨', 'missing', 'bw 없음', '읽을 수 없음'), switch(transforms.state, 'locked', 'Locked', 'unlocked', 'Unlocked', 'unauthenticated', 'Logged out', 'missing', 'bw not found', 'Unreadable')))"
+      "from": "if(transforms.unlocked, if(transforms.ko, '열림', 'Unlocked'), if(transforms.ko, switch(transforms.state, 'locked', '잠김', 'unlocked', '잠금 해제됨', 'unauthenticated', '로그인 필요', 'missing', 'bw 없음', '읽을 수 없음'), switch(transforms.state, 'locked', 'Locked', 'unlocked', 'Unlocked', 'unauthenticated', 'Sign in needed', 'missing', 'bw not found', 'Unreadable')))"
     },
     "icon": {
       "use": "assign",
@@ -67,7 +67,7 @@
     },
     "staleReading": {
       "use": "assign",
-      "from": "if(and(transforms.ok, ne(transforms.state, 'unauthenticated'), ne(transforms.syncMs, null), coalesce(settings.alertOnStale, true)), transforms.stale, null)"
+      "from": "if(and(transforms.ok, ne(sources.bw.status, 'unauthenticated'), ne(transforms.syncMs, null), coalesce(settings.alertOnStale, true)), transforms.stale, null)"
     },
     "alertTitle": {
       "use": "assign",
@@ -100,6 +100,10 @@
     "unlocking": {
       "use": "assign",
       "from": "eq(coalesce(sources.vault.state, ''), 'unlocking')"
+    },
+    "signedOut": {
+      "use": "assign",
+      "from": "eq(coalesce(sources.vault.account, ''), 'signedOut')"
     }
   },
   "view": {
@@ -264,7 +268,7 @@
                     "type": "banner",
                     "icon": "person.crop.circle.badge.questionmark",
                     "tone": "secondary",
-                    "text": "Not logged in. Run bw login in Terminal."
+                    "text": "BarShelf keeps its own Bitwarden sign-in, separate from Terminal. Sign in once below."
                   }
                 },
                 "default": {
@@ -355,7 +359,7 @@
             }
           },
           {
-            "switch": "${if(transforms.unlocking, 'busy', if(transforms.touchReady, 'touch', 'password'))}",
+            "switch": "${if(transforms.unlocking, 'busy', if(transforms.signedOut, 'signin', if(transforms.touchReady, 'touch', 'password')))}",
             "cases": {
               "busy": {
                 "type": "hstack",
@@ -377,6 +381,28 @@
                   {
                     "type": "text",
                     "text": "Bitwarden is checking the master password; this takes a few seconds.",
+                    "role": "caption",
+                    "foreground": "secondary",
+                    "lineLimit": 2
+                  }
+                ]
+              },
+              "signin": {
+                "type": "hstack",
+                "spacing": 8,
+                "children": [
+                  {
+                    "type": "button",
+                    "title": "Sign In",
+                    "icon": "person.crop.circle.badge.checkmark",
+                    "style": "borderedProminent",
+                    "action": {
+                      "type": "vaultUnlock"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "text": "Once, with your server, email and master password.",
                     "role": "caption",
                     "foreground": "secondary",
                     "lineLimit": 2

@@ -132,6 +132,16 @@
         }
       }
     },
+    "%@ asks BarShelf to sign in to Bitwarden. BarShelf keeps its own sign-in, separate from the bw you use in Terminal, so neither locks the other. The master password goes to the Bitwarden CLI and is not kept.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@이(가) BarShelf에 Bitwarden 로그인을 요청합니다. BarShelf는 터미널에서 쓰는 bw와 별도로 자체 로그인을 유지하므로 서로 잠그지 않습니다. 마스터 비밀번호는 Bitwarden CLI로 전달되며 보관하지 않습니다."
+          }
+        }
+      }
+    },
     "%@ asks BarShelf to unlock your vault. BarShelf passes the master password to the Bitwarden CLI, keeps only the session it returns, and locks again after %lld minutes without use.": {
       "localizations": {
         "en": {
@@ -1445,6 +1455,16 @@
         }
       }
     },
+    "Authenticator app": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "인증 앱"
+          }
+        }
+      }
+    },
     "Author": {
       "localizations": {
         "ko": {
@@ -1825,12 +1845,32 @@
         }
       }
     },
+    "Bitwarden asks for a two-step login code.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitwarden이 2단계 로그인 코드를 요구합니다."
+          }
+        }
+      }
+    },
     "Bitwarden couldn't do that.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "Bitwarden이 그 작업을 하지 못했습니다."
+          }
+        }
+      }
+    },
+    "Bitwarden sent a code to your email. Enter it here.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitwarden이 이메일로 코드를 보냈습니다. 여기에 입력하세요."
           }
         }
       }
@@ -2560,6 +2600,16 @@
         }
       }
     },
+    "Code": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "코드"
+          }
+        }
+      }
+    },
     "Code copied · clears in 30 s": {
       "localizations": {
         "ko": {
@@ -2918,6 +2968,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "설정을 저장할 수 없음: %@"
+          }
+        }
+      }
+    },
+    "Couldn't sign in. Check the server, email, master password and code.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "로그인하지 못했습니다. 서버, 이메일, 마스터 비밀번호와 코드를 확인하세요."
           }
         }
       }
@@ -3857,6 +3917,16 @@
         }
       }
     },
+    "Email": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이메일"
+          }
+        }
+      }
+    },
     "Empty Folder": {
       "localizations": {
         "ko": {
@@ -3934,6 +4004,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "계속하려면 위젯 URL을 입력하십시오."
+          }
+        }
+      }
+    },
+    "Enter the code from your authenticator app or security key. To get a code by email, choose Email and leave the code empty.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "인증 앱이나 보안 키의 코드를 입력하세요. 이메일로 받으려면 이메일을 고르고 코드는 비워 두세요."
           }
         }
       }
@@ -9832,6 +9912,16 @@
         }
       }
     },
+    "Server (empty for bitwarden.com)": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "서버 (bitwarden.com이면 비워 두기)"
+          }
+        }
+      }
+    },
     "Sets of widgets that work well together. Each widget still asks before it runs.": {
       "extractionState": "stale",
       "localizations": {
@@ -10504,6 +10594,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "현재 kubectl 컨텍스트와 네임스페이스의 Pod 상태를 보여 주고, 준비되지 않은 Pod를 나열합니다. 클러스터에 접근할 수 있는 kubectl이 필요합니다."
+          }
+        }
+      }
+    },
+    "Sign In": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "로그인"
+          }
+        }
+      }
+    },
+    "Sign In to Bitwarden": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitwarden 로그인"
+          }
+        }
+      }
+    },
+    "Sign in to Bitwarden in BarShelf first.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "먼저 BarShelf에서 Bitwarden에 로그인하세요."
           }
         }
       }
@@ -12104,6 +12224,16 @@
         }
       }
     },
+    "Two-Step Login": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "2단계 로그인"
+          }
+        }
+      }
+    },
     "Type": {
       "localizations": {
         "ko": {
@@ -13239,6 +13369,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "선반이 비어 있음"
+          }
+        }
+      }
+    },
+    "YubiKey OTP": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "YubiKey OTP"
           }
         }
       }

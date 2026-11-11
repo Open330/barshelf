@@ -271,6 +271,9 @@ only; today `"bitwarden"`, the `bw` CLI); the widget cannot choose its commands.
 
 - Source `{ "use": "vault.items" }` → `{ state: "locked"|"unlocking"|"unlocked"|"error", items: [{ handle, name,
   username, host, totp, hasUsername }], count, truncated, error?, resumable, biometry? }`.
+  `account` (0.7.27): `"signedIn"`, `"signedOut"` or `"unknown"` for BarShelf's
+  own CLI profile; while `"signedOut"`, `vaultUnlock` opens BarShelf's sign-in
+  (server, email, master password, then a two-step code if the account asks).
   `"unlocking"` (0.7.25): the master password or Touch ID is being checked; the
   card is refreshed when that starts and when it ends. `resumable` (0.7.23):
   Touch ID can reopen the vault; `biometry: "touchID"` when
@@ -294,6 +297,10 @@ only; today `"bitwarden"`, the `bw` CLI); the widget cannot choose its commands.
   and screen lock/sleep then lock softly (bw stays unlocked; Touch ID reopens,
   with the same or tighter limits); Lock, quit, widget changes, the 8 hours, an
   invalid session and a Touch ID lockout or enrollment change lock bw fully.
+- BarShelf drives Bitwarden in its own CLI profile (0.7.27,
+  `~/Library/Application Support/barshelf/bitwarden-cli`, owner-only), signed
+  in once from the card, so unlocking or locking in BarShelf never touches the
+  session the user's terminal `bw` holds. Each unlock syncs that profile once.
 - Any change to `vault` asks for approval again.
 
 ## 8C. Workflow alerts (`alerts`) — BarShelf 0.7.21

@@ -20,10 +20,15 @@ and cleared from the clipboard after 30 seconds.
   can open it. In the meantime the Bitwarden CLI stays unlocked. **Lock**, quitting
   BarShelf, a fingerprint change, or 8 hours since you typed the password lock
   Bitwarden fully.
-- Bitwarden's CLI keeps one session per profile: unlocking here replaces a session
-  you unlocked in a terminal, and locking here locks `bw` for both.
+- BarShelf signs in to Bitwarden once, in its own CLI profile, separate from the
+  `bw` you use in Terminal: unlocking or locking in BarShelf never ends your
+  terminal session, and the other way round. The first time, the card shows
+  **Sign In** (server and email are filled in from your terminal `bw`; a
+  two-step code is asked for if your account uses one). Each unlock then syncs
+  BarShelf's copy of the vault. To sign BarShelf out, delete
+  `~/Library/Application Support/barshelf/bitwarden-cli`.
 - While locked it shows the vault state and when it last synced, and can notify
   you when it hasn't synced for a while.
 
 Needs the Bitwarden CLI (`bw`) installed with Homebrew, npm, volta or bun, logged
-in once (`bw login`), and BarShelf 0.7.22 or later (Touch ID: 0.7.23).
+in once (`bw login`), and BarShelf 0.7.22 or later (Touch ID: 0.7.23; own sign-in: 0.7.27).
