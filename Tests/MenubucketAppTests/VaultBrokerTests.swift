@@ -63,6 +63,7 @@ final class VaultBrokerTests: XCTestCase {
             return key
         }
         func lock(session: String?) async { lock.withLock { locked.append(session); calls.append("lock") } }
+        func signOut() async throws { lock.withLock { calls.append("signOut"); accountState = .signedOut } }
     }
 
     /// Seals by keeping the secret with its AAD; opening returns what the
@@ -619,6 +620,43 @@ final class VaultBrokerTests: XCTestCase {
         XCTAssertEqual(signIns(), 1)
         XCTAssertEqual(provider.lock.withLock { provider.calls }, ["signIn"], "no password unlock against a signed-out profile")
         XCTAssertEqual(provider.lock.withLock { provider.signIns.first?.server }, "https://vault.example")
+    }
+
+    /// Sign Out asks first; then the session and its sealed copy end hard,
+    /// bw is locked, and the profile signs out behind that lock. The next
+    /// Unlock signs in again.
+    func testSignOutConfirmsLocksThenSignsOut() async throws {
+        let provider = FakeProvider()
+        let sealer = FakeSealer()
+        let broker = makeBroker(provider, sealer: sealer, touchID: true)
+        var events: [String] = []
+        broker.audit = { event, _, _ in events.append(event) }
+        try await unlocked(broker)
+        XCTAssertTrue(broker.isResumable(permission))
+
+        broker.confirmSignOut = { false }
+        broker.signOut(widgetID: "w", permission: permission)
+        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertTrue(broker.isUnlocked(permission), "cancelling the confirmation changes nothing")
+        XCTAssertFalse(provider.lock.withLock { provider.calls }.contains("signOut"))
+
+        broker.confirmSignOut = { true }
+        let changed = expectation(description: "signed out")
+        changed.assertForOverFulfill = false
+        broker.onChange = { if events.contains("vault.signed_out") { changed.fulfill() } }
+        broker.signOut(widgetID: "w", permission: permission)
+        await fulfillment(of: [changed], timeout: 2)
+        XCTAssertFalse(broker.isUnlocked(permission))
+        XCTAssertFalse(broker.isResumable(permission), "the sealed copy goes too")
+        XCTAssertEqual(provider.lock.withLock { provider.calls }.suffix(2), ["lock", "signOut"])
+        let locked = await broker.itemsSource(widgetID: "w", permission: permission)
+        XCTAssertEqual(locked.objectValue?["account"], .string("signedOut"))
+
+        provider.lock.withLock { provider.calls = [] }
+        let (signIns, _) = signInPrompts(broker)
+        try await unlocked(broker)
+        XCTAssertEqual(signIns(), 1, "Unlock signs in again")
+        XCTAssertEqual(provider.lock.withLock { provider.calls }, ["signIn"])
     }
 
     /// Unlocking decrypts the local copy; the vault is then synced once.

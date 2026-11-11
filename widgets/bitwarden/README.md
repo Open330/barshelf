@@ -27,8 +27,10 @@ and cleared from the clipboard after 30 seconds.
   two-step code is asked for if your account uses one; an account without
   two-step login, which Bitwarden then checks by emailed code as a new device,
   signs in with its API key instead). Each unlock then syncs BarShelf's copy of
-  the vault, and the card's last sync and server are BarShelf's. To sign BarShelf out, delete
-  `~/Library/Application Support/barshelf/bitwarden-cli`.
+  the vault, and the card's last sync and server are BarShelf's. To switch
+  accounts or servers, press **Sign Out…** on the locked card (BarShelf 0.7.30+):
+  after you confirm, BarShelf locks the vault and signs its own profile out;
+  your terminal `bw` stays signed in.
 - While locked it shows the vault state and when it last synced, and can notify
   you when it hasn't synced for a while.
 

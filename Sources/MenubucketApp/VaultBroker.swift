@@ -98,6 +98,8 @@ protocol VaultProvider: Sendable {
     /// Server and email of the account the user's own CLI uses, to prefill
     /// sign-in. Never a secret.
     func suggestedAccount() async -> (server: String?, email: String?)
+    /// Signs BarShelf's profile out. The user's own CLI profile is untouched.
+    func signOut() async throws
 }
 
 /// The Bitwarden CLI, run directly (no shell), from a known install location
@@ -251,6 +253,12 @@ struct BitwardenCLIProvider: VaultProvider {
 
     func lock(session: String?) async {
         _ = try? await run(["lock"], stdin: nil, session: session, failure: .failed)
+    }
+
+    /// `bw logout` in BarShelf's profile; already signed out counts as done.
+    func signOut() async throws {
+        let output = try await capture(["logout"], stdin: nil, session: nil)
+        guard output.exitCode == 0 || Self.mentions(output.stderr, "not logged in") else { throw VaultError.failed }
     }
 
     /// Names, usernames, hosts and whether a TOTP exists: the only fields
@@ -844,6 +852,35 @@ final class VaultBroker {
         end(provider: permission.provider)
     }
 
+    /// The host-owned confirmation before signing out; swappable in tests.
+    var confirmSignOut: () -> Bool = VaultBroker.signOutPrompt
+
+    /// Signs BarShelf's own profile out once the user confirms: the session
+    /// and any sealed copy end hard (bw is locked), then the provider signs
+    /// out behind that lock. The bw the user runs in Terminal is a separate
+    /// profile and stays as it is. The next Unlock asks to sign in again.
+    func signOut(widgetID: String, permission: Manifest.VaultPermission) {
+        let provider = permission.provider
+        sweep()
+        guard !blocked, pendingUnlocks[provider] == nil, account(provider) != .signedOut,
+              confirmSignOut(), !blocked, pendingUnlocks[provider] == nil else { return }
+        end(provider: provider)
+        let vault = self.provider
+        let work = serialTask(provider, generation: nil) { try await vault.signOut() }
+        Task { @MainActor [weak self] in
+            let done = (try? await work.value) != nil
+            guard let self else { return }
+            await self.refreshStatus(provider)
+            if done {
+                self.audit("vault.signed_out", widgetID, ["provider": .string(provider)])
+                self.toast(String(localized: "Signed out of Bitwarden in BarShelf"))
+            } else {
+                self.toast(VaultError.failed.message)
+            }
+            self.onChange?()
+        }
+    }
+
     // MARK: For the workflow source
 
     /// The vault's state and item metadata for a widget's `vault.items`
@@ -1140,6 +1177,19 @@ final class VaultBroker {
         guard response == .alertFirstButtonReturn else { return nil }
         return TwoFactorAnswer(method: methods[max(popup.indexOfSelectedItem, 0)].0,
                                code: code.stringValue.trimmingCharacters(in: .whitespaces))
+    }
+
+    /// Asks before signing out: signing back in takes the master password
+    /// and, for most accounts, a two-step code.
+    static func signOutPrompt() -> Bool {
+        NotificationCenter.default.post(name: PopoverSurface.dismissAll, object: nil)
+        NSApp.activate()
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Sign Out of Bitwarden in BarShelf?")
+        alert.informativeText = String(localized: "BarShelf locks the vault and forgets its Bitwarden sign-in. The bw you use in Terminal stays signed in. To use the vault here again, sign in with your server, email and master password.")
+        alert.addButton(withTitle: String(localized: "Sign Out"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
+        return alert.runModal() == .alertFirstButtonReturn
     }
 
     /// Host-owned API-key fields; the secret is a secure field.

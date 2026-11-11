@@ -2102,6 +2102,8 @@ final class WidgetRuntime: ObservableObject {
                                usePassword: action.value == "password")
         case "vaultLock":
             vaultBroker.lock(permission)
+        case "vaultSignOut":
+            vaultBroker.signOut(widgetID: widgetID, permission: permission)
         case "vaultCopy":
             guard let handle = action.value, let field = action.field.flatMap(VaultField.init(rawValue:)) else { return }
             vaultBroker.copy(widgetID: widgetID, permission: permission, handle: handle, field: field)

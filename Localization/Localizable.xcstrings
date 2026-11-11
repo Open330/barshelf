@@ -1834,6 +1834,16 @@
         }
       }
     },
+    "BarShelf locks the vault and forgets its Bitwarden sign-in. The bw you use in Terminal stays signed in. To use the vault here again, sign in with your server, email and master password.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BarShelf가 보관함을 잠그고 자체 Bitwarden 로그인을 지웁니다. 터미널에서 쓰는 bw는 로그인 상태 그대로입니다. 여기서 보관함을 다시 쓰려면 서버, 이메일, 마스터 비밀번호로 로그인하세요."
+          }
+        }
+      }
+    },
     "BarShelf runs only the commands a widget declared, reaches only the hosts it declared, and reads only the paths it declared, after you allow it. A command you allow runs with your access, network included, so allow only widgets you trust. Revoking stops the widget until you allow it again on its card. Copies of a widget share its permissions.": {
       "localizations": {
         "ko": {
@@ -11021,12 +11031,42 @@
         }
       }
     },
+    "Sign Out": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "로그아웃"
+          }
+        }
+      }
+    },
+    "Sign Out of Bitwarden in BarShelf?": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BarShelf에서 Bitwarden 로그아웃할까요?"
+          }
+        }
+      }
+    },
     "Sign in to Bitwarden in BarShelf first.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "먼저 BarShelf에서 Bitwarden에 로그인하세요."
+          }
+        }
+      }
+    },
+    "Signed out of Bitwarden in BarShelf": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BarShelf에서 Bitwarden 로그아웃함"
           }
         }
       }

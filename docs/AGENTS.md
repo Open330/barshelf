@@ -283,7 +283,10 @@ only; today `"bitwarden"`, the `bw` CLI); the widget cannot choose its commands.
 - Actions: `{ "type": "vaultUnlock" }` (BarShelf's own password prompt; the
   master password goes to the provider through stdin and is not kept),
   `{ "type": "vaultUnlock", "value": "password" }` skips Touch ID,
-  `{ "type": "vaultLock" }` (always a full lock), `{ "type": "vaultCopy", "value": "${it.handle}", "field":
+  `{ "type": "vaultLock" }` (always a full lock),
+  `{ "type": "vaultSignOut" }` (0.7.30; the host confirms, locks, then signs
+  BarShelf's own profile out; the user's terminal bw is untouched),
+  `{ "type": "vaultCopy", "value": "${it.handle}", "field":
   "username"|"password"|"totp" }` (straight to the clipboard, marked concealed,
   cleared after 30 s).
 - The session lives in memory only. It ends after `idleLockMinutes` (1–60,
