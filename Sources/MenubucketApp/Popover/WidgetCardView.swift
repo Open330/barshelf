@@ -190,6 +190,7 @@ struct WidgetCardView: View {
                     .frame(maxWidth: .infinity, alignment: .topLeading)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .environment(\.widgetCardScrolls, true)
         } else {
             cardContents(
                 snapshot: snapshot,
@@ -215,6 +216,7 @@ struct WidgetCardView: View {
                             .frame(maxWidth: .infinity, alignment: .topLeading)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .environment(\.widgetCardScrolls, true)
                 } else {
                     // Fit to content: the card grows to fit.
                     VStack(alignment: .leading, spacing: Spacing.xs) { cardContent(snapshot: snapshot) }

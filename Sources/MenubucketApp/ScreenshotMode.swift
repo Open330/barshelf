@@ -111,7 +111,7 @@ enum ScreenshotMode {
 
     @MainActor
     private static func render<V: View>(_ view: V, name: String, to dir: URL) -> Bool {
-        let renderer = ImageRenderer(content: view)
+        let renderer = ImageRenderer(content: view.environment(\.widgetStillRender, true))
         renderer.scale = 2
         guard let image = renderer.nsImage,
               let tiff = image.tiffRepresentation,
