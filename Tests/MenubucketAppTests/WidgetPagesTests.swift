@@ -111,6 +111,39 @@ final class WidgetPagesTests: XCTestCase {
         XCTAssertEqual(pages.map(\.group), ["General"])
     }
 
+    func testAKeptPageStaysWhileEmptyInItsPlace() {
+        let widgets = [
+            widget("a", group: "General", order: 0),
+            widget("off", group: "Later", order: 0),
+        ]
+        let order = ["General": 0.0, "Ideas": 1, "Later": 2]
+        let pages = WidgetRuntime.computePages(
+            widgets,
+            group: { $0.group },
+            order: { Double($0.order) },
+            isDisabled: { $0.id == "off" },
+            groupSort: { order[$0] ?? .greatestFiniteMagnitude },
+            keptPages: ["Ideas", "Later"]
+        )
+        // A made page with nothing in it, and one whose widgets are all off,
+        // both stay as empty pages; nothing else changes.
+        XCTAssertEqual(pages.map(\.group), ["General", "Ideas", "Later"])
+        XCTAssertEqual(pages.map(\.widgets.count), [1, 0, 0])
+    }
+
+    func testKeptPagesPersistAndUndoWithTheLayout() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("kept-pages-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let prefs = WidgetPrefs(fileURL: url)
+        let before = prefs.layoutState
+        prefs.setKeptPages(["Ideas", "Ideas", "", "Later"])
+        XCTAssertEqual(prefs.keptPages, ["Ideas", "Later"])
+        XCTAssertEqual(WidgetPrefs(fileURL: url).keptPages, ["Ideas", "Later"])
+        prefs.restoreLayout(before)
+        XCTAssertEqual(prefs.keptPages, [])
+    }
+
     func testVisibleWidgetIDsContainSelectedPageAndOnlyDisplayedEnabledPins() {
         let pages = [
             WidgetPage(group: "First", widgets: [

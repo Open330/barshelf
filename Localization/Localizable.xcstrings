@@ -971,6 +971,16 @@
         }
       }
     },
+    "Add Page": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "페이지 추가"
+          }
+        }
+      }
+    },
     "Add Profile…": {
       "localizations": {
         "ko": {
@@ -987,6 +997,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "위젯 추가"
+          }
+        }
+      }
+    },
+    "Add Widget to This Page…": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 페이지에 위젯 추가…"
           }
         }
       }
@@ -1021,6 +1041,16 @@
         }
       }
     },
+    "Add an empty page to the popup": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "팝업에 빈 페이지를 추가합니다"
+          }
+        }
+      }
+    },
     "Add column": {
       "localizations": {
         "ko": {
@@ -1047,6 +1077,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dock에 추가"
+          }
+        }
+      }
+    },
+    "Add widgets here": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "여기에 위젯 추가"
           }
         }
       }
@@ -1274,6 +1314,16 @@
         }
       }
     },
+    "An SF Symbol name or an emoji for the chip. Empty uses the widget's icon.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "칩에 쓸 SF Symbol 이름이나 이모지입니다. 비워 두면 위젯 아이콘을 씁니다."
+          }
+        }
+      }
+    },
     "An SF Symbol name or an emoji. Uncheck for no icon.": {
       "localizations": {
         "ko": {
@@ -1330,6 +1380,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "다른 앱이나 Automation 단축키가 이미 %@을(를) 쓰고 있습니다. 비운 뒤 프로필 단축키를 껐다가 다시 켜십시오."
+          }
+        }
+      }
+    },
+    "Another widget": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "다른 위젯"
           }
         }
       }
@@ -1730,6 +1790,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "지금은 BarShelf가 이 위젯을 제거할 수 없습니다. 위젯 페이지에서 다시 시도하십시오."
+          }
+        }
+      }
+    },
+    "BarShelf icon": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BarShelf 아이콘"
           }
         }
       }
@@ -2404,6 +2474,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "웹사이트를 1분마다 확인해 살아 있는지와 응답 속도를 보여 주고, 다운되거나 복구되면 알려 줍니다. macOS에 들어 있는 curl을 쓰므로 따로 설치할 것이 없습니다."
+          }
+        }
+      }
+    },
+    "Chip colour": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "칩 색상"
+          }
+        }
+      }
+    },
+    "Chip colour for %@": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 칩 색상"
+          }
+        }
+      }
+    },
+    "Chip icon for %@": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 칩 아이콘"
           }
         }
       }
@@ -3765,6 +3865,16 @@
         }
       }
     },
+    "Drop a widget here, or add one.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯을 여기로 끌어 놓거나 새로 추가하세요."
+          }
+        }
+      }
+    },
     "Drop apps, folders, or files here": {
       "localizations": {
         "ko": {
@@ -3933,6 +4043,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "빈 폴더"
+          }
+        }
+      }
+    },
+    "Empty page %@": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "빈 페이지 %@"
           }
         }
       }
@@ -4120,6 +4240,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "모든 권한 결정과 위젯이 실행한 모든 명령 및 요청입니다."
+          }
+        }
+      }
+    },
+    "Every widget on your shelf is listed above.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "선반의 모든 위젯이 위 목록에 있습니다."
           }
         }
       }
@@ -4654,6 +4784,16 @@
         }
       }
     },
+    "Get one from the Gallery, or move one you have.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gallery에서 가져오거나, 가진 위젯을 옮겨 오세요."
+          }
+        }
+      }
+    },
     "Getting Started": {
       "localizations": {
         "ko": {
@@ -4989,6 +5129,16 @@
         }
       }
     },
+    "Hide this page from the popup; its widgets stop refreshing": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "팝업에서 이 페이지를 숨깁니다. 위젯은 새로 고침을 멈춥니다"
+          }
+        }
+      }
+    },
     "Higher is worse": {
       "localizations": {
         "ko": {
@@ -5090,6 +5240,7 @@
       }
     },
     "Icon": {
+      "comment": "Placeholder: a chip's icon (SF Symbol or emoji)",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -5667,6 +5818,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "팝업이 닫혀 있어도 계속 새로고침합니다. 위젯은 최대 %lld개까지 표시됩니다."
+          }
+        }
+      }
+    },
+    "It waits empty in the popup until you add widgets to it.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯을 추가할 때까지 팝업에 빈 페이지로 남아 있습니다."
           }
         }
       }
@@ -6572,6 +6733,26 @@
         }
       }
     },
+    "Merge Into": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "다른 페이지와 합치기"
+          }
+        }
+      }
+    },
+    "Merge Pages": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "페이지 합치기"
+          }
+        }
+      }
+    },
     "Merge into BarShelf Item": {
       "localizations": {
         "ko": {
@@ -6765,6 +6946,16 @@
         }
       }
     },
+    "Move Its Widgets to %@": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯을 %@(으)로 옮기기"
+          }
+        }
+      }
+    },
     "Move Left": {
       "localizations": {
         "ko": {
@@ -6845,6 +7036,16 @@
         }
       }
     },
+    "Move a Widget Here": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯을 여기로 옮기기"
+          }
+        }
+      }
+    },
     "Move down": {
       "localizations": {
         "ko": {
@@ -6905,12 +7106,32 @@
         }
       }
     },
+    "Move to End": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "맨 끝으로 이동"
+          }
+        }
+      }
+    },
     "Move to Page": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "페이지로 이동"
+          }
+        }
+      }
+    },
+    "Move to Start": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "맨 앞으로 이동"
           }
         }
       }
@@ -7237,6 +7458,16 @@
         }
       }
     },
+    "No widget is removed: they stay installed, with their settings, on the page you choose.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯은 삭제되지 않습니다. 설정 그대로 설치된 채로, 고른 페이지로 옮겨집니다."
+          }
+        }
+      }
+    },
     "No widgets installed": {
       "localizations": {
         "ko": {
@@ -7407,6 +7638,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "없음"
+          }
+        }
+      }
+    },
+    "Nothing in the menu bar yet": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "아직 메뉴 막대에 표시된 항목이 없습니다"
           }
         }
       }
@@ -8984,6 +9225,26 @@
         }
       }
     },
+    "Remove Page": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "페이지 제거"
+          }
+        }
+      }
+    },
+    "Remove Page…": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "페이지 제거…"
+          }
+        }
+      }
+    },
     "Remove Widget…": {
       "localizations": {
         "ko": {
@@ -9065,6 +9326,16 @@
         }
       }
     },
+    "Remove the page %@?": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 페이지를 제거할까요?"
+          }
+        }
+      }
+    },
     "Remove the “%@” profile?": {
       "localizations": {
         "ko": {
@@ -9092,6 +9363,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "제거…"
+          }
+        }
+      }
+    },
+    "Rename": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이름 변경"
+          }
+        }
+      }
+    },
+    "Rename Page": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "페이지 이름 변경"
+          }
+        }
+      }
+    },
+    "Rename Page…": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "페이지 이름 변경…"
           }
         }
       }
@@ -10469,6 +10770,16 @@
         }
       }
     },
+    "Show this page's widgets in the popup again": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 페이지의 위젯을 팝업에 다시 표시합니다"
+          }
+        }
+      }
+    },
     "Show this widget’s settings": {
       "localizations": {
         "ko": {
@@ -11496,6 +11807,16 @@
         }
       }
     },
+    "The menu bar is full. Turn an item off to make room.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "메뉴 막대가 가득 찼습니다. 항목 하나를 끄면 자리가 생깁니다."
+          }
+        }
+      }
+    },
     "The new build was installed at %@ but did not come up within %lld seconds.": {
       "localizations": {
         "en": {
@@ -12205,6 +12526,16 @@
         }
       }
     },
+    "Turn Off Page": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "페이지 끄기"
+          }
+        }
+      }
+    },
     "Turn Off Widget": {
       "localizations": {
         "ko": {
@@ -12221,6 +12552,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "켜기"
+          }
+        }
+      }
+    },
+    "Turn On Page": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "페이지 켜기"
           }
         }
       }
@@ -12741,6 +13082,16 @@
         }
       }
     },
+    "Use the name of another page to merge the two.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "다른 페이지의 이름을 입력하면 두 페이지가 합쳐집니다."
+          }
+        }
+      }
+    },
     "Username copied": {
       "localizations": {
         "ko": {
@@ -13227,6 +13578,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "팝업을 열 때까지 위젯이 새로고침을 멈춥니다. 메뉴 막대 값도 멈추며, 오래되면 흐리게 표시됩니다."
+          }
+        }
+      }
+    },
+    "Widgets that publish no reading show their icon, and their status once they have one.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "값을 내보내지 않는 위젯은 아이콘으로 표시되고, 상태가 생기면 상태도 함께 보입니다."
           }
         }
       }
