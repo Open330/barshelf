@@ -1406,13 +1406,20 @@ struct WidgetSettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Toggle("Show header", isOn: showHeaderBinding)
-                .toggleStyle(.switch)
-                // A switch drops its title from accessibility; name it.
-                .accessibilityLabel(Text("Show header"))
-                .font(.callout)
+            // Label left, switch right, like the rows above.
+            HStack {
+                Text("Show header").font(.callout)
+                Spacer()
+                Toggle("Show header", isOn: showHeaderBinding)
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .labelsHidden()
+                    // A switch drops its title from accessibility; name it.
+                    .accessibilityLabel(Text("Show header"))
+            }
 
             Button("Reset to widget default") { appearanceDraft = authorBase }
+                .buttonStyle(.glass(.secondary))
                 .controlSize(.small)
         }
     }
