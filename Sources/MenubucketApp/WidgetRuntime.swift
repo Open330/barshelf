@@ -230,6 +230,10 @@ final class WidgetRuntime: ObservableObject {
     private let refreshStatsStore: RefreshStatsStore
     private var cancellables: Set<AnyCancellable> = []
     private var inFlight: Set<String> = []
+    /// Manual refreshes that arrived while that widget was already refreshing.
+    /// They used to be dropped, so a change that lands mid-refresh (a vault
+    /// unlocking, a button's action) showed only on the next timer or open.
+    private var refreshAgain: Set<String> = []
     private var nativeRefreshes = NativeRefreshGate()
     /// The task behind each in-flight exec/workflow refresh. Revoke, Deny,
     /// Disable and reload cancel it, so the process it is waiting on is
@@ -294,6 +298,9 @@ final class WidgetRuntime: ObservableObject {
             for widget in self.widgets where widget.manifest.permissions?.vault != nil {
                 self.refresh(widgetID: widget.id, manual: true)
             }
+        }
+        broker.audit = { [weak self] event, widgetID, detail in
+            self?.auditLog.record(event, widgetId: widgetID, detail: detail)
         }
         broker.start()
         return broker
@@ -646,7 +653,7 @@ final class WidgetRuntime: ObservableObject {
         guard let rendered = scriptRefreshes.finish(
             widgetID: widgetId, generation: generation
         ) else { return }
-        inFlight.remove(widgetId)
+        endInFlight(widgetId)
         if let error {
             updateSnapshot(widgetId) {
                 $0.isLoading = false
@@ -684,7 +691,7 @@ final class WidgetRuntime: ObservableObject {
                     $0.error = "script exited unexpectedly"
                 }
                 persistShareableSnapshot(widgetID: widgetId)
-                inFlight.remove(widgetId)
+                endInFlight(widgetId)
                 scheduler.noteRefreshFailed(widgetID: widgetId)
                 recordRefreshFailure(
                     widgetID: widgetId, error: "script exited unexpectedly"
@@ -699,7 +706,7 @@ final class WidgetRuntime: ObservableObject {
             }
             persistShareableSnapshot(widgetID: widgetId)
             _ = scriptRefreshes.cancel(widgetID: widgetId)
-            inFlight.remove(widgetId)
+            endInFlight(widgetId)
             scheduler.noteRefreshFailed(widgetID: widgetId)
             recordRefreshFailure(widgetID: widgetId, error: "Widget disabled: \(reason)")
         }
@@ -1457,6 +1464,7 @@ final class WidgetRuntime: ObservableObject {
         scriptCallbackGate.invalidate(widgetID: id)
         _ = scriptRefreshes.cancel(widgetID: id)
         inFlight.remove(id)
+        refreshAgain.remove(id) // stopped: no follow-up run
         guard let supervisor = scriptSupervisorStorage else { return }
         let stopToken = scriptCallbackGate.token(for: id)
         let stop = Task { await supervisor.stop(widgetId: id) }
@@ -2051,6 +2059,13 @@ final class WidgetRuntime: ObservableObject {
         }
     }
 
+    /// Ends a refresh; runs the one manual request that waited for it, if any.
+    private func endInFlight(_ id: String) {
+        inFlight.remove(id)
+        guard refreshAgain.remove(id) != nil else { return }
+        DispatchQueue.main.async { [weak self] in self?.refresh(widgetID: id, manual: true) }
+    }
+
     func refresh(widgetID: String, manual: Bool = true) {
         guard let widget = widgets.first(where: { $0.id == widgetID }) else { return }
         refresh(widget, manual: manual)
@@ -2117,7 +2132,11 @@ final class WidgetRuntime: ObservableObject {
         guard scriptDisableStopTokens[id] == nil else { return }
         guard !removingWidgetIDs.contains(id) else { return }
         if manual { RemoteImageService.shared.retryFailedImages() }
-        guard !inFlight.contains(id) else { return } // in-flight coalescing
+        guard !inFlight.contains(id) else {
+            // In-flight coalescing; a manual request runs once more afterwards.
+            if manual { refreshAgain.insert(id) }
+            return
+        }
         if !manual, !scheduler.allowsAutomaticRefresh(widgetID: id) {
             return // exponential backoff window — automatic triggers suppressed
         }
@@ -2299,7 +2318,7 @@ final class WidgetRuntime: ObservableObject {
                     $0.error = message // e.g. "Deno runtime not found. Install Deno: brew install deno"
                 }
                 self.persistShareableSnapshot(widgetID: id)
-                self.inFlight.remove(id)
+                self.endInFlight(id)
                 self.scheduler.noteRefreshFailed(widgetID: id)
                 self.recordRefreshFailure(widgetID: id, error: message)
             }
@@ -3054,7 +3073,7 @@ final class WidgetRuntime: ObservableObject {
         switch nativeRefreshes.finish(id, token: token) {
         case .superseded: return
         case .staleConfiguration:
-            inFlight.remove(id)
+            endInFlight(id)
             refreshStartedAt.removeValue(forKey: id)
             if let current = widgets.first(where: { $0.id == id }), !prefs.isDisabled(id) {
                 updateSnapshot(id) { $0.isLoading = false }
@@ -3063,7 +3082,7 @@ final class WidgetRuntime: ObservableObject {
             return
         case .current: break
         }
-        inFlight.remove(id)
+        endInFlight(id)
         // Stopped by a permission change or Disable, not failed: nothing
         // to publish and no backoff.
         if case let .failure(error) = outcome, error is CancellationError {

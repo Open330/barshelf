@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.bitwarden",
   "name": "Bitwarden",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "minHostVersion": "0.7.23",
   "icon": "lock.shield.fill",
   "bucket": {
@@ -91,7 +91,9 @@
       "Copy verification code": "인증 코드 복사",
       "Unlock with Touch ID": "Touch ID로 열기",
       "Use Password": "비밀번호 사용",
-      "Unlocking happens in BarShelf's own prompt. This widget never sees a password.": "잠금 해제는 BarShelf 자체 창에서 합니다. 이 위젯은 비밀번호를 보지 못합니다."
+      "Unlocking happens in BarShelf's own prompt. This widget never sees a password.": "잠금 해제는 BarShelf 자체 창에서 합니다. 이 위젯은 비밀번호를 보지 못합니다.",
+      "Unlocking…": "잠금 해제 중…",
+      "Bitwarden is checking the master password; this takes a few seconds.": "Bitwarden이 마스터 비밀번호를 확인하고 있습니다. 몇 초 걸립니다."
     }
   }
 }

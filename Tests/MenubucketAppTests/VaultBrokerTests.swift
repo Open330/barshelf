@@ -85,9 +85,16 @@ final class VaultBrokerTests: XCTestCase {
         return broker
     }
 
+    /// onChange also fires when unlocking starts; wait for the session itself.
+    private func waitUntilUnlocked(_ broker: VaultBroker, _ description: String) -> XCTestExpectation {
+        let changed = expectation(description: description)
+        changed.assertForOverFulfill = false
+        broker.onChange = { [permission] in if broker.isUnlocked(permission) { changed.fulfill() } }
+        return changed
+    }
+
     private func unlocked(_ broker: VaultBroker) async throws {
-        let changed = expectation(description: "unlocked")
-        broker.onChange = { changed.fulfill() }
+        let changed = waitUntilUnlocked(broker, "unlocked")
         broker.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden")
         await fulfillment(of: [changed], timeout: 2)
         broker.onChange = nil
@@ -258,9 +265,10 @@ final class VaultBrokerTests: XCTestCase {
         let provider = FakeProvider()
         let broker = makeBroker(provider)
         let relocked = expectation(description: "second unlock accepted")
+        relocked.assertForOverFulfill = false
         provider.beforeUnlockReturns = { [permission] in
             broker.lockAll()
-            broker.onChange = { relocked.fulfill() }
+            broker.onChange = { if broker.isUnlocked(permission) { relocked.fulfill() } }
             broker.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden")
         }
         broker.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden")
@@ -359,8 +367,7 @@ final class VaultBrokerTests: XCTestCase {
     }
 
     private func reopened(_ broker: VaultBroker) async {
-        let changed = expectation(description: "reopened")
-        broker.onChange = { changed.fulfill() }
+        let changed = waitUntilUnlocked(broker, "reopened")
         broker.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden")
         await fulfillment(of: [changed], timeout: 2)
         broker.onChange = nil
@@ -580,6 +587,35 @@ final class VaultBrokerTests: XCTestCase {
         try await Task.sleep(nanoseconds: 100_000_000)
         XCTAssertFalse(wrong.isUnlocked(permission))
         XCTAssertEqual(messages, [VaultError.unlockFailed.message])
+    }
+
+    /// While bw derives the key the card hears about it and shows
+    /// "unlocking", then "unlocked"; vault events reach the audit log
+    /// without any secret.
+    func testUnlockingIsAnnouncedAndAudited() async throws {
+        let provider = FakeProvider()
+        provider.unlockDelayNs = 200_000_000
+        let broker = makeBroker(provider)
+        var events: [(String, [String: JSONValue])] = []
+        broker.audit = { event, _, detail in events.append((event, detail)) }
+        var states: [String] = []
+        let done = expectation(description: "unlocked")
+        done.assertForOverFulfill = false
+        broker.onChange = { [permission] in
+            Task { @MainActor in
+                let source = await broker.itemsSource(widgetID: "w", permission: permission)
+                states.append(source.objectValue?["state"]?.stringValue ?? "?")
+                if broker.isUnlocked(permission) { done.fulfill() }
+            }
+        }
+        broker.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden")
+        await fulfillment(of: [done], timeout: 2)
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertEqual(states.first, "unlocking")
+        XCTAssertTrue(states.contains("unlocked"))
+        XCTAssertEqual(events.map(\.0).prefix(2), ["vault.unlocked", "vault.listed"])
+        XCTAssertFalse("\(events)".contains("session-key"), "no secret in the audit log")
+        XCTAssertFalse("\(events)".contains("right"), "no password in the audit log")
     }
 
     /// The projection keeps names, usernames, hosts and a TOTP flag; a

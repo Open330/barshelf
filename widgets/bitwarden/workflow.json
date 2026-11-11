@@ -96,6 +96,10 @@
     "touchReady": {
       "use": "assign",
       "from": "and(coalesce(sources.vault.resumable, false), eq(coalesce(sources.vault.biometry, ''), 'touchID'))"
+    },
+    "unlocking": {
+      "use": "assign",
+      "from": "eq(coalesce(sources.vault.state, ''), 'unlocking')"
     }
   },
   "view": {
@@ -351,8 +355,34 @@
             }
           },
           {
-            "switch": "${if(transforms.touchReady, 'touch', 'password')}",
+            "switch": "${if(transforms.unlocking, 'busy', if(transforms.touchReady, 'touch', 'password'))}",
             "cases": {
+              "busy": {
+                "type": "hstack",
+                "spacing": 8,
+                "children": [
+                  {
+                    "type": "image",
+                    "source": {
+                      "kind": "sfSymbol",
+                      "name": "hourglass"
+                    },
+                    "foreground": "secondary"
+                  },
+                  {
+                    "type": "text",
+                    "text": "Unlocking…",
+                    "role": "headline"
+                  },
+                  {
+                    "type": "text",
+                    "text": "Bitwarden is checking the master password; this takes a few seconds.",
+                    "role": "caption",
+                    "foreground": "secondary",
+                    "lineLimit": 2
+                  }
+                ]
+              },
               "touch": {
                 "type": "hstack",
                 "spacing": 8,

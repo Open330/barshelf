@@ -275,9 +275,11 @@ only; today `"bitwarden"`, the `bw` CLI); the widget cannot choose its commands.
 "permissions": { "vault": { "provider": "bitwarden", "idleLockMinutes": 10, "maxSessionMinutes": 60 } }
 ```
 
-- Source `{ "use": "vault.items" }` → `{ state: "locked"|"unlocked"|"error", items: [{ handle, name,
+- Source `{ "use": "vault.items" }` → `{ state: "locked"|"unlocking"|"unlocked"|"error", items: [{ handle, name,
   username, host, totp, hasUsername }], count, truncated, error?, resumable, biometry? }`.
-  `resumable` (0.7.23): Touch ID can reopen the vault; `biometry: "touchID"` when
+  `"unlocking"` (0.7.25): the master password or Touch ID is being checked; the
+  card is refreshed when that starts and when it ends. `resumable` (0.7.23):
+  Touch ID can reopen the vault; `biometry: "touchID"` when
   Touch ID is usable right now (not, say, with the lid closed). `handle` is an
   opaque token valid only for the current unlock; there is no item id, password,
   note or TOTP seed.

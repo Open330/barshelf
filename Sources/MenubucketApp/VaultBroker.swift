@@ -283,6 +283,9 @@ final class VaultBroker {
 
     /// Asks the runtime to redraw vault widgets after a state change.
     var onChange: (() -> Void)?
+    /// Records what happened, never what was in it: event, widget, and
+    /// details such as provider, method, duration and item count.
+    var audit: (_ event: String, _ widgetID: String, _ detail: [String: JSONValue]) -> Void = { _, _, _ in }
     var toast: (String) -> Void = { message in ToastCenter.shared.show(message) }
     /// The host-owned password prompt; nil means cancelled. Swappable in tests.
     var promptForPassword: (_ title: String, _ message: String, _ offerTouchID: Bool, _ touchIDDefault: Bool) -> PasswordAnswer?
@@ -394,11 +397,16 @@ final class VaultBroker {
         let password = answer.password
         let vault = self.provider
         pendingPasswordUnlocks.insert(provider)
+        let startedAt = now()
         let work = enqueue(provider, generation: generation) { try await vault.unlock(password: password) }
+        // The card shows Unlocking… while bw derives the key.
+        onChange?()
         Task { @MainActor [weak self] in
             do {
                 let key = try await work.value
                 guard let self else { return }
+                self.audit("vault.unlocked", widgetID, ["provider": .string(provider), "method": .string("password"),
+                                                         "ms": .number(((self.now() - startedAt) * 1000).rounded())])
                 // Ended meanwhile: end already queued a provider lock behind
                 // this unlock. Queuing another here could land after a newer
                 // unlock and lock that session instead.
@@ -420,7 +428,12 @@ final class VaultBroker {
                 guard let self, self.pendingUnlocks[provider] == generation else { return }
                 self.pendingUnlocks[provider] = nil
                 self.pendingPasswordUnlocks.remove(provider)
-                self.toast(((error as? VaultError) ?? .unlockFailed).message)
+                let vaultError = (error as? VaultError) ?? .unlockFailed
+                self.audit("vault.unlock_failed", widgetID, ["provider": .string(provider), "method": .string("password"),
+                                                              "reason": .string("\(vaultError)"),
+                                                              "ms": .number(((self.now() - startedAt) * 1000).rounded())])
+                self.toast(vaultError.message)
+                self.onChange?()
             }
         }
     }
@@ -447,9 +460,11 @@ final class VaultBroker {
         let sealed = resume.sealed
         let aad = resume.aad
         let reason = String(localized: "unlock Bitwarden for \(widgetName)")
+        let startedAt = now()
         let work = Task { await sealer.open(sealed, aad: aad, reason: reason) }
         let id = UUID()
         operations[provider, default: [:]][id] = { work.cancel() }
+        onChange?()
         Task { @MainActor [weak self] in
             let outcome = await work.value
             guard let self else { return }
@@ -459,7 +474,10 @@ final class VaultBroker {
             self.sweep()
             guard self.pendingUnlocks[provider] == generation, self.generations[provider] == generation, !self.blocked,
                   let live = self.resumes[provider], live.id == resume.id, self.now() < live.deadline else {
-                if self.pendingUnlocks[provider] == generation { self.pendingUnlocks[provider] = nil }
+                if self.pendingUnlocks[provider] == generation {
+                    self.pendingUnlocks[provider] = nil
+                    self.onChange?()
+                }
                 return
             }
             self.pendingUnlocks[provider] = nil
@@ -473,13 +491,16 @@ final class VaultBroker {
                 self.sessions[provider] = Session(key: key, generation: generation, unlockedAt: at, lastUserActionAt: at,
                                                   idle: min(live.idle, permission.idleSeconds),
                                                   max: min(live.max, permission.maxSeconds))
+                self.audit("vault.unlocked", widgetID, ["provider": .string(provider), "method": .string("touchID"),
+                                                         "ms": .number(((self.now() - startedAt) * 1000).rounded())])
                 self.onChange?()
             case .failure(.cancelled):
-                return
+                self.onChange?()
             case .failure(.fallback):
                 self.unlock(widgetID: widgetID, permission: permission, widgetName: widgetName, usePassword: true)
             case .failure(.unavailable):
                 self.toast(String(localized: "Touch ID isn't available right now. Use the master password."))
+                self.onChange?()
             case .failure(.invalid):
                 self.end(provider: provider)
                 self.toast(String(localized: "Touch ID can no longer reopen the vault. Unlock with the master password."))
@@ -541,9 +562,12 @@ final class VaultBroker {
         let generation = session.generation
         let key = session.key
         let vault = self.provider
+        let startedAt = now()
         let work = enqueue(provider, generation: generation) { try await vault.items(session: key) }
         do {
             let items = try await withTaskCancellationHandler { try await work.value } onCancel: { work.cancel() }
+            audit("vault.listed", widgetID, ["provider": .string(provider), "count": .number(Double(items.count)),
+                                             "ms": .number(((now() - startedAt) * 1000).rounded())])
             guard isCurrent(provider, generation), var current = sessions[provider] else { return lockedState(provider) }
             let limit = 500
             var handles: [String: String] = [:]
@@ -575,9 +599,10 @@ final class VaultBroker {
         }
     }
 
-    /// What a locked vault shows: whether Touch ID can reopen it now.
+    /// What a locked vault shows: whether it is being unlocked, and whether
+    /// Touch ID can reopen it now.
     private func lockedState(_ provider: String) -> JSONValue {
-        .object(["state": .string("locked"), "items": .array([]),
+        .object(["state": .string(pendingUnlocks[provider] != nil ? "unlocking" : "locked"), "items": .array([]),
                  "resumable": .bool(resumes[provider] != nil),
                  "biometry": sealer.biometry == .available ? .string("touchID") : .null])
     }
@@ -617,12 +642,16 @@ final class VaultBroker {
                 resume.idle = min(resume.idle, session.idle)
                 resume.max = min(resume.max, session.max)
                 resumes[provider] = resume
+            }
+            if session != nil || hadPending {
+                audit("vault.locked", "vault:\(provider)", ["provider": .string(provider), "hard": .bool(false)])
                 onChange?()
             }
             return
         }
         let resume = resumes.removeValue(forKey: provider)
         guard session != nil || hadPending || resume != nil else { return }
+        audit("vault.locked", "vault:\(provider)", ["provider": .string(provider), "hard": .bool(true)])
         if runProviderLock {
             // Without a key too: a cancelled unlock may have unlocked bw, and
             // a sealed copy's session is still open in bw.
@@ -630,7 +659,7 @@ final class VaultBroker {
             let key = session?.key
             _ = serialTask(provider, generation: nil) { await vault.lock(session: key) }
         }
-        if session != nil || resume != nil { onChange?() }
+        onChange?()
     }
 
     private func sweep() {
