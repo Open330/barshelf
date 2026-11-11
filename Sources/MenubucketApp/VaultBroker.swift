@@ -98,6 +98,8 @@ protocol VaultProvider: Sendable {
     /// Server and email of the account the user's own CLI uses, to prefill
     /// sign-in. Never a secret.
     func suggestedAccount() async -> (server: String?, email: String?)
+    /// Signs BarShelf's profile out. The user's own CLI profile is untouched.
+    func signOut() async throws
 }
 
 /// The Bitwarden CLI, run directly (no shell), from a known install location
@@ -251,6 +253,12 @@ struct BitwardenCLIProvider: VaultProvider {
 
     func lock(session: String?) async {
         _ = try? await run(["lock"], stdin: nil, session: session, failure: .failed)
+    }
+
+    /// `bw logout` in BarShelf's profile; already signed out counts as done.
+    func signOut() async throws {
+        let output = try await capture(["logout"], stdin: nil, session: nil)
+        guard output.exitCode == 0 || Self.mentions(output.stderr, "not logged in") else { throw VaultError.failed }
     }
 
     /// Names, usernames, hosts and whether a TOTP exists: the only fields
@@ -429,6 +437,8 @@ final class VaultBroker {
     private var pendingPasswordUnlocks: Set<String> = []
     /// Provider → generation of the unlock now being asked for.
     private var pendingUnlocks: [String: UUID] = [:]
+    /// Providers whose sign-out is queued: no unlock or sign-in until it ran.
+    private var signingOut: Set<String> = []
     /// Provider → the current generation; bumped by every end.
     private var generations: [String: UUID] = [:]
     /// Provider → how to cancel each call in flight or queued.
@@ -541,7 +551,7 @@ final class VaultBroker {
     func unlock(widgetID: String, permission: Manifest.VaultPermission, widgetName: String, usePassword: Bool = false) {
         let provider = permission.provider
         sweep()
-        guard !blocked, sessions[provider] == nil, pendingUnlocks[provider] == nil else { return }
+        guard !blocked, sessions[provider] == nil, pendingUnlocks[provider] == nil, !signingOut.contains(provider) else { return }
         let biometry = sealer.biometry
         if resumes[provider] != nil, biometry == .invalid {
             // Locked out or every finger removed: the sealed copy is void.
@@ -648,7 +658,7 @@ final class VaultBroker {
     /// two-step code is asked for when the account needs one.
     func signIn(widgetID: String, permission: Manifest.VaultPermission, widgetName: String) {
         let provider = permission.provider
-        guard !blocked, sessions[provider] == nil, pendingUnlocks[provider] == nil else { return }
+        guard !blocked, sessions[provider] == nil, pendingUnlocks[provider] == nil, !signingOut.contains(provider) else { return }
         let generation = UUID()
         generations[provider] = generation
         pendingUnlocks[provider] = generation
@@ -842,6 +852,42 @@ final class VaultBroker {
 
     func lock(_ permission: Manifest.VaultPermission) {
         end(provider: permission.provider)
+    }
+
+    /// The host-owned confirmation before signing out; swappable in tests.
+    var confirmSignOut: () -> Bool = VaultBroker.signOutPrompt
+
+    /// Signs BarShelf's own profile out once the user confirms: the session
+    /// and any sealed copy end hard (bw is locked), then the provider signs
+    /// out behind that lock. The bw the user runs in Terminal is a separate
+    /// profile and stays as it is. The next Unlock asks to sign in again.
+    func signOut(widgetID: String, permission: Manifest.VaultPermission) {
+        let provider = permission.provider
+        sweep()
+        guard !blocked, pendingUnlocks[provider] == nil, !signingOut.contains(provider), account(provider) != .signedOut,
+              confirmSignOut(), !blocked, pendingUnlocks[provider] == nil, !signingOut.contains(provider) else { return }
+        signingOut.insert(provider)
+        end(provider: provider)
+        let vault = self.provider
+        let work = serialTask(provider, generation: nil) { try await vault.signOut() }
+        Task { @MainActor [weak self] in
+            let result: Result<Void, Error>
+            do { try await work.value; result = .success(()) } catch { result = .failure(error) }
+            guard let self else { return }
+            self.signingOut.remove(provider)
+            switch result {
+            case .success:
+                // Known now, whatever a later `bw status` manages to say.
+                self.statuses[provider] = VaultStatus(account: .signedOut, server: self.statuses[provider]?.server)
+                self.audit("vault.signed_out", widgetID, ["provider": .string(provider)])
+                self.toast(String(localized: "Signed out of Bitwarden in BarShelf"))
+            case let .failure(error):
+                await self.refreshStatus(provider)
+                let reason = ((error as? VaultError) ?? .failed).message
+                self.toast(String(localized: "The vault is locked, but signing out failed. \(reason)"))
+            }
+            self.onChange?()
+        }
     }
 
     // MARK: For the workflow source
@@ -1140,6 +1186,19 @@ final class VaultBroker {
         guard response == .alertFirstButtonReturn else { return nil }
         return TwoFactorAnswer(method: methods[max(popup.indexOfSelectedItem, 0)].0,
                                code: code.stringValue.trimmingCharacters(in: .whitespaces))
+    }
+
+    /// Asks before signing out: signing back in takes the master password
+    /// and, for most accounts, a two-step code.
+    static func signOutPrompt() -> Bool {
+        NotificationCenter.default.post(name: PopoverSurface.dismissAll, object: nil)
+        NSApp.activate()
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Sign Out of Bitwarden in BarShelf?")
+        alert.informativeText = String(localized: "BarShelf locks the vault and forgets its Bitwarden sign-in. The bw you use in Terminal stays signed in. To use the vault here again, sign in with your server, email and master password.")
+        alert.addButton(withTitle: String(localized: "Sign Out"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
+        return alert.runModal() == .alertFirstButtonReturn
     }
 
     /// Host-owned API-key fields; the secret is a secure field.

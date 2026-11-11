@@ -1239,8 +1239,8 @@
       "id": "dev.barshelf.bitwarden",
       "accent": "blue",
       "name": "Bitwarden",
-      "description": "Unlock your Bitwarden vault from the card, search items and copy a username, password or verification code (cleared from the clipboard after 30 s). BarShelf's built-in provider keeps only the session, in memory, and locks after 10 minutes without use, an hour at most, on screen lock and sleep. Tick Touch ID once and it reopens with your finger for 8 hours. Also shows lock state and last sync.",
-      "version": "0.4.0",
+      "description": "Unlock your Bitwarden vault from the card, search items and copy a username, password or verification code (cleared from the clipboard after 30 s). BarShelf's built-in provider keeps only the session, in memory, and locks after 10 minutes without use, an hour at most, on screen lock and sleep. Tick Touch ID once and it reopens with your finger for 8 hours. Sign out of BarShelf's Bitwarden sign-in from the card. Also shows lock state and last sync.",
+      "version": "0.5.0",
       "author": "barshelf",
       "icon": "lock.shield.fill",
       "kind": "workflow",
@@ -1265,7 +1265,7 @@
         "notifications": true
       },
       "homepage": "https://bitwarden.com/help/cli/",
-      "minHostVersion": "0.7.27",
+      "minHostVersion": "0.7.30",
       "readme": "https://github.com/Open330/barshelf/blob/main/widgets/bitwarden/README.md"
     },
     {
