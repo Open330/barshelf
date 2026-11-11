@@ -16,6 +16,7 @@ final class VaultBrokerTests: XCTestCase {
         var beforeUnlockReturns: (@MainActor () -> Void)?
         func unlock(password: String) async throws -> String {
             lock.withLock { calls.append("unlock") }
+            if lock.withLock({ signedOutOnUnlock }) { throw VaultError.signedOut }
             if unlockDelayNs > 0 { try await Task.sleep(nanoseconds: unlockDelayNs) }
             if let hook = lock.withLock({ () -> (@MainActor () -> Void)? in
                 defer { beforeUnlockReturns = nil }
@@ -39,6 +40,27 @@ final class VaultBrokerTests: XCTestCase {
         func value(of field: VaultField, itemID: String, session: String) async throws -> String {
             if valueDelayNs > 0 { try await Task.sleep(nanoseconds: valueDelayNs) }
             return "\(field.rawValue)-of-\(itemID) "
+        }
+        var accountState: VaultAccount = .signedIn
+        /// Sign-in requests seen, and what each one answers in turn.
+        var signIns: [VaultSignIn] = []
+        var signInResults: [Result<String, VaultError>] = []
+        var signedOutOnUnlock = false
+        func status() async -> VaultStatus {
+            VaultStatus(account: lock.withLock { accountState }, lastSync: "2026-11-11T00:00:00.000Z", server: "https://vault.example")
+        }
+        var syncs = 0
+        func sync(session: String) async throws { lock.withLock { syncs += 1 } }
+        func suggestedAccount() async -> (server: String?, email: String?) { ("https://vault.example", "me@example.com") }
+        func signIn(_ request: VaultSignIn) async throws -> String {
+            let result: Result<String, VaultError> = lock.withLock {
+                calls.append("signIn")
+                signIns.append(request)
+                return signInResults.isEmpty ? .success("signed-in-session-key-abcdefgh") : signInResults.removeFirst()
+            }
+            let key = try result.get()
+            lock.withLock { accountState = .signedIn }
+            return key
         }
         func lock(session: String?) async { lock.withLock { locked.append(session); calls.append("lock") } }
     }
@@ -563,6 +585,190 @@ final class VaultBrokerTests: XCTestCase {
         XCTAssertEqual(prompts, 2, "then the password prompt (cancelled here)")
         XCTAssertEqual(sealer.lock.withLock { sealer.opened }, 0)
         XCTAssertEqual(provider.lock.withLock { provider.locked }, [nil])
+    }
+
+    // MARK: BarShelf's own Bitwarden profile
+
+    private func signInPrompts(_ broker: VaultBroker, factors: [VaultBroker.TwoFactorAnswer] = []) -> (() -> Int, () -> [Bool]) {
+        var signIns = 0
+        var emailSentFlags: [Bool] = []
+        var remaining = factors
+        broker.promptForSignIn = { _, server, email, _, _ in
+            signIns += 1
+            XCTAssertEqual(server, "https://vault.example", "suggested from the terminal profile")
+            XCTAssertEqual(email, "me@example.com")
+            return .init(server: server ?? "", email: email ?? "", password: "right", touchID: false)
+        }
+        broker.promptForTwoFactor = { sent in
+            emailSentFlags.append(sent)
+            return remaining.isEmpty ? nil : remaining.removeFirst()
+        }
+        return ({ signIns }, { emailSentFlags })
+    }
+
+    /// A profile without an account says so to the widget, and Unlock signs
+    /// in instead, which also unlocks.
+    func testASignedOutProfileSignsInFromUnlock() async throws {
+        let provider = FakeProvider()
+        provider.accountState = .signedOut
+        let broker = makeBroker(provider)
+        let (signIns, _) = signInPrompts(broker)
+        let locked = await broker.itemsSource(widgetID: "w", permission: permission)
+        XCTAssertEqual(locked.objectValue?["account"], .string("signedOut"))
+        try await unlocked(broker)
+        XCTAssertEqual(signIns(), 1)
+        XCTAssertEqual(provider.lock.withLock { provider.calls }, ["signIn"], "no password unlock against a signed-out profile")
+        XCTAssertEqual(provider.lock.withLock { provider.signIns.first?.server }, "https://vault.example")
+    }
+
+    /// Unlocking decrypts the local copy; the vault is then synced once.
+    func testEachUnlockSyncsOnce() async throws {
+        let provider = FakeProvider()
+        let broker = makeBroker(provider)
+        try await unlocked(broker)
+        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertEqual(provider.lock.withLock { provider.syncs }, 1)
+    }
+
+    /// An unlock that finds the profile signed out turns into a sign-in.
+    func testAnUnlockThatFindsNoAccountSignsIn() async throws {
+        let provider = FakeProvider()
+        provider.signedOutOnUnlock = true
+        let broker = makeBroker(provider)
+        let (signIns, _) = signInPrompts(broker)
+        try await unlocked(broker)
+        XCTAssertEqual(signIns(), 1)
+        XCTAssertEqual(provider.lock.withLock { provider.calls }, ["unlock", "signIn"])
+    }
+
+    /// Two-step: an authenticator code is asked for and passed; by email,
+    /// an empty code first asks Bitwarden to send one.
+    func testTwoStepCodes() async throws {
+        let provider = FakeProvider()
+        provider.accountState = .signedOut
+        provider.signInResults = [.failure(.twoFactorRequired), .success("signed-in-session-key-abcdefgh")]
+        let broker = makeBroker(provider)
+        let (_, sent) = signInPrompts(broker, factors: [.init(method: 0, code: "123456")])
+        _ = await broker.itemsSource(widgetID: "w", permission: permission)
+        try await unlocked(broker)
+        XCTAssertEqual(provider.lock.withLock { provider.signIns.map(\.code) }, [nil, "123456"])
+        XCTAssertEqual(sent(), [false])
+
+        let byEmail = FakeProvider()
+        byEmail.accountState = .signedOut
+        byEmail.signInResults = [.failure(.twoFactorRequired), .failure(.twoFactorRequired), .success("signed-in-session-key-abcdefgh")]
+        let emailBroker = makeBroker(byEmail)
+        let (_, emailSent) = signInPrompts(emailBroker, factors: [.init(method: 1, code: ""), .init(method: 1, code: "654321")])
+        _ = await emailBroker.itemsSource(widgetID: "w", permission: permission)
+        try await unlocked(emailBroker)
+        XCTAssertEqual(byEmail.lock.withLock { byEmail.signIns.map(\.method) }, [nil, 1, 1])
+        XCTAssertEqual(byEmail.lock.withLock { byEmail.signIns.map(\.code) }, [nil, nil, "654321"])
+        XCTAssertEqual(emailSent(), [false, true], "the second prompt says the email went out")
+    }
+
+    /// New-device verification (no two-step on the account) is done with an
+    /// API key; the key goes to the provider, the password unlocks.
+    func testAPIKeySignIn() async throws {
+        let provider = FakeProvider()
+        provider.accountState = .signedOut
+        provider.signInResults = [.failure(.twoFactorRequired), .success("signed-in-session-key-abcdefgh")]
+        let broker = makeBroker(provider)
+        _ = signInPrompts(broker, factors: [.init(method: 0, code: "", useAPIKey: true)])
+        broker.promptForAPIKey = { ("user.abc", "s3cret") }
+        _ = await broker.itemsSource(widgetID: "w", permission: permission)
+        try await unlocked(broker)
+        XCTAssertEqual(provider.lock.withLock { provider.signIns.map(\.clientID) }, [nil, "user.abc"])
+        XCTAssertEqual(provider.lock.withLock { provider.syncs }, 0, "sign-in already synced")
+    }
+
+    /// An authenticator choice with no code says so instead of going quiet.
+    func testAnEmptyCodeSaysWhy() async throws {
+        let provider = FakeProvider()
+        provider.accountState = .signedOut
+        provider.signInResults = [.failure(.twoFactorRequired)]
+        let broker = makeBroker(provider)
+        var messages: [String] = []
+        broker.toast = { messages.append($0) }
+        _ = signInPrompts(broker, factors: [.init(method: 0, code: "")])
+        _ = await broker.itemsSource(widgetID: "w", permission: permission)
+        broker.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden")
+        try await Task.sleep(nanoseconds: 200_000_000)
+        XCTAssertEqual(messages, [String(localized: "Enter the code to sign in.")])
+        XCTAssertFalse(broker.isUnlocked(permission))
+    }
+
+    /// A wrong code ends the attempt with a fixed message; nothing unlocks.
+    func testAWrongCodeFailsCleanly() async throws {
+        let provider = FakeProvider()
+        provider.accountState = .signedOut
+        provider.signInResults = [.failure(.twoFactorRequired), .failure(.twoFactorRequired)]
+        let broker = makeBroker(provider)
+        var messages: [String] = []
+        broker.toast = { messages.append($0) }
+        _ = signInPrompts(broker, factors: [.init(method: 0, code: "000000")])
+        _ = await broker.itemsSource(widgetID: "w", permission: permission)
+        broker.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden")
+        try await Task.sleep(nanoseconds: 200_000_000)
+        XCTAssertFalse(broker.isUnlocked(permission))
+        XCTAssertEqual(messages, [VaultError.signInFailed.message])
+    }
+
+    /// The real runner uses BarShelf's own profile for its own calls, and the
+    /// user's default one only to suggest the account; bw's messages are
+    /// classified, never shown.
+    func testRunnerUsesItsOwnProfileAndClassifiesBwMessages() async throws {
+        let url = try helper(#"""
+        case "$1" in
+          status) if [ -n "$BITWARDENCLI_APPDATA_DIR" ]; then printf '{"status":"unauthenticated"}'; else printf '{"status":"locked","serverUrl":"https://vault.example","userEmail":"me@example.com"}'; fi ;;
+          unlock) if [ -f "$BITWARDENCLI_APPDATA_DIR/apikey" ]; then read -r pw; printf 'YXBpLWtleS1zZXNzaW9uLWtleS0xMjM='; else echo "You are not logged in." >&2; exit 1; fi ;;
+          config) [ "$2" = "server" ] && echo "$3" > "$BITWARDENCLI_APPDATA_DIR/server"; exit 0 ;;
+          login)
+            if [ "$2" = "--apikey" ]; then
+              [ "$BW_CLIENTID" = "user.abc" ] && [ "$BW_CLIENTSECRET" = "s3cret" ] && touch "$BITWARDENCLI_APPDATA_DIR/apikey" && exit 0
+              exit 1
+            fi
+            read -r pw
+            for a in "$@"; do last="$a"; done
+            if [ "$last" = "multi@example.com" ]; then echo "Login failed. No provider selected." >&2; exit 1; fi
+            if [ "$7" = "--code" ] && [ "$8" = "111111" ]; then printf 'c2Vzc2lvbi1rZXktZm9yLXRlc3Rpbmc='; else echo "Code is required." >&2; exit 1; fi ;;
+        esac
+        """#)
+        let directory = url.deletingLastPathComponent().appendingPathComponent("profile")
+        var provider = BitwardenCLIProvider(executableOverride: url, timeout: 5)
+        provider.dataDirectory = directory
+        let status = await provider.status()
+        XCTAssertEqual(status.account, .signedOut)
+        let suggestion = await provider.suggestedAccount()
+        XCTAssertEqual(suggestion.email, "me@example.com")
+        do { _ = try await provider.unlock(password: "x"); XCTFail() } catch { XCTAssertEqual(error as? VaultError, .signedOut) }
+        let request = VaultSignIn(server: "https://vault.example", email: "me@example.com", password: "right")
+        do { _ = try await provider.signIn(request); XCTFail() } catch { XCTAssertEqual(error as? VaultError, .twoFactorRequired) }
+        var withCode = request
+        withCode.method = 0
+        withCode.code = "111111"
+        let key = try await provider.signIn(withCode)
+        XCTAssertEqual(key, "c2Vzc2lvbi1rZXktZm9yLXRlc3Rpbmc=")
+        let attributes = try FileManager.default.attributesOfItem(atPath: directory.path)
+        XCTAssertEqual((attributes[.posixPermissions] as? NSNumber)?.intValue, 0o700, "owner-only profile folder")
+        var insecure = request
+        insecure.server = "http://vault.example"
+        do { _ = try await provider.signIn(insecure); XCTFail() } catch { XCTAssertEqual(error as? VaultError, .signInFailed) }
+        // Several two-step methods without --method: still a code prompt.
+        var multi = request
+        multi.email = "multi@example.com"
+        do { _ = try await provider.signIn(multi); XCTFail() } catch { XCTAssertEqual(error as? VaultError, .twoFactorRequired) }
+        // An empty server resets the profile to bitwarden.com.
+        var cloud = request
+        cloud.server = nil
+        _ = try? await provider.signIn(cloud)
+        XCTAssertEqual(try String(contentsOf: directory.appendingPathComponent("server"), encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines), "bitwarden.com")
+        // API key: signs in from the child's environment, then the password unlocks.
+        var apiKey = request
+        apiKey.clientID = "user.abc"
+        apiKey.clientSecret = "s3cret"
+        let apiSession = try await provider.signIn(apiKey)
+        XCTAssertEqual(apiSession, "YXBpLWtleS1zZXNzaW9uLWtleS0xMjM=")
     }
 
     /// The real envelope round trip needs this Mac's Secure Enclave and a
