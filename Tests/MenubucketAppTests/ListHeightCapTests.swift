@@ -5,7 +5,8 @@ import MenubucketCore
 @testable import MenubucketApp
 
 /// A searchable or long list must not grow its card without bound (the
-/// Bitwarden card with a few hundred vault items did).
+/// Bitwarden card with a few hundred vault items did), and must not scroll
+/// inside the already scrolling page either (0.7.26 did).
 @MainActor
 final class ListHeightCapTests: XCTestCase {
     private func list(rows: Int, search: Bool, height: Double? = nil) throws -> UINode {
@@ -31,14 +32,17 @@ final class ListHeightCapTests: XCTestCase {
         return host.fittingSize.height
     }
 
-    func testASearchableListOfHundredsOfRowsScrollsInsideTheCap() throws {
+    /// Ten rows and a Show All button; no scroll view of its own.
+    func testASearchableListOfHundredsOfRowsShowsTenAndAButton() throws {
         let height = settledHeight(try list(rows: 300, search: true))
-        XCTAssertLessThanOrEqual(height, 320 + 60, "rows capped, search field above them")
-        XCTAssertGreaterThan(height, 200, "and it still shows a good number of rows")
+        let ten = settledHeight(try list(rows: 10, search: true))
+        XCTAssertLessThanOrEqual(height, ten + 50, "ten rows plus the button")
+        XCTAssertGreaterThan(height, ten)
     }
 
     func testALongListWithoutSearchIsCappedAndAShortOneIsNot() throws {
-        XCTAssertLessThanOrEqual(settledHeight(try list(rows: 80, search: false)), 330)
+        XCTAssertLessThanOrEqual(settledHeight(try list(rows: 80, search: false)),
+                                 settledHeight(try list(rows: 10, search: false)) + 50)
         let short = settledHeight(try list(rows: 3, search: false))
         XCTAssertLessThan(short, 100, "a short list keeps its own height")
         XCTAssertGreaterThan(short, 20)

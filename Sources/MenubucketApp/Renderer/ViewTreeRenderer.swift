@@ -665,36 +665,35 @@ private struct CountdownProgressView: View {
 /// their query entirely in SwiftUI state and filter visible row text locally,
 /// so typing never re-runs the widget or exposes the query to its process.
 ///
-/// A searchable or long list never grows an auto-height card without bound:
-/// its rows scroll inside `maxHeight` (the node's `height`, else
-/// `defaultMaxHeight`), with the search field kept above them. A vault or a feed of hundreds of
-/// rows used to make an auto-height card as tall as all of them.
+/// A searchable or long list never makes an auto-height card endlessly tall:
+/// it shows its first `visibleRows` rows (of the matches, while searching)
+/// and a Show All button for the rest, which then lengthen the page. No
+/// scroll view of its own: the popup page already scrolls, and a list that
+/// scrolled inside it looked broken. An author who sets the list's `height`
+/// gets exactly that, scrolling inside.
 private struct NodeListView: View {
     let items: [UINode]
     let searchPlaceholder: String?
     let spacing: Double
     var maxHeight: CGFloat?
     @State private var query = ""
+    @State private var showsAll = false
     @State private var rowsHeight: CGFloat = 0
     @Environment(\.widgetStillRender) private var stillRender
     @Environment(\.widgetCardScrolls) private var cardScrolls
 
-    /// About ten list rows.
-    static let defaultMaxHeight: CGFloat = 320
-    /// From this many rows a list without a search field is capped too.
+    /// Rows shown before Show All.
+    static let visibleRows = 10
+    /// From this many rows a list without a search field is shortened too.
     static let longList = 12
 
     /// Decided from the unfiltered rows, so the view does not change shape
-    /// (and lose the query) while typing.
-    /// A card that scrolls already bounds the list; a cap there would only
-    /// leave a tall card half empty. The author's own `height` still applies.
-    private var isCapped: Bool {
-        if maxHeight != nil { return true }
-        if cardScrolls { return false }
+    /// (and lose the query) while typing. A card that scrolls already bounds
+    /// the list, so it shows everything there.
+    private var isShortened: Bool {
+        if maxHeight != nil || cardScrolls { return false }
         return searchPlaceholder != nil || items.count > Self.longList
     }
-
-    private var cap: CGFloat { maxHeight ?? Self.defaultMaxHeight }
 
     private var filteredItems: [UINode] {
         guard searchPlaceholder != nil else { return items }
@@ -716,33 +715,51 @@ private struct NodeListView: View {
                     .accessibilityLabel(searchPlaceholder)
             }
 
-            if filteredItems.isEmpty, !query.isEmpty {
+            let rows = filteredItems
+            if rows.isEmpty, !query.isEmpty {
                 Text("No matches")
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, Spacing.s)
-            } else if !isCapped {
-                NodeChildrenView(nodes: filteredItems)
-            } else if stillRender {
-                // A still image cannot scroll: the first rows, clipped.
-                NodeChildrenView(nodes: filteredItems)
-                    .frame(maxHeight: cap, alignment: .top)
-                    .clipped()
-            } else {
+            } else if let maxHeight, !stillRender {
+                // The author's own height: rows scroll inside it.
                 ScrollView(.vertical, showsIndicators: true) {
-                    NodeChildrenView(nodes: filteredItems)
+                    NodeChildrenView(nodes: rows)
                         .frame(maxWidth: .infinity, alignment: .topLeading)
                         .background(GeometryReader { proxy in
                             Color.clear.preference(key: ListRowsHeightKey.self, value: proxy.size.height)
                         })
                 }
                 .scrollBounceBehavior(.basedOnSize)
-                // As tall as the rows, up to the cap: short lists stay short.
-                .frame(height: rowsHeight > 0 ? min(rowsHeight, cap) : nil)
+                .frame(height: rowsHeight > 0 ? min(rowsHeight, maxHeight) : nil)
                 .onPreferenceChange(ListRowsHeightKey.self) { rowsHeight = $0 }
+            } else if let maxHeight {
+                NodeChildrenView(nodes: rows)
+                    .frame(maxHeight: maxHeight, alignment: .top)
+                    .clipped()
+            } else if isShortened, rows.count > Self.visibleRows {
+                let shown = showsAll && !stillRender ? rows : Array(rows.prefix(Self.visibleRows))
+                NodeChildrenView(nodes: shown)
+                showAllButton(total: rows.count)
+            } else {
+                NodeChildrenView(nodes: rows)
             }
         }
+    }
+
+    private func showAllButton(total: Int) -> some View {
+        Button {
+            showsAll.toggle()
+        } label: {
+            Label(showsAll ? String(localized: "Show Fewer")
+                           : String(localized: "Show All \(total)", comment: "A long list: show every row"),
+                  systemImage: showsAll ? "chevron.up" : "chevron.down")
+                .font(.caption)
+        }
+        .buttonStyle(.glass(.plain))
+        .controlSize(.small)
+        .frame(maxWidth: .infinity)
     }
 }
 
