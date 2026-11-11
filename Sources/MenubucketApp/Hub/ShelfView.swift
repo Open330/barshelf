@@ -36,6 +36,21 @@ struct ShelfView: View {
     private let columnWidth: CGFloat = 230
 
     var body: some View {
+        withPageDialogs(content)
+            .alert(
+                "Couldn't Do That",
+                isPresented: Binding(
+                    get: { actionError != nil },
+                    set: { if !$0 { actionError = nil } }
+                )
+            ) {
+                Button("OK", role: .cancel) { actionError = nil }
+            } message: {
+                Text(actionError ?? "")
+            }
+    }
+
+    private var content: some View {
         Group {
             if runtime.widgets.isEmpty {
                 emptyState
@@ -104,6 +119,14 @@ struct ShelfView: View {
         } message: { _ in
             Text("The copy has its own settings — for example one per server or account.")
         }
+    }
+
+    // MARK: - Page dialogs
+
+    /// Rename, New Page and Remove Page prompts. Kept out of `body`: one
+    /// modifier chain that long is more than the type checker will take.
+    private func withPageDialogs<Content: View>(_ content: Content) -> some View {
+        content
         .alert(
             "Rename Page",
             isPresented: Binding(
@@ -141,17 +164,6 @@ struct ShelfView: View {
             Button("Cancel", role: .cancel) { removingPage = nil }
         } message: { _ in
             Text("No widget is removed: they stay installed, with their settings, on the page you choose.")
-        }
-        .alert(
-            "Couldn't Do That",
-            isPresented: Binding(
-                get: { actionError != nil },
-                set: { if !$0 { actionError = nil } }
-            )
-        ) {
-            Button("OK", role: .cancel) { actionError = nil }
-        } message: {
-            Text(actionError ?? "")
         }
     }
 
