@@ -45,7 +45,7 @@ TITLES = {
     "developer-inbox": "GitHub review requests and notifications in the macOS menu bar",
     "sensors": "Mac temperatures, fans and power in the menu bar",
     "system": "CPU, memory and disk in the macOS menu bar",
-    "muxa-watch": "Watch coding agents from the macOS menu bar",
+    "tend-watch": "Watch coding agents from the macOS menu bar",
     "codex-reset": "Will Codex reset? A quota reset forecast in the macOS menu bar",
     "github-status": "GitHub status in the macOS menu bar",
     "network": "Network speed and local IP in the macOS menu bar",
@@ -71,8 +71,8 @@ INTROS = {
         "shared Rust core and a CLI. This widget shows the codes in your OTPeek vault with a countdown, "
         "so a 2FA code is one click away in the menu bar."
     ),
-    "muxa-watch": (
-        "[Muxa](https://github.com/Open330/muxa) watches the Claude Code, Codex and Gemini CLI sessions "
+    "tend-watch": (
+        "[tend](https://github.com/Open330/tend) watches the Claude Code, Codex and Gemini CLI sessions "
         "you already run in tmux and tells you which one needs you. This widget puts that list in the "
         "BarShelf popover, one row per agent."
     ),

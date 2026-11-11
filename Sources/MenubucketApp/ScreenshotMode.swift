@@ -30,7 +30,7 @@ enum ScreenshotMode {
             ("tile-otp", "OTP Codes", "key.fill", ShotData.otpNode, "purple"),
             ("tile-files", "Recent Files", "clock.arrow.circlepath", ShotData.filesNode, nil),
             ("tile-aas", "aas usage", "gauge", ShotData.aasNode, "orange"),
-            ("tile-muxa-watch", "muxa Watch", "rectangle.3.group.bubble.left.fill", ShotData.muxaWatchNode, "purple"),
+            ("tile-tend-watch", "tend Watch", "rectangle.3.group.bubble.left.fill", ShotData.tendWatchNode, "purple"),
             ("tile-k8s", "k8s pods", "shippingbox", ShotData.k8sNode, nil),
             ("tile-next-meeting", "Next Meeting", "calendar.badge.clock", ShotData.nextMeetingNode, "blue"),
             ("tile-quick-shelf", "Quick Shelf", "square.grid.2x2", ShotData.quickShelfNode, "purple"),
@@ -135,10 +135,10 @@ enum ScreenshotMode {
 // MARK: - Sample data (authentic: rendered by the real ViewTreeRenderer)
 
 enum ShotData {
-    /// Real `muxa Watch` output — the widget's own `load()` run against the
-    /// isolated demo fleet from muxa's `docs/demo-setup.sh` (no live sessions),
+    /// Real `tend Watch` output — the widget's own `load()` run against the
+    /// isolated demo fleet from tend's `docs/demo-setup.sh` (no live sessions),
     /// with the relative ages varied so the tile doesn't read as one instant.
-    static var muxaWatchNode: UINode {
+    static var tendWatchNode: UINode {
         let json = """
         {"spacing":8,"type":"vstack","children":[
           {"id":"local-agent-0","spacing":8,"alignment":"baseline","type":"hstack","children":[

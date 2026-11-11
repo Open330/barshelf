@@ -82,7 +82,7 @@ enum GalleryPermissionText {
 
 /// One tool a widget needs on this Mac (`requires`, split on `+`, `&`, `,`).
 struct GalleryRequirement: Hashable, Sendable {
-    /// As written in the registry: "Deno", "muxa CLI".
+    /// As written in the registry: "Deno", "tend CLI".
     let name: String
     /// The command BarShelf looks for on PATH, when one can be read from it.
     let command: String?

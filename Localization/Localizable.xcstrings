@@ -13377,11 +13377,22 @@
       }
     },
     "What each muxa coding agent is doing, on this Mac or over SSH. Needs the muxa command-line tool and Deno.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "이 Mac과 SSH로 연결한 컴퓨터에서 각 muxa 코딩 에이전트의 작업을 확인합니다. muxa 명령줄 도구와 Deno가 필요합니다."
+          }
+        }
+      }
+    },
+    "What each tend coding agent is doing, on this Mac or over SSH. Needs the tend command-line tool and Deno.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 Mac과 SSH로 연결한 컴퓨터에서 각 tend 코딩 에이전트의 작업을 확인합니다. tend 명령줄 도구와 Deno가 필요합니다."
           }
         }
       }

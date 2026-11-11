@@ -85,7 +85,7 @@ public struct RegistryWidgetEntry: Codable, Equatable, Sendable {
     /// the gallery card. Display-only and never fetched by the widget runtime.
     public var readme: String?
     /// Gallery shelf grouping: `"custom"` marks integrations built around the
-    /// author's own tools (muxa, aas, otpeek, stashbar). Anything else — or
+    /// author's own tools (tend, aas, otpeek, stashbar). Anything else — or
     /// absent — files under the built-in shelf. Display-only.
     public var collection: String?
     /// Accent color for the gallery card's icon tile — a named accent

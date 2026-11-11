@@ -156,14 +156,15 @@ Fit / fixed-height layout. **Today**, **Recent Files**, and the permission-free
 | **System** · **Sensors** | native | CPU/Memory/Disk meters and SMC temperatures, fans and power draw — read from Mach/IOKit, no subprocess. Both can show a live value in the menu bar. |
 | **Recent Files** | `fs.directory` | Stashbar-style Grid/List of recent files — QuickLook thumbnails, drag-out, click to open. |
 | **aas Usage** · **OTP Codes** | CLI | LLM usage meters from [`aas`](https://github.com/Open330/aas); TOTP codes with a countdown ring from [`otpeek`](https://github.com/jiunbae/otpeek). |
-| **muxa Watch** | CLI + script | Local and SSH-host [`muxa`](https://github.com/Open330/muxa) agents, grouped by host in compact `NAME / ST / ACT / LAST PROMPT` tables. |
+| **tend Watch** | CLI + script | Local and SSH-host [`tend`](https://github.com/Open330/tend) agents, grouped by host in compact `NAME / ST / ACT / LAST PROMPT` tables. |
 | **Downloads** · **GitHub Status** | mixed | Persistence ("new since last check" counting) and an HTTPS status feed. |
 | **Quick Shelf** · **Next Meeting** · **Focus Timer** | mixed | A permission-free launcher, your next Calendar event with Join action, and a persistent native countdown. |
 | **Project Status** · **Developer Inbox** · **Clipboard Shelf** | script | Git repository state, GitHub review activity, and a privacy-first memory-only clipboard history. |
 
-For **muxa Watch**, enter aliases such as `jiun-mbp, jiun-mini, rtzr` in the
-*SSH hosts* setting. It uses your existing `~/.ssh/config` and key-based access
-in non-interactive mode; remote hosts need muxa v0.8.18 or newer.
+For **tend Watch**, add one card per host: leave *SSH host* empty for this
+Mac, or enter an alias from your `~/.ssh/config` (key-based, non-interactive).
+The *Fleet* source shows every host `tend fleet` knows from a single card.
+Remote hosts need the `tend` CLI.
 
 Most native widgets are **clickable** — like a real macOS/iOS widget, clicking the card opens its companion app or page (Today → Calendar, System → Activity Monitor, Stock → Yahoo Finance, Weather → Weather app, …).
 

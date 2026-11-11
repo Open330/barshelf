@@ -186,7 +186,7 @@ final class RegistryTests: XCTestCase {
         let byID = Dictionary(uniqueKeysWithValues: index.widgets.map { ($0.id, $0) })
         XCTAssertEqual(byID["dev.barshelf.aas-usage"]?.requires, "aas CLI")
         XCTAssertEqual(byID["dev.barshelf.otpeek"]?.requires, "otpeek CLI")
-        XCTAssertEqual(byID["dev.barshelf.muxa-watch"]?.requires, "muxa CLI + Deno")
+        XCTAssertEqual(byID["dev.barshelf.tend-watch"]?.requires, "tend CLI + Deno")
         XCTAssertNil(byID["dev.barshelf.battery-meter"]?.requires)
         XCTAssertNil(byID["dev.barshelf.today"]?.requires)
         XCTAssertNil(byID["dev.barshelf.recent-files-grid"]?.requires)
@@ -215,8 +215,8 @@ final class RegistryTests: XCTestCase {
             "https://github.com/jiunbae/otpeek"
         )
         XCTAssertEqual(
-            byID["dev.barshelf.muxa-watch"]?.homepage,
-            "https://github.com/Open330/muxa"
+            byID["dev.barshelf.tend-watch"]?.homepage,
+            "https://github.com/Open330/tend"
         )
         // Built-in widgets bundle for offline install…
         XCTAssertEqual(byID["dev.barshelf.today"]?.install.bundled, "today")
@@ -224,15 +224,15 @@ final class RegistryTests: XCTestCase {
         // …while custom widgets are owned by their tool's repo and install
         // over the network from a GitHub URL (no bundled copy in this app).
         XCTAssertNil(byID["dev.barshelf.otpeek"]?.install.bundled)
-        XCTAssertNil(byID["dev.barshelf.muxa-watch"]?.install.bundled)
+        XCTAssertNil(byID["dev.barshelf.tend-watch"]?.install.bundled)
         XCTAssertNil(byID["dev.barshelf.aas-usage"]?.install.bundled)
         XCTAssertEqual(
             byID["dev.barshelf.aas-usage"]?.install.url,
             "https://github.com/Open330/aas/tree/main/widgets/barshelf-aas-usage"
         )
         XCTAssertEqual(
-            byID["dev.barshelf.muxa-watch"]?.install.url,
-            "https://github.com/Open330/muxa/tree/main/widgets/muxa-watch"
+            byID["dev.barshelf.tend-watch"]?.install.url,
+            "https://github.com/Open330/tend/tree/main/widgets/tend-watch"
         )
         XCTAssertEqual(
             byID["dev.barshelf.otpeek"]?.install.url,
