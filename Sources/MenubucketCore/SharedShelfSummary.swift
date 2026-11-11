@@ -41,7 +41,7 @@ extension SharedShelf {
         public var metrics: [Metric]
         /// An SF Symbol the item leads with, when it has one.
         public var symbol: String?
-        /// The colour of a leading status dot (muxa's agents).
+        /// The colour of a leading status dot (tend's agents).
         public var dotTone: String?
         /// Local file the item shows a thumbnail of. Read by BarShelf only:
         /// it exports a small PNG and clears this before sharing.

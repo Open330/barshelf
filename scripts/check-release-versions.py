@@ -58,9 +58,7 @@ DOC_VERSION = re.compile(r"(?<![\w.])v(\d+\.\d+\.\d+)(?!\d)")
 # Other projects' versions that legitimately appear in these docs. Adding to
 # this list should be a deliberate edit, not something that quietly passes —
 # that is the whole point of failing on an unrecognized version.
-EXTERNAL_VERSIONS = [
-    "muxa v0.8.18",  # minimum remote muxa the muxa Watch widget talks to
-]
+EXTERNAL_VERSIONS: list[str] = []
 
 
 def is_external(line: str, version: str) -> bool:

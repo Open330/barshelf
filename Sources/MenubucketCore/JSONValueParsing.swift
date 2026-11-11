@@ -5,7 +5,7 @@ import Foundation
 /// `JSONValue.init(from:)` finds out what each value is by trying Bool, then
 /// Double, then String, then an array, then an object, letting each wrong
 /// guess throw. Over a few megabytes of command output — a script widget
-/// asking `host.exec.run` to parse `muxa fleet status --json` every five
+/// asking `host.exec.run` to parse `tend fleet status --json` every five
 /// seconds — that was most of the app's CPU while the popup was open.
 /// Foundation's parser reads the text once; this turns its result into a
 /// `JSONValue` with the same meaning: `true`/`false` stay booleans, numbers
