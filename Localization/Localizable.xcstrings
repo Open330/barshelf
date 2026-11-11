@@ -3997,6 +3997,16 @@
         }
       }
     },
+    "Edit Pages…": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "페이지 편집…"
+          }
+        }
+      }
+    },
     "Edit Shelf": {
       "localizations": {
         "ko": {
@@ -7066,6 +7076,16 @@
         }
       }
     },
+    "Move its widgets to": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯을 옮길 페이지"
+          }
+        }
+      }
+    },
     "Move left": {
       "localizations": {
         "ko": {
@@ -9241,6 +9261,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "페이지 제거…"
+          }
+        }
+      }
+    },
+    "Remove This Page": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 페이지 제거"
           }
         }
       }

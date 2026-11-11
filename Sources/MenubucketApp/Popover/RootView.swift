@@ -435,9 +435,11 @@ struct RootView: View {
     private func header(pages: [WidgetPage], index: Int) -> some View {
         VStack(spacing: Spacing.xs) {
             HStack(spacing: Spacing.stack) {
-                PageMenu(pages: pages, index: index) { target in
-                    pager.jump(to: target, pageCount: pages.count)
-                }
+                PageMenu(
+                    pages: pages, index: index,
+                    jump: { target in pager.jump(to: target, pageCount: pages.count) },
+                    runtime: runtime, onCommand: onCommand
+                )
                 if pages.count > 1 {
                     Text(verbatim: "\(index + 1)/\(pages.count)")
                         .font(.caption.weight(.medium).monospacedDigit())

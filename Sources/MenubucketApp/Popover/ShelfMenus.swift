@@ -92,6 +92,9 @@ struct PageMenu: View {
     let pages: [WidgetPage]
     let index: Int
     let jump: (Int) -> Void
+    /// For the page's own commands: removing it, and the Shelf for the rest.
+    var runtime: WidgetRuntime?
+    var onCommand: (AppMenuCommand) -> Void = { _ in }
 
     var body: some View {
         let current = pages[index]
@@ -102,6 +105,10 @@ struct PageMenu: View {
                     set: { _ in jump(pageIndex) }
                 ))
                 .modifier(ShortcutHint(key: pageIndex < 9 ? String(pageIndex + 1) : ""))
+            }
+            if let runtime {
+                Divider()
+                pageCommands(current.group, runtime: runtime)
             }
         } label: {
             HStack(spacing: Spacing.xxs) {
@@ -122,5 +129,27 @@ struct PageMenu: View {
         .help("Go to a page")
         .accessibilityLabel("Page: \(PageName.label(current.group))")
         .accessibilityHint("Choose a page to show")
+    }
+
+    /// Removing the page shown: at once when it is empty, otherwise by
+    /// choosing where its widgets go (none is uninstalled). Renaming, new
+    /// pages and the rest need typing or dragging, so they are on the Shelf.
+    @ViewBuilder
+    private func pageCommands(_ page: String, runtime: WidgetRuntime) -> some View {
+        let shelf = runtime.shelfPages
+        let others = shelf.map(\.group).filter { $0 != page }
+        let isEmpty = shelf.first { $0.group == page }?.widgets.isEmpty ?? true
+        if isEmpty {
+            Button("Remove This Page", role: .destructive) { runtime.removeEmptyPage(page) }
+        } else if !others.isEmpty {
+            Menu("Remove This Page") {
+                Section("Move its widgets to") {
+                    ForEach(others, id: \.self) { other in
+                        Button(PageName.label(other)) { runtime.renamePage(page, to: other) }
+                    }
+                }
+            }
+        }
+        Button("Edit Pages…") { onCommand(.openBarShelf) }
     }
 }
