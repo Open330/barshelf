@@ -214,6 +214,7 @@ final class DockHostingView<Content: View>: NSHostingView<Content> {
 
 /// Shows the BarShelf Dock on its screen edge, hides it when auto-hide says
 /// so, and tells the runtime which dock widgets are on screen (R15).
+@MainActor
 final class DockPanelController {
     private let store: DockStore
     private let runtime: WidgetRuntime
@@ -390,7 +391,9 @@ final class DockPanelController {
     }
 
     deinit {
-        removeMouseMonitors()
+        // A deinit is not on the main actor, so it cannot call
+        // `removeMouseMonitors()`; this is that method's body.
+        mouseMonitors.forEach(NSEvent.removeMonitor)
     }
 
     /// The panel's scroll hook. Nil from the hosting view means it handled
@@ -467,7 +470,7 @@ final class DockPanelController {
 
     /// A screen frame in window-server coordinates (origin at the top left
     /// of the main display, y down), the space window bounds come in.
-    static func windowServerFrame(of frame: NSRect, primaryHeight: CGFloat) -> CGRect {
+    nonisolated static func windowServerFrame(of frame: NSRect, primaryHeight: CGFloat) -> CGRect {
         CGRect(x: frame.minX, y: primaryHeight - frame.maxY, width: frame.width, height: frame.height)
     }
 
@@ -478,7 +481,7 @@ final class DockPanelController {
     /// screen's top safe-area inset), which a zoomed window still does not
     /// reach, since the menu bar there is taller than the housing area it
     /// shares. Reads window bounds only, which needs no permission.
-    static func isFullScreen(
+    nonisolated static func isFullScreen(
         windows: [[String: Any]], screenFrame: CGRect, topInset: CGFloat = 0, ownPID: pid_t
     ) -> Bool {
         var targets = [screenFrame]

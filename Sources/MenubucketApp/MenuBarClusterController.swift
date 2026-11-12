@@ -20,6 +20,7 @@ import SwiftUI
 ///   peek panel drops its hosting view when it hides.
 /// - The card is anchored to the status item's button, a view that outlives
 ///   it; only the positioning rect moves between chips.
+@MainActor
 final class MenuBarClusterController: NSObject {
     /// A chip was clicked: the owner decides what the widget's click does.
     var onChipClick: ((String) -> Void)?
@@ -82,19 +83,23 @@ final class MenuBarClusterController: NSObject {
         let workspace = NSWorkspace.shared.notificationCenter
         observers.append((workspace, workspace.addObserver(
             forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main
-        ) { [weak self] _ in self?.dismiss() }))
+        ) { [weak self] _ in MainActor.assumeIsolated { self?.dismiss() } }))
         observers.append((NotificationCenter.default, NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
         ) { [weak self] _ in
-            self?.menuBarBands = nil
-            self?.dismiss()
-            // A display with another pixel density needs its own bitmap.
-            self?.menuBar.redrawClusterForScreens()
+            MainActor.assumeIsolated {
+                self?.menuBarBands = nil
+                self?.dismiss()
+                // A display with another pixel density needs its own bitmap.
+                self?.menuBar.redrawClusterForScreens()
+            }
         }))
     }
 
     deinit {
-        removeKeyMonitor()
+        // A deinit is not on the main actor, so it cannot call
+        // `removeKeyMonitor()`; this is that method's body.
+        if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
         pointerWatcher?.stop()
         for (center, observer) in observers { center.removeObserver(observer) }
     }

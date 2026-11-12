@@ -12,6 +12,7 @@ import SwiftUI
 /// wired for `[.leftMouseUp, .rightMouseUp]` — left click toggles the popup,
 /// right click (or ctrl-click) opens the app menu (`AppMenu`), the same one
 /// the popup's ⋯ button shows.
+@MainActor
 final class StatusItemController: NSObject {
     private static let statusItemLength: CGFloat = 28
 
@@ -179,9 +180,12 @@ final class StatusItemController: NSObject {
     var shelfRuntime: WidgetRuntime { runtime }
 
     deinit {
-        removeKeyboardMonitor()
-        removeScrollMonitor()
-        unregisterHotkey()
+        // A deinit is not on the main actor, so it cannot call
+        // `removeKeyboardMonitor()`, `removeScrollMonitor()` and
+        // `unregisterHotkey()`; these are their bodies.
+        if let monitor = keyboardMonitor { NSEvent.removeMonitor(monitor) }
+        if let monitor = scrollMonitor { NSEvent.removeMonitor(monitor) }
+        if let ref = hotKeyRef { UnregisterEventHotKey(ref) }
         HotkeyRegistrationCoordinator.shared.register = nil
         if let handler = hotKeyEventHandler {
             RemoveEventHandler(handler)
