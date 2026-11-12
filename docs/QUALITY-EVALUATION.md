@@ -1,9 +1,83 @@
 # BarShelf quality evaluation
 
+How a BarShelf release is judged good. Since 2026-11-12 the rule is what can be
+observed on real Macs and in the release checks. The persona scores used
+before that are kept below as history.
+
+## Acceptance criteria
+
+A weekly release ([RELEASING.md](RELEASING.md), "주기") is accepted when every
+check below has been **observed**. A check nobody ran is written down as "not
+verified". It never counts as a pass, and it is never filled in from memory or
+from a reviewer's estimate.
+
+### 1. Before the release goes out
+
+| Check | How | Passes when |
+| --- | --- | --- |
+| CI | `Build & Test` on the tagged commit, including the strict-concurrency Core build | green |
+| Changes are in | `git merge-base --is-ancestor <commit> v<version>` for every change the release notes claim | each one is an ancestor |
+| Versions and strings | `python3 scripts/check-release-versions.py`; `bash scripts/sync-strings.sh --check` | both pass, and every new string has Korean |
+| Screens | `scripts/screenshot-hub.sh <dir> --live` for any release that changes UI, looked at in en/ko × light/dark | no clipped, overlapping or untranslated text |
+| Artifacts | `bash scripts/verify-release.sh v<version>` | passes: checksums, bundle version, clean tree, signature, notarization, Gatekeeper, the updater's Developer ID requirement, Homebrew tap |
+| Update path | the [update rehearsal](RELEASING.md#업데이트-리허설) from the previous signed release | Install and Relaunch replaces and relaunches the app |
+
+### 2. A week on both Macs
+
+The release runs for seven days of ordinary use on **june-mba** and
+**jiun-mbp** (the only Macs it is installed on). Record the installed
+`CFBundleShortVersionString` and `BarShelfSourceCommit` first, so every reading
+belongs to one build. Read-only commands only; none of these touches the screen
+or the keyboard.
+
+| Check | How to observe | Passes when |
+| --- | --- | --- |
+| No crash | `/bin/ls ~/Library/Logs/DiagnosticReports \| grep barshelf-app`, then the report's `app_version` | no report from the installed version on either Mac |
+| No hang | the same folder: `.hang` and `.spin` reports for `barshelf-app` | none from the installed version |
+| Idle CPU | `scripts/profile-idle.sh 300` with the popup closed and nobody using the Mac (screen unlocked) | at most 1.0%, and at most 0.3 points above the previous release on the same Mac |
+| CPU over the week | `ps -o etime=,cputime= -p $(pgrep -x barshelf-app)` at the end of the week | recorded; a rise of more than half over the previous week is investigated before the next release |
+| Memory | `ps -o rss= -p $(pgrep -x barshelf-app)` on day 1 and day 7 | day 7 is at most 1.5× day 1 |
+| Keyboard extension kept | Fn-arrow mappings and window shortcuts used every day, including after sleep and after a new login; `log show --last 7d --predicate 'process == "barshelf-app" AND eventMessage CONTAINS "automation stopped"'` | they keep working, and every logged stop has a known cause (for example, Accessibility was turned off) |
+| Menu bar item kept | the BarShelf icon after sleep, a display change and a login; the BarShelf window's hidden-item warning | the icon is visible and the warning is not shown |
+
+Any failure means the release is not accepted. When it breaks something
+people use every day (the app does not open, data is lost, the keyboard
+extension stops), the fix ships at once under the exception in
+[RELEASING.md](RELEASING.md); anything else goes into the next weekly
+release.
+
+### 3. Recording
+
+Add a dated entry under [Observed releases](#observed-releases): Mac, version
+and commit, each reading with its command, and "not verified" for anything not
+run. Numbers are measurements; where a judgement was needed, say whose.
+
+## Observed releases
+
+### Starting point (2026-11-12)
+
+These are the first readings under the new rule, taken when it was written.
+They are lifetime averages since launch, **not** `profile-idle.sh` idle
+measurements, and they start no seven-day window. They set no baseline yet.
+
+| Mac | Installed | Up for | CPU time | Average CPU | RSS | Crash reports from BarShelf |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| june-mba | 0.7.34 (`f8e2d8875900`) | 20 min | 4.95 s | 0.41% | 86 MB | none from a release build (one from an unversioned development build, 2026-11-12 11:00) |
+| jiun-mbp | 0.7.33 (`fb976227a576`) | 3 h 41 min | 178.8 s | 1.35% | 26 MB | none |
+
+Not verified: idle CPU with `profile-idle.sh`, the keyboard extension after
+sleep and login, the menu bar item after a display change.
+
+## Persona rubric (history, 2026-10-23 to 2026-10-25)
+
+This was the acceptance rule until 2026-11-12. It is kept as the record of
+rounds 1 to 4 and is no longer used to accept a release: its scores were
+reviewer judgement about imagined people, not something a Mac could show.
+
 Evaluation started 2026-10-23 against `b79ef72` (released version 0.7.4).
 This is a structured agent evaluation, not a study with recruited human users.
 
-## Acceptance criteria
+### Rubric
 
 Use the same rubric before and after improvements. Each persona receives five
 equally weighted scores, each out of 10:
@@ -23,7 +97,7 @@ scores express reviewer judgment supported by evidence, not measured user
 satisfaction. The target is not a reason to inflate a score or narrow away a
 failed essential journey.
 
-## Personas and journeys
+### Personas and journeys
 
 | Persona | Essential journeys | Independent reviewer |
 | --- | --- | --- |
@@ -35,9 +109,9 @@ failed essential journey.
 | Privacy- and battery-conscious laptop user | Inspect and deny permissions; understand background refresh; retain control of data; update safely. | quality-a11y |
 | Multi-monitor Mac power user (added in round 2) | Configure the optional Dock; switch profiles; restore the Apple Dock after exit/failure; configure and refresh desktop widgets; verify stale and sensitive data behavior. | quality-exec (independent of its execution/timer implementation work) |
 
-## Evidence and iteration log
+### Evidence and iteration log
 
-### Baseline
+#### Baseline
 
 | Persona | Learn | Complete | Feedback | Access/localization | Reliability/trust | Final score |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -57,7 +131,7 @@ disposable fixtures. No baseline VoiceOver or physical keyboard test is claimed.
 Baseline `swift test`: 1,015 tests, 18 skipped, zero failures (997 passed).
 This demonstrates that existing automated coverage missed the defects below.
 
-### Improvement round 1 (in progress)
+#### Improvement round 1 (in progress)
 
 | Finding | Trigger and affected source | Change / verification required |
 | --- | --- | --- |
@@ -81,7 +155,7 @@ the acceptance criteria are met. Actual Korean widget content (as distinct from
 gallery descriptions), VoiceOver delivery, IME composition, hardware mappings,
 and installed-build performance still require explicit verification.
 
-### Round 1 verification and independent reassessment
+#### Round 1 verification and independent reassessment
 
 - Full suite in a disposable Foundation home: **1,048 tests, 1,030 passed,
   18 opt-in tests skipped, zero failures**. The three permission-withdrawal
@@ -117,7 +191,7 @@ Karabiner profiles with function-key tables. A separate review found script
 timers bypassing the popup-closed pause policy and retained storage/secrets
 after removal. These require another implementation and verification round.
 
-### Round 2 (in progress)
+#### Round 2 (in progress)
 
 - Exclude private configuration, credentials, editor/agent settings and key
   files when packing; report excluded paths, preserve hidden code modules, and
@@ -151,7 +225,7 @@ parallel. Round 1's 8.38 is a historical six-persona score, not a claim about th
 expanded seven-persona scope. The expanded result remains unaccepted/unscored
 until all seven are reassessed against the resulting implementation.
 
-### Round 2 integration checkpoint (2026-10-24)
+#### Round 2 integration checkpoint (2026-10-24)
 
 - Disposable-home full suite: **1,110 tests, 1,092 passed, 18 optional tests
   skipped, zero failures** (`/tmp/barshelf-quality-round2-full-tests-final.log`).
@@ -192,7 +266,7 @@ The checkpoint suite predates those follow-ups and the later clock-permission
 copy/page-label refinements. They require fresh verification. All seven
 personas still require reassessment, and the goal remains active.
 
-### Round 3 repairs and verification in progress
+#### Round 3 repairs and verification in progress
 
 A second independent seven-persona source review identified more problems,
 including reapproval failing to restore a menu-bar item, Dock scroll dispatch
@@ -237,7 +311,7 @@ A live isolated-app check through the Tacto skill stopped with
 No synthetic input was sent; the isolated process was stopped. This establishes
 neither a successful GUI journey nor a confirmed BarShelf launch defect.
 
-### Round 4: live journeys and installation identity
+#### Round 4: live journeys and installation identity
 
 A fresh independent seven-persona audit gave provisional scores
 **9.0 / 9.1 / 9.1 / 8.8 / 8.7 / 8.9 / 8.7** (mean **8.90**).
@@ -372,7 +446,7 @@ Its isolated test process was stopped after verification. No release or real
 user configuration was replaced. Essential physical-keyboard, VoiceOver,
 multi-display and installed WidgetKit evidence is still outstanding.
 
-### Remaining acceptance evidence
+#### Remaining acceptance evidence
 
 The prior turn made concrete progress (code repairs, independent closure and
 executed test/UI evidence). The following essential checks are still pending;
@@ -391,7 +465,7 @@ each check. A failure needs reproduction and repair; an unavailable environment
 remains pending. The installed release must not be described as validating
 unreleased source changes merely because its version already runs correctly.
 
-### Complete signed candidate (2026-10-24)
+#### Complete signed candidate (2026-10-24)
 
 The next continuation built the current source in Release configuration with
 the WidgetKit extension included. The app, extension and both CLI binaries were
@@ -412,7 +486,7 @@ An availability question is pending for the human/hardware checks above. No
 answer or elapsed wait is treated as a successful test. The goal remains active;
 there is no new numerical acceptance assessment.
 
-### Main integration and review preparation
+#### Main integration and review preparation
 
 The quality snapshot was committed as `9f40fd7` on
 `improve/persona-quality-review`; local `.context` diagnostics and signing
@@ -467,7 +541,7 @@ No further direct issue was found in that closure review. Latest strict Core
 verification also passed. The branch is prepared for a draft PR and remote CI;
 manual/hardware acceptance remains pending, so the quality goal is not complete.
 
-### Live checks on the installed 0.7.5 (2026-10-24, june-mba)
+#### Live checks on the installed 0.7.5 (2026-10-24, june-mba)
 
 Build: notarized 0.7.5 (`57d2b96`), installed through Homebrew, the only
 registered copy. The display is a single built-in notched 1710-point screen,
@@ -498,7 +572,7 @@ Still unexecuted, needing a person or hardware:
 - **Two displays:** only one is attached.
 - **Placing a desktop widget:** this changes the person's desktop.
 
-### Live desktop-widget check (2026-10-25, june-mba, installed 0.7.5)
+#### Live desktop-widget check (2026-10-25, june-mba, installed 0.7.5)
 
 Driven through Notification Center and AX. The person's notification content
 was not read or recorded.
