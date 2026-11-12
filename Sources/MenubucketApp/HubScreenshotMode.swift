@@ -13,14 +13,18 @@ import SwiftUI
 /// --output-directory "$(swift build --show-bin-path)"`) and the flag works there too.
 ///
 /// `--dark` renders in the dark appearance; `--only <prefix>` renders only
-/// the shots whose name starts with it (`--only hub-privacy`).
+/// the shots whose name starts with it (`--only hub-privacy`). `--live`
+/// approves every widget in the scratch home and refreshes it first, so the
+/// cards show real readings instead of their empty state.
+/// `scripts/screenshot-hub.sh` wraps all of this, English and Korean, light
+/// and dark.
 ///
 /// It builds a live runtime, which seeds starter widgets and writes state
 /// under the home folder, so it refuses to run unless `CFFIXED_USER_HOME`
 /// points somewhere disposable.
 enum HubScreenshotMode {
     @MainActor
-    static func run(outputDir: String, dark: Bool = false, only: String? = nil) -> Int32 {
+    static func run(outputDir: String, dark: Bool = false, only: String? = nil, live: Bool = false) -> Int32 {
         guard let home = ProcessInfo.processInfo.environment["CFFIXED_USER_HOME"], !home.isEmpty else {
             FileHandle.standardError.write(Data(
                 "screenshot-hub writes widget state; set CFFIXED_USER_HOME to a scratch folder\n".utf8
@@ -38,6 +42,18 @@ enum HubScreenshotMode {
         let runtime = WidgetRuntime(appPrefs: prefs)
         runtime.loadWidgets()
         RunLoop.main.run(until: Date().addingTimeInterval(1))
+        if live {
+            // The scratch home's own widgets, approved there only.
+            for widget in runtime.widgets {
+                runtime.approvePermissions(widgetID: widget.id)
+                runtime.refresh(widgetID: widget.id, manual: true)
+            }
+            let deadline = Date().addingTimeInterval(20)
+            while Date() < deadline,
+                  runtime.widgets.contains(where: { runtime.snapshots[$0.id] == nil }) {
+                RunLoop.main.run(until: Date().addingTimeInterval(0.5))
+            }
+        }
 
         var ok = true
         for tab in HubTab.allCases {
