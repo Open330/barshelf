@@ -1,53 +1,199 @@
 {
   "schemaVersion": 1,
   "kind": "workflow",
-  "_comment": "Native-style battery widget: pmset (via a shell source) → big percentage + a level-colored meter and battery glyph. No Deno — pure workflow.",
-
+  "_comment": "Battery from one pmset -g batt per refresh: the shell pulls the percentage and the two fields after it (state; detail) plus the power source, and the workflow classifies them. 'AC attached; not charging' is plugged in but holding (Optimized Charging, or a full battery), never 'charging'. A Mac without a battery has no percentage line: the card says so and the menu bar shows nothing.",
   "sources": {
     "data": {
       "use": "exec",
       "with": {
-        "command": ["/bin/sh", "-c", "pct=$(/usr/bin/pmset -g batt | /usr/bin/grep -Eo '[0-9]+%' | /usr/bin/head -1 | /usr/bin/tr -d '%'); [ -z \"$pct\" ] && pct=0; state=$(/usr/bin/pmset -g batt | /usr/bin/grep -Eo 'charged|charging|discharging' | /usr/bin/head -1); [ -z \"$state\" ] && state=unknown; echo '{\"pct\":'$pct',\"state\":\"'$state'\"}'"]
+        "command": [
+          "/bin/sh",
+          "-c",
+          "out=$(/usr/bin/pmset -g batt 2>/dev/null); src=$(printf '%s\\n' \"$out\" | /usr/bin/sed -n \"s/^Now drawing from '\\(.*\\)'.*/\\1/p\" | /usr/bin/head -1 | /usr/bin/tr -cd 'A-Za-z '); line=$(printf '%s\\n' \"$out\" | /usr/bin/grep -E '[0-9]+%;' | /usr/bin/head -1); pct=$(printf '%s' \"$line\" | /usr/bin/grep -Eo '[0-9]+%' | /usr/bin/head -1 | /usr/bin/tr -d '%'); [ -n \"$pct\" ] || pct=null; state=$(printf '%s' \"$line\" | /usr/bin/cut -s -d';' -f2 | /usr/bin/sed 's/^ *//;s/ *$//' | /usr/bin/tr -cd 'A-Za-z '); detail=$(printf '%s' \"$line\" | /usr/bin/cut -s -d';' -f3 | /usr/bin/sed 's/ *present:.*//;s/^ *//;s/ *$//' | /usr/bin/tr -cd 'A-Za-z0-9 :()'); time=$(printf '%s' \"$detail\" | /usr/bin/grep -Eo '[0-9]+:[0-9][0-9]' | /usr/bin/head -1); printf '{\"pct\":%s,\"source\":\"%s\",\"state\":\"%s\",\"detail\":\"%s\",\"time\":\"%s\"}' \"$pct\" \"$src\" \"$state\" \"$detail\" \"$time\""
+        ]
       }
     }
   },
-
   "transforms": {
-    "ko": { "use": "assign", "from": "or(eq(coalesce(widget.locale, ''), 'ko'), or(eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko-…'), eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko_…')))" },
-    "state": { "use": "assign", "from": "if(transforms.ko, switch(sources.data.state, 'charged', '충전 완료', 'charging', '충전 중', 'discharging', '배터리 사용 중', sources.data.state), sources.data.state)" }
+    "ko": {
+      "use": "assign",
+      "from": "or(eq(coalesce(widget.locale, ''), 'ko'), or(eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko-…'), eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko_…')))"
+    },
+    "has": {
+      "use": "assign",
+      "from": "ne(number(sources.data.pct), null)"
+    },
+    "pct": {
+      "use": "assign",
+      "from": "if(transforms.has, min(max(number(sources.data.pct), 0), 100), null)"
+    },
+    "st": {
+      "use": "assign",
+      "from": "coalesce(sources.data.state, '')"
+    },
+    "detail": {
+      "use": "assign",
+      "from": "coalesce(sources.data.detail, '')"
+    },
+    "onAC": {
+      "use": "assign",
+      "from": "or(eq(sources.data.source, 'AC Power'), eq(transforms.st, 'AC attached'))"
+    },
+    "phase": {
+      "use": "assign",
+      "from": "if(not(transforms.has), 'none', if(contains(transforms.detail, 'not charging'), 'notCharging', switch(transforms.st, 'charging', 'charging', 'finishing charge', 'charging', 'charged', 'charged', 'discharging', 'discharging', 'AC attached', 'notCharging', if(eq(transforms.st, ''), if(transforms.onAC, 'notCharging', 'discharging'), 'other'))))"
+    },
+    "stateText": {
+      "use": "assign",
+      "from": "if(transforms.ko, switch(transforms.phase, 'charging', '충전 중', 'notCharging', '충전 안 함', 'charged', '충전 완료', 'discharging', '배터리 사용 중', 'none', '', transforms.st), switch(transforms.phase, 'charging', 'Charging', 'notCharging', 'Not charging', 'charged', 'Charged', 'discharging', 'On battery', 'none', '', transforms.st))"
+    },
+    "sourceText": {
+      "use": "assign",
+      "from": "if(transforms.ko, if(transforms.onAC, '전원 어댑터', '배터리'), if(transforms.onAC, 'Power adapter', 'Battery'))"
+    },
+    "time": {
+      "use": "assign",
+      "from": "if(or(eq(coalesce(sources.data.time, ''), ''), eq(sources.data.time, '0:00')), '', if(eq(transforms.phase, 'charging'), sources.data.time, if(eq(transforms.phase, 'discharging'), sources.data.time, '')))"
+    },
+    "timeLabel": {
+      "use": "assign",
+      "from": "if(transforms.ko, if(eq(transforms.phase, 'charging'), '완충까지', '남은 시간'), if(eq(transforms.phase, 'charging'), 'Until full', 'Time left'))"
+    },
+    "lowPct": {
+      "use": "assign",
+      "from": "number(coalesce(settings.lowPct, 20))"
+    },
+    "levelTint": {
+      "use": "assign",
+      "from": "if(gt(transforms.pct, 25), 'good', if(gt(transforms.pct, 10), 'warning', 'danger'))"
+    },
+    "icon": {
+      "use": "assign",
+      "from": "if(not(transforms.has), '', if(eq(transforms.phase, 'charging'), 'battery.100percent.bolt', if(gt(transforms.pct, 87), 'battery.100percent', if(gt(transforms.pct, 62), 'battery.75percent', if(gt(transforms.pct, 37), 'battery.50percent', if(gt(transforms.pct, 12), 'battery.25percent', 'battery.0percent'))))))"
+    },
+    "low": {
+      "use": "assign",
+      "from": "and(transforms.has, eq(transforms.phase, 'discharging'), lte(transforms.pct, transforms.lowPct))"
+    }
   },
-
   "view": {
-    "action": {"type": "openURL", "url": "x-apple.systempreferences:com.apple.Battery-Settings.extension"},
-    "type": "vstack",
-    "spacing": 6,
-    "children": [
-      {
-        "type": "hstack",
+    "switch": "${string(transforms.has)}",
+    "cases": {
+      "true": {
+        "action": {
+          "type": "openURL",
+          "url": "x-apple.systempreferences:com.apple.Battery-Settings.extension"
+        },
+        "type": "vstack",
         "spacing": 6,
         "children": [
           {
-            "type": "image",
-            "source": { "kind": "sfSymbol", "name": "${if(gt(sources.data.pct, 60), 'battery.100percent', if(gt(sources.data.pct, 25), 'battery.50percent', 'battery.25percent'))}" },
-            "size": 15,
-            "tint": "${if(gt(sources.data.pct, 25), 'good', if(gt(sources.data.pct, 10), 'warning', 'danger'))}"
+            "type": "hstack",
+            "spacing": 6,
+            "children": [
+              {
+                "type": "image",
+                "source": {
+                  "kind": "sfSymbol",
+                  "name": "${transforms.icon}"
+                },
+                "size": 15,
+                "tint": "${transforms.levelTint}"
+              },
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "text",
+                "text": "${transforms.stateText}",
+                "role": "caption",
+                "foreground": "${if(eq(transforms.phase, 'charging'), 'good', 'secondary')}",
+                "lineLimit": 1
+              }
+            ]
           },
-          { "type": "spacer" },
-          { "type": "text", "text": "${transforms.state}", "role": "caption", "foreground": "secondary", "lineLimit": 1 }
+          {
+            "type": "text",
+            "text": "${string(transforms.pct)}%",
+            "size": 40,
+            "role": "title",
+            "monospacedDigit": true
+          },
+          {
+            "type": "progress",
+            "style": "linear",
+            "value": "${div(transforms.pct, 100)}",
+            "tint": "${transforms.levelTint}"
+          },
+          {
+            "type": "hstack",
+            "children": [
+              {
+                "type": "text",
+                "text": "Power source",
+                "role": "caption",
+                "foreground": "secondary"
+              },
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "text",
+                "text": "${transforms.sourceText}",
+                "role": "caption",
+                "monospacedDigit": true,
+                "lineLimit": 1
+              }
+            ]
+          },
+          {
+            "type": "hstack",
+            "children": [
+              {
+                "type": "text",
+                "text": "${transforms.timeLabel}",
+                "role": "caption",
+                "foreground": "secondary"
+              },
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "text",
+                "text": "${transforms.time}",
+                "role": "caption",
+                "monospacedDigit": true,
+                "lineLimit": 1
+              }
+            ],
+            "hidden": "${eq(transforms.time, '')}"
+          }
         ]
-      },
-      { "type": "text", "text": "${string(sources.data.pct)}%", "size": 40, "role": "title", "monospacedDigit": true },
-      {
-        "type": "progress",
-        "style": "linear",
-        "value": "${div(sources.data.pct, 100)}",
-        "tint": "${if(gt(sources.data.pct, 25), 'good', if(gt(sources.data.pct, 10), 'warning', 'danger'))}"
       }
-    ]
+    },
+    "default": {
+      "action": {
+        "type": "openURL",
+        "url": "x-apple.systempreferences:com.apple.Battery-Settings.extension"
+      },
+      "type": "empty",
+      "icon": "powerplug",
+      "title": "No battery",
+      "subtitle": "This Mac runs on power only."
+    }
   },
-
   "status": {
-    "label": "${string(sources.data.pct)}%",
-    "tooltip": "Battery ${string(sources.data.pct)}% — ${transforms.state}"
+    "label": "${if(transforms.has, concat(string(transforms.pct), '%'), '')}",
+    "icon": "${transforms.icon}",
+    "tint": "${if(transforms.low, 'danger', '')}",
+    "tooltip": "${if(transforms.has, if(transforms.ko, concat('배터리 ', string(transforms.pct), '% — ', transforms.stateText), concat('Battery ', string(transforms.pct), '% — ', transforms.stateText)), if(transforms.ko, '배터리 없음', 'No battery'))}"
+  },
+  "alerts": {
+    "low": {
+      "when": "${if(not(coalesce(settings.lowAlert, false)), false, if(not(transforms.has), null, transforms.low))}",
+      "title": "Battery is low: ${string(transforms.pct)}%",
+      "body": "Plug in your Mac soon.",
+      "cooldownSec": 3600
+    }
   }
 }

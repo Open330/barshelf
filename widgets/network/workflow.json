@@ -10,7 +10,7 @@
         "metrics": [
           "network"
         ],
-        "interface": "${settings.interface}"
+        "interface": "${coalesce(settings.interface, 'all')}"
       }
     }
   },
@@ -54,8 +54,20 @@
           {
             "switch": "${if(not(sources.data.network.available),'offline',if(eq(sources.data.network.interface,'all'),'all','named'))}",
             "cases": {
-              "offline": { "type": "text", "text": "Offline", "role": "caption", "monospacedDigit": true, "foreground": "secondary" },
-              "all": { "type": "text", "text": "All interfaces", "role": "caption", "monospacedDigit": true, "foreground": "secondary" }
+              "offline": {
+                "type": "text",
+                "text": "Offline",
+                "role": "caption",
+                "monospacedDigit": true,
+                "foreground": "secondary"
+              },
+              "all": {
+                "type": "text",
+                "text": "All interfaces",
+                "role": "caption",
+                "monospacedDigit": true,
+                "foreground": "secondary"
+              }
             },
             "default": {
               "type": "text",
@@ -70,15 +82,43 @@
       {
         "switch": "${if(sources.data.network.address, 'some', 'none')}",
         "cases": {
-          "none": { "type": "text", "text": "No local address", "size": 18, "role": "title", "monospacedDigit": true, "lineLimit": 1 }
+          "none": {
+            "type": "text",
+            "text": "No local address",
+            "size": 18,
+            "role": "title",
+            "monospacedDigit": true,
+            "lineLimit": 1
+          }
         },
         "default": {
-          "type": "text",
-          "text": "${sources.data.network.address}",
-          "size": 18,
-          "role": "title",
-          "monospacedDigit": true,
-          "lineLimit": 1
+          "type": "hstack",
+          "spacing": 6,
+          "children": [
+            {
+              "type": "text",
+              "text": "${sources.data.network.address}",
+              "size": 18,
+              "role": "title",
+              "monospacedDigit": true,
+              "lineLimit": 1
+            },
+            {
+              "type": "spacer"
+            },
+            {
+              "type": "button",
+              "icon": "doc.on.doc",
+              "action": {
+                "type": "copyText",
+                "value": "${sources.data.network.address}",
+                "toast": "Copied ${sources.data.network.address}"
+              },
+              "accessibility": {
+                "label": "Copy address"
+              }
+            }
+          ]
         }
       },
       {

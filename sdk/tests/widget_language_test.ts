@@ -111,7 +111,7 @@ Deno.test("Focus Timer keeps its English for English and unknown languages", asy
     shows("Reset");
     shows("25 minute session");
     shows("0 completed");
-    shows("The countdown ring updates live while the popup is open.");
+    hides("The countdown ring updates live while the popup is open.");
     assertEquals(
       host.lastRender.options.status?.tooltip,
       "Focus Timer · Ready",

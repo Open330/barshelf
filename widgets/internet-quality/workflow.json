@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "workflow",
-  "_comment": "Two measurements at two costs. Every refresh (5 min; ~20 min in the background) pings 1.1.1.1 five times: latency, jitter, loss, almost no data, so it can sit in the menu bar and notify. The speed test (networkQuality, capped at 10 s) runs only when it is due by the schedule setting (daily by default, 6 h, or manual) or when the user presses Test now (widget.requested); its result and time are kept in storage between tests. A failed test keeps the last good result and waits for the next due time.",
+  "_comment": "Two measurements at two costs. Every refresh (5 min; ~20 min in the background) pings the Ping host setting (1.1.1.1 by default; a name or address, anything else falls back to 1.1.1.1) five times: latency, jitter, loss, almost no data, so it can sit in the menu bar and notify. The speed test (networkQuality, capped at 10 s) runs only when it is due by the schedule setting (daily by default, 6 h, or manual) or when the user presses Test now (widget.requested); its result and time are kept in storage between tests. A failed test keeps the last good result and waits for the next due time.",
   "sources": {
     "ping": {
       "use": "exec",
@@ -9,8 +9,9 @@
         "command": [
           "/bin/sh",
           "-c",
-          "out=$(/sbin/ping -q -c 5 -i 0.2 -t 4 1.1.1.1 2>/dev/null); loss=$(printf '%s' \"$out\" | /usr/bin/sed -n 's/.* \\([0-9.]*\\)% packet loss.*/\\1/p'); rtt=$(printf '%s' \"$out\" | /usr/bin/sed -n 's#.*= \\([0-9.]*\\)/\\([0-9.]*\\)/\\([0-9.]*\\)/\\([0-9.]*\\) ms#\\2 \\4#p'); if [ -n \"$rtt\" ]; then [ -n \"$loss\" ] || loss=0; set -- $rtt; printf '{\"ok\":true,\"avg\":%s,\"jitter\":%s,\"loss\":%s}' \"$1\" \"$2\" \"$loss\"; else [ -n \"$loss\" ] || loss=100; printf '{\"ok\":false,\"loss\":%s}' \"$loss\"; fi",
-          "internet-quality"
+          "h=$1; case \"$h\" in ''|-*|*[!A-Za-z0-9.-]*) h=1.1.1.1;; esac; out=$(/sbin/ping -q -c 5 -i 0.2 -t 4 \"$h\" 2>/dev/null); loss=$(printf '%s' \"$out\" | /usr/bin/sed -n 's/.* \\([0-9.]*\\)% packet loss.*/\\1/p'); rtt=$(printf '%s' \"$out\" | /usr/bin/sed -n 's#.*= \\([0-9.]*\\)/\\([0-9.]*\\)/\\([0-9.]*\\)/\\([0-9.]*\\) ms#\\2 \\4#p'); if [ -n \"$rtt\" ]; then [ -n \"$loss\" ] || loss=0; set -- $rtt; printf '{\"ok\":true,\"avg\":%s,\"jitter\":%s,\"loss\":%s}' \"$1\" \"$2\" \"$loss\"; else [ -n \"$loss\" ] || loss=100; printf '{\"ok\":false,\"loss\":%s}' \"$loss\"; fi",
+          "internet-quality",
+          "${coalesce(settings.pingHost, '1.1.1.1')}"
         ],
         "timeoutMs": 10000
       }
@@ -53,15 +54,15 @@
     },
     "latency": {
       "use": "assign",
-      "from": "if(eq(transforms.avg, null), '—', string(round(transforms.avg)))"
+      "from": "if(or(not(transforms.pingOk), eq(transforms.avg, null)), '—', string(round(transforms.avg)))"
     },
     "health": {
       "use": "assign",
-      "from": "if(not(transforms.pingOk), 'down', if(or(gte(transforms.loss, 20), gte(transforms.avg, 300)), 'unstable', if(or(gt(transforms.loss, 0), gte(transforms.avg, 100), gte(transforms.jitter, 30)), 'fair', 'good')))"
+      "from": "if(not(transforms.pingOk), 'down', if(or(gte(transforms.loss, 20), gte(transforms.avg, transforms.slowMs)), 'unstable', if(or(gt(transforms.loss, 0), gte(transforms.avg, transforms.fairMs), gte(transforms.jitter, 30)), 'fair', 'good')))"
     },
     "healthText": {
       "use": "assign",
-      "from": "if(transforms.ko, switch(transforms.health, 'down', '연결 끊김', 'unstable', '불안정', 'fair', '보통', '좋음'), switch(transforms.health, 'down', 'Offline', 'unstable', 'Unstable', 'fair', 'Fair', 'Good'))"
+      "from": "if(transforms.ko, switch(transforms.health, 'down', '응답 없음', 'unstable', '불안정', 'fair', '보통', '좋음'), switch(transforms.health, 'down', 'No reply', 'unstable', 'Unstable', 'fair', 'Fair', 'Good'))"
     },
     "tone": {
       "use": "assign",
@@ -118,6 +119,18 @@
     "alertsOn": {
       "use": "assign",
       "from": "coalesce(settings.alerts, true)"
+    },
+    "host": {
+      "use": "assign",
+      "from": "coalesce(settings.pingHost, '1.1.1.1')"
+    },
+    "slowMs": {
+      "use": "assign",
+      "from": "number(coalesce(settings.slowMs, 300))"
+    },
+    "fairMs": {
+      "use": "assign",
+      "from": "min(100, div(transforms.slowMs, 2))"
     }
   },
   "view": {
@@ -130,7 +143,7 @@
         "children": [
           {
             "type": "text",
-            "text": "${transforms.latency} ms",
+            "text": "${if(transforms.pingOk, concat(transforms.latency, ' ms'), if(transforms.ko, '응답 없음', 'No reply'))}",
             "role": "title",
             "size": 26,
             "monospacedDigit": true,
@@ -148,7 +161,7 @@
       },
       {
         "type": "text",
-        "text": "Jitter ${string(round(coalesce(transforms.jitter, 0)))} ms · loss ${string(round(transforms.loss))}% · to 1.1.1.1",
+        "text": "${if(transforms.pingOk, concat(if(transforms.ko, '흔들림 ', 'Jitter '), string(round(coalesce(transforms.jitter, 0))), if(transforms.ko, ' ms · 손실 ', ' ms · loss '), string(round(transforms.loss)), '%'), if(transforms.ko, '핑에 응답이 없습니다', 'Pings got no answer'))} · ${transforms.host}",
         "role": "caption",
         "foreground": "secondary",
         "lineLimit": 1
@@ -260,8 +273,8 @@
     ]
   },
   "status": {
-    "label": "${if(transforms.pingOk, concat(transforms.latency, ' ms'), if(transforms.ko, '끊김', 'offline'))}",
-    "tooltip": "${transforms.healthText} · ${transforms.latency} ms · ${transforms.down}/${transforms.up} Mbps",
+    "label": "${if(transforms.pingOk, concat(transforms.latency, ' ms'), if(transforms.ko, '응답 없음', 'No reply'))}",
+    "tooltip": "${transforms.healthText} · ${transforms.host}${if(transforms.pingOk, concat(' ', transforms.latency, ' ms'), '')}${if(transforms.hasSpeed, concat(' · ', transforms.down, '/', transforms.up, ' Mbps'), '')}",
     "tint": "${if(eq(transforms.health, 'good'), '', transforms.tone)}"
   },
   "store": {
@@ -279,13 +292,13 @@
     "offline": {
       "when": "${if(transforms.alertsOn, if(eq(sources.ping.ok, null), null, not(transforms.pingOk)), null)}",
       "title": "The internet connection is down",
-      "body": "No reply from 1.1.1.1.",
+      "body": "No reply from ${transforms.host}.",
       "cooldownSec": 900
     },
     "unstable": {
-      "when": "${if(and(transforms.alertsOn, transforms.pingOk), or(gte(transforms.loss, 20), gte(transforms.avg, 300)), null)}",
+      "when": "${if(and(transforms.alertsOn, transforms.pingOk), or(gte(transforms.loss, 20), gte(transforms.avg, transforms.slowMs)), null)}",
       "title": "The internet connection is unstable",
-      "body": "${string(round(transforms.loss))}% loss, ${transforms.latency} ms to 1.1.1.1.",
+      "body": "${string(round(transforms.loss))}% loss, ${transforms.latency} ms to ${transforms.host}.",
       "cooldownSec": 1800
     }
   }

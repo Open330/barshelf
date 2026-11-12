@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.listening-ports",
   "name": "Listening Ports",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "minHostVersion": "0.7.21",
   "icon": "network",
   "bucket": {
@@ -71,7 +71,12 @@
       "Copied ${row.target}": "${row.target} 복사됨",
       "Open": "열기",
       "${string(transforms.total)} ports": "포트 ${string(transforms.total)}개",
-      "Only your own processes are listed.": "내 프로세스만 표시됩니다."
+      "Only your own processes are listed.": "내 프로세스만 표시됩니다.",
+      "Open http://${row.target}": "http://${row.target} 열기"
     }
+  },
+  "statusItem": {
+    "mode": "dynamic",
+    "icon": "network"
   }
 }

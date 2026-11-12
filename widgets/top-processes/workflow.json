@@ -1,0 +1,170 @@
+{
+  "schemaVersion": 1,
+  "kind": "workflow",
+  "_comment": "The busiest processes from the native `system` source (libproc, no ps). `processes[].cpu` is a share of the whole machine; multiplied by cpu.coreCount it reads like Activity Monitor's % CPU column (one core = 100%). Apps get Open and Quit buttons (quit is confirmed by the host every time); daemons and command-line tools are read-only.",
+  "sources": {
+    "cpu": {
+      "use": "system",
+      "with": {
+        "metrics": [
+          "cpu"
+        ]
+      }
+    },
+    "procs": {
+      "use": "system",
+      "with": {
+        "metrics": [
+          "processes"
+        ],
+        "processes": {
+          "count": "${min(max(number(coalesce(settings.count, 8)), 1), 10)}"
+        }
+      }
+    }
+  },
+  "transforms": {
+    "ko": {
+      "use": "assign",
+      "from": "or(eq(coalesce(widget.locale, ''), 'ko'), or(eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko-…'), eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko_…')))"
+    },
+    "top": {
+      "use": "assign",
+      "from": "get(sources.procs.processes, 0)"
+    },
+    "topPct": {
+      "use": "assign",
+      "from": "if(eq(transforms.top, null), null, mul(number(transforms.top.cpu), number(coalesce(sources.cpu.cpu.coreCount, 1))))"
+    }
+  },
+  "view": {
+    "type": "vstack",
+    "spacing": 8,
+    "children": [
+      {
+        "type": "hstack",
+        "spacing": 6,
+        "children": [
+          {
+            "type": "text",
+            "text": "Total CPU",
+            "role": "caption",
+            "foreground": "secondary"
+          },
+          {
+            "type": "text",
+            "text": "${concat(string(round(number(sources.cpu.cpu.usage), 0)), '%')}",
+            "role": "caption",
+            "monospacedDigit": true
+          },
+          {
+            "type": "spacer"
+          },
+          {
+            "type": "button",
+            "title": "Activity Monitor",
+            "icon": "waveform.path.ecg",
+            "action": {
+              "type": "openApp",
+              "value": "com.apple.ActivityMonitor"
+            }
+          }
+        ]
+      },
+      {
+        "type": "list",
+        "spacing": 6,
+        "items": {
+          "forEach": "$.sources.procs.processes",
+          "as": "proc",
+          "template": {
+            "type": "vstack",
+            "id": "proc-${proc.pid}",
+            "spacing": 3,
+            "children": [
+              {
+                "type": "hstack",
+                "spacing": 6,
+                "children": [
+                  {
+                    "type": "text",
+                    "text": "${proc.name}",
+                    "role": "body",
+                    "lineLimit": 1,
+                    "truncation": "middle"
+                  },
+                  {
+                    "type": "spacer"
+                  },
+                  {
+                    "type": "text",
+                    "text": "${if(gte(number(proc.memory), 1000000000), concat(string(round(div(number(proc.memory), 1000000000), 1)), ' GB'), concat(string(round(div(number(proc.memory), 1000000), 0)), ' MB'))}",
+                    "role": "caption",
+                    "foreground": "secondary",
+                    "monospacedDigit": true,
+                    "lineLimit": 1
+                  },
+                  {
+                    "type": "text",
+                    "text": "${concat(string(round(mul(number(proc.cpu), number(coalesce(sources.cpu.cpu.coreCount, 1))), 0)), '%')}",
+                    "role": "caption",
+                    "foreground": "${if(gte(mul(number(proc.cpu), number(coalesce(sources.cpu.cpu.coreCount, 1))), 50), 'danger', if(gte(mul(number(proc.cpu), number(coalesce(sources.cpu.cpu.coreCount, 1))), 20), 'warning', 'accent'))}",
+                    "monospacedDigit": true,
+                    "lineLimit": 1
+                  },
+                  {
+                    "type": "button",
+                    "icon": "arrow.up.forward.app",
+                    "hidden": "${or(not(proc.isApp), eq(coalesce(proc.bundleID, ''), ''))}",
+                    "action": {
+                      "type": "openApp",
+                      "value": "${coalesce(proc.bundleID, '')}"
+                    },
+                    "accessibility": {
+                      "label": "Open ${proc.name}"
+                    }
+                  },
+                  {
+                    "type": "button",
+                    "icon": "xmark",
+                    "hidden": "${not(proc.isApp)}",
+                    "action": {
+                      "type": "quitApp",
+                      "value": "${proc.pid}"
+                    },
+                    "accessibility": {
+                      "label": "Quit ${proc.name}"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "progress",
+                "style": "linear",
+                "value": "${min(div(mul(number(proc.cpu), number(coalesce(sources.cpu.cpu.coreCount, 1))), 100), 1)}",
+                "tint": "${if(gte(mul(number(proc.cpu), number(coalesce(sources.cpu.cpu.coreCount, 1))), 50), 'danger', if(gte(mul(number(proc.cpu), number(coalesce(sources.cpu.cpu.coreCount, 1))), 20), 'warning', 'accent'))}"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "text",
+        "text": "% of one core, as in Activity Monitor",
+        "role": "caption",
+        "foreground": "tertiary"
+      }
+    ]
+  },
+  "empty": {
+    "type": "empty",
+    "icon": "cpu",
+    "title": "No busy processes",
+    "subtitle": "Nothing is using the CPU right now."
+  },
+  "status": {
+    "prefix": "${if(eq(transforms.top, null), '', text.truncate(transforms.top.name, 7))}",
+    "label": "${if(eq(transforms.topPct, null), '', concat(string(round(transforms.topPct, 0)), '%'))}",
+    "tooltip": "${if(eq(transforms.top, null), '', concat(transforms.top.name, ': ', string(round(transforms.topPct, 0)), '% CPU'))}"
+  }
+}

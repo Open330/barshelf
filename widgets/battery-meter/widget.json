@@ -3,34 +3,76 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.battery-meter",
   "name": "Battery",
-  "version": "0.1.2",
-  "minHostVersion": "0.3.11",
+  "version": "0.2.0",
+  "minHostVersion": "0.7.21",
   "icon": "battery.100percent",
-  "bucket": { "group": "System", "order": 12, "size": "S" },
-
-  "entry": { "kind": "workflow", "main": "workflow.json" },
-
-  "refresh": { "onOpen": true, "interval": 60, "staleAfterSec": 60 },
-
+  "bucket": {
+    "group": "System",
+    "order": 12,
+    "size": "S"
+  },
+  "entry": {
+    "kind": "workflow",
+    "main": "workflow.json"
+  },
+  "refresh": {
+    "onOpen": true,
+    "interval": 60,
+    "staleAfterSec": 60,
+    "runInBackground": true,
+    "triggers": [
+      "wake"
+    ]
+  },
+  "statusItem": {
+    "mode": "text",
+    "icon": "battery.100percent"
+  },
   "permissions": {
     "exec": [
       {
         "command": "/bin/sh",
-        "allowedArgs": [["-c", "pct=$(/usr/bin/pmset -g batt | /usr/bin/grep -Eo '[0-9]+%' | /usr/bin/head -1 | /usr/bin/tr -d '%'); [ -z \"$pct\" ] && pct=0; state=$(/usr/bin/pmset -g batt | /usr/bin/grep -Eo 'charged|charging|discharging' | /usr/bin/head -1); [ -z \"$state\" ] && state=unknown; echo '{\"pct\":'$pct',\"state\":\"'$state'\"}'"]],
+        "allowedArgs": [
+          [
+            "-c",
+            "out=$(/usr/bin/pmset -g batt 2>/dev/null); src=$(printf '%s\\n' \"$out\" | /usr/bin/sed -n \"s/^Now drawing from '\\(.*\\)'.*/\\1/p\" | /usr/bin/head -1 | /usr/bin/tr -cd 'A-Za-z '); line=$(printf '%s\\n' \"$out\" | /usr/bin/grep -E '[0-9]+%;' | /usr/bin/head -1); pct=$(printf '%s' \"$line\" | /usr/bin/grep -Eo '[0-9]+%' | /usr/bin/head -1 | /usr/bin/tr -d '%'); [ -n \"$pct\" ] || pct=null; state=$(printf '%s' \"$line\" | /usr/bin/cut -s -d';' -f2 | /usr/bin/sed 's/^ *//;s/ *$//' | /usr/bin/tr -cd 'A-Za-z '); detail=$(printf '%s' \"$line\" | /usr/bin/cut -s -d';' -f3 | /usr/bin/sed 's/ *present:.*//;s/^ *//;s/ *$//' | /usr/bin/tr -cd 'A-Za-z0-9 :()'); time=$(printf '%s' \"$detail\" | /usr/bin/grep -Eo '[0-9]+:[0-9][0-9]' | /usr/bin/head -1); printf '{\"pct\":%s,\"source\":\"%s\",\"state\":\"%s\",\"detail\":\"%s\",\"time\":\"%s\"}' \"$pct\" \"$src\" \"$state\" \"$detail\" \"$time\""
+          ]
+        ],
         "maxOutputBytes": 4096,
         "sensitiveOutput": false
       }
-    ]
+    ],
+    "notifications": true
   },
-
+  "settings": [
+    {
+      "key": "lowAlert",
+      "title": "Notify when the battery runs low",
+      "type": "boolean",
+      "default": false
+    },
+    {
+      "key": "lowPct",
+      "title": "Low battery at or below (%)",
+      "type": "integer",
+      "default": 20,
+      "min": 5,
+      "max": 50
+    }
+  ],
   "appearance": {
     "accent": "green"
   },
-
   "localizations": {
     "ko": {
       "Battery": "배터리",
-      "Battery ${string(sources.data.pct)}% — ${transforms.state}": "배터리 ${string(sources.data.pct)}% — ${transforms.state}"
+      "Notify when the battery runs low": "배터리가 부족하면 알림",
+      "Low battery at or below (%)": "배터리 부족 기준 (% 이하)",
+      "No battery": "배터리 없음",
+      "This Mac runs on power only.": "이 Mac은 전원으로만 작동합니다.",
+      "Power source": "전원",
+      "Battery is low: ${string(transforms.pct)}%": "배터리 부족: ${string(transforms.pct)}%",
+      "Plug in your Mac soon.": "곧 전원을 연결하세요."
     }
   }
 }

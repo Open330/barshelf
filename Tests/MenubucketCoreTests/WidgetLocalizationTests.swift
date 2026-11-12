@@ -289,11 +289,14 @@ final class WidgetLocalizationTests: XCTestCase {
         XCTAssertTrue(online.korean.contains("192.168.0.8"), "addresses are data: \(online.korean)")
         XCTAssertTrue(online.english.contains("All interfaces"), "\(online.english)")
 
-        let charging = try render("battery-meter", sources: ["data": .object(["pct": .number(80), "state": .string("charging")])])
+        let charging = try render("battery-meter", sources: ["data": .object(["pct": .number(80), "state": .string("charging"), "source": .string("AC Power")])])
         XCTAssertTrue(charging.korean.contains("충전 중"), "\(charging.korean)")
-        XCTAssertTrue(charging.english.contains("charging"), "\(charging.english)")
+        XCTAssertTrue(charging.korean.contains("전원 어댑터"), "\(charging.korean)")
+        XCTAssertTrue(charging.english.contains("Charging"), "\(charging.english)")
         let unknown = try render("battery-meter", sources: ["data": .object(["pct": .number(80), "state": .string("unknown")])])
         XCTAssertTrue(unknown.korean.contains("unknown"), "an unlisted state shows as reported: \(unknown.korean)")
+        let none = try render("battery-meter", sources: ["data": .object(["pct": .null, "state": .string("")])])
+        XCTAssertTrue(none.korean.contains("배터리 없음"), "\(none.korean)")
 
         for (indicator, english, korean) in [("none", "OK", "정상"), ("minor", "Minor", "경미"), ("critical", "Critical", "심각")] {
             let github = try render("github-status", sources: ["github": .object([
@@ -450,7 +453,7 @@ final class WidgetLocalizationTests: XCTestCase {
 
         let battery: [String: JSONValue] = ["data": .object(["pct": .number(80), "state": .string("discharging")])]
         XCTAssertEqual(try evaluate("battery-meter", sources: battery, locale: "ko").statusTooltip, "배터리 80% — 배터리 사용 중")
-        XCTAssertEqual(try evaluate("battery-meter", sources: battery, locale: "en").statusTooltip, "Battery 80% — discharging")
+        XCTAssertEqual(try evaluate("battery-meter", sources: battery, locale: "en").statusTooltip, "Battery 80% — On battery")
         let odd: [String: JSONValue] = ["data": .object(["pct": .number(80), "state": .string("unknown")])]
         XCTAssertEqual(try evaluate("battery-meter", sources: odd, locale: "ko").statusTooltip, "배터리 80% — unknown")
     }

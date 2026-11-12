@@ -99,9 +99,28 @@
         "switch": "${transforms.guard.state}",
         "cases": {
           "missing": {
-            "type": "banner",
-            "tone": "warning",
-            "text": "PowerDisplayGuard isn’t running, so nothing here can keep the Mac awake."
+            "type": "vstack",
+            "spacing": 6,
+            "children": [
+              {
+                "type": "banner",
+                "tone": "warning",
+                "text": "PowerDisplayGuard isn’t running, so nothing here can keep the Mac awake.",
+                "action": {
+                  "type": "openURL",
+                  "url": "https://github.com/jiunbae/settings"
+                }
+              },
+              {
+                "type": "button",
+                "title": "About PowerDisplayGuard",
+                "icon": "arrow.up.right.square",
+                "action": {
+                  "type": "openURL",
+                  "url": "https://github.com/jiunbae/settings"
+                }
+              }
+            ]
           },
           "stale": {
             "type": "banner",
@@ -232,7 +251,7 @@
                   "name": "bolt.fill"
                 },
                 "size": 18,
-                "tint": "success"
+                "tint": "good"
               },
               {
                 "type": "text",
@@ -281,78 +300,109 @@
         }
       },
       {
-        "type": "hstack",
-        "spacing": 6,
-        "children": [
-          {
-            "type": "button",
-            "title": "1 h",
-            "action": {
-              "type": "run",
-              "thenRefresh": true,
-              "command": [
-                "/usr/bin/osascript",
-                "-l",
-                "JavaScript",
-                "./keep-awake.js",
-                "set",
-                "3600",
-                "${string(settings.lidClosed)}"
-              ]
-            }
-          },
-          {
-            "type": "button",
-            "title": "2 h",
-            "action": {
-              "type": "run",
-              "thenRefresh": true,
-              "command": [
-                "/usr/bin/osascript",
-                "-l",
-                "JavaScript",
-                "./keep-awake.js",
-                "set",
-                "7200",
-                "${string(settings.lidClosed)}"
-              ]
-            }
-          },
-          {
-            "type": "button",
-            "title": "4 h",
-            "action": {
-              "type": "run",
-              "thenRefresh": true,
-              "command": [
-                "/usr/bin/osascript",
-                "-l",
-                "JavaScript",
-                "./keep-awake.js",
-                "set",
-                "14400",
-                "${string(settings.lidClosed)}"
-              ]
-            }
-          },
-          {
-            "type": "button",
-            "title": "Until ${settings.untilTime}",
-            "action": {
-              "type": "run",
-              "thenRefresh": true,
-              "command": [
-                "/usr/bin/osascript",
-                "-l",
-                "JavaScript",
-                "./keep-awake.js",
-                "until",
-                "${settings.untilTime}",
-                "${string(settings.lidClosed)}"
-              ]
-            }
+        "switch": "${if(or(eq(transforms.guard.state, 'ok'), eq(transforms.guard.state, 'stale')), 'live', 'off')}",
+        "cases": {
+          "live": {
+            "type": "vstack",
+            "spacing": 6,
+            "children": [
+              {
+                "type": "hstack",
+                "spacing": 6,
+                "children": [
+                  {
+                    "type": "button",
+                    "title": "1 h",
+                    "action": {
+                      "type": "run",
+                      "thenRefresh": true,
+                      "command": [
+                        "/usr/bin/osascript",
+                        "-l",
+                        "JavaScript",
+                        "./keep-awake.js",
+                        "set",
+                        "3600",
+                        "${string(settings.lidClosed)}"
+                      ]
+                    }
+                  },
+                  {
+                    "type": "button",
+                    "title": "2 h",
+                    "action": {
+                      "type": "run",
+                      "thenRefresh": true,
+                      "command": [
+                        "/usr/bin/osascript",
+                        "-l",
+                        "JavaScript",
+                        "./keep-awake.js",
+                        "set",
+                        "7200",
+                        "${string(settings.lidClosed)}"
+                      ]
+                    }
+                  },
+                  {
+                    "type": "button",
+                    "title": "4 h",
+                    "action": {
+                      "type": "run",
+                      "thenRefresh": true,
+                      "command": [
+                        "/usr/bin/osascript",
+                        "-l",
+                        "JavaScript",
+                        "./keep-awake.js",
+                        "set",
+                        "14400",
+                        "${string(settings.lidClosed)}"
+                      ]
+                    }
+                  },
+                  {
+                    "type": "button",
+                    "title": "Until ${settings.untilTime}",
+                    "action": {
+                      "type": "run",
+                      "thenRefresh": true,
+                      "command": [
+                        "/usr/bin/osascript",
+                        "-l",
+                        "JavaScript",
+                        "./keep-awake.js",
+                        "until",
+                        "${settings.untilTime}",
+                        "${string(settings.lidClosed)}"
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "switch": "${string(settings.lidClosed)}",
+                "cases": {
+                  "true": {
+                    "type": "text",
+                    "role": "caption",
+                    "foreground": "tertiary",
+                    "text": "New requests keep it awake with the lid closed. Never longer than 12 hours."
+                  }
+                },
+                "default": {
+                  "type": "text",
+                  "role": "caption",
+                  "foreground": "tertiary",
+                  "text": "New requests let it sleep when the lid closes. Never longer than 12 hours."
+                }
+              }
+            ]
           }
-        ]
+        },
+        "default": {
+          "type": "none"
+        }
       },
       {
         "type": "hstack",
@@ -383,23 +433,6 @@
             }
           }
         ]
-      },
-      {
-        "switch": "${string(settings.lidClosed)}",
-        "cases": {
-          "true": {
-            "type": "text",
-            "role": "caption",
-            "foreground": "tertiary",
-            "text": "New requests keep it awake with the lid closed. Never longer than 12 hours."
-          }
-        },
-        "default": {
-          "type": "text",
-          "role": "caption",
-          "foreground": "tertiary",
-          "text": "New requests let it sleep when the lid closes. Never longer than 12 hours."
-        }
       },
       {
         "switch": "${transforms.guard.blockerCount}",

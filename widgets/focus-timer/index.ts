@@ -9,6 +9,9 @@ import {
 
 const STATE_KEY = "focus-state-v1";
 const TIMER_ID = "focus-deadline";
+/** Re-renders once a minute while running, so the menu bar's time left moves. */
+const TICK_ID = "focus-tick";
+const TICK_MS = 60_000;
 const DEFAULT_MINUTES = 25;
 
 type TimerStatus = "idle" | "running" | "paused" | "completed";
@@ -37,6 +40,13 @@ interface FocusState {
   remainingMs: number;
   endsAtMs?: number;
   completedSessions: number;
+  /** The local day `completedSessions` counts, so the count starts over daily. */
+  day?: string;
+}
+
+function dayKey(ms: number): string {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
 }
 
 function configuredDuration(settings: Record<string, unknown>): number {
@@ -62,11 +72,14 @@ function validStatus(value: unknown): value is TimerStatus {
     value === "completed";
 }
 
-async function readState(durationMs?: number): Promise<FocusState> {
+async function readState(
+  nowMs: number,
+  durationMs?: number,
+): Promise<FocusState> {
   const stored = await barshelf.storage.get<Partial<FocusState>>(STATE_KEY);
   const fallbackDuration = durationMs ?? DEFAULT_MINUTES * 60_000;
   if (!stored || !validStatus(stored.status)) {
-    return initialState(fallbackDuration);
+    return { ...initialState(fallbackDuration), day: dayKey(nowMs) };
   }
 
   const configured = Number.isFinite(stored.configuredDurationMs)
@@ -79,7 +92,10 @@ async function readState(durationMs?: number): Promise<FocusState> {
     ? Math.min(Math.max(Number(stored.remainingMs), 0), duration)
     : duration;
 
+  const today = dayKey(nowMs);
+  const sameDay = stored.day === today;
   return {
+    day: today,
     status: stored.status,
     configuredDurationMs: configured,
     durationMs: duration,
@@ -87,7 +103,7 @@ async function readState(durationMs?: number): Promise<FocusState> {
     endsAtMs: Number.isFinite(stored.endsAtMs)
       ? Number(stored.endsAtMs)
       : undefined,
-    completedSessions: Number.isFinite(stored.completedSessions)
+    completedSessions: sameDay && Number.isFinite(stored.completedSessions)
       ? Math.max(Math.floor(Number(stored.completedSessions)), 0)
       : 0,
   };
@@ -104,6 +120,17 @@ function formatDuration(durationMs: number): string {
   return `${String(minutes).padStart(2, "0")}:${
     String(seconds).padStart(2, "0")
   }`;
+}
+
+/** Minutes left, rounded up: "12m", then "1:05" from an hour. */
+function minutesLeft(durationMs: number): string {
+  const minutes = Math.max(Math.ceil(durationMs / 60_000), 0);
+  if (minutes >= 60) {
+    return `${Math.floor(minutes / 60)}:${
+      String(minutes % 60).padStart(2, "0")
+    }`;
+  }
+  return `${minutes}m`;
 }
 
 function statusTitle(status: TimerStatus): string {
@@ -147,12 +174,36 @@ async function complete(state: FocusState): Promise<FocusState> {
     completedSessions: state.completedSessions + 1,
   };
   await barshelf.timer.clear(TIMER_ID);
+  await barshelf.timer.clear(TICK_ID);
   await saveState(completed);
   await notifyComplete();
   return completed;
 }
 
+/**
+ * The ring with the time left at its center. The host's countdown label is
+ * whole seconds ("1499"), so a running session lays minutes over the ring
+ * instead; the once-a-minute tick keeps them current.
+ */
 function timerProgress(state: FocusState, nowMs: number): UINode {
+  const remaining = remainingAt(state, nowMs);
+  const center = ui.text(
+    state.status === "running"
+      ? minutesLeft(remaining)
+      : formatDuration(remaining),
+    {
+      id: "focus-countdown-label",
+      role: "caption",
+      monospacedDigit: true,
+      foreground: state.status === "running" ? "primary" : "secondary",
+    },
+  );
+  return ui.zstack([ring(state, nowMs), center], {
+    id: "focus-countdown-stack",
+  });
+}
+
+function ring(state: FocusState, nowMs: number): UINode {
   if (state.status === "running" && state.endsAtMs !== undefined) {
     return ui.progress({
       id: "focus-countdown",
@@ -161,7 +212,6 @@ function timerProgress(state: FocusState, nowMs: number): UINode {
         from: state.endsAtMs - state.durationMs,
         until: state.endsAtMs,
       },
-      labelFrom: "remainingSeconds",
       tint: "accent",
       tintRules: [
         { whenRemainingLtSeconds: 10, tint: "danger" },
@@ -180,7 +230,6 @@ function timerProgress(state: FocusState, nowMs: number): UINode {
     id: "focus-countdown",
     style: "ring",
     value: state.durationMs > 0 ? remaining / state.durationMs : 0,
-    label: formatDuration(remaining),
     tint: state.status === "completed"
       ? "good"
       : state.status === "paused"
@@ -224,59 +273,65 @@ async function render(state: FocusState, nowMs: number): Promise<void> {
     ? t("Session finished", "세션 끝남")
     : t(`${minutes} minute session`, `${minutes}분 세션`);
 
-  await barshelf.render(
-    ui.vstack([
-      ui.card([
-        ui.hstack([
-          timerProgress(state, nowMs),
-          ui.vstack([
-            ui.text(statusTitle(state.status), { role: "title" }),
-            ui.text(detail, { role: "caption", foreground: "secondary" }),
-            ui.text(
-              t(
-                `${state.completedSessions} completed`,
-                `완료 ${state.completedSessions}회`,
-              ),
-              {
-                role: "caption",
-                foreground: "secondary",
-                monospacedDigit: true,
-              },
+  const children: (UINode | null)[] = [
+    ui.card([
+      ui.hstack([
+        timerProgress(state, nowMs),
+        ui.vstack([
+          ui.text(statusTitle(state.status), { role: "title" }),
+          ui.text(detail, { role: "caption", foreground: "secondary" }),
+          ui.text(
+            t(
+              `${state.completedSessions} completed`,
+              `완료 ${state.completedSessions}회`,
             ),
-          ], { spacing: 4 }),
-        ], { spacing: 12 }),
-      ], {
-        id: "focus-card",
-        tone: state.status === "completed" ? "good" : "accent",
-        padding: 10,
-      }),
-      state.status === "completed"
-        ? ui.banner(
-          t(
-            "Focus session complete. Ready for another?",
-            "집중 세션을 마쳤습니다. 한 번 더 할까요?",
+            {
+              role: "caption",
+              foreground: "secondary",
+              monospacedDigit: true,
+            },
           ),
-          {
-            tone: "good",
-          },
-        )
-        : ui.text(
-          t(
-            "The countdown ring updates live while the popup is open.",
-            "팝업이 열려 있는 동안 카운트다운 링이 실시간으로 줄어듭니다.",
-          ),
-          {
-            role: "caption",
-            foreground: "secondary",
-          },
+        ], { spacing: 4 }),
+      ], { spacing: 12 }),
+    ], {
+      id: "focus-card",
+      tone: state.status === "completed" ? "good" : "accent",
+      padding: 10,
+    }),
+    state.status === "completed"
+      ? ui.banner(
+        t(
+          "Focus session complete. Ready for another?",
+          "집중 세션을 마쳤습니다. 한 번 더 할까요?",
         ),
-      ui.hstack(controls, { id: "focus-controls", spacing: 6 }),
-    ], { id: "focus-timer-root", spacing: 8 }),
+        {
+          tone: "good",
+        },
+      )
+      : null,
+    ui.hstack(controls, { id: "focus-controls", spacing: 6 }),
+  ];
+  await barshelf.render(
+    ui.vstack(
+      children.filter((node): node is UINode => node !== null),
+      { id: "focus-timer-root", spacing: 8 },
+    ),
     {
       status: {
-        label: statusTitle(state.status),
+        // Time left while running; the menu bar keeps just its icon when idle.
+        label: state.status === "running"
+          ? minutesLeft(remainingAt(state, nowMs))
+          : state.status === "paused"
+          ? t("Paused", "정지")
+          : state.status === "completed"
+          ? t("Done", "완료")
+          : "",
         tooltip: `${t("Focus Timer", "집중 타이머")} · ${
           statusTitle(state.status)
+        }${
+          state.status === "running" || state.status === "paused"
+            ? ` · ${minutesLeft(remainingAt(state, nowMs))}`
+            : ""
         }`,
       },
       nextRefreshAt: state.status === "running" ? state.endsAtMs : undefined,
@@ -288,7 +343,7 @@ async function render(state: FocusState, nowMs: number): Promise<void> {
 async function load(ctx: WidgetLoadContext): Promise<void> {
   setLanguage(ctx.locale);
   const requestedDuration = configuredDuration(ctx.settings);
-  let state = await readState(requestedDuration);
+  let state = await readState(ctx.now, requestedDuration);
 
   if (state.configuredDurationMs !== requestedDuration) {
     state.configuredDurationMs = requestedDuration;
@@ -304,13 +359,15 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
       state = await complete(state);
     } else {
       await barshelf.timer.once(TIMER_ID, state.endsAtMs);
+      await barshelf.timer.every(TICK_ID, TICK_MS);
     }
   }
+  await saveState(state);
   await render(state, ctx.now);
 }
 
 async function action(ctx: WidgetActionContext): Promise<void> {
-  let state = await readState();
+  let state = await readState(ctx.now);
 
   if (ctx.actionId === "start") {
     if (state.status !== "running") {
@@ -328,6 +385,7 @@ async function action(ctx: WidgetActionContext): Promise<void> {
       };
       await saveState(state);
       await barshelf.timer.once(TIMER_ID, ctx.now + remaining);
+      await barshelf.timer.every(TICK_ID, TICK_MS);
     }
   } else if (ctx.actionId === "pause" && state.status === "running") {
     const remaining = remainingAt(state, ctx.now);
@@ -341,10 +399,12 @@ async function action(ctx: WidgetActionContext): Promise<void> {
         endsAtMs: undefined,
       };
       await barshelf.timer.clear(TIMER_ID);
+      await barshelf.timer.clear(TICK_ID);
       await saveState(state);
     }
   } else if (ctx.actionId === "reset") {
     await barshelf.timer.clear(TIMER_ID);
+    await barshelf.timer.clear(TICK_ID);
     state = {
       ...state,
       status: "idle",
@@ -359,12 +419,17 @@ async function action(ctx: WidgetActionContext): Promise<void> {
 }
 
 async function timer(ctx: WidgetTimerContext): Promise<void> {
-  if (ctx.id !== TIMER_ID) return;
-  let state = await readState();
-  if (state.status !== "running") return;
+  if (ctx.id !== TIMER_ID && ctx.id !== TICK_ID) return;
+  let state = await readState(ctx.now);
+  if (state.status !== "running") {
+    await barshelf.timer.clear(TICK_ID);
+    return;
+  }
 
   if (state.endsAtMs !== undefined && state.endsAtMs > ctx.now) {
-    await barshelf.timer.once(TIMER_ID, state.endsAtMs);
+    if (ctx.id === TIMER_ID) {
+      await barshelf.timer.once(TIMER_ID, state.endsAtMs);
+    }
   } else {
     state = await complete(state);
   }

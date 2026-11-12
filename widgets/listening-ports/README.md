@@ -9,7 +9,10 @@ process name, its pid, and whether it is reachable only from this Mac
 - One row per process and port; IPv4 and IPv6 listeners on the same port are
   merged. Rows open to the network are tinted so they stand out.
 - A search field to filter by port or process name.
-- Clicking a row copies `host:port`; **Open** opens `http://host:port`.
+- Clicking a row copies `host:port`; **Open** opens `http://host:port`, offered
+  only for likely web servers (80, 8080 and 3000–9999, minus databases, AirPlay
+  and the like, and macOS's own listeners).
+- In the menu bar it shows how many ports are listening.
 - The **Show** setting narrows the list to loopback-only or network-reachable
   listeners.
 

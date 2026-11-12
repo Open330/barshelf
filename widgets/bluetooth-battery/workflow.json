@@ -122,10 +122,10 @@
     }
   },
   "status": {
-    "label": "${if(eq(transforms.lowest, null), '—', concat(string(transforms.lowest.level), '%'))}",
+    "label": "${if(eq(transforms.lowest, null), '', concat(string(transforms.lowest.level), '%'))}",
     "icon": "${if(eq(transforms.lowest, null), 'battery.0percent', if(gt(transforms.lowest.level, 60), 'battery.100percent', if(gt(transforms.lowest.level, 25), 'battery.50percent', 'battery.25percent')))}",
     "tint": "${if(and(ne(transforms.lowest, null), lte(transforms.lowest.level, transforms.lowPct)), 'danger', '')}",
-    "tooltip": "Lowest: ${transforms.tip}"
+    "tooltip": "${if(eq(transforms.lowest, null), if(transforms.ko, '블루투스 배터리 없음', 'No Bluetooth batteries'), concat(if(transforms.ko, '가장 낮음: ', 'Lowest: '), transforms.tip))}"
   },
   "alerts": {
     "low": {

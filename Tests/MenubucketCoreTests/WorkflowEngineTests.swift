@@ -858,7 +858,8 @@ final class TodayWidgetTests: XCTestCase {
     }
 }
 
-/// The Battery widget renders a level-colored meter + glyph from a shell source.
+/// The Battery widget renders a level-colored meter + glyph from one pmset
+/// read, classified in the workflow.
 final class BatteryWidgetTests: XCTestCase {
     private func batteryDef() throws -> WorkflowDefinition {
         let packageRoot = URL(fileURLWithPath: #filePath)
@@ -875,28 +876,83 @@ final class BatteryWidgetTests: XCTestCase {
         return nil
     }
 
-    private func render(pct: Double, state: String) throws -> UINode {
+    private func texts(_ node: UINode) -> [String] {
+        guard node.hidden != true else { return [] }
+        return [node.text, node.title, node.subtitle].compactMap { $0 }
+            + ((node.children ?? []) + (node.items ?? [])).flatMap(texts)
+    }
+
+    private func evaluate(
+        pct: JSONValue, state: String, detail: String = "", source: String = "Battery Power",
+        time: String = "", settings: JSONValue = .object([:])
+    ) throws -> WorkflowEngine.Output {
         try WorkflowEngine.evaluate(
             try batteryDef(),
-            sources: ["data": .object(["pct": .number(pct), "state": .string(state)])],
-            settings: .object([:])
-        ).viewTree
+            sources: ["data": .object([
+                "pct": pct, "state": .string(state), "detail": .string(detail),
+                "source": .string(source), "time": .string(time),
+            ])],
+            settings: settings
+        )
+    }
+
+    private func render(pct: Double, state: String) throws -> UINode {
+        try evaluate(pct: .number(pct), state: state).viewTree
     }
 
     func testHealthyBatteryIsGreen() throws {
-        let tree = try render(pct: 80, state: "charging")
+        let tree = try render(pct: 80, state: "discharging")
         XCTAssertEqual(tree.children?[1].text, "80%")
         let meter = try XCTUnwrap(firstNode(ofType: "progress", in: tree))
         XCTAssertEqual(meter.value ?? 0, 0.8, accuracy: 0.0001)
         XCTAssertEqual(meter.tint, "good")
-        XCTAssertEqual(firstNode(ofType: "image", in: tree)?.source?.name, "battery.100percent")
+        XCTAssertEqual(firstNode(ofType: "image", in: tree)?.source?.name, "battery.75percent")
     }
 
     func testLowBatteryIsRed() throws {
         let tree = try render(pct: 5, state: "discharging")
         let meter = try XCTUnwrap(firstNode(ofType: "progress", in: tree))
         XCTAssertEqual(meter.tint, "danger")
-        XCTAssertEqual(firstNode(ofType: "image", in: tree)?.source?.name, "battery.25percent")
+        XCTAssertEqual(firstNode(ofType: "image", in: tree)?.source?.name, "battery.0percent")
+    }
+
+    /// "AC attached; not charging" contains "charging": a grep for the word
+    /// called an idle plugged-in Mac Charging.
+    func testPluggedInButNotChargingIsNotCharging() throws {
+        let output = try evaluate(pct: .number(80), state: "AC attached", detail: "not charging", source: "AC Power")
+        let shown = texts(output.viewTree)
+        XCTAssertTrue(shown.contains("Not charging"), "\(shown)")
+        XCTAssertFalse(shown.contains("Charging"), "\(shown)")
+        XCTAssertTrue(shown.contains("Power adapter"), "\(shown)")
+        XCTAssertEqual(output.statusLabel, "80%")
+        XCTAssertNotEqual(output.statusIcon, "battery.100percent.bolt")
+    }
+
+    func testChargingShowsTimeUntilFull() throws {
+        let output = try evaluate(pct: .number(71), state: "charging", detail: "0:48 remaining", source: "AC Power", time: "0:48")
+        let shown = texts(output.viewTree)
+        XCTAssertTrue(shown.contains("Charging"), "\(shown)")
+        XCTAssertTrue(shown.contains("Until full"), "\(shown)")
+        XCTAssertTrue(shown.contains("0:48"), "\(shown)")
+        XCTAssertEqual(output.statusIcon, "battery.100percent.bolt")
+    }
+
+    func testNoBatteryIsAnEmptyStateNotRedZero() throws {
+        let output = try evaluate(pct: .null, state: "", source: "AC Power")
+        XCTAssertEqual(output.viewTree.type, "empty")
+        XCTAssertEqual(output.viewTree.title, "No battery")
+        XCTAssertEqual(output.statusLabel, "")
+        XCTAssertFalse(texts(output.viewTree).contains("0%"))
+    }
+
+    func testLowAlertIsOptInAndOnlyOnBattery() throws {
+        let off = try evaluate(pct: .number(10), state: "discharging")
+        XCTAssertEqual(off.alerts.first?.active, false, "off by default")
+        let on = JSONValue.object(["lowAlert": .bool(true), "lowPct": .number(20)])
+        XCTAssertEqual(try evaluate(pct: .number(10), state: "discharging", settings: on).alerts.first?.active, true)
+        XCTAssertEqual(try evaluate(pct: .number(10), state: "charging", source: "AC Power", settings: on).alerts.first?.active, false)
+        XCTAssertNil(try evaluate(pct: .null, state: "", settings: on).alerts.first?.active)
+        XCTAssertEqual(try evaluate(pct: .number(10), state: "discharging", settings: on).statusTint, "danger")
     }
 }
 
@@ -1078,11 +1134,12 @@ final class NativeWidgetsTests: XCTestCase {
         XCTAssertTrue(text.contains("45.6 °C"))
         XCTAssertTrue(text.contains("29.1 °C"))
         XCTAssertTrue(text.contains("17.4 W"))
-        // An absent sensor reads as a dash, never as 0 °C.
-        XCTAssertTrue(text.contains("—"))
+        // An absent sensor is never 0 °C: its row is hidden.
         XCTAssertFalse(text.contains("0 °C"))
-        // A fanless Mac says so instead of listing nothing.
-        XCTAssertTrue(text.contains("none"))
+        let gpuRow = (out.viewTree.children ?? []).first { $0.children?.first?.text == "GPU" }
+        XCTAssertEqual(gpuRow?.hidden, true)
+        // A fanless Mac shows no fan row at all (it used to say "Fans none").
+        XCTAssertFalse(text.contains("none"))
         XCTAssertEqual(out.statusLabel, "46°")
     }
 

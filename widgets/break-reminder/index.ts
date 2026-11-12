@@ -11,7 +11,7 @@ const STATE_KEY = "break-state-v1";
 const DUE_TIMER = "break-due";
 const TICK_TIMER = "break-tick";
 const DEFAULT_MINUTES = 50;
-const SNOOZE_MS = 5 * 60_000;
+const DEFAULT_SNOOZE_MINUTES = 5;
 const TICK_MS = 60_000;
 
 type Status = "running" | "paused";
@@ -49,6 +49,51 @@ function t(english: string, korean: string): string {
   return language === "ko" ? korean : english;
 }
 
+/**
+ * The settings at the last load. Like the language, actions and timers carry
+ * none, so they use what the widget was last loaded with.
+ */
+interface Config {
+  snoozeMs: number;
+  /** Remind only between these local hours (start inclusive, end exclusive). */
+  workHours: { start: number; end: number } | null;
+}
+
+let config: Config = {
+  snoozeMs: DEFAULT_SNOOZE_MINUTES * 60_000,
+  workHours: null,
+};
+
+function integer(
+  value: unknown,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
+  const n = typeof value === "number" && Number.isFinite(value)
+    ? Math.round(value)
+    : fallback;
+  return Math.min(Math.max(n, min), max);
+}
+
+function readConfig(settings: Record<string, unknown>): Config {
+  const start = integer(settings.workStart, 9, 0, 23);
+  const end = integer(settings.workEnd, 18, 1, 24);
+  return {
+    snoozeMs: integer(settings.snoozeMinutes, DEFAULT_SNOOZE_MINUTES, 1, 60) *
+      60_000,
+    workHours: settings.workHoursOnly === true && end > start
+      ? { start, end }
+      : null,
+  };
+}
+
+function withinWorkHours(nowMs: number): boolean {
+  if (!config.workHours) return true;
+  const hour = new Date(nowMs).getHours();
+  return hour >= config.workHours.start && hour < config.workHours.end;
+}
+
 function dayKey(ms: number): string {
   const d = new Date(ms);
   return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
@@ -79,19 +124,28 @@ function finite(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
-async function readState(nowMs: number, intervalMs?: number): Promise<BreakState> {
+async function readState(
+  nowMs: number,
+  intervalMs?: number,
+): Promise<BreakState> {
   const stored = await barshelf.storage.get<Partial<BreakState>>(STATE_KEY);
   const fallbackInterval = intervalMs ?? DEFAULT_MINUTES * 60_000;
   if (!stored || (stored.status !== "running" && stored.status !== "paused")) {
     return freshState(fallbackInterval, nowMs);
   }
-  const interval = Math.max(finite(stored.intervalMs, fallbackInterval), 60_000);
+  const interval = Math.max(
+    finite(stored.intervalMs, fallbackInterval),
+    60_000,
+  );
   const state: BreakState = {
     status: stored.status,
     intervalMs: interval,
     startedAtMs: finite(stored.startedAtMs, nowMs),
     nextAtMs: finite(stored.nextAtMs, nowMs + interval),
-    remainingMs: Math.min(Math.max(finite(stored.remainingMs, interval), 0), interval),
+    remainingMs: Math.min(
+      Math.max(finite(stored.remainingMs, interval), 0),
+      interval,
+    ),
     due: stored.due === true,
     breaksToday: Math.max(Math.floor(finite(stored.breaksToday, 0)), 0),
     day: typeof stored.day === "string" ? stored.day : dayKey(nowMs),
@@ -108,7 +162,11 @@ async function saveState(state: BreakState): Promise<void> {
 }
 
 /** Starts a new cycle of `ms` from now and schedules its reminder. */
-async function startCycle(state: BreakState, nowMs: number, ms: number): Promise<BreakState> {
+async function startCycle(
+  state: BreakState,
+  nowMs: number,
+  ms: number,
+): Promise<BreakState> {
   const next: BreakState = {
     ...state,
     status: "running",
@@ -132,14 +190,55 @@ async function notifyBreak(state: BreakState): Promise<void> {
       ),
     });
   } catch (error) {
-    await barshelf.log("warn", `Unable to show break notification: ${String(error)}`);
+    await barshelf.log(
+      "warn",
+      `Unable to show break notification: ${String(error)}`,
+    );
   }
 }
 
 /** A reminder is due: notify, mark it, and keep cycling so it repeats if ignored. */
 async function fire(state: BreakState, nowMs: number): Promise<BreakState> {
+  if (!withinWorkHours(nowMs)) {
+    // Outside work hours: no reminder, just keep the cycle going.
+    const next = await startCycle(
+      { ...state, due: false },
+      nowMs,
+      state.intervalMs,
+    );
+    await saveState(next);
+    return next;
+  }
   await notifyBreak(state);
-  const next = await startCycle({ ...state, due: true }, nowMs, state.intervalMs);
+  const next = await startCycle(
+    { ...state, due: true },
+    nowMs,
+    state.intervalMs,
+  );
+  await saveState(next);
+  return next;
+}
+
+/**
+ * Overdue by more than a whole interval means the reminder could not have
+ * fired on time: the Mac slept, or BarShelf was not running. The person was
+ * away, which is a break, so start a fresh cycle without a notification
+ * instead of greeting them with "50 minutes since your last break".
+ */
+function wasAway(state: BreakState, nowMs: number): boolean {
+  return state.status === "running" &&
+    nowMs - state.nextAtMs > state.intervalMs;
+}
+
+async function restartAfterAway(
+  state: BreakState,
+  nowMs: number,
+): Promise<BreakState> {
+  const next = await startCycle(
+    { ...state, due: false },
+    nowMs,
+    state.intervalMs,
+  );
   await saveState(next);
   return next;
 }
@@ -167,31 +266,40 @@ function clock(ms: number): string {
   }).format(new Date(ms));
 }
 
+/**
+ * The ring with the time left in minutes at its center. The host's own
+ * countdown label is whole seconds ("2972"), so the center is a text laid
+ * over the ring; the widget re-renders every minute, which keeps it current.
+ */
 function ring(state: BreakState, nowMs: number): UINode {
-  if (state.status === "running") {
-    return ui.progress({
+  const remaining = remainingAt(state, nowMs);
+  const center = ui.text(shortDuration(remaining), {
+    id: "break-ring-label",
+    role: "caption",
+    monospacedDigit: true,
+    foreground: state.status === "running" ? "primary" : "secondary",
+  });
+  const progress = state.status === "running"
+    ? ui.progress({
       id: "break-ring",
       style: "ring",
       countdown: { from: state.startedAtMs, until: state.nextAtMs },
-      labelFrom: "remainingSeconds",
       tint: state.due ? "warning" : "accent",
       tintRules: [{ whenRemainingLtSeconds: 60, tint: "warning" }],
       size: 64,
       accessibility: {
         label: t("Time until the next break", "다음 휴식까지 남은 시간"),
-        value: shortDuration(remainingAt(state, nowMs)),
+        value: shortDuration(remaining),
       },
+    })
+    : ui.progress({
+      id: "break-ring",
+      style: "ring",
+      value: state.intervalMs > 0 ? remaining / state.intervalMs : 0,
+      tint: "secondary",
+      size: 64,
     });
-  }
-  const remaining = remainingAt(state, nowMs);
-  return ui.progress({
-    id: "break-ring",
-    style: "ring",
-    value: state.intervalMs > 0 ? remaining / state.intervalMs : 0,
-    label: shortDuration(remaining),
-    tint: "secondary",
-    size: 64,
-  });
+  return ui.zstack([progress, center], { id: "break-ring-stack" });
 }
 
 async function render(state: BreakState, nowMs: number): Promise<void> {
@@ -202,10 +310,26 @@ async function render(state: BreakState, nowMs: number): Promise<void> {
     ? t("Paused", "일시 정지됨")
     : state.due
     ? t("Break time", "쉴 시간")
-    : t(`Break in ${shortDuration(remaining)}`, `${shortDuration(remaining)} 후 휴식`);
+    : t(
+      `Break in ${shortDuration(remaining)}`,
+      `${shortDuration(remaining)} 후 휴식`,
+    );
+  const hours = config.workHours;
   const detail = state.status === "paused"
-    ? t("Reminders are off until you resume.", "재개할 때까지 알림이 꺼져 있어요.")
-    : t(`Next reminder at ${clock(state.nextAtMs)}`, `${clock(state.nextAtMs)}에 다음 알림`);
+    ? t(
+      "Reminders are off until you resume.",
+      "재개할 때까지 알림이 꺼져 있어요.",
+    )
+    : hours && !withinWorkHours(nowMs)
+    ? t(
+      `Quiet outside ${hours.start}:00–${hours.end}:00`,
+      `${hours.start}:00–${hours.end}:00 밖에는 알리지 않아요`,
+    )
+    : t(
+      `Next reminder at ${clock(state.nextAtMs)}`,
+      `${clock(state.nextAtMs)}에 다음 알림`,
+    );
+  const snoozeMinutes = Math.round(config.snoozeMs / 60_000);
 
   const controls: UINode[] = [
     ui.button(t("Took a break", "쉬었어요"), ui.action.event("took-break"), {
@@ -215,10 +339,16 @@ async function render(state: BreakState, nowMs: number): Promise<void> {
   ];
   if (state.status === "running") {
     if (state.due) {
-      controls.push(ui.button(t("Snooze 5 min", "5분 뒤에"), ui.action.event("snooze"), {
-        id: "snooze",
-        icon: "zzz",
-      }));
+      controls.push(
+        ui.button(
+          t(`Snooze ${snoozeMinutes} min`, `${snoozeMinutes}분 뒤에`),
+          ui.action.event("snooze"),
+          {
+            id: "snooze",
+            icon: "zzz",
+          },
+        ),
+      );
     }
     controls.push(ui.button(t("Pause", "일시 정지"), ui.action.event("pause"), {
       id: "pause",
@@ -287,6 +417,7 @@ async function render(state: BreakState, nowMs: number): Promise<void> {
 
 async function load(ctx: WidgetLoadContext): Promise<void> {
   setLanguage(ctx.locale);
+  config = readConfig(ctx.settings);
   const interval = configuredInterval(ctx.settings);
   let state = await readState(ctx.now, interval);
 
@@ -300,7 +431,9 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
   }
 
   if (state.status === "running") {
-    if (state.nextAtMs <= ctx.now) {
+    if (wasAway(state, ctx.now)) {
+      state = await restartAfterAway(state, ctx.now);
+    } else if (state.nextAtMs <= ctx.now) {
       state = await fire(state, ctx.now);
     } else {
       await barshelf.timer.once(DUE_TIMER, state.nextAtMs);
@@ -321,7 +454,11 @@ async function action(ctx: WidgetActionContext): Promise<void> {
       state.intervalMs,
     );
   } else if (ctx.actionId === "snooze" && state.status === "running") {
-    state = await startCycle({ ...state, due: false }, ctx.now, SNOOZE_MS);
+    state = await startCycle(
+      { ...state, due: false },
+      ctx.now,
+      config.snoozeMs,
+    );
   } else if (ctx.actionId === "pause" && state.status === "running") {
     state = {
       ...state,
@@ -355,7 +492,9 @@ async function timer(ctx: WidgetTimerContext): Promise<void> {
     await barshelf.timer.clear(TICK_TIMER);
     return;
   }
-  if (ctx.id === DUE_TIMER || state.nextAtMs <= ctx.now) {
+  if (wasAway(state, ctx.now)) {
+    state = await restartAfterAway(state, ctx.now);
+  } else if (ctx.id === DUE_TIMER || state.nextAtMs <= ctx.now) {
     if (state.nextAtMs <= ctx.now) {
       state = await fire(state, ctx.now);
     } else {

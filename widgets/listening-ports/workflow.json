@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "workflow",
-  "_comment": "Local TCP listeners: lsof -F (pid, command, address) folded by awk into JSON, one row per process+port, IPv4/IPv6 duplicates merged, sorted by port. Read-only: no stop/kill action, because quitApp refuses non-app processes (dev servers) and a run action with a free pid argument would be a general kill switch. lsof without root sees only this user's processes.",
+  "_comment": "Local TCP listeners: lsof -F (pid, command, address) folded by awk into JSON, one row per process+port, IPv4/IPv6 duplicates merged, sorted by port. Read-only: no stop/kill action, because quitApp refuses non-app processes (dev servers) and a run action with a free pid argument would be a general kill switch. lsof without root sees only this user's processes. Open (http://host:port) is offered only for likely web servers: 80, 8080 and 3000-9999, minus ports known to speak something else (databases, AirPlay, VNC, the Node inspector...) and macOS's own listeners (ControlCenter, rapportd...).",
   "sources": {
     "ports": {
       "use": "exec",
@@ -42,7 +42,8 @@
           "target": "${p.target}",
           "show": "${switch(coalesce(settings.scope, 'all'), 'local', eq(p.scope, 'local'), 'exposed', ne(p.scope, 'local'), true)}",
           "where": "${switch(p.scope, 'all', if(transforms.ko, '모든 인터페이스', 'all interfaces'), 'local', if(transforms.ko, '이 Mac만', 'this Mac only'), p.address)}",
-          "tone": "${if(eq(p.scope, 'local'), 'secondary', 'warning')}"
+          "tone": "${if(eq(p.scope, 'local'), 'secondary', 'warning')}",
+          "web": "${and(or(eq(number(p.port), 80), eq(number(p.port), 8080), and(gte(number(p.port), 3000), lte(number(p.port), 9999))), not(contains(',3283,3306,3389,3689,4369,5037,5222,5353,5432,5672,5900,6000,6379,6463,7000,9092,9229,', concat(',', string(p.port), ','))), not(contains(',ControlCenter,rapportd,sharingd,launchd,identityservicesd,remoted,AirPlayXPCHelper,mDNSResponder,', concat(',', p.name, ','))))}"
         }
       }
     },
@@ -120,6 +121,10 @@
                     "action": {
                       "type": "openURL",
                       "url": "http://${row.target}"
+                    },
+                    "hidden": "${not(row.web)}",
+                    "accessibility": {
+                      "label": "Open http://${row.target}"
                     }
                   }
                 ]

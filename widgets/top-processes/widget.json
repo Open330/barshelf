@@ -3,34 +3,59 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.top-processes",
   "name": "Top Processes",
-  "version": "0.1.2",
+  "version": "0.2.0",
+  "minHostVersion": "0.7.13",
   "icon": "cpu.fill",
-  "bucket": { "group": "System", "order": 20, "size": "M" },
-
-  "entry": { "kind": "script", "runtime": "deno-ts@1" },
-  "source": { "kind": "script", "output": "viewtree" },
-
-  "refresh": { "onOpen": true, "interval": 120, "staleAfterSec": 120 },
-
-  "permissions": {
-    "exec": [
-      {
-        "command": "/bin/ps",
-        "allowedArgs": [["-axo", "comm,%cpu", "-r"]],
-        "maxOutputBytes": 65536,
-        "sensitiveOutput": false
-      }
-    ]
+  "bucket": {
+    "group": "System",
+    "order": 20,
+    "size": "M"
   },
-
+  "entry": {
+    "kind": "workflow",
+    "main": "workflow.json"
+  },
+  "refresh": {
+    "onOpen": true,
+    "interval": 5,
+    "staleAfterSec": 10
+  },
+  "statusItem": {
+    "mode": "text",
+    "icon": "cpu.fill"
+  },
+  "permissions": {
+    "system": [
+      "cpu",
+      "processes"
+    ],
+    "quitApps": true
+  },
+  "settings": [
+    {
+      "key": "count",
+      "title": "Processes to show",
+      "type": "integer",
+      "default": 8,
+      "min": 3,
+      "max": 10
+    }
+  ],
   "appearance": {
     "accent": "purple",
     "density": "compact"
   },
-
   "localizations": {
     "ko": {
-      "Top Processes": "상위 프로세스"
+      "Top Processes": "상위 프로세스",
+      "Processes to show": "표시할 프로세스 수",
+      "Total CPU": "전체 CPU",
+      "Activity Monitor": "활동 상태 보기",
+      "No busy processes": "바쁜 프로세스 없음",
+      "Nothing is using the CPU right now.": "지금 CPU를 쓰는 프로세스가 없습니다.",
+      "Open ${proc.name}": "${proc.name} 열기",
+      "Quit ${proc.name}": "${proc.name} 종료",
+      "% of one core, as in Activity Monitor": "코어 하나 기준 %, 활동 상태 보기와 같음"
     }
   }
 }
