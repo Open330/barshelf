@@ -3,24 +3,74 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.network",
   "name": "Network",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "icon": "arrow.up.arrow.down.circle.fill",
-  "bucket": { "group": "System", "order": 13, "size": "S" },
-
-  "entry": { "kind": "workflow", "main": "workflow.json" },
-
-  "refresh": { "onOpen": true, "interval": 2, "staleAfterSec": 4 },
-  "statusItem": { "mode": "text", "style": "metrics" },
-  "permissions": { "system": ["network"] },
+  "bucket": {
+    "group": "System",
+    "order": 13,
+    "size": "S"
+  },
+  "entry": {
+    "kind": "workflow",
+    "main": "workflow.json"
+  },
+  "refresh": {
+    "onOpen": true,
+    "interval": 2,
+    "staleAfterSec": 4
+  },
+  "statusItem": {
+    "mode": "text",
+    "style": "metrics"
+  },
+  "permissions": {
+    "system": [
+      "network"
+    ]
+  },
   "settings": [
-    { "key": "menuBarDisplay", "title": "Menu bar shows", "type": "enum", "default": "activity", "options": ["activity", "speed"], "optionTitles": ["Activity", "Speed"] },
-    { "key": "interface", "title": "Network interface", "type": "string", "default": "all" }
+    {
+      "key": "menuBarDisplay",
+      "title": "Menu bar shows",
+      "type": "enum",
+      "default": "activity",
+      "options": [
+        "activity",
+        "speed"
+      ],
+      "optionTitles": [
+        "Activity",
+        "Speed"
+      ]
+    },
+    {
+      "key": "interface",
+      "title": "Network interface",
+      "type": "enum",
+      "default": "all",
+      "options": [
+        "all",
+        "en0",
+        "en1",
+        "en2",
+        "en3",
+        "en4",
+        "en5"
+      ],
+      "optionTitles": [
+        "All interfaces",
+        "en0 (Wi-Fi on most MacBooks)",
+        "en1",
+        "en2",
+        "en3",
+        "en4",
+        "en5"
+      ]
+    }
   ],
-
   "appearance": {
     "accent": "blue"
   },
-
   "localizations": {
     "ko": {
       "Network": "네트워크",
@@ -30,7 +80,10 @@
       "Network interface": "네트워크 인터페이스",
       "Offline": "오프라인",
       "All interfaces": "모든 인터페이스",
-      "No local address": "로컬 주소 없음"
+      "No local address": "로컬 주소 없음",
+      "en0 (Wi-Fi on most MacBooks)": "en0 (대부분의 MacBook에서 Wi-Fi)",
+      "Copy address": "주소 복사",
+      "Copied ${sources.data.network.address}": "${sources.data.network.address} 복사됨"
     }
   }
 }

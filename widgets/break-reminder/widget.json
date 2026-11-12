@@ -3,26 +3,34 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.break-reminder",
   "name": "Break Reminder",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "minHostVersion": "0.7.21",
   "icon": "figure.stand",
-  "bucket": { "group": "Everyday", "order": 45, "size": "S" },
-
-  "entry": { "kind": "script", "runtime": "deno-ts@1" },
-  "source": { "kind": "script", "output": "viewtree" },
-
+  "bucket": {
+    "group": "Everyday",
+    "order": 45,
+    "size": "S"
+  },
+  "entry": {
+    "kind": "script",
+    "runtime": "deno-ts@1"
+  },
+  "source": {
+    "kind": "script",
+    "output": "viewtree"
+  },
   "refresh": {
     "onOpen": true,
     "interval": null,
     "staleAfterSec": 60
   },
-
-  "statusItem": { "mode": "text", "icon": "figure.stand" },
-
+  "statusItem": {
+    "mode": "text",
+    "icon": "figure.stand"
+  },
   "permissions": {
     "notifications": true
   },
-
   "settings": [
     {
       "key": "intervalMinutes",
@@ -31,18 +39,50 @@
       "default": 50,
       "min": 5,
       "max": 180
+    },
+    {
+      "key": "snoozeMinutes",
+      "type": "integer",
+      "title": "Snooze for (minutes)",
+      "default": 5,
+      "min": 1,
+      "max": 60
+    },
+    {
+      "key": "workHoursOnly",
+      "type": "boolean",
+      "title": "Remind only during work hours",
+      "default": false
+    },
+    {
+      "key": "workStart",
+      "type": "integer",
+      "title": "Work day starts (hour)",
+      "default": 9,
+      "min": 0,
+      "max": 23
+    },
+    {
+      "key": "workEnd",
+      "type": "integer",
+      "title": "Work day ends (hour)",
+      "default": 18,
+      "min": 1,
+      "max": 24
     }
   ],
-
   "appearance": {
     "accent": "green",
     "cardStyle": "tinted"
   },
-
   "localizations": {
     "ko": {
       "Break Reminder": "휴식 알림",
-      "Remind me every (minutes)": "알림 간격(분)"
+      "Remind me every (minutes)": "알림 간격(분)",
+      "Snooze for (minutes)": "다시 알림 간격(분)",
+      "Remind only during work hours": "근무 시간에만 알림",
+      "Work day starts (hour)": "근무 시작 (시)",
+      "Work day ends (hour)": "근무 종료 (시)"
     }
   }
 }

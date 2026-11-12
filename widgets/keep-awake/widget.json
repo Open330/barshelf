@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.keep-awake",
   "name": "Keep Awake",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "minHostVersion": "0.7.17",
   "icon": "cup.and.saucer",
   "bucket": {
@@ -72,9 +72,37 @@
     },
     {
       "key": "untilTime",
-      "title": "“Until” time (HH:MM)",
-      "type": "string",
-      "default": "18:00"
+      "title": "“Until” time",
+      "type": "enum",
+      "default": "18:00",
+      "options": [
+        "12:00",
+        "13:00",
+        "14:00",
+        "15:00",
+        "16:00",
+        "17:00",
+        "18:00",
+        "19:00",
+        "20:00",
+        "21:00",
+        "22:00",
+        "23:00"
+      ],
+      "optionTitles": [
+        "12 PM (12:00)",
+        "1 PM (13:00)",
+        "2 PM (14:00)",
+        "3 PM (15:00)",
+        "4 PM (16:00)",
+        "5 PM (17:00)",
+        "6 PM (18:00)",
+        "7 PM (19:00)",
+        "8 PM (20:00)",
+        "9 PM (21:00)",
+        "10 PM (22:00)",
+        "11 PM (23:00)"
+      ]
     }
   ],
   "appearance": {
@@ -84,7 +112,6 @@
     "ko": {
       "Keep Awake": "깨어 있기",
       "Stay awake with the lid closed": "덮개를 닫아도 깨어 있기",
-      "“Until” time (HH:MM)": "“~까지” 시각 (HH:MM)",
       "PowerDisplayGuard isn’t running, so nothing here can keep the Mac awake.": "PowerDisplayGuard가 실행 중이 아니라서 여기서는 Mac을 깨워 둘 수 없습니다.",
       "PowerDisplayGuard stopped answering ${transforms.guard.ageSeconds} s ago. What shows below may be out of date.": "PowerDisplayGuard가 ${transforms.guard.ageSeconds}초 전부터 응답하지 않습니다. 아래 내용이 최신이 아닐 수 있습니다.",
       "PowerDisplayGuard’s status couldn’t be read.": "PowerDisplayGuard 상태를 읽을 수 없습니다.",
@@ -103,7 +130,21 @@
       "Stays awake with the lid closed.": "덮개를 닫아도 깨어 있습니다.",
       "Closing the lid still sleeps.": "덮개를 닫으면 잠듭니다.",
       "New requests keep it awake with the lid closed. Never longer than 12 hours.": "새 요청은 덮개를 닫아도 깨어 있습니다. 최대 12시간입니다.",
-      "New requests let it sleep when the lid closes. Never longer than 12 hours.": "새 요청은 덮개를 닫으면 잠듭니다. 최대 12시간입니다."
+      "New requests let it sleep when the lid closes. Never longer than 12 hours.": "새 요청은 덮개를 닫으면 잠듭니다. 최대 12시간입니다.",
+      "“Until” time": "“~까지” 시각",
+      "12 PM (12:00)": "오후 12시 (12:00)",
+      "1 PM (13:00)": "오후 1시 (13:00)",
+      "2 PM (14:00)": "오후 2시 (14:00)",
+      "3 PM (15:00)": "오후 3시 (15:00)",
+      "4 PM (16:00)": "오후 4시 (16:00)",
+      "5 PM (17:00)": "오후 5시 (17:00)",
+      "6 PM (18:00)": "오후 6시 (18:00)",
+      "7 PM (19:00)": "오후 7시 (19:00)",
+      "8 PM (20:00)": "오후 8시 (20:00)",
+      "9 PM (21:00)": "오후 9시 (21:00)",
+      "10 PM (22:00)": "오후 10시 (22:00)",
+      "11 PM (23:00)": "오후 11시 (23:00)",
+      "About PowerDisplayGuard": "PowerDisplayGuard 알아보기"
     }
   }
 }

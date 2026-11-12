@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.tailscale",
   "name": "Tailscale",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "minHostVersion": "0.7.21",
   "icon": "network",
   "bucket": {
@@ -74,7 +74,12 @@
       "Other devices in your tailnet appear here.": "tailnet의 다른 기기가 여기에 나타납니다.",
       "Search devices": "기기 검색",
       "Copied": "복사됨",
-      "Tailscale: ${transforms.stateWord} · ${transforms.onlineBadge} online": "Tailscale: ${transforms.stateWord} · ${transforms.onlineBadge} 온라인"
+      "Get Tailscale": "Tailscale 받기",
+      "Open Tailscale": "Tailscale 열기",
+      "Copied ${coalesce(sources.ts.self.dns, sources.ts.self.name)}": "${coalesce(sources.ts.self.dns, sources.ts.self.name)} 복사됨",
+      "Copy this Mac’s hostname": "이 Mac의 호스트 이름 복사",
+      "Copied ${row.host}": "${row.host} 복사됨",
+      "Copy ${row.host}": "${row.host} 복사"
     }
   }
 }

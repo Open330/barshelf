@@ -134,6 +134,14 @@
     "hasSecond": {
       "use": "assign",
       "from": "and(ne(transforms.sel2, 'none'), ne(transforms.raw2, null))"
+    },
+    "warm": {
+      "use": "assign",
+      "from": "number(coalesce(settings.warmC, 75))"
+    },
+    "hot": {
+      "use": "assign",
+      "from": "number(coalesce(settings.hotC, 90))"
     }
   },
   "view": {
@@ -186,7 +194,7 @@
                     "text": "${if(eq(sources.data.sensors.cpu, null), '—', concat(string(round(number(if(eq(settings.unit,'fahrenheit'), add(mul(sources.data.sensors.cpu,1.8),32), sources.data.sensors.cpu)), 1)), if(eq(settings.unit,'fahrenheit'), ' °F', ' °C')))}",
                     "role": "caption",
                     "monospacedDigit": true,
-                    "foreground": "${if(gt(sources.data.sensors.cpu, 90), 'danger', if(gt(sources.data.sensors.cpu, 75), 'warning', 'secondary'))}"
+                    "foreground": "${if(gt(sources.data.sensors.cpu, transforms.hot), 'danger', if(gt(sources.data.sensors.cpu, transforms.warm), 'warning', 'secondary'))}"
                   }
                 ]
               },
@@ -194,9 +202,10 @@
                 "type": "progress",
                 "style": "linear",
                 "value": "${div(coalesce(sources.data.sensors.cpu, 0), 100)}",
-                "tint": "${if(gt(sources.data.sensors.cpu, 90), 'danger', if(gt(sources.data.sensors.cpu, 75), 'warning', 'secondary'))}"
+                "tint": "${if(gt(sources.data.sensors.cpu, transforms.hot), 'danger', if(gt(sources.data.sensors.cpu, transforms.warm), 'warning', 'secondary'))}"
               }
-            ]
+            ],
+            "hidden": "${eq(sources.data.sensors.cpu, null)}"
           },
           {
             "type": "hstack",
@@ -217,7 +226,8 @@
                 "monospacedDigit": true,
                 "foreground": "primary"
               }
-            ]
+            ],
+            "hidden": "${eq(sources.data.sensors.gpu, null)}"
           },
           {
             "type": "hstack",
@@ -238,7 +248,8 @@
                 "monospacedDigit": true,
                 "foreground": "primary"
               }
-            ]
+            ],
+            "hidden": "${eq(sources.data.sensors.battery, null)}"
           },
           {
             "switch": "${string(gt(count(sources.data.sensors.fans), 0))}",
@@ -274,24 +285,7 @@
                 }
               },
               "false": {
-                "type": "hstack",
-                "children": [
-                  {
-                    "type": "text",
-                    "text": "Fans",
-                    "role": "caption",
-                    "foreground": "secondary"
-                  },
-                  {
-                    "type": "spacer"
-                  },
-                  {
-                    "type": "text",
-                    "text": "none",
-                    "role": "caption",
-                    "foreground": "primary"
-                  }
-                ]
+                "type": "none"
               }
             }
           },
@@ -363,7 +357,11 @@
               }
             }
           }
-        ]
+        ],
+        "action": {
+          "type": "openApp",
+          "value": "com.apple.ActivityMonitor"
+        }
       }
     },
     "default": {
@@ -376,14 +374,18 @@
           "role": "caption",
           "foreground": "secondary"
         }
-      ]
+      ],
+      "action": {
+        "type": "openApp",
+        "value": "com.apple.ActivityMonitor"
+      }
     }
   },
   "status": {
     "label": "${if(or(not(sources.data.sensors.available), eq(transforms.raw1, null)), '', concat(string(round(transforms.shown1, transforms.decimals)), transforms.suffix1))}",
     "tooltip": "${if(transforms.ko, if(not(sources.data.sensors.available), '사용할 수 있는 센서 없음', concat(if(eq(transforms.raw1, null), concat(transforms.label1, ' 값 없음'), concat(transforms.label1, ' ', concat(string(round(transforms.shown1, transforms.decimals)), if(eq(transforms.kind1,'fan'), ' ', ''), transforms.unit1))), if(transforms.hasSecond, concat(' · ', transforms.label2, ' ', concat(string(round(transforms.shown2, transforms.decimals)), if(eq(transforms.kind2,'fan'), ' ', ''), transforms.unit2)), ''))), if(not(sources.data.sensors.available), 'No sensors available', concat(if(eq(transforms.raw1, null), concat(transforms.label1, ' unavailable'), concat(transforms.label1, ' ', concat(string(round(transforms.shown1, transforms.decimals)), if(eq(transforms.kind1,'fan'), ' ', ''), transforms.unit1))), if(transforms.hasSecond, concat(' · ', transforms.label2, ' ', concat(string(round(transforms.shown2, transforms.decimals)), if(eq(transforms.kind2,'fan'), ' ', ''), transforms.unit2)), ''))))}",
     "prefix": "${transforms.prefix1}",
-    "tint": "${if(and(transforms.isTemp1, gt(number(transforms.raw1), 90)), 'danger', if(and(transforms.isTemp1, gt(number(transforms.raw1), 75)), 'warning', ''))}",
+    "tint": "${if(and(transforms.isTemp1, gt(number(transforms.raw1), transforms.hot)), 'danger', if(and(transforms.isTemp1, gt(number(transforms.raw1), transforms.warm)), 'warning', ''))}",
     "metrics": [
       {
         "id": "${transforms.sel1}",

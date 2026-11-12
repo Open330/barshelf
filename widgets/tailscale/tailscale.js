@@ -58,6 +58,11 @@ function shortName(node) {
   return dns || node.HostName || '?'
 }
 
+// The MagicDNS name without its trailing dot (`box.tail1234.ts.net`).
+function magicDNS(node) {
+  return (node.DNSName || '').replace(/\.$/, '')
+}
+
 function seenMs(iso) {
   if (!iso || iso.indexOf('0001-') === 0) return null
   const ms = Date.parse(iso)
@@ -78,6 +83,7 @@ function run() {
   const peers = Object.values(status.Peer || {}).map((p) => ({
     id: String(p.ID || p.PublicKey || shortName(p)),
     name: shortName(p),
+    dns: magicDNS(p),
     ip: (p.TailscaleIPs || [])[0] || '',
     os: p.OS || '',
     online: p.Online === true,
@@ -97,6 +103,7 @@ function run() {
     version: (status.Version || '').split('-')[0],
     self: {
       name: shortName(self),
+      dns: magicDNS(self),
       ip: (self.TailscaleIPs || status.TailscaleIPs || [])[0] || '',
       os: self.OS || '',
       online: self.Online === true

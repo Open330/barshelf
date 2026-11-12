@@ -3,9 +3,10 @@
 A persistent focus countdown for the BarShelf popup.
 
 - start, pause/resume, and reset controls
-- host-rendered countdown ring that ticks without rerunning the script every second
+- host-rendered countdown ring that ticks without rerunning the script every second, with the minutes left at its center
+- the time left in the menu bar ("12m") once you add it there
 - state preserved across popup closes and script restarts
-- completed-session count
+- completed-session count, starting over each day
 - macOS notification when a session reaches zero
 
 ## Setup

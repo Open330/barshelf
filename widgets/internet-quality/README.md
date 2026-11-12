@@ -3,7 +3,7 @@
 Two measurements at two costs:
 
 - **Connection** — every refresh (5 minutes while visible, about 20 minutes in the
-  background) pings 1.1.1.1 five times: latency, jitter and packet loss. Almost no
+  background) pings 1.1.1.1 (or the **Ping host** you set, for networks that block it) five times: latency, jitter and packet loss. Almost no
   data, so it can live in the menu bar and notify you when the connection drops
   or turns unstable (turn that off in the widget's settings).
 - **Speed** — Apple's built-in `networkQuality`, capped at 10 seconds: download,

@@ -29,7 +29,10 @@ nonstop. Checking reads the two files directly, with no process started.
 ## Settings
 
 - **Stay awake with the lid closed** — applies to the next request.
-- **“Until” time** — the time the “Until” button keeps it awake to.
+- **“Until” time** — the time the “Until” button keeps it awake to, on the hour from noon to 11 PM.
+
+Without PowerDisplayGuard nothing can keep the Mac awake, so the card shows only
+a warning with a link to the guard instead of buttons that would all fail.
 
 ## Permissions
 

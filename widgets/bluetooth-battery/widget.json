@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.bluetooth-battery",
   "name": "Bluetooth Battery",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "minHostVersion": "0.7.21",
   "icon": "battery.75percent",
   "bucket": {
@@ -65,7 +65,6 @@
       "No Bluetooth batteries": "블루투스 배터리 없음",
       "Connect AirPods, a Magic Mouse, Keyboard or Trackpad and it shows up here.": "AirPods, Magic Mouse, 키보드, 트랙패드를 연결하면 여기에 나타납니다.",
       "${string(device.level)}%": "${string(device.level)}%",
-      "Lowest: ${transforms.tip}": "가장 낮음: ${transforms.tip}",
       "${transforms.lowest.name} is at ${string(transforms.lowest.level)}%": "${transforms.lowest.name} 배터리 ${string(transforms.lowest.level)}%",
       "Charge it soon.": "곧 충전하세요."
     }

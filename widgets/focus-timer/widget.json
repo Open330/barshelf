@@ -3,23 +3,33 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.focus-timer",
   "name": "Focus Timer",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "icon": "timer",
-  "bucket": { "group": "Productivity", "order": 20, "size": "S" },
-
-  "entry": { "kind": "script", "runtime": "deno-ts@1" },
-  "source": { "kind": "script", "output": "viewtree" },
-
+  "bucket": {
+    "group": "Productivity",
+    "order": 20,
+    "size": "S"
+  },
+  "entry": {
+    "kind": "script",
+    "runtime": "deno-ts@1"
+  },
+  "source": {
+    "kind": "script",
+    "output": "viewtree"
+  },
   "refresh": {
     "onOpen": true,
     "interval": null,
     "staleAfterSec": 60
   },
-
+  "statusItem": {
+    "mode": "text",
+    "icon": "timer"
+  },
   "permissions": {
     "notifications": true
   },
-
   "settings": [
     {
       "key": "focusMinutes",
@@ -30,12 +40,10 @@
       "max": 120
     }
   ],
-
   "appearance": {
     "accent": "orange",
     "cardStyle": "tinted"
   },
-
   "localizations": {
     "ko": {
       "Focus Timer": "집중 타이머",

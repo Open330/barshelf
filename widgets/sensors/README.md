@@ -17,6 +17,7 @@ shows, as a BarShelf widget.
 | **Also show** | Nothing, or any of the same readings | A second reading in the same item — pick **Two metric rows** in the menu bar layout to stack them. |
 | **CPU / GPU / battery reading** | Average of its sensors / Hottest sensor | Whether a component shows the mean of its sensors or its hottest one. |
 | **Temperature unit** | Celsius / Fahrenheit | Applies to the card *and* the menu bar. Fahrenheit labels say `°F`, so `123°F` is never read as a Celsius figure. |
+| **Warm at / Hot at (°C)** | 75 / 90 | Where the CPU reading turns orange, then red, in the card and the menu bar. |
 
 **Want two readings on the bar at once?** Duplicate the widget — BarShelf
 (Hub → Widgets → Duplicate) gives each copy its own settings and its own menu
@@ -25,6 +26,7 @@ promoted widgets are drawn.
 
 The health colouring stays calibrated in Celsius whichever unit you pick — the
 thresholds are a property of the hardware, not of how you prefer to read it.
+Clicking the card opens Activity Monitor.
 
 ## Setup
 
@@ -59,8 +61,8 @@ gaps with zeros:
 
 | You see | It means |
 | --- | --- |
-| `—` next to GPU or Battery | this Mac publishes no such sensor |
-| `Fans — none` | a fanless Mac (MacBook Air, most iPads-turned-Macs) |
+| no GPU or Battery row | this Mac publishes no such sensor |
+| no fan rows | a fanless Mac (MacBook Air) |
 | no watts in the header | no `PSTR` power key on this model |
 | "No hardware sensors are readable on this Mac" | no sensor backend answered at all |
 

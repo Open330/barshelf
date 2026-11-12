@@ -18,7 +18,7 @@ second refresh instead of a misleading zero.
 | Setting | Default | Effect |
 |---|---|---|
 | Menu bar shows | Activity | Two activity dots, or both speeds as text. |
-| Network interface | `all` | Measure every interface, or one such as `en0`. |
+| Network interface | All interfaces | Measure every interface, or one of `en0`–`en5`. The address has a copy button. |
 
 ## Permissions and refresh
 
