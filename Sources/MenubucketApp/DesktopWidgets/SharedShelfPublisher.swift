@@ -148,7 +148,11 @@ final class SharedShelfPublisher {
             self.scheduleHeldProbe()
         }
         heldProbe = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.placementProbeInterval, execute: item)
+        // When the next question is due, not a full interval from now: a
+        // render may have asked a moment ago.
+        let due = lastProbe.map { $0.addingTimeInterval(Self.placementProbeInterval).timeIntervalSinceNow }
+            ?? Self.placementProbeInterval
+        DispatchQueue.main.asyncAfter(deadline: .now() + max(1, due), execute: item)
     }
 
     /// The snapshot as it would be written, without the times that change on
