@@ -259,6 +259,35 @@ final class GalleryModelTests: XCTestCase {
         XCTAssertEqual(Set(model.filteredEntries.map(\.id)), [clock.id, weather.id])
     }
 
+    /// Someone opening the gallery for the first time meets everyday
+    /// widgets first and developer tools last, in chips and in the list;
+    /// the registry's order holds within a category.
+    func testEverydayWidgetsComeFirstAndDeveloperToolsLast() {
+        let model = GalleryModel(
+            widgetsDirectory: FileManager.default.temporaryDirectory
+                .appendingPathComponent("barshelf-gallery-order-\(UUID().uuidString)")
+        )
+        var docker = makeEntry(id: "dev.test.docker", version: "1.0")
+        docker.category = "Developer"
+        var battery = makeEntry(id: "dev.test.battery", version: "1.0")
+        battery.category = "System"
+        var clock = makeEntry(id: "dev.test.clock", version: "1.0")
+        clock.category = "Everyday"
+        var shelf = makeEntry(id: "dev.test.shelf", version: "1.0")
+        shelf.category = "Productivity"
+        var other = makeEntry(id: "dev.test.other", version: "1.0")
+        other.category = "Games"
+        var weather = makeEntry(id: "dev.test.weather", version: "1.0")
+        weather.category = "demo"
+        model.setEntries(forPreview: [docker, battery, clock, shelf, other, weather])
+
+        XCTAssertEqual(model.availableCategories, ["Everyday", "System", "Productivity", "Games", "Developer"])
+        XCTAssertEqual(
+            model.filteredEntries.map(\.id),
+            [clock.id, weather.id, battery.id, shelf.id, other.id, docker.id]
+        )
+    }
+
     func testDistinctCategoriesKeepsDifferentLabels() {
         XCTAssertEqual(GalleryModel.distinctCategories(["demo", "Everyday", "files", "Files", ""]).count, 2)
         XCTAssertTrue(GalleryModel.category("demo", matches: "everyday"))
