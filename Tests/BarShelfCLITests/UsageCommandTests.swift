@@ -73,4 +73,19 @@ final class UsageCommandTests: XCTestCase {
         let names = UsageCommand.installedWidgets(in: dir)
         XCTAssertEqual(Set(names.keys), ["dev.a", "dev.a--work", "dev.c"], "\(names)")
     }
+
+    /// The app makes a copy of a widget as a link to the original folder.
+    func testCopiesMadeAsSymbolicLinksAreNamed() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("usage-cli-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let original = dir.appendingPathComponent("dev.a")
+        try FileManager.default.createDirectory(at: original, withIntermediateDirectories: true)
+        try Data(#"{"schemaVersion":1,"id":"dev.a","name":"Watch","entry":{"kind":"workflow","main":"workflow.json"}}"#.utf8)
+            .write(to: original.appendingPathComponent("widget.json"))
+        try FileManager.default.createSymbolicLink(
+            at: dir.appendingPathComponent("dev.a--office"), withDestinationURL: original)
+
+        let names = UsageCommand.installedWidgets(in: dir)
+        XCTAssertEqual(names, ["dev.a": "Watch", "dev.a--office": "Watch"])
+    }
 }
