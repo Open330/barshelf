@@ -190,7 +190,8 @@ separator, `-----` one inside a submenu. At most 400 lines are read.
 | `emojize` | `:shortcode:` emoji from a built-in list of common ones; `emojize=false` keeps the text. Unknown codes stay as written. |
 | `tooltip` | Hover text. |
 | ANSI colour codes | Stripped. |
-| **Not supported** (ignored) | `font`, `size`, `length`, `trim`, `ansi`, `image`, `templateImage`, `alternate`, `dropdown`, `checked`, `key`, `md`, `sfcolor`, `sfconfig`, `sfsize`, `symbolize`, `badge`, `webview`, `webvieww`, `webviewh`, `shortcut`; xbar `<xbar.var>` user variables; SwiftBar `<swiftbar.schedule>`, refresh on wake/hide flags and other `<swiftbar.*>` options. |
+| Fixed-width text | `font=` naming a fixed-width face (Courier, Menlo, Monaco, anything with "mono") draws the line in the code face on one line, sized so the widest such line of the list fits; other faces are ignored. `trim=false` keeps the line's leading spaces. |
+| **Not supported** (ignored) | `size`, `length`, `ansi`, `image`, `templateImage`, `alternate`, `dropdown`, `checked`, `key`, `md`, `sfcolor`, `sfconfig`, `sfsize`, `symbolize`, `badge`, `webview`, `webvieww`, `webviewh`, `shortcut`; xbar `<xbar.var>` user variables; SwiftBar `<swiftbar.schedule>`, refresh on wake/hide flags and other `<swiftbar.*>` options. |
 | **Refused at install** | Streaming plugins (`<swiftbar.type>streamable</swiftbar.type>`). |
 
 `bash=` takes precedence over `href=` on the same line. Plugins see

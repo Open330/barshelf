@@ -157,6 +157,54 @@ final class XbarPluginTests: XCTestCase {
 
     // MARK: Rendering
 
+    /// A calendar plugin (xbar-plugins Time/cal.1d.sh) lines its columns up
+    /// with spaces in a fixed-width font.
+    func testFixedWidthLinesKeepTheirColumns() {
+        let rendered = XbarPlugin.render(XbarPlugin.parse("""
+        2026
+        ---
+            November 2026 | trim=false font=courier
+        Su Mo Tu We Th Fr Sa | trim=false font=courier
+         1  2  3  4  5  6  7 | trim=false font=courier
+        Plain note
+          Indented but trimmed | font=Menlo
+        """), context: .init(selfCommand: "./cal.1d.sh"))
+        let rows = (rendered.tree.children ?? []).filter { $0.type == "text" }
+        let month = rows.first { $0.text?.contains("November") == true }
+        XCTAssertEqual(month?.text, "    November 2026", "trim=false keeps the leading spaces")
+        XCTAssertEqual(rows.first { $0.text?.contains("1  2") == true }?.text, " 1  2  3  4  5  6  7")
+
+        let fixed = rows.filter { $0.role == "code" }
+        XCTAssertEqual(fixed.count, 4)
+        XCTAssertEqual(Set(fixed.map(\.lineLimit)), [1], "a wrapped row would lose its columns")
+        XCTAssertEqual(Set(fixed.map(\.size)).count, 1, "one size, or the rows would not line up")
+        XCTAssertEqual(fixed.first?.size, 12, "short lines keep the normal code size")
+
+        XCTAssertEqual(rows.first { $0.text == "Plain note" }?.role, "body")
+        XCTAssertEqual(rows.first { $0.text == "Indented but trimmed" }?.role, "code", "without trim=false the spaces go")
+    }
+
+    func testWideFixedWidthLinesShrinkToFitButStayReadable() {
+        XCTAssertEqual(XbarPlugin.monospacedSize(columns: 20, nested: false), 12)
+        let table = XbarPlugin.monospacedSize(columns: 48, nested: false)
+        XCTAssertLessThan(table, 12)
+        XCTAssertLessThanOrEqual(0.602 * 48 * table, 310)
+        // `cal 2026`: three months side by side, 64 columns, still fits,
+        // in a submenu's narrower card too.
+        for nested in [false, true] {
+            let year = XbarPlugin.monospacedSize(columns: 64, nested: nested)
+            XCTAssertLessThanOrEqual(0.602 * 64 * year, nested ? 290 : 310)
+            XCTAssertGreaterThanOrEqual(year, 7)
+        }
+        XCTAssertEqual(XbarPlugin.monospacedSize(columns: 400, nested: true), 7, "never below 7 pt")
+    }
+
+    func testLeadingSpacesAreCountedAfterTheSubmenuPrefix() {
+        XCTAssertEqual(XbarPlugin.parseLine("   x | trim=false").leadingSpaces, 3)
+        XCTAssertEqual(XbarPlugin.parseLine("--  x | trim=false").leadingSpaces, 2)
+        XCTAssertEqual(XbarPlugin.parseLine("x").leadingSpaces, 0)
+    }
+
     func testRenderTakesTheReadingFromTheFirstTitle() {
         let rendered = XbarPlugin.render(XbarPlugin.parse("""
         \u{1B}[31m:sunny: 21°\u{1B}[0m | sfimage=sun.max color=#ff3b30
