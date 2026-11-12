@@ -55,12 +55,9 @@ package final class AutomationEngine: AutomationRunning {
     private let windows = AutomationWindows()
     private var hotkeys: [EventHotKeyRef] = []
     private var handler: EventHandlerRef?
-    private var tap: CFMachPort?
-    private var source: CFRunLoopSource?
+    private var keyTap: AutomationKeyTap?
     private var watchdog: Timer?
     private var wakeObserver: NSObjectProtocol?
-    private var remapState = AutomationRemapState()
-    private var keyRemapState = AutomationKeyRemapState()
     private var generation = 0
     private var active = false
     package var report: ((String) -> Void)?
@@ -179,56 +176,9 @@ package final class AutomationEngine: AutomationRunning {
     }
 
     private func installTap() throws {
-        let mask = [CGEventType.keyDown, .keyUp, .flagsChanged].reduce(CGEventMask(0)) { $0 | (1 << $1.rawValue) }
-        guard let newTap = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEventTap,
-            options: .defaultTap, eventsOfInterest: mask, callback: { _, type, event, pointer in
-                guard let pointer else { return Unmanaged.passUnretained(event) }
-                let engine = Unmanaged<AutomationEngine>.fromOpaque(pointer).takeUnretainedValue()
-                if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-                    // Events may have been missed while disabled; release
-                    // tracked arrows before accepting new physical key events.
-                    engine.releaseHeldKeys()
-                    if let tap = engine.tap { CGEvent.tapEnable(tap: tap, enable: true) }
-                    return Unmanaged.passUnretained(event)
-                }
-                engine.remap(type: type, event: event)
-                return Unmanaged.passUnretained(event)
-            }, userInfo: Unmanaged.passUnretained(self).toOpaque()) else {
-                throw AutomationFailure(String(localized: "Cannot start keyboard monitoring. Check Accessibility permission for this BarShelf build; if macOS requests Input Monitoring, allow it and restart BarShelf."))
-            }
-        tap = newTap
-        guard let runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, newTap, 0) else {
-            throw AutomationFailure(String(localized: "Cannot create keyboard event source."))
-        }
-        source = runLoopSource
-        CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
-        CGEvent.tapEnable(tap: newTap, enable: true)
-    }
-
-    private func remap(type: CGEventType, event: CGEvent) {
-        if !script.keyRemaps.isEmpty, type == .keyDown || type == .keyUp {
-            if let rule = keyRemapState.target(code: event.getIntegerValueField(.keyboardEventKeycode),
-                keyboard: event.getIntegerValueField(.keyboardEventKeyboardType), down: type == .keyDown,
-                flags: event.flags.rawValue, rules: script.keyRemaps) {
-                event.setIntegerValueField(.keyboardEventKeycode, value: rule.to)
-                event.keyboardSetUnicodeString(stringLength: 0, unicodeString: nil)
-                event.flags = CGEventFlags(rawValue: event.flags.rawValue & ~rule.mandatory)
-            }
-            return
-        }
-        guard let config = script.remap else { return }
-        if type == .flagsChanged {
-            remapState.fnDown = event.flags.contains(.maskSecondaryFn)
-            return
-        }
-        guard type == .keyDown || type == .keyUp else { return }
-        if let target = remapState.target(code: event.getIntegerValueField(.keyboardEventKeycode),
-            keyboard: event.getIntegerValueField(.keyboardEventKeyboardType), down: type == .keyDown,
-            fn: event.flags.contains(.maskSecondaryFn), configuration: config) {
-            event.setIntegerValueField(.keyboardEventKeycode, value: target)
-            event.keyboardSetUnicodeString(stringLength: 0, unicodeString: nil)
-            event.flags.remove(.maskSecondaryFn)
-        }
+        let tap = AutomationKeyTap(remap: script.remap, keyRemaps: script.keyRemaps)
+        try tap.install()
+        keyTap = tap
     }
 
     private func recoverTap(resetKeys: Bool = false) {
@@ -236,14 +186,13 @@ package final class AutomationEngine: AutomationRunning {
         guard AXIsProcessTrusted() else { permissionLost?(); return }
         if resetKeys { releaseHeldKeys() }
         guard script.remap != nil || !script.keyRemaps.isEmpty else { return }
-        let valid = tap.map { CFMachPortIsValid($0) } == true
-            && source.map { CFRunLoopSourceIsValid($0) } == true
+        let valid = keyTap?.isValid == true
         do {
             try AutomationTapRecovery.recover(valid: valid,
-                enabled: { self.tap.map { CGEvent.tapIsEnabled(tap: $0) } == true },
+                enabled: { self.keyTap?.isEnabled == true },
                 releaseKeys: { self.releaseHeldKeys() },
                 replace: { self.removeTap(); try self.installTap() },
-                enable: { if let tap = self.tap { CGEvent.tapEnable(tap: tap, enable: true) } })
+                enable: { self.keyTap?.enable() })
         } catch {
             stop()
             runtimeFailed?(error.localizedDescription)
@@ -251,18 +200,14 @@ package final class AutomationEngine: AutomationRunning {
     }
 
     private func removeTap() {
-        if let tap, CFMachPortIsValid(tap) { CGEvent.tapEnable(tap: tap, enable: false) }
-        if let source { CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes) }
-        if let tap { CFMachPortInvalidate(tap) }
-        source = nil
-        tap = nil
+        // The held-key state lives in the tap: let go of its keys before it
+        // is discarded, or a remapped arrow would stay down.
+        keyTap?.remove()
+        keyTap?.releaseHeldKeys()
+        keyTap = nil
     }
 
     private func releaseHeldKeys() {
-        for code in Set(Array(remapState.held.values) + keyRemapState.held.values.map(\.to)) {
-            CGEvent(keyboardEventSource: nil, virtualKey: CGKeyCode(code), keyDown: false)?.post(tap: .cghidEventTap)
-        }
-        remapState = AutomationRemapState()
-        keyRemapState = AutomationKeyRemapState()
+        keyTap?.releaseHeldKeys()
     }
 }
