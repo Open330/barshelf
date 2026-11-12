@@ -217,6 +217,10 @@ struct ShelfView: View {
                 .padding(Spacing.m)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
             }
+            // A wrapping board's ideal width is every page in one row; left
+            // to reach the split view, it pushes the sidebar and the
+            // inspector off the window. The board takes the width it gets.
+            .frame(minWidth: 0, idealWidth: 0, maxWidth: .infinity, alignment: .topLeading)
             // Clicking empty space clears the selection, as in Finder.
             .background(Color.clear.contentShape(Rectangle()).onTapGesture { selection = nil })
             .onChange(of: selection) { _, id in
