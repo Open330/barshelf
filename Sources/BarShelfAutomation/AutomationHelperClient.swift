@@ -131,8 +131,10 @@ package final class AutomationHelperClient {
         exitSource = nil
         defer { status = nil }
         guard let pid = helperPID else { return }
-        let owner = status?.ownerPID ?? appPID
-        try? channel.write(AutomationHelperRequest(kind: .stop, appPID: owner), to: channel.requestURL)
+        // Another app instance took the helper over (an update's new build
+        // starts before this one quits): it is no longer this app's to stop.
+        if let owner = status?.ownerPID, owner != appPID { return }
+        try? channel.write(AutomationHelperRequest(kind: .stop, appPID: appPID), to: channel.requestURL)
         channel.post(channel.requestName)
         guard waitForExit else { return }
         if !wait(timeout: exitTimeout, until: { !self.isAlive(pid) }) { forceQuit(pid) }
