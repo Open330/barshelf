@@ -536,10 +536,10 @@ struct NodeView: View {
             }
             .font(.callout)
         }
-        // A button keeps its whole label; the text beside it gives way
-        // ("Copy u…" and "Ope…" were buttons squeezed by their row).
+        // A button keeps its whole label ("Copy u…" and "Ope…" were buttons
+        // squeezed by their row). Its natural size only, with no layout
+        // priority: a priority let it starve the text beside it.
         .fixedSize()
-        .layoutPriority(1)
         // The app's capsule, so a widget's buttons match every other
         // button in BarShelf.
         .buttonStyle(.glass(.secondary))

@@ -92,33 +92,12 @@
           }
         },
         "default": {
-          "type": "hstack",
-          "spacing": 6,
-          "children": [
-            {
-              "type": "text",
-              "text": "${sources.data.network.address}",
-              "size": 18,
-              "role": "title",
-              "monospacedDigit": true,
-              "lineLimit": 1
-            },
-            {
-              "type": "spacer"
-            },
-            {
-              "type": "button",
-              "icon": "doc.on.doc",
-              "action": {
-                "type": "copyText",
-                "value": "${sources.data.network.address}",
-                "toast": "Copied ${sources.data.network.address}"
-              },
-              "accessibility": {
-                "label": "Copy address"
-              }
-            }
-          ]
+          "type": "text",
+          "text": "${sources.data.network.address}",
+          "size": 18,
+          "role": "title",
+          "monospacedDigit": true,
+          "lineLimit": 1
         }
       },
       {
@@ -166,6 +145,29 @@
                 "monospacedDigit": true
               }
             ]
+          },
+          {
+            "type": "spacer"
+          },
+          {
+            "switch": "${if(sources.data.network.address, 'some', 'none')}",
+            "cases": {
+              "none": {
+                "type": "none"
+              }
+            },
+            "default": {
+              "type": "button",
+              "icon": "doc.on.doc",
+              "action": {
+                "type": "copyText",
+                "value": "${sources.data.network.address}",
+                "toast": "Copied ${sources.data.network.address}"
+              },
+              "accessibility": {
+                "label": "Copy address"
+              }
+            }
           }
         ]
       }
