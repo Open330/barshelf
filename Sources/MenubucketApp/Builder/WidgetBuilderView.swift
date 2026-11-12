@@ -290,7 +290,7 @@ struct WidgetBuilderView: View {
             }
             if !model.httpHeaders.isEmpty {
                 Label(
-                    "Header values are saved as plain text in workflow.json. Do not paste API tokens or passwords.",
+                    "Header values are saved as plain text with the widget. Do not paste API tokens or passwords.",
                     systemImage: "exclamationmark.shield"
                 )
                 .font(.caption2)

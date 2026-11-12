@@ -63,7 +63,7 @@ enum ErrorExplainer {
         if widgetRan, text.contains("deno runtime not found") {
             return ErrorExplanation(kind: .commandNotFound("deno"),
                 cause: String(localized: "This script widget needs Deno, which isn’t installed."),
-                fix: String(localized: "Install Deno with “brew install deno”, then retry. Workflow and Command widgets do not need Deno."))
+                fix: String(localized: "Install Deno with “brew install deno”, then retry. Only script widgets need Deno."))
         }
 
         if widgetRan, text.contains("not covered by permissions.readpaths") {
@@ -163,7 +163,7 @@ enum ErrorExplainer {
             return ErrorExplanation(
                 kind: .permissionDenied,
                 cause: String(localized: "macOS or the widget’s permissions blocked this."),
-                fix: String(localized: "Review the widget’s permissions in Settings, or allow access in System Settings › Privacy & Security.")
+                fix: String(localized: "Review the widget’s permissions in BarShelf ▸ Privacy, or allow access in System Settings ▸ Privacy & Security.")
             )
         }
 
@@ -314,7 +314,7 @@ enum ErrorExplainer {
 
     private static func httpFix(_ code: Int) -> String {
         switch code {
-        case 401, 403: return String(localized: "Check the widget’s token or API key in Settings.")
+        case 401, 403: return String(localized: "Check the token or API key in the widget’s Settings.")
         case 404: return String(localized: "Check the address in the widget’s Settings.")
         case 429: return String(localized: "Wait a little; BarShelf retries on its own.")
         case 500...599: return String(localized: "This is usually temporary. Retry in a few minutes.")

@@ -158,7 +158,7 @@ struct GalleryCard: View {
             Button("Update", action: install)
                 .buttonStyle(.glass(.secondary))
                 .controlSize(.small)
-                .help("A newer version is available in the registry")
+                .help("A newer version is in the online widget list")
                 .accessibilityLabel("Update \(displayName)")
         } else if isInstalled {
             // The same green as the detail page's status.

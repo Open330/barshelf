@@ -139,7 +139,7 @@ final class AutomationWindows {
     }
 
     private static func grantMessage(_ action: String) -> String {
-        String(localized: "Could not \(action). Allow BarShelf in System Settings › Privacy & Security › Accessibility, then try again.")
+        String(localized: "Could not \(action). Allow BarShelf in System Settings ▸ Privacy & Security ▸ Accessibility, then try again.")
     }
     private func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
         var value: CFTypeRef?

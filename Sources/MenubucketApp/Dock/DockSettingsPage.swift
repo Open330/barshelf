@@ -237,7 +237,7 @@ struct DockSettingsPage: View {
         Section("Appearance") {
             Picker("Style", selection: binding(\.style)) {
                 Text("Classic").tag(DockConfiguration.Style.classic)
-                Text("Shelf").tag(DockConfiguration.Style.shelf)
+                Text("Cards", comment: "Dock style: names under icons, widgets as full cards").tag(DockConfiguration.Style.shelf)
             }
             .pickerStyle(.segmented)
             Text(config.style == .classic

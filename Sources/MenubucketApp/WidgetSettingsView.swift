@@ -178,7 +178,7 @@ struct WidgetSettingsView: View {
             WidgetMark(widget: widget, runtime: runtime, size: 28)
             VStack(alignment: .leading, spacing: Spacing.hair / 2) {
                 Text(widget.displayName).font(.headline)
-                Text("\(WidgetTypeName.name(widget.manifest.entry.kind)) · version \(widget.packageInfo.version ?? "–")")
+                Text("Version \(widget.packageInfo.version ?? "–")")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -263,14 +263,14 @@ struct WidgetSettingsView: View {
                 .fixedSize()
             }
             if let seconds = effectiveDisplayedInterval(promoted: false) {
-                columnHint(String(localized: "While its shelf page is visible: \(Self.intervalTitle(seconds).lowercased())."))
+                columnHint(String(localized: "While its page is open in the popup: \(Self.intervalTitle(seconds).lowercased())."))
             }
             columnHint(String(localized: "Slower updates use less battery. Background and energy-saving rules still apply. A menu bar interval overrides this choice while promoted."))
         }
 
         if !widget.isSensitive, widget.manifest.desktop?.offer != false {
             DisclosureGroup("Desktop widget updates") {
-                Text("Desktop widgets show BarShelf’s last result. Placing one on the desktop does not keep its source running. Open its shelf page or use Refresh to update it. To keep updating while the shelf is closed, show the source in the menu bar or Dock while BarShelf runs.")
+                Text("Desktop widgets show BarShelf’s last result. Placing one on the desktop does not keep its source running. Open its page in the popup or use Refresh to update it. To keep updating while the popup is closed, show the source in the menu bar or Dock while BarShelf runs.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -324,7 +324,6 @@ struct WidgetSettingsView: View {
 
     @ViewBuilder
     private var aboutPage: some View {
-        LabeledContent("Type", value: WidgetTypeName.name(widget.manifest.entry.kind))
         let info = widget.packageInfo
         LabeledContent("Version", value: info.version ?? "–")
         LabeledContent("Identifier") {
@@ -669,7 +668,7 @@ struct WidgetSettingsView: View {
                 // a control, because it is about the widget, not a setting.
                 // In the label column's content edge, like every hint above.
                 if publishesNoStatusText {
-                    columnHint(String(localized: "This widget publishes no value, so only its icon can appear. Give its workflow a `status.label` (or a script `host.render` status) to show one."))
+                    columnHint(String(localized: "This widget has no value to show in the menu bar, so only its icon appears."))
                 } else {
                     columnHint(String(localized: "It keeps refreshing while the popup is closed. At most \(MenuBarPolicy.maxEntries) widgets are shown."))
                 }
@@ -695,7 +694,7 @@ struct WidgetSettingsView: View {
                     )
                 )
                 .frame(width: Self.fieldWidth)
-                settingsHint(String(localized: "An SF Symbol name or an emoji for the chip. Empty uses the widget's icon, or what it measures (CPU, memory, power, …)."))
+                settingsHint(String(localized: "An emoji, or a symbol name from SF Symbols, such as star.fill. Leave it empty for the widget’s icon or for what it measures (CPU, memory, power, …)."))
             }
         }
         GridRow {
@@ -849,7 +848,7 @@ struct WidgetSettingsView: View {
                             ))
                             if menuBarDraft.icon != "" {
                                 TextField(
-                                    widget.manifest.statusItem?.icon ?? String(localized: "the widget's own", comment: "Placeholder: the widget's own icon is used"),
+                                    String(localized: "the widget's own", comment: "Placeholder: the widget's own icon is used"),
                                     text: Binding(
                                         get: { menuBarDraft.icon ?? "" },
                                         set: { menuBarDraft.icon = $0.isEmpty ? nil : $0 }
@@ -857,7 +856,7 @@ struct WidgetSettingsView: View {
                                 )
                                 .frame(width: Self.fieldWidth)
                                 .accessibilityLabel("Icon name")
-                                settingsHint(String(localized: "An SF Symbol name or an emoji. Empty uses the widget's own."))
+                                settingsHint(String(localized: "An emoji, or a symbol name from SF Symbols, such as star.fill. Leave it empty for the widget’s own icon."))
                             }
                         }
                     }
@@ -1386,11 +1385,11 @@ struct WidgetSettingsView: View {
                         }
                     }
                     HStack(spacing: Spacing.stack) {
-                        Text("Hex").font(.callout).foregroundStyle(.secondary)
+                        Text("Custom color", comment: "Accent: label before a field for typing #RRGGBB").font(.callout).foregroundStyle(.secondary)
                         TextField("#RRGGBB", text: hexBinding)
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 90)
-                            .accessibilityLabel("Custom accent hex color")
+                            .accessibilityLabel("Custom accent color (#RRGGBB)")
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

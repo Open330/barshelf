@@ -376,14 +376,14 @@ function failureView(failure: GhFailure): UINode {
     case "rateLimited":
       return placeholder(
         t("GitHub is limiting requests", "GitHub이 요청을 제한하고 있음"),
-        t("Trying again on the next refresh.", "다음 새로 고침 때 다시 시도합니다."),
+        t("Trying again on the next refresh.", "다음 새로고침 때 다시 시도합니다."),
         "hourglass",
       );
     case "timeout":
       return ui.vstack([
         placeholder(
           t("GitHub didn’t answer in time", "GitHub이 제때 응답하지 않음"),
-          t("Trying again on the next refresh.", "다음 새로 고침 때 다시 시도합니다."),
+          t("Trying again on the next refresh.", "다음 새로고침 때 다시 시도합니다."),
           "clock.badge.exclamationmark",
         ),
         ui.hstack([ui.spacer(), retry, ui.spacer()]),

@@ -134,7 +134,7 @@ final class GalleryModelTests: XCTestCase {
 
         model.refresh(force: true)
         try await waitUntil {
-            model.registryNotice == "Couldn’t refresh the registry. Showing cached widgets."
+            model.registryNotice == "Couldn’t refresh the online widget list. Showing the widgets from last time."
                 && model.entries.map(\.id) == ["dev.test.cached"]
         }
     }

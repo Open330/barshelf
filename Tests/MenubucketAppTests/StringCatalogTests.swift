@@ -60,6 +60,33 @@ final class StringCatalogTests: XCTestCase {
         XCTAssertEqual(mismatched, [])
     }
 
+    /// docs/GLOSSARY.md: one Korean word per thing and one tone. Instructions
+    /// end in -세요 and confirmations in -할까요?, never -십시오/-겠습니까;
+    /// macOS calls it 창, 새로고침, 팝업, 허용, 갤러리.
+    func testKoreanFollowsTheGlossary() throws {
+        let banned: [(word: String, use: String)] = [
+            ("십시오", "-세요"),
+            ("겠습니까", "-할까요?"),
+            ("윈도우", "창"),
+            ("새로 고침", "새로고침"),
+            ("갱신", "새로고침"),
+            ("팝오버", "팝업"),
+            ("허락", "허용"),
+            ("Gallery", "갤러리"),
+        ]
+        // Keys allowed to keep a banned word, with the reason. Keep it short.
+        let exceptions: [String: String] = [:]
+        var offending: [String] = []
+        for entry in try liveEntries() where exceptions[entry.key] == nil {
+            for value in entry.korean {
+                for rule in banned where value.contains(rule.word) {
+                    offending.append("\(entry.key) → \(value) (“\(rule.word)”: use \(rule.use))")
+                }
+            }
+        }
+        XCTAssertEqual(offending.sorted(), [], "See docs/GLOSSARY.md")
+    }
+
     /// The specifiers as a multiset of (position, type), so `%1$@ %2$@`
     /// matches `%2$@ %1$@` but `%@` does not match `%lld`.
     static func specifiers(in text: String) -> [String] {

@@ -70,7 +70,7 @@ final class ErrorExplainerTests: XCTestCase {
         let explanation = ErrorExplainer.explain("Deno runtime not found. Install Deno: brew install deno")
         XCTAssertEqual(explanation.kind, .commandNotFound("deno"))
         XCTAssertTrue(explanation.fix.contains("brew install deno"))
-        XCTAssertTrue(explanation.fix.contains("Workflow"))
+        XCTAssertTrue(explanation.fix.contains("Only script widgets need Deno"))
     }
 
     func testNonZeroExitKeepsTheCode() {

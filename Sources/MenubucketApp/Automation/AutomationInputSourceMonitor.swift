@@ -105,7 +105,7 @@ final class AutomationInputSourceMonitor {
     }
 
     static var settingsUnavailable: String {
-        String(localized: "Couldn’t read macOS input-source shortcut settings. Open Keyboard Shortcuts → Input Sources and check the shortcut. If other system settings are also missing, log out and back in or restart your Mac, then try again.")
+        String(localized: "Couldn’t read macOS input-source shortcut settings. Open Keyboard Shortcuts ▸ Input Sources and check the shortcut. If other system settings are also missing, log out and back in or restart your Mac, then try again.")
     }
     static var sourceUnavailable: String {
         String(localized: "Couldn’t read the current input source. Check Input Sources in System Settings, then try again.")
@@ -114,6 +114,6 @@ final class AutomationInputSourceMonitor {
         String(localized: "No input-source change was detected. Check that at least two input sources are enabled and that the system’s Select next source shortcut uses an unused key without modifiers. If the settings look correct, log out and back in or restart your Mac. BarShelf hasn’t retried the switch.")
     }
     static var directSelectionLimited: String {
-        String(localized: "Direct input-source selection was requested, but some apps may keep using the previous input language. For reliable switching, assign Select next source in Input menu an unused key without modifiers in Keyboard Shortcuts → Input Sources.")
+        String(localized: "Direct input-source selection was requested, but some apps may keep using the previous input language. For reliable switching, assign Select next source in Input menu an unused key without modifiers in Keyboard Shortcuts ▸ Input Sources.")
     }
 }
