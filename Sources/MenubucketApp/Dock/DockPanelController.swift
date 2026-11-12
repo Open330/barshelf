@@ -390,6 +390,23 @@ final class DockPanelController {
         if hidesAutomatically { mouseMoved() }
     }
 
+    /// The Dock was turned off: take the panel down and stop everything
+    /// that would keep it, or its SwiftUI graph, alive.
+    func tearDown() {
+        cancellables.removeAll()
+        hideWorkItem?.cancel()
+        revealWorkItem?.cancel()
+        moveWorkItem?.cancel()
+        removeMouseMonitors()
+        limits.onLeaveKeyboardFocus = nil
+        hostingView.onSwipe = nil
+        hostingView.onIdealSizeChange = nil
+        panel.scrollRouter = nil
+        panel.orderOut(nil)
+        panel.contentView = nil
+        runtime.setDockWidgetIDs([])
+    }
+
     deinit {
         // A deinit is not on the main actor, so it cannot call
         // `removeMouseMonitors()`; this is that method's body.

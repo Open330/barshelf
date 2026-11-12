@@ -148,7 +148,13 @@ final class MenuBarClusterController: NSObject {
 
     private func installTracking() {
         guard pointerWatcher == nil else { return }
-        pointerWatcher = PointerWatcher { [weak self] in self?.pointerMoved() }
+        pointerWatcher = PointerWatcher(
+            isHot: { [weak self] point in
+                guard let self else { return false }
+                return self.pointerInside || self.foldWork != nil || self.isNearMenuBar(point)
+            },
+            onMove: { [weak self] in self?.pointerMoved() }
+        )
         updateAccessibility()
     }
 
