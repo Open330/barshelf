@@ -232,7 +232,8 @@
           "type": "string",
           "enum": [
             "viewtree",
-            "data"
+            "data",
+            "xbar"
           ]
         },
         "adapter": {
