@@ -1,0 +1,30 @@
+name: Thread Sanitizer
+
+# Core's tests under TSan, weekly and on demand. Too slow for every change
+# (the instrumented build is separate and the tests run several times
+# slower), but a data race in Core reaches the app, the CLI and the widget
+# runtime at once, and strict concurrency checking only proves what the type
+# system can see.
+on:
+  schedule:
+    - cron: "17 3 * * 1" # Mondays 03:17 UTC
+  workflow_dispatch:
+
+jobs:
+  tsan:
+    name: Core tests (thread sanitizer)
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "26.6.0"
+      - name: swift test --sanitize=thread
+        env:
+          # Stop at the first report, with the stacks in the log.
+          TSAN_OPTIONS: halt_on_error=1:second_deadlock_stack=1
+        run: |
+          quality_test_home=$(mktemp -d "${RUNNER_TEMP}/barshelf-quality-home-XXXXXX")
+          CFFIXED_USER_HOME="$quality_test_home" \
+            swift test --sanitize=thread --scratch-path .build-tsan --filter MenubucketCoreTests
