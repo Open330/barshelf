@@ -8,10 +8,10 @@ import MenubucketCore
 /// the scaffolded workflow), so the preview is what the widget will actually
 /// render — not a mock.
 @MainActor
-final class WidgetBuilderModel: ObservableObject {
-    enum Step: Int, CaseIterable {
+package final class WidgetBuilderModel: ObservableObject {
+    package enum Step: Int, CaseIterable {
         case source, display, details
-        var title: String {
+        package var title: String {
             switch self {
             // Not "Source": a word for developers.
             case .source: return String(localized: "Data Source", comment: "Widget builder step title: where the widget's data comes from")
@@ -21,10 +21,10 @@ final class WidgetBuilderModel: ObservableObject {
         }
     }
 
-    enum SourceKind: String, CaseIterable, Identifiable {
+    package enum SourceKind: String, CaseIterable, Identifiable {
         case command, shellScript, httpJSON, pastedJSON, folder, staticText
-        var id: String { rawValue }
-        var label: String {
+        package var id: String { rawValue }
+        package var label: String {
             switch self {
             case .command: return String(localized: "Run a command")
             case .shellScript: return String(localized: "Shell script")
@@ -35,7 +35,7 @@ final class WidgetBuilderModel: ObservableObject {
             }
         }
         /// One line under the choice: what it is for.
-        var summary: String {
+        package var summary: String {
             switch self {
             case .command: return String(localized: "Runs a command line tool and shows what it prints.")
             case .shellScript: return String(localized: "Several commands joined with pipes, run as one script.")
@@ -45,7 +45,7 @@ final class WidgetBuilderModel: ObservableObject {
             case .staticText: return String(localized: "Text you type, such as a note or a link list.")
             }
         }
-        var symbol: String {
+        package var symbol: String {
             switch self {
             case .command: return "terminal"
             case .shellScript: return "chevron.left.forwardslash.chevron.right"
@@ -58,21 +58,23 @@ final class WidgetBuilderModel: ObservableObject {
     }
 
     /// One HTTP request header (auth etc.) for the HTTP JSON source.
-    struct HeaderPair: Identifiable, Equatable {
-        let id = UUID()
-        var key: String = ""
-        var value: String = ""
+    package struct HeaderPair: Identifiable, Equatable {
+        package let id = UUID()
+        package var key: String = ""
+        package var value: String = ""
+
+        package init() {}
     }
 
-    struct CommandTemplate: Identifiable, Equatable {
-        let id: String
-        let title: String
-        let command: String
-        let suggestedName: String
-        let suggestedIcon: String
+    package struct CommandTemplate: Identifiable, Equatable {
+        package let id: String
+        package let title: String
+        package let command: String
+        package let suggestedName: String
+        package let suggestedIcon: String
     }
 
-    static let commandTemplates: [CommandTemplate] = [
+    package static let commandTemplates: [CommandTemplate] = [
         .init(
             id: "github-actions",
             title: String(localized: "GitHub Actions runs"),
@@ -117,10 +119,10 @@ final class WidgetBuilderModel: ObservableObject {
         ),
     ]
 
-    enum DisplayKind: String, CaseIterable, Identifiable {
+    package enum DisplayKind: String, CaseIterable, Identifiable {
         case list, grid, table, value, meter, text
-        var id: String { rawValue }
-        var label: String {
+        package var id: String { rawValue }
+        package var label: String {
             switch self {
             case .list: return String(localized: "List", comment: "Widget display style")
             case .grid: return String(localized: "Grid", comment: "Widget display style")
@@ -133,10 +135,10 @@ final class WidgetBuilderModel: ObservableObject {
     }
 
     /// Per-row click action for list/table displays.
-    enum RowActionKind: String, CaseIterable, Identifiable {
+    package enum RowActionKind: String, CaseIterable, Identifiable {
         case none, copy, openURL, openFile
-        var id: String { rawValue }
-        var label: String {
+        package var id: String { rawValue }
+        package var label: String {
             switch self {
             case .none: return String(localized: "Nothing", comment: "Row click action: do nothing")
             case .copy: return String(localized: "Copy a field")
@@ -145,7 +147,7 @@ final class WidgetBuilderModel: ObservableObject {
             }
         }
         /// Label for the field being acted on.
-        var fieldPrompt: String {
+        package var fieldPrompt: String {
             switch self {
             case .none: return ""
             case .copy: return String(localized: "Field to copy")
@@ -156,96 +158,98 @@ final class WidgetBuilderModel: ObservableObject {
     }
 
     /// A meter's drawing style in the builder (mirrors scaffold `MeterStyle`).
-    enum MeterStyle: String, CaseIterable, Identifiable {
+    package enum MeterStyle: String, CaseIterable, Identifiable {
         case bar, ring
-        var id: String { rawValue }
-        var label: String { self == .bar ? String(localized: "Bar", comment: "Meter style") : String(localized: "Ring", comment: "Meter style") }
+        package var id: String { rawValue }
+        package var label: String { self == .bar ? String(localized: "Bar", comment: "Meter style") : String(localized: "Ring", comment: "Meter style") }
     }
 
     /// One editable meter in the display step: a numeric field scaled by
     /// `maxValue`, with an optional label and a bar/ring style.
-    struct MeterSpec: Identifiable, Equatable {
-        let id = UUID()
-        var field = ""
-        var maxValue: Double = 100
-        var label = ""
-        var style: MeterStyle = .bar
+    package struct MeterSpec: Identifiable, Equatable {
+        package let id = UUID()
+        package var field = ""
+        package var maxValue: Double = 100
+        package var label = ""
+        package var style: MeterStyle = .bar
+
+        package init() {}
     }
 
-    @Published var step: Step = .source
+    @Published package var step: Step = .source
 
     // Source
-    @Published var sourceKind: SourceKind = .command
-    @Published var commandText = ""
-    @Published var scriptText = "# Any shell — pipe, jq, awk…\necho '{\"value\": 42}'"
-    @Published var httpURL = "https://api.github.com/repos/Open330/barshelf"
-    @Published var httpHeaders: [HeaderPair] = []
-    @Published var pastedJSONText = """
+    @Published package var sourceKind: SourceKind = .command
+    @Published package var commandText = ""
+    @Published package var scriptText = "# Any shell — pipe, jq, awk…\necho '{\"value\": 42}'"
+    @Published package var httpURL = "https://api.github.com/repos/Open330/barshelf"
+    @Published package var httpHeaders: [HeaderPair] = []
+    @Published package var pastedJSONText = """
     [
       { "name": "Deploy API", "status": "success", "age": "2m ago" },
       { "name": "Nightly checks", "status": "running", "age": "14m ago" }
     ]
     """
-    @Published var folderPath = "~/Downloads"
-    @Published var folderLimit = 12
-    @Published var staticContent = "Hello from BarShelf"
+    @Published package var folderPath = "~/Downloads"
+    @Published package var folderLimit = 12
+    @Published package var staticContent = "Hello from BarShelf"
 
     // Test-run results (command source)
-    @Published var testRunning = false
-    @Published var testOutput = ""
-    @Published var testError: String?
+    @Published package var testRunning = false
+    @Published package var testOutput = ""
+    @Published package var testError: String?
     /// Non-nil when stdout parsed as JSON — drives field pickers.
-    @Published var detectedIsJSONArray = false
-    @Published var detectedFields: [String] = []
+    @Published package var detectedIsJSONArray = false
+    @Published package var detectedFields: [String] = []
     private var lastJSON: JSONValue?
 
     // Display
-    @Published var displayKind: DisplayKind = .list
-    @Published var listField = ""
+    @Published package var displayKind: DisplayKind = .list
+    @Published package var listField = ""
     /// Optional second line (subtitle) and trailing (right-aligned) fields for
     /// list rows — native title + subtitle + status rows.
-    @Published var listSecondaryField = ""
-    @Published var listTrailingField = ""
-    @Published var valuePath = ""
-    @Published var valueCaption = ""
+    @Published package var listSecondaryField = ""
+    @Published package var listTrailingField = ""
+    @Published package var valuePath = ""
+    @Published package var valueCaption = ""
     /// One or more meters (display step). Each renders as a bar or ring; the
     /// scaffold stacks them into a grouped meter panel.
-    @Published var meters: [MeterSpec] = [MeterSpec()]
-    @Published var tableColumns: [WidgetBuilderScaffold.Column] = []
+    @Published package var meters: [MeterSpec] = [MeterSpec()]
+    @Published package var tableColumns: [WidgetBuilderScaffold.Column] = []
 
     // Refine (list/table over a structured source)
-    @Published var filterEnabled = false
-    @Published var filterField = ""
-    @Published var filterIsNot = false
-    @Published var filterValue = ""
-    @Published var sortEnabled = false
-    @Published var sortField = ""
-    @Published var sortDescending = false
-    @Published var limitEnabled = false
-    @Published var limitCount = 10
-    @Published var rowActionKind: RowActionKind = .none
-    @Published var rowActionField = ""
+    @Published package var filterEnabled = false
+    @Published package var filterField = ""
+    @Published package var filterIsNot = false
+    @Published package var filterValue = ""
+    @Published package var sortEnabled = false
+    @Published package var sortField = ""
+    @Published package var sortDescending = false
+    @Published package var limitEnabled = false
+    @Published package var limitCount = 10
+    @Published package var rowActionKind: RowActionKind = .none
+    @Published package var rowActionField = ""
 
     // Details
-    @Published var name = ""
-    @Published var icon = "square.grid.2x2"
-    @Published var group = "My Widgets"
-    @Published var size = "M"
+    @Published package var name = ""
+    @Published package var icon = "square.grid.2x2"
+    @Published package var group = "My Widgets"
+    @Published package var size = "M"
     /// nil → onOpen only; otherwise interval seconds.
-    @Published var refreshSeconds: Int? = nil
-    @Published var appearanceAccent: String?
-    @Published var appearanceDensity: WidgetAppearance.Density = .regular
-    @Published var appearanceShowHeader = true
+    @Published package var refreshSeconds: Int? = nil
+    @Published package var appearanceAccent: String?
+    @Published package var appearanceDensity: WidgetAppearance.Density = .regular
+    @Published package var appearanceShowHeader = true
 
     // Result
-    @Published var createdPath: URL?
+    @Published package var createdPath: URL?
     /// The created widget's id, to show it in the popup.
-    @Published var createdWidgetID: String?
-    @Published var createError: String?
+    @Published package var createdWidgetID: String?
+    @Published package var createError: String?
 
-    let existingGroups: [String]
-    var onClose: (() -> Void)?
-    var onCreated: (() -> Void)?
+    package let existingGroups: [String]
+    package var onClose: (() -> Void)?
+    package var onCreated: (() -> Void)?
 
     private let exec = ExecService()
     private var userEditedName = false
@@ -253,7 +257,7 @@ final class WidgetBuilderModel: ObservableObject {
 
     private var pristineSignature: [String] = []
 
-    init(existingGroups: [String]) {
+    package init(existingGroups: [String]) {
         self.existingGroups = existingGroups
         self.group = existingGroups.first ?? "My Widgets"
         pristineSignature = draftSignature
@@ -261,7 +265,7 @@ final class WidgetBuilderModel: ObservableObject {
 
     // MARK: - Step gating
 
-    var canAdvanceFromSource: Bool {
+    package var canAdvanceFromSource: Bool {
         switch sourceKind {
         case .command: return !commandText.trimmingCharacters(in: .whitespaces).isEmpty
         case .shellScript: return !scriptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -274,7 +278,7 @@ final class WidgetBuilderModel: ObservableObject {
 
     /// Displays valid for the current source: a plain-text command or static
     /// text can only render as text/value; folder is always a list.
-    var availableDisplays: [DisplayKind] {
+    package var availableDisplays: [DisplayKind] {
         switch sourceKind {
         case .folder:
             return [.list, .grid]
@@ -285,13 +289,13 @@ final class WidgetBuilderModel: ObservableObject {
         }
     }
 
-    var canCreate: Bool {
+    package var canCreate: Bool {
         !name.trimmingCharacters(in: .whitespaces).isEmpty && canAdvanceFromSource
     }
 
     // MARK: - Details prefill
 
-    func applyCommandTemplate(_ template: CommandTemplate) {
+    package func applyCommandTemplate(_ template: CommandTemplate) {
         commandText = template.command
         clearCommandTestState(clearFieldMappings: true)
         if !userEditedName {
@@ -302,7 +306,7 @@ final class WidgetBuilderModel: ObservableObject {
         }
     }
 
-    func selectSource(_ kind: SourceKind) {
+    package func selectSource(_ kind: SourceKind) {
         let changed = sourceKind != kind
         sourceKind = kind
         if changed {
@@ -316,19 +320,19 @@ final class WidgetBuilderModel: ObservableObject {
         }
     }
 
-    func setName(_ value: String) {
+    package func setName(_ value: String) {
         userEditedName = true
         name = value
     }
 
-    func setIcon(_ value: String) {
+    package func setIcon(_ value: String) {
         userChoseIcon = true
         icon = value
     }
 
     // MARK: - Command test run
 
-    func runTest() {
+    package func runTest() {
         let argv = testArgv
         guard let first = argv.first, !first.isEmpty else { return }
         testRunning = true
@@ -355,7 +359,7 @@ final class WidgetBuilderModel: ObservableObject {
         }
     }
 
-    func fetchHTTPPreview() {
+    package func fetchHTTPPreview() {
         let params: HttpSource.Params
         do {
             var object: [String: JSONValue] = ["url": .string(httpURL)]
@@ -390,7 +394,7 @@ final class WidgetBuilderModel: ObservableObject {
         }
     }
 
-    func useSampleJSON() {
+    package func useSampleJSON() {
         let sample: JSONValue = .array([
             .object([
                 "name": .string("Deploy API"),
@@ -419,7 +423,7 @@ final class WidgetBuilderModel: ObservableObject {
         testError = nil
     }
 
-    func setPastedJSON(_ value: String) {
+    package func setPastedJSON(_ value: String) {
         pastedJSONText = value
         analyzePastedJSON()
     }
@@ -491,10 +495,10 @@ final class WidgetBuilderModel: ObservableObject {
         }
     }
 
-    var hasStructuredJSON: Bool { lastJSON != nil || parsedPastedJSON != nil }
-    var isCommandJSON: Bool { lastJSON != nil }
+    package var hasStructuredJSON: Bool { lastJSON != nil || parsedPastedJSON != nil }
+    package var isCommandJSON: Bool { lastJSON != nil }
 
-    var usesStructuredSource: Bool {
+    package var usesStructuredSource: Bool {
         sourceKind == .command || sourceKind == .shellScript
             || sourceKind == .httpJSON || sourceKind == .pastedJSON
     }
@@ -518,12 +522,12 @@ final class WidgetBuilderModel: ObservableObject {
         return out
     }
 
-    var parsedPastedJSON: JSONValue? {
+    package var parsedPastedJSON: JSONValue? {
         guard let data = pastedJSONText.data(using: .utf8) else { return nil }
         return try? JSONDecoder().decode(JSONValue.self, from: data)
     }
 
-    var pastedJSONError: String? {
+    package var pastedJSONError: String? {
         pastedJSONText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? String(localized: "Paste JSON to continue.")
             : (parsedPastedJSON == nil ? String(localized: "JSON is not valid yet.") : nil)
@@ -540,7 +544,7 @@ final class WidgetBuilderModel: ObservableObject {
 
     // MARK: - Spec assembly
 
-    func makeSpec(usePreviewDefaults: Bool = false) -> WidgetBuilderScaffold.Spec {
+    package func makeSpec(usePreviewDefaults: Bool = false) -> WidgetBuilderScaffold.Spec {
         let source: WidgetBuilderScaffold.Source
         switch sourceKind {
         case .command:
@@ -625,7 +629,7 @@ final class WidgetBuilderModel: ObservableObject {
 
     /// Filter/sort/limit + row actions only apply to array (list/table)
     /// displays over a structured source.
-    var refineApplicable: Bool {
+    package var refineApplicable: Bool {
         usesStructuredSource && (effectiveDisplay == .list || effectiveDisplay == .table)
     }
 
@@ -656,7 +660,7 @@ final class WidgetBuilderModel: ObservableObject {
 
     /// Coerce a typed filter value: bare numbers and true/false keep their JSON
     /// type so filtering numeric/bool fields works; everything else is a string.
-    static func coerce(_ raw: String) -> JSONValue {
+    package static func coerce(_ raw: String) -> JSONValue {
         let trimmed = raw.trimmingCharacters(in: .whitespaces)
         if trimmed == "true" { return .bool(true) }
         if trimmed == "false" { return .bool(false) }
@@ -668,7 +672,7 @@ final class WidgetBuilderModel: ObservableObject {
     }
 
     /// The chosen display, clamped to what the source supports.
-    var effectiveDisplay: DisplayKind {
+    package var effectiveDisplay: DisplayKind {
         availableDisplays.contains(displayKind) ? displayKind : (availableDisplays.first ?? .text)
     }
 
@@ -684,7 +688,7 @@ final class WidgetBuilderModel: ObservableObject {
         return usePreviewDefaults ? suggestedPreviewName : trimmed
     }
 
-    var previewTitle: String { resolvedName(usePreviewDefaults: true) }
+    package var previewTitle: String { resolvedName(usePreviewDefaults: true) }
 
     private var suggestedPreviewName: String {
         switch sourceKind {
@@ -697,11 +701,7 @@ final class WidgetBuilderModel: ObservableObject {
         }
     }
 
-    var sizeDescription: String {
-        "\(LayoutSizeName.name(size)) — \(LayoutSizeName.description(size))"
-    }
-
-    var previewMinHeight: CGFloat {
+    package var previewMinHeight: CGFloat {
         switch size.uppercased() {
         case "XS": return 56
         case "S": return 78
@@ -714,7 +714,7 @@ final class WidgetBuilderModel: ObservableObject {
         "message": .string("Paste valid JSON to preview"),
     ])
 
-    var previewAppearance: WidgetAppearance {
+    package var previewAppearance: WidgetAppearance {
         WidgetAppearance(
             accent: appearanceAccent,
             density: appearanceDensity,
@@ -736,7 +736,7 @@ final class WidgetBuilderModel: ObservableObject {
 
     // MARK: - Live preview
 
-    enum Preview {
+    package enum Preview {
         case tree(UINode)
         case failure(String)
     }
@@ -744,7 +744,7 @@ final class WidgetBuilderModel: ObservableObject {
     /// Runs the actual scaffold → WorkflowEngine pipeline against the test-run
     /// data (or a synthesized sample) and returns a UINode to render, or an
     /// error message.
-    func previewTree() -> Preview {
+    package func previewTree() -> Preview {
         do {
             let files = try WidgetBuilderScaffold.files(for: makeSpec(usePreviewDefaults: true))
             let workflow = try WorkflowDefinition.decode(
@@ -792,7 +792,7 @@ final class WidgetBuilderModel: ObservableObject {
 
     // MARK: - Create
 
-    func create() {
+    package func create() {
         let spec = makeSpec()
         // Two failures, two messages: the form not making a valid widget
         // (its own words say which field), and the disk refusing the files.
@@ -834,7 +834,7 @@ final class WidgetBuilderModel: ObservableObject {
 
     /// Something typed or chosen that Cancel would throw away: anything
     /// changed since the wizard opened, until the widget is created.
-    var hasDraft: Bool {
+    package var hasDraft: Bool {
         createdPath == nil && draftSignature != pristineSignature
     }
 
@@ -842,14 +842,14 @@ final class WidgetBuilderModel: ObservableObject {
         [sourceKind.rawValue, commandText, scriptText, httpURL, pastedJSONText, folderPath, staticContent, name, "\(step.rawValue)"]
     }
 
-    func revealCreated() {
+    package func revealCreated() {
         guard let createdPath else { return }
         NSWorkspace.shared.activateFileViewerSelecting([createdPath])
     }
 
     // MARK: - Command tokenization (whitespace, honoring simple quotes)
 
-    static func tokenize(_ input: String) -> [String] {
+    package static func tokenize(_ input: String) -> [String] {
         var tokens: [String] = []
         var current = ""
         var quote: Character?
@@ -874,7 +874,7 @@ final class WidgetBuilderModel: ObservableObject {
     /// would pass `|`, `jq`, … as literal arguments and fail (that is exactly
     /// why the gallery command templates broke on test run). Metacharacters that
     /// only appear inside quotes (e.g. an `awk`/`jq` program) do not count.
-    static func needsShell(_ input: String) -> Bool {
+    package static func needsShell(_ input: String) -> Bool {
         var quote: Character?
         let chars = Array(input)
         for (i, ch) in chars.enumerated() {
@@ -900,7 +900,7 @@ final class WidgetBuilderModel: ObservableObject {
     /// argv for a `.command` source: a bare command is tokenized and exec'd
     /// directly, but a shell pipeline/expression runs under `/bin/sh -c` so it
     /// behaves exactly as typed (and as the gallery templates intend).
-    static func commandArgv(_ input: String) -> [String] {
+    package static func commandArgv(_ input: String) -> [String] {
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
         return needsShell(trimmed) ? ["/bin/sh", "-c", trimmed] : tokenize(trimmed)

@@ -1,5 +1,6 @@
 import XCTest
 @testable import MenubucketApp
+@testable import BarShelfBuilder
 
 /// The Create-tab "command" source and its gallery templates: a bare command is
 /// exec'd directly, but a shell pipeline/expression must run under `/bin/sh -c`.

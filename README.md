@@ -331,7 +331,9 @@ The package splits into:
 
 - `MenubucketCore` — models, manifest/workflow parsing, schedule policy. UI-free and tested.
 - `BarShelfAutomation` — the keyboard and window extension engine (event tap, key remaps, script runner, Hammerspoon/Karabiner import). No views; it does not depend on the app.
-- `MenubucketApp` — the app itself as a library: AppKit shell, SwiftUI renderer, runtime. The `barshelf-app` executable is a one-line `main.swift` on top of it.
+- `BarShelfDock` — the Dock's state and actions: profiles, Apple Dock switching, launching, profile hotkeys. No views.
+- `BarShelfBuilder` — the visual builder's model: sources, displays and the manifest it writes. No views.
+- `MenubucketApp` — the app itself as a library: AppKit shell, SwiftUI renderer, runtime. It also holds every page and panel of the features above. The `barshelf-app` executable is a one-line `main.swift` on top of it.
 - `barshelf` and `bsf` — the standalone CLI.
 - `barshelf-media` — a development tool that records the landing page's videos and stills from the real views. It is not part of BarShelf.app.
 

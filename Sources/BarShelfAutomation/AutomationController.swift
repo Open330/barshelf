@@ -1,6 +1,7 @@
 import AppKit
 import ApplicationServices
 import Combine
+import MenubucketCore
 
 /// One user-owned automation extension, independent of widget permissions.
 /// Source + enabled intent are saved atomically; runtime replacement rolls back
@@ -223,12 +224,9 @@ package final class AutomationController: ObservableObject {
     /// The helper is a view, so the app supplies it; this target has no UI.
     package var presentAccessibilityHelper: (_ onTrusted: @escaping () -> Void) -> Void = { _ in }
 
-    /// `~/Library/Application Support/barshelf/automation.json`, beside the
-    /// app's other files (the same folder as `WidgetRuntime`'s).
+    /// `~/Library/Application Support/barshelf/automation.json`
     package static var defaultFileURL: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support")
-        return base.appendingPathComponent("barshelf", isDirectory: true).appendingPathComponent("automation.json")
+        BarShelfDirectories.applicationSupport.appendingPathComponent("automation.json")
     }
 
     private func save(_ config: Configuration) throws {

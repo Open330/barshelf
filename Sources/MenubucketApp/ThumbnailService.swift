@@ -1,3 +1,4 @@
+import BarShelfDock
 import AppKit
 import CryptoKit
 import MenubucketCore

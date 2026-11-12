@@ -5,33 +5,33 @@ import UniformTypeIdentifiers
 
 /// Apps with a Dock presence that are running now, in launch order. Feeds the
 /// running dots and the section of apps that are open but not in the profile.
-final class RunningApps: ObservableObject {
+package final class RunningApps: ObservableObject {
     /// One per app: the dock and the actions that launch from it share it.
-    static let shared = RunningApps()
-    struct App: Identifiable, Equatable {
-        let path: String
-        let bundleID: String?
-        let processID: pid_t
-        var id: String { path }
+    package static let shared = RunningApps()
+    package struct App: Identifiable, Equatable {
+        package let path: String
+        package let bundleID: String?
+        package let processID: pid_t
+        package var id: String { path }
     }
 
-    @Published private(set) var apps: [App] = []
-    @Published private(set) var frontmostPath: String?
+    @Published package private(set) var apps: [App] = []
+    @Published package private(set) var frontmostPath: String?
     /// Apps opened from the dock that have not finished launching; their
     /// icons bounce until they have, as on the Apple Dock.
-    @Published private(set) var launching: Set<String> = []
+    @Published package private(set) var launching: Set<String> = []
     /// Apps brought forward lately, most recent first, kept across launches
     /// for the dock's recent-apps section.
-    @Published private(set) var recent: [String] = []
+    @Published package private(set) var recent: [String] = []
     private static let recentKey = "BarShelfDockRecentApps"
     private static let recentKept = 12
     private let defaults: UserDefaults
     /// Longest a bounce lasts if an app never reports that it launched.
-    static let launchTimeout: TimeInterval = 15
+    package static let launchTimeout: TimeInterval = 15
 
     private var observers: [NSObjectProtocol] = []
 
-    init(defaults: UserDefaults = .standard) {
+    package init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         recent = defaults.stringArray(forKey: Self.recentKey) ?? []
         let center = NSWorkspace.shared.notificationCenter
@@ -98,7 +98,7 @@ final class RunningApps: ObservableObject {
         return listed.contains { $0.isTerminated || $0.activationPolicy != .regular }
     }
 
-    func reload() {
+    package func reload() {
         defer { hasLooked = true }
         listed = NSWorkspace.shared.runningApplications
             .filter { $0.activationPolicy == .regular && !$0.isTerminated }
@@ -127,7 +127,7 @@ final class RunningApps: ObservableObject {
     }
 
     /// Moves an app to the front of the recent list.
-    func noteUsed(_ path: String) {
+    package func noteUsed(_ path: String) {
         let key = Self.key(path)
         // Only app bundles: a bare executable with a window (a test tool, a
         // script) has no icon or place in a dock.
@@ -141,7 +141,7 @@ final class RunningApps: ObservableObject {
     }
 
     /// Starts an icon bouncing, unless the app is already up.
-    func markLaunching(path: String) {
+    package func markLaunching(path: String) {
         let key = Self.key(path)
         guard !isRunning(path: key) else { return }
         launching.insert(key)
@@ -150,29 +150,29 @@ final class RunningApps: ObservableObject {
         }
     }
 
-    func isLaunching(path: String) -> Bool {
+    package func isLaunching(path: String) -> Bool {
         launching.contains(Self.key(path))
     }
 
-    func isRunning(path: String) -> Bool {
+    package func isRunning(path: String) -> Bool {
         let key = Self.key(path)
         return apps.contains { $0.path == key }
     }
 
-    func runningApplication(path: String) -> NSRunningApplication? {
+    package func runningApplication(path: String) -> NSRunningApplication? {
         let key = Self.key(path)
         guard let app = apps.first(where: { $0.path == key }) else { return nil }
         return NSRunningApplication(processIdentifier: app.processID)
     }
 
     /// Paths compare without a trailing slash or `..` noise.
-    static func key(_ path: String) -> String {
+    package static func key(_ path: String) -> String {
         URL(fileURLWithPath: path).standardizedFileURL.path
     }
 }
 
 /// What clicking, dropping on, and right-clicking a dock tile does.
-enum DockActions {
+package enum DockActions {
     // Icons and names, once per path for a minute (so an updated app's icon
     // shows up), at most 256 paths. The dock's body runs on every hover
     // change while magnifying, and asking LaunchServices for every tile's
@@ -181,26 +181,26 @@ enum DockActions {
 
     /// An app launched: its icon and name are read again, in case it was
     /// updated in place.
-    static func forgetFilePresentation(at path: String) {
+    package static func forgetFilePresentation(at path: String) {
         filePresentations.forget(path)
     }
 
-    static func fileIcon(at path: String) -> NSImage {
+    package static func fileIcon(at path: String) -> NSImage {
         filePresentations.presentation(at: path).icon ?? NSWorkspace.shared.icon(forFile: path)
     }
 
-    static func fileDisplayName(at path: String) -> String {
+    package static func fileDisplayName(at path: String) -> String {
         filePresentations.presentation(at: path).name
             .replacingOccurrences(of: ".app", with: "", options: [.anchored, .backwards])
     }
 
-    static var trashURL: URL {
+    package static var trashURL: URL {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".Trash", isDirectory: true)
     }
 
     // MARK: Open
 
-    static func open(_ item: DockItem) {
+    package static func open(_ item: DockItem) {
         switch item.kind {
         case .app(let path):
             openApp(path: path)
@@ -221,7 +221,7 @@ enum DockActions {
 
     /// Launches the app, or brings it forward with a reopen event so an app
     /// with no windows opens one — what clicking the Apple Dock does.
-    static func openApp(path: String) {
+    package static func openApp(path: String) {
         if DockStore.shared.configuration.animateOpening {
             RunningApps.shared.markLaunching(path: path)
         }
@@ -230,21 +230,21 @@ enum DockActions {
         NSWorkspace.shared.openApplication(at: URL(fileURLWithPath: path), configuration: configuration)
     }
 
-    static func open(_ urls: [URL], withAppAt path: String) {
+    package static func open(_ urls: [URL], withAppAt path: String) {
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
         NSWorkspace.shared.open(urls, withApplicationAt: URL(fileURLWithPath: path), configuration: configuration)
     }
 
-    static func revealInFinder(path: String) {
+    package static func revealInFinder(path: String) {
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
     }
 
-    static func openTrash() {
+    package static func openTrash() {
         NSWorkspace.shared.open(trashURL)
     }
 
-    static func moveToTrash(_ urls: [URL]) {
+    package static func moveToTrash(_ urls: [URL]) {
         for url in urls {
             try? FileManager.default.trashItem(at: url, resultingItemURL: nil)
         }
@@ -253,7 +253,7 @@ enum DockActions {
     // MARK: Shortcuts
 
     /// Runs a Shortcut through the `shortcuts` tool, off the main thread.
-    static func runShortcut(named name: String) {
+    package static func runShortcut(named name: String) {
         DispatchQueue.global(qos: .userInitiated).async {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/shortcuts")
@@ -266,7 +266,7 @@ enum DockActions {
     }
 
     /// The user's Shortcuts by name, for the "Add Shortcut" picker.
-    static func listShortcuts(completion: @escaping ([String]) -> Void) {
+    package static func listShortcuts(completion: @escaping ([String]) -> Void) {
         DispatchQueue.global(qos: .userInitiated).async {
             let process = Process()
             let pipe = Pipe()
@@ -290,7 +290,7 @@ enum DockActions {
 
     // MARK: Icons
 
-    static func icon(for item: DockItem) -> NSImage? {
+    package static func icon(for item: DockItem) -> NSImage? {
         switch item.kind {
         case .app(let path), .file(let path):
             return fileIcon(at: path)
@@ -304,7 +304,7 @@ enum DockActions {
         }
     }
 
-    static func displayName(for item: DockItem) -> String {
+    package static func displayName(for item: DockItem) -> String {
         switch item.kind {
         case .app(let path), .file(let path):
             return fileDisplayName(at: path)
@@ -317,7 +317,7 @@ enum DockActions {
 
     /// The folder's contents as a menu, subfolders opening as submenus —
     /// the Apple Dock's list view of a stack.
-    static func folderMenu(path: String) -> NSMenu {
+    package static func folderMenu(path: String) -> NSMenu {
         let menu = NSMenu()
         menu.autoenablesItems = false
         let url = URL(fileURLWithPath: path, isDirectory: true)
@@ -335,13 +335,13 @@ enum DockActions {
 }
 
 /// Target and lazy filler for folder menus; subfolders fill when opened.
-final class FolderMenuTarget: NSObject, NSMenuDelegate {
-    static let shared = FolderMenuTarget()
+package final class FolderMenuTarget: NSObject, NSMenuDelegate {
+    package static let shared = FolderMenuTarget()
     /// Enough to find something in Downloads without a menu taller than the
     /// screen; "Open in Finder" covers the rest.
-    static let limit = 80
+    package static let limit = 80
 
-    static func fill(_ menu: NSMenu, with folder: URL) {
+    package static func fill(_ menu: NSMenu, with folder: URL) {
         let keys: [URLResourceKey] = [.isDirectoryKey, .isPackageKey, .addedToDirectoryDateKey]
         let entries = ((try? FileManager.default.contentsOfDirectory(
             at: folder, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles]
@@ -384,7 +384,7 @@ final class FolderMenuTarget: NSObject, NSMenuDelegate {
         }
     }
 
-    func menuNeedsUpdate(_ menu: NSMenu) {
+    package func menuNeedsUpdate(_ menu: NSMenu) {
         guard menu.items.isEmpty else { return }
         let folder = URL(fileURLWithPath: menu.title, isDirectory: true)
         let open = NSMenuItem(
@@ -397,7 +397,7 @@ final class FolderMenuTarget: NSObject, NSMenuDelegate {
         Self.fill(menu, with: folder)
     }
 
-    @objc func openItem(_ sender: NSMenuItem) {
+    @objc package func openItem(_ sender: NSMenuItem) {
         guard let url = sender.representedObject as? URL else { return }
         NSWorkspace.shared.open(url)
     }

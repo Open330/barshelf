@@ -6,21 +6,21 @@ import MenubucketCore
 
 /// Which ⌃⌥ numbers the dock could not take, for settings to show.
 /// Positions are 1-based.
-final class DockHotkeyStatus: ObservableObject {
-    static let shared = DockHotkeyStatus()
+package final class DockHotkeyStatus: ObservableObject {
+    package static let shared = DockHotkeyStatus()
     /// Owned by another app.
-    @Published fileprivate(set) var unavailable: Set<Int> = []
+    @Published package fileprivate(set) var unavailable: Set<Int> = []
     /// Used by the Automation script, which wins.
-    @Published fileprivate(set) var heldByAutomation: Set<Int> = []
+    @Published package fileprivate(set) var heldByAutomation: Set<Int> = []
 }
 
 /// ⌃⌥1…9: switch to the first nine dock profiles (R15). Carbon hot keys, like
 /// the popup shortcut, so no Accessibility permission is needed. Its own
 /// signature keeps its presses apart from the popup shortcut's handler.
-final class DockHotkeys {
-    static let signature: OSType = 0x4253_444B // 'BSDK'
-    static let modifiers = UInt32(controlKey | optionKey)
-    static let digitKeyCodes: [UInt32] = [
+package final class DockHotkeys {
+    package static let signature: OSType = 0x4253_444B // 'BSDK'
+    package static let modifiers = UInt32(controlKey | optionKey)
+    package static let digitKeyCodes: [UInt32] = [
         UInt32(kVK_ANSI_1), UInt32(kVK_ANSI_2), UInt32(kVK_ANSI_3),
         UInt32(kVK_ANSI_4), UInt32(kVK_ANSI_5), UInt32(kVK_ANSI_6),
         UInt32(kVK_ANSI_7), UInt32(kVK_ANSI_8), UInt32(kVK_ANSI_9),
@@ -39,7 +39,7 @@ final class DockHotkeys {
     private var cancellable: AnyCancellable?
     private var automationObserver: UUID?
 
-    init(store: DockStore) {
+    package init(store: DockStore) {
         self.store = store
         // Automation claiming or releasing keys: register again around them.
         automationObserver = InAppHotkeys.shared.observe { [weak self] in
@@ -60,7 +60,7 @@ final class DockHotkeys {
     }
 
     /// Shown in settings beside each profile: "⌃⌥1".
-    static func label(forPosition position: Int) -> String? {
+    package static func label(forPosition position: Int) -> String? {
         guard (1...DockConfiguration.hotkeyProfileLimit).contains(position) else { return nil }
         return "⌃⌥\(position)"
     }
