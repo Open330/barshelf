@@ -1,6 +1,8 @@
+#if DEBUG
 import AppKit
 import MenubucketCore
 import SwiftUI
+@testable import MenubucketApp
 
 /// The demo shelf the landing-page media is recorded from: BarShelf's own
 /// bundled widgets (their real manifests and `workflow.json`), evaluated by
@@ -51,8 +53,7 @@ final class LandingDemo {
     /// the app bundle.
     static var widgetsDirectory: URL? {
         let repo = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("widgets", isDirectory: true)
         let candidates = [repo, Bundle.main.resourceURL?.appendingPathComponent("widgets", isDirectory: true)]
         return candidates.compactMap { $0 }.first {
@@ -334,3 +335,4 @@ final class LandingDemo {
         }
     }
 }
+#endif

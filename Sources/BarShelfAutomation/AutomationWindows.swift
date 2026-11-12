@@ -3,12 +3,12 @@ import ApplicationServices
 
 /// Geometry uses Quartz / Accessibility coordinates (origin at primary-screen
 /// top-left), never AppKit's bottom-left coordinates.
-enum AutomationGeometry {
-    static func quartz(_ rect: CGRect, primaryHeight: CGFloat) -> CGRect {
+package enum AutomationGeometry {
+    package static func quartz(_ rect: CGRect, primaryHeight: CGFloat) -> CGRect {
         CGRect(x: rect.minX, y: primaryHeight - rect.maxY, width: rect.width, height: rect.height)
     }
 
-    static func movedFrame(_ frame: CGRect, from source: CGRect, to target: CGRect) -> CGRect {
+    package static func movedFrame(_ frame: CGRect, from source: CGRect, to target: CGRect) -> CGRect {
         guard source.width > 0, source.height > 0 else { return frame }
         let width = min(target.width, max(1, frame.width / source.width * target.width))
         let height = min(target.height, max(1, frame.height / source.height * target.height))
@@ -18,36 +18,36 @@ enum AutomationGeometry {
                       y: min(max(y, target.minY), target.maxY - height), width: width, height: height)
     }
 
-    static func screenIndex(for frame: CGRect, screens: [CGRect]) -> Int? {
+    package static func screenIndex(for frame: CGRect, screens: [CGRect]) -> Int? {
         screens.indices.max { a, b in area(frame.intersection(screens[a])) < area(frame.intersection(screens[b])) }
     }
     private static func area(_ rect: CGRect) -> CGFloat { rect.isNull ? 0 : rect.width * rect.height }
 
-    static func nextWindow(current: Int?, count: Int, forward: Bool) -> Int? {
+    package static func nextWindow(current: Int?, count: Int, forward: Bool) -> Int? {
         guard count > 1 else { return nil }
         guard let current else { return forward ? 0 : count - 1 }
         return (current + (forward ? 1 : count - 1)) % count
     }
 }
 
-final class AutomationWindows {
-    struct Display {
-        let name: String
-        let id: UInt32
-        let frame: CGRect
-        let usable: CGRect
+package final class AutomationWindows {
+    package struct Display {
+        package let name: String
+        package let id: UInt32
+        package let frame: CGRect
+        package let usable: CGRect
     }
     private struct Window {
-        let element: AXUIElement
-        let pid: pid_t
-        let id: Int
-        let frame: CGRect
-        let title: String
+        package let element: AXUIElement
+        package let pid: pid_t
+        package let id: Int
+        package let frame: CGRect
+        package let title: String
     }
     private var identities: [(AXUIElement, Int)] = []
     private var nextID = 1
 
-    static var displays: [Display] {
+    package static var displays: [Display] {
         let screens = NSScreen.screens
         let height = screens.first?.frame.height ?? 0
         return screens.map {
@@ -58,7 +58,7 @@ final class AutomationWindows {
         }
     }
 
-    func moveMouse(to number: Int) throws {
+    package func moveMouse(to number: Int) throws {
         let displays = Self.displays
         guard let display = displays[safe: number - 1] else { return }
         warp(to: display.frame)
@@ -67,7 +67,7 @@ final class AutomationWindows {
         }
     }
 
-    func moveWindow(to number: Int) throws {
+    package func moveWindow(to number: Int) throws {
         let displays = Self.displays
         guard let target = displays[safe: number - 1], let window = focusedWindow(),
               let source = screen(of: window, displays: displays) else { return }
@@ -85,7 +85,7 @@ final class AutomationWindows {
         try checked(AXUIElementSetAttributeValue(window.element, kAXSizeAttribute as CFString, sizeValue), String(localized: "resize window", comment: "Fills \"Could not %@\" when a window action fails."))
     }
 
-    func rotate(forward: Bool) throws {
+    package func rotate(forward: Bool) throws {
         let displays = Self.displays
         guard let current = focusedWindow(), let display = screen(of: current, displays: displays) else { return }
         let windows = visibleWindows().filter { screen(of: $0, displays: displays)?.id == display.id && !$0.title.isEmpty }
@@ -122,7 +122,7 @@ final class AutomationWindows {
 
     /// A failed window action in words: what did not happen and what to do.
     /// The Accessibility error code goes to the log, not the sentence.
-    static func failureMessage(_ error: AXError, action: String, trusted: Bool = AXIsProcessTrusted()) -> String {
+    package static func failureMessage(_ error: AXError, action: String, trusted: Bool = AXIsProcessTrusted()) -> String {
         switch error {
         case .apiDisabled:
             return grantMessage(action)
@@ -222,5 +222,5 @@ final class AutomationWindows {
 }
 
 private extension Array {
-    subscript(safe index: Int) -> Element? { indices.contains(index) ? self[index] : nil }
+    package subscript(safe index: Int) -> Element? { indices.contains(index) ? self[index] : nil }
 }

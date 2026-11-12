@@ -1,3 +1,4 @@
+import BarShelfAutomation
 import AppKit
 import SwiftUI
 import UniformTypeIdentifiers

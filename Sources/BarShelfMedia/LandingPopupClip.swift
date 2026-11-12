@@ -1,6 +1,8 @@
+#if DEBUG
 import AppKit
 import MenubucketCore
 import SwiftUI
+@testable import MenubucketApp
 
 /// Clip 2 (the showcase): a click on the BarShelf icon opens the popup on
 /// its Today page; a two-finger swipe moves to the System page; ⌘F opens
@@ -277,3 +279,4 @@ private struct PopupScene: View {
         .environment(\.colorScheme, wallpaper.dark ? .dark : .light)
     }
 }
+#endif

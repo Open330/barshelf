@@ -1,6 +1,7 @@
 import XCTest
 @testable import MenubucketApp
 @testable import MenubucketCore
+@testable import BarShelfAutomation
 
 /// The BarShelf Dock's store (R15): it is the only thing that hides, shows,
 /// and rewrites the Apple Dock, so those transitions are pinned down here

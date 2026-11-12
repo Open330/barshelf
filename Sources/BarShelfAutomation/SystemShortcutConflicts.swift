@@ -6,18 +6,18 @@ import Foundation
 /// fire, so both run: a ⌘Space bound to `selectNextInputSource()` while the
 /// system's "Select next source" is on switches twice and lands where it
 /// started. Nothing reports that, so settings say it.
-enum SystemShortcutConflicts {
-    struct Conflict: Equatable, Identifiable {
+package enum SystemShortcutConflicts {
+    package struct Conflict: Equatable, Identifiable {
         /// The binding as typed in the script, e.g. "cmd+space".
-        let binding: String
+        package let binding: String
         /// The `com.apple.symbolichotkeys` id.
-        let systemID: Int
-        var id: String { "\(binding)#\(systemID)" }
+        package let systemID: Int
+        package var id: String { "\(binding)#\(systemID)" }
 
         /// The shortcut as the user sees it, e.g. "⌘Space".
-        var displayBinding: String { HotkeyGrammar.displayText(binding) }
+        package var displayBinding: String { HotkeyGrammar.displayText(binding) }
 
-        var systemName: String {
+        package var systemName: String {
             SystemShortcutConflicts.names[systemID]
                 ?? String(localized: "a macOS keyboard shortcut",
                           comment: "Fallback name of a system shortcut BarShelf has no name for")
@@ -25,7 +25,7 @@ enum SystemShortcutConflicts {
     }
 
     /// Bindings that collide with an enabled system shortcut, in binding order.
-    static func find(
+    package static func find(
         bindings: [HotkeyGrammar.Combination], symbolicHotKeys: [String: Any]
     ) -> [Conflict] {
         let enabled: [(id: Int, keyCode: Int, modifiers: Int)] = symbolicHotKeys.compactMap { key, value in
@@ -48,7 +48,7 @@ enum SystemShortcutConflicts {
     }
 
     /// The live system shortcuts.
-    static func current(bindings: [HotkeyGrammar.Combination]) -> [Conflict] {
+    package static func current(bindings: [HotkeyGrammar.Combination]) -> [Conflict] {
         guard !bindings.isEmpty else { return [] }
         let domain = "com.apple.symbolichotkeys" as CFString
         CFPreferencesAppSynchronize(domain)
@@ -58,9 +58,9 @@ enum SystemShortcutConflicts {
 
     // ⌘ ⇧ ⌥ ⌃ as `NSEvent.ModifierFlags` raw values, which is what the system
     // shortcut table stores; Carbon hot keys use their own bits.
-    static let relevantCocoaModifiers = 0x100000 | 0x20000 | 0x80000 | 0x40000
+    package static let relevantCocoaModifiers = 0x100000 | 0x20000 | 0x80000 | 0x40000
 
-    static func cocoaModifiers(fromCarbon carbon: UInt32) -> Int {
+    package static func cocoaModifiers(fromCarbon carbon: UInt32) -> Int {
         var flags = 0
         if carbon & UInt32(cmdKey) != 0 { flags |= 0x100000 }
         if carbon & UInt32(shiftKey) != 0 { flags |= 0x20000 }
@@ -70,7 +70,7 @@ enum SystemShortcutConflicts {
     }
 
     /// The system shortcuts people most often bind over.
-    static let names: [Int: String] = [
+    package static let names: [Int: String] = [
         60: String(localized: "Select the previous input source"),
         61: String(localized: "Select next source in Input menu"),
         64: String(localized: "Show Spotlight search"),

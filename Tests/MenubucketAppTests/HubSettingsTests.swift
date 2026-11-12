@@ -1,6 +1,7 @@
 import XCTest
 import MenubucketCore
 @testable import MenubucketApp
+@testable import BarShelfAutomation
 
 final class HubSettingsTests: XCTestCase {
     /// Every page appears in the sidebar exactly once, workspace first.

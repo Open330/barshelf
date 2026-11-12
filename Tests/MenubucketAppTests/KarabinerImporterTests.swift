@@ -1,6 +1,7 @@
 import CoreGraphics
 import XCTest
 @testable import MenubucketApp
+@testable import BarShelfAutomation
 
 final class KarabinerImporterTests: XCTestCase {
     private let fnRule = #"""

@@ -2,18 +2,18 @@ import AppKit
 
 /// Main-run-loop input switching. Work exists only after a requested switch;
 /// no background timer, automatic retry, settings write or daemon restart.
-final class AutomationInputSourceMonitor {
-    struct Context: Equatable {
-        let sourceID: String?
-        let applicationPID: pid_t?
+package final class AutomationInputSourceMonitor {
+    package struct Context: Equatable {
+        package let sourceID: String?
+        package let applicationPID: pid_t?
 
-        static func current() -> Context {
+        package static func current() -> Context {
             Context(sourceID: AutomationInputSource.currentID,
                     applicationPID: NSWorkspace.shared.frontmostApplication?.processIdentifier)
         }
     }
 
-    typealias Schedule = (TimeInterval, @escaping () -> Void) -> (() -> Void)
+    package typealias Schedule = (TimeInterval, @escaping () -> Void) -> (() -> Void)
     private let readSettings: () -> AutomationInputSource.SystemSettings
     private let context: () -> Context
     private let relay: (AutomationInputSource.SystemTrigger) throws -> Void
@@ -23,7 +23,7 @@ final class AutomationInputSourceMonitor {
     private var pending: UUID?
     private var cancellations: [() -> Void] = []
 
-    init(readSettings: @escaping () -> AutomationInputSource.SystemSettings = AutomationInputSource.currentSystemSettings,
+    package init(readSettings: @escaping () -> AutomationInputSource.SystemSettings = AutomationInputSource.currentSystemSettings,
          context: @escaping () -> Context = Context.current,
          relay: @escaping (AutomationInputSource.SystemTrigger) throws -> Void = AutomationInputSource.send,
          direct: @escaping () throws -> Void = AutomationInputSource.selectDirect,
@@ -37,7 +37,7 @@ final class AutomationInputSourceMonitor {
         self.report = report
     }
 
-    func selectNext() throws {
+    package func selectNext() throws {
         stop()
         do {
             // A corrupt table is refused: it is not a choice of direct
@@ -89,7 +89,7 @@ final class AutomationInputSourceMonitor {
         }
     }
 
-    func stop() {
+    package func stop() {
         pending = nil
         let work = cancellations
         cancellations.removeAll()
@@ -104,16 +104,16 @@ final class AutomationInputSourceMonitor {
         return { work.cancel() }
     }
 
-    static var settingsUnavailable: String {
+    package static var settingsUnavailable: String {
         String(localized: "Couldn’t read macOS input-source shortcut settings. Open Keyboard Shortcuts ▸ Input Sources and check the shortcut. If other system settings are also missing, log out and back in or restart your Mac, then try again.")
     }
-    static var sourceUnavailable: String {
+    package static var sourceUnavailable: String {
         String(localized: "Couldn’t read the current input source. Check Input Sources in System Settings, then try again.")
     }
-    static var noChangeDetected: String {
+    package static var noChangeDetected: String {
         String(localized: "No input-source change was detected. Check that at least two input sources are enabled and that the system’s Select next source shortcut uses an unused key without modifiers. If the settings look correct, log out and back in or restart your Mac. BarShelf hasn’t retried the switch.")
     }
-    static var directSelectionLimited: String {
+    package static var directSelectionLimited: String {
         String(localized: "Direct input-source selection was requested, but some apps may keep using the previous input language. For reliable switching, assign Select next source in Input menu an unused key without modifiers in Keyboard Shortcuts ▸ Input Sources.")
     }
 }

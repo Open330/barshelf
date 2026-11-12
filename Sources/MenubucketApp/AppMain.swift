@@ -1,3 +1,4 @@
+import BarShelfAutomation
 import AppKit
 import MenubucketCore
 
@@ -21,6 +22,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // them, the shortcut, and the menu bar once.
         if let runtime = HubWindowController.shared.runtime {
             OnboardingWindowController.shared.showIfNeeded(runtime: runtime)
+        }
+        // The engine has no views of its own; it asks the app for the drag-in
+        // helper when macOS has not trusted BarShelf yet.
+        AutomationController.shared.presentAccessibilityHelper = { onTrusted in
+            AccessibilityHelper.shared.show(onGranted: onTrusted)
         }
         AutomationController.shared.startAtLaunch()
         // `replace` hides the Apple Dock again; a crash's leftover backup is
@@ -95,42 +101,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-// App-binary headless mode: `barshelf-app install <url>` installs and exits
-// before NSApplication starts. Public automation should use the standalone
-// `barshelf install` CLI, which shares the same installer pipeline.
-let commandLineArguments = CommandLine.arguments
-if commandLineArguments.count >= 2, commandLineArguments[1] == "install" {
-    exit(WidgetInstallCLI.run(arguments: Array(commandLineArguments.dropFirst(2))))
-}
+/// The app's entry point. The `barshelf-app` executable is one line that
+/// calls `BarShelfApp.main()`; everything else lives in this library so
+/// development tools (see `Sources/BarShelfMedia`) can drive the real views
+/// without shipping inside the app.
+public enum BarShelfApp {
+    /// AppKit holds its delegate weakly.
+    @MainActor private static let delegate = AppDelegate()
 
-// `barshelf-app screenshot <dir>` renders the real widget UI to PNGs offscreen
-// (README / registry previews) and exits — no window, no TCC permissions.
-if commandLineArguments.count >= 2, commandLineArguments[1] == "screenshot" {
-    let outDir = commandLineArguments.count >= 3 ? commandLineArguments[2] : "./screenshots"
-    exit(MainActor.assumeIsolated { ScreenshotMode.run(outputDir: outDir) })
-}
+    @MainActor
+    public static func main() -> Never {
+        let commandLineArguments = CommandLine.arguments
+        // App-binary headless mode: `barshelf-app install <url>` installs and exits
+        // before NSApplication starts. Public automation should use the standalone
+        // `barshelf install` CLI, which shares the same installer pipeline.
+        if commandLineArguments.count >= 2, commandLineArguments[1] == "install" {
+            exit(WidgetInstallCLI.run(arguments: Array(commandLineArguments.dropFirst(2))))
+        }
 
-// `barshelf-app screenshot-hub <dir>` renders the BarShelf window, onboarding,
-// and the popup in the app's language (see HubScreenshotMode).
-if commandLineArguments.count >= 2, commandLineArguments[1] == "screenshot-hub" {
-    let rest = Array(commandLineArguments.dropFirst(2))
-    let outDir = rest.first.flatMap { $0.hasPrefix("-") ? nil : $0 } ?? "./hub-shots"
-    let only = rest.firstIndex(of: "--only").flatMap { rest.indices.contains($0 + 1) ? rest[$0 + 1] : nil }
-    exit(MainActor.assumeIsolated {
-        HubScreenshotMode.run(outputDir: outDir, dark: rest.contains("--dark"), only: only, live: rest.contains("--live"))
-    })
-}
+        // `barshelf-app screenshot <dir>` renders the real widget UI to PNGs offscreen
+        // (README / registry previews) and exits — no window, no TCC permissions.
+        if commandLineArguments.count >= 2, commandLineArguments[1] == "screenshot" {
+            let outDir = commandLineArguments.count >= 3 ? commandLineArguments[2] : "./screenshots"
+            exit(MainActor.assumeIsolated { ScreenshotMode.run(outputDir: outDir) })
+        }
 
-// `barshelf-app landing-media <dir> [hero|popup|stills…]` records the
-// landing page's videos and stills from the real views (see LandingMediaMode).
-if commandLineArguments.count >= 2, commandLineArguments[1] == "landing-media" {
-    let outDir = commandLineArguments.count >= 3 ? commandLineArguments[2] : "./site/shots"
-    let only = Set(commandLineArguments.dropFirst(3))
-    exit(MainActor.assumeIsolated { LandingMediaMode.run(outputDir: outDir, only: only) })
-}
+        // `barshelf-app screenshot-hub <dir>` renders the BarShelf window, onboarding,
+        // and the popup in the app's language (see HubScreenshotMode).
+        if commandLineArguments.count >= 2, commandLineArguments[1] == "screenshot-hub" {
+            let rest = Array(commandLineArguments.dropFirst(2))
+            let outDir = rest.first.flatMap { $0.hasPrefix("-") ? nil : $0 } ?? "./hub-shots"
+            let only = rest.firstIndex(of: "--only").flatMap { rest.indices.contains($0 + 1) ? rest[$0 + 1] : nil }
+            exit(MainActor.assumeIsolated {
+                HubScreenshotMode.run(outputDir: outDir, dark: rest.contains("--dark"), only: only, live: rest.contains("--live"))
+            })
+        }
 
-let app = NSApplication.shared
-let delegate = AppDelegate()
-app.delegate = delegate
-app.setActivationPolicy(.accessory)
-app.run()
+        let app = NSApplication.shared
+        app.delegate = delegate
+        app.setActivationPolicy(.accessory)
+        app.run()
+        exit(0)
+    }
+}

@@ -1,6 +1,8 @@
+#if DEBUG
 import AppKit
 import MenubucketCore
 import SwiftUI
+@testable import MenubucketApp
 
 /// Clip 1 (the hero): the folded cluster in the menu bar; the pointer
 /// sweeps across it, each chip growing into a pill with its reading and a
@@ -259,3 +261,4 @@ struct LandingGlassCapsule: View {
             .elevation(.float)
     }
 }
+#endif

@@ -1,9 +1,5 @@
 {
   "Sources\/MenubucketApp\/Dock\/DockView.swift" : 8,
-  "Sources\/MenubucketApp\/LandingMedia\/LandingHeroClip.swift" : 2,
-  "Sources\/MenubucketApp\/LandingMedia\/LandingMediaMode.swift" : 30,
-  "Sources\/MenubucketApp\/LandingMedia\/LandingPopupClip.swift" : 4,
-  "Sources\/MenubucketApp\/LandingMedia\/LandingStills.swift" : 7,
   "Sources\/MenubucketApp\/Popover\/RootView.swift" : 2,
   "Sources\/MenubucketApp\/ScreenshotMode.swift" : 42,
   "WidgetExtension\/PreviewTool\/main.swift" : 2

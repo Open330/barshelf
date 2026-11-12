@@ -5,12 +5,12 @@ import JavaScriptCore
 
 /// Tracks the original physical key until key-up, even if Fn is released first.
 /// Only native code runs in the event tap; JavaScript never blocks keyboard input.
-struct AutomationRemapState {
-    struct Key: Hashable { let code: Int64; let keyboard: Int64 }
-    var held: [Key: Int64] = [:]
-    var fnDown = false
+package struct AutomationRemapState {
+    package struct Key: Hashable { let code: Int64; let keyboard: Int64 }
+    package var held: [Key: Int64] = [:]
+    package var fnDown = false
 
-    mutating func target(code: Int64, keyboard: Int64, down: Bool, fn: Bool,
+    package mutating func target(code: Int64, keyboard: Int64, down: Bool, fn: Bool,
                          configuration: AutomationScript.Remap) -> Int64? {
         let key = Key(code: code, keyboard: keyboard)
         if !down { return held.removeValue(forKey: key) }
@@ -22,7 +22,7 @@ struct AutomationRemapState {
     }
 }
 
-protocol AutomationRunning: AnyObject {
+package protocol AutomationRunning: AnyObject {
     var report: ((String) -> Void)? { get set }
     var permissionLost: (() -> Void)? { get set }
     var runtimeFailed: ((String) -> Void)? { get set }
@@ -33,8 +33,8 @@ protocol AutomationRunning: AnyObject {
 
 /// Keep held keys on a healthy tap; release them only when events may have
 /// been lost. A dead Mach port must be replaced, not merely enabled again.
-enum AutomationTapRecovery {
-    static func recover(valid: Bool, enabled: () -> Bool, releaseKeys: () -> Void,
+package enum AutomationTapRecovery {
+    package static func recover(valid: Bool, enabled: () -> Bool, releaseKeys: () -> Void,
                         replace: () throws -> Void, enable: () -> Void) throws {
         if !valid {
             releaseKeys()
@@ -49,9 +49,9 @@ enum AutomationTapRecovery {
     }
 }
 
-final class AutomationEngine: AutomationRunning {
-    static let signature: OSType = 0x4253_4155 // BSAU; distinct from popup shortcut
-    let script: AutomationScript
+package final class AutomationEngine: AutomationRunning {
+    package static let signature: OSType = 0x4253_4155 // BSAU; distinct from popup shortcut
+    package let script: AutomationScript
     private let windows = AutomationWindows()
     private var hotkeys: [EventHotKeyRef] = []
     private var handler: EventHandlerRef?
@@ -63,10 +63,10 @@ final class AutomationEngine: AutomationRunning {
     private var keyRemapState = AutomationKeyRemapState()
     private var generation = 0
     private var active = false
-    var report: ((String) -> Void)?
-    var permissionLost: (() -> Void)?
-    var runtimeFailed: ((String) -> Void)?
-    var inputSourceStatusChanged: ((AutomationInputSource.Status) -> Void)?
+    package var report: ((String) -> Void)?
+    package var permissionLost: (() -> Void)?
+    package var runtimeFailed: ((String) -> Void)?
+    package var inputSourceStatusChanged: ((AutomationInputSource.Status) -> Void)?
     private var inputSourceMonitorStorage: AutomationInputSourceMonitor?
     private var inputSourceMonitor: AutomationInputSourceMonitor {
         if let monitor = inputSourceMonitorStorage { return monitor }
@@ -77,7 +77,7 @@ final class AutomationEngine: AutomationRunning {
         return monitor
     }
 
-    init(script: AutomationScript) {
+    package init(script: AutomationScript) {
         self.script = script
         script.report = { [weak self] in self?.report?($0) }
         script.command = { [weak self] name, value in
@@ -102,7 +102,7 @@ final class AutomationEngine: AutomationRunning {
         }
     }
 
-    func start() throws {
+    package func start() throws {
         guard !active else { return }
         guard AXIsProcessTrusted() else { throw AutomationFailure(String(localized: "Allow BarShelf in System Settings ▸ Privacy & Security ▸ Accessibility, then enable the extension again.")) }
         do {
@@ -127,7 +127,7 @@ final class AutomationEngine: AutomationRunning {
         }
     }
 
-    func stop() {
+    package func stop() {
         inputSourceMonitorStorage?.stop()
         active = false
         generation += 1

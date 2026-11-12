@@ -1,6 +1,8 @@
+#if DEBUG
 import AppKit
 import MenubucketCore
 import SwiftUI
+@testable import MenubucketApp
 
 /// The landing page's stills: the popup in light and dark, the widget
 /// tiles, and the builder in a window, all from the real views on the
@@ -148,3 +150,4 @@ struct LandingTrafficLights: View {
         }
     }
 }
+#endif

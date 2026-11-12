@@ -1,6 +1,8 @@
+#if DEBUG
 import AppKit
 import MenubucketCore
 import SwiftUI
+@testable import MenubucketApp
 
 // The film's own scenes. Like the clips, every surface that is BarShelf's is
 // the real view (the cluster, cards, the dock, the permission card); the
@@ -563,3 +565,4 @@ private struct TrustScene: View {
         .environment(\.colorScheme, .dark)
     }
 }
+#endif

@@ -4,6 +4,7 @@ import JavaScriptCore
 import SwiftUI
 import XCTest
 @testable import MenubucketApp
+@testable import BarShelfAutomation
 
 final class AutomationTests: XCTestCase {
     func testTapRecoveryReplacesMissingPortButKeepsHealthyHeldKeys() throws {

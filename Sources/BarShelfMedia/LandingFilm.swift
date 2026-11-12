@@ -1,6 +1,8 @@
+#if DEBUG
 import AppKit
 import MenubucketCore
 import SwiftUI
+@testable import MenubucketApp
 
 /// `barshelf-app landing-media <dir> film | film-keynote | film-trailer | film-preview`:
 /// the landing page's short film, cut from the same plates as the clips
@@ -524,3 +526,4 @@ private struct FilmEndCard: View {
         }
     }
 }
+#endif

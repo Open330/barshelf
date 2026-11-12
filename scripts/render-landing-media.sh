@@ -1,6 +1,6 @@
 #!/bin/sh
 # Records the landing page's videos and stills into site/shots from the real
-# app views (see Sources/MenubucketApp/LandingMedia/LandingMediaMode.swift).
+# app views (see Sources/BarShelfMedia/LandingMediaMode.swift).
 #
 #   scripts/render-landing-media.sh            # everything
 #   scripts/render-landing-media.sh hero popup # only these (hero, popup, stills)
@@ -11,12 +11,12 @@
 # own BarShelf data.
 set -eu
 cd "$(dirname "$0")/.."
-swift build --product barshelf-app
+swift build --product barshelf-media
 home=$(mktemp -d "${TMPDIR:-/tmp}/barshelf-landing.XXXXXX")
 work=$(mktemp -d "${TMPDIR:-/tmp}/barshelf-landing-cwd.XXXXXX")
 trap 'rm -rf "$home" "$work"' EXIT
-bin="$(pwd)/.build/debug/barshelf-app"
+bin="$(pwd)/.build/debug/barshelf-media"
 out="$(pwd)/site/shots"
 # An empty working directory: the runtime would otherwise also load ./widgets.
 cd "$work"
-CFFIXED_USER_HOME="$home" "$bin" landing-media "$out" "$@"
+CFFIXED_USER_HOME="$home" "$bin" "$out" "$@"

@@ -2,13 +2,13 @@ import Foundation
 
 /// One entry point for third-party formats; every converter produces a draft
 /// and must validate it before the controller changes any saved state.
-enum AutomationImporter {
-    struct Result {
-        let script: String
-        let summary: String
+package enum AutomationImporter {
+    package struct Result {
+        package let script: String
+        package let summary: String
     }
 
-    static func convert(_ source: String, fileExtension: String, excludingFunctionKeys: Bool = false) throws -> Result {
+    package static func convert(_ source: String, fileExtension: String, excludingFunctionKeys: Bool = false) throws -> Result {
         switch fileExtension.lowercased() {
         case "lua":
             let result = try HammerspoonImporter.convert(source)
