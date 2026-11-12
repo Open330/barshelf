@@ -16,8 +16,9 @@ public enum BarShelfMain {
         usage:
           barshelf install <src> [--yes]      Install widget(s) from a GitHub repo URL,
                                          a local widget directory, a .zip/.mbw
-                                         archive (local path or URL), or a
-                                         barshelf://install deep link.
+                                         archive (local path or URL), a
+                                         barshelf://install deep link, or a
+                                         local xbar/SwiftBar plugin file.
           barshelf new <name> [--kind exec|workflow|script] [--dir <path>]
                                          Scaffold a widget (default: --kind exec,
                                          --dir ./<name>) and validate it.
@@ -166,6 +167,12 @@ public enum BarShelfMain {
                     }
                     print("  note: permissions require approval on the widget's first run")
                 }
+                if candidate.manifest.source?.output == "xbar" {
+                    print("  plugin: refreshes every \(Self.intervalText(candidate.manifest.refresh?.interval)); turn on its menu bar item from BarShelf's Menu Bar page")
+                    for command in session.blockedPluginCommands {
+                        print("  blocked until declared: actions running \(command) (add it to permissions.exec in widget.json to allow)")
+                    }
+                }
 
                 if !assumeYes {
                     if interactive {
@@ -200,6 +207,14 @@ public enum BarShelfMain {
             printError("error: \(error.localizedDescription)")
             return 1
         }
+    }
+
+    static func intervalText(_ seconds: Double?) -> String {
+        guard let seconds else { return "only when opened" }
+        if seconds < 1 { return "\(Int(seconds * 1000)) ms" }
+        if seconds.truncatingRemainder(dividingBy: 3600) == 0 { return "\(Int(seconds / 3600)) h" }
+        if seconds.truncatingRemainder(dividingBy: 60) == 0 { return "\(Int(seconds / 60)) min" }
+        return "\(Int(seconds)) s"
     }
 
     private static func confirm(_ question: String) -> Bool {

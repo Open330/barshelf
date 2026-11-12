@@ -142,6 +142,17 @@ public enum HeadlessInstaller {
         /// Temporary extraction root — call `cleanup()` when done.
         public let stagingRoot: URL
         public let discovery: WidgetDiscovery.Result
+        /// For a plugin install: commands its actions name that are not
+        /// declared, so those buttons will be blocked (advisory).
+        public var blockedPluginCommands: [String] = []
+
+        public init(source: WidgetInstallSource, stagingRoot: URL, discovery: WidgetDiscovery.Result,
+                    blockedPluginCommands: [String] = []) {
+            self.source = source
+            self.stagingRoot = stagingRoot
+            self.discovery = discovery
+            self.blockedPluginCommands = blockedPluginCommands
+        }
 
         public var candidates: [InstallCandidate] {
             discovery.candidates.map(InstallCandidate.init)
@@ -166,7 +177,33 @@ public enum HeadlessInstaller {
         if let local = localArchiveSource(for: input) {
             return try await fetchSession(source: local)
         }
+        if let plugin = XbarPluginInstall.localPluginFile(for: input) {
+            return try fetchSession(pluginFile: plugin)
+        }
         return try await fetchSession(source: WidgetInstallSource.parse(input))
+    }
+
+    /// An xbar/SwiftBar plugin file: scaffolded into a widget folder in a
+    /// staging root, then discovered like any other install.
+    public static func fetchSession(pluginFile: URL) throws -> Session {
+        let staging = FileManager.default.temporaryDirectory
+            .appendingPathComponent("barshelf-install-\(UUID().uuidString)", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
+            let scaffold = try XbarPluginInstall.scaffold(pluginFile: pluginFile, into: staging)
+            let discovery = try WidgetDiscovery.discover(under: staging, subdirectory: nil)
+            let source = WidgetInstallSource(
+                kind: .archive,
+                downloadCandidates: [pluginFile.standardizedFileURL],
+                subdirectory: nil,
+                displayName: pluginFile.standardizedFileURL.path
+            )
+            return Session(source: source, stagingRoot: staging, discovery: discovery,
+                           blockedPluginCommands: scaffold.undeclaredCommands)
+        } catch {
+            try? FileManager.default.removeItem(at: staging)
+            throw error
+        }
     }
 
     /// Installs from a local widget directory (e.g. `barshelf install ./my-widget`).

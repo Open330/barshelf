@@ -138,9 +138,59 @@ stdout, and:
 
 - `output: "viewtree"` → stdout **is** a UINode JSON object (see §12A).
 - `output: "data"` → stdout is fed to the builtin `source.adapter`.
+- `output: "xbar"` (BarShelf 0.7.35) → stdout is the xbar / SwiftBar plugin
+  text format (§4A).
 
 Exec that runs any command requires a matching `permissions.exec` allowlist
 entry (§9). `timeoutMs` bounds runtime.
+
+## 4A. xbar / SwiftBar plugins (`output: "xbar"`) — BarShelf 0.7.35
+
+`barshelf install ./battery.5m.sh` (a local plugin file: executable, or starting
+with `#!`) wraps it in a widget folder `xbar.<name>/`: the plugin under its own
+name, made executable, plus a `widget.json` with `source.output: "xbar"`,
+`refresh.interval` from the file name, `statusItem.mode: "dynamic"`,
+`minHostVersion: "0.7.35"`, and one exec permission: the plugin itself, any
+arguments. The plugin's text is read for `<xbar.title>`/`<xbar.version>`
+metadata and never run before the person allows it, like any exec widget.
+Plugin URLs are not installed directly; download the file first.
+
+**File name → interval**: the segment before the extension, `<n>ms|s|m|h|d`
+(`cpu.10s.sh` = 10 s, `a.500ms.sh` = 0.5 s, subject to BarShelf's own minimum
+cadence). No segment means every minute, as in xbar. Zero or over a year is
+refused.
+
+**Format**: lines before the first `---` are titles; the first is the menu bar
+reading (its `sfimage` the icon, its `color` the tint), the rest appear at the
+top of the card. Lines after are the card. The text ends at the **first** `|`
+(a literal pipe cannot be in the text, as in xbar and SwiftBar); parameters are
+`key=value`, `key="a b"` or `key='a b'`, keys case-insensitive, the last of a
+repeated key wins. No shell reads them: `$HOME`, `$(…)` and backticks stay as
+written. A line with an unclosed quote shows its text and does nothing. Each
+leading `--` nests a line one level under the one above (shown as an inset
+group, at most 4 deep; a jump of two levels counts as one); `---` is a
+separator, `-----` one inside a submenu. At most 400 lines are read.
+
+| Parameter | In BarShelf |
+| --- | --- |
+| `href` | Opens the link — **`http`/`https` only**; `file:`, app schemes and x-callback URLs do nothing. |
+| `bash` / `shell` + `param0`…`param32` | A `run` action. Params in numeric order (SwiftBar's `param0` and xbar's `param1` both work; gaps skipped, higher indices dropped). Must match `permissions.exec`: the plugin calling itself (`bash='$0'`, any absolute path that resolves to the plugin file) is rewritten to the declared `./<file>`; **any other command is blocked** until added to `permissions.exec`. The install prints the literal ones it found. |
+| `terminal` | `false` or omitted: runs in the background (xbar's default; SwiftBar defaults to `true`). `true`: **not supported** — the row shows "Opens Terminal — not supported" and does nothing. |
+| `refresh=true` | With `bash`: refresh after the command. Alone: a refresh button. With only `href`: ignored. |
+| `color` | Nearest BarShelf tint (`danger`, `warning`, `good`, `accent`, `secondary`) from a name or `#rgb`/`#rrggbb`; SwiftBar's `light,dark` pair picks by appearance. |
+| `sfimage` | The row's (or the menu bar item's) SF Symbol. |
+| `emojize` | `:shortcode:` emoji from a built-in list of common ones; `emojize=false` keeps the text. Unknown codes stay as written. |
+| `tooltip` | Hover text. |
+| ANSI colour codes | Stripped. |
+| **Not supported** (ignored) | `font`, `size`, `length`, `trim`, `ansi`, `image`, `templateImage`, `alternate`, `dropdown`, `checked`, `key`, `md`, `sfcolor`, `sfconfig`, `sfsize`, `symbolize`, `badge`, `webview`, `webvieww`, `webviewh`, `shortcut`; xbar `<xbar.var>` user variables; SwiftBar `<swiftbar.schedule>`, refresh on wake/hide flags and other `<swiftbar.*>` options. |
+| **Refused at install** | Streaming plugins (`<swiftbar.type>streamable</swiftbar.type>`). |
+
+`bash=` takes precedence over `href=` on the same line. Plugins see
+`BARSHELF=1`, `XBARDarkMode=true|false` and `OS_APPEARANCE=Light|Dark` on
+refreshes and actions, the usual scoped environment otherwise; not
+`SWIFTBAR=1`, because plugins use it to switch on SwiftBar-only features.
+Once allowed, a plugin runs with your access, like any program you run: the
+allowlist decides what BarShelf launches, not what the plugin does.
 
 ---
 

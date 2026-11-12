@@ -147,7 +147,7 @@ Workflow DSL 상세 계약은 [`docs/WORKFLOW.md`](WORKFLOW.md)를 따른다.
 | `command` | 실행할 argv 전체. 예: `["aas", "usage", "--json"]`. |
 | `discover` | 실행 파일 탐색 후보. `$ENV`, `~`, 절대 경로, `PATH`를 사용할 수 있다. |
 | `timeoutMs` | 명령 타임아웃. 없으면 호스트 기본값을 사용한다. |
-| `output` | `viewtree`면 stdout을 UINode로 디코딩한다. `data`면 `adapter`가 UINode로 변환한다. |
+| `output` | `viewtree`면 stdout을 UINode로 디코딩한다. `data`면 `adapter`가 UINode로 변환한다. `xbar`(0.7.35)면 stdout을 xbar/SwiftBar 플러그인 텍스트 형식으로 읽는다. 지원하는 파라미터와 지원하지 않는 파라미터는 [`AGENTS.md` §4A](AGENTS.md#4a-xbar--swiftbar-plugins-output-xbar--barshelf-0735)에 있다. |
 | `adapter` | `output=data`일 때 사용할 내장 adapter 이름. 예: `aas-usage`, `otpeek`. |
 
 > **셸 스크립트 주의 — `${...}` 금지.** 워크플로 소스의 `command` 문자열은 호스트가

@@ -29,7 +29,7 @@ barshelf --version / --help
 
 | 커맨드 | 인자/옵션 | 동작 |
 | --- | --- | --- |
-| `barshelf install <src>` | GitHub 저장소 URL, **로컬 위젯 디렉토리**, `.zip`/`.mbw`(로컬 경로 또는 URL), `barshelf://install?...` 딥링크 | R05 URL 설치 계약 그대로 다운로드→추출→탐색→설치. 다이얼로그 없이 권한 요약을 stdout에 출력하고, `--yes`가 없으면 stdin 확인 프롬프트를 띄운다. 파이프 등 비인터랙티브 환경이면 자동 진행하고 요약을 출력한다. |
+| `barshelf install <src>` | GitHub 저장소 URL, **로컬 위젯 디렉토리**, `.zip`/`.mbw`(로컬 경로 또는 URL), `barshelf://install?...` 딥링크, **로컬 xbar/SwiftBar 플러그인 파일**(`battery.5m.sh`처럼 실행 가능하거나 `#!`로 시작하는 파일. 위젯 폴더로 감싸 설치하며, 갱신 주기는 파일 이름에서 가져온다. [`AGENTS.md` §4A](AGENTS.md#4a-xbar--swiftbar-plugins-output-xbar--barshelf-0735)) | R05 URL 설치 계약 그대로 다운로드→추출→탐색→설치. 다이얼로그 없이 권한 요약을 stdout에 출력하고, `--yes`가 없으면 stdin 확인 프롬프트를 띄운다. 파이프 등 비인터랙티브 환경이면 자동 진행하고 요약을 출력한다. |
 | `barshelf new <name>` | `--kind exec\|workflow\|script` (기본 `exec`), `--dir <path>` (기본 `./<name>`) | 템플릿에서 새 위젯 디렉터리를 생성하고, 생성 직후 `barshelf validate`를 자동 실행해 green 확인 메시지를 출력한다. |
 | `barshelf validate <path>` | 위젯 디렉터리 또는 pack된 `.mbw` 파일 | `widget.json`(그리고 `workflow.json`이 있으면 함께)을 Core 디코더로 검증하고, 오류를 파일:필드 단위로 출력한다. `.mbw`를 받으면 안전 추출 후 검증한다. |
 | `barshelf pack <dir>` | `-o <name>.mbw` (출력 파일명) | 위젯 디렉터리를 zip(`.mbw`)으로 패키징하고, 아카이브에 `manifest.sha256`(widget.json의 sha256)을 포함한다. |

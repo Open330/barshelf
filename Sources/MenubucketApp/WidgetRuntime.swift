@@ -2497,6 +2497,18 @@ final class WidgetRuntime: ObservableObject {
                         statusLabel: result.statusText
                     ))
                 }
+                if source.output == "xbar" {
+                    let rendered = XbarPlugin.render(
+                        XbarPlugin.parse(String(decoding: data, as: UTF8.self)),
+                        context: Self.xbarContext(widget: widget, source: source)
+                    )
+                    return .success(RefreshSuccess(
+                        viewTree: rendered.tree,
+                        statusLabel: rendered.statusLabel,
+                        statusIcon: rendered.statusIcon,
+                        statusTint: rendered.statusTint
+                    ))
+                }
                 let tree = try JSONDecoder().decode(UINode.self, from: data)
                 return .success(RefreshSuccess(viewTree: tree))
             } catch {
@@ -2519,11 +2531,32 @@ final class WidgetRuntime: ObservableObject {
             discover: source.discover,
             timeoutMs: source.timeoutMs ?? Self.defaultTimeoutMs,
             workingDirectory: widget.directory,
-            extraEnvironment: secretEnvironment(
-                for: widget.manifest, permission: permission
+            extraEnvironment: pluginEnvironment(
+                for: widget.manifest,
+                secretEnvironment(for: widget.manifest, permission: permission)
             ),
             stdoutLimit: permission.maxOutputBytes ?? ExecService.maxStdoutBytes
         )
+    }
+
+    /// An xbar/SwiftBar plugin also gets BarShelf's appearance markers, on
+    /// its refresh and on the actions it runs (`XbarPlugin.environment`).
+    static func pluginEnvironment(for manifest: Manifest, _ base: [String: String]?) -> [String: String]? {
+        guard manifest.source?.output == "xbar" else { return base }
+        return (base ?? [:]).merging(XbarPlugin.environment(darkMode: systemIsDark)) { current, _ in current }
+    }
+
+    static var systemIsDark: Bool {
+        UserDefaults.standard.string(forKey: "AppleInterfaceStyle") == "Dark"
+    }
+
+    /// How a plugin's `bash=` lines are read: the declared command, and the
+    /// file it names, so the plugin calling itself through `$0` matches.
+    static func xbarContext(widget: LoadedWidget, source: Manifest.Source) -> XbarPlugin.Context {
+        let command = source.command?.first ?? ""
+        let file = command.hasPrefix("/") ? URL(fileURLWithPath: command)
+            : command.isEmpty ? nil : widget.directory.appendingPathComponent(command)
+        return XbarPlugin.Context(selfCommand: command, pluginFile: file, darkMode: systemIsDark)
     }
 
     // MARK: - Workflow refresh (entry.kind == "workflow")
@@ -3459,8 +3492,9 @@ final class WidgetRuntime: ObservableObject {
             discover: discover,
             timeoutMs: source?.timeoutMs ?? Self.defaultTimeoutMs,
             workingDirectory: widget.directory,
-            extraEnvironment: secretEnvironment(
-                for: widget.manifest, permission: permission
+            extraEnvironment: pluginEnvironment(
+                for: widget.manifest,
+                secretEnvironment(for: widget.manifest, permission: permission)
             ),
             stdoutLimit: permission.maxOutputBytes ?? ExecService.maxStdoutBytes
         )
