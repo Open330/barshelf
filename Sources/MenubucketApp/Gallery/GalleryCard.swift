@@ -153,6 +153,8 @@ struct GalleryCard: View {
         } else if updateAvailable {
             // Quiet in the grid, where every card has one; the detail
             // page, with a single action, fills it with the accent.
+            // The same weight as Install and as a pack's Install All: the
+            // grid's one action per card, never louder on one card.
             Button("Update", action: install)
                 .buttonStyle(.glass(.secondary))
                 .controlSize(.small)
@@ -164,7 +166,7 @@ struct GalleryCard: View {
                 .font(.caption)
                 .foregroundStyle(StatusTone.success.color)
                 .contextMenu { Button("Reinstall", action: install) }
-                .help("Installed — right-click to reinstall")
+                .help("Installed. Reinstall from its details page or by right-clicking.")
         } else {
             Button("Install", action: install)
                 .buttonStyle(.glass(.secondary))
@@ -252,10 +254,13 @@ struct GalleryCard: View {
         if !lines.isEmpty {
             HStack(spacing: Spacing.xxs) {
                 ForEach(lines, id: \.self) { line in
-                    Image(systemName: line.symbol)
+                    // Symbol and word: a bare globe said nothing.
+                    Label(line.label, systemImage: line.symbol)
+                        .labelStyle(.titleAndIcon)
                         .font(.caption2)
+                        .lineLimit(1)
                         .padding(.horizontal, Spacing.stack)
-                        .padding(.vertical, Spacing.hair + 1)
+                        .padding(.vertical, Spacing.hair)
                         .background(Fill.pressed, in: Capsule())
                         .foregroundStyle(.secondary)
                         .help(line.short)

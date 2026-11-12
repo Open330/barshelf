@@ -122,15 +122,20 @@ struct WidgetSettingsView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: Spacing.s) {
+                    // The label column for LabeledContent rows. Not on the Menu
+                    // Bar page: its grid has its own label column, and a radio
+                    // group draws its options through this style too.
                     switch page {
-                    case .general: generalPage
-                    case .look: appearanceSection
+                    case .general: generalPage.labeledContentStyle(InspectorLabeledContentStyle())
+                    case .look: appearanceSection.labeledContentStyle(InspectorLabeledContentStyle())
                     case .menuBar: menuBarSection
                     case .about: aboutPage
                     }
                 }
                 .padding(Spacing.m)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                // One kind of switch on every page: label left, switch right.
+                .toggleStyle(InspectorSwitchToggleStyle())
             }
             .frame(maxHeight: Self.scrollMaxHeight)
         }
@@ -199,9 +204,6 @@ struct WidgetSettingsView: View {
             // not just on the shelf, so the switch says so.
             Text("Widget On", comment: "Inspector switch that turns a widget on or off everywhere")
         }
-        .toggleStyle(.switch)
-        // A switch drops its title from accessibility; name it.
-        .accessibilityLabel(Text("Widget On", comment: "Inspector switch that turns a widget on or off everywhere"))
         if !isEnabled {
             settingsHint(String(localized: "Turned off: it doesn't refresh and isn't in the popup."))
         }
@@ -241,7 +243,7 @@ struct WidgetSettingsView: View {
             .labelsHidden()
             .fixedSize()
         }
-        settingsHint(LayoutSizeName.description(runtime.effectiveSize(for: widget.id)))
+        columnHint(LayoutSizeName.description(runtime.effectiveSize(for: widget.id)))
 
         if widget.manifest.refresh?.popupOnly != true {
             LabeledContent("Update interval") {
@@ -261,9 +263,9 @@ struct WidgetSettingsView: View {
                 .fixedSize()
             }
             if let seconds = effectiveDisplayedInterval(promoted: false) {
-                settingsHint(String(localized: "While its shelf page is visible: \(Self.intervalTitle(seconds).lowercased())."))
+                columnHint(String(localized: "While its shelf page is visible: \(Self.intervalTitle(seconds).lowercased())."))
             }
-            settingsHint(String(localized: "Slower updates use less battery. Background and energy-saving rules still apply. A menu bar interval overrides this choice while promoted."))
+            columnHint(String(localized: "Slower updates use less battery. Background and energy-saving rules still apply. A menu bar interval overrides this choice while promoted."))
         }
 
         if !widget.isSensitive, widget.manifest.desktop?.offer != false {
@@ -282,10 +284,32 @@ struct WidgetSettingsView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
         } else {
-            ForEach(entries, id: \.key) { entry in
+            let coordinates = entries.filter { Self.isCoordinate($0) }
+            ForEach(entries.filter { !Self.isCoordinate($0) }, id: \.key) { entry in
                 row(for: entry, key: entry.key ?? "")
             }
+            // Raw latitude and longitude are rarely what anyone edits, and
+            // two bare number fields read as a form to fill in. Kept, under
+            // a disclosure that says what they are.
+            if !coordinates.isEmpty {
+                DisclosureGroup("Exact location (latitude and longitude)") {
+                    VStack(alignment: .leading, spacing: Spacing.xs) {
+                        ForEach(coordinates, id: \.key) { entry in
+                            row(for: entry, key: entry.key ?? "")
+                        }
+                        settingsHint(String(localized: "Decimal degrees, as a map app shows them for a place: Seoul is 37.57, 126.98. South and west are negative."))
+                    }
+                    .padding(.top, Spacing.xxs)
+                }
+                .font(.callout)
+            }
         }
+    }
+
+    /// A latitude or longitude setting, by its key.
+    static func isCoordinate(_ entry: Manifest.Setting) -> Bool {
+        guard entry.type == nil || entry.type == "string" || entry.type == "number" || entry.type == "integer" else { return false }
+        return ["lat", "lon", "lng", "latitude", "longitude"].contains((entry.key ?? "").lowercased())
     }
 
     private static let newPageTag = "\u{0}new-page"
@@ -615,16 +639,11 @@ struct WidgetSettingsView: View {
 
     private var menuBarSection: some View {
         VStack(alignment: .leading, spacing: Spacing.xs + Spacing.hair) {
-            Text("Menu Bar")
-                .font(.headline)
-
+            // No heading: the tab above already says "Menu Bar".
             Toggle("Show in the menu bar", isOn: Binding(
                 get: { menuBarDraft.enabled },
                 set: { menuBarDraft.enabled = $0 }
             ))
-            .toggleStyle(.switch)
-            // A switch drops its title from accessibility; name it.
-            .accessibilityLabel(Text("Show in the menu bar"))
 
             if menuBarDraft.enabled {
                 if isCluster {
@@ -648,10 +667,11 @@ struct WidgetSettingsView: View {
                 menuBarControls
                 // The one thing worth saying at the bottom rather than beside
                 // a control, because it is about the widget, not a setting.
+                // In the label column's content edge, like every hint above.
                 if publishesNoStatusText {
-                    settingsHint(String(localized: "This widget publishes no value, so only its icon can appear. Give its workflow a `status.label` (or a script `host.render` status) to show one."))
+                    columnHint(String(localized: "This widget publishes no value, so only its icon can appear. Give its workflow a `status.label` (or a script `host.render` status) to show one."))
                 } else {
-                    settingsHint(String(localized: "It keeps refreshing while the popup is closed. At most \(MenuBarPolicy.maxEntries) widgets are shown."))
+                    columnHint(String(localized: "It keeps refreshing while the popup is closed. At most \(MenuBarPolicy.maxEntries) widgets are shown."))
                 }
             }
         }
@@ -696,10 +716,6 @@ struct WidgetSettingsView: View {
             }
             .controlSize(.small)
         }
-        GridRow {
-            settingsRowLabel("")
-            settingsHint(String(localized: "Shown as a chip. Label, width, text, graph and style apply when Settings ▸ Menu Bar shows widgets as Text and Items."))
-        }
     }
 
     /// The item as it will appear, drawn by the menu bar's own renderer.
@@ -708,8 +724,7 @@ struct WidgetSettingsView: View {
         alignment: VerticalAlignment = .center, @ViewBuilder _ content: () -> Content
     ) -> some View {
         HStack(alignment: alignment, spacing: Spacing.xs) {
-            Text("Preview").font(.caption).foregroundStyle(.secondary)
-                .frame(width: 52, alignment: .leading)
+            settingsRowLabel("Preview")
             content()
         }
     }
@@ -799,27 +814,26 @@ struct WidgetSettingsView: View {
                         GridRow {
                             settingsRowLabel("Label")
                             VStack(alignment: .leading, spacing: Spacing.xxs) {
-                            HStack(spacing: Spacing.stack) {
                                 // Same three-state problem the icon has: "" is no
                                 // label, nil is the widget's own, and a text field
-                                // cannot say which an empty box means.
+                                // cannot say which an empty box means. The switch
+                                // says it; the field shows only while it is on.
                                 Toggle("Show a label", isOn: Binding(
                                     get: { menuBarDraft.label != "" },
                                     set: { menuBarDraft.label = $0 ? nil : "" }
                                 ))
-                                .toggleStyle(.checkbox)
-                                .labelsHidden()
-                                TextField("the widget's own", text: Binding(
-                                    get: { menuBarDraft.label == "" ? "" : (menuBarDraft.label ?? "") },
-                                    set: { menuBarDraft.label = $0.isEmpty ? nil : $0 }
-                                ))
-                                .frame(width: 150)
-                                .disabled(menuBarDraft.label == "")
-                            }
+                                if menuBarDraft.label != "" {
+                                    TextField("the widget's own", text: Binding(
+                                        get: { menuBarDraft.label ?? "" },
+                                        set: { menuBarDraft.label = $0.isEmpty ? nil : $0 }
+                                    ))
+                                    .frame(width: Self.fieldWidth)
+                                    .accessibilityLabel("Label text")
+                                }
                                 settingsHint(
                                     effectiveStyle == .stacked
-                                    ? String(localized: "Drawn above the value. Uncheck for the value alone.")
-                                    : String(localized: "Drawn before the value. Uncheck for the value alone.")
+                                    ? String(localized: "Drawn above the value. Empty uses the widget's own.")
+                                    : String(localized: "Drawn before the value. Empty uses the widget's own.")
                                 )
                             }
                         }
@@ -828,27 +842,23 @@ struct WidgetSettingsView: View {
                     GridRow {
                         settingsRowLabel("Icon")
                         VStack(alignment: .leading, spacing: Spacing.xxs) {
-                            HStack(spacing: Spacing.stack) {
-                                // "" means no icon, nil means the widget's own. A text
-                                // field cannot say the difference, so the checkbox does
-                                // — and it sits beside the field it governs.
-                                Toggle("Show an icon", isOn: Binding(
-                                    get: { menuBarDraft.icon != "" },
-                                    set: { menuBarDraft.icon = $0 ? nil : "" }
-                                ))
-                                .toggleStyle(.checkbox)
-                                .labelsHidden()
+                            // "" means no icon, nil means the widget's own.
+                            Toggle("Show an icon", isOn: Binding(
+                                get: { menuBarDraft.icon != "" },
+                                set: { menuBarDraft.icon = $0 ? nil : "" }
+                            ))
+                            if menuBarDraft.icon != "" {
                                 TextField(
                                     widget.manifest.statusItem?.icon ?? String(localized: "the widget's own", comment: "Placeholder: the widget's own icon is used"),
                                     text: Binding(
-                                        get: { menuBarDraft.icon == "" ? "" : (menuBarDraft.icon ?? "") },
+                                        get: { menuBarDraft.icon ?? "" },
                                         set: { menuBarDraft.icon = $0.isEmpty ? nil : $0 }
                                     )
                                 )
-                                .frame(width: 150)
-                                .disabled(menuBarDraft.icon == "")
+                                .frame(width: Self.fieldWidth)
+                                .accessibilityLabel("Icon name")
+                                settingsHint(String(localized: "An SF Symbol name or an emoji. Empty uses the widget's own."))
                             }
-                            settingsHint(String(localized: "An SF Symbol name or an emoji. Uncheck for no icon."))
                         }
                     }
 
@@ -859,7 +869,7 @@ struct WidgetSettingsView: View {
 
                     GridRow {
                         settingsRowLabel("Text")
-                        styleControls.text
+                        styleControls.textSize
                     }
 
                     GridRow {
@@ -891,9 +901,18 @@ struct WidgetSettingsView: View {
                         styleControls.color
                     }
 
+                    // Rarely changed once set: folded away so the tab
+                    // opens on the choices people make.
                     GridRow {
-                        settingsRowLabel("Style")
-                        styleShortcuts
+                        settingsRowLabel("")
+                        DisclosureGroup("More text options") {
+                            VStack(alignment: .leading, spacing: Spacing.xs) {
+                                styleControls.textFine
+                                styleShortcuts
+                            }
+                            .padding(.top, Spacing.xxs)
+                        }
+                        .font(.callout)
                     }
 
                 case .readings:
@@ -930,7 +949,7 @@ struct WidgetSettingsView: View {
                     if !rows.isEmpty, effectiveStyle != .metrics, !isCluster {
                         GridRow {
                             settingsRowLabel("")
-                            settingsHint(String(localized: "Per-row labels, colours and order appear with the Two metric rows layout, on the Look tab."))
+                            settingsHint(String(localized: "Per-row labels, colours and order appear with the Two metric rows layout, on the Display tab."))
                         }
                     }
                 case .behavior:
@@ -1051,7 +1070,8 @@ struct WidgetSettingsView: View {
         return VStack(alignment: .leading, spacing: Spacing.xxs) {
             HStack(spacing: Spacing.stack) {
                 Toggle("", isOn: metricHiddenBinding(key))
-                    .toggleStyle(.checkbox)
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
                     .labelsHidden()
                     .accessibilityLabel("Show \(metricRowTitle(metric, offset: offset))")
                 TextField(metricRowTitle(metric, offset: offset), text: metricLabelBinding(key))
@@ -1333,90 +1353,79 @@ struct WidgetSettingsView: View {
     }
 
     private func settingsRowLabel(_ text: LocalizedStringKey) -> some View {
-        Text(text)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .frame(width: 52, alignment: .leading)
+        InspectorLabel(text)
     }
 
     private func settingsHint(_ text: String) -> some View {
         MenuBarStyleControls.hint(text)
     }
 
+    /// A hint under a labelled row, starting where the row's control does.
+    private func columnHint(_ text: String) -> some View {
+        settingsHint(text)
+            .padding(.leading, InspectorMetrics.labelWidth + Spacing.xs)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     // MARK: - Appearance section (R12)
 
+    /// No heading: the tab above already says "Look". Every row has its
+    /// label in the inspector's label column.
     private var appearanceSection: some View {
-        VStack(alignment: .leading, spacing: Spacing.xs + Spacing.hair) {
-            Text("Appearance")
-                .font(.headline)
-
-            VStack(alignment: .leading, spacing: Spacing.xxs) {
-                Text("Accent").font(.caption).foregroundStyle(.secondary)
-                HStack(spacing: Spacing.stack) {
-                    ForEach(AccentPalette.swatches) { swatch in
-                        AccentSwatchButton(swatch: swatch, isSelected: isAccentSelected(swatch.value)) {
-                            appearanceDraft.accent = swatch.value
+        VStack(alignment: .leading, spacing: Spacing.s) {
+            // Top-aligned by hand: the swatches carry no text for a
+            // baseline, so the label would sit by the Hex field instead.
+            HStack(alignment: .top, spacing: Spacing.xs) {
+                InspectorLabel("Accent")
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    FlowLayout(spacing: Spacing.stack) {
+                        ForEach(AccentPalette.swatches) { swatch in
+                            AccentSwatchButton(swatch: swatch, isSelected: isAccentSelected(swatch.value)) {
+                                appearanceDraft.accent = swatch.value
+                            }
                         }
                     }
+                    HStack(spacing: Spacing.stack) {
+                        Text("Hex").font(.callout).foregroundStyle(.secondary)
+                        TextField("#RRGGBB", text: hexBinding)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 90)
+                            .accessibilityLabel("Custom accent hex color")
+                    }
                 }
-                HStack(spacing: Spacing.stack) {
-                    Text("Hex").font(.caption).foregroundStyle(.secondary)
-                    TextField("#RRGGBB", text: hexBinding)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 90)
-                        .accessibilityLabel("Custom accent hex color")
-                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            HStack {
-                Text("Density").font(.callout)
-                Spacer()
+            LabeledContent("Density") {
                 Picker("Density", selection: densityBinding) {
                     Text("Regular").tag(WidgetAppearance.Density.regular)
                     Text("Compact").tag(WidgetAppearance.Density.compact)
                 }
-                .pickerStyle(.segmented).labelsHidden().frame(width: 160)
+                .pickerStyle(.segmented).labelsHidden().fixedSize()
             }
 
-            HStack {
-                Text("Card style").font(.callout)
-                Spacer()
+            LabeledContent("Card style") {
                 Picker("Card style", selection: cardStyleBinding) {
                     Text("Plain").tag(WidgetAppearance.CardStyle.plain)
                     Text("Tinted").tag(WidgetAppearance.CardStyle.tinted)
                 }
-                .pickerStyle(.segmented).labelsHidden().frame(width: 160)
+                .pickerStyle(.segmented).labelsHidden().fixedSize()
             }
 
-            VStack(alignment: .leading, spacing: Spacing.hair) {
-                HStack {
-                    Text("Height").font(.callout)
-                    Spacer()
-                    Picker("", selection: heightBinding) {
+            LabeledContent("Height") {
+                VStack(alignment: .leading, spacing: Spacing.xxs) {
+                    Picker("Height", selection: heightBinding) {
                         Text("Auto").tag(HeightPreset.fit)
                         Text("Short").tag(HeightPreset.small)
                         Text("Medium").tag(HeightPreset.medium)
                         Text("Tall").tag(HeightPreset.large)
                     }
-                    .pickerStyle(.segmented).labelsHidden().frame(width: 240)
-                    .accessibilityLabel("Height")
+                    .pickerStyle(.segmented).labelsHidden().fixedSize()
+                    settingsHint(String(localized: "Auto grows the card to fit its content. Short, Medium, and Tall fix the height and scroll the rest."))
                 }
-                Text("Auto grows the card to fit its content. Short, Medium, and Tall fix the height and scroll the rest.")
-                    .font(.caption2).foregroundColor(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
 
-            // Label left, switch right, like the rows above.
-            HStack {
-                Text("Show header").font(.callout)
-                Spacer()
-                Toggle("Show header", isOn: showHeaderBinding)
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                    .labelsHidden()
-                    // A switch drops its title from accessibility; name it.
-                    .accessibilityLabel(Text("Show header"))
-            }
+            Toggle("Show header", isOn: showHeaderBinding)
 
             Button("Reset to widget default") { appearanceDraft = authorBase }
                 .buttonStyle(.glass(.secondary))
@@ -1499,49 +1508,46 @@ struct WidgetSettingsView: View {
         let title = entry.title ?? entry.label ?? key
         switch entry.type {
         case "boolean":
+            // A switch, label left, like every on/off row in the inspector.
             Toggle(title, isOn: Binding(
                 get: { values[key]?.boolValue ?? false },
                 set: { values[key] = .bool($0) }
             ))
-            .font(.callout)
         case "integer":
-            VStack(alignment: .leading, spacing: Spacing.hair) {
-                HStack {
-                    Text(title).font(.callout)
-                    Spacer()
-                    TextField("", text: Binding(
-                        get: { values[key]?.numberValue.map { String(Int($0)) } ?? "" },
-                        set: { text in
-                            let filtered = text.filter { $0.isNumber || $0 == "-" }
-                            if filtered.isEmpty {
-                                values[key] = nil
-                            } else if let number = Double(filtered) {
-                                values[key] = .number(number)
+            LabeledContent(title) {
+                VStack(alignment: .leading, spacing: Spacing.hair) {
+                    HStack(spacing: Spacing.xxs) {
+                        TextField("", text: Binding(
+                            get: { values[key]?.numberValue.map { String(Int($0)) } ?? "" },
+                            set: { text in
+                                let filtered = text.filter { $0.isNumber || $0 == "-" }
+                                if filtered.isEmpty {
+                                    values[key] = nil
+                                } else if let number = Double(filtered) {
+                                    values[key] = .number(number)
+                                }
+                            }
+                        ))
+                        .frame(width: 60)
+                        .multilineTextAlignment(.trailing)
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityLabel(title)
+                        .onSubmit {
+                            if let number = values[key]?.numberValue {
+                                values[key] = .number(clampedInteger(number, entry: entry))
                             }
                         }
-                    ))
-                    .frame(width: 60)
-                    .multilineTextAlignment(.trailing)
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit {
-                        if let number = values[key]?.numberValue {
-                            values[key] = .number(clampedInteger(number, entry: entry))
-                        }
+                        Stepper("", value: integerBinding(key, entry: entry))
+                            .labelsHidden()
+                            .accessibilityLabel("\(title) stepper")
                     }
-                    Stepper("", value: integerBinding(key, entry: entry))
-                        .labelsHidden()
-                        .accessibilityLabel("\(title) stepper")
-                }
-                if let hint = rangeHint(for: entry) {
-                    Text(hint)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                    if let hint = rangeHint(for: entry) {
+                        settingsHint(hint)
+                    }
                 }
             }
         case "enum":
-            HStack {
-                Text(title).font(.callout)
-                Spacer()
+            LabeledContent(title) {
                 Picker(title, selection: Binding(
                     get: { values[key]?.stringValue ?? "" },
                     set: { values[key] = .string($0) }
@@ -1558,39 +1564,38 @@ struct WidgetSettingsView: View {
                     }
                 }
                 .labelsHidden()
-                .frame(width: entry.optionsSource == nil ? 140 : 190)
+                .frame(maxWidth: entry.optionsSource == nil ? 180 : 220, alignment: .leading)
             }
         case "directory":
-            VStack(alignment: .leading, spacing: Spacing.xxs) {
-                Text(title).font(.callout)
-                HStack {
-                    TextField("~/path", text: stringBinding(key))
-                        .textFieldStyle(.roundedBorder)
-                    Button("Choose…") { chooseDirectory(for: key) }
-                        .controlSize(.small)
-                }
-                let roots = hostDirectoryKeys.contains(key) ? widget.manifest.permissions?.readPaths ?? [] : []
-                if !roots.isEmpty {
-                    let allowed = roots.joined(separator: ", ")
-                    Text("Allowed folders: \(allowed)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    if !DirectorySettingPolicy.allows(values[key]?.stringValue ?? "", roots: roots) {
-                        Label("This folder wasn’t saved. Choose a folder inside the allowed folders.", systemImage: "exclamationmark.triangle")
-                            .font(.caption)
-                            .foregroundStyle(StatusTone.warning.color)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Button("Use Allowed Folder") { values[key] = .string(roots[0]) }
+            LabeledContent(title) {
+                VStack(alignment: .leading, spacing: Spacing.xxs) {
+                    HStack {
+                        TextField("~/path", text: stringBinding(key))
+                            .textFieldStyle(.roundedBorder)
+                            .accessibilityLabel(title)
+                        Button("Choose…") { chooseDirectory(for: key) }
                             .controlSize(.small)
+                    }
+                    let roots = hostDirectoryKeys.contains(key) ? widget.manifest.permissions?.readPaths ?? [] : []
+                    if !roots.isEmpty {
+                        let allowed = roots.joined(separator: ", ")
+                        settingsHint(String(localized: "Allowed folders: \(allowed)"))
+                        if !DirectorySettingPolicy.allows(values[key]?.stringValue ?? "", roots: roots) {
+                            Label("This folder wasn’t saved. Choose a folder inside the allowed folders.", systemImage: "exclamationmark.triangle")
+                                .font(.caption)
+                                .foregroundStyle(StatusTone.warning.color)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Button("Use Allowed Folder") { values[key] = .string(roots[0]) }
+                                .controlSize(.small)
+                        }
                     }
                 }
             }
         default: // "string"
-            VStack(alignment: .leading, spacing: Spacing.xxs) {
-                Text(title).font(.callout)
+            LabeledContent(title) {
                 TextField(title, text: stringBinding(key))
                     .textFieldStyle(.roundedBorder)
+                    .labelsHidden()
             }
         }
     }
@@ -1834,13 +1839,72 @@ struct WidgetSettingsView: View {
     }
 }
 
+/// The inspector's label column: every labelled row starts its control at
+/// the same x, on every page.
+enum InspectorMetrics {
+    static let labelWidth: CGFloat = 92
+}
+
+/// A row label in the inspector's label column.
+struct InspectorLabel: View {
+    let text: Text
+
+    init(_ key: LocalizedStringKey) { text = Text(key) }
+    init(verbatim string: String) { text = Text(string) }
+
+    var body: some View {
+        text
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(width: InspectorMetrics.labelWidth, alignment: .leading)
+    }
+}
+
+/// `LabeledContent` in the inspector: the label in the label column, the
+/// control after it, leading-aligned.
+struct InspectorLabeledContentStyle: LabeledContentStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: Spacing.xs) {
+            configuration.label
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(width: InspectorMetrics.labelWidth, alignment: .leading)
+            configuration.content
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+/// An on/off row in the inspector: the label on the left, the switch at
+/// the trailing edge, across the full width (the rule atop Components).
+struct InspectorSwitchToggleStyle: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(alignment: .center, spacing: Spacing.xs) {
+            configuration.label
+                .font(.callout)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityHidden(true)
+            // The label again, hidden, so the switch keeps its name.
+            Toggle(isOn: configuration.$isOn) { configuration.label }
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .labelsHidden()
+        }
+        .contentShape(Rectangle())
+    }
+}
+
 /// The three tabs of a widget's menu bar settings.
 enum MenuBarSettingsTab: CaseIterable {
     case look, readings, behavior
 
     var title: String {
         switch self {
-        case .look: return String(localized: "Look", comment: "Menu bar settings tab: appearance")
+        // Not "Look": the inspector's own tab above is already called that.
+        case .look: return String(localized: "Display", comment: "Menu bar settings tab: how the item or chip is drawn")
         case .readings: return String(localized: "Readings", comment: "Menu bar settings tab: the widget's values")
         case .behavior: return String(localized: "Behavior", comment: "Menu bar settings tab")
         }

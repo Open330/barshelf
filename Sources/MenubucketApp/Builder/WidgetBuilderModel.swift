@@ -13,7 +13,8 @@ final class WidgetBuilderModel: ObservableObject {
         case source, display, details
         var title: String {
             switch self {
-            case .source: return String(localized: "Source", comment: "Widget builder step title")
+            // Not "Source": a word for developers.
+            case .source: return String(localized: "Data Source", comment: "Widget builder step title: where the widget's data comes from")
             case .display: return String(localized: "Display", comment: "Widget builder step title")
             case .details: return String(localized: "Details", comment: "Widget builder step title")
             }
@@ -31,6 +32,17 @@ final class WidgetBuilderModel: ObservableObject {
             case .pastedJSON: return String(localized: "Paste JSON")
             case .folder: return String(localized: "Watch a folder")
             case .staticText: return String(localized: "Static text")
+            }
+        }
+        /// One line under the choice: what it is for.
+        var summary: String {
+            switch self {
+            case .command: return String(localized: "Runs a command line tool and shows what it prints.")
+            case .shellScript: return String(localized: "Several commands joined with pipes, run as one script.")
+            case .httpJSON: return String(localized: "Reads a web address that answers in JSON, such as an API.")
+            case .pastedJSON: return String(localized: "Shows JSON you paste in. Good for trying a layout.")
+            case .folder: return String(localized: "Lists the newest files in a folder.")
+            case .staticText: return String(localized: "Text you type, such as a note or a link list.")
             }
         }
         var symbol: String {
@@ -228,6 +240,8 @@ final class WidgetBuilderModel: ObservableObject {
 
     // Result
     @Published var createdPath: URL?
+    /// The created widget's id, to show it in the popup.
+    @Published var createdWidgetID: String?
     @Published var createError: String?
 
     let existingGroups: [String]
@@ -238,9 +252,12 @@ final class WidgetBuilderModel: ObservableObject {
     private var userEditedName = false
     private var userChoseIcon = false
 
+    private var pristineSignature: [String] = []
+
     init(existingGroups: [String]) {
         self.existingGroups = existingGroups
         self.group = existingGroups.first ?? "My Widgets"
+        pristineSignature = draftSignature
     }
 
     // MARK: - Step gating
@@ -810,11 +827,22 @@ final class WidgetBuilderModel: ObservableObject {
             }
             try FileManager.default.moveItem(at: staging, to: dir)
             createdPath = dir
+            createdWidgetID = spec.resolvedID
             createError = nil
             onCreated?()  // triggers WidgetRuntime rescan
         } catch {
             createError = String(localized: "Couldn’t save the new widget’s files. \((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)")
         }
+    }
+
+    /// Something typed or chosen that Cancel would throw away: anything
+    /// changed since the wizard opened, until the widget is created.
+    var hasDraft: Bool {
+        createdPath == nil && draftSignature != pristineSignature
+    }
+
+    private var draftSignature: [String] {
+        [sourceKind.rawValue, commandText, scriptText, httpURL, pastedJSONText, folderPath, staticContent, name, "\(step.rawValue)"]
     }
 
     func revealCreated() {

@@ -35,14 +35,13 @@ final class AppCommandsTests: XCTestCase {
     func testTheApplicationMenuComesFirstWithTheDocumentedShortcuts() throws {
         let commands = try source("Sources/MenubucketApp/AppCommands.swift")
         XCTAssertTrue(commands.contains("mainMenu.insertItem(appItem, at: 0)"))
-        for (title, key) in [
-            ("Settings…", ","), ("Quit BarShelf", "q"), ("Refresh All", "r"),
-            ("Create Widget…", "n"), ("Find…", "f"), ("Edit Shelf", "e"),
-        ] {
-            XCTAssertTrue(
-                commands.contains("command(\"\(title)\", ") && commands.contains("\"\(key)\")"),
-                "\(title) should be bound to ⌘\(key.uppercased())"
-            )
+        let expected: [(MainMenuCommand, String, String)] = [
+            (.settings, "Settings…", ","), (.quit, "Quit BarShelf", "q"), (.refreshAll, "Refresh All", "r"),
+            (.createWidget, "Create Widget…", "n"), (.find, "Find…", "f"), (.editShelf, "Edit Shelf", "e"),
+        ]
+        for (command, title, key) in expected {
+            XCTAssertEqual(command.key, key, "\(title) should be bound to ⌘\(key.uppercased())")
+            XCTAssertTrue(commands.contains("command(.\(command))"), "\(title) is not installed in the main menu")
         }
     }
 

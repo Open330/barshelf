@@ -124,7 +124,7 @@ enum AppMenu {
             let hotkey = config.profileHotkeysEnabled ? DockHotkeys.label(forPosition: index + 1) : nil
             return DockProfileRow(
                 id: profile.id,
-                title: hotkey.map { "\(profile.name)  \($0)" } ?? profile.name,
+                title: hotkey.map { "\(profile.displayName)  \($0)" } ?? profile.displayName,
                 symbol: profile.symbol,
                 isActive: profile.id == config.activeProfileID
             )
@@ -132,6 +132,53 @@ enum AppMenu {
     }
 
     static var dockSettingsTitle: String { String(localized: "Dock Settings…") }
+}
+
+/// The app's main-menu commands: one list for the menu that makes their
+/// keys work and for Settings ▸ Shortcuts, which lists them.
+enum MainMenuCommand: CaseIterable {
+    case settings, checkForUpdates, quit, refreshAll, editShelf, createWidget, find
+
+    var title: String {
+        switch self {
+        case .settings: return String(localized: "Settings…")
+        case .checkForUpdates: return String(localized: "Check for Updates…")
+        case .quit: return String(localized: "Quit BarShelf")
+        case .refreshAll: return String(localized: "Refresh All")
+        case .editShelf: return String(localized: "Edit Shelf")
+        case .createWidget: return String(localized: "Create Widget…")
+        case .find: return String(localized: "Find…")
+        }
+    }
+
+    /// The ⌘ key; empty for none.
+    var key: String {
+        switch self {
+        case .settings: return ","
+        case .checkForUpdates: return ""
+        case .quit: return "q"
+        case .refreshAll: return "r"
+        case .editShelf: return "e"
+        case .createWidget: return "n"
+        case .find: return "f"
+        }
+    }
+
+    /// What the key does, as Settings ▸ Shortcuts says it.
+    var shortcutTitle: String {
+        switch self {
+        case .settings: return String(localized: "Open Settings")
+        case .checkForUpdates: return String(localized: "Check for updates")
+        case .quit: return String(localized: "Quit BarShelf")
+        case .refreshAll: return String(localized: "Refresh all widgets")
+        case .editShelf: return String(localized: "Edit the popup's pages", comment: "Shortcuts list: ⌘E in the popup")
+        case .createWidget: return String(localized: "Create a widget")
+        case .find: return String(localized: "Search the popup")
+        }
+    }
+
+    /// Answers only while the popup is the key window.
+    var isPopupOnly: Bool { self == .find || self == .editShelf }
 }
 
 /// The app's commands as real main-menu items, so their shortcuts work in
@@ -148,23 +195,41 @@ extension StatusItemController: NSMenuItemValidation {
         let appItem = NSMenuItem()
         let app = NSMenu(title: "BarShelf")
         appItem.submenu = app
-        app.addItem(command("Settings…", #selector(openSettings(_:)), ","))
-        app.addItem(command("Check for Updates…", #selector(checkForUpdates(_:)), ""))
+        app.addItem(command(.settings))
+        app.addItem(command(.checkForUpdates))
         app.addItem(.separator())
-        app.addItem(command("Quit BarShelf", #selector(terminateApp(_:)), "q"))
+        app.addItem(command(.quit))
         mainMenu.insertItem(appItem, at: 0)
 
         let widgetsItem = NSMenuItem()
         let widgets = NSMenu(title: String(localized: "Widgets"))
         widgetsItem.submenu = widgets
-        widgets.addItem(command("Refresh All", #selector(refreshAll(_:)), "r"))
-        widgets.addItem(command("Edit Shelf", #selector(toggleEditShelf(_:)), "e"))
-        widgets.addItem(command("Create Widget…", #selector(openWidgetBuilder(_:)), "n"))
+        widgets.addItem(command(.refreshAll))
+        widgets.addItem(command(.editShelf))
+        widgets.addItem(command(.createWidget))
         mainMenu.addItem(widgetsItem)
 
         if let edit = mainMenu.items.first(where: { $0.submenu?.title == AppDelegate.editMenuTitle })?.submenu {
             edit.addItem(.separator())
-            edit.addItem(command("Find…", #selector(findInPopup(_:)), "f"))
+            edit.addItem(command(.find))
+        }
+    }
+
+    private func command(_ command: MainMenuCommand) -> NSMenuItem {
+        let item = NSMenuItem(title: command.title, action: selector(for: command), keyEquivalent: command.key)
+        item.target = self
+        return item
+    }
+
+    private func selector(for command: MainMenuCommand) -> Selector {
+        switch command {
+        case .settings: return #selector(openSettings(_:))
+        case .checkForUpdates: return #selector(checkForUpdates(_:))
+        case .quit: return #selector(terminateApp(_:))
+        case .refreshAll: return #selector(refreshAll(_:))
+        case .editShelf: return #selector(toggleEditShelf(_:))
+        case .createWidget: return #selector(openWidgetBuilder(_:))
+        case .find: return #selector(findInPopup(_:))
         }
     }
 
@@ -191,13 +256,6 @@ extension StatusItemController: NSMenuItemValidation {
 
     private var popupIsKey: Bool {
         popup.isShown && popup.eventWindow?.isKeyWindow == true
-    }
-
-    /// The title is a localization key, so the catalog picks up each literal.
-    private func command(_ title: String.LocalizationValue, _ action: Selector, _ key: String) -> NSMenuItem {
-        let item = NSMenuItem(title: String(localized: title), action: action, keyEquivalent: key)
-        item.target = self
-        return item
     }
 
     // MARK: - Shared app menu (status item right-click)

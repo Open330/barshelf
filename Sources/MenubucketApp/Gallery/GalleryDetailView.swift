@@ -164,6 +164,13 @@ struct GalleryDetailView: View {
                     .keyboardShortcut(.defaultAction)
                     .accessibilityLabel("Install \(displayName)")
             }
+            if isInstalled, !updateAvailable {
+                // Also on the card's right-click menu; here so it can be found.
+                Button("Reinstall") { model.install(entry) }
+                    .buttonStyle(.glass(.secondary))
+                    .help("Install this version again over the one on your Mac. Its settings stay.")
+                    .accessibilityLabel("Reinstall \(displayName)")
+            }
             if isInstalled {
                 Button("Remove…", role: .destructive) { confirmingRemove = true }
                     .buttonStyle(.glass(.destructive))

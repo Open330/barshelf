@@ -51,6 +51,26 @@ final class AutomationController: ObservableObject {
         } catch { message = String(localized: "Could not read saved automation: \(error.localizedDescription)") }
     }
 
+    /// What a script registers, for the Automation page's figures.
+    struct Summary: Equatable {
+        let shortcuts: Int
+        let remaps: Int
+    }
+
+    private var summaryCache: (source: String, summary: Summary?)?
+
+    /// What the saved script registers: its shortcuts and its remapped
+    /// keys. Compiled once per saved script; nil when it does not compile.
+    func savedSummary() -> Summary? {
+        if let summaryCache, summaryCache.source == source { return summaryCache.summary }
+        let script = try? AutomationScript(source: source)
+        let summary = script.map {
+            Summary(shortcuts: $0.bindings.count, remaps: ($0.remap?.keys.count ?? 0) + $0.keyRemaps.count)
+        }
+        summaryCache = (source, summary)
+        return summary
+    }
+
     /// Reads the system shortcuts again: they change in System Settings with
     /// no notice to other apps.
     func refreshSystemShortcutConflicts() {

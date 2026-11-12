@@ -38,6 +38,7 @@ struct GalleryView: View {
             }
         }
         .frame(minWidth: 420, minHeight: 320)
+        .overlay(alignment: .bottom) { installedNotice }
         .background(WindowVisibilityReader { model.setWindowVisible($0) })
         .onAppear {
             if let runtime { model.runtime = runtime }
@@ -52,6 +53,43 @@ struct GalleryView: View {
                !model.availableCategories.contains(selected) {
                 model.selectedCategory = nil
             }
+        }
+    }
+
+    /// After a single install: the Gallery stays where it was, and this
+    /// says where the widget went, with a way to go and see it.
+    @ViewBuilder
+    private var installedNotice: some View {
+        if let installed = model.justInstalled {
+            HStack(spacing: Spacing.xs) {
+                Image(systemName: StatusTone.success.symbol)
+                    .foregroundStyle(StatusTone.success.color)
+                    .accessibilityHidden(true)
+                Text("\(installed.name) is on your shelf")
+                    .font(.callout.weight(.medium))
+                    .lineLimit(1)
+                Button("Show in Shelf") {
+                    model.justInstalled = nil
+                    HubWindowController.shared.showWidgetSettings(widgetID: installed.widgetID)
+                }
+                .buttonStyle(.glass(.secondary))
+                .controlSize(.small)
+                Button {
+                    model.justInstalled = nil
+                } label: {
+                    Image(systemName: "xmark")
+                }
+                .buttonStyle(.icon)
+                .controlSize(.small)
+                .accessibilityLabel("Dismiss")
+            }
+            .padding(.leading, Spacing.s)
+            .padding(.trailing, Spacing.xxs)
+            .frame(height: ControlMetrics.height + Spacing.xs)
+            .glassSurface(Capsule())
+            .padding(.bottom, Spacing.m)
+            .transition(.opacity.combined(with: .move(edge: .bottom)))
+            .accessibilityElement(children: .contain)
         }
     }
 
@@ -183,10 +221,12 @@ struct GalleryView: View {
         let total = model.entries.count
         if total > 0 {
             Group {
+                // What it counts: the Gallery's list, not what is installed
+                // (the sidebar's figure) or one section.
                 if model.filtersAreActive {
-                    Text("\(shown) of \(total) widgets")
+                    Text("\(shown) of \(total) in the Gallery", comment: "Gallery: widgets matching the filters, of every widget offered")
                 } else {
-                    Text("^[\(total) widget](inflect: true)")
+                    Text("\(total) in the Gallery", comment: "Gallery: every widget offered")
                 }
             }
             .font(.caption)
@@ -329,11 +369,10 @@ struct GalleryView: View {
                 Text(section.title)
                     .font(.headline)
                     .accessibilityAddTraits(.isHeader)
-                Text("\(section.entries.count)")
+                Text("^[\(section.entries.count) widget](inflect: true)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
-                    .accessibilityLabel(Text("^[\(section.entries.count) widget](inflect: true)"))
             }
             Text(section.subtitle)
                 .font(.caption)
@@ -388,7 +427,7 @@ struct GalleryPackCard: View {
                     .foregroundStyle(.tint)
                     .frame(width: 28)
                     .accessibilityHidden(true)
-                Text(pack.name).font(.headline)
+                Text(GalleryEntryText.packTitle(pack)).font(.headline)
                 Spacer(minLength: Spacing.xs)
                 if missing == 0 && installedCount == members.count {
                     Label("Installed", systemImage: StatusTone.success.symbol)
@@ -399,21 +438,23 @@ struct GalleryPackCard: View {
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 } else {
+                    // Reads as an action, not a count ("7 installed"), and
+                    // carries the same weight as each card's Install.
                     Button(installedCount == 0
-                           ? String(localized: "Install \(missing)", comment: "Pack button: install every widget in the pack")
-                           : String(localized: "Install the other \(missing)", comment: "Pack button: install the pack's widgets not installed yet"),
+                           ? String(localized: "Install All \(missing)", comment: "Pack button: install every widget in the pack")
+                           : String(localized: "Install the Other \(missing)", comment: "Pack button: install the pack's widgets not installed yet"),
                            action: install)
-                        .buttonStyle(.glass(.primary))
+                        .buttonStyle(.glass(.secondary))
                         .controlSize(.small)
                 }
             }
-            if let description = pack.description, !description.isEmpty {
+            if let description = GalleryEntryText.packDescription(pack), !description.isEmpty {
                 Text(description)
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Text(members.map(\.name).joined(separator: " · "))
+            Text(members.map { GalleryEntryText.title(for: $0) }.joined(separator: " · "))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

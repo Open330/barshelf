@@ -33,13 +33,16 @@ struct MenuBarStyleControls {
                 get: { presentation.effectiveWidth },
                 set: { mode in change { $0.width = keep(mode, \.effectiveWidth) } }
             )) {
-                Text("Steady").tag(MenuBarWidthMode.auto)
-                Text("Fixed").tag(MenuBarWidthMode.fixed)
-                Text("Fit").tag(MenuBarWidthMode.fit)
+                // Three words that say how each behaves, not three near
+                // synonyms ("steady", "fixed" and "fit" all mean "a set
+                // width" in Korean). The stored values stay auto/fixed/fit.
+                Text("No Jitter", comment: "Menu bar width: keeps the width as digits change").tag(MenuBarWidthMode.auto)
+                Text("Set Width", comment: "Menu bar width: a width in points the user picks").tag(MenuBarWidthMode.fixed)
+                Text("Fit Reading", comment: "Menu bar width: exactly as wide as the reading").tag(MenuBarWidthMode.fit)
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .frame(width: 210)
+            .fixedSize()
 
             switch presentation.effectiveWidth {
             case .auto:
@@ -91,56 +94,32 @@ struct MenuBarStyleControls {
         }
     }
 
+    /// Every text choice: size and number alignment, then alignment and
+    /// weight. App Settings shows them together.
     @ViewBuilder
     var text: some View {
+        VStack(alignment: .leading, spacing: Spacing.stack) {
+            textSize
+            textFine
+        }
+    }
+
+    /// The text choices people change: size, and where numbers sit.
+    @ViewBuilder
+    var textSize: some View {
         let presentation = shown
         VStack(alignment: .leading, spacing: Spacing.stack) {
-            HStack(spacing: Spacing.s) {
-                Picker("Text alignment", selection: Binding(
-                    get: { presentation.effectiveAlignment },
-                    set: { value in change { $0.alignment = keep(value, \.effectiveAlignment) } }
-                )) {
-                    Image(systemName: "text.alignleft").tag(MenuBarAlignment.leading)
-                        .help("Align left")
-                    Image(systemName: "text.aligncenter").tag(MenuBarAlignment.center)
-                        .help("Center")
-                    Image(systemName: "text.alignright").tag(MenuBarAlignment.trailing)
-                        .help("Align right")
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(width: 110)
-
-                Picker("Text size", selection: Binding(
-                    get: { presentation.size ?? .regular },
-                    set: { value in change { $0.size = keep(value) { $0.size ?? .regular } } }
-                )) {
-                    Text("S").tag(MenuBarTextSize.small).help("Small")
-                    Text("M").tag(MenuBarTextSize.regular).help("Regular")
-                    Text("L").tag(MenuBarTextSize.large).help("Large")
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(width: 90)
-
-                Picker("Text weight", selection: Binding(
-                    get: { presentation.weight?.rawValue ?? "default" },
-                    // "Default weight" always means "not set here".
-                    set: { value in
-                        let weight = MenuBarWeight(rawValue: value)
-                        change { $0.weight = weight.flatMap { keep(Optional($0)) { $0.weight } } ?? nil }
-                    }
-                )) {
-                    Text("Default weight").tag("default")
-                    Divider()
-                    Text("Regular").tag(MenuBarWeight.regular.rawValue)
-                    Text("Medium").tag(MenuBarWeight.medium.rawValue)
-                    Text("Semibold").tag(MenuBarWeight.semibold.rawValue)
-                    Text("Bold").tag(MenuBarWeight.bold.rawValue)
-                }
-                .labelsHidden()
-                .frame(width: 130)
+            Picker("Text size", selection: Binding(
+                get: { presentation.size ?? .regular },
+                set: { value in change { $0.size = keep(value) { $0.size ?? .regular } } }
+            )) {
+                Text("S").tag(MenuBarTextSize.small).help("Small")
+                Text("M").tag(MenuBarTextSize.regular).help("Regular")
+                Text("L").tag(MenuBarTextSize.large).help("Large")
             }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(width: 90)
             Toggle("Right-align numbers", isOn: Binding(
                 get: { presentation.effectiveNumberAlignment == .right },
                 set: { on in
@@ -149,8 +128,50 @@ struct MenuBarStyleControls {
                 }
             ))
             Self.hint(presentation.effectiveNumberAlignment == .right
-                ? String(localized: "Alignment places the label and value rows. Right-aligned numbers keep the last digit and the unit still as 9 becomes 10.")
-                : String(localized: "Alignment places the label and value rows. Left-aligned numbers start where the label does; the unit moves as 9 becomes 10."))
+                ? String(localized: "Right-aligned numbers keep the last digit and the unit still as 9 becomes 10.")
+                : String(localized: "Left-aligned numbers start where the label does; the unit moves as 9 becomes 10."))
+        }
+    }
+
+    /// The rarely changed ones: alignment of the label and value rows, and
+    /// the weight.
+    @ViewBuilder
+    var textFine: some View {
+        let presentation = shown
+        HStack(spacing: Spacing.s) {
+            Picker("Text alignment", selection: Binding(
+                get: { presentation.effectiveAlignment },
+                set: { value in change { $0.alignment = keep(value, \.effectiveAlignment) } }
+            )) {
+                Image(systemName: "text.alignleft").tag(MenuBarAlignment.leading)
+                    .help("Align left")
+                Image(systemName: "text.aligncenter").tag(MenuBarAlignment.center)
+                    .help("Center")
+                Image(systemName: "text.alignright").tag(MenuBarAlignment.trailing)
+                    .help("Align right")
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(width: 110)
+            .help("Where the label and value rows sit")
+
+            Picker("Text weight", selection: Binding(
+                get: { presentation.weight?.rawValue ?? "default" },
+                // "Default weight" always means "not set here".
+                set: { value in
+                    let weight = MenuBarWeight(rawValue: value)
+                    change { $0.weight = weight.flatMap { keep(Optional($0)) { $0.weight } } ?? nil }
+                }
+            )) {
+                Text("Default weight").tag("default")
+                Divider()
+                Text("Regular").tag(MenuBarWeight.regular.rawValue)
+                Text("Medium").tag(MenuBarWeight.medium.rawValue)
+                Text("Semibold").tag(MenuBarWeight.semibold.rawValue)
+                Text("Bold").tag(MenuBarWeight.bold.rawValue)
+            }
+            .labelsHidden()
+            .fixedSize()
         }
     }
 

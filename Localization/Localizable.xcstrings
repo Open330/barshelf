@@ -229,6 +229,16 @@
         }
       }
     },
+    "%@ is on your shelf": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 위젯을 선반에 추가했습니다"
+          }
+        }
+      }
+    },
     "%@ is taken": {
       "localizations": {
         "ko": {
@@ -528,6 +538,17 @@
         }
       }
     },
+    "%lld in the Gallery": {
+      "comment": "Gallery: every widget offered",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "갤러리에 %lld개"
+          }
+        }
+      }
+    },
     "%lld more pinned — only %lld fit here. Show": {
       "localizations": {
         "en": {
@@ -582,7 +603,25 @@
         }
       }
     },
+    "%lld of %lld in the Gallery": {
+      "comment": "Gallery: widgets matching the filters, of every widget offered",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld of %2$lld in the Gallery"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "갤러리 %2$lld개 중 %1$lld개"
+          }
+        }
+      }
+    },
     "%lld of %lld widgets": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -642,6 +681,28 @@
         }
       }
     },
+    "%lld turned off": {
+      "comment": "Shelf header: widgets switched off",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld개 꺼짐"
+          }
+        }
+      }
+    },
+    "%lld waiting for permission": {
+      "comment": "Shelf header: widgets waiting for the user to allow them",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld개 허용 대기 중"
+          }
+        }
+      }
+    },
     "%lld widgets": {
       "localizations": {
         "ko": {
@@ -658,6 +719,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "위젯 %lld개 설치됨"
+          }
+        }
+      }
+    },
+    "%lld widgets on %lld pages": {
+      "comment": "Shelf header: widgets installed and the popup pages they are on",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld widgets on %2$lld pages"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯 %1$lld개 · 페이지 %2$lld개"
           }
         }
       }
@@ -1043,6 +1121,17 @@
         }
       }
     },
+    "Active profile": {
+      "comment": "Dock summary",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "사용 중인 프로필"
+          }
+        }
+      }
+    },
     "Active — input switching needs attention": {
       "localizations": {
         "ko": {
@@ -1284,6 +1373,7 @@
       }
     },
     "Alignment places the label and value rows. Left-aligned numbers start where the label does; the unit moves as 9 becomes 10.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -1294,6 +1384,7 @@
       }
     },
     "Alignment places the label and value rows. Right-aligned numbers keep the last digit and the unit still as 9 becomes 10.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -1487,7 +1578,18 @@
         }
       }
     },
+    "An SF Symbol name or an emoji. Empty uses the widget's own.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SF Symbol 이름이나 이모지입니다. 비워 두면 위젯의 아이콘을 씁니다."
+          }
+        }
+      }
+    },
     "An SF Symbol name or an emoji. Uncheck for no icon.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -1806,6 +1908,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "모든 위젯으로 돌아가기(Esc)"
+          }
+        }
+      }
+    },
+    "Back to the folder above": {
+      "comment": "Shortcuts list: in a Dock folder stack",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "상위 폴더로 돌아가기"
           }
         }
       }
@@ -2281,6 +2394,17 @@
         }
       }
     },
+    "CI runs, a site you watch, open ports, Homebrew updates, agent usage and the inbox that needs you. Some need their own CLI.": {
+      "comment": "Gallery pack summary",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CI 실행, 지켜보는 사이트, 열린 포트, Homebrew 업데이트, 에이전트 사용량, 확인할 받은 편지함을 보여 줍니다. 일부는 전용 CLI가 필요합니다."
+          }
+        }
+      }
+    },
     "CPU, memory and disk use as colored meters. Can show a reading in the menu bar.": {
       "localizations": {
         "ko": {
@@ -2297,6 +2421,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "CPU, 메모리, 디스크를 보여 주고, CPU 값은 메뉴 막대에 표시합니다."
+          }
+        }
+      }
+    },
+    "CPU, memory, temperatures, network, battery and your Bluetooth devices, ready for the menu bar.": {
+      "comment": "Gallery pack summary",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CPU, 메모리, 온도, 네트워크, 배터리, 블루투스 기기를 메뉴 막대에 바로 올릴 수 있습니다."
           }
         }
       }
@@ -2322,6 +2457,7 @@
       }
     },
     "Can show a reading": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -2578,6 +2714,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "새 위젯 및 업데이트된 위젯 확인"
+          }
+        }
+      }
+    },
+    "Check for updates": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "업데이트 확인"
           }
         }
       }
@@ -2852,6 +2998,16 @@
         }
       }
     },
+    "Choose a widget": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯 선택"
+          }
+        }
+      }
+    },
     "Choose an init.lua navigation profile or a .js extension.": {
       "extractionState": "stale",
       "localizations": {
@@ -2924,12 +3080,32 @@
         }
       }
     },
+    "Clear the choice": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "선택 해제"
+          }
+        }
+      }
+    },
     "Click": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "클릭"
+          }
+        }
+      }
+    },
+    "Click a widget on the Shelf first, so the board has the keyboard.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "먼저 선반에서 위젯을 클릭하세요. 그래야 선반이 키 입력을 받습니다."
           }
         }
       }
@@ -3056,7 +3232,7 @@
       }
     },
     "Commands": {
-      "comment": "Privacy by capability: commands widgets may run",
+      "comment": "Gallery card permission chip: runs commands\nPrivacy by capability: commands widgets may run",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -3629,6 +3805,17 @@
         }
       }
     },
+    "Custom": {
+      "comment": "Updates summary: updates come from another repository",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "사용자 지정"
+          }
+        }
+      }
+    },
     "Custom (seconds)": {
       "localizations": {
         "ko": {
@@ -3689,6 +3876,27 @@
         }
       }
     },
+    "Data Source": {
+      "comment": "Widget builder step title: where the widget's data comes from",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "데이터 가져올 곳"
+          }
+        }
+      }
+    },
+    "Decimal degrees, as a map app shows them for a place: Seoul is 37.57, 126.98. South and west are negative.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "지도 앱이 장소에 표시하는 십진수 좌표입니다. 서울은 37.57, 126.98입니다. 남위와 서경은 음수입니다."
+          }
+        }
+      }
+    },
     "Decimals": {
       "localizations": {
         "ko": {
@@ -3700,7 +3908,7 @@
       }
     },
     "Default": {
-      "comment": "Accent color choice\nRefresh interval: the widget's own",
+      "comment": "Refresh interval: the widget's own\nThe Dock's first profile, before the user renames it",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -3889,7 +4097,7 @@
       }
     },
     "Developer": {
-      "comment": "Gallery category",
+      "comment": "Gallery category\nGallery pack name",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -3940,6 +4148,26 @@
         }
       }
     },
+    "Discard": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "버리기"
+          }
+        }
+      }
+    },
+    "Discard this widget?": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 위젯을 버릴까요?"
+          }
+        }
+      }
+    },
     "Disk usage": {
       "localizations": {
         "ko": {
@@ -3971,7 +4199,7 @@
       }
     },
     "Display": {
-      "comment": "Widget builder step title",
+      "comment": "Menu bar settings tab: how the item or chip is drawn\nWidget builder step title",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -4250,7 +4478,18 @@
         }
       }
     },
+    "Drawn above the value. Empty uses the widget's own.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "값 위에 표시됩니다. 비워 두면 위젯의 레이블을 씁니다."
+          }
+        }
+      }
+    },
     "Drawn above the value. Uncheck for the value alone.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -4260,7 +4499,18 @@
         }
       }
     },
+    "Drawn before the value. Empty uses the widget's own.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "값 앞에 표시됩니다. 비워 두면 위젯의 레이블을 씁니다."
+          }
+        }
+      }
+    },
     "Drawn before the value. Uncheck for the value alone.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -4401,6 +4651,16 @@
         }
       }
     },
+    "Each widget refreshes as often as it asks to.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "각 위젯이 정한 간격대로 새로고침합니다."
+          }
+        }
+      }
+    },
     "Edit": {
       "comment": "The main menu's Edit menu (Undo, Cut, Copy, Paste).",
       "localizations": {
@@ -4438,6 +4698,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "단축키와 윈도우 동작을 JavaScript로 편집합니다. 저장하면 변경 사항이 적용되고, 초안 되돌리기는 저장된 스크립트를 복원합니다."
+          }
+        }
+      }
+    },
+    "Edit the popup's pages": {
+      "comment": "Shortcuts list: ⌘E in the popup",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "팝업 페이지 편집"
           }
         }
       }
@@ -4681,7 +4952,7 @@
       }
     },
     "Everyday": {
-      "comment": "Gallery category for clock, calendar, weather and similar widgets",
+      "comment": "Gallery category for clock, calendar, weather and similar widgets\nGallery pack name",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -4697,6 +4968,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "BarShelf 프로젝트의 일상용 위젯입니다."
+          }
+        }
+      }
+    },
+    "Exact location (latitude and longitude)": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "정확한 위치(위도와 경도)"
           }
         }
       }
@@ -4813,6 +5094,7 @@
       }
     },
     "Faster halves the wait between refreshes; Slower and Slowest double and quadruple it, saving battery and network.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -4893,7 +5175,7 @@
       }
     },
     "Files": {
-      "comment": "Gallery category",
+      "comment": "Gallery card permission chip: reads files\nGallery category\nGallery pack name",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -4976,11 +5258,23 @@
       }
     },
     "Fit": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "맞춤"
+          }
+        }
+      }
+    },
+    "Fit Reading": {
+      "comment": "Menu bar width: exactly as wide as the reading",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "값에 맞춤"
           }
         }
       }
@@ -4996,6 +5290,7 @@
       }
     },
     "Fixed": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -5716,6 +6011,16 @@
         }
       }
     },
+    "Icon name": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "아이콘 이름"
+          }
+        }
+      }
+    },
     "Icon size": {
       "extractionState": "stale",
       "localizations": {
@@ -5881,12 +6186,34 @@
         }
       }
     },
+    "In the Dock": {
+      "comment": "Shortcuts section: keys the BarShelf Dock answers to",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dock에서"
+          }
+        }
+      }
+    },
     "In the Menu Bar": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "메뉴 막대에서"
+          }
+        }
+      }
+    },
+    "In the Popup": {
+      "comment": "Shortcuts section: keys the popup answers to",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "팝업에서"
           }
         }
       }
@@ -5947,6 +6274,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "정보"
+          }
+        }
+      }
+    },
+    "Infrastructure": {
+      "comment": "Gallery pack name",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "인프라"
           }
         }
       }
@@ -6014,11 +6352,23 @@
     },
     "Install %lld": {
       "comment": "Pack button: install every widget in the pack",
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "%lld개 설치"
+          }
+        }
+      }
+    },
+    "Install All %lld": {
+      "comment": "Pack button: install every widget in the pack",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld개 모두 설치"
           }
         }
       }
@@ -6115,6 +6465,17 @@
         }
       }
     },
+    "Install the Other %lld": {
+      "comment": "Pack button: install the pack's widgets not installed yet",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "나머지 %lld개 설치"
+          }
+        }
+      }
+    },
     "Install the newer version from the registry": {
       "localizations": {
         "ko": {
@@ -6127,11 +6488,22 @@
     },
     "Install the other %lld": {
       "comment": "Pack button: install the pack's widgets not installed yet",
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "나머지 %lld개 설치"
+          }
+        }
+      }
+    },
+    "Install this version again over the one on your Mac. Its settings stay.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac에 있는 위젯 위에 이 버전을 다시 설치합니다. 설정은 그대로입니다."
           }
         }
       }
@@ -6197,7 +6569,19 @@
         }
       }
     },
+    "Installed version": {
+      "comment": "Updates summary",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "설치된 버전"
+          }
+        }
+      }
+    },
     "Installed — right-click to reinstall": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -6213,6 +6597,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "설치됨, 업데이트 있음"
+          }
+        }
+      }
+    },
+    "Installed. Reinstall from its details page or by right-clicking.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "설치되었습니다. 세부 정보 페이지나 오른쪽 클릭으로 다시 설치할 수 있습니다."
           }
         }
       }
@@ -6321,6 +6715,7 @@
       }
     },
     "Items": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -6500,6 +6895,16 @@
         }
       }
     },
+    "Keep Editing": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "계속 편집"
+          }
+        }
+      }
+    },
     "Keep in Dock": {
       "localizations": {
         "ko": {
@@ -6631,6 +7036,17 @@
         }
       }
     },
+    "Keychain": {
+      "comment": "Gallery card permission chip: reads a Keychain secret",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "키체인"
+          }
+        }
+      }
+    },
     "Keychain secrets": {
       "comment": "Privacy by capability",
       "localizations": {
@@ -6712,6 +7128,16 @@
         }
       }
     },
+    "Label text": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "레이블 텍스트"
+          }
+        }
+      }
+    },
     "Label, icon, graph, alerts, and what a click does": {
       "localizations": {
         "ko": {
@@ -6732,7 +7158,19 @@
         }
       }
     },
+    "Last checked": {
+      "comment": "Updates summary",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "마지막 확인"
+          }
+        }
+      }
+    },
     "Last checked %@": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -6779,6 +7217,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "왼쪽"
+          }
+        }
+      }
+    },
+    "Left-aligned numbers start where the label does; the unit moves as 9 becomes 10.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "왼쪽 정렬된 숫자는 레이블과 같은 곳에서 시작합니다. 9가 10이 되면 단위가 움직입니다."
           }
         }
       }
@@ -6875,6 +7323,16 @@
         }
       }
     },
+    "Lists the newest files in a folder.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "폴더의 최신 파일을 보여 줍니다."
+          }
+        }
+      }
+    },
     "Lists your Docker containers with image, status and ports, and can show how many are running in the menu bar. Needs Docker Desktop, OrbStack or another Docker CLI.": {
       "localizations": {
         "ko": {
@@ -6956,7 +7414,7 @@
       }
     },
     "Look": {
-      "comment": "Menu bar settings tab: appearance\nWidget inspector tab: appearance",
+      "comment": "Widget inspector tab: appearance",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -7384,6 +7842,16 @@
         }
       }
     },
+    "More text options": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "텍스트 옵션 더 보기"
+          }
+        }
+      }
+    },
     "Move": {
       "localizations": {
         "ko": {
@@ -7624,6 +8092,16 @@
         }
       }
     },
+    "Move the chosen widget": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "선택한 위젯 이동"
+          }
+        }
+      }
+    },
     "Move to End": {
       "localizations": {
         "ko": {
@@ -7775,7 +8253,7 @@
       }
     },
     "Network": {
-      "comment": "Privacy by capability: hosts widgets may reach",
+      "comment": "Gallery card permission chip: connects to websites\nPrivacy by capability: hosts widgets may reach",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -7872,6 +8350,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "BarShelf Dock을 쓰지 않습니다. 프로필로 Apple Dock의 앱은 계속 바꿀 수 있습니다."
+          }
+        }
+      }
+    },
+    "No Jitter": {
+      "comment": "Menu bar width: keeps the width as digits change",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "흔들림 없이"
           }
         }
       }
@@ -8129,6 +8618,17 @@
         }
       }
     },
+    "Not set": {
+      "comment": "Shortcuts summary: no global shortcut set",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "설정 안 함"
+          }
+        }
+      }
+    },
     "Not shown: at most %lld widgets fit. Turn another off to make room.": {
       "localizations": {
         "ko": {
@@ -8145,6 +8645,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "최근에 갱신되지 않음"
+          }
+        }
+      }
+    },
+    "Not yet": {
+      "comment": "Updates summary: never checked for updates",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "아직 안 함"
           }
         }
       }
@@ -8212,7 +8723,7 @@
       }
     },
     "Notifications": {
-      "comment": "Privacy by capability",
+      "comment": "Gallery card permission chip: posts notifications\nPrivacy by capability",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -8233,7 +8744,7 @@
       }
     },
     "Off": {
-      "comment": "Dock summary: no BarShelf Dock\nShortcuts summary: no global shortcut set",
+      "comment": "Automation status: the extension is not running\nGeneral summary: does not open at login\nShortcuts summary: Dock profile keys are off",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -8243,8 +8754,19 @@
         }
       }
     },
+    "Official": {
+      "comment": "Updates summary: updates come from the official releases",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "공식"
+          }
+        }
+      }
+    },
     "On": {
-      "comment": "Dock summary: BarShelf Dock shown",
+      "comment": "Automation summary: extension running\nGeneral summary: opens at login",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -8261,6 +8783,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "열 때"
+          }
+        }
+      }
+    },
+    "On the Shelf": {
+      "comment": "Shortcuts section: keys the Shelf board answers to",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "선반에서"
           }
         }
       }
@@ -8589,11 +9122,22 @@
       }
     },
     "Opens BarShelf": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "BarShelf 열기"
+          }
+        }
+      }
+    },
+    "Opens BarShelf from any app": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "어느 앱에서나 BarShelf 열기"
           }
         }
       }
@@ -8868,7 +9412,18 @@
         }
       }
     },
+    "Per-row labels, colours and order appear with the Two metric rows layout, on the Display tab.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "행별 레이블, 색상, 순서는 표시 탭에서 두 줄 지표 레이아웃을 고르면 나타납니다."
+          }
+        }
+      }
+    },
     "Per-row labels, colours and order appear with the Two metric rows layout, on the Look tab.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -9159,6 +9714,16 @@
         }
       }
     },
+    "Profile keys are off. Turn them on in Dock settings.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "프로필 단축키가 꺼져 있습니다. Dock 설정에서 켜세요."
+          }
+        }
+      }
+    },
     "Profile name": {
       "localizations": {
         "ko": {
@@ -9441,6 +10006,16 @@
         }
       }
     },
+    "Reads a web address that answers in JSON, such as an API.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "API처럼 JSON으로 응답하는 웹 주소를 읽습니다."
+          }
+        }
+      }
+    },
     "Reads files in these folders: %@.": {
       "localizations": {
         "ko": {
@@ -9712,12 +10287,33 @@
         }
       }
     },
+    "Reinstall %@": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 다시 설치"
+          }
+        }
+      }
+    },
     "Release Notes": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "릴리스 노트"
+          }
+        }
+      }
+    },
+    "Remapped keys": {
+      "comment": "Automation summary",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "바꾼 키"
           }
         }
       }
@@ -9860,6 +10456,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "헤더 %lld 제거"
+          }
+        }
+      }
+    },
+    "Remove it…": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "제거…"
           }
         }
       }
@@ -10289,6 +10895,16 @@
         }
       }
     },
+    "Right-aligned numbers keep the last digit and the unit still as 9 becomes 10.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "오른쪽 정렬된 숫자는 9가 10이 되어도 마지막 자릿수와 단위가 움직이지 않습니다."
+          }
+        }
+      }
+    },
     "Ring": {
       "comment": "Meter style",
       "localizations": {
@@ -10316,6 +10932,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "1자리 공간"
+          }
+        }
+      }
+    },
+    "Room for more": {
+      "comment": "Menu Bar summary: how many more widgets fit in the menu bar",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "더 넣을 수 있는 개수"
           }
         }
       }
@@ -10443,6 +11070,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "선언하지 않은 명령을 실행하므로 차단됩니다"
+          }
+        }
+      }
+    },
+    "Runs a command line tool and shows what it prints.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "명령줄 도구를 실행하고 출력을 보여 줍니다."
           }
         }
       }
@@ -10895,6 +11532,17 @@
         }
       }
     },
+    "Set Width": {
+      "comment": "Menu bar width: a width in points the user picks",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "폭 지정"
+          }
+        }
+      }
+    },
     "Sets of widgets that work well together. Each widget still asks before it runs.": {
       "extractionState": "stale",
       "localizations": {
@@ -10942,6 +11590,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "설정…"
+          }
+        }
+      }
+    },
+    "Several commands joined with pipes, run as one script.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "파이프로 이은 여러 명령을 한 스크립트로 실행합니다."
           }
         }
       }
@@ -11038,11 +11696,23 @@
       }
     },
     "Shortcuts in BarShelf": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "BarShelf 안 단축키"
+          }
+        }
+      }
+    },
+    "Shortcuts in the script": {
+      "comment": "Automation summary",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "스크립트의 단축키"
           }
         }
       }
@@ -11269,6 +11939,26 @@
         }
       }
     },
+    "Show in Popup": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "팝업에서 보기"
+          }
+        }
+      }
+    },
+    "Show in Shelf": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "선반에서 보기"
+          }
+        }
+      }
+    },
     "Show in full-screen apps": {
       "localizations": {
         "ko": {
@@ -11377,6 +12067,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dock에 없는 열린 앱 보기"
+          }
+        }
+      }
+    },
+    "Show or hide its settings": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "설정 보기 또는 가리기"
           }
         }
       }
@@ -11492,6 +12192,7 @@
       }
     },
     "Shown as": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -11502,11 +12203,22 @@
       }
     },
     "Shown as a chip. Label, width, text, graph and style apply when Settings ▸ Menu Bar shows widgets as Text and Items.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "칩으로 표시됩니다. 레이블, 너비, 텍스트, 그래프, 스타일은 설정 ▸ 메뉴 막대에서 위젯 표시 방식이 ‘텍스트와 항목’일 때 적용됩니다."
+          }
+        }
+      }
+    },
+    "Shows JSON you paste in. Good for trying a layout.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "붙여 넣은 JSON을 보여 줍니다. 레이아웃을 시험해 보기 좋습니다."
           }
         }
       }
@@ -11954,6 +12666,22 @@
         }
       }
     },
+    "Step %lld of %lld: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Step %1$lld of %2$lld: %3$@"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%2$lld단계 중 %1$lld단계: %3$@"
+          }
+        }
+      }
+    },
     "Stop Skipping": {
       "localizations": {
         "ko": {
@@ -12066,6 +12794,16 @@
         }
       }
     },
+    "Switch to Dock profile 1–%lld": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dock 프로필 1–%lld로 전환"
+          }
+        }
+      }
+    },
     "Switches": {
       "comment": "Menu bar icon choice",
       "localizations": {
@@ -12073,6 +12811,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "스위치"
+          }
+        }
+      }
+    },
+    "Switches Dock profiles": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dock 프로필 전환"
           }
         }
       }
@@ -12128,7 +12876,7 @@
       }
     },
     "System": {
-      "comment": "Gallery category",
+      "comment": "Gallery category\nGallery pack name",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -12144,6 +12892,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "시스템 설정 ▸ 개인정보 보호 및 보안 ▸ 손쉬운 사용을 열었습니다. 이 아이콘을 목록으로 끌어 넣고 BarShelf를 켜십시오."
+          }
+        }
+      }
+    },
+    "System accent": {
+      "comment": "Accent color choice: follows the Mac's accent colour",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "시스템 강조 색상"
+          }
+        }
+      }
+    },
+    "System info": {
+      "comment": "Gallery card permission chip: reads information about the Mac",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "시스템 정보"
           }
         }
       }
@@ -12329,6 +13099,16 @@
         }
       }
     },
+    "Text you type, such as a note or a link list.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "메모나 링크 목록처럼 직접 입력한 텍스트입니다."
+          }
+        }
+      }
+    },
     "That address doesn’t offer a secure download.": {
       "localizations": {
         "ko": {
@@ -12495,6 +13275,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "선택한 지역의 현재 기온과 날씨를 보여 줍니다. 계정이 필요 없습니다."
+          }
+        }
+      }
+    },
+    "The date, the weather and air quality, other cities' time, a countdown, your next meeting and your reminders.": {
+      "comment": "Gallery pack summary",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "날짜, 날씨와 미세먼지, 다른 도시의 시간, 디데이, 다음 회의, 미리 알림을 보여 줍니다."
           }
         }
       }
@@ -13956,6 +14747,17 @@
         }
       }
     },
+    "Update source": {
+      "comment": "Updates summary",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "업데이트 출처"
+          }
+        }
+      }
+    },
     "Update source overridden: %@": {
       "localizations": {
         "ko": {
@@ -14268,6 +15070,17 @@
         }
       }
     },
+    "Waiting for an alert": {
+      "comment": "Menu Bar summary: items hidden until their reading reaches the level set",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "알림 수준 대기 중"
+          }
+        }
+      }
+    },
     "Waiting for macOS to allow BarShelf…": {
       "localizations": {
         "ko": {
@@ -14453,6 +15266,27 @@
         }
       }
     },
+    "What just arrived in Downloads, recent files, and a shelf to drop things on.": {
+      "comment": "Gallery pack summary",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "다운로드에 방금 들어온 파일, 최근 파일, 파일을 끌어다 놓을 선반입니다."
+          }
+        }
+      }
+    },
+    "What you've set up so far is not saved.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "지금까지 설정한 내용은 저장되지 않습니다."
+          }
+        }
+      }
+    },
     "When a row is clicked": {
       "localizations": {
         "ko": {
@@ -14479,6 +15313,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "이 위젯의 데이터는 어디에서 가져옵니까?"
+          }
+        }
+      }
+    },
+    "Where the label and value rows sit": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "레이블과 값 행의 위치"
           }
         }
       }
@@ -14648,6 +15492,16 @@
         }
       }
     },
+    "Widgets refresh twice as often as they ask to. Readings stay fresher; battery and network work harder.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯이 정한 간격보다 두 배 자주 새로고침합니다. 값은 더 최신이지만 배터리와 네트워크를 더 씁니다."
+          }
+        }
+      }
+    },
     "Widgets stop refreshing until you open the popup. Menu bar values freeze too, and dim once they're out of date.": {
       "extractionState": "stale",
       "localizations": {
@@ -14665,6 +15519,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "값을 내보내지 않는 위젯은 아이콘으로 표시되고, 상태가 생기면 상태도 함께 보입니다."
+          }
+        }
+      }
+    },
+    "Widgets wait four times as long between refreshes: the least battery and network use, the oldest readings.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "새로고침 간격이 네 배로 늘어납니다. 배터리와 네트워크를 가장 적게 쓰지만 값은 가장 오래됩니다."
+          }
+        }
+      }
+    },
+    "Widgets wait twice as long between refreshes, for longer battery life and less network use.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "새로고침 간격이 두 배로 늘어나 배터리가 오래가고 네트워크를 덜 씁니다."
           }
         }
       }
@@ -14879,6 +15753,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "선반이 비어 있음"
+          }
+        }
+      }
+    },
+    "Your tailnet, containers, a Kubernetes namespace and your password vault's sync. Each needs its own CLI.": {
+      "comment": "Gallery pack summary",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "tailnet, 컨테이너, Kubernetes 네임스페이스, 암호 보관함 동기화를 보여 줍니다. 각각 전용 CLI가 필요합니다."
           }
         }
       }
