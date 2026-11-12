@@ -29,7 +29,15 @@ final class UsageCommandTests: XCTestCase {
         XCTAssertTrue(text.contains("3\t0\t2\t1\tAlpha (dev.a)"), text)
         XCTAssertTrue(text.contains("1\t0\t1\t0\tdev.gone (not installed)"), text)
         XCTAssertTrue(text.contains("0\t5\t0\t0\tBeta (dev.b--work)"), text)
-        XCTAssertTrue(text.contains("not used in 30 days:\n  Gamma (dev.c)"), text)
+        // The sample's counts began the day before: they cannot speak for
+        // 30 days, so the list says since when.
+        XCTAssertTrue(text.contains("not used since 2026-11-11:\n  Gamma (dev.c)"), text)
+        // Asked about a window the counts do cover, it names the window.
+        let twoDays = UsageCommand.render(
+            log: sampleLog(), widgets: ["dev.c": "Gamma"],
+            days: 2, json: false, today: "2026-11-12", calendar: calendar
+        )
+        XCTAssertTrue(twoDays.contains("not used in 2 days:\n  Gamma (dev.c)"), twoDays)
         let alpha = text.range(of: "Alpha")!.lowerBound
         let beta = text.range(of: "Beta")!.lowerBound
         XCTAssertLessThan(alpha, beta, "used before only seen")
