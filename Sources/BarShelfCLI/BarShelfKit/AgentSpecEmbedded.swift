@@ -358,6 +358,50 @@ script. Each entry under the top-level `alerts` object of `workflow.json`:
 
 ---
 
+## 8E. Source failures (`optional`, `errors.<id>`) — BarShelf 0.7.32
+
+By default a workflow source that fails fails the whole refresh, and the card
+shows the host's own message ("This widget couldn't refresh"). Mark a source
+`"optional": true` to handle its failure in the view instead:
+
+```jsonc
+"sources": {
+  "data": { "use": "http", "optional": true,
+            "with": { "url": "https://api.example.com/v1/now" } }
+},
+"view": { "type": "switch", "on": "${errors.data.kind}", "cases": {
+  "offline":     { "type": "empty", "symbol": "wifi.slash", "title": "You're offline" },
+  "rateLimited": { "type": "empty", "title": "Too many requests", "subtitle": "Trying again soon." }
+}, "default": { "...": "the normal view, reading sources.data" } }
+```
+
+- A failed optional source reads as `null` in `sources.<id>`.
+- `errors.<id>` is `null` when the source succeeded, and otherwise
+  `{ "kind", "code"?, "command"?, "message" }`. Every source has an entry, so
+  `eq(errors.x, null)` is safe either way.
+- `kind` is one of these:
+  - `offline`: not connected, or DNS failed.
+  - `timeout`
+  - `rateLimited`: HTTP 429, or a CLI saying so.
+  - `auth`: HTTP 401/403, or a CLI asking to sign in (`gh auth login`, AWS
+    `NoCredentials`, expired SSO, …).
+  - `notFound`: HTTP 404, a missing file or folder, or a command that isn't
+    installed. `command` names it.
+  - `unreachable`: connection refused, or another HTTP status.
+  - `exit`: another non-zero exit. `code` is the exit status.
+  - `invalid`: output that isn't JSON, or is too large.
+- `message` is one clipped line (the first line of stderr). Use it in a
+  tooltip or a caption, not as the headline: lead with your own words for the
+  `kind`, plus an action that fixes it (`openApp`, `openURL`, a `copyText` of
+  the sign-in command).
+- Permission failures are never optional: a command, path or host the
+  manifest does not allow still fails the refresh. Mark the source optional
+  only where the widget has something useful to say about the failure.
+- Guard alerts: a `when` that reads a failed source should give `null`
+  (§8C), so being offline doesn't fire or clear an alert.
+- Hosts before 0.7.32 ignore `optional`. Set `minHostVersion` to `0.7.32`
+  when the view relies on `errors`.
+
 ## 8A. Menu-bar promotion (`statusItem`)
 
 A promoted widget draws a live value in the menu bar, next to (or instead of

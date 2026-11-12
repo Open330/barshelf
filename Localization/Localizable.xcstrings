@@ -11124,6 +11124,16 @@
         }
       }
     },
+    "Sign in with that tool in Terminal (for example “gh auth login” or “aws sso login”), then retry.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "터미널에서 그 도구로 로그인한 뒤(예: “gh auth login”, “aws sso login”) 다시 시도하세요."
+          }
+        }
+      }
+    },
     "Signed out of Bitwarden in BarShelf": {
       "localizations": {
         "ko": {
@@ -12056,6 +12066,16 @@
         }
       }
     },
+    "The service is limiting requests.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "서비스가 요청을 제한하고 있습니다."
+          }
+        }
+      }
+    },
     "The song playing in Music or Spotify. macOS asks once whether BarShelf may read it.": {
       "localizations": {
         "ko": {
@@ -12092,6 +12112,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "텍스트 열은 항상 이 너비입니다. BarShelf 아이콘을 공유하는 항목은 대신 일정한 너비를 유지합니다."
+          }
+        }
+      }
+    },
+    "The tool this widget uses needs you to sign in again.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 위젯이 쓰는 도구에 다시 로그인해야 합니다."
           }
         }
       }
