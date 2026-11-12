@@ -104,7 +104,7 @@ final class AutomationEngine: AutomationRunning {
 
     func start() throws {
         guard !active else { return }
-        guard AXIsProcessTrusted() else { throw AutomationFailure(String(localized: "Allow BarShelf in System Settings → Privacy & Security → Accessibility, then enable the extension again.")) }
+        guard AXIsProcessTrusted() else { throw AutomationFailure(String(localized: "Allow BarShelf in System Settings ▸ Privacy & Security ▸ Accessibility, then enable the extension again.")) }
         do {
             // Take these keys from other BarShelf features (the dock's ⌃⌥
             // profile keys) before registering, rather than failing on them.

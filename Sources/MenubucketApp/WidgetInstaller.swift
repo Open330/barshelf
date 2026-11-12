@@ -715,9 +715,9 @@ final class WidgetInstaller {
             ? String(localized: "Update widget \"\(candidate.manifest.name)\"?")
             : String(localized: "Install widget \"\(candidate.manifest.name)\"?")
 
-        var info: [String] = ["id: \(candidate.manifest.id)"]
+        var info: [String] = []
         if let version = candidate.displayVersion {
-            info.append(String(localized: "version: \(version)"))
+            info.append(String(localized: "Version \(version)"))
         }
         let permissions = WidgetPermissionSummary.lines(
             for: candidate.manifest, workflow: InstallCandidate.loadWorkflow(for: candidate)

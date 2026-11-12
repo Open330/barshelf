@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.developer-inbox",
   "name": "Developer Inbox",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "icon": "tray.full.fill",
   "bucket": {
     "group": "Developer",

@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.github-actions",
   "name": "GitHub Actions",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "minHostVersion": "0.7.32",
   "icon": "bolt.horizontal.circle.fill",
   "bucket": {
@@ -110,7 +110,7 @@
       "You’re offline": "오프라인 상태",
       "Runs come back when this Mac is online again.": "Mac이 다시 온라인이 되면 실행 기록이 돌아옵니다.",
       "GitHub is limiting requests": "GitHub이 요청을 제한하고 있음",
-      "Trying again on the next refresh.": "다음 새로 고침 때 다시 시도합니다.",
+      "Trying again on the next refresh.": "다음 새로고침 때 다시 시도합니다.",
       "GitHub didn’t answer in time": "GitHub이 제때 응답하지 않음",
       "gh couldn’t list the runs": "gh가 실행 목록을 가져오지 못함",
       "Check the repository in the widget settings.": "위젯 설정에서 저장소를 확인하세요."

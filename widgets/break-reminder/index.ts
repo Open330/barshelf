@@ -183,10 +183,10 @@ async function notifyBreak(state: BreakState): Promise<void> {
   const minutes = Math.round(state.intervalMs / 60_000);
   try {
     await barshelf.notify.show({
-      title: t("Time for a break", "쉴 시간이에요"),
+      title: t("Time for a break", "쉴 시간입니다"),
       body: t(
         `${minutes} minutes since your last break. Stand up, stretch, and look at something far away for 20 seconds.`,
-        `마지막 휴식 후 ${minutes}분이 지났어요. 일어나서 몸을 펴고, 20초 동안 먼 곳을 바라보세요.`,
+        `마지막 휴식 후 ${minutes}분이 지났습니다. 일어나서 몸을 펴고, 20초 동안 먼 곳을 바라보세요.`,
       ),
     });
   } catch (error) {
@@ -318,12 +318,12 @@ async function render(state: BreakState, nowMs: number): Promise<void> {
   const detail = state.status === "paused"
     ? t(
       "Reminders are off until you resume.",
-      "재개할 때까지 알림이 꺼져 있어요.",
+      "재개할 때까지 알림이 꺼져 있습니다.",
     )
     : hours && !withinWorkHours(nowMs)
     ? t(
       `Quiet outside ${hours.start}:00–${hours.end}:00`,
-      `${hours.start}:00–${hours.end}:00 밖에는 알리지 않아요`,
+      `${hours.start}:00–${hours.end}:00 밖에는 알리지 않습니다`,
     )
     : t(
       `Next reminder at ${clock(state.nextAtMs)}`,
@@ -332,7 +332,7 @@ async function render(state: BreakState, nowMs: number): Promise<void> {
   const snoozeMinutes = Math.round(config.snoozeMs / 60_000);
 
   const controls: UINode[] = [
-    ui.button(t("Took a break", "쉬었어요"), ui.action.event("took-break"), {
+    ui.button(t("Took a break", "휴식 완료"), ui.action.event("took-break"), {
       id: "took-break",
       icon: "figure.walk",
     }),
@@ -387,7 +387,7 @@ async function render(state: BreakState, nowMs: number): Promise<void> {
     children.push(ui.banner(
       t(
         "Stand up, stretch, and rest your eyes — then tap Took a break.",
-        "일어나서 몸을 펴고 눈을 쉬게 한 뒤 '쉬었어요'를 누르세요.",
+        "일어나서 몸을 펴고 눈을 쉬게 한 뒤 '휴식 완료'를 누르세요.",
       ),
       { tone: "warning", icon: "figure.stand" },
     ));

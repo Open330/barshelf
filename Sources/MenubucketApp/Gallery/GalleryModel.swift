@@ -414,14 +414,14 @@ final class GalleryModel: ObservableObject {
     ) -> String? {
         let warningText = result.warnings.joined(separator: " ").lowercased()
         if warningText.contains("refresh failed"), case .cache = result.source {
-            return String(localized: "Couldn’t refresh the registry. Showing cached widgets.")
+            return String(localized: "Couldn’t refresh the online widget list. Showing the widgets from last time.")
         }
         if case .bundled = result.source,
            warningText.contains("unavailable") || warningText.contains("failed") {
-            return String(localized: "Using the bundled widget registry while the online registry is unavailable.")
+            return String(localized: "The online widget list isn’t available, so BarShelf is showing the widgets it came with.")
         }
         if !result.warnings.isEmpty {
-            return String(localized: "Some registry details could not be loaded.")
+            return String(localized: "Some details of the online widget list couldn’t be loaded.")
         }
         return nil
     }
@@ -436,7 +436,7 @@ final class GalleryModel: ObservableObject {
     func remove(_ entry: RegistryWidgetEntry) {
         removeError = nil
         guard let runtime = resolvedRuntime else {
-            removeError = String(localized: "BarShelf couldn’t remove this widget right now. Try again from the Widgets page.")
+            removeError = String(localized: "BarShelf couldn’t remove this widget right now. Try again from the Shelf page.")
             return
         }
         Task { @MainActor in

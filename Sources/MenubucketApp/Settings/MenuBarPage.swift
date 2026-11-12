@@ -406,7 +406,7 @@ private struct ClusterChipControls: View {
         .labelsHidden()
         .textFieldStyle(.roundedBorder)
         .frame(width: 90)
-        .help("An SF Symbol name or an emoji for the chip. Empty uses the widget's icon.")
+        .help("An emoji, or a symbol name from SF Symbols, such as star.fill. Leave it empty for the widget’s icon.")
         .accessibilityLabel("Chip icon for \(widget.displayName)")
 
         let current = runtime.prefs.effectiveAppearance(for: widget.manifest, widgetID: widget.id).accent

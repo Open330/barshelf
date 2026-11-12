@@ -172,7 +172,7 @@ enum KarabinerImporter {
 
     private static func unsupported(_ path: String) -> AutomationFailure {
         if path == "profile.fn_function_keys" {
-            return AutomationFailure(String(localized: "Function and media key settings (profile.fn_function_keys) cannot be preserved. Nothing was imported. Choose Import Settings › Karabiner Key Mappings Only… to review the supported mappings separately."))
+            return AutomationFailure(String(localized: "Function and media key settings (profile.fn_function_keys) cannot be preserved. Nothing was imported. Choose Import Settings ▸ Karabiner Key Mappings Only… to review the supported mappings separately."))
         }
         return AutomationFailure(String(localized: "Unsupported Karabiner behavior at \(path). Nothing was imported. Supported: global key-to-key mappings with command/control/option/shift/fn/caps_lock modifiers. Device/app conditions, modifier keys, macros and shell actions need manual migration."))
     }

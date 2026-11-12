@@ -1,6 +1,6 @@
 # BarShelf 위젯 스펙 v0.1
 
-이 문서는 `widgets/<name>/widget.json` 제작자를 위한 v0.1 스펙이다. Manifest는 위젯의 실행 방식, 권한, 갱신 정책, 버킷 배치를 선언하고, 출력은 UINode JSON view tree로 렌더링된다.
+이 문서는 `widgets/<name>/widget.json` 제작자를 위한 v0.1 스펙이다. Manifest는 위젯의 실행 방식, 권한, 새로고침 정책, 버킷 배치를 선언하고, 출력은 UINode JSON view tree로 렌더링된다.
 
 관련 문서:
 
@@ -76,10 +76,10 @@
 | `version` | 아니오 | 위젯 패키지 버전. |
 | `minHostVersion` | 아니오 | 이 위젯이 도는 가장 오래된 BarShelf 버전(예: `"0.3.11"`). 그 버전에서 생긴 표현식 함수나 소스 필드를 쓸 때 선언한다. 0.3.11 이상 호스트는 이보다 낮으면 설치를 거부하고 실행 대신 "BarShelf X 이상 필요"를 보여 준다. 그 이전 호스트는 이 필드를 무시한다. |
 | `icon` | 예 | 위젯 기본 아이콘 이름. M1은 SF Symbol 스타일 이름을 우선 사용한다. |
-| `bucket` | 예 | 팝오버 안의 그룹, 정렬, 크기. |
+| `bucket` | 예 | 팝업 안의 그룹, 정렬, 크기. |
 | `entry` | 예 | 실행 엔트리 종류. |
 | `source` | exec 위젯은 예 | 실제 데이터/뷰트리 소스. Workflow와 script 위젯은 `entry.main`을 사용한다. |
-| `refresh` | 예 | 갱신 트리거와 캐시 stale 정책. |
+| `refresh` | 예 | 새로고침 트리거와 캐시 stale 정책. |
 | `statusItem` | 아니오 | 메뉴바 status item 표시 정책. |
 | `permissions` | 아니오 | exec, env, 파일, storage, notifications, 네트워크, Keychain 권한 선언. |
 | `settings` | 아니오 | 설정 UI를 자동 생성하기 위한 선언. 값은 workflow의 `${settings.key}`와 script context로 전달된다. |
@@ -118,7 +118,7 @@ workflow의 문구는 `${…}`를 계산하기 **전에** 번역하며, 번역�
 | `group` | 같은 그룹 이름끼리 한 버킷에 모인다. |
 | `order` | 그룹 안 정렬 순서. 낮을수록 먼저 보인다. |
 | `size` | `XS`, `S`, `M`, `L`. 렌더러가 권장 폭/높이에 매핑한다. |
-| `pinned` | `true`이면 최초 설치 상태에서 팝오버 상단 pinned 영역에 배치한다. 사용자는 헤더 메뉴에서 토글할 수 있다. |
+| `pinned` | `true`이면 최초 설치 상태에서 팝업 상단 pinned 영역에 배치한다. 사용자는 헤더 메뉴에서 토글할 수 있다. |
 
 ### `entry`
 
@@ -162,12 +162,12 @@ Workflow DSL 상세 계약은 [`docs/WORKFLOW.md`](WORKFLOW.md)를 따른다.
 
 | 필드 | 설명 |
 | --- | --- |
-| `onOpen` | 팝오버가 열릴 때 stale 여부를 보고 갱신한다. |
+| `onOpen` | 팝업이 열릴 때 stale 여부를 보고 새로고침한다. |
 | `interval` | 초 단위 반복 실행 주기. `null`이면 반복 실행하지 않는다. |
 | `staleAfterSec` | 마지막 성공 snapshot이 stale로 간주되는 시간. |
-| `deadlineField` | v0.1 예약 필드. M1에서는 adapter가 반환하는 `nextRefreshAtMs`가 deadline 갱신을 대체한다. |
+| `deadlineField` | v0.1 예약 필드. M1에서는 adapter가 반환하는 `nextRefreshAtMs`가 deadline 새로고침을 대체한다. |
 | `watchPaths` | FSEvents 감시 경로 목록. 변경 이벤트는 250ms debounce 후 처리한다. |
-| `runInBackground` | 팝오버가 닫힌 동안에도 interval 실행을 허용할지 여부. 닫힌 상태에서는 완화된 주기를 사용한다. |
+| `runInBackground` | 팝업이 닫힌 동안에도 interval 실행을 허용할지 여부. 닫힌 상태에서는 완화된 주기를 사용한다. |
 | `popupOnly` | `true`이면 화면에 보이는 `onOpen`과 사용자 수동 Refresh만 허용한다. interval/deadline/watch/wake/event 자동 실행은 차단한다. |
 
 ### `statusItem`
@@ -217,9 +217,9 @@ Workflow DSL 상세 계약은 [`docs/WORKFLOW.md`](WORKFLOW.md)를 따른다.
   아이콘 옆에 겹친 작은 원형 칩으로 그려진다. 포인터를 올리면 펼쳐지고, 잠시
   머무르면 값이 보이며, 클릭하면 위젯의 클릭 동작(기본: 카드)이 그 칩에서 열린다.
   칩에는 percent metric의 비율이 링으로, `danger` tint가 빨간 점으로 나타난다.
-- 최대 5개까지 승격된다. 이 상한은 그리기 전에 적용되므로, 넘친 위젯이 보이지도 않으면서 닫힌 팝오버 폴링 면제를 들고 있는 일은 없다. label은 한 줄로 합쳐 14자에서 자른다.
+- 최대 5개까지 승격된다. 이 상한은 그리기 전에 적용되므로, 넘친 위젯이 보이지도 않으면서 닫힌 팝업 폴링 면제를 들고 있는 일은 없다. label은 한 줄로 합쳐 14자에서 자른다.
 - 작성자가 `mode`를 선언해도 그것만으로 켜지지 않는다. 업데이트가 사용자의 메뉴바를 말없이 차지하고 배터리를 더 쓰게 만들지 않기 위해서다.
-- 승격된 위젯은 팝오버가 닫혀 있어도 자기 `refresh.interval`로 계속 돈다.
+- 승격된 위젯은 팝업이 닫혀 있어도 자기 `refresh.interval`로 계속 돈다.
   `runInBackground` 요구와 5초/60초 하한을 면제받고(고유 하한 1초), 앱 설정의
   "닫혀 있을 때 일시정지"에는 여전히 걸린다. 그때 멈춘 값은 메뉴바에서 흐리게
   표시된다 — 멈춘 숫자가 실시간인 척하지 않게 하기 위해서다.
@@ -266,7 +266,7 @@ Workflow DSL 상세 계약은 [`docs/WORKFLOW.md`](WORKFLOW.md)를 따른다.
 
 ### `settings`
 
-설정 선언은 BarShelf 창 인스펙터의 General 탭 입력 항목으로 자동 변환된다 (카드의 톱니바퀴나 우클릭 → Settings…로 연다). 바꾸면 바로 저장된다. 저장된 값은 App Support에 유지되고, workflow에서는 `${settings.key}` 보간으로, script 위젯에서는 runtime context로 전달된다.
+설정 선언은 BarShelf 창 인스펙터의 General 탭 입력 항목으로 자동 변환된다 (카드의 설정 버튼이나 우클릭 ▸ Settings…로 연다). 바꾸면 바로 저장된다. 저장된 값은 App Support에 유지되고, workflow에서는 `${settings.key}` 보간으로, script 위젯에서는 runtime context로 전달된다.
 
 ```json
 [
@@ -279,12 +279,12 @@ Workflow DSL 상세 계약은 [`docs/WORKFLOW.md`](WORKFLOW.md)를 따른다.
 
 지원 타입은 `string`, `integer`, `boolean`, `enum`, `directory`다. `number`, `select`, `path`는 기존 manifest 호환을 위해 계속 디코딩할 수 있다.
 
-## 팝오버 UX 계약
+## 팝업 UX 계약
 
 | 기능 | 계약 |
 | --- | --- |
 | Pin | `bucket.pinned: true`이면 위젯은 최초 상태에서 모든 페이지 상단의 pinned 영역에 들어간다. 사용자가 카드 우클릭 메뉴에서 pin을 토글하면 저장된 사용자 설정이 manifest 기본값보다 우선한다. Pinned 영역은 최대 2행을 목표로 한다. |
-| Search | 팝오버에서 `Command-F` 또는 타이핑 시작으로 검색 오버레이를 연다. 현재 snapshot 기준으로 위젯 이름, UINode `text`, 안정적 `id`를 매칭한다. 위/아래로 결과를 이동하고 Enter는 해당 노드의 action이 있으면 실행한다. |
+| Search | 팝업에서 `Command-F` 또는 타이핑 시작으로 검색 오버레이를 연다. 현재 snapshot 기준으로 위젯 이름, UINode `text`, 안정적 `id`를 매칭한다. 위/아래로 결과를 이동하고 Enter는 해당 노드의 action이 있으면 실행한다. |
 | Settings | `settings[]` 선언으로 자동 폼을 만든다. 값 변경은 위젯 reload에 반영되고 workflow의 `${settings.key}` 보간에 사용된다. |
 | Drag-out | UINode에 `drag: { "filePath": "/path/to/file" }`가 있으면 Finder와 다른 앱으로 파일을 드래그할 수 있다. |
 
@@ -499,7 +499,7 @@ Countdown progress:
 }
 ```
 
-`countdown.from`과 `countdown.until`은 Unix epoch milliseconds이다. Countdown은 `value` 대신 사용할 수 있으며, 팝오버가 열려 있는 동안 호스트가 1초 tick으로 자체 갱신한다. 코드나 스크립트를 매초 다시 실행하지 않는다.
+`countdown.from`과 `countdown.until`은 Unix epoch milliseconds이다. Countdown은 `value` 대신 사용할 수 있으며, 팝업이 열려 있는 동안 호스트가 1초 tick으로 자체 새로고침한다. 코드나 스크립트를 매초 다시 실행하지 않는다.
 
 누적(stacked) progress — 한 막대에 여러 부분을 이어 그린다(예: CPU user + system):
 
@@ -615,7 +615,7 @@ Script 위젯에서는 같은 구조를 직접 쓰는 대신 SDK의 `ui.metricCa
 | `openApp` | `value` | 앱을 실행한다. bundle id(`com.apple.iCal`), 표시 이름(`Activity Monitor`), 또는 `.app` 전체 경로를 받는다. |
 | `quitApp` | `value` | 실행 중인 앱을 종료한다. bundle id 또는 pid(숫자나 숫자 문자열)를 받는다. `permissions.quitApps: true`가 필요하고, 매번 "Quit <앱>?" 확인(기본 버튼은 취소)을 거친다. 일반 종료(`terminate`)만 보내므로 앱이 저장 여부를 물을 수 있고, 강제 종료는 하지 않는다. 앱이 아닌 pid(데몬, 헬퍼, CLI)와 BarShelf 자신은 거부한다. |
 | `run` | `command`, `thenRefresh` | manifest `permissions.exec` allowlist와 매칭되는 명령만 실행한다. |
-| `refresh` | 없음 | 현재 위젯을 수동 갱신한다. |
+| `refresh` | 없음 | 현재 위젯을 수동 새로고침한다. |
 
 ### 위젯 전체를 클릭 가능하게 (native widget처럼)
 
@@ -675,26 +675,26 @@ Script 위젯에서는 같은 구조를 직접 쓰는 대신 SDK의 `ui.metricCa
 }
 ```
 
-## 갱신 모델
+## 새로고침 모델
 
-BarShelf은 cache-first로 동작한다. 팝오버가 열리면 마지막 성공 snapshot을 먼저 표시하고, stale이면 백그라운드 갱신을 시작한다. 갱신 실패 시 마지막 성공 snapshot을 유지하고 오류 banner/card를 표시한다.
+BarShelf은 cache-first로 동작한다. 팝업이 열리면 마지막 성공 snapshot을 먼저 표시하고, stale이면 백그라운드 새로고침을 시작한다. 새로고침 실패 시 마지막 성공 snapshot을 유지하고 오류 banner/card를 표시한다.
 
 | 트리거 | 설명 |
 | --- | --- |
-| `onOpen` | 팝오버가 열릴 때 `staleAfterSec` 기준으로 갱신한다. |
-| `manual` | 사용자가 `refresh` 액션을 실행할 때 갱신한다. |
-| `interval` | `refresh.interval` 초 단위로 갱신한다. 팝오버가 열려 있을 때 최소 5초 간격을 둔다. |
-| `deadline` | adapter/viewtree 결과의 `nextRefreshAtMs` 시각에 정확히 1회 갱신한다. 팝오버가 닫히면 취소하고 다시 열릴 때 재평가한다. |
+| `onOpen` | 팝업이 열릴 때 `staleAfterSec` 기준으로 새로고침한다. |
+| `manual` | 사용자가 `refresh` 액션을 실행할 때 새로고침한다. |
+| `interval` | `refresh.interval` 초 단위로 새로고침한다. 팝업이 열려 있을 때 최소 5초 간격을 둔다. |
+| `deadline` | adapter/viewtree 결과의 `nextRefreshAtMs` 시각에 정확히 1회 새로고침한다. 팝업이 닫히면 취소하고 다시 열릴 때 재평가한다. |
 | `watch` | `refresh.watchPaths`를 FSEvents로 감시한다. 이벤트는 250ms debounce하고, 닫힌 상태에서는 pending으로 기록한 뒤 열릴 때 처리한다. |
-| `wake` | sleep wake 후 stale 위젯을 일괄 갱신한다. |
+| `wake` | sleep wake 후 stale 위젯을 일괄 새로고침한다. |
 
 공통 정책:
 
-- 한 위젯의 동시 갱신은 하나로 coalesce한다.
+- 한 위젯의 동시 새로고침은 하나로 coalesce한다.
 - 연속 실패는 15초, 60초, 300초 cap의 지수 백오프로 완화한다.
 - 성공하면 실패 백오프를 리셋한다.
 - `popupOnly=true` 위젯은 visible `onOpen` 이외의 모든 자동 트리거를 무시한다.
-- Countdown progress는 host tick으로만 갱신하므로 스크립트 재실행이 필요 없다.
+- Countdown progress는 host tick으로만 새로고침하므로 스크립트 재실행이 필요 없다.
 
 ## 민감 데이터 규칙
 
@@ -830,11 +830,11 @@ stdout 예:
 2. `source.command`가 `permissions.exec`의 `command=aas`, `allowedArgs=["usage","--json"]`와 매칭되는지 확인한다.
 3. stdout data를 `aas-usage` adapter로 넘긴다.
 4. adapter가 provider/account card와 usage progress UINode, 선택적 `statusText`를 반환한다.
-5. 별도 버튼에서 `run` 액션을 추가하려면 해당 argv를 `permissions.exec[].allowedArgs`에 명시해야 한다. 예를 들어 `["aas", "switch", "work"]`는 `["switch", "*"]` 패턴이 있을 때만 실행되고, `thenRefresh`가 `true`면 다시 갱신한다.
+5. 별도 버튼에서 `run` 액션을 추가하려면 해당 argv를 `permissions.exec[].allowedArgs`에 명시해야 한다. 예를 들어 `["aas", "switch", "work"]`는 `["switch", "*"]` 패턴이 있을 때만 실행되고, `thenRefresh`가 `true`면 다시 새로고침한다.
 
 ## 예제 3: otpeek
 
-otpeek 위젯은 TOTP 계정을 조회한 뒤 각 계정의 코드를 병렬로 가져오고, countdown ring은 host가 매초 갱신한다.
+otpeek 위젯은 TOTP 계정을 조회한 뒤 각 계정의 코드를 병렬로 가져오고, countdown ring은 host가 매초 새로고침한다.
 
 ```json
 {

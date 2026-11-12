@@ -6,7 +6,7 @@
 
 **Turn any CLI into a native menu bar widget — all behind one icon.**
 
-One macOS menu bar icon, one popover of native widgets: Claude Code and Codex
+One macOS menu bar icon, one popup of native widgets: Claude Code and Codex
 usage, OTP codes, GitHub reviews, recent files — or anything your own scripts print.
 
 [![Platform](https://img.shields.io/badge/macOS-14%2B-000000?logo=apple&logoColor=white)](https://www.apple.com/macos/)
@@ -32,7 +32,7 @@ usage, OTP codes, GitHub reviews, recent files — or anything your own scripts 
 ## Why BarShelf
 
 Your most-checked tools are scattered — a dozen menu bar icons, terminal windows,
-browser tabs. BarShelf collects them into **one icon, one popover** of native
+browser tabs. BarShelf collects them into **one icon, one popup** of native
 widgets. Any command-line tool you already have becomes a widget in minutes; no
 new SDK to learn.
 
@@ -95,7 +95,7 @@ Install BarShelf on my Mac and scaffold my first widget.
 3. Scaffold a widget:  barshelf new my-widget --kind workflow
    then validate it:   barshelf validate ./my-widget
    then install it:    barshelf install ./my-widget
-4. Confirm the widget appears in the menu bar popover.
+4. Confirm the widget appears in the menu bar popup.
 
 Requires macOS 14+ on Apple Silicon. Script widgets also need Deno (brew install deno).
 ```
@@ -315,7 +315,7 @@ JSON Schemas: [`widget-0.1.json`](schema/widget-0.1.json) ·
 - **Zero runtime dependencies** — pure Swift / AppKit / SwiftUI. Deno is optional, script-only.
 - **Process isolation is the trust boundary** — third-party widget code never runs in the app process.
 - **Declare → approve → enforce** — permissions are shown and approved on first run, then enforced with an audit log.
-- **The UI never blanks** — last-good render is always kept; failures show a banner, not an empty popover.
+- **The UI never blanks** — last-good render is always kept; failures show a banner, not an empty popup.
 
 ## Build from source
 

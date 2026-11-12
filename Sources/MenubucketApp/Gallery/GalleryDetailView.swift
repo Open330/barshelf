@@ -148,7 +148,7 @@ struct GalleryDetailView: View {
                 Button("Update") { model.install(entry) }
                     .buttonStyle(.glass(.accent))
                     .keyboardShortcut(.defaultAction)
-                    .help("Install the newer version from the registry")
+                    .help("Install the newer version from the online widget list")
                     .accessibilityLabel("Update \(displayName)")
             } else if isInstalled {
                 Button("Open") {

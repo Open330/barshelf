@@ -305,7 +305,7 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
     ));
   }
   actions.push(
-    ui.button(t("Refresh", "새로 고침"), ui.action.refresh(), {
+    ui.button(t("Refresh", "새로고침"), ui.action.refresh(), {
       id: "refresh-project",
       icon: "arrow.clockwise",
     }),
