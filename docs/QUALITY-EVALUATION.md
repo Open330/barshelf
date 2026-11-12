@@ -11,16 +11,20 @@ check below has been **observed**. A check nobody ran is written down as "not
 verified". It never counts as a pass, and it is never filled in from memory or
 from a reviewer's estimate.
 
-### 1. Before the release goes out
+### 1. The release checks
 
-| Check | How | Passes when |
-| --- | --- | --- |
-| CI | `Build & Test` on the tagged commit, including the strict-concurrency Core build | green |
-| Changes are in | `git merge-base --is-ancestor <commit> v<version>` for every change the release notes claim | each one is an ancestor |
-| Versions and strings | `python3 scripts/check-release-versions.py`; `bash scripts/sync-strings.sh --check` | both pass, and every new string has Korean |
-| Screens | `scripts/screenshot-hub.sh <dir> --live` for any release that changes UI, looked at in en/ko × light/dark | no clipped, overlapping or untranslated text |
-| Artifacts | `bash scripts/verify-release.sh v<version>` | passes: checksums, bundle version, clean tree, signature, notarization, Gatekeeper, the updater's Developer ID requirement, Homebrew tap |
-| Update path | the [update rehearsal](RELEASING.md#업데이트-리허설) from the previous signed release | Install and Relaunch replaces and relaunches the app |
+Each runs at the step of [RELEASING.md](RELEASING.md) named in the table; some
+can only pass once the release is published.
+
+| Check | When | How | Passes when |
+| --- | --- | --- | --- |
+| CI | before tagging | the `Build & Test` run for the commit being tagged, including the strict-concurrency Core build | green |
+| Changes are in | before tagging | `git merge-base --is-ancestor <commit> v<version>` for every change the release notes claim | each one is an ancestor |
+| Strings | before tagging | `bash scripts/sync-strings.sh --check`, and the catalog's new keys | the check passes and every new string has Korean |
+| Screens | before tagging, for a release that changes UI | `scripts/screenshot-hub.sh <dir> --live`, looked at in en/ko × light/dark | no clipped, overlapping or untranslated text |
+| Update path | before the release leaves pre-release | the [update rehearsal](RELEASING.md#업데이트-리허설) from the previous signed release | Install and Relaunch replaces and relaunches the app |
+| Artifacts | after publishing | `bash scripts/verify-release.sh v<version>` | passes: checksums, bundle version, clean tree, signature, notarization, Gatekeeper, the updater's Developer ID requirement, Homebrew tap |
+| Versions in docs | after the version bookkeeping (steps 11–12) | `python3 scripts/check-release-versions.py` | passes |
 
 ### 2. A week on both Macs
 
@@ -30,20 +34,27 @@ The release runs for seven days of ordinary use on **june-mba** and
 belongs to one build. Read-only commands only; none of these touches the screen
 or the keyboard.
 
+CPU and memory readings belong to one process. Write down its PID and start
+time (`ps -o pid=,lstart= -p $(pgrep -x barshelf-app)`) with every reading. A
+process that restarted between two readings, for an update, a login or a
+crash, gives no comparison for that interval: mark it "not verified" and start
+a new interval. Do the login checks after the day-7 readings so they don't
+cut the week short.
+
 | Check | How to observe | Passes when |
 | --- | --- | --- |
 | No crash | `/bin/ls ~/Library/Logs/DiagnosticReports \| grep barshelf-app`, then the report's `app_version` | no report from the installed version on either Mac |
 | No hang | the same folder: `.hang` and `.spin` reports for `barshelf-app` | none from the installed version |
 | Idle CPU | `scripts/profile-idle.sh 300` with the popup closed and nobody using the Mac (screen unlocked) | at most 1.0%, and at most 0.3 points above the previous release on the same Mac |
-| CPU over the week | `ps -o etime=,cputime= -p $(pgrep -x barshelf-app)` at the end of the week | recorded; a rise of more than half over the previous week is investigated before the next release |
-| Memory | `ps -o rss= -p $(pgrep -x barshelf-app)` on day 1 and day 7 | day 7 is at most 1.5× day 1 |
+| CPU over the week | `ps -o etime=,cputime= -p $(pgrep -x barshelf-app)` on day 1 and day 7, same process; the rate is the change in CPU time over the change in elapsed time | recorded; a rate more than half above the previous release's, measured the same way, is investigated before the next release. A lifetime total alone is context, not a weekly figure |
+| Memory | `footprint $(pgrep -x barshelf-app)` (phys_footprint) on day 1, at least an hour after launch, and on day 7, same process | day 7 is at most 1.5× day 1 |
 | Keyboard extension kept | Fn-arrow mappings and window shortcuts used every day, including after sleep and after a new login; `log show --last 7d --predicate 'process == "barshelf-app" AND eventMessage CONTAINS "automation stopped"'` | they keep working, and every logged stop has a known cause (for example, Accessibility was turned off) |
 | Menu bar item kept | the BarShelf icon after sleep, a display change and a login; the BarShelf window's hidden-item warning | the icon is visible and the warning is not shown |
 
 The CPU and memory limits come from a real regression: 0.7.3 on june-mba
 reached 3–10% idle CPU and a 267 MB footprint after four days (a closed popup
-kept its view alive, fixed in 0.7.4). After the fix it held under 1% CPU and
-at 31–43 MB.
+kept its view alive, fixed in 0.7.4). After the fix it held under 1% CPU and a
+31–43 MB footprint.
 
 Any failure means the release is not accepted. When it breaks something
 people use every day (the app does not open, data is lost, the keyboard
@@ -63,7 +74,8 @@ run. Numbers are measurements; where a judgement was needed, say whose.
 
 These are the first readings under the new rule, taken when it was written.
 They are lifetime averages since launch, **not** `profile-idle.sh` idle
-measurements, and they start no seven-day window. They set no baseline yet.
+measurements, and RSS, not footprint. They start no seven-day window and set
+no baseline.
 
 | Mac | Installed | Up for | CPU time | Average CPU | RSS | Crash reports from BarShelf |
 | --- | --- | ---: | ---: | ---: | ---: | --- |
