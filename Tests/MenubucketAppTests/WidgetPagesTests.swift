@@ -131,6 +131,26 @@ final class WidgetPagesTests: XCTestCase {
         XCTAssertEqual(pages.map(\.widgets.count), [1, 0, 0])
     }
 
+    func testARenamedDefaultPageKeepsItsPlace() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("renamed-pages-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let prefs = WidgetPrefs(fileURL: url)
+        prefs.setGroupsOrder(["System", "Demo", "Files"])
+        // A widget still on Demo (an old copy, or the user's own override): no change.
+        XCTAssertFalse(prefs.migrateRenamedPages(inUse: ["System", "Demo", "Files"]))
+        XCTAssertTrue(prefs.migrateRenamedPages(inUse: ["System", "Everyday", "Files"]))
+        XCTAssertEqual(prefs.groupSortKey("Everyday"), 1)
+        XCTAssertNil(prefs.groupSortKey("Demo"))
+        XCTAssertFalse(prefs.migrateRenamedPages(inUse: ["System", "Everyday", "Files"]))
+
+        // Everyday already placed by the user wins; Demo's key just goes.
+        prefs.setGroupsOrder(["Everyday", "System", "Demo"])
+        prefs.migrateRenamedPages(inUse: ["Everyday", "System"])
+        XCTAssertEqual(prefs.groupSortKey("Everyday"), 0)
+        XCTAssertNil(prefs.groupSortKey("Demo"))
+    }
+
     func testKeptPagesPersistAndUndoWithTheLayout() throws {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("kept-pages-\(UUID().uuidString).json")
