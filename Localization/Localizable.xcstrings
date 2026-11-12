@@ -713,6 +713,17 @@
         }
       }
     },
+    "%lld widgets are waiting for you": {
+      "comment": "Privacy: above the waiting widgets",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯 %lld개가 기다리고 있습니다"
+          }
+        }
+      }
+    },
     "%lld widgets are waiting for your permission": {
       "comment": "Popup banner",
       "localizations": {
@@ -808,6 +819,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "위젯 1개"
+          }
+        }
+      }
+    },
+    "1 widget is waiting for you": {
+      "comment": "Privacy: above the waiting widgets",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯 1개가 기다리고 있습니다"
           }
         }
       }

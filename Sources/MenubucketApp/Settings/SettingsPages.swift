@@ -445,8 +445,27 @@ struct PrivacySettingsPage: View {
             // What needs a decision comes first, grouped by what the widgets
             // could do, riskiest first.
             if !waiting.isEmpty {
+                // The page-level decision sits above the groups: on a group's
+                // header it read as allowing only that group.
+                Section {
+                    HStack(spacing: Spacing.xs) {
+                        Label {
+                            Text(Self.waitingLine(waiting))
+                        } icon: {
+                            Image(systemName: PermissionWaiting.symbol)
+                                .foregroundStyle(PermissionWaiting.tone.color)
+                        }
+                        Spacer()
+                        if Self.distinctManifests(waiting).count > 1 {
+                            Button("Allow All…") { confirmingAllowAll = true }
+                                .buttonStyle(.glass(.secondary))
+                                .controlSize(.small)
+                                .help("Allow every widget waiting for you, after one confirmation")
+                        }
+                    }
+                }
                 let groups = Self.waitingGroups(waiting)
-                ForEach(Array(groups.enumerated()), id: \.element.risk) { index, group in
+                ForEach(groups, id: \.risk) { group in
                     Section {
                         ForEach(group.widgets) { PermissionRow(runtime: runtime, widget: $0) }
                     } header: {
@@ -463,12 +482,6 @@ struct PrivacySettingsPage: View {
                                 .font(.callout.monospacedDigit())
                                 .foregroundStyle(.secondary)
                             Spacer()
-                            if index == 0, waiting.count > 1 {
-                                Button("Allow All…") { confirmingAllowAll = true }
-                                    .buttonStyle(.glass(.secondary))
-                                    .controlSize(.small)
-                                    .help("Allow every widget waiting for you, after one confirmation")
-                            }
                         }
                     }
                 }
@@ -563,18 +576,29 @@ struct PrivacySettingsPage: View {
 
     /// Names the widgets, and says which ask for sensitive access, so one
     /// confirmation still shows what is being allowed.
+    /// Sensitive access first, so it is read before the long list.
     static func allowAllMessage(_ waiting: [LoadedWidget]) -> String {
         let widgets = distinctManifests(waiting)
-        let names = widgets.map(\.displayName).formatted(.list(type: .and))
         let sensitive = widgets.filter { widget in
             WidgetPermissionSummary.lines(for: widget.manifest).contains { $0.tone == .sensitive }
         }
-        var message = String(localized: "\(names) will run the commands, reach the hosts and read the paths they declared, with your access.", comment: "Privacy: Allow All confirmation")
+        let sensitiveIDs = Set(sensitive.map(\.id))
+        let ordered = sensitive + widgets.filter { !sensitiveIDs.contains($0.id) }
+        let names = ordered.map(\.displayName).formatted(.list(type: .and))
+        var message = ""
         if !sensitive.isEmpty {
             let names = sensitive.map(\.displayName).formatted(.list(type: .and))
-            message += " " + String(localized: "Sensitive access: \(names).", comment: "Privacy: Allow All confirmation, widgets with secrets, vault or environment access")
+            message = String(localized: "Sensitive access: \(names).", comment: "Privacy: Allow All confirmation, widgets with secrets, vault or environment access") + " "
         }
+        message += String(localized: "\(names) will run the commands, reach the hosts and read the paths they declared, with your access.", comment: "Privacy: Allow All confirmation")
         return message
+    }
+
+    /// The neutral line above the waiting groups.
+    static func waitingLine(_ waiting: [LoadedWidget]) -> String {
+        waiting.count == 1
+            ? String(localized: "1 widget is waiting for you", comment: "Privacy: above the waiting widgets")
+            : String(localized: "\(waiting.count) widgets are waiting for you", comment: "Privacy: above the waiting widgets")
     }
 
     /// Allowed, waiting and (when any) denied widgets, and how many of the

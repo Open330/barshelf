@@ -23,8 +23,9 @@ final class PrivacyAllowAllTests: XCTestCase {
         XCTAssertEqual(PrivacySettingsPage.distinctManifests(waiting).map(\.id), ["dev.test.weather", "dev.test.vault"])
         XCTAssertEqual(PrivacySettingsPage.allowAllTitle(waiting), "Allow 2 widgets?")
         let message = PrivacySettingsPage.allowAllMessage(waiting)
-        XCTAssertTrue(message.contains("Weather and Vault"), message)
-        XCTAssertTrue(message.contains("Sensitive access: Vault."), message)
+        // Sensitive access is read first, in the note and in the list.
+        XCTAssertTrue(message.hasPrefix("Sensitive access: Vault."), message)
+        XCTAssertTrue(message.contains("Vault and Weather"), message)
         XCTAssertFalse(PrivacySettingsPage.allowAllMessage(Array(waiting.prefix(1))).contains("Sensitive"))
     }
 }
