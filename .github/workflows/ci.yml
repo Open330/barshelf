@@ -135,11 +135,14 @@ jobs:
             [ -f "$w/widget.json" ] && "$BARSHELF_CLI" validate "$w"
           done
 
-  # Its own runner, so its flags never invalidate the test build above (in
-  # one job, the strict build and `swift test` recompiled Core for each
-  # other).
-  strict:
-    name: Strict concurrency
+  # Strict concurrency and the widget extension, beside the Swift job rather
+  # than inside it: its own .build, so the strict flags never invalidate the
+  # test build (in one job they recompiled Core for each other), and the
+  # extension's 80-140 s leave the critical path. One job, not two: macOS
+  # runners are the scarce resource here (with several pull requests open,
+  # jobs waited 15-20 minutes for one), so each run takes two, not three.
+  strict-and-extension:
+    name: Strict concurrency and widget extension
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: macos-26
@@ -182,19 +185,8 @@ jobs:
             [ "$count" -eq 0 ] || echo "::warning::${target} has ${count} strict-concurrency diagnostics"
           done
 
-  # The desktop widget extension is the one Xcode-built part of the app;
-  # building it here keeps a Swift-only change from breaking it unseen. In
-  # parallel with the Swift job: it takes 90-140 s on its own.
-  widget-extension:
-    name: Widget extension
-    needs: changes
-    if: needs.changes.outputs.code == 'true'
-    runs-on: macos-26
-    steps:
-      - uses: actions/checkout@v5
-      - uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: "26.6.0"
+      # The desktop widget extension is the one Xcode-built part of the app;
+      # building it here keeps a Swift-only change from breaking it unseen.
       - name: Build widget extension
         run: |
           xcodebuild -quiet \
@@ -254,7 +246,7 @@ jobs:
   # skipped for a docs-only change, and fails otherwise.
   build-test:
     name: Build & Test
-    needs: [changes, swift, strict, widget-extension, checks, package]
+    needs: [changes, swift, strict-and-extension, checks, package]
     if: always()
     runs-on: ubuntu-latest
     steps:
