@@ -235,7 +235,6 @@ final class WidgetBuilderModel: ObservableObject {
     @Published var refreshSeconds: Int? = nil
     @Published var appearanceAccent: String?
     @Published var appearanceDensity: WidgetAppearance.Density = .regular
-    @Published var appearanceCardStyle: WidgetAppearance.CardStyle = .plain
     @Published var appearanceShowHeader = true
 
     // Result
@@ -719,7 +718,6 @@ final class WidgetBuilderModel: ObservableObject {
         WidgetAppearance(
             accent: appearanceAccent,
             density: appearanceDensity,
-            cardStyle: appearanceCardStyle,
             showHeader: appearanceShowHeader
         )
     }
@@ -732,7 +730,6 @@ final class WidgetBuilderModel: ObservableObject {
         WidgetAppearance(
             accent: appearanceAccent,
             density: appearanceDensity == .regular ? nil : appearanceDensity,
-            cardStyle: appearanceCardStyle == .plain ? nil : appearanceCardStyle,
             showHeader: appearanceShowHeader
         )
     }

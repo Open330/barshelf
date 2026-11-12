@@ -545,6 +545,13 @@ struct NodeView: View {
         .buttonStyle(.glass(.secondary))
         .controlSize(.small)
         .modifier(AccentTint(color: accentOverride))
+        // On the button itself, so VoiceOver reads the author's words rather
+        // than the symbol's name; an icon-only button also shows them on hover.
+        .modifier(ButtonNameModifier(
+            label: node.effectiveAccessibilityLabel,
+            // The author's own `help`, when given, is the tooltip instead.
+            iconOnly: node.icon != nil && (node.title ?? node.text) == nil && node.help == nil
+        ))
     }
 
     private var badgeView: some View {
@@ -1055,6 +1062,23 @@ private struct NodeAccessibilityModifier: ViewModifier {
             content.accessibilityHint(hint)
         } else if let value {
             content.accessibilityValue(value)
+        } else {
+            content
+        }
+    }
+}
+
+/// A widget button's own name, when its author gave one.
+private struct ButtonNameModifier: ViewModifier {
+    let label: String?
+    let iconOnly: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if let label, iconOnly {
+            content.accessibilityLabel(label).help(label)
+        } else if let label {
+            content.accessibilityLabel(label)
         } else {
             content
         }

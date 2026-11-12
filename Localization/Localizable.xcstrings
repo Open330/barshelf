@@ -340,6 +340,17 @@
         }
       }
     },
+    "%@ no reading yet": {
+      "comment": "VoiceOver: a card's big reading before it has one",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 아직 값 없음"
+          }
+        }
+      }
+    },
     "%@ ready": {
       "comment": "A required tool, e.g. Deno ready",
       "localizations": {
@@ -492,6 +503,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "%1$@, %2$@"
+          }
+        }
+      }
+    },
+    "%@, %@ from now": {
+      "comment": "Empty card: “Waiting for the first refresh, 30 sec from now”",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@, %2$@ from now"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@, %2$@ 후"
           }
         }
       }
@@ -706,6 +734,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld개 꺼짐"
+          }
+        }
+      }
+    },
+    "%lld waiting": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld개 대기 중"
           }
         }
       }
@@ -1111,7 +1149,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "명령을 실행하거나 네트워크에 접근해야 하는 위젯은 먼저 카드에서 허락을 구합니다."
+            "value": "명령을 실행하거나 네트워크에 접근해야 하는 위젯은 먼저 카드에서 허용을 요청합니다."
           }
         }
       }
@@ -2663,6 +2701,7 @@
       }
     },
     "Card style": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -3171,7 +3210,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "메뉴 막대의 BarShelf 아이콘을 클릭하거나 키보드 단축키를 지정하십시오."
+            "value": "메뉴 막대의 BarShelf 아이콘을 클릭하거나 키보드 단축키를 지정하세요."
           }
         }
       }
@@ -3182,6 +3221,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "클릭 동작은 메뉴 막대에 별도 항목이 있을 때만 적용됩니다."
+          }
+        }
+      }
+    },
+    "Client ID": {
+      "comment": "Bitwarden API key field",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "클라이언트 ID"
+          }
+        }
+      }
+    },
+    "Client secret": {
+      "comment": "Bitwarden API key field",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "클라이언트 비밀 키"
           }
         }
       }
@@ -5482,6 +5543,7 @@
       }
     },
     "For example ⇧⌘B.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -6107,6 +6169,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "아이콘 %@"
+          }
+        }
+      }
+    },
+    "Icon and value": {
+      "extractionState": "stale",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "아이콘과 값"
           }
         }
       }
@@ -8487,6 +8560,7 @@
       }
     },
     "No data yet": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -8823,6 +8897,16 @@
         }
       }
     },
+    "Nothing to show right now": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "지금은 표시할 내용이 없습니다"
+          }
+        }
+      }
+    },
     "Nothing was found at this address (HTTP 404).": {
       "localizations": {
         "ko": {
@@ -8925,7 +9009,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "메뉴 막대 아이콘 하나와 위젯 팝업 하나로 사용량 미터, 코드, 파일, 그리고 명령행 도구가 출력하는 모든 것을 볼 수 있습니다."
+            "value": "메뉴 막대 아이콘 하나와 위젯 팝업 하나로 사용량 미터, 일회용 코드, 파일, 그리고 명령행 도구가 출력하는 모든 것을 볼 수 있습니다."
           }
         }
       }
@@ -9646,6 +9730,7 @@
       }
     },
     "Plain": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -12446,6 +12531,16 @@
         }
       }
     },
+    "Shown after you allow": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "허용하면 표시됩니다"
+          }
+        }
+      }
+    },
     "Shown as": {
       "extractionState": "stale",
       "localizations": {
@@ -13014,7 +13109,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "두 손가락으로 쓸어넘기거나, ← →를 누르거나, 페이지 이름을 클릭하여 페이지를 전환하십시오."
+            "value": "두 손가락으로 쓸어넘기거나, ← →를 누르거나, 페이지 이름을 클릭해 페이지를 전환하세요."
           }
         }
       }
@@ -13973,6 +14068,7 @@
       }
     },
     "The ⋯ menu in the popup edits the shelf, adds widgets, and opens Settings.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -14399,6 +14495,7 @@
       }
     },
     "Tinted": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -14714,6 +14811,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "2단계 로그인"
+          }
+        }
+      }
+    },
+    "Two-step login code": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "2단계 로그인 코드"
+          }
+        }
+      }
+    },
+    "Two-step login method": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "2단계 로그인 방법"
           }
         }
       }
@@ -15236,6 +15353,16 @@
         }
       }
     },
+    "Use ⋯ at the top of the popup to add widgets, rearrange them (Edit Shelf, ⌘E), or open Settings.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "팝업 위쪽의 ⋯에서 위젯을 추가하거나, 정리하거나(선반 편집, ⌘E), 설정을 열 수 있습니다."
+          }
+        }
+      }
+    },
     "Username copied": {
       "localizations": {
         "ko": {
@@ -15292,7 +15419,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "메뉴 막대의 값"
+            "value": "메뉴 막대에 값 표시"
           }
         }
       }
@@ -15380,6 +15507,16 @@
         }
       }
     },
+    "Waiting for the first refresh": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "첫 새로고침을 기다리는 중"
+          }
+        }
+      }
+    },
     "Waiting for you": {
       "comment": "Privacy summary: widgets waiting for a decision",
       "localizations": {
@@ -15453,11 +15590,22 @@
       }
     },
     "We added a few widgets to start with. Keep the ones you want. Some need your permission before they run anything.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "바로 시작할 수 있도록 기본 위젯을 추가했습니다. 원하는 위젯을 선택하십시오. 일부 위젯은 실행 전에 권한 허용이 필요합니다."
+          }
+        }
+      }
+    },
+    "We added a few widgets to start with. Turn off the ones you don't need. Ones that ask for permission run after you allow them.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "바로 시작할 수 있도록 기본 위젯을 추가했습니다. 필요 없는 위젯은 끄세요. 권한을 요청하는 위젯은 허용한 뒤에 실행됩니다."
           }
         }
       }
@@ -16210,6 +16358,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "예: gh run list --json name,status"
+          }
+        }
+      }
+    },
+    "e.g. ⇧⌘B — click, then press the keys": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "예: ⇧⌘B — 클릭한 다음 키를 누르세요"
           }
         }
       }

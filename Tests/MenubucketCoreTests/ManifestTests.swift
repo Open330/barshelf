@@ -177,4 +177,43 @@ final class ManifestTests: XCTestCase {
         XCTAssertEqual(properties?["files"], .bool(false))
         XCTAssertNil(schema.objectValue?["definitions"]?.objectValue?["filePermission"])
     }
+
+    func testEmptyHintIsOptionalAndTranslated() throws {
+        let json = #"""
+        {"schemaVersion": 1, "id": "t.note", "name": "Note", "entry": {"kind": "workflow"},
+         "emptyHint": "Write your first note",
+         "localizations": {"ko": {"Write your first note": "첫 메모를 적어 보세요"}}}
+        """#
+        let manifest = try Manifest.decode(from: Data(json.utf8))
+        XCTAssertEqual(manifest.emptyHint, "Write your first note")
+        XCTAssertEqual(manifest.localizedEmptyHint(for: "en"), "Write your first note")
+        XCTAssertEqual(manifest.localizedEmptyHint(for: "ko"), "첫 메모를 적어 보세요")
+        XCTAssertEqual(manifest.localization(for: "ko")?.manifest(manifest).emptyHint, "첫 메모를 적어 보세요")
+
+        let plain = try Manifest.decode(from: Data(
+            #"{"schemaVersion": 1, "id": "t.x", "name": "X", "entry": {"kind": "exec"}}"#.utf8))
+        XCTAssertNil(plain.emptyHint)
+        XCTAssertNil(plain.localizedEmptyHint(for: "en"))
+
+        var blank = plain
+        blank.emptyHint = "  "
+        XCTAssertNil(blank.localizedEmptyHint(for: "en"), "a blank hint falls back to the host's text")
+    }
+
+    func testSchemaDocumentsEmptyHint() throws {
+        let schema = try JSONDecoder().decode(
+            JSONValue.self, from: Data(contentsOf: packageRoot.appendingPathComponent("schema/widget-0.1.json"))
+        )
+        XCTAssertNotNil(schema.objectValue?["properties"]?.objectValue?["emptyHint"])
+    }
+
+    func testBundledWidgetsNoLongerTintTheWholeCard() throws {
+        let widgets = packageRoot.appendingPathComponent("widgets")
+        for name in try FileManager.default.contentsOfDirectory(atPath: widgets.path) {
+            let url = widgets.appendingPathComponent(name).appendingPathComponent("widget.json")
+            guard let data = try? Data(contentsOf: url) else { continue }
+            let manifest = try Manifest.decode(from: data)
+            XCTAssertNotEqual(manifest.appearance?.cardStyle, .tinted, name)
+        }
+    }
 }

@@ -209,7 +209,7 @@ final class WidgetLocalizationTests: XCTestCase {
 
             // Every entry replaces text the widget shows, keeps its exact
             // expressions, and is actually used (no stale keys).
-            var shown = [manifest.name]
+            var shown = [manifest.name] + [manifest.emptyHint].compactMap { $0 }
             for setting in manifest.settings ?? [] {
                 shown += [setting.title, setting.label].compactMap { $0 }
                 shown += setting.optionTitles ?? setting.options ?? []

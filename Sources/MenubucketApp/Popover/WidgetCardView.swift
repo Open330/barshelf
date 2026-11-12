@@ -68,10 +68,14 @@ struct WidgetCardView: View {
     /// Edit controls only make sense on a shelf page.
     private var isEditing: Bool { shelfIsEditing && placement == .shelf && compactHeight == nil }
 
-    /// compact density tightens the card's content insets.
-    private var contentInset: CGFloat { appearance.density == .compact ? Spacing.xs : Spacing.cardInset }
+    private var contentInset: CGFloat { Self.contentInset(for: appearance) }
 
-    /// Accent used for the tinted wash and the reveal highlight.
+    /// Every card keeps the same 12 pt inset, whatever its density: Compact
+    /// tightens the widget's own rows and text, never the card's edge, so a
+    /// page of cards lines up.
+    static func contentInset(for appearance: WidgetAppearance) -> CGFloat { Spacing.cardInset }
+
+    /// Accent used for the icon tile and the reveal highlight.
     private var cardAccent: Color { appearance.accentColor ?? .accentColor }
 
     /// Opt-in fixed card height (points). `nil` → the card fits its content
@@ -251,7 +255,15 @@ struct WidgetCardView: View {
         } else if snapshot.isLoading {
             CardSkeleton()
         } else {
-            CardEmptyView(onRefresh: retry)
+            let hint = widget.manifest.localizedEmptyHint()
+            CardEmptyView(
+                message: CardEmptyView.message(hint: hint, hasRefreshed: snapshot.updatedAt != nil),
+                nextRefresh: hint == nil && snapshot.updatedAt == nil
+                    ? runtime.scheduler.nextIntervalFire(widgetID: widget.id) : nil,
+                // The header's controls already offer Refresh (and the menu
+                // bar card's header always does).
+                onRefresh: usesHeaderControls || placement == .menuBar ? nil : retry
+            )
         }
     }
 
@@ -650,19 +662,18 @@ struct WidgetCardView: View {
     }
 
     /// Each widget sits on its own soft card, as widgets do in Notification
-    /// Center: a faint fill at rest, a little more on hover, a flat accent
-    /// wash for a `tinted` widget and a stronger one for the reveal flash.
+    /// Center: a faint fill at rest, a little more on hover, and an accent
+    /// wash only for the reveal flash. A widget's colour belongs on its tile
+    /// and its numbers, never across the whole card, so the deprecated
+    /// `cardStyle: "tinted"` draws the same neutral card.
     /// (It used to be an edge-to-edge band split by hairlines, which read as
     /// a text list rather than a shelf of widgets.)
     private var sectionBackground: some View {
-        let tinted = appearance.cardStyle == .tinted
-        return RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+        RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
             .fill(
                 isHighlighted
                     ? AnyShapeStyle(cardAccent.opacity(Fill.Wash.strong))
-                    : tinted
-                        ? AnyShapeStyle(cardAccent.opacity(Fill.Wash.soft))
-                        : AnyShapeStyle(isHovering || isEditing ? Fill.hover : Fill.card)
+                    : AnyShapeStyle(isHovering || isEditing ? Fill.hover : Fill.card)
             )
             .overlay {
                 // Increase Contrast: a card is told apart by its edge, not

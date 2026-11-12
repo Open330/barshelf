@@ -33,21 +33,54 @@ struct CardSkeleton: View {
     }
 }
 
-/// Loaded fine, but there is nothing to show yet.
+/// Nothing to show yet: what the widget's author says to do, or what the
+/// card is waiting for. Its own Refresh only on a card whose header has none.
 struct CardEmptyView: View {
-    let onRefresh: () -> Void
+    let message: String
+    var nextRefresh: Date?
+    var onRefresh: (() -> Void)?
 
     var body: some View {
         HStack(spacing: Spacing.xs) {
-            Text("No data yet")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            Group {
+                if let nextRefresh {
+                    // Redrawn once when the time comes, so a refresh that is
+                    // late never turns the countdown into a counter.
+                    TimelineView(.explicit([nextRefresh])) { context in
+                        if Self.showsCountdown(to: nextRefresh, now: context.date) {
+                            Text("\(message), \(Text(nextRefresh, style: .relative)) from now",
+                                 comment: "Empty card: “Waiting for the first refresh, 30 sec from now”")
+                        } else {
+                            Text(verbatim: message)
+                        }
+                    }
+                } else {
+                    Text(verbatim: message)
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
-            Button("Refresh", action: onRefresh)
-                .buttonStyle(.glass(.secondary))
-                .controlSize(.small)
+            if let onRefresh {
+                Button("Refresh", action: onRefresh)
+                    .buttonStyle(.glass(.secondary))
+                    .controlSize(.small)
+            }
         }
         .padding(.vertical, Spacing.xxs)
+    }
+
+    /// The countdown only while the time is ahead: once it has passed,
+    /// a relative date would count up instead.
+    static func showsCountdown(to nextRefresh: Date, now: Date) -> Bool { nextRefresh > now }
+
+    /// The author's hint; otherwise what the card is waiting for.
+    static func message(hint: String?, hasRefreshed: Bool) -> String {
+        if let hint, !hint.isEmpty { return hint }
+        return hasRefreshed
+            ? String(localized: "Nothing to show right now")
+            : String(localized: "Waiting for the first refresh")
     }
 }
 

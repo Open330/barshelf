@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.break-reminder",
   "name": "Break Reminder",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "minHostVersion": "0.7.21",
   "icon": "figure.stand",
   "bucket": {
@@ -72,8 +72,7 @@
     }
   ],
   "appearance": {
-    "accent": "green",
-    "cardStyle": "tinted"
+    "accent": "green"
   },
   "localizations": {
     "ko": {

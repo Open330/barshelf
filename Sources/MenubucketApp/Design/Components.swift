@@ -635,3 +635,20 @@ struct AccentSwatchButton: View {
     }
 }
 
+/// A scroll view's mask: opaque down to the last `height` points, which
+/// fade out — or fully opaque when the content fits. Used where content
+/// scrolls under a footer, so it never ends on a flat cut.
+struct ScrollFadeMask: View {
+    let fades: Bool
+    let height: CGFloat
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Rectangle()
+            if fades {
+                LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
+                    .frame(height: height)
+            }
+        }
+    }
+}

@@ -22,29 +22,61 @@ public final class ExecService {
     ]
 
     /// Minimal process environment plus explicitly authorized/injected values.
+    ///
+    /// `appLanguage` is the language BarShelf's own interface is shown in. A
+    /// child speaks it too — `/bin/date` names the month, a script picks its
+    /// strings from `LANG` — even when BarShelf was started from a shell
+    /// whose `LANG` is another language, so a card never mixes "2026년" with
+    /// "Nov". A widget's own `LANG` (in `extraEnvironment`) still wins.
     public static func childEnvironment(
         extraEnvironment: [String: String]? = nil,
         hostEnvironment: [String: String] = ProcessInfo.processInfo.environment,
-        locale: Locale = .current
+        locale: Locale = .current,
+        appLanguage: String? = nil
     ) -> [String: String] {
         var environment: [String: String] = [:]
         for key in ["HOME", "TMPDIR", "USER", "LOGNAME", "LANG", "LC_ALL", "LC_CTYPE", "LC_TIME", "LC_NUMERIC"] {
             if let value = hostEnvironment[key], !value.isEmpty { environment[key] = value }
+        }
+        let wanted = appLanguage.map(Self.languageCode)
+        let region = locale.region?.identifier
+        // A shell's LC_ALL overrides every category, the pinned LC_NUMERIC
+        // below included: it becomes the LANG it effectively was.
+        if let all = environment["LC_ALL"], !["C", "POSIX"].contains(all) {
+            environment["LANG"] = all
+            environment["LC_ALL"] = nil
         }
         // GUI apps launched by launchd usually have no LANG. Commands such as
         // /bin/date would otherwise produce English inside a localized app.
         if environment["LANG"] == nil {
             let base = locale.identifier.components(separatedBy: "@")[0].replacingOccurrences(of: "-", with: "_")
             let candidate = base.contains(".") ? base : base + ".UTF-8"
-            let language = locale.language.languageCode?.identifier ?? String(base.prefix { $0 != "_" })
-            // ICU locales such as ko_US do not necessarily exist as POSIX
-            // locales. Use an installed locale of the same language instead.
-            environment["LANG"] = Self.posixUTF8Locales.contains(candidate) ? candidate
-                : Self.posixUTF8Locales.first { $0.hasPrefix(language + "_") } ?? "en_US.UTF-8"
-            // Shell widgets emit JSON numbers; localize dates without turning
-            // printf's decimal point into a comma on a German-language Mac.
-            if environment["LC_NUMERIC"] == nil { environment["LC_NUMERIC"] = "C" }
+            let language = wanted
+                ?? locale.language.languageCode?.identifier ?? String(base.prefix { $0 != "_" })
+            // ICU locales such as ko_US or en_DE do not necessarily exist as
+            // POSIX locales. Use the language's usual one instead.
+            environment["LANG"] = Self.posixUTF8Locales.contains(candidate) && Self.languageCode(candidate) == language
+                ? candidate
+                : Self.posixLocale(language: language, region: region) ?? "en_US.UTF-8"
         }
+        // Started from a shell in another language than the app shows: the
+        // child speaks the app's language, and a time format in another
+        // language goes.
+        if let wanted {
+            // Even "C": it would hold every category in English.
+            environment["LC_ALL"] = nil
+            if let lang = environment["LANG"], Self.languageCode(lang) != wanted,
+               let replacement = Self.posixLocale(language: wanted, region: region) {
+                environment["LANG"] = replacement
+            }
+            if let time = environment["LC_TIME"], Self.languageCode(time) != wanted {
+                environment["LC_TIME"] = nil
+            }
+        }
+        // Widget scripts parse and print numbers with awk, sed and printf:
+        // localize dates and words, never the decimal point, whatever the UI
+        // language or the shell's LC_NUMERIC. A widget's own value still wins.
+        environment["LC_NUMERIC"] = "C"
         let systemPath = "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin"
         environment["PATH"] = (hostEnvironment["PATH"].map { $0.isEmpty ? nil : $0 } ?? nil)
             .map { "\($0):\(systemPath)" } ?? systemPath
@@ -53,6 +85,32 @@ public final class ExecService {
         }
         return environment
     }
+
+    /// "ko" from "ko", "ko-KR", "ko_KR.UTF-8".
+    static func languageCode(_ identifier: String) -> String {
+        String(identifier.prefix { $0 != "_" && $0 != "-" && $0 != "." }).lowercased()
+    }
+
+    /// An installed UTF-8 POSIX locale for `language`: in `region` when there
+    /// is one, else the language's usual one (en_US, not the alphabetically
+    /// first en_AU, whose dates read "Thu  1 Jan"), else any.
+    static func posixLocale(language: String, region: String?) -> String? {
+        var candidates: [String] = []
+        if let region { candidates.append("\(language)_\(region)") }
+        if let usual = usualRegion[language] { candidates.append("\(language)_\(usual)") }
+        candidates.append("\(language)_\(language.uppercased())")
+        for candidate in candidates.map({ $0 + ".UTF-8" }) where posixUTF8Locales.contains(candidate) {
+            return candidate
+        }
+        return posixUTF8Locales.first { $0.hasPrefix(language + "_") }
+    }
+
+    /// Where a language's default POSIX locale is, when it is not the
+    /// language code upper-cased (de_DE, fr_FR).
+    private static let usualRegion: [String: String] = [
+        "en": "US", "ko": "KR", "ja": "JP", "zh": "CN", "pt": "BR", "sv": "SE",
+        "da": "DK", "nb": "NO", "cs": "CZ", "el": "GR", "uk": "UA", "he": "IL",
+    ]
 
     public init() {}
 
@@ -363,7 +421,9 @@ public final class ExecService {
         // Start from a minimal environment. Widgets receive declared values
         // through `extraEnvironment`; inheriting the whole app environment can
         // leak unrelated tokens from shells, IDEs, or launch agents.
-        process.environment = childEnvironment(extraEnvironment: extraEnvironment)
+        process.environment = childEnvironment(
+            extraEnvironment: extraEnvironment, appLanguage: WidgetLocalization.appLanguage
+        )
 
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()

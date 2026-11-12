@@ -45,6 +45,10 @@
     "icon": {
       "$ref": "#/definitions/nonEmptyString"
     },
+    "emptyHint": {
+      "description": "What the card says before the widget has shown anything, e.g. \"Write your first note\". Translated through localizations. Without it the card says it is waiting for the first refresh. BarShelf 0.7.32+; older hosts ignore it.",
+      "$ref": "#/definitions/nonEmptyString"
+    },
     "bucket": {
       "$ref": "#/definitions/bucket"
     },

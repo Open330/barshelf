@@ -85,6 +85,10 @@ struct OnboardingView: View {
     @State private var addError: String?
     /// Bumped on each Allow: the permission store is not observable.
     @State private var approvals = 0
+    /// The step's content and the space it has, to fade the bottom edge
+    /// only when there is more below.
+    @State private var contentHeight: CGFloat = 0
+    @State private var viewportHeight: CGFloat = 0
 
     init(runtime: WidgetRuntime, appPrefs: AppPrefs, startAt step: Step = .widgets, finish: @escaping (Bool) -> Void) {
         self.runtime = runtime
@@ -112,7 +116,10 @@ struct OnboardingView: View {
                 .padding(.top, Spacing.l + Spacing.m)
                 .padding(.bottom, Spacing.m)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { contentHeight = $0 }
             }
+            .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { viewportHeight = $0 }
+            .mask { ScrollFadeMask(fades: contentHeight > viewportHeight + 1, height: Spacing.l) }
             Divider()
             footer
         }
@@ -124,7 +131,7 @@ struct OnboardingView: View {
     @ViewBuilder
     private var widgetsStep: some View {
         title("Welcome to BarShelf", "One menu bar icon, and a popup of widgets: your usage meters, codes, files, and anything a command line tool can print.")
-        Text("We added a few widgets to start with. Keep the ones you want. Some need your permission before they run anything.")
+        Text("We added a few widgets to start with. Turn off the ones you don't need. Ones that ask for permission run after you allow them.")
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
         VStack(spacing: 0) {
@@ -246,7 +253,7 @@ struct OnboardingView: View {
             HStack {
                 VStack(alignment: .leading, spacing: Spacing.hair) {
                     Text("Shortcut")
-                    Text("For example ⇧⌘B.").font(.caption).foregroundStyle(.secondary)
+                    Text("e.g. ⇧⌘B — click, then press the keys").font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
                 KeyRecorder(
@@ -254,6 +261,8 @@ struct OnboardingView: View {
                     onRecord: { hotkey.enable(draft: $0, appPrefs: appPrefs) },
                     onClear: { hotkey.disable(appPrefs: appPrefs) }
                 )
+                // The same capsule as every other button in this window.
+                .buttonStyle(.glass(.secondary))
             }
             .padding(.vertical, Spacing.xs)
             if let message = hotkey.message {
@@ -310,15 +319,25 @@ struct OnboardingView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
         } else {
+            let _ = approvals
+            let ordered = Self.menuBarOrder(candidates) { canRun($0) }
             VStack(spacing: 0) {
-                ForEach(candidates) { widget in
+                ForEach(ordered) { widget in
                     switchRow(isOn: Binding(
                         get: { runtime.menuBarWidgetIDs.contains(widget.id) },
                         set: { value in runtime.updateMenuBarPlacement(for: widget.id) { $0.enabled = value } }
                     )) {
-                        widgetLabel(widget)
+                        HStack(spacing: Spacing.xs) {
+                            widgetLabel(widget)
+                            Spacer(minLength: Spacing.xs)
+                            MenuBarRowPreview(
+                                widget: widget,
+                                model: runtime.cardModel(for: widget.id),
+                                canRun: canRun(widget)
+                            )
+                        }
                     }
-                    if widget.id != candidates.last?.id { Divider() }
+                    if widget.id != ordered.last?.id { Divider() }
                 }
             }
             .padding(.horizontal, Spacing.s)
@@ -363,12 +382,38 @@ struct OnboardingView: View {
         title("You're set", "BarShelf lives in the menu bar. A few things to know:")
         VStack(alignment: .leading, spacing: Spacing.s) {
             tip("rectangle.on.rectangle", "Swipe with two fingers, press ← →, or click the page name to switch pages.")
-            tip("ellipsis.circle", "The ⋯ menu in the popup edits the shelf, adds widgets, and opens Settings.")
+            tip("ellipsis.circle", "Use ⋯ at the top of the popup to add widgets, rearrange them (Edit Shelf, ⌘E), or open Settings.")
             tip("hand.raised", "A widget that needs to run a command or reach the network asks first, on its card.")
         }
     }
 
     // MARK: - Pieces
+
+    /// Runs now: needs no permission, or has it.
+    private func canRun(_ widget: LoadedWidget) -> Bool {
+        runtime.permissionStore.status(for: widget.manifest) == .approved
+    }
+
+    /// Widgets that can show a reading today first, then those waiting for
+    /// permission; each group keeps its own order.
+    static func menuBarOrder(_ widgets: [LoadedWidget], canRun: (LoadedWidget) -> Bool) -> [LoadedWidget] {
+        widgets.filter(canRun) + widgets.filter { !canRun($0) }
+    }
+
+    /// The widget's current menu bar text, e.g. "CPU 23%".
+    static func menuBarReading(_ snapshot: WidgetSnapshot) -> String? {
+        if let metric = snapshot.statusMetrics?.first(where: { !$0.value.isEmpty }) {
+            return [metric.label, metric.value].filter { !$0.isEmpty }.joined(separator: " ")
+        }
+        guard let label = snapshot.statusLabel, !label.isEmpty else { return nil }
+        return [snapshot.statusPrefix ?? "", label].filter { !$0.isEmpty }.joined(separator: " ")
+    }
+
+    /// "CPU —", or "—" alone.
+    static func placeholderReading(label: String?) -> String {
+        guard let label, !label.isEmpty else { return "—" }
+        return "\(label) —"
+    }
 
     /// A widget as every list in the app shows it: its mark, then its name.
     private func widgetLabel(_ widget: LoadedWidget) -> some View {
@@ -393,13 +438,13 @@ struct OnboardingView: View {
     }
 
     private func title(_ heading: LocalizedStringKey, _ detail: LocalizedStringKey) -> some View {
+        // The same tile on every step, so the title stays put.
         VStack(alignment: .leading, spacing: Spacing.xs) {
-            if step == .widgets {
-                AccentTile(size: 44) {
-                    Image(nsImage: BarShelfStatusIcon.logoImage(size: NSSize(width: 34, height: 26)))
-                        .renderingMode(.template)
-                }
+            AccentTile(size: 44) {
+                Image(nsImage: BarShelfStatusIcon.logoImage(size: NSSize(width: 34, height: 26)))
+                    .renderingMode(.template)
             }
+            .accessibilityHidden(true)
             Text(heading)
                 .font(.largeTitle.weight(.semibold))
                 .accessibilityAddTraits(.isHeader)
@@ -411,11 +456,25 @@ struct OnboardingView: View {
     }
 
     private func tip(_ symbol: String, _ text: LocalizedStringKey) -> some View {
-        Label {
+        HStack(alignment: .firstTextBaseline, spacing: Spacing.xs) {
+            // One icon column, whatever each symbol's own width.
+            Image(systemName: symbol)
+                .foregroundStyle(Color.accentColor)
+                .frame(width: Self.tipIconWidth)
+                .accessibilityHidden(true)
             Text(text).fixedSize(horizontal: false, vertical: true)
-        } icon: {
-            Image(systemName: symbol).foregroundStyle(Color.accentColor)
         }
+    }
+
+    static let tipIconWidth: CGFloat = 22
+
+    /// Starters kept on that still wait for Allow.
+    private var waitingCount: Int {
+        let _ = approvals
+        return runtime.widgets.filter { widget in
+            !runtime.prefs.isDisabled(widget.id)
+                && runtime.permissionStore.status(for: widget.manifest) == .pending
+        }.count
     }
 
     private var footer: some View {
@@ -430,6 +489,15 @@ struct OnboardingView: View {
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Step \(step.rawValue + 1) of \(Step.allCases.count)")
+
+            // Visible however far the list is scrolled.
+            if step == .widgets, waitingCount > 0 {
+                Label("\(waitingCount) waiting", systemImage: PermissionWaiting.symbol)
+                    .font(.caption)
+                    .foregroundStyle(PermissionWaiting.tone.color)
+                    .padding(.leading, Spacing.xs)
+                    .help(PermissionWaiting.title)
+            }
 
             Spacer()
             if step == .done {
@@ -453,5 +521,42 @@ struct OnboardingView: View {
 
     private func move(_ offset: Int) {
         step = Step(rawValue: step.rawValue + offset) ?? step
+    }
+}
+
+/// What a row of the onboarding menu bar step would put in the menu bar:
+/// its reading when it has one (kept current as it refreshes), else its icon
+/// or a dash; for a widget still waiting, that it appears once allowed.
+private struct MenuBarRowPreview: View {
+    let widget: LoadedWidget
+    @ObservedObject var model: WidgetCardModel
+    let canRun: Bool
+
+    var body: some View {
+        if !canRun {
+            Label("Shown after you allow", systemImage: PermissionWaiting.symbol)
+                .font(.caption)
+                .foregroundStyle(PermissionWaiting.tone.color)
+        } else if let reading = OnboardingView.menuBarReading(model.snapshot) {
+            Text(verbatim: reading)
+                .font(.callout.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        } else if widget.manifest.statusItem?.mode == "icon",
+                  let symbol = widget.manifest.statusItem?.icon ?? widget.manifest.icon {
+            // An icon-only item: the icon is the preview.
+            Image(systemName: symbol)
+                .foregroundStyle(.tertiary)
+                .accessibilityHidden(true)
+        } else {
+            // No reading yet: its label, if the author gave one, and a dash
+            // where the value will be.
+            Text(verbatim: OnboardingView.placeholderReading(label: widget.manifest.statusItem?.label.map {
+                widget.manifest.localization()?.text($0) ?? $0
+            }))
+            .font(.callout.monospacedDigit())
+            .foregroundStyle(.tertiary)
+            .accessibilityHidden(true)
+        }
     }
 }

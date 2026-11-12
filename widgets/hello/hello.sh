@@ -16,7 +16,7 @@ case "${LANG:-}" in
     COPY_TITLE="인사말 복사"
     GREETING="${NOW}, BarShelf에서 보내는 인사"
     COPIED="복사했습니다!"
-    CAPTION="이 트리는 hello.sh가 만들었습니다 (output=viewtree)"
+    CAPTION="작은 스크립트가 1분마다 이 카드를 그립니다. 위젯 만들기…에서 직접 만들어 보세요."
     ;;
   *)
     TITLE="Hello from BarShelf"
@@ -25,7 +25,7 @@ case "${LANG:-}" in
     COPY_TITLE="Copy greeting"
     GREETING="Hello from BarShelf at ${NOW}"
     COPIED="Copied!"
-    CAPTION="This tree came from hello.sh (output=viewtree)"
+    CAPTION="A small script draws this card every minute. Make your own with Create Widget…"
     ;;
 esac
 

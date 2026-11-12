@@ -18,7 +18,8 @@ public struct WidgetAppearance: Codable, Equatable, Sendable {
     public var accent: String?
     /// `nil` → `.regular`.
     public var density: Density?
-    /// `nil` → `.plain`.
+    /// Deprecated (0.7.32): still decoded so older manifests and prefs load,
+    /// but the app draws every card neutral — `.tinted` is ignored.
     public var cardStyle: CardStyle?
     /// `nil` → `true`.
     public var showHeader: Bool?
