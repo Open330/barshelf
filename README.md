@@ -4,10 +4,11 @@
 
 # BarShelf
 
-**Turn any CLI into a native menu bar widget — all behind one icon.**
+**One icon for your whole menu bar — and for everything that never had one.**
 
-One macOS menu bar icon, one popup of native widgets: Claude Code and Codex
-usage, OTP codes, GitHub reviews, recent files — or anything your own scripts print.
+Weather, calendar, battery, system stats, passwords, usage meters: tidy them
+behind one macOS menu bar icon. Tools with no menu bar app of their own — a
+script, a command-line tool, a web page's data — show up there too.
 
 [![Platform](https://img.shields.io/badge/macOS-14%2B-000000?logo=apple&logoColor=white)](https://www.apple.com/macos/)
 [![Swift](https://img.shields.io/badge/Swift-5.9-F05138?logo=swift&logoColor=white)](https://swift.org)
@@ -31,10 +32,11 @@ usage, OTP codes, GitHub reviews, recent files — or anything your own scripts 
 
 ## Why BarShelf
 
-Your most-checked tools are scattered — a dozen menu bar icons, terminal windows,
-browser tabs. BarShelf collects them into **one icon, one popup** of native
-widgets. Any command-line tool you already have becomes a widget in minutes; no
-new SDK to learn.
+Your most-checked things are scattered — a dozen menu bar icons, terminal windows,
+browser tabs. BarShelf is a menu bar for your menu bar: it collects them into
+**one icon, one popup** of native widgets. Start with the ready-made ones in
+the gallery; there is nothing to write. And when a tool has no menu bar app at
+all, any command it can run becomes a widget in minutes, with no new SDK to learn.
 
 - **🪟 One icon, many widgets** — bucket pages, trackpad swipe, pinned row, ⌘F search.
 - **⌨️ Keyboard all the way** — arrows choose a widget, ⌥⌘-arrows move it,
