@@ -414,6 +414,9 @@ final class StatusItemController: NSObject {
             popup.hide()
             // After the popup has given up key, or it would take it back.
             DispatchQueue.main.async { [weak self] in self?.dockPanel.focusDock() }
+        case .reviewPermissions:
+            popup.hide()
+            Task { @MainActor in HubWindowController.shared.show(runtime: runtime, tab: .privacy) }
         case .openBarShelf:
             openHub(nil)
         case .settings:

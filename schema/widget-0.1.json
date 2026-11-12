@@ -524,6 +524,11 @@
         },
         "sensitiveOutput": {
           "type": "boolean"
+        },
+        "purpose": {
+          "description": "What running this command does, in a few plain words, shown on the permission request instead of the command line. Translated through localizations; not part of the permission hash.",
+          "type": "string",
+          "minLength": 1
         }
       },
       "additionalProperties": true

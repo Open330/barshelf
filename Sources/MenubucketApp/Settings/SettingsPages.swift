@@ -442,22 +442,33 @@ struct PrivacySettingsPage: View {
                 }
             }
 
-            // What needs a decision comes first.
+            // What needs a decision comes first, grouped by what the widgets
+            // could do, riskiest first.
             if !waiting.isEmpty {
-                Section {
-                    ForEach(waiting) { PermissionRow(runtime: runtime, widget: $0) }
-                } header: {
-                    HStack {
-                        // The inner style wins: the tone colour over the title's.
-                        Label("Waiting for You", systemImage: PermissionWaiting.symbol)
-                            .foregroundStyle(PermissionWaiting.tone.color)
+                let groups = Self.waitingGroups(waiting)
+                ForEach(Array(groups.enumerated()), id: \.element.risk) { index, group in
+                    Section {
+                        ForEach(group.widgets) { PermissionRow(runtime: runtime, widget: $0) }
+                    } header: {
+                        HStack {
+                            // Neutral title, the tone only on the icon.
+                            Label {
+                                Text(group.risk.title)
+                            } icon: {
+                                Image(systemName: group.risk.symbol)
+                                    .foregroundStyle(PermissionWaiting.tone.color)
+                            }
                             .settingsSectionTitle()
-                        Spacer()
-                        if waiting.count > 1 {
-                            Button("Allow All…") { confirmingAllowAll = true }
-                                .buttonStyle(.glass(.secondary))
-                                .controlSize(.small)
-                                .help("Allow every widget waiting for you, after one confirmation")
+                            Text(verbatim: "\(group.widgets.count)")
+                                .font(.callout.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            if index == 0, waiting.count > 1 {
+                                Button("Allow All…") { confirmingAllowAll = true }
+                                    .buttonStyle(.glass(.secondary))
+                                    .controlSize(.small)
+                                    .help("Allow every widget waiting for you, after one confirmation")
+                            }
                         }
                     }
                 }
@@ -522,6 +533,20 @@ struct PrivacySettingsPage: View {
                     Text("Every permission decision and every command or request a widget made.")
                 }
             }
+        }
+    }
+
+    struct WaitingGroup {
+        let risk: PermissionInventory.Risk
+        let widgets: [LoadedWidget]
+    }
+
+    /// Waiting widgets by risk, riskiest group first; each group keeps the
+    /// page's order.
+    static func waitingGroups(_ waiting: [LoadedWidget]) -> [WaitingGroup] {
+        let byRisk = Dictionary(grouping: waiting) { PermissionInventory.Risk.of($0.manifest) }
+        return PermissionInventory.Risk.allCases.compactMap { risk in
+            byRisk[risk].map { WaitingGroup(risk: risk, widgets: $0) }
         }
     }
 
@@ -638,6 +663,12 @@ struct PrivacySettingsPage: View {
                 WidgetMark(widget: widget, runtime: runtime)
                 VStack(alignment: .leading, spacing: Spacing.xxs) {
                     Text(widget.displayName).font(.headline)
+                    if state == .notAsked, let purpose = WidgetRuntime.permissionPurpose(for: widget) {
+                        Text(purpose)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     FlowLayout {
                         ForEach(WidgetPermissionSummary.lines(for: widget.manifest), id: \.self) { line in
                             PermissionChip(line: line)

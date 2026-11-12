@@ -168,7 +168,8 @@ final class PopoverShelfTests: XCTestCase {
         let widget = LoadedWidget(manifest: manifest, directory: FileManager.default.temporaryDirectory)
         let requests = WidgetRuntime.permissionRequests(for: widget)
         XCTAssertEqual(requests.map(\.symbol), ["terminal", "bell.fill", "network"])
-        XCTAssertEqual(requests.first?.description, "Run top -l 1")
+        XCTAssertEqual(requests.first?.description, "Run top")
+        XCTAssertEqual(requests.first?.details, ["/usr/bin/top -l 1"])
         XCTAssertTrue(requests.allSatisfy { !$0.isWarning })
     }
 

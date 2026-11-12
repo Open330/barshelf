@@ -261,13 +261,18 @@ struct WidgetCardView: View {
         case let .approvalNeeded(requests):
             PermissionApprovalView(
                 widgetName: widget.displayName,
+                summary: WidgetRuntime.permissionPurpose(for: widget),
                 requests: requests,
+                // A page of new widgets must still show the running ones;
+                // alone in a menu bar card or the Dock it has the room.
+                startsCollapsed: placement == .shelf,
                 onAllow: { runtime.approvePermissions(widgetID: widget.id) },
                 onDeny: { runtime.denyPermissions(widgetID: widget.id) }
             )
         case let .denied(requests):
             PermissionDeniedView(
                 widgetName: widget.displayName,
+                summary: WidgetRuntime.permissionPurpose(for: widget),
                 requests: requests,
                 onAllow: { runtime.approvePermissions(widgetID: widget.id) },
                 onRemove: { showRemoveConfirm = true }

@@ -4,10 +4,10 @@ import MenubucketCore
 
 final class OnboardingPermissionTests: XCTestCase {
     func testClockPermissionDescriptionOnlySummarizesReadOnlyDateArguments() {
-        let reading = WidgetRuntime.describeExec(command: "/bin/date", args: ["+{\"weekday\":\"%A\"}"])
+        let reading = ExecPermissionText.describe(command: "/bin/date", args: ["+{\"weekday\":\"%A\"}"])
         XCTAssertFalse(reading.contains("weekday"))
-        XCTAssertNotEqual(WidgetRuntime.describeExec(command: "/bin/date", args: ["102402002026"]), reading)
-        XCTAssertNotEqual(WidgetRuntime.describeExec(command: "/tmp/date", args: ["+%A"]), reading)
+        XCTAssertNotEqual(ExecPermissionText.describe(command: "/bin/date", args: ["102402002026"]), reading)
+        XCTAssertNotEqual(ExecPermissionText.describe(command: "/tmp/date", args: ["+%A"]), reading)
     }
 
     func testFoldersMacOSGuardsAreNamedBeforeTheirPrompt() throws {

@@ -56,7 +56,7 @@ From BarShelf 0.7.5, optional `localizations` maps language codes to exact
 display-text translations, for example `{"ko":{"My Widget":"내 위젯"}}`.
 It translates the widget name, setting titles/options' display titles, and
 workflow UI templates before expansion, plus (0.7.22+) an action's `toast` and
-workflow `alerts` titles and bodies. `${…}` expressions must be preserved
+workflow `alerts` titles and bodies, and (0.7.32+) `permissions.exec[].purpose`. `${…}` expressions must be preserved
 exactly (reordering is allowed). Commands, source definitions, action payloads,
 stored setting values, ids and permissions stay unchanged. Missing or malformed
 translations fall back to the original text. Exec/script widgets localize their
@@ -558,7 +558,8 @@ pattern, output limit, an exec entry's position — asks again.
       "allowedArgs": [["-la", "*"]], // argv patterns (excl. command); "*" = exactly one arg
       "env": ["HOME"],               // env vars this command may receive
       "maxOutputBytes": 65536,
-      "sensitiveOutput": false       // true → output treated as sensitive (redacted/cleared)
+      "sensitiveOutput": false,      // true → output treated as sensitive (redacted/cleared)
+      "purpose": "List the files in a folder" // what the command does, shown when asking for permission
     }
   ],
   "network": ["api.github.com"],     // hosts the widget may HTTPS-GET (enables workflow "http" source)
@@ -570,6 +571,16 @@ pattern, output limit, an exec entry's position — asks again.
   "quitApps": true                   // allow quitApp actions (user confirms each quit)
 }
 ```
+
+`purpose` (0.7.32+) is optional display text: a short phrase saying what the
+command does for the user ("Read the battery level", "List your containers"),
+not how. The permission request shows it instead of the command line, with the
+exact command behind "Details". Without it the request says only "Run <tool>"
+(or, for `sh -c`, the commands the script calls). Translate it like any other
+display text, through `localizations` with the English phrase as the key. It is
+not part of the permission hash, so adding or rewording it never asks the user
+again. Give every entry that does the same job the same `purpose`: identical
+phrases are shown once.
 
 Gating specifics:
 - Any exec (workflow `exec` source, UINode `run` action, `barshelf.exec.run`) must

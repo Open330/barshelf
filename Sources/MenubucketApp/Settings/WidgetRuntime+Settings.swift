@@ -234,6 +234,8 @@ enum WidgetPermissionSummary {
         let symbol: String
         let text: String
         var tone: Tone = .normal
+        /// What a chip's tooltip adds: the commands behind an effect.
+        var help: String?
     }
 
     /// - Parameter workflow: the widget's workflow when known, which reveals a
@@ -250,9 +252,13 @@ enum WidgetPermissionSummary {
             lines.append(Line(symbol: "exclamationmark.triangle", text: String(localized: "Reads system information it hasn't declared, so it will be blocked"), tone: .blocked))
         }
         guard let permissions = manifest.permissions else { return lines }
-        let exec = permissions.exec ?? []
-        if !exec.isEmpty {
-            lines.append(Line(symbol: "terminal", text: String(localized: "Run \(list(unique(exec.map { ($0.command as NSString).lastPathComponent })))", comment: "Permission summary: commands the widget may run")))
+        // What the commands do, as the permission request says it; the
+        // commands themselves in the tooltip.
+        if let exec = ExecPermissionText.summary(for: manifest, localization: manifest.localization()) {
+            let help = String(localized: "Commands: \(exec.tools.joined(separator: ", "))", comment: "Permission summary tooltip: the programs behind an effect")
+            for phrase in exec.phrases {
+                lines.append(Line(symbol: "terminal", text: phrase, help: help))
+            }
         }
         let network = permissions.network ?? []
         if !network.isEmpty {
@@ -276,7 +282,7 @@ enum WidgetPermissionSummary {
             lines.append(Line(symbol: "list.bullet.rectangle", text: String(localized: "Read the environment variables \(list(environment))", comment: "Permission summary: environment variables the widget may read"), tone: .sensitive))
         }
         if permissions.storage?.granted == true {
-            lines.append(Line(symbol: "internaldrive", text: String(localized: "Save small amounts of data on this Mac")))
+            lines.append(Line(symbol: "internaldrive", text: String(localized: "Save a little data on this Mac", comment: "Permission: the widget keeps a small amount of its own data")))
         }
         if permissions.vault != nil {
             lines.append(Line(symbol: "lock.shield", text: String(localized: "Unlock your Bitwarden vault when you ask and copy fields you pick"), tone: .sensitive))
@@ -286,11 +292,6 @@ enum WidgetPermissionSummary {
             lines.append(Line(symbol: "cpu", text: String(localized: "Read system information: \(list(system))", comment: "Permission summary: system readings such as cpu or memory")))
         }
         return lines
-    }
-
-    private static func unique(_ items: [String]) -> [String] {
-        var seen: Set<String> = []
-        return items.filter { seen.insert($0).inserted }
     }
 
     private static func list(_ items: [String]) -> String {

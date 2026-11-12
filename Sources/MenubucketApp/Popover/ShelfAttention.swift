@@ -23,6 +23,9 @@ final class ShelfAttention: ObservableObject {
     }
 
     @Published private(set) var reasons: Reasons = []
+    /// The enabled widgets waiting for Allow or Deny, in shelf order: the
+    /// popup's "N widgets are waiting" banner counts them.
+    @Published private(set) var waitingWidgetIDs: [String] = []
 
     var needsAttention: Bool { !reasons.isEmpty }
 
@@ -32,6 +35,17 @@ final class ShelfAttention: ObservableObject {
         if active { next.insert(reason) } else { next.remove(reason) }
         guard next != reasons else { return }
         reasons = next
+    }
+
+    func setWaitingWidgetIDs(_ ids: [String]) {
+        guard ids != waitingWidgetIDs else { return }
+        waitingWidgetIDs = ids
+    }
+
+    /// Whether the popup shows the waiting banner: when several widgets are
+    /// waiting, or one is waiting on a page other than the one shown.
+    static func showsWaitingBanner(waitingIDs: [String], currentPageIDs: Set<String>) -> Bool {
+        waitingIDs.count > 1 || waitingIDs.contains { !currentPageIDs.contains($0) }
     }
 
     /// The widget reasons, worked out from per-widget state. Pure, so the rule

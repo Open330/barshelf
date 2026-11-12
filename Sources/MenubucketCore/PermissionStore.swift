@@ -90,7 +90,17 @@ public final class PermissionStore: @unchecked Sendable {
     public static func permissionsHash(of manifest: Manifest) -> String {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
-        let data = (try? encoder.encode(manifest.permissions)) ?? Data("null".utf8)
+        // `purpose` is display text, not a grant: hash without it, so adding
+        // or rewording one leaves every earlier decision standing.
+        var permissions = manifest.permissions
+        if let exec = permissions?.exec {
+            permissions?.exec = exec.map { entry in
+                var entry = entry
+                entry.purpose = nil
+                return entry
+            }
+        }
+        let data = (try? encoder.encode(permissions)) ?? Data("null".utf8)
         let digest = SHA256.hash(data: data)
         return digest.map { String(format: "%02x", $0) }.joined()
     }

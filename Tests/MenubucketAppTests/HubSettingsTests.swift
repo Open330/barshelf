@@ -78,8 +78,11 @@ final class HubSettingsTests: XCTestCase {
             )
         )
         let lines = WidgetPermissionSummary.lines(for: manifest).map(\.text)
+        // What the commands do, each once (gh is declared twice); the
+        // commands themselves go in the chip's tooltip.
         XCTAssertEqual(lines, [
-            "Run gh and date",
+            "Run gh with any arguments",
+            "Run date with any arguments",
             "Connect to api.github.com",
             "Read its own secrets from the Keychain",
         ])

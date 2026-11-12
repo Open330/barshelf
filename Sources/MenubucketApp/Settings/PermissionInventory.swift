@@ -111,3 +111,52 @@ enum PermissionInventory {
         }
     }
 }
+
+extension PermissionInventory {
+    /// The Privacy page's waiting list, grouped by the most a widget could
+    /// do, so thirty requests read as a few decisions: what may leave this
+    /// Mac and touch secrets first, what only keeps a note last.
+    enum Risk: Int, CaseIterable, Comparable {
+        case secrets, controlsApps, internet, readsMac, notificationsAndStorage
+
+        static func < (lhs: Risk, rhs: Risk) -> Bool { lhs.rawValue < rhs.rawValue }
+
+        var title: String {
+            switch self {
+            case .secrets: return String(localized: "Uses passwords and secrets", comment: "Privacy: waiting widgets that use the Keychain, a vault or environment variables")
+            case .controlsApps: return String(localized: "Controls other apps", comment: "Privacy: waiting widgets that script or quit other apps")
+            case .internet: return String(localized: "Connects to the internet", comment: "Privacy: waiting widgets that reach the network")
+            case .readsMac: return String(localized: "Reads from this Mac", comment: "Privacy: waiting widgets that run commands or read files and system readings")
+            case .notificationsAndStorage: return String(localized: "Notifications and saved data", comment: "Privacy: waiting widgets that only notify or keep a little data")
+            }
+        }
+
+        var symbol: String {
+            switch self {
+            case .secrets: return "key"
+            case .controlsApps: return "macwindow.on.rectangle"
+            case .internet: return "network"
+            case .readsMac: return "desktopcomputer"
+            case .notificationsAndStorage: return "bell"
+            }
+        }
+
+        /// Commands that reach the network on their own.
+        static let networkTools: Set<String> = ["curl", "wget", "ping", "networkQuality", "gh", "ssh", "nc", "kubectl"]
+
+        /// The most a widget's declared permissions allow.
+        static func of(_ manifest: Manifest) -> Risk {
+            let permissions = manifest.permissions
+            if permissions?.keychain == true || permissions?.vault != nil || !(permissions?.env ?? []).isEmpty {
+                return .secrets
+            }
+            let tools = Set(ExecPermissionText.summary(for: manifest, localization: nil)?.tools ?? [])
+            if permissions?.quitApps == true || tools.contains("osascript") { return .controlsApps }
+            if !(permissions?.network ?? []).isEmpty || !tools.isDisjoint(with: networkTools) { return .internet }
+            if !tools.isEmpty || !(permissions?.readPaths ?? []).isEmpty || !(permissions?.system ?? []).isEmpty {
+                return .readsMac
+            }
+            return .notificationsAndStorage
+        }
+    }
+}

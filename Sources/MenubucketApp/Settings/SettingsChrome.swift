@@ -182,7 +182,7 @@ struct PermissionChip: View {
         .padding(.horizontal, Spacing.xs)
         .padding(.vertical, Spacing.hair)
         .background(Capsule().fill(tint.map { $0.opacity(Fill.Wash.soft) } ?? Fill.hover))
-        .help(line.text)
+        .help(line.help.map { "\(line.text)\n\($0)" } ?? line.text)
     }
 
     private var tint: Color? {
