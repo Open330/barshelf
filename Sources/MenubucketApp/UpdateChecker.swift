@@ -219,7 +219,11 @@ enum UpdateChecker {
         let work = Task {
             do {
                 let archive = try await ReleaseFeed.download(asset) { received, expected in
-                    progress.update(received: received, expected: expected)
+                    // The download reports from its own thread; the panel
+                    // is AppKit (the widget installer hops the same way).
+                    DispatchQueue.main.async {
+                        progress.update(received: received, expected: expected)
+                    }
                 }
                 defer { try? FileManager.default.removeItem(at: archive) }
                 try Task.checkCancellation()

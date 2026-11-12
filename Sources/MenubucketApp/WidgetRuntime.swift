@@ -1231,6 +1231,13 @@ final class WidgetRuntime: ObservableObject {
     /// Throws (deleting nothing) for unknown ids or directories outside the
     /// user widgets root; throws with the widget still installed when its
     /// data cannot be erased.
+    ///
+    /// On the main actor: this class is not isolated, so an `async` method
+    /// runs on the cooperative pool from its first line, and everything
+    /// here (the task tables, the refresh gate, the preferences, the rescan
+    /// that assigns `widgets` and re-arms the scheduler's timers) is state
+    /// the main thread is using at the same time.
+    @MainActor
     func removeWidget(id: String) async throws {
         guard let widget = widgets.first(where: { $0.id == id }) else {
             throw RuntimeError.widgetNotFound(id)
@@ -2705,7 +2712,8 @@ final class WidgetRuntime: ObservableObject {
                     let fsParams = try FileSource.Params(from: value)
                     let listing: FileSource.AuthorizedListing
                     do {
-                        let readPaths = effectiveReadPaths(for: widget)
+                        // Reads the preferences; see `checkNativeRefresh`.
+                        let readPaths = await MainActor.run { self.effectiveReadPaths(for: widget) }
                         listing = try await Task.detached(priority: .userInitiated) {
                             try FileSource.list(fsParams, authorizedBy: readPaths)
                         }.value
@@ -2721,11 +2729,14 @@ final class WidgetRuntime: ObservableObject {
                     sourceValues[sourceID] = listing.value
                     try await checkNativeRefresh(widget, token: token)
                     if fsParams.watch {
-                        registerWorkflowWatch(widgetID: widget.id, directory: listing.directory)
+                        // The watcher table is shared by every widget's
+                        // refresh, and two can finish at once.
+                        let directory = listing.directory
+                        await MainActor.run { self.registerWorkflowWatch(widgetID: widget.id, directory: directory) }
                     }
                 case "fs.json":
                     let jsonParams = try FileSource.JSONFileParams(from: value)
-                    let readPaths = effectiveReadPaths(for: widget)
+                    let readPaths = await MainActor.run { self.effectiveReadPaths(for: widget) }
                     do {
                         sourceValues[sourceID] = try await Task.detached(priority: .userInitiated) {
                             try FileSource.readJSON(jsonParams, authorizedBy: readPaths)
