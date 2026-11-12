@@ -397,6 +397,7 @@ final class MenuBarClusterController: NSObject {
               let widget = runtime.widgets.first(where: { $0.id == chips[index].widgetID })
         else { return }
         hidePeek()
+        runtime.countUsage(.menuBarCardOpen, widgetID: widget.id)
         cardModel.widget = widget
         cardWidgetID = widget.id
         activeIndex = index

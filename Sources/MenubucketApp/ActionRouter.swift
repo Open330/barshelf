@@ -13,6 +13,7 @@ enum ActionRouter {
         // Later toasts from this press (the vault's "Copied", a failure that
         // arrives after the command ran) belong to the same surface.
         Task { @MainActor in ToastCenter.shared.lastSurface = surface }
+        Task { @MainActor in runtime?.countUsage(.action, widgetID: widgetID) }
         switch action.type {
         case "copyText":
             guard let value = action.value else { return }

@@ -45,6 +45,9 @@ public struct AppPreferences: Codable, Equatable, Sendable {
     /// In the cluster, a wave through the chips when one's state changes
     /// (`ClusterPulse`).
     public var menuBarPulse: Bool
+    /// Count, on this Mac only, how often the shelf opens and each widget is
+    /// seen or used (`UsageStore`). Nothing is ever sent anywhere.
+    public var usageCountsEnabled: Bool
 
     public enum PopupHeight: String, Codable, CaseIterable, Sendable {
         /// 480 pt, the size BarShelf has always opened at.
@@ -80,7 +83,8 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         skippedUpdateVersion: String? = nil,
         popupHeight: PopupHeight = .standard,
         menuBarLayout: MenuBarLayout = .items,
-        menuBarPulse: Bool = true
+        menuBarPulse: Bool = true,
+        usageCountsEnabled: Bool = true
     ) {
         self.menuBarSymbol = menuBarSymbol
         self.refreshMultiplier = refreshMultiplier
@@ -95,6 +99,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         self.popupHeight = popupHeight
         self.menuBarLayout = menuBarLayout
         self.menuBarPulse = menuBarPulse
+        self.usageCountsEnabled = usageCountsEnabled
         normalize()
     }
 
@@ -154,6 +159,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         popupHeight = (try? container.decodeIfPresent(PopupHeight.self, forKey: .popupHeight)) ?? .standard
         menuBarLayout = (try? container.decodeIfPresent(MenuBarLayout.self, forKey: .menuBarLayout)) ?? .items
         menuBarPulse = (try? container.decodeIfPresent(Bool.self, forKey: .menuBarPulse)) ?? true
+        usageCountsEnabled = (try? container.decodeIfPresent(Bool.self, forKey: .usageCountsEnabled)) ?? true
         normalize()
     }
 

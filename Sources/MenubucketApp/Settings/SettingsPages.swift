@@ -539,6 +539,8 @@ struct PrivacySettingsPage: View {
                 }
             }
 
+            UsageCountsSection(runtime: runtime, appPrefs: runtime.appPrefs)
+
             Section {
                 LabeledContent {
                     Button("Show in Finder") {

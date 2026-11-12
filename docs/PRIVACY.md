@@ -24,6 +24,20 @@ shelf, Dock and menu bar and withdraws desktop exports; previously stored local
 values and render caches remain until removal. They are not displayed again
 while permission is withdrawn.
 
+## Usage Counts
+
+To show you which widgets you actually use, BarShelf counts, per day, how often
+the shelf opens and how often each widget is seen on the open shelf, has a
+button pressed, or is opened or clicked from the menu bar. Only the counts are
+kept: never what a widget shows, what you copied, or which command ran. They
+live in `~/Library/Application Support/barshelf/usage.json`, are kept for 90
+days, and are never sent anywhere: no part of BarShelf reads this file over the
+network, and update and registry requests do not include it.
+
+You can read the counts in Settings ▸ Privacy ▸ Usage on This Mac or with
+`barshelf usage`, clear them there, and turn counting off. Turning it off stops
+new counts; clearing removes the file.
+
 ## Widget Permissions
 
 Widgets can request permissions such as command execution, file access, network access, system telemetry (CPU, memory, disk and hardware sensor readings, all read locally and never transmitted by BarShelf), environment variables, notifications, and Keychain access. BarShelf shows permission gates for widget capabilities, but third-party widgets are responsible for what they do after you approve them.

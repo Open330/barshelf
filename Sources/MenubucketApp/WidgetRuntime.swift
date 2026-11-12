@@ -267,6 +267,11 @@ final class WidgetRuntime: ObservableObject {
     let appPrefs: AppPrefs
     /// Observed by the Monitoring pane only — see `RefreshStatsModel`.
     let refreshStats = RefreshStatsModel()
+    /// Local-only counts of what gets opened and pressed (Settings ▸ Privacy).
+    let usageStore: UsageStore
+    /// Widgets already counted as seen since the shelf last opened, so a page
+    /// flipped back and forth counts once.
+    private var viewsCountedThisOpen: Set<String> = []
     /// Whether a widget is waiting on the user (approval, error). Observed by
     /// the status item's badge only.
     let attention = ShelfAttention()
@@ -396,9 +401,13 @@ final class WidgetRuntime: ObservableObject {
         permissionStore: PermissionStore? = nil,
         scriptSupervisor: RuntimeSupervisor? = nil,
         secretStore: SecretStoring = KeychainSecretStore(),
-        sharedShelf: SharedShelfPublisher? = nil
+        sharedShelf: SharedShelfPublisher? = nil,
+        usageStore: UsageStore? = nil
     ) {
         self.appPrefs = appPrefs
+        self.usageStore = usageStore ?? UsageStore(
+            fileURL: Self.applicationSupportDirectory.appendingPathComponent("usage.json")
+        )
         self.secretStore = secretStore
         self.sharedShelf = sharedShelf ?? SharedShelfPublisher()
         self.permissionStore = permissionStore ?? PermissionStore(
@@ -2006,6 +2015,7 @@ final class WidgetRuntime: ObservableObject {
         let changed = normalized != visibleWidgetIDs
         visibleWidgetIDs = normalized
         scheduler.setVisibleWidgetIDs(normalized)
+        if scheduler.popupIsOpen { countViews(normalized) }
         syncScriptTimerActivity()
         guard changed, scheduler.popupIsOpen else { return }
         refreshVisibleWidgetsIfNeeded()
@@ -2014,6 +2024,9 @@ final class WidgetRuntime: ObservableObject {
 
     func popupOpened() {
         scheduler.popupOpened()
+        countUsage(.popupOpen)
+        viewsCountedThisOpen = []
+        countViews(visibleWidgetIDs)
         syncScriptTimerActivity()
         refreshVisibleWidgetsIfNeeded()
         refreshWidgetsAwaitingVisibility()
@@ -2096,6 +2109,22 @@ final class WidgetRuntime: ObservableObject {
     func popupClosed() {
         scheduler.popupClosed()
         syncScriptTimerActivity()
+    }
+
+    // MARK: - Usage counts
+
+    /// Counts one event on this Mac, unless the person turned counting off.
+    func countUsage(_ event: UsageEvent, widgetID: String? = nil) {
+        guard appPrefs.preferences.usageCountsEnabled else { return }
+        usageStore.record(event, widgetID: widgetID)
+    }
+
+    /// Each widget shown on the open shelf counts as seen once per opening.
+    private func countViews(_ ids: Set<String>) {
+        for id in ids.subtracting(viewsCountedThisOpen).sorted() {
+            countUsage(.view, widgetID: id)
+        }
+        viewsCountedThisOpen.formUnion(ids)
     }
 
     // MARK: - Refresh

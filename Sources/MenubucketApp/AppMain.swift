@@ -56,6 +56,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         AutomationController.shared.stopForTermination()
+        HubWindowController.shared.runtime?.usageStore.flush()
         // Never leave the Mac without a dock while BarShelf is not running.
         DockStore.shared.restoreAppleDockForTermination()
     }

@@ -26,6 +26,8 @@ public enum BarShelfMain {
           barshelf pack <dir> [-o <name>.mbw] Pack a widget directory into a .mbw
                                          archive (includes manifest.sha256).
           barshelf list                       List installed widgets.
+          barshelf usage [--days N] [--json]  What you used in the last N days
+                                         (default 30), counted on this Mac only.
           barshelf dock list|use <profile>|next|previous|restore-apple-dock
                                          Dock profiles and the Apple Dock.
           barshelf accessibility              Open the helper for allowing BarShelf
@@ -65,6 +67,8 @@ public enum BarShelfMain {
             return runPack(arguments: rest)
         case "list":
             return runList(arguments: rest)
+        case "usage":
+            return UsageCommand.run(arguments: rest)
         case "dock":
             return DockCommand.run(arguments: rest)
         case "accessibility":

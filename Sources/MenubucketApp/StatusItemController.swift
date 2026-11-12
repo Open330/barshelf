@@ -257,7 +257,11 @@ final class StatusItemController: NSObject {
         guard let widget = runtime.widgets.first(where: { $0.id == widgetID }) else { return }
         let placement = runtime.prefs.menuBarPlacement(for: widget.manifest, widgetID: widgetID)
         let action = placement.effectiveClickAction
-        if action != .card { widgetPopover?.surface.hide() }
+        if action != .card {
+            widgetPopover?.surface.hide()
+            // Opening the card is counted where the card opens.
+            runtime.countUsage(.menuBarClick, widgetID: widgetID)
+        }
         switch action {
         case .card:
             showCard()
@@ -332,6 +336,7 @@ final class StatusItemController: NSObject {
         // The shelf and a single card should not be open at once.
         if popup.isShown { popup.hide() }
         surface.show(relativeTo: button)
+        runtime.countUsage(.menuBarCardOpen, widgetID: widgetID)
         runtime.refreshMenuBarPopoverIfNeeded(widget)
     }
 
