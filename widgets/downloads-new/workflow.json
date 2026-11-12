@@ -108,7 +108,7 @@
           {
             "type": "text",
             "text": "${file.basename(settings.folder)}",
-            "role": "title",
+            "role": "body",
             "lineLimit": 1
           },
           {

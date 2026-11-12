@@ -34,12 +34,12 @@
           {
             "type": "spacer"
           },
-          {
+          {"switch": "${if(transforms.missing, 'missing', 'shown')}", "cases": {"missing": {"type": "none"}}, "default": {
             "type": "text",
             "text": "${transforms.countText} files",
             "role": "caption",
             "foreground": "secondary"
-          }
+          }}
         ]
       },
       {
