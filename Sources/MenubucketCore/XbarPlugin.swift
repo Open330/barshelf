@@ -193,7 +193,7 @@ public enum XbarPlugin {
         let first = output.titles.first
         let label = first.map { cleanText($0) }.flatMap { $0.isEmpty ? nil : $0 }
         let icon = first?.params["sfimage"].flatMap { $0.isEmpty ? nil : $0 }
-        let tint = first?.params["color"].flatMap { tint(for: $0, dark: context.darkMode) }
+        let statusTint = first?.params["color"].flatMap { Self.tint(for: $0, dark: context.darkMode) }
 
         var children: [UINode] = []
         for (index, title) in output.titles.enumerated() {
@@ -208,7 +208,7 @@ public enum XbarPlugin {
             children.append(UINode(type: "empty", title: "No output", subtitle: "The plugin printed nothing.", icon: "text.alignleft"))
         }
         let tree = UINode(id: "xbar", type: "vstack", children: children, spacing: 6)
-        return Rendered(tree: tree, statusLabel: label, statusIcon: icon, statusTint: tint)
+        return Rendered(tree: tree, statusLabel: label, statusIcon: icon, statusTint: statusTint)
     }
 
     /// Lines with their submenu children. Depth jumps (a line two levels
@@ -273,12 +273,12 @@ public enum XbarPlugin {
     /// One line as a text row, or a button when it does something.
     static func row(_ line: Line, id: String, role: String, context: Context) -> UINode {
         let text = cleanText(line)
-        let tint = line.params["color"].flatMap { tint(for: $0, dark: context.darkMode) }
+        let rowTint = line.params["color"].flatMap { Self.tint(for: $0, dark: context.darkMode) }
         let icon = line.params["sfimage"].flatMap { $0.isEmpty ? nil : $0 }
         let help = line.params["tooltip"].flatMap { $0.isEmpty ? nil : $0 }
         switch action(for: line, context: context) {
         case let .some(.action(action)):
-            var node = UINode(id: id, type: "button", title: text, tint: tint, icon: icon, action: action)
+            var node = UINode(id: id, type: "button", title: text, tint: rowTint, icon: icon, action: action)
             node.help = help
             return node
         case .some(.terminal):
@@ -291,11 +291,11 @@ public enum XbarPlugin {
                 UINode(type: "text", text: "Opens Terminal — not supported", role: "caption", foreground: "tertiary"),
             ].compactMap { $0 }, spacing: 6)
         case .none:
-            var label = UINode(id: id, type: "text", text: text, role: role, tint: tint)
+            var label = UINode(id: id, type: "text", text: text, role: role, tint: rowTint)
             label.help = help
             guard let icon else { return label }
             return UINode(id: id + "-row", type: "hstack", children: [
-                UINode(type: "image", source: .init(kind: "sfSymbol", name: icon), size: 14, tint: tint),
+                UINode(type: "image", source: .init(kind: "sfSymbol", name: icon), size: 14, tint: rowTint),
                 label,
             ], spacing: 6)
         }
