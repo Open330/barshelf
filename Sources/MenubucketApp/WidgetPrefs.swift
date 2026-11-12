@@ -81,6 +81,31 @@ final class WidgetPrefs: ObservableObject {
         save()
     }
 
+    /// Default pages bundled widgets used to start on, and what they are
+    /// called now. A renamed page keeps the place the user gave the old one.
+    static let renamedPages = ["Demo": "Everyday"]
+
+    /// Moves a renamed page's place (and its "kept" mark) to its new name
+    /// once no widget is on the old one, unless the new name has its own.
+    /// Returns true when something changed.
+    @discardableResult
+    func migrateRenamedPages(inUse groups: Set<String>) -> Bool {
+        var order = groupOrder
+        var kept = keptPages
+        for (old, new) in Self.renamedPages where !groups.contains(old) {
+            if let key = order.removeValue(forKey: old), order[new] == nil { order[new] = key }
+            if let index = kept.firstIndex(of: old) {
+                kept.remove(at: index)
+                if !kept.contains(new) { kept.append(new) }
+            }
+        }
+        guard order != groupOrder || kept != keptPages else { return false }
+        groupOrder = order
+        keptPages = kept
+        save()
+        return true
+    }
+
     // MARK: - Kept pages
 
     func isKeptPage(_ name: String) -> Bool { keptPages.contains(name) }

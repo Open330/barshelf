@@ -574,7 +574,7 @@ struct RootView: View {
         string: "https://github.com/Open330/barshelf/blob/main/docs/GETTING-STARTED.md"
     )!
 
-    /// The welcome card sits above the seeded `hello` widget ("Demo" panel);
+    /// The welcome card sits above the seeded `hello` widget ("Everyday" panel);
     /// if that page is gone (starter deleted) it falls back to the first page.
     private static func welcomePageID(pages: [WidgetPage]) -> String? {
         let helloPage = pages.first { page in

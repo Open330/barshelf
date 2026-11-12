@@ -1109,6 +1109,7 @@ final class WidgetRuntime: ObservableObject {
         }
 
         widgets = loaded
+        prefs.migrateRenamedPages(inUse: Set(loaded.map { effectiveGroup(for: $0.id) }))
         if !previous.isEmpty {
             landNewWidgets(loaded.filter { previous[$0.id] == nil }.map(\.id))
         }

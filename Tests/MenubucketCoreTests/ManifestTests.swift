@@ -42,7 +42,7 @@ final class ManifestTests: XCTestCase {
         let manifest = try Manifest.decode(from: data)
 
         XCTAssertEqual(manifest.id, "dev.barshelf.hello")
-        XCTAssertEqual(manifest.bucket?.group, "Demo")
+        XCTAssertEqual(manifest.bucket?.group, "Everyday")
         XCTAssertEqual(manifest.bucket?.order, 10)
         XCTAssertEqual(manifest.bucket?.size, "S")
         XCTAssertEqual(manifest.source?.command, ["./hello.sh"])
