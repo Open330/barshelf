@@ -115,8 +115,31 @@ final class AutomationWindows {
     }
     private func checked(_ error: AXError, _ action: String) throws {
         guard error == .success else {
-            throw AutomationFailure(String(localized: "Could not \(action) (Accessibility error \(error.rawValue)). The app may not support this operation."))
+            NSLog("BarShelf automation: %@ failed with AXError %d", action, error.rawValue)
+            throw AutomationFailure(Self.failureMessage(error, action: action))
         }
+    }
+
+    /// A failed window action in words: what did not happen and what to do.
+    /// The Accessibility error code goes to the log, not the sentence.
+    static func failureMessage(_ error: AXError, action: String, trusted: Bool = AXIsProcessTrusted()) -> String {
+        switch error {
+        case .apiDisabled:
+            return grantMessage(action)
+        case .cannotComplete:
+            // What macOS answers both when access is missing and when the
+            // app is busy; only the first has a fix on BarShelf's side.
+            guard trusted else { return grantMessage(action) }
+            return String(localized: "Could not \(action). The app didn’t respond; it may be busy. Try again in a moment.")
+        case .invalidUIElement:
+            return String(localized: "Could not \(action). The window closed or changed before BarShelf reached it.")
+        default:
+            return String(localized: "Could not \(action). This app doesn’t let other apps do that.")
+        }
+    }
+
+    private static func grantMessage(_ action: String) -> String {
+        String(localized: "Could not \(action). Allow BarShelf in System Settings › Privacy & Security › Accessibility, then try again.")
     }
     private func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
         var value: CFTypeRef?

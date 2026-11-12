@@ -221,6 +221,15 @@ final class DockPanelController {
     private let limits = DockLayoutLimits()
     private var hostingView: DockHostingView<DockView>!
     private var cancellables: Set<AnyCancellable> = []
+    /// A Dock toast with a button is showing (see `holdsDockRevealed`).
+    private var toastHoldsReveal = false
+
+    /// Whether `toast` must keep an auto-hiding dock revealed: it is on the
+    /// Dock and has a button to reach.
+    static func holdsDockRevealed(_ toast: Toast?) -> Bool {
+        guard let toast else { return false }
+        return toast.surface == .dock && toast.action != nil
+    }
     private var mouseMonitors: [Any] = []
     private var restingSize: CGSize = .zero
     private var isHovering = false
@@ -271,6 +280,24 @@ final class DockPanelController {
         store.$configuration
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.configurationChanged() }
+            .store(in: &cancellables)
+        // A Dock toast with a button (Remove's Undo) floats above the bar,
+        // outside the hover zone: the dock stays out until it is gone, then
+        // auto-hide picks up from wherever the pointer is.
+        MainActor.assumeIsolated { ToastCenter.shared.$current }
+            .map { Self.holdsDockRevealed($0) }
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] holds in
+                guard let self else { return }
+                self.toastHoldsReveal = holds
+                if holds {
+                    self.hideWorkItem?.cancel()
+                    self.hideWorkItem = nil
+                } else {
+                    self.mouseMoved()
+                }
+            }
             .store(in: &cancellables)
         runtime.$widgets
             .receive(on: RunLoop.main)
@@ -669,6 +696,7 @@ final class DockPanelController {
         }
         // Kept out while it has the keyboard.
         let inside = barFrame().insetBy(dx: -12, dy: -12).contains(point) || atEdge || limits.keyboardActive
+            || toastHoldsReveal
         if inside {
             hideWorkItem?.cancel()
             hideWorkItem = nil

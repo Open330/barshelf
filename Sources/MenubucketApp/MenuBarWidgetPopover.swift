@@ -31,7 +31,8 @@ struct MenuBarWidgetPopover: View {
         )
         .frame(width: Self.width)
         .frame(maxHeight: Self.maximumHeight)
-        .overlay { ToastOverlay() }
+        .overlay { ToastOverlay(surface: .menuBarCard) }
+        .environment(\.toastSurface, .menuBarCard)
     }
 }
 
@@ -44,12 +45,13 @@ private struct MenuBarCardFrame: View {
 
     private var snapshot: WidgetSnapshot { model.snapshot }
 
-    /// Older than three refreshes (at least a minute): the reading is shown,
-    /// dimmed, with its age, instead of passing for current.
+    /// Past the same threshold that dims the menu bar item it opened from
+    /// (`WidgetRuntime.readingIsStale`): the reading is shown, dimmed, with
+    /// its age, instead of passing for current. A card with nothing loaded
+    /// yet, or showing a permission card, has no reading to dim.
     private var isStale: Bool {
-        guard let updatedAt = snapshot.updatedAt, model.overlay == nil else { return false }
-        let interval = Double(widget.manifest.refresh?.interval ?? 60)
-        return Date().timeIntervalSince(updatedAt) > max(60, interval * 3)
+        guard snapshot.updatedAt != nil, model.overlay == nil else { return false }
+        return runtime.readingIsStale(widget, updatedAt: snapshot.updatedAt)
     }
 
     var body: some View {
@@ -99,7 +101,7 @@ private struct MenuBarCardFrame: View {
             }
             if let action = snapshot.viewTree?.action, let title = PrimaryActionTitle.title(for: action) {
                 Button {
-                    ActionRouter.perform(action, widgetID: widget.id, runtime: runtime)
+                    ActionRouter.perform(action, widgetID: widget.id, runtime: runtime, title: title, surface: .menuBarCard)
                 } label: {
                     Image(systemName: "arrow.up.forward.app")
                 }
@@ -107,7 +109,7 @@ private struct MenuBarCardFrame: View {
                 .hoverHint(LocalizedStringKey(title))
                 .accessibilityLabel(title)
             }
-            Button { runtime.requestRefresh(widgetID: widget.id) } label: {
+            Button { runtime.requestRefresh(widgetID: widget.id, feedbackOn: .menuBarCard) } label: {
                 Image(systemName: "arrow.clockwise")
             }
             .buttonStyle(.icon)

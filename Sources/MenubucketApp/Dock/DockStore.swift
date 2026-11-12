@@ -95,10 +95,45 @@ final class DockStore: ObservableObject {
         }
     }
 
-    func removeItem(_ itemID: String, profileID: String? = nil) {
-        updateProfile(profileID ?? configuration.activeProfileID) { profile in
+    /// What `removeItem` took out, and from where, so it can be put back.
+    struct RemovedItem: Equatable {
+        let item: DockItem
+        let index: Int
+        let profileID: String
+    }
+
+    @discardableResult
+    func removeItem(_ itemID: String, profileID: String? = nil) -> RemovedItem? {
+        let profileID = profileID ?? configuration.activeProfileID
+        guard let profile = configuration.profiles.first(where: { $0.id == profileID }),
+              let index = profile.items.firstIndex(where: { $0.id == itemID }) else { return nil }
+        let removed = RemovedItem(item: profile.items[index], index: index, profileID: profileID)
+        updateProfile(profileID) { profile in
             profile.items.removeAll { $0.id == itemID }
         }
+        return removed
+    }
+
+    /// Undoes `removeItem`: the item goes back where it was (or as near as
+    /// the profile now allows), unless it is already there again.
+    func restoreItem(_ removed: RemovedItem) {
+        updateProfile(removed.profileID) { profile in
+            guard !profile.items.contains(where: { $0.id == removed.item.id }) else { return }
+            profile.items.insert(removed.item, at: min(removed.index, profile.items.count))
+        }
+    }
+
+    /// Removes an item and offers Undo on `surface` for a few seconds: the
+    /// Dock has no Edit menu to undo from, and a dragged-out icon is easy to
+    /// lose by accident.
+    @MainActor
+    func removeItemOfferingUndo(_ item: DockItem, profileID: String? = nil, surface: ToastSurface) {
+        guard let removed = removeItem(item.id, profileID: profileID) else { return }
+        ToastCenter.shared.show(
+            String(localized: "Removed \(DockActions.displayName(for: item)) from the Dock"),
+            on: surface,
+            action: Toast.Action(title: String(localized: "Undo")) { [weak self] in self?.restoreItem(removed) }
+        )
     }
 
     /// Moves an item in front of another (or to the end with nil).

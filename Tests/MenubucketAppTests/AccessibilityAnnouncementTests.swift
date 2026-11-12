@@ -85,7 +85,7 @@ final class AccessibilityAnnouncementTests: XCTestCase {
         XCTAssertEqual(AccessibilityMessages.refreshOutcome(widgetName: "Weather", error: nil), "Weather refreshed")
         XCTAssertEqual(
             AccessibilityMessages.refreshOutcome(widgetName: "Weather", error: "Network is offline"),
-            "Weather couldn't refresh. Network is offline"
+            "Weather couldn't refresh. The server couldn’t be reached. Check your internet connection, then retry."
         )
     }
 
@@ -174,7 +174,7 @@ final class AccessibilityAnnouncementTests: XCTestCase {
         after.updatedAt = before.updatedAt
         XCTAssertEqual(
             WidgetCardView.refreshOutcomeAnnouncement(widgetName: "Weather", before: before, after: after),
-            "Weather couldn't refresh. Network is offline"
+            "Weather couldn't refresh. The server couldn’t be reached. Check your internet connection, then retry."
         )
         after.error = nil
         XCTAssertNil(WidgetCardView.refreshOutcomeAnnouncement(widgetName: "Weather", before: before, after: after))

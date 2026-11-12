@@ -45,10 +45,17 @@ struct DockWidgetGlance: View {
             .font(.system(size: max(8, height * 0.2), weight: .medium))
             .foregroundStyle(.secondary)
 
-            if model.snapshot.error != nil {
-                Label("Error", systemImage: StatusTone.warning.symbol)
+            if let error = model.snapshot.error {
+                // Icon height has room for a few words; the explanation the
+                // card gives is the tooltip, and what VoiceOver reads.
+                let explanation = ErrorExplainer.explain(error)
+                Label("Couldn’t refresh", systemImage: StatusTone.warning.symbol)
                     .font(.system(size: max(9, height * 0.26), weight: .semibold))
                     .foregroundStyle(StatusTone.warning.color)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .help(Text(verbatim: "\(explanation.cause) \(explanation.fix)"))
+                    .accessibilityLabel(Text(verbatim: "\(explanation.cause) \(explanation.fix)"))
             } else if !metrics.isEmpty {
                 ForEach(Array(metrics.enumerated()), id: \.offset) { _, metric in
                     meter(metric)

@@ -963,7 +963,8 @@ final class MenuBarController {
     static let stackedLabelFont = NSFont.systemFont(ofSize: 9, weight: .semibold)
     /// How much dimmer the label is than the value it belongs to.
     static let stackedLabelOpacity: CGFloat = 0.72
-    static let staleOpacity: CGFloat = 0.4
+    /// The one stale dim (`Fill.staleOpacity`), in AppKit's type.
+    static let staleOpacity = CGFloat(Fill.staleOpacity)
     /// Breathing room either side of the rows. One point: the status item
     /// takes exactly the image's width, and macOS already spaces items apart,
     /// so anything more read as a gap between neighbours.

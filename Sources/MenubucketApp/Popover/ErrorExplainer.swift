@@ -33,29 +33,53 @@ struct ErrorExplanation: Equatable {
 /// runtime stored in the snapshot, after crossing process and cache
 /// boundaries, so there is no typed error left to switch on.
 enum ErrorExplainer {
-    static func explain(_ raw: String) -> ErrorExplanation {
-        let text = raw.lowercased()
+    /// What was being done when the error happened. The classification is
+    /// the same everywhere; only the words that name the thing that failed
+    /// change, so a failed install does not say "this widget couldn't
+    /// refresh".
+    enum Context: Equatable {
+        /// A widget's refresh (the card, the menu bar, the Dock, VoiceOver).
+        case refresh
+        /// A button in a widget.
+        case action
+        /// Installing a widget from the gallery or a link.
+        case install
+        /// Checking for or installing a BarShelf update.
+        case update
+        /// A test run in the widget builder.
+        case test
+        /// Saving BarShelf's own settings.
+        case save
+    }
 
-        if text.contains("deno runtime not found") {
+    static func explain(_ raw: String, context: Context = .refresh) -> ErrorExplanation {
+        let text = raw.lowercased()
+        // Kinds whose advice is about a widget (install a command it runs,
+        // sign in to its tool, its data format, its permissions) apply only
+        // where a widget ran. An install, an update check or a settings save
+        // that happens to contain those words gets its own context's wording.
+        let widgetRan = context == .refresh || context == .action || context == .test
+
+        if widgetRan, text.contains("deno runtime not found") {
             return ErrorExplanation(kind: .commandNotFound("deno"),
                 cause: String(localized: "This script widget needs Deno, which isn’t installed."),
                 fix: String(localized: "Install Deno with “brew install deno”, then retry. Workflow and Command widgets do not need Deno."))
         }
 
-        if text.contains("not covered by permissions.readpaths") {
+        if widgetRan, text.contains("not covered by permissions.readpaths") {
             return ErrorExplanation(kind: .manifestPermissionDenied,
                 cause: String(localized: "This folder is outside the widget’s allowed folders."),
                 fix: String(localized: "Open this widget’s Settings and choose a folder listed under Allowed folders. Choosing another folder in macOS Privacy settings does not change the widget’s permissions."))
         }
 
-        if text.contains("not permitted by manifest") || text.contains("not allowed by manifest")
+        if widgetRan, text.contains("not permitted by manifest") || text.contains("not allowed by manifest")
             || text.contains("not covered by permissions.") || text.contains("requires manifest permissions.") {
             return ErrorExplanation(kind: .manifestPermissionDenied,
                 cause: String(localized: "This widget’s declared permissions do not allow this action."),
                 fix: String(localized: "Check for a widget update or ask its author to declare this capability. macOS Privacy settings cannot grant a missing widget capability."))
         }
 
-        if let command = commandNotFound(in: raw, lowercased: text) {
+        if widgetRan, let command = commandNotFound(in: raw, lowercased: text) {
             let cause = command.map { String(localized: "The command “\($0)” isn’t installed on this Mac.") }
                 ?? String(localized: "A command this widget needs isn’t installed on this Mac.")
             return ErrorExplanation(
@@ -68,7 +92,7 @@ enum ErrorExplainer {
         // Before "timeout": CLIs that fail to sign in often print a URL with
         // `?timeout=8s` in it (kubectl does), which is not a timeout.
         switch WorkflowSourceFailure.kind(forOutput: raw) {
-        case .auth?:
+        case .auth? where widgetRan:
             return ErrorExplanation(
                 kind: .signInRequired,
                 cause: String(localized: "The tool this widget uses needs you to sign in again."),
@@ -85,18 +109,41 @@ enum ErrorExplainer {
         }
 
         if text.contains("timed out") || text.contains("timeout") {
-            return ErrorExplanation(
-                kind: .timedOut,
-                cause: String(localized: "The widget took too long to answer."),
-                fix: String(localized: "Check the network or the service it reads, then retry.")
-            )
+            switch context {
+            case .refresh, .action, .test:
+                return ErrorExplanation(
+                    kind: .timedOut,
+                    cause: String(localized: "The widget took too long to answer."),
+                    fix: String(localized: "Check the network or the service it reads, then retry.")
+                )
+            case .install, .update, .save:
+                return ErrorExplanation(
+                    kind: .timedOut,
+                    cause: String(localized: "The server took too long to answer."),
+                    fix: String(localized: "Check your internet connection, then try again.")
+                )
+            }
         }
 
         if let code = httpStatus(in: text) {
-            return ErrorExplanation(kind: .httpStatus(code), cause: httpCause(code), fix: httpFix(code))
+            switch context {
+            case .install, .update:
+                return ErrorExplanation(kind: .httpStatus(code), cause: downloadCause(code), fix: downloadFix(code, context: context))
+            case .test:
+                // The builder: the address and headers are on screen, not
+                // in a widget's Settings yet.
+                let fix = [401, 403].contains(code)
+                    ? String(localized: "Check the token or API key in the headers, then test again.")
+                    : String(localized: "Check the address and headers, then test again.")
+                return ErrorExplanation(kind: .httpStatus(code), cause: downloadCause(code), fix: fix)
+            case .refresh, .action, .save:
+                return ErrorExplanation(kind: .httpStatus(code), cause: httpCause(code), fix: httpFix(code))
+            }
         }
 
-        if networkMarkers.contains(where: text.contains) {
+        // A download or update check that cannot reach its server is the
+        // same advice in any words; a settings save never touches the network.
+        if context != .save, networkMarkers.contains(where: text.contains) {
             return ErrorExplanation(
                 kind: .networkUnreachable,
                 cause: String(localized: "The server couldn’t be reached."),
@@ -104,7 +151,15 @@ enum ErrorExplainer {
             )
         }
 
-        if permissionMarkers.contains(where: text.contains) {
+        if permissionMarkers.contains(where: text.contains), context == .save {
+            return ErrorExplanation(
+                kind: .permissionDenied,
+                cause: String(localized: "macOS didn’t let BarShelf write its settings file."),
+                fix: String(localized: "Check the permissions of BarShelf’s folder in Application Support, then change the setting again.")
+            )
+        }
+
+        if widgetRan, permissionMarkers.contains(where: text.contains) {
             return ErrorExplanation(
                 kind: .permissionDenied,
                 cause: String(localized: "macOS or the widget’s permissions blocked this."),
@@ -112,7 +167,7 @@ enum ErrorExplainer {
             )
         }
 
-        if jsonMarkers.contains(where: text.contains) {
+        if widgetRan, jsonMarkers.contains(where: text.contains) {
             return ErrorExplanation(
                 kind: .invalidJSON,
                 cause: String(localized: "The widget got data it couldn’t read."),
@@ -120,7 +175,17 @@ enum ErrorExplainer {
             )
         }
 
-        if let code = exitCode(in: text) {
+        if let code = exitCode(in: text), context == .action {
+            // A toast has no Details to open, and an exit code means nothing
+            // to the person who pressed the button.
+            return ErrorExplanation(
+                kind: .exitCode(code),
+                cause: String(localized: "The widget’s command reported an error."),
+                fix: String(localized: "Try again. If it keeps failing, check the widget’s Settings.")
+            )
+        }
+
+        if widgetRan, let code = exitCode(in: text) {
             return ErrorExplanation(
                 kind: .exitCode(code),
                 cause: String(localized: "The widget’s command failed (exit code \(code))."),
@@ -128,11 +193,36 @@ enum ErrorExplainer {
             )
         }
 
-        return ErrorExplanation(
-            kind: .generic,
-            cause: String(localized: "This widget couldn’t refresh."),
-            fix: String(localized: "Retry, or open Details to see the full message.")
-        )
+        return generic(context)
+    }
+
+    private static func generic(_ context: Context) -> ErrorExplanation {
+        switch context {
+        case .refresh:
+            return ErrorExplanation(kind: .generic,
+                cause: String(localized: "This widget couldn’t refresh."),
+                fix: String(localized: "Retry, or open Details to see the full message."))
+        case .action:
+            return ErrorExplanation(kind: .generic,
+                cause: String(localized: "The widget’s command didn’t finish."),
+                fix: String(localized: "Try again. If it keeps failing, check the widget’s Settings."))
+        case .install:
+            return ErrorExplanation(kind: .generic,
+                cause: String(localized: "The widget couldn’t be installed."),
+                fix: String(localized: "Try again. If it keeps failing, the widget’s author may need to fix it."))
+        case .update:
+            return ErrorExplanation(kind: .generic,
+                cause: String(localized: "BarShelf couldn’t reach its update page."),
+                fix: String(localized: "Try again later, or open the releases page."))
+        case .test:
+            return ErrorExplanation(kind: .generic,
+                cause: String(localized: "The test didn’t work."),
+                fix: String(localized: "Open Details to see the full message, fix the source, then test again."))
+        case .save:
+            return ErrorExplanation(kind: .generic,
+                cause: String(localized: "BarShelf couldn’t save your settings."),
+                fix: String(localized: "Make sure your disk has free space, then change the setting again."))
+        }
     }
 
     // MARK: - Classifiers
@@ -193,6 +283,32 @@ enum ErrorExplainer {
         case 429: return String(localized: "The server is limiting requests (HTTP 429).")
         case 500...599: return String(localized: "The server had a problem (HTTP \(code)).")
         default: return String(localized: "The server answered with an error (HTTP \(code)).")
+        }
+    }
+
+    /// A download (a widget, an update) answered with an error.
+    private static func downloadCause(_ code: Int) -> String {
+        switch code {
+        case 404: return String(localized: "Nothing was found at this address (HTTP 404).")
+        case 401, 403: return String(localized: "The server refused the request (HTTP \(code)).")
+        case 429: return String(localized: "The server is limiting requests (HTTP 429).")
+        case 500...599: return String(localized: "The server had a problem (HTTP \(code)).")
+        default: return String(localized: "The server answered with an error (HTTP \(code)).")
+        }
+    }
+
+    private static func downloadFix(_ code: Int, context: Context) -> String {
+        switch code {
+        case 429, 500...599:
+            return String(localized: "This is usually temporary. Try again in a few minutes.")
+        case 401, 403, 404:
+            return context == .install
+                ? String(localized: "Check the link. A private repository can’t be installed from.")
+                : String(localized: "Try again later, or open the releases page.")
+        default:
+            return context == .install
+                ? String(localized: "Check the link, then try again.")
+                : String(localized: "Try again later, or open the releases page.")
         }
     }
 

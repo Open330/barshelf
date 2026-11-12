@@ -118,13 +118,7 @@ struct WidgetBuilderView: View {
                     }
                 }
                 if let err = model.testError {
-                    Label {
-                        Text(err).lineLimit(3)
-                    } icon: {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                    }
-                    .font(.caption).foregroundStyle(StatusTone.critical.color)
-                    .fixedSize(horizontal: false, vertical: true)
+                    ExplainedErrorView(error: err, context: .test)
                 } else if !model.testOutput.isEmpty {
                     ScrollView {
                         Text(model.testOutput)
@@ -263,13 +257,7 @@ struct WidgetBuilderView: View {
     @ViewBuilder
     private var previewOutputBlock: some View {
         if let err = model.testError {
-            Label {
-                Text(err).lineLimit(3)
-            } icon: {
-                Image(systemName: "exclamationmark.triangle.fill")
-            }
-            .font(.caption).foregroundStyle(StatusTone.critical.color)
-            .fixedSize(horizontal: false, vertical: true)
+            ExplainedErrorView(error: err, context: .test)
         } else if !model.testOutput.isEmpty {
             ScrollView {
                 Text(model.testOutput)

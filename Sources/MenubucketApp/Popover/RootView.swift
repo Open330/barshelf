@@ -106,7 +106,8 @@ struct RootView: View {
                 .transition(.opacity)
             }
         }
-        .overlay { ToastOverlay(bottomInset: pages.count > 1 ? 46 : Spacing.s) }
+        .overlay { ToastOverlay(surface: .popup, bottomInset: pages.count > 1 ? 46 : Spacing.s) }
+        .environment(\.toastSurface, .popup)
         .animation(Motion.respecting(reduceMotion, Motion.quick), value: pager.isEditing)
         .animation(Motion.respecting(reduceMotion, Motion.press), value: searchPresented)
         // ⌘F arrives as the Edit ▸ Find menu command (`AppCommands`).
@@ -550,7 +551,7 @@ struct RootView: View {
                 runtime.changeLayout(String(localized: "Move Widget"), undoManager: undoManager) {
                     runtime.moveWidget(id: widgetID, toGroup: page.group)
                 }
-                ToastCenter.shared.show(String(localized: "Moved to \(PageName.label(page.group))"))
+                ToastCenter.shared.show(String(localized: "Moved to \(PageName.label(page.group))"), on: .popup)
             }
         }
     }

@@ -7,7 +7,9 @@ import SwiftUI
 /// route their `NodeAction` back to the runtime.
 struct ActionContext {
     var widgetID: String = ""
-    var perform: (NodeAction) -> Void = { _ in }
+    /// Runs an action; the second argument is the button's title, if it
+    /// has words, so a failure can say what did not happen.
+    var perform: (NodeAction, String?) -> Void = { _, _ in }
 }
 
 private struct ActionContextKey: EnvironmentKey {
@@ -511,7 +513,7 @@ struct NodeView: View {
     private var buttonView: some View {
         Button {
             if let action = node.action {
-                actionContext.perform(action)
+                actionContext.perform(action, node.title ?? node.text)
             }
         } label: {
             HStack(spacing: Spacing.xxs) {
@@ -1001,7 +1003,7 @@ private struct NodeTapModifier: ViewModifier {
     func body(content: Content) -> some View {
         if let action {
             Button {
-                actionContext.perform(action)
+                actionContext.perform(action, nil)
             } label: {
                 content.contentShape(Rectangle())
             }

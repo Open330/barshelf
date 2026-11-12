@@ -233,6 +233,8 @@ struct DockView: View {
             DockDrop.receive(providers, store: store, before: nil)
         }
         .overlay(alignment: edge == .bottom ? .top : .center) { profileBanner }
+        .overlay(alignment: edge == .bottom ? .top : .center) { toastBanner }
+        .environment(\.toastSurface, .dock)
         .fixedSize()
         .onChange(of: hoveredID == nil) { _, resting in onHoverChange(!resting) }
         .animation(Motion.respecting(reduceMotion, Motion.quick), value: hoveredID)
@@ -305,6 +307,20 @@ struct DockView: View {
                 .transition(.opacity.combined(with: .scale(scale: 0.9)))
                 .allowsHitTesting(false)
                 .accessibilityLabel(Text("Dock profile: \(profile.name)"))
+        }
+    }
+
+    /// Toasts raised in the Dock ("Copied", "Removed … · Undo"): just above
+    /// a bottom dock, in the room the panel keeps for magnified icons, and
+    /// over a side one. As wide as the bar, so the panel never clips it.
+    @ViewBuilder
+    private var toastBanner: some View {
+        let toast = ToastOverlay(surface: .dock, bottomInset: 0, alignment: .center)
+            .fixedSize(horizontal: false, vertical: true)
+        if edge == .bottom {
+            toast.alignmentGuide(.top) { $0[.bottom] + Spacing.xs }
+        } else {
+            toast
         }
     }
 
@@ -688,6 +704,7 @@ struct DockView: View {
             entries.append(.action(String(localized: "Copy Link")) {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(url, forType: .string)
+                ToastCenter.shared.show(String(localized: "Copied"), on: .dock)
             })
         case .shortcut:
             entries.append(.action(String(localized: "Run Shortcut")) { DockActions.open(item) })
@@ -698,12 +715,14 @@ struct DockView: View {
             })
         case .widget(let id):
             entries.append(.action(String(localized: "Show in BarShelf")) { DockActions.open(item) })
-            entries.append(.action(String(localized: "Refresh")) { runtime.requestRefresh(widgetID: id) })
+            entries.append(.action(String(localized: "Refresh")) { runtime.requestRefresh(widgetID: id, feedbackOn: .dock) })
         case .spacer, .separator:
             break
         }
         entries.append(.divider)
-        entries.append(.action(String(localized: "Remove from Dock"), destructive: true) { store.removeItem(item.id) })
+        entries.append(.action(String(localized: "Remove from Dock"), destructive: true) {
+            store.removeItemOfferingUndo(item, surface: .dock)
+        })
         entries.append(.divider)
         return DockMenuEntry.tidy(entries + barMenu)
     }

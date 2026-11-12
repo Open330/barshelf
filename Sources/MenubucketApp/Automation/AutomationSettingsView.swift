@@ -65,7 +65,7 @@ struct AutomationSettingsView: View {
                                 URL(fileURLWithPath: $0, isDirectory: true)
                             } ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".config")
                             if let imported = controller.importFile(base.appendingPathComponent("karabiner/karabiner.json")) {
-                                controller.setDraft(imported)
+                                replaceDraft(with: imported)
                             }
                         }
                         Button("Karabiner Key Mappings Only…") {
@@ -99,7 +99,7 @@ struct AutomationSettingsView: View {
                     .disabled(!hasUnsavedChanges && !controller.isRunning)
                     Button("Revert Draft") { controller.setDraft(controller.source) }
                         .disabled(!hasUnsavedChanges)
-                    Button("Load Example") { controller.setDraft(AutomationScript.example) }
+                    Button("Load Example") { replaceDraft(with: AutomationScript.example) }
                     Button("Export…") { export() }
                     if hasUnsavedChanges {
                         Label("Unsaved changes", systemImage: "circle.fill")
@@ -183,12 +183,26 @@ struct AutomationSettingsView: View {
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        if let imported = controller.importFile(url, excludingFunctionKeys: keyMappingsOnly) { controller.setDraft(imported) }
+        if let imported = controller.importFile(url, excludingFunctionKeys: keyMappingsOnly) { replaceDraft(with: imported) }
+    }
+
+    /// Fills the editor from an import or the example, asking first when
+    /// that would discard changes that were never saved.
+    private func replaceDraft(with text: String) {
+        if controller.replacingDraftLosesChanges(with: text) {
+            let alert = NSAlert()
+            alert.messageText = String(localized: "Replace your unsaved changes?")
+            alert.informativeText = String(localized: "The editor has changes you haven’t saved. They’ll be replaced and can’t be brought back.")
+            alert.addButton(withTitle: String(localized: "Replace"))
+            alert.addButton(withTitle: String(localized: "Cancel"))
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+        }
+        controller.setDraft(text)
     }
 
     private func importSettings(path: String) {
         let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(path)
-        if let imported = controller.importFile(url) { controller.setDraft(imported) }
+        if let imported = controller.importFile(url) { replaceDraft(with: imported) }
     }
 
     private func export() {

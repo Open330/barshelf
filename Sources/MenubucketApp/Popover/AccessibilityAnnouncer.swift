@@ -95,11 +95,14 @@ enum AccessibilityMessages {
                       comment: "VoiceOver: number of search results, then the selected one")
     }
 
-    /// The outcome of a refresh someone asked for from a card.
+    /// The outcome of a refresh someone asked for from a card. A failure is
+    /// said the way the card shows it — what happened, what to try — not as
+    /// the raw message.
     static func refreshOutcome(widgetName: String, error: String?) -> String {
         if let error, !error.isEmpty {
-            return String(localized: "\(widgetName) couldn't refresh. \(error)",
-                          comment: "VoiceOver: a manual refresh failed; the error follows")
+            let explanation = ErrorExplainer.explain(error)
+            return String(localized: "\(widgetName) couldn't refresh. \(explanation.cause) \(explanation.fix)",
+                          comment: "VoiceOver: a manual refresh failed; what happened and what to try follow")
         }
         return String(localized: "\(widgetName) refreshed",
                       comment: "VoiceOver: a manual refresh finished")

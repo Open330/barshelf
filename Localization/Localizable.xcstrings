@@ -160,6 +160,7 @@
     },
     "%@ couldn't refresh. %@": {
       "comment": "VoiceOver: a manual refresh failed; the error follows",
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -171,6 +172,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ 새로고침에 실패했습니다. %@"
+          }
+        }
+      }
+    },
+    "%@ couldn't refresh. %@ %@": {
+      "comment": "VoiceOver: a manual refresh failed; what happened and what to try follow",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ couldn't refresh. %2$@ %3$@"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ 새로고침에 실패했습니다. %2$@ %3$@"
           }
         }
       }
@@ -217,6 +235,69 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ 사용 중"
+          }
+        }
+      }
+    },
+    "%@ is turned off": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 위젯이 꺼져 있습니다"
+          }
+        }
+      }
+    },
+    "%@ is turned off. Turn it on in Settings to refresh it.": {
+      "extractionState": "stale",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 위젯이 꺼져 있습니다. 새로고침하려면 설정에서 켜세요."
+          }
+        }
+      }
+    },
+    "%@ is waiting for your permission": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 위젯이 권한 허용을 기다리고 있습니다"
+          }
+        }
+      }
+    },
+    "%@ is waiting for your permission. Allow it to refresh.": {
+      "extractionState": "stale",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 위젯이 권한 허용을 기다리고 있습니다. 새로고침하려면 먼저 허용하세요."
+          }
+        }
+      }
+    },
+    "%@ needs a newer BarShelf": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 위젯에는 최신 BarShelf가 필요합니다"
+          }
+        }
+      }
+    },
+    "%@ needs a newer BarShelf. Update BarShelf to refresh it.": {
+      "extractionState": "stale",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 위젯에는 최신 BarShelf가 필요합니다. 새로고침하려면 BarShelf를 업데이트하세요."
           }
         }
       }
@@ -269,6 +350,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ 스테퍼"
+          }
+        }
+      }
+    },
+    "%@ stopped until you allow it again": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 위젯을 멈췄습니다. 다시 허용할 때까지 실행되지 않습니다."
           }
         }
       }
@@ -891,6 +982,16 @@
         }
       }
     },
+    "A widget was found, but BarShelf couldn’t read it.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯을 찾았지만 BarShelf가 읽을 수 없습니다."
+          }
+        }
+      }
+    },
     "A widget with id \"%@\" already exists. Change the name/id or remove the existing widget first.": {
       "localizations": {
         "ko": {
@@ -1315,6 +1416,16 @@
         }
       }
     },
+    "Allow it on its card or in Privacy settings, then refresh.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "카드나 개인정보 보호 설정에서 허용한 후 새로고침하세요."
+          }
+        }
+      }
+    },
     "Allowed": {
       "comment": "Privacy summary: widgets allowed",
       "localizations": {
@@ -1397,6 +1508,7 @@
       }
     },
     "An instance named \"%@\" already exists.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -1836,12 +1948,42 @@
         }
       }
     },
+    "BarShelf couldn’t find a widget to download at that address.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 주소에서 내려받을 위젯을 찾지 못했습니다."
+          }
+        }
+      }
+    },
+    "BarShelf couldn’t reach its update page.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BarShelf가 업데이트 페이지에 연결하지 못했습니다."
+          }
+        }
+      }
+    },
     "BarShelf couldn’t remove this widget right now. Try again from the Widgets page.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "지금은 BarShelf가 이 위젯을 제거할 수 없습니다. 위젯 페이지에서 다시 시도하십시오."
+          }
+        }
+      }
+    },
+    "BarShelf couldn’t save your settings.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BarShelf가 설정을 저장하지 못했습니다."
           }
         }
       }
@@ -2450,6 +2592,36 @@
         }
       }
     },
+    "Check that the link points to a widget’s folder or repository.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "링크가 위젯 폴더나 저장소를 가리키는지 확인하세요."
+          }
+        }
+      }
+    },
+    "Check that the link points to the widget itself, not a whole project.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "링크가 프로젝트 전체가 아니라 위젯 자체를 가리키는지 확인하세요."
+          }
+        }
+      }
+    },
+    "Check the address and headers, then test again.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "주소와 헤더를 확인한 후 다시 테스트하세요."
+          }
+        }
+      }
+    },
     "Check the address in the widget’s Settings.": {
       "localizations": {
         "ko": {
@@ -2460,12 +2632,62 @@
         }
       }
     },
+    "Check the folder name and branch in the link, then try again.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "링크의 폴더 이름과 브랜치를 확인한 후 다시 시도하세요."
+          }
+        }
+      }
+    },
+    "Check the link, then try again.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "링크를 확인한 후 다시 시도하세요."
+          }
+        }
+      }
+    },
+    "Check the link. A private repository can’t be installed from.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "링크를 확인하세요. 비공개 저장소에서는 설치할 수 없습니다."
+          }
+        }
+      }
+    },
     "Check the network or the service it reads, then retry.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "네트워크나 위젯이 읽는 서비스를 확인한 후 다시 시도하십시오."
+          }
+        }
+      }
+    },
+    "Check the permissions of BarShelf’s folder in Application Support, then change the setting again.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Application Support에 있는 BarShelf 폴더의 권한을 확인한 후 설정을 다시 변경하세요."
+          }
+        }
+      }
+    },
+    "Check the token or API key in the headers, then test again.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "헤더의 토큰이나 API 키를 확인한 후 다시 테스트하세요."
           }
         }
       }
@@ -2952,6 +3174,16 @@
         }
       }
     },
+    "Copy Details": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "세부 사항 복사"
+          }
+        }
+      }
+    },
     "Copy From": {
       "localizations": {
         "ko": {
@@ -3013,6 +3245,7 @@
       }
     },
     "Could not %@ (Accessibility error %d). The app may not support this operation.": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -3028,7 +3261,48 @@
         }
       }
     },
+    "Could not %@. Allow BarShelf in System Settings › Privacy & Security › Accessibility, then try again.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@에 실패했습니다. 시스템 설정 › 개인정보 보호 및 보안 › 손쉬운 사용에서 BarShelf를 허용한 후 다시 시도하세요."
+          }
+        }
+      }
+    },
+    "Could not %@. The app didn’t respond; it may be busy. Try again in a moment.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@에 실패했습니다. 앱이 응답하지 않습니다. 바쁜 상태일 수 있으니 잠시 후 다시 시도하세요."
+          }
+        }
+      }
+    },
+    "Could not %@. The window closed or changed before BarShelf reached it.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@에 실패했습니다. BarShelf가 접근하기 전에 창이 닫혔거나 바뀌었습니다."
+          }
+        }
+      }
+    },
+    "Could not %@. This app doesn’t let other apps do that.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@에 실패했습니다. 이 앱은 다른 앱이 이 작업을 하도록 허용하지 않습니다."
+          }
+        }
+      }
+    },
     "Could not create instance \"%@\": %@": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -3065,6 +3339,7 @@
       }
     },
     "Couldn't Do That": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -3125,6 +3400,7 @@
       }
     },
     "Couldn't save settings: %@": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -3154,12 +3430,69 @@
         }
       }
     },
+    "Couldn’t %@": {
+      "comment": "Toast: a widget's button failed; the argument is the button's title.",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” 실행에 실패했습니다"
+          }
+        }
+      }
+    },
+    "Couldn’t Duplicate %@": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 복제 실패"
+          }
+        }
+      }
+    },
+    "Couldn’t Remove %@": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 제거 실패"
+          }
+        }
+      }
+    },
+    "Couldn’t install the widget": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯을 설치할 수 없음"
+          }
+        }
+      }
+    },
     "Couldn’t load the widget list": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "위젯 목록을 불러올 수 없음"
+          }
+        }
+      }
+    },
+    "Couldn’t make the copy “%@”. %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Couldn’t make the copy “%1$@”. %2$@"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "사본 “%1$@”을(를) 만들지 못했습니다. %2$@"
           }
         }
       }
@@ -3184,6 +3517,16 @@
         }
       }
     },
+    "Couldn’t refresh": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "새로고침 실패"
+          }
+        }
+      }
+    },
     "Couldn’t refresh the registry. Showing cached widgets.": {
       "localizations": {
         "ko": {
@@ -3200,6 +3543,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "위젯 목록을 새로고침할 수 없습니다. 이미 불러온 위젯을 표시합니다."
+          }
+        }
+      }
+    },
+    "Couldn’t save the new widget’s files. %@": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "새 위젯의 파일을 저장하지 못했습니다. %@"
           }
         }
       }
@@ -4243,6 +4596,7 @@
       }
     },
     "Error": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -4752,6 +5106,26 @@
         }
       }
     },
+    "Forget the Apple Dock layout saved in %@?": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@에 저장된 Apple Dock 배치를 지울까요?"
+          }
+        }
+      }
+    },
+    "Forget…": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "지우기…"
+          }
+        }
+      }
+    },
     "Full Width": {
       "comment": "Widget size name",
       "localizations": {
@@ -4902,6 +5276,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "GitHub 코드 검토 요청과 읽지 않은 알림을 한곳에서 확인합니다. gh 명령줄 도구와 Deno가 필요합니다."
+          }
+        }
+      }
+    },
+    "Give the copy a name with at least one letter or number.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "사본 이름에 글자나 숫자를 하나 이상 넣으세요."
           }
         }
       }
@@ -5588,6 +5972,7 @@
       }
     },
     "Install \"%@\" before adding another instance.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -5761,6 +6146,16 @@
         }
       }
     },
+    "Install “%@” before making a copy of it.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "사본을 만들기 전에 “%@”을(를) 설치하세요."
+          }
+        }
+      }
+    },
     "Installed": {
       "localizations": {
         "ko": {
@@ -5865,6 +6260,7 @@
       }
     },
     "Instance name must contain a letter or number.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -5900,6 +6296,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "위젯을 추가할 때까지 팝업에 빈 페이지로 남아 있습니다."
+          }
+        }
+      }
+    },
+    "It wasn’t found where the gallery says it is. Try again later.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "갤러리에 적힌 위치에서 찾지 못했습니다. 나중에 다시 시도하세요."
           }
         }
       }
@@ -6600,6 +7006,16 @@
         }
       }
     },
+    "Made a copy of %@": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 사본을 만들었습니다"
+          }
+        }
+      }
+    },
     "Magnification": {
       "localizations": {
         "ko": {
@@ -6626,6 +7042,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "주 디스플레이"
+          }
+        }
+      }
+    },
+    "Make sure your disk has free space, then change the setting again.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "디스크에 여유 공간이 있는지 확인한 후 설정을 다시 변경하세요."
           }
         }
       }
@@ -7164,6 +7590,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "왼쪽 스페이스로 이동"
+          }
+        }
+      }
+    },
+    "Move or rename it in Finder, then install again.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finder에서 옮기거나 이름을 바꾼 후 다시 설치하세요."
           }
         }
       }
@@ -7765,6 +8201,16 @@
         }
       }
     },
+    "Nothing was found at this address (HTTP 404).": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 주소에서 아무것도 찾지 못했습니다(HTTP 404)."
+          }
+        }
+      }
+    },
     "Notifications": {
       "comment": "Privacy by capability",
       "localizations": {
@@ -7932,6 +8378,16 @@
         }
       }
     },
+    "Open Details to see the full message, fix the source, then test again.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "세부사항에서 전체 메시지를 확인하고 소스를 고친 후 다시 테스트하세요."
+          }
+        }
+      }
+    },
     "Open Details to see what it printed, then retry.": {
       "localizations": {
         "ko": {
@@ -7958,6 +8414,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "로그 열기"
+          }
+        }
+      }
+    },
+    "Open Logs to see what went wrong, then restart it. If it keeps crashing, check for a widget update.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "로그 열기에서 무엇이 잘못됐는지 확인한 후 다시 시작하세요. 계속 충돌하면 위젯 업데이트를 확인하세요."
           }
         }
       }
@@ -9409,11 +9875,22 @@
       }
     },
     "Remove the additional \"%@\" instances before removing its package.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "패키지를 제거하기 전에 추가된 \"%@\" 인스턴스를 제거하십시오."
+          }
+        }
+      }
+    },
+    "Remove the copies of “%@” first, then remove the original.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@”의 사본을 먼저 제거한 후 원본을 제거하세요."
           }
         }
       }
@@ -9445,6 +9922,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "“%@” 위젯을 제거하겠습니까?"
+          }
+        }
+      }
+    },
+    "Removed %@": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 제거됨"
+          }
+        }
+      }
+    },
+    "Removed %@ from the Dock": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dock에서 %@ 제거됨"
           }
         }
       }
@@ -9510,12 +10007,53 @@
         }
       }
     },
+    "Replace": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "바꾸기"
+          }
+        }
+      }
+    },
+    "Replace the Apple Dock layout saved in %@?": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@에 저장된 Apple Dock 배치를 바꿀까요?"
+          }
+        }
+      }
+    },
     "Replace with Current Apple Dock": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "현재 Apple Dock으로 바꾸기"
+          }
+        }
+      }
+    },
+    "Replace with Current Apple Dock…": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "현재 Apple Dock으로 바꾸기…"
+          }
+        }
+      }
+    },
+    "Replace your unsaved changes?": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "저장하지 않은 변경 사항을 덮어쓸까요?"
           }
         }
       }
@@ -11244,7 +11782,18 @@
         }
       }
     },
+    "Something that isn’t this widget is already at %@. BarShelf left it exactly as it was.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@에 이 위젯이 아닌 다른 항목이 이미 있습니다. BarShelf는 그 항목을 그대로 두었습니다."
+          }
+        }
+      }
+    },
     "Something that isn’t this widget is already at %@. BarShelf left it exactly as it was. Move or rename it in Finder, then install again.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -11426,6 +11975,7 @@
       }
     },
     "Stopped after crashing repeatedly: %@": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -11553,6 +12103,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "전환"
+          }
+        }
+      }
+    },
+    "Switching to %@ will leave the Apple Dock as it is. This can’t be undone.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이후 %@(으)로 전환해도 Apple Dock은 그대로 유지됩니다. 이 작업은 되돌릴 수 없습니다."
           }
         }
       }
@@ -11769,6 +12329,26 @@
         }
       }
     },
+    "That address doesn’t offer a secure download.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 주소는 안전한 다운로드를 제공하지 않습니다."
+          }
+        }
+      }
+    },
+    "That didn’t work": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "동작을 완료하지 못했습니다"
+          }
+        }
+      }
+    },
     "That key can't be used. Try a letter, a number, Space, Tab, or Return.": {
       "localizations": {
         "ko": {
@@ -11919,6 +12499,36 @@
         }
       }
     },
+    "The download is larger than the %lld MB BarShelf accepts for a widget.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "다운로드 크기가 BarShelf가 위젯에 허용하는 %lld MB보다 큽니다."
+          }
+        }
+      }
+    },
+    "The editor has changes you haven’t saved. They’ll be replaced and can’t be brought back.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "편집기에 저장하지 않은 변경 사항이 있습니다. 바꾸면 되돌릴 수 없습니다."
+          }
+        }
+      }
+    },
+    "The folder “%@” isn’t in this repository.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 저장소에 “%@” 폴더가 없습니다."
+          }
+        }
+      }
+    },
     "The icon BarShelf shows in the menu bar.": {
       "extractionState": "stale",
       "localizations": {
@@ -11946,6 +12556,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "마지막 입력 소스 전환으로 입력 소스가 바뀌지 않았습니다. 다른 단축키는 계속 작동합니다. 키보드 단축키에서 ‘입력 메뉴에서 다음 소스 선택’을 확인하십시오."
+          }
+        }
+      }
+    },
+    "The layout saved in %@ is replaced by the apps in the Apple Dock now. This can’t be undone.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@에 저장된 배치가 지금 Apple Dock에 있는 앱으로 바뀝니다. 이 작업은 되돌릴 수 없습니다."
           }
         }
       }
@@ -12066,6 +12686,16 @@
         }
       }
     },
+    "The server took too long to answer.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "서버의 응답이 너무 늦습니다."
+          }
+        }
+      }
+    },
     "The service is limiting requests.": {
       "localizations": {
         "ko": {
@@ -12092,6 +12722,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "소스의 형식이 바뀌었을 수 있습니다. 위젯 업데이트를 확인하십시오."
+          }
+        }
+      }
+    },
+    "The test didn’t work.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "테스트에 실패했습니다."
           }
         }
       }
@@ -12186,6 +12826,16 @@
         }
       }
     },
+    "The widget couldn’t be installed.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯을 설치하지 못했습니다."
+          }
+        }
+      }
+    },
     "The widget got data it couldn’t read.": {
       "localizations": {
         "ko": {
@@ -12216,6 +12866,36 @@
         }
       }
     },
+    "The widget’s author needs to fix its widget.json.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯 제작자가 widget.json을 고쳐야 합니다."
+          }
+        }
+      }
+    },
+    "The widget’s author needs to fix the id in its widget.json.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯 제작자가 widget.json의 id를 고쳐야 합니다."
+          }
+        }
+      }
+    },
+    "The widget’s command didn’t finish.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯의 명령이 끝나지 않았습니다."
+          }
+        }
+      }
+    },
     "The widget’s command failed (exit code %lld).": {
       "localizations": {
         "ko": {
@@ -12226,12 +12906,42 @@
         }
       }
     },
+    "The widget’s command reported an error.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯의 명령이 오류를 반환했습니다."
+          }
+        }
+      }
+    },
     "The ⋯ menu in the popup edits the shelf, adds widgets, and opens Settings.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "팝업의 ⋯ 메뉴에서 선반 편집, 위젯 추가, 설정 열기를 할 수 있습니다."
+          }
+        }
+      }
+    },
+    "There’s already a copy named “%@”. Choose another name.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” 이름의 사본이 이미 있습니다. 다른 이름을 고르세요."
+          }
+        }
+      }
+    },
+    "There’s no BarShelf widget in this download.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "내려받은 파일에 BarShelf 위젯이 없습니다."
           }
         }
       }
@@ -12369,6 +13079,16 @@
         }
       }
     },
+    "This is usually temporary. Try again in a few minutes.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "대개 일시적인 문제입니다. 몇 분 후 다시 시도하세요."
+          }
+        }
+      }
+    },
     "This month’s calendar with today highlighted.": {
       "localizations": {
         "ko": {
@@ -12400,6 +13120,26 @@
         }
       }
     },
+    "This widget came with BarShelf or was added from another folder, so it can’t be removed here. Turn it off instead.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BarShelf에 포함된 위젯이거나 다른 폴더에서 추가한 위젯이라 여기서 제거할 수 없습니다. 대신 끄세요."
+          }
+        }
+      }
+    },
+    "This widget can’t be duplicated because its widget ID isn’t valid. The widget’s author needs to fix it.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯 ID가 올바르지 않아 복제할 수 없습니다. 위젯 제작자가 고쳐야 합니다."
+          }
+        }
+      }
+    },
     "This widget couldn’t refresh.": {
       "localizations": {
         "ko": {
@@ -12411,6 +13151,7 @@
       }
     },
     "This widget has an invalid ID. Fix the id in widget.json before adding an instance.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -12450,12 +13191,43 @@
         }
       }
     },
+    "This widget is installed as a link to a folder elsewhere (%@). BarShelf doesn’t update linked widgets and changed nothing.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 위젯은 다른 위치의 폴더(%@)에 대한 링크로 설치되어 있습니다. BarShelf는 링크된 위젯을 업데이트하지 않으며 아무것도 바꾸지 않았습니다."
+          }
+        }
+      }
+    },
     "This widget is installed as a link to a folder elsewhere (%@). BarShelf doesn’t update linked widgets and changed nothing. To update it, update the folder the link points to — for example with git pull — or remove the link and install the widget again.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "이 위젯은 다른 곳에 있는 폴더(%@)에 대한 링크로 설치되어 있습니다. BarShelf는 링크된 위젯을 업데이트하지 않으며 아무것도 바꾸지 않았습니다. 업데이트하려면 링크가 가리키는 폴더를 직접 업데이트하거나(예: git pull), 링크를 삭제한 뒤 위젯을 다시 설치하십시오."
+          }
+        }
+      }
+    },
+    "This widget is no longer installed. It may have been removed or updated a moment ago.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 위젯은 더 이상 설치되어 있지 않습니다. 방금 제거되었거나 업데이트되었을 수 있습니다."
+          }
+        }
+      }
+    },
+    "This widget isn’t allowed to run that command. Check for a widget update.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 위젯은 그 명령을 실행할 권한이 없습니다. 위젯 업데이트를 확인하세요."
           }
         }
       }
@@ -12480,6 +13252,26 @@
         }
       }
     },
+    "This widget needs BarShelf %@ or later.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 위젯에는 BarShelf %@ 이상이 필요합니다."
+          }
+        }
+      }
+    },
+    "This widget needs a newer version of BarShelf.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 위젯에는 더 최신 버전의 BarShelf가 필요합니다."
+          }
+        }
+      }
+    },
     "This widget publishes no value, so only its icon can appear. Give its workflow a `status.label` (or a script `host.render` status) to show one.": {
       "localizations": {
         "ko": {
@@ -12496,6 +13288,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "이 위젯은 텍스트를 표시하지 않으며, 아이콘만으로는 공유 줄에 합류할 수 없습니다."
+          }
+        }
+      }
+    },
+    "This widget stopped after crashing several times.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 위젯은 여러 번 충돌하여 멈췄습니다."
           }
         }
       }
@@ -12567,6 +13369,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "집중 모드에 맞추려면: 단축어 앱에서 집중 모드가 켜질 때 실행되는 개인용 자동화를 만들고 ‘URL 열기’ 동작에 이 링크를 넣으십시오. 터미널에서는: barshelf dock use \"%@\"."
+          }
+        }
+      }
+    },
+    "To update it, update the folder the link points to — for example with git pull — or remove the link and install the widget again.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "업데이트하려면 링크가 가리키는 폴더를 업데이트하거나(예: git pull), 링크를 제거하고 위젯을 다시 설치하세요."
           }
         }
       }
@@ -12689,6 +13501,36 @@
         }
       }
     },
+    "Try again later, or open the releases page.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "나중에 다시 시도하거나 릴리스 페이지를 여세요."
+          }
+        }
+      }
+    },
+    "Try again. If it keeps failing, check the widget’s Settings.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "다시 시도하세요. 계속 실패하면 위젯 설정을 확인하세요."
+          }
+        }
+      }
+    },
+    "Try again. If it keeps failing, the widget’s author may need to fix it.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "다시 시도하세요. 계속 실패하면 위젯 제작자가 고쳐야 할 수 있습니다."
+          }
+        }
+      }
+    },
     "Turn Off": {
       "localizations": {
         "ko": {
@@ -12745,6 +13587,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "위젯 켜기"
+          }
+        }
+      }
+    },
+    "Turn it on in Settings to refresh it.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "새로고침하려면 설정에서 켜세요."
           }
         }
       }
@@ -13064,6 +13916,26 @@
         }
       }
     },
+    "Update BarShelf to refresh it.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "새로고침하려면 BarShelf를 업데이트하세요."
+          }
+        }
+      }
+    },
+    "Update BarShelf, then install the widget again.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BarShelf를 업데이트한 후 위젯을 다시 설치하세요."
+          }
+        }
+      }
+    },
     "Update interval": {
       "localizations": {
         "ko": {
@@ -13215,12 +14087,32 @@
         }
       }
     },
+    "Use a link to a GitHub repository or folder, or to a .zip file.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub 저장소나 폴더, 또는 .zip 파일 링크를 사용하세요."
+          }
+        }
+      }
+    },
     "Use an HTTPS GitHub repository or a .zip/.mbw archive URL.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "HTTPS GitHub 저장소 또는 .zip/.mbw 아카이브 URL을 사용하십시오."
+          }
+        }
+      }
+    },
+    "Use an https:// link to the widget.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯의 https:// 링크를 사용하세요."
           }
         }
       }
@@ -13664,6 +14556,7 @@
       }
     },
     "Widget install failed": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -14156,7 +15049,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "윈도우 포커스"
+            "value": "창 활성화"
           }
         }
       }
@@ -14211,6 +15104,26 @@
         }
       }
     },
+    "its widget ID isn’t valid": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯 ID가 올바르지 않음"
+          }
+        }
+      }
+    },
+    "its widget.json couldn’t be read": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "widget.json을 읽을 수 없음"
+          }
+        }
+      }
+    },
     "macOS couldn’t confirm hiding the Apple Dock, so it is still showing. Choose Instead of the Apple Dock again to retry.": {
       "localizations": {
         "ko": {
@@ -14227,6 +15140,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "macOS에서 Apple Dock 설정 변경을 확인하지 못했습니다. Apple Dock 복원을 다시 시도하십시오."
+          }
+        }
+      }
+    },
+    "macOS didn’t let BarShelf write its settings file.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS가 BarShelf의 설정 파일 쓰기를 허용하지 않았습니다."
           }
         }
       }
@@ -14257,7 +15180,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "윈도우 이동"
+            "value": "창 이동"
           }
         }
       }
@@ -14341,7 +15264,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "윈도우 크기 조절"
+            "value": "창 크기 조절"
           }
         }
       }
@@ -14390,6 +15313,7 @@
       }
     },
     "the widget wasn't found at its source": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -14483,6 +15407,7 @@
       }
     },
     "widget \"%@\" is not inside the user widgets directory": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -14493,6 +15418,7 @@
       }
     },
     "widget \"%@\" was not found": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -14543,7 +15469,18 @@
         }
       }
     },
+    "“%@” isn’t a valid widget ID, so nothing was installed.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@”은(는) 올바른 위젯 ID가 아니어서 아무것도 설치하지 않았습니다."
+          }
+        }
+      }
+    },
     "“%@” isn’t a valid widget ID, so nothing was installed. The widget’s author needs to fix the id in its widget.json.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
