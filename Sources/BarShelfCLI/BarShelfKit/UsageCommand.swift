@@ -39,14 +39,22 @@ public enum UsageCommand {
 
     /// Instance id → name for every widget in the folder, the way the app
     /// names instances (`<manifest id>--<suffix>` directories).
+    ///
+    /// Read entry by entry rather than through `WidgetDiscovery`: the app
+    /// makes a copy of a widget as a symbolic link to the original folder,
+    /// and a walk that does not follow links never sees the copies, which
+    /// then showed up as "not installed".
     public static func installedWidgets(in widgetsDir: URL) -> [String: String] {
-        guard let discovery = try? WidgetDiscovery.discover(under: widgetsDir) else { return [:] }
+        let entries = (try? FileManager.default.contentsOfDirectory(atPath: widgetsDir.path)) ?? []
         var names: [String: String] = [:]
-        for candidate in discovery.candidates {
-            let id = candidate.manifest.id
-            let directory = candidate.directory.lastPathComponent
+        for directory in entries.sorted() {
+            // `Data(contentsOf:)` follows the link to the real manifest.
+            let manifestURL = widgetsDir.appendingPathComponent(directory).appendingPathComponent("widget.json")
+            guard let data = try? Data(contentsOf: manifestURL),
+                  let manifest = try? Manifest.decode(from: data) else { continue }
+            let id = manifest.id
             let instance = directory.hasPrefix(id + "--") && directory.count > id.count + 2 ? directory : id
-            names[instance] = candidate.manifest.name
+            names[instance] = manifest.name
         }
         return names
     }
