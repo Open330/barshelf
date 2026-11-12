@@ -76,6 +76,38 @@ package struct AutomationHelperChannel {
     package static func isAlive(_ pid: Int32) -> Bool {
         pid > 0 && (kill(pid, 0) == 0 || errno == EPERM)
     }
+
+    /// Whether a helper is running, by the one thing only a helper holds:
+    /// the lock on `lockURL`. A pid in the status file proves nothing. The
+    /// file outlives the helper, and after a restart the same number can
+    /// belong to any process.
+    package var helperHoldsLock: Bool {
+        let descriptor = open(lockURL.path, O_CREAT | O_RDWR, 0o600)
+        guard descriptor >= 0 else { return false }
+        defer { close(descriptor) }
+        if flock(descriptor, LOCK_EX | LOCK_NB) == 0 {
+            flock(descriptor, LOCK_UN)
+            return false
+        }
+        return errno == EWOULDBLOCK
+    }
+
+    /// The status of the helper that is running now, or nil: no helper, or a
+    /// status file left by one that is gone.
+    package func liveStatus() -> AutomationHelperStatus? {
+        guard helperHoldsLock, let status = read(AutomationHelperStatus.self, from: statusURL),
+              Self.isAlive(status.pid) else { return nil }
+        return status
+    }
+
+    /// Whether `pid` runs `executable`. Checked before signalling a pid
+    /// that was read from a file.
+    package static func process(_ pid: Int32, runs executable: URL) -> Bool {
+        var buffer = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
+        guard proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 else { return false }
+        let path = URL(fileURLWithPath: String(cString: buffer)).resolvingSymlinksInPath().path
+        return path == executable.resolvingSymlinksInPath().path
+    }
 }
 
 package struct AutomationHelperRequest: Codable, Equatable {

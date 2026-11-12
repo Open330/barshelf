@@ -494,6 +494,11 @@ enum UpgradeCommand {
     /// app and reopen the other. Scoping to the user matters too: on a shared
     /// Mac another login's BarShelf is not ours to signal, and counting it
     /// would leave `--restart` waiting for a process it cannot kill.
+    ///
+    /// The path is matched without an end anchor on purpose: the keyboard
+    /// helper runs the same executable with arguments, and `--restart` has to
+    /// end it together with the app, or it would reopen the app two seconds
+    /// later and race the `open` that follows.
     static func processSelector(for app: URL) -> [String] {
         let executable = app.appendingPathComponent("Contents/MacOS/\(appExecutableName)")
         return ["-U", String(getuid()), "-f", executable.path]

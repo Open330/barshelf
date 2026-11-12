@@ -103,6 +103,15 @@ package final class AutomationHelperServer {
         )
     }
 
+    /// Removes the status file: the helper is going away, and a file that
+    /// outlives it would name a pid that soon belongs to something else.
+    package func retire() {
+        observation = nil
+        channel.cancel(token)
+        token = NOTIFY_TOKEN_INVALID
+        try? FileManager.default.removeItem(at: channel.statusURL)
+    }
+
     private func publish(running: Bool? = nil) {
         do {
             try channel.write(status(running: running), to: channel.statusURL)
@@ -145,7 +154,16 @@ package enum AutomationHelperProcess {
         let delegate = Delegate(channel: channel, controller: controller, supervisor: supervisor)
         application.delegate = delegate
         server.ownerChanged = { supervisor.watch($0) }
-        server.stopped = { exit(0) }
+        server.stopped = {
+            server.retire()
+            exit(0)
+        }
+        supervisor.giveUp = {
+            controller.stopForTermination()
+            server.retire()
+            exit(0)
+        }
+        delegate.retire = { server.retire() }
         server.start()
         supervisor.watch(appPID)
         withExtendedLifetime((delegate, supervisor, server)) { application.run() }
@@ -176,9 +194,12 @@ package enum AutomationHelperProcess {
             return false
         }
 
+        var retire: (() -> Void)?
+
         func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
             channel.post(channel.quitAppName)
             controller.stopForTermination()
+            retire?()
             return .terminateNow
         }
     }
@@ -186,12 +207,31 @@ package enum AutomationHelperProcess {
     /// Watches the app. An app that goes away without telling the helper to
     /// stop has crashed or was killed: the helper keeps the keys working and
     /// opens the app again.
+    ///
+    /// It does not do that when the session is ending (logout, restart,
+    /// shutdown end the app the same way a crash does), when an app is
+    /// already running again, or when there is no app left to open. And it
+    /// does not outlive the app for long: a helper nobody can reach from any
+    /// window would hold the keyboard with no way to turn it off.
     private final class OwnerSupervisor {
         private let server: AutomationHelperServer
         private var source: DispatchSourceProcess?
         private var relaunches: [Date] = []
+        private var sessionEnding = false
+        private var ownerlessSince: Date?
+        private var powerObserver: NSObjectProtocol?
+        /// Stops the extension and exits.
+        var giveUp: (() -> Void)?
 
-        init(server: AutomationHelperServer) { self.server = server }
+        /// How long the helper runs with no app before it gives up.
+        static let ownerlessLimit: TimeInterval = 15 * 60
+
+        init(server: AutomationHelperServer) {
+            self.server = server
+            powerObserver = NSWorkspace.shared.notificationCenter.addObserver(
+                forName: NSWorkspace.willPowerOffNotification, object: nil, queue: .main
+            ) { [weak self] _ in self?.sessionEnding = true }
+        }
 
         var ownerIsAlive: Bool { AutomationHelperChannel.isAlive(server.ownerPID) }
 
@@ -202,6 +242,7 @@ package enum AutomationHelperProcess {
                 ownerExited(pid)
                 return
             }
+            ownerlessSince = nil
             let source = DispatchSource.makeProcessSource(identifier: pid, eventMask: .exit, queue: .main)
             source.setEventHandler { [weak self] in self?.ownerExited(pid) }
             source.resume()
@@ -213,11 +254,40 @@ package enum AutomationHelperProcess {
             // moment to adopt this helper before deciding nobody will.
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
                 guard let self, self.server.ownerPID == pid else { return }
-                self.relaunchApp()
+                self.ownerless()
+            }
+        }
+
+        private func ownerless() {
+            guard !sessionEnding else {
+                giveUp?()
+                return
+            }
+            if ownerlessSince == nil { ownerlessSince = Date() }
+            relaunchApp()
+            // Look again in a minute: adopted by then, or closer to giving up.
+            let owner = server.ownerPID
+            DispatchQueue.main.asyncAfter(deadline: .now() + 60) { [weak self] in
+                guard let self, self.server.ownerPID == owner, !self.ownerIsAlive else { return }
+                if let since = self.ownerlessSince, Date().timeIntervalSince(since) >= Self.ownerlessLimit {
+                    NSLog("BarShelf keyboard helper: no app for %d minutes; stopping", Int(Self.ownerlessLimit / 60))
+                    self.giveUp?()
+                } else {
+                    self.ownerless()
+                }
             }
         }
 
         private func relaunchApp() {
+            let bundle = Bundle.main.bundleURL
+            // The app was removed (or this is not a packaged app): nothing
+            // can adopt this helper again.
+            guard bundle.pathExtension == "app", FileManager.default.fileExists(atPath: bundle.path) else {
+                giveUp?()
+                return
+            }
+            // Someone already opened it; it will adopt this helper.
+            if appInstanceIsRunning { return }
             // At most three times in ten minutes: an app that crashes on
             // launch must not be reopened forever.
             relaunches = relaunches.filter { $0 > Date().addingTimeInterval(-600) }
@@ -225,11 +295,21 @@ package enum AutomationHelperProcess {
                 NSLog("BarShelf keyboard helper: the app keeps exiting; not reopening it again")
                 return
             }
-            let bundle = Bundle.main.bundleURL
-            guard bundle.pathExtension == "app", FileManager.default.fileExists(atPath: bundle.path) else { return }
             relaunches.append(Date())
             NSLog("BarShelf keyboard helper: the app exited without stopping the extension; reopening it")
             openApp()
+        }
+
+        /// Another process of this bundle: the helper is the only one that
+        /// is not the app (the lock allows one helper).
+        private var appInstanceIsRunning: Bool {
+            guard let identifier = Bundle.main.bundleIdentifier else { return false }
+            return NSRunningApplication.runningApplications(withBundleIdentifier: identifier)
+                .contains {
+                    // A crashed app can linger in this list for a moment.
+                    $0.processIdentifier != getpid() && !$0.isTerminated
+                        && AutomationHelperChannel.isAlive($0.processIdentifier)
+                }
         }
 
         func openApp() {

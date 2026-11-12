@@ -116,4 +116,18 @@ final class DockCommandTests: XCTestCase {
         XCTAssertEqual(DockCommand.run(arguments: ["fly"], configurationURL: fileURL), 1)
         XCTAssertEqual(DockCommand.run(arguments: [], configurationURL: fileURL), 1)
     }
+
+    /// The keyboard helper is the app's executable with arguments and can
+    /// outlive a crashed app; `restore-apple-dock` must not take it for the
+    /// app.
+    func testTheAppSelectorDoesNotMatchTheKeyboardHelper() throws {
+        let pattern = try XCTUnwrap(DockCommand.appProcessArguments.last)
+        let regex = try NSRegularExpression(pattern: pattern)
+        func matches(_ commandLine: String) -> Bool {
+            regex.firstMatch(in: commandLine, range: NSRange(commandLine.startIndex..., in: commandLine)) != nil
+        }
+        XCTAssertTrue(matches("/Applications/BarShelf.app/Contents/MacOS/barshelf-app"))
+        XCTAssertFalse(matches("/Applications/BarShelf.app/Contents/MacOS/barshelf-app automation-helper --app-pid 4242"))
+        XCTAssertTrue(DockCommand.appProcessArguments.contains("-f"))
+    }
 }

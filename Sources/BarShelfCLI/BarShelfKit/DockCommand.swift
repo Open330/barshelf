@@ -124,10 +124,17 @@ public enum DockCommand {
         return 0
     }
 
+    /// How `pgrep` finds the app and only the app. The keyboard helper is
+    /// the same executable with arguments (`barshelf-app automation-helper …`)
+    /// and can outlive a crashed app; taking it for the app sent the restore
+    /// request to nobody and left the Apple Dock hidden, in exactly the
+    /// situation this command exists for. `$` ends the match at the name.
+    static let appProcessArguments = ["-U", String(getuid()), "-f", "Contents/MacOS/barshelf-app$"]
+
     public static func appIsRunning() -> Bool {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
-        process.arguments = ["-x", "barshelf-app"]
+        process.arguments = appProcessArguments
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         guard (try? process.run()) != nil else { return false }
