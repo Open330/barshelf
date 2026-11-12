@@ -104,10 +104,17 @@ public struct WorkflowDefinition: Codable, Equatable, Sendable {
     public struct SourceDef: Codable, Equatable, Sendable {
         public var use: String
         public var with: JSONValue?
+        /// When true, a failure of the data itself (offline, timeout, HTTP
+        /// status, missing or failing command, missing file, bad JSON) does
+        /// not fail the refresh: the source reads as `null` and
+        /// `errors.<id>` describes what happened (`WorkflowSourceFailure`).
+        /// Permission failures still fail the refresh.
+        public var optional: Bool?
 
-        public init(use: String, with: JSONValue? = nil) {
+        public init(use: String, with: JSONValue? = nil, optional: Bool? = nil) {
             self.use = use
             self.with = with
+            self.optional = optional
         }
     }
 
@@ -413,12 +420,18 @@ public enum WorkflowEngine {
         settings: JSONValue,
         storage: JSONValue = .object([:]),
         widget: JSONValue = .object([:]),
+        errors: [String: JSONValue] = [:],
         nowMs: Double = Date().timeIntervalSince1970 * 1000
     ) throws -> Output {
+        // Every source has an entry, null when it succeeded, so
+        // `eq(errors.x, null)` reads the same before and after a failure.
+        var errorEntries: [String: JSONValue] = [:]
+        for id in definition.sources.keys { errorEntries[id] = errors[id] ?? .null }
         var context = Context(
             root: [
                 "settings": settings,
                 "sources": .object(sources),
+                "errors": .object(errorEntries),
                 "transforms": .object([:]),
                 "storage": storage,
                 "widget": widget,

@@ -17,6 +17,16 @@ final class ErrorExplainerTests: XCTestCase {
         XCTAssertTrue(ErrorExplainer.explain("'gh' not found (searched: )").cause.contains("gh"))
     }
 
+    func testSignInBeatsTheTimeoutInAURL() {
+        // kubectl prints the API URL with ?timeout=8s when the AWS login lapsed.
+        XCTAssertEqual(kind("""
+        exited with code 1: aws: [ERROR]: An error occurred (NoCredentials): Unable to locate credentials.
+        Get "https://x.eks.amazonaws.com/api?timeout=8s": getting credentials: exec: executable aws failed
+        """), .signInRequired)
+        XCTAssertEqual(kind("exited with code 4: To get started with GitHub CLI, please run:  gh auth login"), .signInRequired)
+        XCTAssertEqual(kind("API rate limit exceeded for user"), .rateLimited)
+    }
+
     func testTimeout() {
         XCTAssertEqual(kind("timed out after 5000 ms"), .timedOut)
         XCTAssertEqual(kind("The request timed out."), .timedOut)

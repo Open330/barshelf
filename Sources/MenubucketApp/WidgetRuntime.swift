@@ -2562,10 +2562,12 @@ final class WidgetRuntime: ObservableObject {
             )
 
             var sourceValues: [String: JSONValue] = [:]
+            var sourceErrors: [String: JSONValue] = [:]
             for (sourceID, source) in definition.sources {
                 // Each source runs after the previous one's suspension.
                 try checkNativeRefresh(widget, token: token)
                 let value = params[sourceID] ?? .object([:])
+                do {
                 switch source.use {
                 case "fs.directory":
                     let fsParams = try FileSource.Params(from: value)
@@ -2637,12 +2639,20 @@ final class WidgetRuntime: ObservableObject {
                         "unknown source use \"\(source.use)\" (v1: exec, fs.directory, fs.json, http, system, value, vault.items)"
                     )
                 }
+                } catch {
+                    // An optional source's own failure becomes data the view
+                    // can branch on; everything else still fails the refresh.
+                    guard source.optional == true,
+                          let failure = WorkflowSourceFailure.classify(error) else { throw error }
+                    sourceValues[sourceID] = .null
+                    sourceErrors[sourceID] = failure.value
+                }
             }
 
             try checkNativeRefresh(widget, token: token)
             let output = try WorkflowEngine.evaluate(
                 definition, sources: sourceValues, settings: settings,
-                storage: storageSnapshot, widget: widgetContext
+                storage: storageSnapshot, widget: widgetContext, errors: sourceErrors
             )
 
             // Alerts: decided against host-held state after a refresh that is

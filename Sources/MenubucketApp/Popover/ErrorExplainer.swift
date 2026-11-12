@@ -1,4 +1,5 @@
 import Foundation
+import MenubucketCore
 
 /// What went wrong with a widget's refresh, in words a person can act on.
 struct ErrorExplanation: Equatable {
@@ -9,6 +10,9 @@ struct ErrorExplanation: Equatable {
         case networkUnreachable
         case invalidJSON
         case permissionDenied
+        /// A CLI or service wants the user to sign in again.
+        case signInRequired
+        case rateLimited
         case manifestPermissionDenied
         case exitCode(Int)
         case generic
@@ -59,6 +63,25 @@ enum ErrorExplainer {
                 cause: cause,
                 fix: String(localized: "Install it (for example with Homebrew), then retry.")
             )
+        }
+
+        // Before "timeout": CLIs that fail to sign in often print a URL with
+        // `?timeout=8s` in it (kubectl does), which is not a timeout.
+        switch WorkflowSourceFailure.kind(forOutput: raw) {
+        case .auth?:
+            return ErrorExplanation(
+                kind: .signInRequired,
+                cause: String(localized: "The tool this widget uses needs you to sign in again."),
+                fix: String(localized: "Sign in with that tool in Terminal (for example “gh auth login” or “aws sso login”), then retry.")
+            )
+        case .rateLimited?:
+            return ErrorExplanation(
+                kind: .rateLimited,
+                cause: String(localized: "The service is limiting requests."),
+                fix: String(localized: "Wait a little; BarShelf retries on its own.")
+            )
+        default:
+            break
         }
 
         if text.contains("timed out") || text.contains("timeout") {

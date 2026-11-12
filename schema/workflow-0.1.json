@@ -79,6 +79,10 @@
         "with": {
           "type": "object",
           "additionalProperties": true
+        },
+        "optional": {
+          "type": "boolean",
+          "description": "BarShelf 0.7.32: a failure of the data itself makes the source null and fills errors.<id> instead of failing the refresh."
         }
       },
       "allOf": [
