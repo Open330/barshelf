@@ -205,11 +205,9 @@ struct ShelfView: View {
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: Spacing.s) {
                     CompactPageHeader(tab: .shelf, summary: shelfSummary)
-                    LazyVGrid(
-                        columns: [GridItem(.adaptive(minimum: columnWidth, maximum: columnWidth), spacing: Spacing.m, alignment: .top)],
-                        alignment: .leading,
-                        spacing: Spacing.m
-                    ) {
+                    // Not lazy: every chip must exist for `scrollTo` to reach
+                    // it — Show in Shelf, ⌥⌘ moves, the inspector opening.
+                    FlowLayout(spacing: Spacing.m) {
                         let pages = shelfPages
                         ForEach(Array(pages.enumerated()), id: \.element.name) { index, page in
                             column(page, index: index, count: pages.count)
@@ -552,7 +550,7 @@ struct ShelfView: View {
     private var shelfSummary: String {
         let pages = shelfPages
         let count = pages.reduce(0) { $0 + $1.widgets.count }
-        var parts = [String(localized: "\(count) widgets on \(pages.count) pages", comment: "Shelf header: widgets installed and the popup pages they are on")]
+        var parts = [String(AttributedString(localized: "^[\(count) widget](inflect: true) on ^[\(pages.count) page](inflect: true)", comment: "Shelf header: widgets installed and the popup pages they are on").characters)]
         let off = runtime.widgets.filter { runtime.prefs.isDisabled($0.id) }.count
         if off > 0 { parts.append(String(localized: "\(off) turned off", comment: "Shelf header: widgets switched off")) }
         let waiting = runtime.widgets.filter { runtime.permissionState(for: $0) == .notAsked }.count

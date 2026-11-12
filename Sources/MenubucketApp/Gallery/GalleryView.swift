@@ -50,7 +50,7 @@ struct GalleryView: View {
             // A category may not exist for the new type; drop a stale
             // selection so results don't silently empty out.
             if let selected = model.selectedCategory,
-               !model.availableCategories.contains(selected) {
+               !model.availableCategories.contains(where: { GalleryModel.category($0, matches: selected) }) {
                 model.selectedCategory = nil
             }
         }
@@ -197,7 +197,12 @@ struct GalleryView: View {
     }
 
     private func categoryChip(_ category: String?, label: String) -> some View {
-        let selected = model.selectedCategory == category
+        // By label: "demo" and "everyday" are one chip.
+        let selected: Bool = switch (model.selectedCategory, category) {
+        case (nil, nil): true
+        case let (current?, chip?): GalleryModel.category(chip, matches: current)
+        default: false
+        }
         return Button {
             model.selectedCategory = category
         } label: {

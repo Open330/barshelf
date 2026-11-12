@@ -1886,14 +1886,18 @@ struct InspectorSwitchToggleStyle: ToggleStyle {
                 .font(.callout)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .accessibilityHidden(true)
-            // The label again, hidden, so the switch keeps its name.
             Toggle(isOn: configuration.$isOn) { configuration.label }
                 .toggleStyle(.switch)
                 .controlSize(.small)
                 .labelsHidden()
         }
         .contentShape(Rectangle())
+        // A switch with its label hidden drops the title from accessibility:
+        // the row is one control, a toggle named by its own label.
+        .accessibilityElement(children: .ignore)
+        .accessibilityRepresentation {
+            Toggle(isOn: configuration.$isOn) { configuration.label }
+        }
     }
 }
 

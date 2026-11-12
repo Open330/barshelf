@@ -473,7 +473,7 @@ struct DockSettingsPage: View {
     private func commitName(profileID: String) {
         let name = nameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else {
-            nameDraft = config.profiles.first { $0.id == profileID }?.name ?? ""
+            nameDraft = config.profiles.first { $0.id == profileID }?.displayName ?? ""
             return
         }
         // The default profile's translated name, untouched, is no rename.

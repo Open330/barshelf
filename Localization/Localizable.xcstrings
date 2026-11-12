@@ -723,23 +723,6 @@
         }
       }
     },
-    "%lld widgets on %lld pages": {
-      "comment": "Shelf header: widgets installed and the popup pages they are on",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "%1$lld widgets on %2$lld pages"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "위젯 %1$lld개 · 페이지 %2$lld개"
-          }
-        }
-      }
-    },
     "%lld. %@": {
       "localizations": {
         "en": {
@@ -3882,7 +3865,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "데이터 가져올 곳"
+            "value": "데이터 출처"
           }
         }
       }
@@ -8360,7 +8343,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "흔들림 없이"
+            "value": "흔들림 없음"
           }
         }
       }
@@ -8624,7 +8607,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "설정 안 함"
+            "value": "설정 안 됨"
           }
         }
       }
@@ -8655,7 +8638,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "아직 안 함"
+            "value": "확인 전"
           }
         }
       }
@@ -10942,7 +10925,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "더 넣을 수 있는 개수"
+            "value": "남은 자리"
           }
         }
       }
@@ -15076,7 +15059,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "알림 수준 대기 중"
+            "value": "조건 대기 중"
           }
         }
       }
@@ -15784,6 +15767,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "위젯 %lld개"
+          }
+        }
+      }
+    },
+    "^[%lld widget](inflect: true) on ^[%lld page](inflect: true)": {
+      "comment": "Shelf header: widgets installed and the popup pages they are on",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "^[%1$lld widget](inflect: true) on ^[%2$lld page](inflect: true)"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯 %1$lld개 · 페이지 %2$lld개"
           }
         }
       }
