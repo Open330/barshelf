@@ -175,6 +175,29 @@ Source and enabled state are written atomically to
 `~/Library/Application Support/barshelf/automation.json` (the same app-support
 root used by the host). **Export…** writes the editor draft to a `.js` file.
 
+## The helper process
+
+In the installed app the extension does not run inside BarShelf itself. BarShelf
+starts its own executable a second time (`barshelf-app automation-helper`) and
+the extension runs there, so a busy, crashed or restarting app does not take
+your keys with it. Activity Monitor therefore shows two BarShelf processes
+while the extension is on.
+
+- It is the same signed program, so the Accessibility permission you gave
+  BarShelf covers it. There is nothing extra to allow.
+- Quitting BarShelf stops the helper. If BarShelf goes away without quitting (a
+  crash, a force quit), the helper keeps the extension running and opens
+  BarShelf again, at most three times in ten minutes. To stop everything, quit
+  BarShelf normally or turn the extension off.
+- If the helper itself exits, BarShelf starts it again. After five failures in
+  a minute it stops trying and the Automation page says so.
+- The key remaps run on a thread that does nothing else, so typing does not
+  wait for anything BarShelf is drawing.
+
+The two talk through `automation-request.json` and `automation-status.json` in
+`~/Library/Application Support/barshelf/`; neither file holds anything but the
+script and its state.
+
 ## Verification
 
 ```sh

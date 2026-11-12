@@ -34,6 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if Bundle.main.bundleURL.pathExtension == "app", let executable = Bundle.main.executableURL {
             let helper = AutomationHelperClient(executable: executable)
             helper.onQuitRequested = { NSApp.terminate(nil) }
+            helper.onReopenRequested = { HubWindowController.shared.reopen() }
             AutomationController.shared.useHelper(helper)
         }
         AutomationController.shared.startAtLaunch()

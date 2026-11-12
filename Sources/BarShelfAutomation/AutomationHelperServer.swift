@@ -142,7 +142,7 @@ package enum AutomationHelperProcess {
         let controller = AutomationController()
         let server = AutomationHelperServer(controller: controller, channel: channel, ownerPID: appPID)
         let supervisor = OwnerSupervisor(server: server)
-        let delegate = Delegate(channel: channel, controller: controller)
+        let delegate = Delegate(channel: channel, controller: controller, supervisor: supervisor)
         application.delegate = delegate
         server.ownerChanged = { supervisor.watch($0) }
         server.stopped = { exit(0) }
@@ -157,10 +157,23 @@ package enum AutomationHelperProcess {
     private final class Delegate: NSObject, NSApplicationDelegate {
         private let channel: AutomationHelperChannel
         private let controller: AutomationController
+        private let supervisor: OwnerSupervisor
 
-        init(channel: AutomationHelperChannel, controller: AutomationController) {
+        init(channel: AutomationHelperChannel, controller: AutomationController, supervisor: OwnerSupervisor) {
             self.channel = channel
             self.controller = controller
+            self.supervisor = supervisor
+        }
+
+        /// Opening BarShelf while it runs: the app shows its window. With no
+        /// app (it crashed and was not reopened), open it.
+        func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+            if supervisor.ownerIsAlive {
+                channel.post(channel.reopenAppName)
+            } else {
+                supervisor.openApp()
+            }
+            return false
         }
 
         func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
@@ -179,6 +192,8 @@ package enum AutomationHelperProcess {
         private var relaunches: [Date] = []
 
         init(server: AutomationHelperServer) { self.server = server }
+
+        var ownerIsAlive: Bool { AutomationHelperChannel.isAlive(server.ownerPID) }
 
         func watch(_ pid: Int32) {
             source?.cancel()
@@ -214,9 +229,23 @@ package enum AutomationHelperProcess {
             guard bundle.pathExtension == "app", FileManager.default.fileExists(atPath: bundle.path) else { return }
             relaunches.append(Date())
             NSLog("BarShelf keyboard helper: the app exited without stopping the extension; reopening it")
+            openApp()
+        }
+
+        func openApp() {
+            let bundle = Bundle.main.bundleURL
+            guard bundle.pathExtension == "app" else { return }
             let configuration = NSWorkspace.OpenConfiguration()
             configuration.activates = false
-            NSWorkspace.shared.openApplication(at: bundle, configuration: configuration)
+            // This helper is itself an instance of BarShelf as far as macOS
+            // is concerned; without this it would be "already running" and
+            // nothing would open.
+            configuration.createsNewApplicationInstance = true
+            NSWorkspace.shared.openApplication(at: bundle, configuration: configuration) { _, error in
+                if let error {
+                    NSLog("BarShelf keyboard helper could not reopen the app: %@", error.localizedDescription)
+                }
+            }
         }
     }
 }

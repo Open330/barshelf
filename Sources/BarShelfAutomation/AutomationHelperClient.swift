@@ -22,6 +22,8 @@ package final class AutomationHelperClient {
     package var onHelperLost: (() -> Void)?
     /// A quit meant for the app reached the helper.
     package var onQuitRequested: (() -> Void)?
+    /// An "open BarShelf" reached the helper.
+    package var onReopenRequested: (() -> Void)?
 
     package init(executable: URL, channel: AutomationHelperChannel = .standard,
                  build: String = AutomationHelperChannel.currentBuild, appPID: Int32 = getpid(),
@@ -35,6 +37,7 @@ package final class AutomationHelperClient {
         self.forceQuit = forceQuit
         tokens.append(channel.observe(channel.statusName) { [weak self] in self?.refresh() })
         tokens.append(channel.observe(channel.quitAppName) { [weak self] in self?.onQuitRequested?() })
+        tokens.append(channel.observe(channel.reopenAppName) { [weak self] in self?.onReopenRequested?() })
     }
 
     deinit {

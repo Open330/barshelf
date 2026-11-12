@@ -34,6 +34,9 @@ package struct AutomationHelperChannel {
     /// The helper was asked to quit as if it were the app (it shares the
     /// app's name and bundle); the app should quit instead.
     package var quitAppName: String { prefix + ".quit-app" }
+    /// Likewise for "open BarShelf" (a double click in Finder): macOS may
+    /// hand it to the helper, and the app should show its window.
+    package var reopenAppName: String { prefix + ".reopen-app" }
 
     package func post(_ name: String) { notify_post(name) }
 
