@@ -121,9 +121,36 @@ final class GalleryModel: ObservableObject {
 
     var filteredEntries: [RegistryWidgetEntry] {
         let query = searchText.trimmingCharacters(in: .whitespaces).lowercased()
-        return entries.filter { entry in
+        let matching = entries.filter { entry in
             matchesKind(entry) && matchesCategory(entry) && matchesQuery(entry, query)
         }
+        return Self.everydayFirst(matching)
+    }
+
+    /// Where a category sits in the gallery: what anyone checks every day
+    /// first, tools for developers last. Someone opening the gallery for the
+    /// first time should meet the weather before Kubernetes. Categories the
+    /// app has no place for go just before Developer.
+    static func categoryRank(_ category: String?) -> Int {
+        switch category?.trimmingCharacters(in: .whitespaces).lowercased() {
+        case "demo", "everyday": return 0
+        case "system": return 1
+        case "files": return 2
+        case "productivity": return 3
+        case "media": return 4
+        case "security": return 5
+        case "developer": return 7
+        default: return 6
+        }
+    }
+
+    /// Entries ordered by `categoryRank`, keeping the registry's order
+    /// within a category.
+    static func everydayFirst(_ entries: [RegistryWidgetEntry]) -> [RegistryWidgetEntry] {
+        entries.enumerated().sorted { lhs, rhs in
+            let (left, right) = (categoryRank(lhs.element.category), categoryRank(rhs.element.category))
+            return left != right ? left < right : lhs.offset < rhs.offset
+        }.map(\.element)
     }
 
     var filtersAreActive: Bool {
@@ -185,7 +212,7 @@ final class GalleryModel: ObservableObject {
             result.append(GallerySection(
                 id: "builtin",
                 title: String(localized: "BarShelf Widgets"),
-                subtitle: String(localized: "Everyday widgets from the BarShelf project."),
+                subtitle: String(localized: "Made by the BarShelf project, ready to add."),
                 entries: builtin
             ))
         }
@@ -217,7 +244,8 @@ final class GalleryModel: ObservableObject {
             .caseInsensitiveCompare(GalleryEntryText.categoryLabel(selected)) == .orderedSame
     }
 
-    /// One value per label, first seen first, sorted by label.
+    /// One value per label, first seen first, in `categoryRank` order, then
+    /// by label.
     static func distinctCategories(_ values: [String]) -> [String] {
         var seen = Set<String>()
         var ordered: [String] = []
@@ -226,7 +254,9 @@ final class GalleryModel: ObservableObject {
             if seen.insert(key).inserted { ordered.append(value) }
         }
         return ordered.sorted {
-            GalleryEntryText.categoryLabel($0)
+            let (left, right) = (categoryRank($0), categoryRank($1))
+            if left != right { return left < right }
+            return GalleryEntryText.categoryLabel($0)
                 .localizedStandardCompare(GalleryEntryText.categoryLabel($1)) == .orderedAscending
         }
     }

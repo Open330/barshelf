@@ -676,7 +676,7 @@
         "tasks",
         "native"
       ],
-      "category": "Media",
+      "category": "Productivity",
       "screenshot": "https://raw.githubusercontent.com/Open330/barshelf/main/assets/widget-previews/tile-reminders.png",
       "readme": "https://github.com/Open330/barshelf/blob/main/widgets/reminders/README.md",
       "install": {
@@ -1491,6 +1491,18 @@
       ]
     },
     {
+      "id": "files",
+      "name": "Files",
+      "icon": "folder",
+      "description": "What just arrived in Downloads, recent files, and a shelf to drop things on.",
+      "widgetIDs": [
+        "dev.barshelf.recent-files-grid",
+        "dev.barshelf.downloads-new",
+        "dev.barshelf.quick-shelf",
+        "dev.barshelf.clipboard-shelf"
+      ]
+    },
+    {
       "id": "developer",
       "name": "Developer",
       "icon": "chevron.left.forwardslash.chevron.right",
@@ -1503,18 +1515,6 @@
         "dev.barshelf.aas-usage",
         "dev.barshelf.developer-inbox",
         "dev.barshelf.project-status"
-      ]
-    },
-    {
-      "id": "files",
-      "name": "Files",
-      "icon": "folder",
-      "description": "What just arrived in Downloads, recent files, and a shelf to drop things on.",
-      "widgetIDs": [
-        "dev.barshelf.recent-files-grid",
-        "dev.barshelf.downloads-new",
-        "dev.barshelf.quick-shelf",
-        "dev.barshelf.clipboard-shelf"
       ]
     },
     {

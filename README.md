@@ -32,37 +32,128 @@ script, a command-line tool, a web page's data — show up there too.
 
 ## Why BarShelf
 
-Your most-checked things are scattered — a dozen menu bar icons, terminal windows,
-browser tabs. BarShelf is a menu bar for your menu bar: it collects them into
-**one icon, one popup** of native widgets. Start with the ready-made ones in
-the gallery; there is nothing to write. And when a tool has no menu bar app at
-all, any command it can run becomes a widget in minutes, with no new SDK to learn.
+Your most-checked things are scattered: a dozen menu bar icons, browser tabs,
+apps you keep open just to look. BarShelf is a menu bar for your menu bar. It
+collects them into **one icon and one popup** of native widgets. Start with the
+ready-made ones in the gallery; there is nothing to write.
 
-- **🪟 One icon, many widgets** — bucket pages, trackpad swipe, pinned row, ⌘F search.
-- **⌨️ Keyboard all the way** — arrows choose a widget, ⌥⌘-arrows move it,
+- **🪟 One icon, many widgets**: pages, trackpad swipe, a pinned row, and ⌘F search.
+- **🧺 Ready-made widgets**: 40+ in the gallery, from the weather, your
+  calendar and battery to world clocks, air quality and your next meeting.
+  Packs add a few at once.
+- **📊 Live in the menu bar**: turn it on for a widget and its value updates
+  right on the bar (`✦ 42% · 61% · 58°`), sharing the BarShelf icon or on its
+  own. Or show them as a cluster of small chips beside the icon.
+- **🖥️ On the desktop too**: any widget can appear as a macOS desktop widget,
+  mirrored from the same view.
+- **🧭 A dock, if you want one**: put apps, folders, links, Shortcuts, and live
+  widgets on a screen-edge dock, alongside the Apple Dock or instead of it, and
+  switch profiles (⌃⌥1–9, swipe, Focus). The Apple Dock's apps can follow.
+- **⌨️ Keyboard all the way**: arrows choose a widget, ⌥⌘-arrows move it,
   Return opens its settings, Delete removes it, Esc clears; ← → step through
   the menu bar's cards.
-- **📊 Live in the menu bar** — opt a widget in and its value updates right on
-  the bar (`✦ 42% · 61% · 58°`), sharing the BarShelf icon or on its own.
-  Or show them as a cluster of small chips beside the icon.
-- **🖥️ On the desktop too** — any widget can appear as a macOS desktop widget,
-  mirrored from the same view.
-- **🧭 A dock, if you want one** — put apps, folders, links, Shortcuts, and live
-  widgets on a screen-edge dock, alongside the Apple Dock or instead of it, and
-  switch profiles (⌃⌥1–9, swipe, Focus) — the Apple Dock's apps can follow.
-- **⚡ CLI is the API** — `aas usage --json`, `otpeek`, `gh`, `kubectl`… pipe them straight in.
-- **🎨 Native, not web** — SwiftUI rendering, dark mode, SF Symbols, vibrancy. No Electron.
-- **🧩 Three ways to build** — declarative workflows, a Shortcuts-style visual builder, or full scripts.
-- **🔒 Permission-gated** — widget capabilities are declared, approved, enforced, and recorded in an audit log.
-  A red dot on the menu bar icon says when a widget is waiting for you; an update
-  that only drops permissions keeps its approval, anything new asks again.
-  Settings ▸ Privacy lists what installed widgets may use, by capability.
-- **🙈 No account, no analytics** — on its own, BarShelf connects only to GitHub
+- **🎨 Looks like your Mac**: built with Apple's own frameworks. Dark mode,
+  your accent color, SF Symbols. Not a web page in a window.
+- **🔒 Asks before it runs**: a widget declares what it runs, reads and
+  reaches, and nothing runs until you allow it. A red dot on the menu bar icon
+  says when a widget is waiting for you; an update that only drops permissions
+  keeps its approval, anything new asks again. Settings ▸ Privacy lists what
+  installed widgets may use, and every decision is recorded.
+- **🙈 No account, no analytics**: on its own, BarShelf connects only to GitHub
   (updates, the widget gallery) and to install links you open
   ([privacy](docs/PRIVACY.md)). A command you allow a widget to run has your
   access, network included, so allow only widgets you trust.
+- **🛠️ A home for tools that never had one**: no widget for it? Make one in
+  the visual builder without code, or, if you write code, turn any command
+  that prints JSON into a widget ([for developers](#for-developers)).
 
-## Three execution layers, one widget model
+## Install
+
+```bash
+brew install --cask open330/tap/barshelf
+```
+
+Or grab `BarShelf-<version>-arm64.zip` from
+**[Releases](https://github.com/Open330/barshelf/releases/latest)**, move it to
+`/Applications`, then open it normally. The current v0.7.34 asset is Developer ID
+signed, Apple-notarized, and includes a stapled ticket for offline verification.
+
+BarShelf checks for updates itself and can install them in place — only when
+the download is signed by the same Developer ID as the running build. Homebrew
+installs are left to `brew upgrade --cask barshelf`.
+
+Full guide, `barshelf` CLI, and troubleshooting: **[docs/INSTALL.md](docs/INSTALL.md)**.
+
+> Requires macOS 14+ on Apple Silicon. The few widgets that run a script also
+> need [Deno](https://deno.land) (`brew install deno`); the gallery marks them.
+
+## Gallery widgets
+
+The gallery (⋯ ▸ **Add Widget…**) has 40+ ready-made widgets, styled like
+native macOS widgets, with per-widget color and a Fit or fixed-height layout.
+**Today**, **Recent Files**, and the permission-free **Quick Shelf** are added
+on first run. Packs add a few related widgets at once. Browse them all in
+[Featured Widgets](docs/widgets/README.md) or on
+[barshelf.jiun.dev/widgets](https://barshelf.jiun.dev/widgets/).
+
+| Widget | What it shows | Data from |
+|---|---|---|
+| **Today** · **Calendar** · **Clock** | Big date, a month grid with today circled, a live clock. The layout adapts to the widget's size. | `/bin/date` |
+| **Weather** · **Exchange** · **Stock** | Temperature, USD→KRW, and a stock quote. | web |
+| **Battery** · **Network** | Battery %, and the local IP. | shell |
+| **System** · **Sensors** | CPU, memory and disk meters; temperatures, fans and power draw. Both can show a live value in the menu bar. | native, no subprocess |
+| **Recent Files** · **Downloads** | A grid or list of recent files with thumbnails, drag-out and click to open; what is new in Downloads since you last looked. | folder |
+| **Quick Shelf** · **Next Meeting** · **Focus Timer** | A permission-free launcher, your next Calendar event with a Join button, and a countdown that survives a restart. | mixed |
+| **Keep Awake** | Keeps the Mac awake for 1, 2 or 4 hours or until a set time, never indefinitely. Works with [PowerDisplayGuard](https://github.com/jiunbae/settings), which owns the power policy. | `osascript` |
+| **Clipboard Shelf** | A clipboard history kept in memory only. | script |
+
+For developers and command-line users:
+
+| Widget | What it shows | Data from |
+|---|---|---|
+| **aas Usage** · **OTP Codes** | LLM usage meters from [`aas`](https://github.com/Open330/aas); TOTP codes with a countdown ring from [`otpeek`](https://github.com/jiunbae/otpeek). | CLI |
+| **tend Watch** | Local and SSH-host [`tend`](https://github.com/Open330/tend) agents, grouped by host in compact `NAME / ST / ACT / LAST PROMPT` tables. | CLI + script |
+| **GitHub Status** · **Project Status** · **Developer Inbox** | An HTTPS status feed, Git repository state, and GitHub review activity. | mixed |
+
+For **tend Watch**, add one card per host: leave *SSH host* empty for this
+Mac, or enter an alias from your `~/.ssh/config` (key-based, non-interactive).
+The *Fleet* source shows every host `tend fleet` knows from a single card.
+Remote hosts need the `tend` CLI.
+
+Most widgets are **clickable**: like a real macOS widget, clicking the card
+opens its companion app or page (Today → Calendar, System → Activity Monitor,
+Stock → Yahoo Finance, Weather → Weather app, …).
+
+## BarShelf Dock
+
+Optional and off by default: **BarShelf ▸ Dock** adds a dock on the bottom,
+left, or right edge with apps, folders, files, links, Shortcuts, and any
+BarShelf widget. Run it alongside the Apple Dock or instead of it, keep several
+profiles, and let each one rearrange the Apple Dock too.
+See [the Dock guide](docs/DOCK.md).
+
+## Keyboard and window extensions
+
+Bring your Hammerspoon navigation settings into **BarShelf ▸ Automation**.
+Import the supported `init.lua` profile to preserve Fn arrow mappings, monitor
+shortcuts, and window cycling, then customize the generated JavaScript.
+Requires Accessibility access; no additional runtime is needed.
+See [setup, import scope, and scripting API](docs/AUTOMATION.md).
+
+## Make your own widget
+
+Nothing in the gallery fits? Open **BarShelf ▸ Create** (⌘N), or ⋯ → **Add Widget…** →
+**Create Widget** in the gallery. Pick where the data comes from (a web
+address, a folder, text you type, or a command), how it looks (list · grid ·
+table · one big number · meter · plain text) with a **live preview**, then
+name it. No code.
+
+## For developers
+
+Everything below is for people who write their own widgets. You don't need
+any of it to use BarShelf.
+
+### Three execution layers, one widget model
 
 Every widget shares the same scheduler, permission frame, and native renderer —
 it only differs in where its data comes from:
@@ -81,7 +172,7 @@ it only differs in where its data comes from:
 └────────────────────────────────────────────────────────────────┘
 ```
 
-## Quickstart for Agents
+### Quickstart for Agents
 
 <div><img src="https://quickstart-for-agents.vercel.app/api/header.svg?theme=claude-code&logo=BarShelf&title=Install+BarShelf+and+build+my+first+widget&lang=Agents&mascot=hat" width="100%" /></div>
 
@@ -104,75 +195,9 @@ Requires macOS 14+ on Apple Silicon. Script widgets also need Deno (brew install
 <div><img src="https://quickstart-for-agents.vercel.app/api/footer.svg?theme=claude-code&tokens=1.2k&model=Opus+4.8&project=barshelf" width="100%" /></div>
 
 Copy the prompt above and paste it into your AI agent to install BarShelf and
-scaffold a widget. Prefer the manual steps? The human install guide is right below.
+scaffold a widget. Prefer the manual steps? See [Install](#install).
 
-## Install
-
-```bash
-brew install --cask open330/tap/barshelf
-```
-
-Or grab `BarShelf-<version>-arm64.zip` from
-**[Releases](https://github.com/Open330/barshelf/releases/latest)**, move it to
-`/Applications`, then open it normally. The current v0.7.34 asset is Developer ID
-signed, Apple-notarized, and includes a stapled ticket for offline verification.
-
-BarShelf checks for updates itself and can install them in place — only when
-the download is signed by the same Developer ID as the running build. Homebrew
-installs are left to `brew upgrade --cask barshelf`.
-
-Full guide, `barshelf` CLI, and troubleshooting: **[docs/INSTALL.md](docs/INSTALL.md)**.
-
-> Requires macOS 14+ on Apple Silicon. Script widgets need [Deno](https://deno.land)
-> (`brew install deno`); exec and workflow widgets work without it.
-
-## Keyboard and window extensions
-
-Bring your Hammerspoon navigation settings into **BarShelf ▸ Automation**.
-Import the supported `init.lua` profile to preserve Fn arrow mappings, monitor
-shortcuts, and window cycling, then customize the generated JavaScript.
-Requires Accessibility access; no additional runtime is needed.
-See [setup, import scope, and scripting API](docs/AUTOMATION.md).
-
-## BarShelf Dock
-
-Optional and off by default: **BarShelf ▸ Dock** adds a dock on the bottom,
-left, or right edge with apps, folders, files, links, Shortcuts, and any
-BarShelf widget. Run it alongside the Apple Dock or instead of it, keep several
-profiles, and let each one rearrange the Apple Dock too.
-See [the Dock guide](docs/DOCK.md).
-
-## Gallery widgets
-
-Native widgets ship in the gallery — most are declarative **workflows**
-(no code), styled like native macOS/iOS widgets with per-widget color and a
-Fit / fixed-height layout. **Today**, **Recent Files**, and the permission-free
-**Quick Shelf** are seeded on first run.
-
-| Widget | Source | What it shows |
-|---|---|---|
-| **Today** · **Calendar** · **Clock** | `/bin/date` | Big date, a month grid with today circled, a live clock — layout adapts to widget size. |
-| **Weather** · **Exchange** · **Stock** | http | Temperature, USD→KRW, and a stock quote (Stock needs a `User-Agent` header). |
-| **Battery** · **Network** | shell | Battery %, and the local IP. |
-| **Keep Awake** | `osascript` | Keep the Mac awake for 1, 2 or 4 hours or until a set time, never indefinitely. Works with [PowerDisplayGuard](https://github.com/jiunbae/settings), which owns the power policy. |
-| **System** · **Sensors** | native | CPU/Memory/Disk meters and SMC temperatures, fans and power draw — read from Mach/IOKit, no subprocess. Both can show a live value in the menu bar. |
-| **Recent Files** | `fs.directory` | Stashbar-style Grid/List of recent files — QuickLook thumbnails, drag-out, click to open. |
-| **aas Usage** · **OTP Codes** | CLI | LLM usage meters from [`aas`](https://github.com/Open330/aas); TOTP codes with a countdown ring from [`otpeek`](https://github.com/jiunbae/otpeek). |
-| **tend Watch** | CLI + script | Local and SSH-host [`tend`](https://github.com/Open330/tend) agents, grouped by host in compact `NAME / ST / ACT / LAST PROMPT` tables. |
-| **Downloads** · **GitHub Status** | mixed | Persistence ("new since last check" counting) and an HTTPS status feed. |
-| **Quick Shelf** · **Next Meeting** · **Focus Timer** | mixed | A permission-free launcher, your next Calendar event with Join action, and a persistent native countdown. |
-| **Project Status** · **Developer Inbox** · **Clipboard Shelf** | script | Git repository state, GitHub review activity, and a privacy-first memory-only clipboard history. |
-
-For **tend Watch**, add one card per host: leave *SSH host* empty for this
-Mac, or enter an alias from your `~/.ssh/config` (key-based, non-interactive).
-The *Fleet* source shows every host `tend fleet` knows from a single card.
-Remote hosts need the `tend` CLI.
-
-Most native widgets are **clickable** — like a real macOS/iOS widget, clicking the card opens its companion app or page (Today → Calendar, System → Activity Monitor, Stock → Yahoo Finance, Weather → Weather app, …).
-
-## Build a widget in 3 minutes
-
-### Build with an AI agent
+### Build with an AI agent skill
 
 Install the reusable [`barshelf-widget` skill](skills/barshelf-widget/SKILL.md)
 to give your agent the authoring workflow, API references, and validation steps.
@@ -244,12 +269,9 @@ notifications, and host-mediated command execution. Workflow expressions and
 sources are documented in [Workflow DSL](docs/WORKFLOW.md); manifest fields and
 native UINode actions are covered by [Widget Spec](docs/WIDGET-SPEC.md).
 
-**Visual builder** — BarShelf window ▸ **Create** (⌘N), or ⋯ → **Add Widget…** →
-**Create Widget** in the gallery. Pick a source (command, shell script, HTTP
-JSON, pasted JSON, a folder, static text), a display (list · grid · table ·
-single value · meter · plain text) with a **live preview**, then name it. No JSON.
+### By hand
 
-**By hand** — a widget is a folder with a `widget.json`:
+A widget is a folder with a `widget.json`:
 
 ```jsonc
 {
@@ -275,7 +297,7 @@ barshelf install ./MyWidget.mbw                        # packed archive
 open "barshelf://install?url=…"                   # deep link (README badge)
 ```
 
-## `barshelf` — the widget CLI
+### `barshelf` — the widget CLI
 
 ```bash
 barshelf new my-widget --kind workflow   # scaffold from a template

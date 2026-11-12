@@ -5379,6 +5379,7 @@
       }
     },
     "Everyday widgets from the BarShelf project.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -7957,6 +7958,16 @@
         }
       }
     },
+    "Made by the BarShelf project, ready to add.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BarShelf 프로젝트가 만든 위젯으로, 바로 추가할 수 있습니다."
+          }
+        }
+      }
+    },
     "Magnification": {
       "localizations": {
         "ko": {
@@ -9335,7 +9346,18 @@
         }
       }
     },
+    "One icon for your whole menu bar. Click it for the date, your files, the weather, your battery, and anything else you add.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "메뉴 막대 전체를 아이콘 하나에 담습니다. 클릭하면 날짜, 파일, 날씨, 배터리와 직접 추가한 위젯이 열립니다."
+          }
+        }
+      }
+    },
     "One menu bar icon, and a popup of widgets: your usage meters, codes, files, and anything a command line tool can print.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -13940,6 +13962,16 @@
         }
       }
     },
+    "The Gallery has more, ready to add: weather, calendars, world clocks, battery and system sensors. A pack adds a few at once.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "갤러리에서 바로 추가할 수 있는 위젯이 더 있습니다. 날씨, 달력, 세계 시계, 배터리, 시스템 센서 등입니다. 팩을 고르면 여러 개를 한 번에 추가합니다."
+          }
+        }
+      }
+    },
     "The address this widget reads wasn’t found (HTTP 404).": {
       "localizations": {
         "ko": {
@@ -16508,6 +16540,7 @@
       }
     },
     "You'll find more in the Gallery, including packs that add a few widgets at once: usage meters, one-time codes, system sensors, and more.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {

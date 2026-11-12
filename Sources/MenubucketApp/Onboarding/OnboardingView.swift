@@ -130,7 +130,7 @@ struct OnboardingView: View {
 
     @ViewBuilder
     private var widgetsStep: some View {
-        title("Welcome to BarShelf", "One menu bar icon, and a popup of widgets: your usage meters, codes, files, and anything a command line tool can print.")
+        title("Welcome to BarShelf", "One icon for your whole menu bar. Click it for the date, your files, the weather, your battery, and anything else you add.")
         Text("We added a few widgets to start with. Turn off the ones you don't need. Ones that ask for permission run after you allow them.")
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -153,7 +153,7 @@ struct OnboardingView: View {
         .padding(.horizontal, Spacing.s)
         .cardSurface()
         HStack(alignment: .firstTextBaseline) {
-            Text("You'll find more in the Gallery, including packs that add a few widgets at once: usage meters, one-time codes, system sensors, and more.")
+            Text("The Gallery has more, ready to add: weather, calendars, world clocks, battery and system sensors. A pack adds a few at once.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
