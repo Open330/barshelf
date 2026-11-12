@@ -61,7 +61,7 @@
       "key": "notify",
       "title": "Notify when a reset looks likely",
       "type": "boolean",
-      "default": true
+      "default": false
     },
     {
       "key": "alertPct",

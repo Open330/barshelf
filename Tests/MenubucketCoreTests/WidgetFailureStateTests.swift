@@ -207,16 +207,21 @@ final class WidgetFailureStateTests: XCTestCase {
                 "score": .number(score), "hoursSinceReset": .number(1750.5), "horizonHours": .number(48),
             ])])]
         }
-        let low = try evaluate("codex-reset", sources: forecast(16))
+        // Opt-in: off by default, so updating never starts notifications.
+        let off = try evaluate("codex-reset", sources: forecast(72))
+        XCTAssertNil(off.alerts.first?.active)
+        XCTAssertTrue(texts(off.viewTree).contains("Last reset 73 days ago · alerts off"), "\(texts(off.viewTree))")
+
+        let on: [String: JSONValue] = ["notify": .bool(true)]
+        let low = try evaluate("codex-reset", sources: forecast(16), settings: on)
         XCTAssertEqual(low.statusPrefix, "Codex")
         XCTAssertEqual(low.statusLabel, "16%")
         XCTAssertTrue(texts(low.viewTree).contains("Last reset 73 days ago · alert at 70%"), "\(texts(low.viewTree))")
         XCTAssertTrue(texts(low.viewTree).contains("Next 48 h"))
         XCTAssertEqual(low.alerts.first?.active, false)
-        XCTAssertEqual(try evaluate("codex-reset", sources: forecast(72)).alerts.first?.active, true)
-        XCTAssertNil(try evaluate("codex-reset", sources: forecast(72), settings: ["notify": .bool(false)]).alerts.first?.active)
+        XCTAssertEqual(try evaluate("codex-reset", sources: forecast(72), settings: on).alerts.first?.active, true)
 
-        let offline = try evaluate("codex-reset", sources: ["api": .null], errors: ["api": failure("offline")])
+        let offline = try evaluate("codex-reset", sources: ["api": .null], errors: ["api": failure("offline")], settings: on)
         XCTAssertNil(offline.alerts.first?.active, "offline neither fires nor re-arms")
         XCTAssertEqual(offline.statusLabel, "")
     }
