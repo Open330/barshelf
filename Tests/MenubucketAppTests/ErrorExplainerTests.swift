@@ -128,4 +128,22 @@ final class ErrorExplainerTests: XCTestCase {
         XCTAssertEqual(ErrorExplainer.explain("The request timed out.", context: .install).kind, .timedOut)
         XCTAssertFalse(ErrorExplainer.explain("The request timed out.", context: .install).cause.contains("widget"))
     }
+
+    /// Widget-shaped advice ("install the command", "the data format
+    /// changed") never reaches an install, an update check or a save.
+    func testWidgetAdviceStaysOutOfOtherContexts() {
+        for context: ErrorExplainer.Context in [.install, .update, .save] {
+            // A save has its own permission wording (its settings file).
+            let raws = ["zsh: command not found: gh", "not valid JSON", "exited with code 2"]
+                + (context == .save ? [] : ["Permission denied"])
+            for raw in raws {
+                XCTAssertEqual(ErrorExplainer.explain(raw, context: context).kind, .generic, "\(context) \(raw)")
+            }
+        }
+        XCTAssertEqual(ErrorExplainer.explain("zsh: command not found: gh", context: .refresh).kind, .commandNotFound("gh"))
+        XCTAssertEqual(ErrorExplainer.explain("The Internet connection appears to be offline.", context: .save).kind, .generic)
+        XCTAssertEqual(ErrorExplainer.explain("The Internet connection appears to be offline.", context: .install).kind, .networkUnreachable)
+        XCTAssertEqual(ErrorExplainer.explain("not valid JSON", context: .install).cause,
+                       ErrorExplainer.explain("boom", context: .install).cause)
+    }
 }

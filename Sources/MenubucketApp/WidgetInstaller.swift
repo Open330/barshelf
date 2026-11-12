@@ -235,8 +235,12 @@ enum WidgetInstallFlow {
                 fix: String(localized: "Move or rename it in Finder, then install again."),
                 detail: nil)
         case let .needsNewerHost(reason):
+            // Core's reason names the version ("Needs BarShelf 0.8.0 or
+            // later …"); keep it, so a pack list or onboarding says which.
+            let required = reason.firstMatch(of: #/BarShelf\s+(\S+)\s+or later/#).map { String($0.1) }
             return Failure(
-                cause: String(localized: "This widget needs a newer version of BarShelf."),
+                cause: required.map { String(localized: "This widget needs BarShelf \($0) or later.") }
+                    ?? String(localized: "This widget needs a newer version of BarShelf."),
                 fix: String(localized: "Update BarShelf, then install the widget again."),
                 detail: reason)
         case .noDownloadCandidates:

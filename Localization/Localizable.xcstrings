@@ -239,7 +239,18 @@
         }
       }
     },
+    "%@ is turned off": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 위젯이 꺼져 있습니다"
+          }
+        }
+      }
+    },
     "%@ is turned off. Turn it on in Settings to refresh it.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -249,7 +260,18 @@
         }
       }
     },
+    "%@ is waiting for your permission": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 위젯이 권한 허용을 기다리고 있습니다"
+          }
+        }
+      }
+    },
     "%@ is waiting for your permission. Allow it to refresh.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -259,7 +281,18 @@
         }
       }
     },
+    "%@ needs a newer BarShelf": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 위젯에는 최신 BarShelf가 필요합니다"
+          }
+        }
+      }
+    },
     "%@ needs a newer BarShelf. Update BarShelf to refresh it.": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -326,7 +359,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "다시 허용할 때까지 %@ 위젯이 멈춥니다"
+            "value": "%@ 위젯을 멈췄습니다. 다시 허용할 때까지 실행되지 않습니다."
           }
         }
       }
@@ -1379,6 +1412,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "손쉬운 사용에서 허용…"
+          }
+        }
+      }
+    },
+    "Allow it on its card or in Privacy settings, then refresh.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "카드나 개인정보 보호 설정에서 허용한 후 새로고침하세요."
           }
         }
       }
@@ -3136,7 +3179,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "세부사항 복사"
+            "value": "세부 사항 복사"
           }
         }
       }
@@ -3393,7 +3436,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "‘%@’ 실행에 실패했습니다"
+            "value": "“%@” 실행에 실패했습니다"
           }
         }
       }
@@ -9969,7 +10012,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "대치"
+            "value": "바꾸기"
           }
         }
       }
@@ -10010,7 +10053,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "저장하지 않은 변경 사항을 바꿀까요?"
+            "value": "저장하지 않은 변경 사항을 덮어쓸까요?"
           }
         }
       }
@@ -12868,7 +12911,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "위젯의 명령이 오류를 알렸습니다."
+            "value": "위젯의 명령이 오류를 반환했습니다."
           }
         }
       }
@@ -13209,6 +13252,16 @@
         }
       }
     },
+    "This widget needs BarShelf %@ or later.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 위젯에는 BarShelf %@ 이상이 필요합니다."
+          }
+        }
+      }
+    },
     "This widget needs a newer version of BarShelf.": {
       "localizations": {
         "ko": {
@@ -13538,6 +13591,16 @@
         }
       }
     },
+    "Turn it on in Settings to refresh it.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "새로고침하려면 설정에서 켜세요."
+          }
+        }
+      }
+    },
     "Turned off": {
       "localizations": {
         "ko": {
@@ -13849,6 +13912,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "이 위젯을 설치하려면 BarShelf를 업데이트하십시오"
+          }
+        }
+      }
+    },
+    "Update BarShelf to refresh it.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "새로고침하려면 BarShelf를 업데이트하세요."
           }
         }
       }

@@ -54,27 +54,32 @@ enum ErrorExplainer {
 
     static func explain(_ raw: String, context: Context = .refresh) -> ErrorExplanation {
         let text = raw.lowercased()
+        // Kinds whose advice is about a widget (install a command it runs,
+        // sign in to its tool, its data format, its permissions) apply only
+        // where a widget ran. An install, an update check or a settings save
+        // that happens to contain those words gets its own context's wording.
+        let widgetRan = context == .refresh || context == .action || context == .test
 
-        if text.contains("deno runtime not found") {
+        if widgetRan, text.contains("deno runtime not found") {
             return ErrorExplanation(kind: .commandNotFound("deno"),
                 cause: String(localized: "This script widget needs Deno, which isn’t installed."),
                 fix: String(localized: "Install Deno with “brew install deno”, then retry. Workflow and Command widgets do not need Deno."))
         }
 
-        if text.contains("not covered by permissions.readpaths") {
+        if widgetRan, text.contains("not covered by permissions.readpaths") {
             return ErrorExplanation(kind: .manifestPermissionDenied,
                 cause: String(localized: "This folder is outside the widget’s allowed folders."),
                 fix: String(localized: "Open this widget’s Settings and choose a folder listed under Allowed folders. Choosing another folder in macOS Privacy settings does not change the widget’s permissions."))
         }
 
-        if text.contains("not permitted by manifest") || text.contains("not allowed by manifest")
+        if widgetRan, text.contains("not permitted by manifest") || text.contains("not allowed by manifest")
             || text.contains("not covered by permissions.") || text.contains("requires manifest permissions.") {
             return ErrorExplanation(kind: .manifestPermissionDenied,
                 cause: String(localized: "This widget’s declared permissions do not allow this action."),
                 fix: String(localized: "Check for a widget update or ask its author to declare this capability. macOS Privacy settings cannot grant a missing widget capability."))
         }
 
-        if let command = commandNotFound(in: raw, lowercased: text) {
+        if widgetRan, let command = commandNotFound(in: raw, lowercased: text) {
             let cause = command.map { String(localized: "The command “\($0)” isn’t installed on this Mac.") }
                 ?? String(localized: "A command this widget needs isn’t installed on this Mac.")
             return ErrorExplanation(
@@ -87,7 +92,7 @@ enum ErrorExplainer {
         // Before "timeout": CLIs that fail to sign in often print a URL with
         // `?timeout=8s` in it (kubectl does), which is not a timeout.
         switch WorkflowSourceFailure.kind(forOutput: raw) {
-        case .auth?:
+        case .auth? where widgetRan:
             return ErrorExplanation(
                 kind: .signInRequired,
                 cause: String(localized: "The tool this widget uses needs you to sign in again."),
@@ -136,7 +141,9 @@ enum ErrorExplainer {
             }
         }
 
-        if networkMarkers.contains(where: text.contains) {
+        // A download or update check that cannot reach its server is the
+        // same advice in any words; a settings save never touches the network.
+        if context != .save, networkMarkers.contains(where: text.contains) {
             return ErrorExplanation(
                 kind: .networkUnreachable,
                 cause: String(localized: "The server couldn’t be reached."),
@@ -152,7 +159,7 @@ enum ErrorExplainer {
             )
         }
 
-        if permissionMarkers.contains(where: text.contains) {
+        if widgetRan, permissionMarkers.contains(where: text.contains) {
             return ErrorExplanation(
                 kind: .permissionDenied,
                 cause: String(localized: "macOS or the widget’s permissions blocked this."),
@@ -160,7 +167,7 @@ enum ErrorExplainer {
             )
         }
 
-        if jsonMarkers.contains(where: text.contains) {
+        if widgetRan, jsonMarkers.contains(where: text.contains) {
             return ErrorExplanation(
                 kind: .invalidJSON,
                 cause: String(localized: "The widget got data it couldn’t read."),
@@ -178,7 +185,7 @@ enum ErrorExplainer {
             )
         }
 
-        if let code = exitCode(in: text) {
+        if widgetRan, let code = exitCode(in: text) {
             return ErrorExplanation(
                 kind: .exitCode(code),
                 cause: String(localized: "The widget’s command failed (exit code \(code))."),

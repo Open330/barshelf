@@ -59,4 +59,10 @@ final class InstallErrorWordingTests: XCTestCase {
         XCTAssertTrue(line.hasPrefix("clock: "))
         XCTAssertFalse(line.contains("typeMismatch"))
     }
+
+    func testNewerHostFailureNamesTheVersion() {
+        let failure = WidgetInstallFlow.explainFailure(HeadlessInstallError.needsNewerHost(
+            "Needs BarShelf 0.9.0 or later (this is 0.7.31). Update BarShelf to use it."))
+        XCTAssertTrue(failure.message.contains("0.9.0"), failure.message)
+    }
 }

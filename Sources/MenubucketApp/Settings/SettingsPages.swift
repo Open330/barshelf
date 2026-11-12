@@ -6,12 +6,18 @@ import SwiftUI
 /// A preference write that failed, shown where the user made the change.
 private struct PrefsErrorSection: View {
     @ObservedObject var appPrefs: AppPrefs
+    @State private var showsDetails = false
 
     var body: some View {
         if let error = appPrefs.lastError {
             Section {
                 let explanation = ErrorExplainer.explain(error, context: .save)
-                StatusBanner(tone: .critical, message: "\(explanation.cause) \(explanation.fix)")
+                StatusBanner(tone: .critical, message: "\(explanation.cause) \(explanation.fix)") {
+                    Button(showsDetails ? "Hide Details" : "Details") { showsDetails.toggle() }
+                }
+                if showsDetails {
+                    RawErrorText(error: error)
+                }
             }
         }
     }

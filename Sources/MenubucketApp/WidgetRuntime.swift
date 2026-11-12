@@ -206,14 +206,28 @@ enum RefreshRejection: Equatable {
     /// Made for a newer BarShelf than this one.
     case needsNewerBarShelf
 
+    /// The toast's first line: what is in the way.
     func message(widgetName: String) -> String {
         switch self {
         case .disabled:
-            return String(localized: "\(widgetName) is turned off. Turn it on in Settings to refresh it.")
+            return String(localized: "\(widgetName) is turned off")
         case .waitingForPermission:
-            return String(localized: "\(widgetName) is waiting for your permission. Allow it to refresh.")
+            return String(localized: "\(widgetName) is waiting for your permission")
         case .needsNewerBarShelf:
-            return String(localized: "\(widgetName) needs a newer BarShelf. Update BarShelf to refresh it.")
+            return String(localized: "\(widgetName) needs a newer BarShelf")
+        }
+    }
+
+    /// The second line: what to do. Its presence also keeps the toast up
+    /// long enough to read.
+    var detail: String {
+        switch self {
+        case .disabled:
+            return String(localized: "Turn it on in Settings to refresh it.")
+        case .waitingForPermission:
+            return String(localized: "Allow it on its card or in Privacy settings, then refresh.")
+        case .needsNewerBarShelf:
+            return String(localized: "Update BarShelf to refresh it.")
         }
     }
 }
@@ -2188,7 +2202,7 @@ final class WidgetRuntime: ObservableObject {
               let widget = widgets.first(where: { $0.id == widgetID }) else { return }
         feedback(RuntimeFeedback(
             message: rejection.message(widgetName: widget.displayName),
-            detail: nil, tone: .neutral, surface: surface
+            detail: rejection.detail, tone: .failure, surface: surface
         ))
     }
 

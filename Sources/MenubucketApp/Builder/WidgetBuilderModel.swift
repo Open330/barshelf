@@ -780,8 +780,16 @@ final class WidgetBuilderModel: ObservableObject {
 
     func create() {
         let spec = makeSpec()
+        // Two failures, two messages: the form not making a valid widget
+        // (its own words say which field), and the disk refusing the files.
+        let files: [String: String]
         do {
-            let files = try WidgetBuilderScaffold.files(for: spec)
+            files = try WidgetBuilderScaffold.files(for: spec)
+        } catch {
+            createError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            return
+        }
+        do {
             let root = HeadlessInstaller.defaultWidgetsDirectory
             let dir = root
                 .appendingPathComponent(spec.resolvedID, isDirectory: true)

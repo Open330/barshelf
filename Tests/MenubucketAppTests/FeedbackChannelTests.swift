@@ -64,6 +64,8 @@ final class FeedbackChannelTests: XCTestCase {
         fixture.runtime.requestRefresh(widgetID: fixture.id, feedbackOn: .dock)
         XCTAssertEqual(said.map(\.surface), [.dock])
         XCTAssertTrue(said.first?.message.contains("Feedback") == true, "names the widget")
+        XCTAssertNotNil(said.first?.detail, "says what to do, and stays up long enough to read")
+        XCTAssertEqual(said.first?.tone, .failure)
 
         fixture.permissions.approve(fixture.manifest)
         fixture.runtime.prefs.setDisabled(fixture.id, true)
@@ -82,6 +84,7 @@ final class FeedbackChannelTests: XCTestCase {
             .map { $0.message(widgetName: "Weather") }
         XCTAssertEqual(Set(messages).count, 3)
         XCTAssertTrue(messages.allSatisfy { $0.hasPrefix("Weather ") })
+        XCTAssertEqual(Set([RefreshRejection.disabled, .waitingForPermission, .needsNewerBarShelf].map(\.detail)).count, 3)
     }
 
     // MARK: Action failures
@@ -195,7 +198,8 @@ final class FeedbackRenderTests: XCTestCase {
             ("toast-failure", Toast(message: WidgetRuntime.actionFailureTitle("Restart"),
                                     detail: { let e = ErrorExplainer.explain("exited with code 3", context: .action); return "\(e.cause) \(e.fix)" }(),
                                     tone: .failure, surface: .popup)),
-            ("toast-refresh-refused", Toast(message: RefreshRejection.waitingForPermission.message(widgetName: "Weather"), surface: .hub)),
+            ("toast-refresh-refused", Toast(message: RefreshRejection.waitingForPermission.message(widgetName: "Weather"),
+                                            detail: RefreshRejection.waitingForPermission.detail, tone: .failure, surface: .hub)),
         ]
         for dark in [false, true] {
             let suffix = dark ? "-dark" : "-light"
