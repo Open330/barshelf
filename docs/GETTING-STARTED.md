@@ -158,14 +158,14 @@ chmod +x "$install_root/hello.sh"
 
 ## 번들 위젯
 
-저장소의 `widgets/`에는 개발과 검증에 쓰는 번들 예제가 들어 있다.
+갤러리에 올라가는 위젯은 저장소의 `widgets/`에, 작성법을 보여 주는 작은 예제는 `examples/`에 있다. `examples/`의 위젯은 앱에 번들되지 않으며 `barshelf install ./examples/<이름>`으로 설치한다.
 
 | 위젯 | 위치 | 설명 |
 | --- | --- | --- |
-| Hello | [`widgets/hello`](../widgets/hello) | `./hello.sh`가 UINode JSON을 stdout으로 출력하는 가장 작은 exec 위젯이다. |
-| aas Usage | [`widgets/aas-usage`](../widgets/aas-usage) | `aas usage --json` 결과를 `aas-usage` 내장 adapter로 렌더링한다. |
-| OTP Codes | [`widgets/otpeek`](../widgets/otpeek) | `otpeek list --json`과 `otpeek code <id> --json`을 사용하고 Keychain 주입을 지원한다. |
-| Script Clock | [`widgets/clock-script`](../widgets/clock-script) | Deno TypeScript 런타임과 `sdk/mod.ts`를 사용하는 script 위젯이다. |
+| Hello | [`examples/hello`](../examples/hello) | `./hello.sh`가 UINode JSON을 stdout으로 출력하는 가장 작은 exec 위젯이다. |
+| aas Usage | [Open330/aas](https://github.com/Open330/aas) | `aas usage --json` 결과를 `aas-usage` 내장 adapter로 렌더링한다. |
+| OTP Codes | [jiunbae/otpeek](https://github.com/jiunbae/otpeek) | `otpeek list --json`과 `otpeek code <id> --json`을 사용하고 Keychain 주입을 지원한다. |
+| Script Clock | [`examples/clock-script`](../examples/clock-script) | Deno TypeScript 런타임과 `sdk/mod.ts`를 사용하는 script 위젯이다. |
 | Recent Files | [`widgets/recent-files`](../widgets/recent-files) | `workflow.json`으로 `~/Downloads` 파일 목록, 썸네일, Finder 표시 액션, drag-out을 렌더링한다. |
 
 ## 기본 조작

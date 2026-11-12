@@ -115,6 +115,6 @@ jobs:
           swift build --product barshelf
           swift build --product bsf
           BARSHELF_CLI="$(swift build --product barshelf --show-bin-path)/barshelf"
-          for w in widgets/*/; do
+          for w in widgets/*/ examples/*/; do
             [ -f "$w/widget.json" ] && "$BARSHELF_CLI" validate "$w"
           done

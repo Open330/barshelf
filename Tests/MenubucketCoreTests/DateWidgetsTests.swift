@@ -23,7 +23,10 @@ final class DateWidgetsTests: XCTestCase {
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
     private func starter(_ name: String) throws -> (manifest: Manifest, workflow: WorkflowDefinition) {
-        let dir = Self.root.appendingPathComponent("widgets/\(name)")
+        // Gallery widgets live in widgets/, unlisted samples in examples/.
+        let listed = Self.root.appendingPathComponent("widgets/\(name)")
+        let dir = FileManager.default.fileExists(atPath: listed.path)
+            ? listed : Self.root.appendingPathComponent("examples/\(name)")
         return (
             try Manifest.decode(from: Data(contentsOf: dir.appendingPathComponent("widget.json"))),
             try WorkflowDefinition.decode(from: Data(contentsOf: dir.appendingPathComponent("workflow.json")))
