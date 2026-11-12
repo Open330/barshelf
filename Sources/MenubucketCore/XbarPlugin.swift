@@ -31,14 +31,18 @@ public enum XbarPlugin {
         /// The parameter part could not be read (an unclosed quote): the line
         /// shows its text and does nothing.
         public var malformed: Bool
+        /// Spaces before the text (after any `--`), which `trim=false`
+        /// keeps: plugins line columns up with them.
+        public var leadingSpaces: Int
 
         public init(text: String, params: [String: String] = [:], depth: Int = 0,
-                    isSeparator: Bool = false, malformed: Bool = false) {
+                    isSeparator: Bool = false, malformed: Bool = false, leadingSpaces: Int = 0) {
             self.text = text
             self.params = params
             self.depth = depth
             self.isSeparator = isSeparator
             self.malformed = malformed
+            self.leadingSpaces = leadingSpaces
         }
     }
 
@@ -98,12 +102,16 @@ public enum XbarPlugin {
             start = body.index(start, offsetBy: 2)
         }
         depth = min(depth, maxDepth + 1)
+        // Leading spaces of the text itself: before the first character of
+        // a line without a `--` prefix, after the prefix otherwise.
+        let indented = depth == 0 ? text : Substring(body[start...])
+        let leadingSpaces = indented.prefix { $0 == " " }.count
         body = body[start...].trimmingCharacters(in: .whitespaces)
-        guard let paramPart else { return Line(text: body, depth: depth) }
+        guard let paramPart else { return Line(text: body, depth: depth, leadingSpaces: leadingSpaces) }
         guard let params = tokenize(paramPart) else {
-            return Line(text: body, depth: depth, malformed: true)
+            return Line(text: body, depth: depth, malformed: true, leadingSpaces: leadingSpaces)
         }
-        return Line(text: body, params: params, depth: depth)
+        return Line(text: body, params: params, depth: depth, leadingSpaces: leadingSpaces)
     }
 
     /// `key=value key2='a b' key3="c | d"`. Inside quotes, a backslash
@@ -253,13 +261,18 @@ public enum XbarPlugin {
 
     static func nodes(for items: [TreeItem], path: String, context: Context) -> [UINode] {
         var out: [UINode] = []
+        // Fixed-width lines of one list (a calendar, a table) share a size,
+        // or their columns would not line up with each other.
+        let widest = items.lazy.filter { !$0.line.isSeparator && isMonospaced($0.line) }
+            .map { cleanText($0.line).count }.max()
+        let monospacedSize = widest.map { Self.monospacedSize(columns: $0, nested: path != "item") }
         for (index, item) in items.enumerated() {
             let id = "\(path)-\(index)"
             if item.line.isSeparator {
                 out.append(UINode(id: id, type: "divider"))
                 continue
             }
-            out.append(row(item.line, id: id, role: "body", context: context))
+            out.append(row(item.line, id: id, role: "body", context: context, monospacedSize: monospacedSize))
             if !item.children.isEmpty {
                 out.append(UINode(
                     id: id + "-sub", type: "card", children: nodes(for: item.children, path: id, context: context),
@@ -271,7 +284,8 @@ public enum XbarPlugin {
     }
 
     /// One line as a text row, or a button when it does something.
-    static func row(_ line: Line, id: String, role: String, context: Context) -> UINode {
+    static func row(_ line: Line, id: String, role: String, context: Context,
+                    monospacedSize: Double? = nil) -> UINode {
         let text = cleanText(line)
         let rowTint = line.params["color"].flatMap { Self.tint(for: $0, dark: context.darkMode) }
         let icon = line.params["sfimage"].flatMap { $0.isEmpty ? nil : $0 }
@@ -292,6 +306,13 @@ public enum XbarPlugin {
             ].compactMap { $0 }, spacing: 6)
         case .none:
             var label = UINode(id: id, type: "text", text: text, role: role, tint: rowTint)
+            if isMonospaced(line) {
+                // `font=courier` and the like: columns only line up in a
+                // fixed-width face, on one line.
+                label.role = "code"
+                label.size = monospacedSize
+                label.lineLimit = 1
+            }
             label.help = help
             guard let icon else { return label }
             return UINode(id: id + "-row", type: "hstack", children: [
@@ -355,7 +376,29 @@ public enum XbarPlugin {
     static func cleanText(_ line: Line) -> String {
         var text = stripANSI(line.text)
         if line.params["emojize"]?.lowercased() != "false" { text = emojize(text) }
-        return text.trimmingCharacters(in: .whitespaces)
+        text = text.trimmingCharacters(in: .whitespaces)
+        if line.params["trim"]?.lowercased() == "false" {
+            text = String(repeating: " ", count: line.leadingSpaces) + text
+        }
+        return text
+    }
+
+    /// Whether `font=` names a fixed-width face. Other faces are ignored:
+    /// the card uses the app's own.
+    static func isMonospaced(_ line: Line) -> Bool {
+        guard let font = line.params["font"]?.lowercased() else { return false }
+        return ["courier", "menlo", "monaco", "mono", "consolas", "fixed"].contains { font.contains($0) }
+    }
+
+    /// A point size at which `columns` fixed-width characters fit a card:
+    /// the code size when they do, smaller down to 7 pt when they do not
+    /// (`cal` prints a year 64 columns wide). A monospaced character is
+    /// about 0.6 of the point size wide; a full-width card leaves about
+    /// 310 pt for text, a submenu's card inside it about 290.
+    static func monospacedSize(columns: Int, nested: Bool) -> Double {
+        let width: Double = nested ? 290 : 310
+        let fitting = width / (0.602 * Double(max(columns, 1)))
+        return min(12, max(7, (fitting * 2).rounded(.down) / 2))
     }
 
     static func stripANSI(_ text: String) -> String {
