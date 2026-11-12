@@ -6,6 +6,10 @@ name: Verify Release
 # not notarized, stale zip uploaded, checksums not regenerated, bundle version
 # not the tag. It also asserts the property BarShelf's in-app updater requires,
 # so a release every client would refuse fails here instead of silently.
+#
+# On publish it checks the assets only. The Homebrew tap catches up later
+# (Open330/homebrew-tap's sync-upstream), so checking it here failed every
+# release; dispatch this workflow with `check_tap` after the sync instead.
 on:
   release:
     types: [published]
@@ -15,11 +19,18 @@ on:
         description: "Release tag to verify (e.g. v0.2.0)"
         required: true
         type: string
+      check_tap:
+        description: "Also check the Homebrew tap (run after it has synced)"
+        required: false
+        default: true
+        type: boolean
 
 jobs:
   verify:
     name: Verify published assets
-    runs-on: macos-14
+    # Was macos-14: that label stopped getting a runner, and every run from
+    # 0.7.13 on was cancelled before its first step.
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v5
 
@@ -29,6 +40,6 @@ jobs:
           # Optional: set this repository variable to pin the signing team, so
           # a release signed by anyone else fails.
           EXPECTED_TEAM: ${{ vars.EXPECTED_TEAM }}
-        run: |
-          TAG="${{ github.event.release.tag_name || inputs.tag }}"
-          bash scripts/verify-release.sh "$TAG"
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          CHECK_TAP: ${{ github.event_name == 'workflow_dispatch' && inputs.check_tap && '1' || '0' }}
+        run: bash scripts/verify-release.sh "$TAG"

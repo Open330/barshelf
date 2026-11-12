@@ -4,14 +4,55 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
+# A newer push to a pull request makes its older run moot, so that one is
+# cancelled. Runs on main are not: each merge commit keeps its own run, so a
+# commit that gets tagged always has a finished result. Cancelling them too
+# left 7 of 14 main runs without one.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  build-test:
-    name: Build & Test
+  # What the change touches. A pull request that only edits prose (docs,
+  # Markdown, the site) skips the macOS jobs; `Build & Test` still reports,
+  # so the required check never hangs waiting for a job that did not run.
+  changes:
+    name: Changes
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: filter
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" != "pull_request" ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          code=false
+          # docs/AGENTS.md is compiled into the CLI (AgentSpecEmbedded.swift,
+          # checked by a test), so it is code.
+          for path in $(git diff --name-only "$BASE" "$HEAD"); do
+            case "$path" in
+              docs/AGENTS.md) code=true ;;
+              *.md|docs/*|site/*|.context/*|LICENSE*) continue ;;
+              *) code=true ;;
+            esac
+            echo "code: $path"
+            break
+          done
+          echo "code=$code" | tee -a "$GITHUB_OUTPUT"
+
+  swift:
+    name: Swift build and tests
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: macos-26
     steps:
       # Tags, not just the tip: `check-release-versions.py` compares each
@@ -54,10 +95,7 @@ jobs:
       - name: Build
         run: swift build
 
-      - name: Strict concurrency (core)
-        run: swift build --target MenubucketCore -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
-
-      # A full run takes about two minutes. A run that stalls (seen once in
+      # A full run takes about three minutes. A run that stalls (seen once in
       # 2026-10, after DockStoreTests, with nothing logged) is sampled so the
       # hung test shows in the log, then run once more instead of holding
       # the runner for hours.
@@ -88,8 +126,75 @@ jobs:
             exit "$status"
           fi
 
-      # The desktop widget extension is the one Xcode-built part of the app;
-      # building it here keeps a Swift-only change from breaking it unseen.
+      - name: Validate bundled widgets
+        run: |
+          swift build --product barshelf
+          swift build --product bsf
+          BARSHELF_CLI="$(swift build --product barshelf --show-bin-path)/barshelf"
+          for w in widgets/*/ examples/*/; do
+            [ -f "$w/widget.json" ] && "$BARSHELF_CLI" validate "$w"
+          done
+
+  # Its own runner, so its flags never invalidate the test build above (in
+  # one job, the strict build and `swift test` recompiled Core for each
+  # other).
+  strict:
+    name: Strict concurrency
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v5
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "26.6.0"
+
+      # Clean today; a new diagnostic fails the run.
+      - name: MenubucketCore and BarShelfKit
+        run: |
+          swift build --target MenubucketCore -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+          swift build --target BarShelfKit -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+
+      # Not clean yet (2026-11-12: Builder 1, Automation 17, Dock 13), so
+      # counted, not enforced; move a target up once it reaches zero.
+      # Dependencies first, so each target's own files are compiled in its
+      # own step and counted there (a cached module reports nothing).
+      - name: Other library targets (report only)
+        run: |
+          {
+            echo "### Strict concurrency outside Core and BarShelfKit"
+            echo
+            echo "| Target | Diagnostics in its own files |"
+            echo "| --- | --- |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          for target in BarShelfBuilder BarShelfAutomation BarShelfDock; do
+            log="${RUNNER_TEMP}/strict-${target}.log"
+            swift build --target "$target" -Xswiftc -strict-concurrency=complete >"$log" 2>&1 \
+              || echo "::warning::${target} did not build with strict concurrency"
+            # Colour codes out, then one line per diagnostic location.
+            sed $'s/\x1b\\[[0-9;]*m//g' "$log" \
+              | grep -oE "Sources/${target}/[^ :]+\.swift:[0-9]+:[0-9]+: (warning|error): .*" \
+              | sort -u > "${log}.found" || true
+            count=$(wc -l < "${log}.found" | tr -d ' ')
+            echo "${target}: ${count}"
+            head -40 "${log}.found"
+            echo "| ${target} | ${count} |" >> "$GITHUB_STEP_SUMMARY"
+            [ "$count" -eq 0 ] || echo "::warning::${target} has ${count} strict-concurrency diagnostics"
+          done
+
+  # The desktop widget extension is the one Xcode-built part of the app;
+  # building it here keeps a Swift-only change from breaking it unseen. In
+  # parallel with the Swift job: it takes 90-140 s on its own.
+  widget-extension:
+    name: Widget extension
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v5
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "26.6.0"
       - name: Build widget extension
         run: |
           xcodebuild -quiet \
@@ -97,6 +202,16 @@ jobs:
             -scheme BarShelfWidgets -configuration Release \
             -derivedDataPath .build/widget-extension \
             CODE_SIGNING_ALLOWED=NO build
+
+  # Cheap checks that read the tree, on every change, docs included (the
+  # version references live in README, INSTALL and the site).
+  checks:
+    name: Repository checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Check release version references
         run: python3 scripts/check-release-versions.py
@@ -110,11 +225,49 @@ jobs:
             python3 -c "import json,sys; json.load(open('$f')); print('ok', '$f')"
           done
 
-      - name: Validate bundled widgets
+  # The release build, unsigned and unnotarized, on every merge: `-c release`
+  # and build_app.sh (which also builds the widget extension into the app)
+  # otherwise ran for the first time after a tag was cut.
+  package:
+    name: Release packaging (unnotarized)
+    needs: changes
+    if: github.event_name != 'pull_request' && needs.changes.outputs.code == 'true'
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v5
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "26.6.0"
+      - name: Package
         run: |
-          swift build --product barshelf
-          swift build --product bsf
-          BARSHELF_CLI="$(swift build --product barshelf --show-bin-path)/barshelf"
-          for w in widgets/*/ examples/*/; do
-            [ -f "$w/widget.json" ] && "$BARSHELF_CLI" validate "$w"
-          done
+          VERSION=$(sed -n 's/^APP_VERSION=${APP_VERSION:-\(.*\)}$/\1/p' scripts/build_app.sh)
+          echo "packaging ${VERSION}"
+          VERSION="$VERSION" NOTARIZE=0 ALLOW_UNNOTARIZED=1 SIGN_IDENTITY=- bash scripts/release.sh
+      - name: Check the bundle
+        run: |
+          app=dist/BarShelf.app
+          test -d "$app/Contents/PlugIns/BarShelfWidgets.appex" || { echo "::error::no widget extension in the bundle"; exit 1; }
+          dist/barshelf --version
+          ls -la dist/local-release
+
+  # The one required check. It passes when every job above passed or was
+  # skipped for a docs-only change, and fails otherwise.
+  build-test:
+    name: Build & Test
+    needs: [changes, swift, strict, widget-extension, checks, package]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS" | python3 -c '
+          import json, sys
+          needs = json.load(sys.stdin)
+          bad = {name: job["result"] for name, job in needs.items() if job["result"] not in ("success", "skipped")}
+          for name, job in needs.items():
+              print(name + ": " + job["result"])
+          if needs["changes"]["result"] != "success":
+              bad["changes"] = needs["changes"]["result"]
+          sys.exit(f"failed: {bad}" if bad else 0)
+          '
