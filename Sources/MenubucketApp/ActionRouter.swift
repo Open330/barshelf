@@ -3,6 +3,7 @@ import Foundation
 import MenubucketCore
 
 /// Executes declarative `NodeAction`s coming from rendered buttons.
+@MainActor
 enum ActionRouter {
     /// `title` is the button's own label, for a failure to name what did not
     /// happen; `surface` is where the button was, so its toast shows there.

@@ -59,9 +59,10 @@ enum AppMenuCommand: Hashable {
     }
 }
 
+@MainActor
 enum AppMenu {
     /// Groups, in order; a separator goes between groups.
-    static let sections: [[AppMenuCommand]] = [
+    nonisolated static let sections: [[AppMenuCommand]] = [
         [.editShelf, .addWidget, .menuBar, .dock],
         [.openBarShelf, .settings, .checkForUpdates],
         [.quit],

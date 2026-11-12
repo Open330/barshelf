@@ -243,6 +243,7 @@ struct RuntimeFeedback: Equatable {
     let surface: ToastSurface
 }
 
+@MainActor
 final class WidgetRuntime: ObservableObject {
     @Published private(set) var widgets: [LoadedWidget] = []
     /// Where `RuntimeFeedback` goes; tests replace it to observe.
@@ -285,7 +286,7 @@ final class WidgetRuntime: ObservableObject {
     /// so a 2 s status refresh never invalidates the popup's view tree.
     let menuBar = MenuBarStatusStore()
 
-    private let execService = ExecService()
+    nonisolated private let execService = ExecService()
     let scheduler = Scheduler()
     private let refreshStatsStore: RefreshStatsStore
     private var cancellables: Set<AnyCancellable> = []
@@ -301,7 +302,7 @@ final class WidgetRuntime: ObservableObject {
     private var nativeRefreshTasks: [String: (token: NativeRefreshGate.Token, task: Task<Void, Never>)] = [:]
     private var runActionTasks: [String: [UUID: Task<Void, Never>]] = [:]
     private var scriptRefreshes = ScriptRefreshCoalescer()
-    private let scriptCallbackGate = ScriptCallbackGate()
+    nonisolated private let scriptCallbackGate = ScriptCallbackGate()
     /// Shutdowns started by Disable. Re-enable waits for this task so a late
     /// stop cannot terminate the newly launched process.
     private var scriptDisableStopTokens: [String: UInt] = [:]
@@ -335,17 +336,17 @@ final class WidgetRuntime: ObservableObject {
     private var visibilityAwareWidgetIDs: Set<String> = []
     private var lastRefreshVisibility: [String: Bool] = [:]
     /// Decoded `workflow.json` files, reused while unchanged on disk.
-    private let workflowDefinitions = WorkflowDefinitionCache()
+    nonisolated private let workflowDefinitions = WorkflowDefinitionCache()
 
     // MARK: Script runtime + permission enforcement (M2)
 
-    let auditLog = AuditLog()
+    nonisolated let auditLog = AuditLog()
     let permissionStore: PermissionStore
     private let notificationService = NotificationService()
     /// Widgets whose next workflow refresh the user asked for.
     private var userRequestedRefreshIDs: Set<String> = []
     /// What each workflow alert last saw, and when it last fired.
-    private let alertStates = AlertStateStore(
+    nonisolated private let alertStates = AlertStateStore(
         fileURL: WidgetRuntime.applicationSupportDirectory.appendingPathComponent("alert-state.json")
     )
     let alertGate = AlertDeliveryGate()
@@ -377,22 +378,22 @@ final class WidgetRuntime: ObservableObject {
     /// Per-widget persistent KV store, shared by the script runtime
     /// (`host.storage.*`) and workflow persistence (`storage.*` reads +
     /// `store` writes) so both see one namespace per widget.
-    private let storage = StorageService(
+    nonisolated private let storage = StorageService(
         directory: WidgetRuntime.applicationSupportDirectory
             .appendingPathComponent("storage", isDirectory: true)
     )
 
     /// Builtin adapter registry for `output = "data"` sources (M1 contract:
     /// async, context-carrying, may return a deadline + status text).
-    private let adapters: [String: (Data, AdapterContext) async throws -> AdapterResult] = [
+    nonisolated private let adapters: [String: (Data, AdapterContext) async throws -> AdapterResult] = [
         AasUsageAdapter.name: AasUsageAdapter.adapt,
         OtpeekAdapter.name: OtpeekAdapter.adapt,
     ]
 
-    private static let defaultTimeoutMs = 25_000
+    nonisolated private static let defaultTimeoutMs = 25_000
     /// This build's version, read once: the check on every refresh must not
     /// re-read the bundle's Info.plist.
-    static let hostVersion = AppVersionInfo.current.version
+    nonisolated static let hostVersion = AppVersionInfo.current.version
     private static let hotReloadDebounceSec: TimeInterval = 0.4
 
     init(
@@ -555,7 +556,7 @@ final class WidgetRuntime: ObservableObject {
 
     // MARK: - Script runtime supervisor
 
-    static var applicationSupportDirectory: URL { BarShelfDirectories.applicationSupport }
+    nonisolated static var applicationSupportDirectory: URL { BarShelfDirectories.applicationSupport }
 
     /// Created on first script-widget use (deno-based launch plans injected;
     /// tests build their own supervisor with stub launch plans).
@@ -912,11 +913,11 @@ final class WidgetRuntime: ObservableObject {
     /// Every command is one row: what the commands do, each phrase once, with
     /// the exact command lines behind "Details". Two rows saying the same
     /// thing in different words read as two different permissions.
-    static func permissionRequests(for widget: LoadedWidget) -> [PermissionRequest] {
+    nonisolated static func permissionRequests(for widget: LoadedWidget) -> [PermissionRequest] {
         permissionRequests(for: widget.manifest)
     }
 
-    static func permissionRequests(for manifest: Manifest, localization: WidgetLocalization?? = nil) -> [PermissionRequest] {
+    nonisolated static func permissionRequests(for manifest: Manifest, localization: WidgetLocalization?? = nil) -> [PermissionRequest] {
         var rows: [PermissionRequest] = []
         let permissions = manifest.permissions
         let table = localization ?? manifest.localization()
@@ -1151,7 +1152,7 @@ final class WidgetRuntime: ObservableObject {
         publishDesktopWidgetIndex()
     }
 
-    static func discoverWidgets(in searchDirectories: [URL]) -> [LoadedWidget] {
+    nonisolated static func discoverWidgets(in searchDirectories: [URL]) -> [LoadedWidget] {
         var loaded: [LoadedWidget] = []
         var seenIDs: Set<String> = []
         let fm = FileManager.default
@@ -1200,7 +1201,7 @@ final class WidgetRuntime: ObservableObject {
     /// The canonical install directory keeps the manifest id. Additional
     /// instances are lightweight aliases named `<manifest-id>--<label>` and
     /// share the same package files while retaining independent runtime state.
-    static func instanceID(manifestID: String, directoryName: String) -> String {
+    nonisolated static func instanceID(manifestID: String, directoryName: String) -> String {
         let prefix = manifestID + "--"
         guard directoryName.hasPrefix(prefix), directoryName.count > prefix.count else {
             return manifestID
@@ -1211,14 +1212,14 @@ final class WidgetRuntime: ObservableObject {
     // MARK: - Widget management (R11)
 
     /// The single directory `removeWidget` is allowed to delete inside.
-    static var userWidgetsRoot: URL {
+    nonisolated static var userWidgetsRoot: URL {
         applicationSupportDirectory.appendingPathComponent("widgets", isDirectory: true)
     }
 
     /// True only for a proper subdirectory of the user widgets root. Resolving
     /// `..` first refuses path-traversal ids and dev-checkout (`./widgets/`)
     /// widgets, so `removeWidget` can never delete outside that root.
-    static func isRemovableWidgetDirectory(_ directory: URL) -> Bool {
+    nonisolated static func isRemovableWidgetDirectory(_ directory: URL) -> Bool {
         let root = userWidgetsRoot.standardizedFileURL.path
         let target = directory.standardizedFileURL.path
         return target != root && target.hasPrefix(root + "/")
@@ -1384,7 +1385,7 @@ final class WidgetRuntime: ObservableObject {
         return instanceID
     }
 
-    static func normalizedInstanceLabel(_ label: String) -> String {
+    nonisolated static func normalizedInstanceLabel(_ label: String) -> String {
         let lowered = label.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         var result = ""
         var previousWasSeparator = false
@@ -1631,7 +1632,7 @@ final class WidgetRuntime: ObservableObject {
     /// Pure page layout: groups the enabled widgets, sorts members by effective
     /// order, and orders pages by an explicit group order (when set), then their
     /// first member's order, then group name.
-    static func computePages(
+    nonisolated static func computePages(
         _ widgets: [LoadedWidget],
         group: (LoadedWidget) -> String,
         order: (LoadedWidget) -> Double,
@@ -1679,8 +1680,10 @@ final class WidgetRuntime: ObservableObject {
         let timer = Timer.scheduledTimer(
             withTimeInterval: Self.menuBarStalenessTickSec, repeats: true
         ) { [weak self] _ in
-            guard let self else { return }
-            self.syncMenuBar()
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.syncMenuBar()
+            }
         }
         timer.tolerance = Self.menuBarStalenessTickSec / 3
         menuBarStalenessTimer = timer
@@ -1693,7 +1696,7 @@ final class WidgetRuntime: ObservableObject {
     /// waiting a whole interval for the first tick.
     /// A failed refresh as the menu bar item's tooltip: what happened and
     /// what to do, the way the card says it, not the raw message.
-    static func errorTooltip(_ raw: String) -> String {
+    nonisolated static func errorTooltip(_ raw: String) -> String {
         let explanation = ErrorExplainer.explain(raw)
         return "\(explanation.cause)\n\(explanation.fix)"
     }
@@ -2107,7 +2110,7 @@ final class WidgetRuntime: ObservableObject {
         refresh(widget, manual: false)
     }
 
-    static func needsMenuBarPopoverRefresh(
+    nonisolated static func needsMenuBarPopoverRefresh(
         snapshot: WidgetSnapshot, staleAfterSec: Double?, now: Date = Date()
     ) -> Bool {
         snapshot.viewTree == nil || snapshot.isStale(after: staleAfterSec, now: now)
@@ -2381,7 +2384,7 @@ final class WidgetRuntime: ObservableObject {
     /// own thread raced with the main thread changing them (a crash in
     /// `Dictionary` lookup under `NativeRefreshGate.isCurrent`), so the check
     /// goes to the main actor.
-    private func checkNativeRefresh(_ widget: LoadedWidget, token: NativeRefreshGate.Token) async throws {
+    nonisolated private func checkNativeRefresh(_ widget: LoadedWidget, token: NativeRefreshGate.Token) async throws {
         let mayContinue = await MainActor.run { self.nativeRefreshMayContinue(widget, token: token) }
         guard mayContinue else { throw CancellationError() }
     }
@@ -2458,7 +2461,7 @@ final class WidgetRuntime: ObservableObject {
         var statusTooltip: String?
     }
 
-    private func performRefresh(
+    nonisolated private func performRefresh(
         widget: LoadedWidget,
         source: Manifest.Source,
         command: [String],
@@ -2538,7 +2541,7 @@ final class WidgetRuntime: ObservableObject {
 
     /// Direct-source launch seam. Keeping environment selection inside the
     /// dispatch used by production makes its command scope executable in tests.
-    static func dispatchDirectExec(
+    nonisolated static func dispatchDirectExec(
         execService: ExecService,
         widget: LoadedWidget,
         source: Manifest.Source,
@@ -2560,18 +2563,18 @@ final class WidgetRuntime: ObservableObject {
 
     /// An xbar/SwiftBar plugin also gets BarShelf's appearance markers, on
     /// its refresh and on the actions it runs (`XbarPlugin.environment`).
-    static func pluginEnvironment(for manifest: Manifest, _ base: [String: String]?) -> [String: String]? {
+    nonisolated static func pluginEnvironment(for manifest: Manifest, _ base: [String: String]?) -> [String: String]? {
         guard manifest.source?.output == "xbar" else { return base }
         return (base ?? [:]).merging(XbarPlugin.environment(darkMode: systemIsDark)) { current, _ in current }
     }
 
-    static var systemIsDark: Bool {
+    nonisolated static var systemIsDark: Bool {
         UserDefaults.standard.string(forKey: "AppleInterfaceStyle") == "Dark"
     }
 
     /// How a plugin's `bash=` lines are read: the declared command, and the
     /// file it names, so the plugin calling itself through `$0` matches.
-    static func xbarContext(widget: LoadedWidget, source: Manifest.Source) -> XbarPlugin.Context {
+    nonisolated static func xbarContext(widget: LoadedWidget, source: Manifest.Source) -> XbarPlugin.Context {
         let command = source.command?.first ?? ""
         let file = command.hasPrefix("/") ? URL(fileURLWithPath: command)
             : command.isEmpty ? nil : widget.directory.appendingPathComponent(command)
@@ -2655,7 +2658,7 @@ final class WidgetRuntime: ObservableObject {
         }
     }
 
-    private func performWorkflowRefresh(
+    nonisolated private func performWorkflowRefresh(
         widget: LoadedWidget,
         workflowURL: URL,
         settings: JSONValue,
@@ -2681,7 +2684,7 @@ final class WidgetRuntime: ObservableObject {
         )
     }
 
-    private func evaluateWorkflow(
+    nonisolated private func evaluateWorkflow(
         widget: LoadedWidget,
         definition: WorkflowDefinition,
         settings: JSONValue,
@@ -2807,7 +2810,7 @@ final class WidgetRuntime: ObservableObject {
                 let firing = alertStates.record(
                     widgetID: widget.id, samples: output.alerts, nowMs: Date().timeIntervalSince1970 * 1000
                 )
-                for alert in firing { deliverAlert(alert, for: widget) }
+                await MainActor.run { for alert in firing { self.deliverAlert(alert, for: widget) } }
             }
 
             // Commit the store block after a successful eval. Failures here are
@@ -2850,7 +2853,7 @@ final class WidgetRuntime: ObservableObject {
     /// metric group must appear in `permissions.system`, and an undeclared
     /// group fails the refresh instead of being silently dropped, so a widget
     /// never renders a view whose data it was not allowed to read.
-    private func runWorkflowSystemSource(
+    nonisolated private func runWorkflowSystemSource(
         widget: LoadedWidget,
         params: JSONValue
     ) async throws -> JSONValue {
@@ -2940,7 +2943,7 @@ final class WidgetRuntime: ObservableObject {
     /// the host does not understand must never blank a reading.
     ///
     ///     "with": { "metrics": ["sensors"], "sensors": "cpu" }
-    static func sensorGroups(from value: JSONValue?) -> Set<SensorSampler.SensorGroup>? {
+    nonisolated static func sensorGroups(from value: JSONValue?) -> Set<SensorSampler.SensorGroup>? {
         switch value {
         case let .string(name):
             return SensorSampler.groups(forReading: name)
@@ -2962,7 +2965,7 @@ final class WidgetRuntime: ObservableObject {
     /// order, at most 8 — each is its own read.
     ///
     ///     "sensors": ["cpu", "key:TC0P"]
-    static func sensorKeys(from value: JSONValue?) -> [String] {
+    nonisolated static func sensorKeys(from value: JSONValue?) -> [String] {
         let names: [String]
         switch value {
         case let .string(name): names = [name]
@@ -2975,7 +2978,7 @@ final class WidgetRuntime: ObservableObject {
 
     /// `exec` workflow source — same allowlist/audit semantics as an exec
     /// widget's `source.command`.
-    private func runWorkflowExecSource(
+    nonisolated private func runWorkflowExecSource(
         widget: LoadedWidget,
         params: JSONValue
     ) async throws -> JSONValue {
@@ -3026,7 +3029,7 @@ final class WidgetRuntime: ObservableObject {
 
     /// Workflow-source launch seam; the caller's matched permission is the
     /// sole command-level environment authority.
-    static func dispatchWorkflowExec(
+    nonisolated static func dispatchWorkflowExec(
         execService: ExecService,
         widget: LoadedWidget,
         command: [String],
@@ -3050,7 +3053,7 @@ final class WidgetRuntime: ObservableObject {
     /// permission (declared + user-approved) and restricted to the declared
     /// host allowlist. The fetch itself (https-only, GET, 20 s / 5 MB caps,
     /// no redirect downgrade) lives in `MenubucketCore.HttpSource`.
-    private func runWorkflowHTTPSource(
+    nonisolated private func runWorkflowHTTPSource(
         widget: LoadedWidget,
         params: JSONValue
     ) async throws -> JSONValue {
@@ -3082,13 +3085,13 @@ final class WidgetRuntime: ObservableObject {
     /// True when `url`'s host matches an entry in `permissions.network`.
     /// Entries may be a bare host (`api.github.com`), a leading-dot wildcard
     /// (`*.github.com`), a full URL/origin (host is extracted), or `*`.
-    static func networkHostAllowed(url: String, manifest: Manifest) -> Bool {
+    nonisolated static func networkHostAllowed(url: String, manifest: Manifest) -> Bool {
         networkHostAllowed(url: url, allowlist: manifest.permissions?.network ?? [])
     }
 
     /// Allowlist-only variant — also used by the renderer to gate `url` image
     /// nodes on the widget's declared hosts.
-    static func networkHostAllowed(url: String, allowlist: [String]) -> Bool {
+    nonisolated static func networkHostAllowed(url: String, allowlist: [String]) -> Bool {
         guard !allowlist.isEmpty,
               let host = URL(string: url)?.host?.lowercased()
         else { return false }
@@ -3108,13 +3111,13 @@ final class WidgetRuntime: ObservableObject {
         return false
     }
 
-    static func execCommandAllowed(_ command: [String], manifest: Manifest) -> Bool {
+    nonisolated static func execCommandAllowed(_ command: [String], manifest: Manifest) -> Bool {
         ExecAllowlist.match(command: command, permissions: manifest.permissions?.exec) != nil
     }
 
     /// Symlink-aware file allowlist check shared by workflow reads, rendered
     /// file thumbnails/drag items, and open/reveal actions.
-    static func filePathAllowed(_ path: String, manifest: Manifest) -> Bool {
+    nonisolated static func filePathAllowed(_ path: String, manifest: Manifest) -> Bool {
         filePathAllowed(path, allowlist: manifest.permissions?.readPaths ?? [])
     }
 
@@ -3130,7 +3133,7 @@ final class WidgetRuntime: ObservableObject {
     /// honoring it here would let any widget self-grant a read root it was
     /// never approved for (`{"type": "directory", "default": "~/.ssh"}`).
     /// Defaults still have to be covered by `permissions.readPaths`.
-    static func userGrantedReadPaths(
+    nonisolated static func userGrantedReadPaths(
         manifest: Manifest,
         storedSettings: [String: JSONValue]
     ) -> [String] {
@@ -3154,7 +3157,7 @@ final class WidgetRuntime: ObservableObject {
             )
     }
 
-    static func filePathAllowed(_ path: String, allowlist: [String]) -> Bool {
+    nonisolated static func filePathAllowed(_ path: String, allowlist: [String]) -> Bool {
         guard !allowlist.isEmpty else { return false }
         let target = canonicalFileURL(path)
         return allowlist.contains { allowed in
@@ -3163,7 +3166,7 @@ final class WidgetRuntime: ObservableObject {
         }
     }
 
-    private static func canonicalFileURL(_ path: String) -> URL {
+    nonisolated private static func canonicalFileURL(_ path: String) -> URL {
         let expanded = (path as NSString).expandingTildeInPath
         var existing = URL(fileURLWithPath: expanded).standardizedFileURL
         var missingComponents: [String] = []
@@ -3385,7 +3388,7 @@ final class WidgetRuntime: ObservableObject {
 
     /// Builds the only widget-specific environment values an exec may receive:
     /// explicitly declared host variables, with an optional Keychain fallback.
-    static func secretEnvironment(
+    nonisolated static func secretEnvironment(
         for manifest: Manifest,
         permission: Manifest.ExecPermission,
         hostEnvironment: [String: String] = ProcessInfo.processInfo.environment,
@@ -3494,7 +3497,7 @@ final class WidgetRuntime: ObservableObject {
 
     /// "Couldn't Restart", or a plain "That didn't work" for a button with
     /// no words (an icon, a whole row).
-    static func actionFailureTitle(_ title: String?) -> String {
+    nonisolated static func actionFailureTitle(_ title: String?) -> String {
         let trimmed = title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !trimmed.isEmpty else { return String(localized: "That didn’t work") }
         return String(localized: "Couldn’t \(trimmed)", comment: "Toast: a widget's button failed; the argument is the button's title.")
@@ -3502,7 +3505,7 @@ final class WidgetRuntime: ObservableObject {
 
     /// Declarative run-action launch seam, also used by the production action
     /// task so tests can observe the exact child environment it supplies.
-    static func dispatchRunActionExec(
+    nonisolated static func dispatchRunActionExec(
         execService: ExecService,
         widget: LoadedWidget,
         command: [String],
@@ -3623,7 +3626,7 @@ final class WidgetRuntime: ObservableObject {
 
     /// Card loading/layout changes do not affect a status item. Avoid rebuilding
     /// every promoted entry (including symbol lookup and chart policy) for them.
-    static func menuBarStateChanged(from previous: WidgetSnapshot?, to current: WidgetSnapshot) -> Bool {
+    nonisolated static func menuBarStateChanged(from previous: WidgetSnapshot?, to current: WidgetSnapshot) -> Bool {
         guard let previous else { return true }
         return previous.updatedAt != current.updatedAt || previous.error != current.error
             || previous.statusLabel != current.statusLabel || previous.statusMetrics != current.statusMetrics
@@ -3678,7 +3681,7 @@ final class WidgetRuntime: ObservableObject {
 
     /// Resolved once: `FileManager.urls(for:in:)` is not free, and it was being
     /// asked on every snapshot write.
-    private static let cacheDirectory: URL? = {
+    nonisolated private static let cacheDirectory: URL? = {
         guard let appSupport = FileManager.default.urls(
             for: .applicationSupportDirectory, in: .userDomainMask
         ).first else { return nil }
@@ -3729,7 +3732,7 @@ final class WidgetRuntime: ObservableObject {
         chartHistoryTimer = timer
     }
 
-    private static func cacheURL(for widgetID: String) -> URL? {
+    nonisolated private static func cacheURL(for widgetID: String) -> URL? {
         let sanitized = widgetID.map { character -> Character in
             character.isLetter || character.isNumber || character == "." || character == "-"
                 ? character : "_"
@@ -3881,7 +3884,7 @@ final class WidgetRuntime: ObservableObject {
         }
     }
 
-    private static func writeCachedSnapshot(_ snapshot: WidgetSnapshot) {
+    nonisolated private static func writeCachedSnapshot(_ snapshot: WidgetSnapshot) {
         guard let directory = cacheDirectory,
               let url = cacheURL(for: snapshot.widgetID)
         else { return }
