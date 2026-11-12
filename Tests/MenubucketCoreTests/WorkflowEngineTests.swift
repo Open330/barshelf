@@ -824,22 +824,20 @@ final class TodayWidgetTests: XCTestCase {
         return try WorkflowDefinition.decode(from: try Data(contentsOf: url))
     }
 
-    private let sample: JSONValue = .object([
-        "weekday": .string("Wednesday"), "month": .string("Jul"),
-        "day": .string("09"), "time": .string("17:45"), "year": .string("2026"),
-    ])
+    /// 2026-07-09 12:00 UTC: the 9th in every zone from UTC-10 to UTC+11.
+    private let noonMs: Double = 1_783_598_400_000
 
     private func render(size: String) throws -> UINode {
         try WorkflowEngine.evaluate(
-            try todayDef(), sources: ["data": sample], settings: .object([:]),
-            widget: .object(["size": .string(size)])
+            try todayDef(), sources: [:], settings: .object([:]),
+            widget: .object(["size": .string(size)]), nowMs: noonMs
         ).viewTree
     }
 
     func testSmallLayoutShowsBigDayNumber() throws {
         let tree = try render(size: "S")               // small → default branch
         XCTAssertEqual(tree.type, "vstack")
-        XCTAssertEqual(tree.children?[1].text, "09")
+        XCTAssertEqual(tree.children?[1].text, "9")
         XCTAssertEqual(tree.children?[1].size, 46)      // large day number
     }
 
@@ -853,7 +851,7 @@ final class TodayWidgetTests: XCTestCase {
         let tree = try render(size: "L")
         XCTAssertEqual(tree.type, "vstack")
         let day = tree.children?[1].children?.first
-        XCTAssertEqual(day?.text, "09")
+        XCTAssertEqual(day?.text, "9")
         XCTAssertEqual(day?.size, 64)                   // largest day number
     }
 }
@@ -979,18 +977,13 @@ final class NativeWidgetsTests: XCTestCase {
     }
 
     func testClockShowsBigTime() throws {
-        let out = try WorkflowEngine.evaluate(
-            try def("clock"),
-            sources: ["data": .object([
-                "h": .string("20"), "m": .string("53"), "s": .string("26"), "date": .string("Thu Jul 09"),
-            ])],
-            settings: .object([:])
-        )
-        // The card header names the widget; the body leads with the time.
+        let ms = 1_783_598_400_000.0
+        let out = try WorkflowEngine.evaluate(try def("clock"), sources: [:], settings: .object([:]), nowMs: ms)
+        // The body leads with the time, from BarShelf's own clock.
+        let parts = Calendar.current.dateComponents([.hour, .minute], from: Date(timeIntervalSince1970: ms / 1000))
         let timeRow = out.viewTree.children?.first
-        XCTAssertEqual(timeRow?.children?.first?.text, "20:53")
+        XCTAssertEqual(timeRow?.children?.first?.text, String(format: "%02d:%02d", parts.hour!, parts.minute!))
         XCTAssertEqual(timeRow?.children?.first?.size, 44)
-        XCTAssertEqual(timeRow?.children?.last?.text, "26")
     }
 
     func testSystemMetersHealthColors() throws {
@@ -1207,14 +1200,9 @@ final class NativeWidgetsTests: XCTestCase {
     }
 
     func testCalendarGridHighlightsToday() throws {
-        let cells: [JSONValue] = Array(repeating: .number(0), count: 3)
-            + (1...31).map { JSONValue.number(Double($0)) }
+        // 2026-07-09 12:00 UTC; July 2026 starts on a Wednesday (3 blanks).
         let out = try WorkflowEngine.evaluate(
-            try def("calendar"),
-            sources: ["data": .object([
-                "today": .number(9), "month": .string("July"), "cells": .array(cells),
-            ])],
-            settings: .object([:])
+            try def("calendar"), sources: [:], settings: .object([:]), nowMs: 1_783_598_400_000
         )
         let grids = allNodes(ofType: "grid", in: out.viewTree)
         XCTAssertEqual(grids.count, 2)                 // weekday header + day cells
@@ -1231,10 +1219,10 @@ final class NativeWidgetsTests: XCTestCase {
     func testExchangeShowsRate() throws {
         let out = try WorkflowEngine.evaluate(
             try def("exchange"),
-            sources: ["data": .object(["rates": .object(["KRW": .number(1506.3)])])],
+            sources: ["data": .object(["result": .string("success"), "rates": .object(["KRW": .number(1506.3)])])],
             settings: .object([:])
         )
-        XCTAssertTrue(flat(out.viewTree).contains("₩1506"))
+        XCTAssertTrue(flat(out.viewTree).contains("₩1,506.30"), flat(out.viewTree))
     }
 
     func testNetworkShowsIP() throws {
@@ -1279,10 +1267,29 @@ final class NativeWidgetsTests: XCTestCase {
     func testNowPlayingShowsTrack() throws {
         let out = try WorkflowEngine.evaluate(
             try def("now-playing"),
-            sources: ["data": .object(["track": .string("Bohemian Rhapsody - Queen")])],
+            sources: ["data": .object([
+                "state": .string("playing"), "app": .string("Spotify"),
+                "title": .string("Bohemian \\ Rhapsody \"Live\""), "artist": .string("Queen"),
+            ])],
             settings: .object([:])
         )
-        XCTAssertTrue(flat(out.viewTree).contains("Bohemian Rhapsody - Queen"))
+        XCTAssertTrue(flat(out.viewTree).contains("Bohemian \\ Rhapsody \"Live\""))
+        XCTAssertTrue(flat(out.viewTree).contains("Queen"))
+        XCTAssertEqual(out.viewTree.action?.value, "com.spotify.client", "opens the app that is playing")
+        XCTAssertEqual(out.statusLabel, "Bohemian \\ Rhapsody \"Live\"")
+
+        let idle = try WorkflowEngine.evaluate(
+            try def("now-playing"), sources: ["data": .object(["state": .string("idle")])], settings: .object([:])
+        )
+        XCTAssertEqual(idle.viewTree.type, "empty")
+        XCTAssertEqual(idle.viewTree.title, "Nothing playing")
+        XCTAssertEqual(idle.statusLabel, "")
+
+        let denied = try WorkflowEngine.evaluate(
+            try def("now-playing"),
+            sources: ["data": .object(["state": .string("denied"), "app": .string("Music")])], settings: .object([:])
+        )
+        XCTAssertTrue(flat(denied.viewTree).contains("Allow BarShelf to read Music") || denied.viewTree.children?.first?.title == "Allow BarShelf to read Music")
     }
 
     func testRemindersShowsOpenCount() throws {

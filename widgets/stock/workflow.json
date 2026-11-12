@@ -1,41 +1,365 @@
 {
   "schemaVersion": 1,
   "kind": "workflow",
-  "_comment": "Stock quote over the Yahoo Finance chart API, which requires a User-Agent header — demonstrates the http source with custom headers and array-index paths (result.0.meta). Ticker via settings.",
-
+  "_comment": "Stock quote over the Yahoo Finance chart API, which requires a User-Agent header (array-index path result.0.meta). The source is optional: an unknown ticker (HTTP 404, or a result with no price) and being offline get their own states instead of a null price rendered as a number.",
   "sources": {
     "data": {
       "use": "http",
+      "optional": true,
       "with": {
         "url": "https://query1.finance.yahoo.com/v8/finance/chart/${settings.symbol}?interval=1d&range=1d",
-        "headers": { "User-Agent": "Mozilla/5.0" }
+        "headers": {
+          "User-Agent": "Mozilla/5.0"
+        }
       }
     }
   },
-
   "transforms": {
-    "m": { "use": "assign", "from": "$.sources.data.chart.result.0.meta" }
+    "ko": {
+      "use": "assign",
+      "from": "or(eq(coalesce(widget.locale, ''), 'ko'), or(eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko-…'), eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko_…')))"
+    },
+    "m": {
+      "use": "assign",
+      "from": "$.sources.data.chart.result.0.meta"
+    },
+    "price": {
+      "use": "assign",
+      "from": "number(transforms.m.regularMarketPrice)"
+    },
+    "prev": {
+      "use": "assign",
+      "from": "number(coalesce(transforms.m.chartPreviousClose, transforms.m.previousClose))"
+    },
+    "ok": {
+      "use": "assign",
+      "from": "ne(transforms.price, null)"
+    },
+    "ticker": {
+      "use": "assign",
+      "from": "coalesce(transforms.m.symbol, settings.symbol, '')"
+    },
+    "currency": {
+      "use": "assign",
+      "from": "coalesce(transforms.m.currency, '')"
+    },
+    "cents": {
+      "use": "assign",
+      "from": "round(mul(transforms.price, 100))"
+    },
+    "ip0": {
+      "use": "assign",
+      "from": "sub(round(add(div(transforms.cents, 100), 0.5)), 1)"
+    },
+    "dec": {
+      "use": "assign",
+      "from": "sub(transforms.cents, mul(transforms.ip0, 100))"
+    },
+    "ipI": {
+      "use": "assign",
+      "from": "round(transforms.ip0)"
+    },
+    "ipG3": {
+      "use": "assign",
+      "from": "sub(round(add(div(transforms.ipI, 1000000000), 0.5)), 1)"
+    },
+    "ipG2": {
+      "use": "assign",
+      "from": "sub(sub(round(add(div(transforms.ipI, 1000000), 0.5)), 1), mul(transforms.ipG3, 1000))"
+    },
+    "ipG1": {
+      "use": "assign",
+      "from": "sub(sub(round(add(div(transforms.ipI, 1000), 0.5)), 1), mul(sub(round(add(div(transforms.ipI, 1000000), 0.5)), 1), 1000))"
+    },
+    "ipG0": {
+      "use": "assign",
+      "from": "sub(transforms.ipI, mul(sub(round(add(div(transforms.ipI, 1000), 0.5)), 1), 1000))"
+    },
+    "ipText": {
+      "use": "assign",
+      "from": "if(gte(transforms.ipI, 1000000000), concat(string(transforms.ipG3), ',', concat(if(lt(transforms.ipG2, 10), '00', if(lt(transforms.ipG2, 100), '0', '')), string(transforms.ipG2)), ',', concat(if(lt(transforms.ipG1, 10), '00', if(lt(transforms.ipG1, 100), '0', '')), string(transforms.ipG1)), ',', concat(if(lt(transforms.ipG0, 10), '00', if(lt(transforms.ipG0, 100), '0', '')), string(transforms.ipG0))), if(gte(transforms.ipI, 1000000), concat(string(transforms.ipG2), ',', concat(if(lt(transforms.ipG1, 10), '00', if(lt(transforms.ipG1, 100), '0', '')), string(transforms.ipG1)), ',', concat(if(lt(transforms.ipG0, 10), '00', if(lt(transforms.ipG0, 100), '0', '')), string(transforms.ipG0))), if(gte(transforms.ipI, 1000), concat(string(transforms.ipG1), ',', concat(if(lt(transforms.ipG0, 10), '00', if(lt(transforms.ipG0, 100), '0', '')), string(transforms.ipG0))), string(transforms.ipI))))"
+    },
+    "priceText": {
+      "use": "assign",
+      "from": "concat(transforms.ipText, '.', concat(if(lt(transforms.dec, 10), '0', ''), string(transforms.dec)))"
+    },
+    "chg": {
+      "use": "assign",
+      "from": "if(or(eq(transforms.price, null), eq(transforms.prev, null)), null, round(sub(transforms.price, transforms.prev), 2))"
+    },
+    "pct": {
+      "use": "assign",
+      "from": "if(or(eq(transforms.chg, null), eq(transforms.prev, 0)), null, round(mul(div(sub(transforms.price, transforms.prev), transforms.prev), 100), 2))"
+    },
+    "dir": {
+      "use": "assign",
+      "from": "if(eq(transforms.chg, null), 'none', if(gt(transforms.chg, 0), 'up', if(lt(transforms.chg, 0), 'down', 'flat')))"
+    },
+    "tone": {
+      "use": "assign",
+      "from": "switch(transforms.dir, 'up', 'good', 'down', 'danger', 'secondary')"
+    },
+    "changeText": {
+      "use": "assign",
+      "from": "if(eq(transforms.chg, null), '', concat(switch(transforms.dir, 'up', '▲ ', 'down', '▼ ', ''), string(max(transforms.chg, mul(transforms.chg, -1))), if(eq(transforms.pct, null), '', concat(' (', if(gt(transforms.pct, 0), '+', ''), string(transforms.pct), '%)'))))"
+    },
+    "tip": {
+      "use": "assign",
+      "from": "if(transforms.ok, concat(transforms.ticker, ' ', transforms.priceText, ' ', transforms.currency, if(eq(transforms.changeText, ''), '', concat(' · ', transforms.changeText))), if(transforms.ko, concat(coalesce(settings.symbol, ''), ': 시세 없음'), concat(coalesce(settings.symbol, ''), ': no quote')))"
+    }
   },
-
   "view": {
-    "action": {"type": "openURL", "url": "https://finance.yahoo.com/quote/${settings.symbol}"},
-    "type": "vstack",
-    "spacing": 2,
-    "children": [
-      { "type": "text", "text": "${coalesce(transforms.m.symbol, settings.symbol)}", "role": "caption", "foreground": "secondary" },
-      { "type": "text", "text": "${string(round(number(transforms.m.regularMarketPrice), 2))}", "size": 32, "role": "title", "monospacedDigit": true },
-      {
-        "type": "text",
-        "text": "${if(gt(sub(number(transforms.m.regularMarketPrice), number(transforms.m.chartPreviousClose)), 0), '▲', '▼')} ${string(round(sub(number(transforms.m.regularMarketPrice), number(transforms.m.chartPreviousClose)), 2))}",
-        "role": "caption",
-        "monospacedDigit": true,
-        "foreground": "${if(gt(sub(number(transforms.m.regularMarketPrice), number(transforms.m.chartPreviousClose)), 0), 'good', 'danger')}"
+    "switch": "${if(eq(errors.data, null), if(transforms.ok, 'ok', 'notFound'), errors.data.kind)}",
+    "cases": {
+      "ok": {
+        "action": {
+          "type": "openURL",
+          "url": "https://finance.yahoo.com/quote/${transforms.ticker}"
+        },
+        "type": "vstack",
+        "spacing": 2,
+        "children": [
+          {
+            "type": "hstack",
+            "spacing": 4,
+            "children": [
+              {
+                "type": "text",
+                "text": "${transforms.ticker}",
+                "role": "caption",
+                "foreground": "secondary",
+                "lineLimit": 1
+              },
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "text",
+                "text": "${transforms.currency}",
+                "role": "caption",
+                "foreground": "tertiary"
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "text": "${transforms.priceText}",
+            "size": 32,
+            "role": "title",
+            "monospacedDigit": true,
+            "lineLimit": 1
+          },
+          {
+            "type": "text",
+            "text": "${transforms.changeText}",
+            "role": "caption",
+            "monospacedDigit": true,
+            "foreground": "${transforms.tone}",
+            "lineLimit": 1
+          }
+        ]
+      },
+      "offline": {
+        "type": "vstack",
+        "spacing": 6,
+        "children": [
+          {
+            "type": "empty",
+            "icon": "wifi.slash",
+            "title": "You’re offline",
+            "subtitle": "Connect to the internet, then try again."
+          },
+          {
+            "type": "text",
+            "text": "${errors.data.message}",
+            "role": "caption",
+            "foreground": "tertiary",
+            "lineLimit": 2,
+            "desktopRole": "hide"
+          },
+          {
+            "type": "hstack",
+            "children": [
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "button",
+                "title": "Try Again",
+                "icon": "arrow.clockwise",
+                "action": {
+                  "type": "refresh"
+                }
+              },
+              {
+                "type": "spacer"
+              }
+            ]
+          }
+        ]
+      },
+      "timeout": {
+        "type": "vstack",
+        "spacing": 6,
+        "children": [
+          {
+            "type": "empty",
+            "icon": "hourglass",
+            "title": "Yahoo Finance didn’t answer in time",
+            "subtitle": "It may be busy. Try again in a moment."
+          },
+          {
+            "type": "text",
+            "text": "${errors.data.message}",
+            "role": "caption",
+            "foreground": "tertiary",
+            "lineLimit": 2,
+            "desktopRole": "hide"
+          },
+          {
+            "type": "hstack",
+            "children": [
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "button",
+                "title": "Try Again",
+                "icon": "arrow.clockwise",
+                "action": {
+                  "type": "refresh"
+                }
+              },
+              {
+                "type": "spacer"
+              }
+            ]
+          }
+        ]
+      },
+      "rateLimited": {
+        "type": "vstack",
+        "spacing": 6,
+        "children": [
+          {
+            "type": "empty",
+            "icon": "tortoise",
+            "title": "Yahoo Finance is limiting requests",
+            "subtitle": "The free service allows only so many. It refreshes again on its own."
+          },
+          {
+            "type": "text",
+            "text": "${errors.data.message}",
+            "role": "caption",
+            "foreground": "tertiary",
+            "lineLimit": 2,
+            "desktopRole": "hide"
+          },
+          {
+            "type": "hstack",
+            "children": [
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "button",
+                "title": "Try Again",
+                "icon": "arrow.clockwise",
+                "action": {
+                  "type": "refresh"
+                }
+              },
+              {
+                "type": "spacer"
+              }
+            ]
+          }
+        ]
+      },
+      "notFound": {
+        "type": "vstack",
+        "spacing": 6,
+        "children": [
+          {
+            "type": "empty",
+            "icon": "questionmark.circle",
+            "title": "No quote for this ticker",
+            "subtitle": "Check the ticker in this widget’s settings (⋯ ▸ Settings). Yahoo Finance symbols look like AAPL or 005930.KS."
+          },
+          {
+            "type": "text",
+            "text": "${errors.data.message}",
+            "role": "caption",
+            "foreground": "tertiary",
+            "lineLimit": 2,
+            "desktopRole": "hide"
+          },
+          {
+            "type": "hstack",
+            "children": [
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "button",
+                "title": "Try Again",
+                "icon": "arrow.clockwise",
+                "action": {
+                  "type": "refresh"
+                }
+              },
+              {
+                "type": "spacer"
+              }
+            ]
+          }
+        ]
       }
-    ]
+    },
+    "default": {
+      "type": "vstack",
+      "spacing": 6,
+      "children": [
+        {
+          "type": "empty",
+          "icon": "exclamationmark.icloud",
+          "title": "Yahoo Finance is unavailable",
+          "subtitle": "Try again in a moment."
+        },
+        {
+          "type": "text",
+          "text": "${errors.data.message}",
+          "role": "caption",
+          "foreground": "tertiary",
+          "lineLimit": 2,
+          "desktopRole": "hide"
+        },
+        {
+          "type": "hstack",
+          "children": [
+            {
+              "type": "spacer"
+            },
+            {
+              "type": "button",
+              "title": "Try Again",
+              "icon": "arrow.clockwise",
+              "action": {
+                "type": "refresh"
+              }
+            },
+            {
+              "type": "spacer"
+            }
+          ]
+        }
+      ]
+    }
   },
-
   "status": {
-    "label": "${string(round(number(transforms.m.regularMarketPrice), 2))}",
-    "tooltip": "${coalesce(transforms.m.symbol, settings.symbol)}: ${string(transforms.m.regularMarketPrice)}"
+    "prefix": "${if(transforms.ok, transforms.ticker, '')}",
+    "label": "${if(transforms.ok, transforms.priceText, '')}",
+    "tint": "${if(transforms.ok, switch(transforms.dir, 'up', 'good', 'down', 'danger', ''), '')}",
+    "tooltip": "${transforms.tip}"
   }
 }

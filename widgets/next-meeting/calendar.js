@@ -66,17 +66,19 @@ function run(argv) {
     const calendar = calendars[calendarIndex];
     let events = [];
 
+    // Events that have not ended yet: a meeting in progress stays (with its
+    // Join link) until it is over, instead of vanishing when it starts.
     try {
       events = calendar.events.whose({
         _and: [
-          { startDate: { _greaterThan: now } },
+          { endDate: { _greaterThan: now } },
           { startDate: { _lessThan: horizon } },
         ],
       })();
     } catch (_) {
       // Older Calendar versions can reject compound object specifiers. The
       // one-sided fallback is still bounded below and is filtered in JS.
-      events = calendar.events.whose({ startDate: { _greaterThan: now } })();
+      events = calendar.events.whose({ endDate: { _greaterThan: now } })();
     }
 
     for (let eventIndex = 0; eventIndex < events.length; eventIndex += 1) {
@@ -91,7 +93,8 @@ function run(argv) {
       }
 
       if (
-        !Number.isFinite(start.getTime()) || start <= now || start > horizon
+        !Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) ||
+        end <= now || start > horizon
       ) continue;
       const allDay = booleanProperty(event, "alldayEvent");
       if (allDay && !includeAllDay) continue;

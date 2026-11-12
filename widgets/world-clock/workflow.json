@@ -1,74 +1,21 @@
 {
   "schemaVersion": 1,
   "kind": "workflow",
-  "_comment": "World clock: one /bin/date per city through /usr/bin/env TZ=<zone> (the expression DSL has no time zones). Day offset compares each city's date with the local one; the hour difference comes from %z.",
+  "_comment": "World clock: one /bin/sh per refresh runs /bin/date once for the local zone and once per filled-in city (TZ=<zone>; the expression DSL has no time zones). A zone that /usr/share/zoneinfo does not know comes back {invalid:true} instead of silently reading as UTC. Day offset compares each city's date with the local one; the hour difference comes from %z.",
   "sources": {
-    "local": {
-      "use": "exec",
-      "with": {
-        "command": [
-          "/bin/date",
-          "+{\"time\":\"%H:%M\",\"hour\":1%H,\"ymd\":%Y%m%d,\"wd\":%u,\"abbr\":\"%Z\",\"off\":\"%z\"}"
-        ]
-      }
-    },
-    "z1": {
+    "clock": {
       "use": "exec",
       "with": {
         "command": [
           "/bin/sh",
           "-c",
-          "TZ=\"$1\"; export TZ; exec /bin/date '+{\"time\":\"%H:%M\",\"hour\":1%H,\"ymd\":%Y%m%d,\"wd\":%u,\"abbr\":\"%Z\",\"off\":\"%z\"}'",
+          "f='{\"time\":\"%H:%M\",\"hour\":1%H,\"ymd\":%Y%m%d,\"wd\":%u,\"off\":\"%z\"}'; printf '{\"local\":%s' \"$(/bin/date \"+$f\")\"; i=0; for z in \"$@\"; do i=$((i+1)); if [ -z \"$z\" ]; then printf ',\"z%d\":null' \"$i\"; elif [ -f \"/usr/share/zoneinfo/$z\" ]; then printf ',\"z%d\":%s' \"$i\" \"$(TZ=\"$z\" /bin/date \"+$f\")\"; else printf ',\"z%d\":{\"invalid\":true}' \"$i\"; fi; done; echo '}'",
           "world-clock",
-          "${coalesce(settings.zone1, 'UTC')}"
-        ]
-      }
-    },
-    "z2": {
-      "use": "exec",
-      "with": {
-        "command": [
-          "/bin/sh",
-          "-c",
-          "TZ=\"$1\"; export TZ; exec /bin/date '+{\"time\":\"%H:%M\",\"hour\":1%H,\"ymd\":%Y%m%d,\"wd\":%u,\"abbr\":\"%Z\",\"off\":\"%z\"}'",
-          "world-clock",
-          "${coalesce(settings.zone2, 'UTC')}"
-        ]
-      }
-    },
-    "z3": {
-      "use": "exec",
-      "with": {
-        "command": [
-          "/bin/sh",
-          "-c",
-          "TZ=\"$1\"; export TZ; exec /bin/date '+{\"time\":\"%H:%M\",\"hour\":1%H,\"ymd\":%Y%m%d,\"wd\":%u,\"abbr\":\"%Z\",\"off\":\"%z\"}'",
-          "world-clock",
-          "${coalesce(settings.zone3, 'UTC')}"
-        ]
-      }
-    },
-    "z4": {
-      "use": "exec",
-      "with": {
-        "command": [
-          "/bin/sh",
-          "-c",
-          "TZ=\"$1\"; export TZ; exec /bin/date '+{\"time\":\"%H:%M\",\"hour\":1%H,\"ymd\":%Y%m%d,\"wd\":%u,\"abbr\":\"%Z\",\"off\":\"%z\"}'",
-          "world-clock",
-          "${coalesce(settings.zone4, 'UTC')}"
-        ]
-      }
-    },
-    "z5": {
-      "use": "exec",
-      "with": {
-        "command": [
-          "/bin/sh",
-          "-c",
-          "TZ=\"$1\"; export TZ; exec /bin/date '+{\"time\":\"%H:%M\",\"hour\":1%H,\"ymd\":%Y%m%d,\"wd\":%u,\"abbr\":\"%Z\",\"off\":\"%z\"}'",
-          "world-clock",
-          "${coalesce(settings.zone5, 'UTC')}"
+          "${string(settings.zone1)}",
+          "${string(settings.zone2)}",
+          "${string(settings.zone3)}",
+          "${string(settings.zone4)}",
+          "${string(settings.zone5)}"
         ]
       }
     }
@@ -86,35 +33,35 @@
           "label": "${coalesce(settings.label1, settings.zone1, '')}",
           "zone": "${coalesce(settings.zone1, '')}",
           "on": "${ne(coalesce(settings.zone1), null)}",
-          "d": "${sources.z1}"
+          "d": "${sources.clock.z1}"
         },
         {
           "n": 2,
           "label": "${coalesce(settings.label2, settings.zone2, '')}",
           "zone": "${coalesce(settings.zone2, '')}",
           "on": "${ne(coalesce(settings.zone2), null)}",
-          "d": "${sources.z2}"
+          "d": "${sources.clock.z2}"
         },
         {
           "n": 3,
           "label": "${coalesce(settings.label3, settings.zone3, '')}",
           "zone": "${coalesce(settings.zone3, '')}",
           "on": "${ne(coalesce(settings.zone3), null)}",
-          "d": "${sources.z3}"
+          "d": "${sources.clock.z3}"
         },
         {
           "n": 4,
           "label": "${coalesce(settings.label4, settings.zone4, '')}",
           "zone": "${coalesce(settings.zone4, '')}",
           "on": "${ne(coalesce(settings.zone4), null)}",
-          "d": "${sources.z4}"
+          "d": "${sources.clock.z4}"
         },
         {
           "n": 5,
           "label": "${coalesce(settings.label5, settings.zone5, '')}",
           "zone": "${coalesce(settings.zone5, '')}",
           "on": "${ne(coalesce(settings.zone5), null)}",
-          "d": "${sources.z5}"
+          "d": "${sources.clock.z5}"
         }
       ]
     },
@@ -128,7 +75,7 @@
     },
     "localMins": {
       "use": "assign",
-      "from": "mul(if(lt(number(sources.local.off), 0), -1, 1), add(mul(round(sub(div(max(number(sources.local.off), mul(number(sources.local.off), -1)), 100), 0.4999)), 60), sub(max(number(sources.local.off), mul(number(sources.local.off), -1)), mul(round(sub(div(max(number(sources.local.off), mul(number(sources.local.off), -1)), 100), 0.4999)), 100))))"
+      "from": "mul(if(lt(number(sources.clock.local.off), 0), -1, 1), add(mul(round(sub(div(max(number(sources.clock.local.off), mul(number(sources.clock.local.off), -1)), 100), 0.4999)), 60), sub(max(number(sources.clock.local.off), mul(number(sources.clock.local.off), -1)), mul(round(sub(div(max(number(sources.clock.local.off), mul(number(sources.clock.local.off), -1)), 100), 0.4999)), 100))))"
     },
     "calc": {
       "use": "template",
@@ -141,9 +88,9 @@
           "zone": "${c.zone}",
           "time": "${c.d.time}",
           "hour": "${sub(c.d.hour, 100)}",
-          "valid": "${or(ne(c.d.abbr, 'UTC'), contains(string(c.zone), 'UTC'))}",
+          "valid": "${and(ne(c.d, null), ne(c.d.invalid, true))}",
           "work": "${and(lte(c.d.wd, 5), gte(sub(c.d.hour, 100), settings.workStart), lt(sub(c.d.hour, 100), settings.workEnd))}",
-          "day": "${if(gt(c.d.ymd, sources.local.ymd), 1, if(lt(c.d.ymd, sources.local.ymd), -1, 0))}",
+          "day": "${if(gt(c.d.ymd, sources.clock.local.ymd), 1, if(lt(c.d.ymd, sources.clock.local.ymd), -1, 0))}",
           "diff": "${round(div(sub(mul(if(lt(number(c.d.off), 0), -1, 1), add(mul(round(sub(div(max(number(c.d.off), mul(number(c.d.off), -1)), 100), 0.4999)), 60), sub(max(number(c.d.off), mul(number(c.d.off), -1)), mul(round(sub(div(max(number(c.d.off), mul(number(c.d.off), -1)), 100), 0.4999)), 100)))), transforms.localMins), 60), 2)}"
         }
       }
@@ -156,17 +103,37 @@
         "template": {
           "id": "city-${string(r.n)}",
           "label": "${r.label}",
-          "time": "${r.time}",
-          "tone": "${if(r.work, 'primary', 'tertiary')}",
-          "icon": "${if(and(gte(r.hour, 6), lt(r.hour, 18)), 'sun.max.fill', 'moon.fill')}",
-          "iconTint": "${if(and(gte(r.hour, 6), lt(r.hour, 18)), 'warning', 'secondary')}",
+          "time": "${if(r.valid, r.time, '—')}",
+          "tone": "${if(r.valid, if(r.work, 'primary', 'tertiary'), 'warning')}",
+          "icon": "${if(r.valid, if(and(gte(r.hour, 6), lt(r.hour, 18)), 'sun.max.fill', 'moon.fill'), 'exclamationmark.triangle.fill')}",
+          "iconTint": "${if(r.valid, if(and(gte(r.hour, 6), lt(r.hour, 18)), 'warning', 'secondary'), 'warning')}",
           "detail": "${if(r.valid, concat(if(transforms.ko, switch(r.day, 1, '내일', -1, '어제', '오늘'), switch(r.day, 1, 'Tomorrow', -1, 'Yesterday', 'Today')), ' · ', if(eq(r.diff, 0), if(transforms.ko, '같은 시각', 'Same time'), concat(if(gt(r.diff, 0), '+', ''), string(r.diff), if(transforms.ko, '시간', 'h')))), if(transforms.ko, concat('알 수 없는 시간대: ', r.zone), concat('Unknown time zone: ', r.zone)))}"
         }
       }
     },
     "menu": {
       "use": "assign",
-      "from": "get(transforms.slots, sub(number(coalesce(settings.menuBarCity, '2')), 1))"
+      "from": "coalesce(get(transforms.menuPick, 0), get(transforms.calc, 0))"
+    },
+    "bad": {
+      "use": "filter",
+      "from": "$.transforms.calc",
+      "with": {
+        "field": "valid",
+        "equals": false
+      }
+    },
+    "badCount": {
+      "use": "assign",
+      "from": "count(transforms.bad)"
+    },
+    "menuPick": {
+      "use": "filter",
+      "from": "$.transforms.calc",
+      "with": {
+        "field": "n",
+        "equals": "${number(coalesce(settings.menuBarCity, '2'))}"
+      }
     }
   },
   "view": {
@@ -231,8 +198,22 @@
         }
       },
       {
+        "switch": "${gt(transforms.badCount, 0)}",
+        "cases": {
+          "true": {
+            "type": "banner",
+            "icon": "exclamationmark.triangle",
+            "tone": "warning",
+            "text": "${string(transforms.badCount)} time zone name not recognized. Use an IANA name such as Europe/Paris."
+          }
+        },
+        "default": {
+          "type": "none"
+        }
+      },
+      {
         "type": "text",
-        "text": "Dimmed: outside ${string(settings.workStart)}:00–${string(settings.workEnd)}:00 or a weekend",
+        "text": "Dimmed outside working hours (${string(settings.workStart)}:00–${string(settings.workEnd)}:00) and on weekends",
         "role": "caption",
         "foreground": "tertiary",
         "lineLimit": 1,
@@ -247,8 +228,8 @@
     "subtitle": "Add a city and an IANA time zone such as Asia/Seoul in widget settings."
   },
   "status": {
-    "prefix": "${if(eq(coalesce(transforms.menu.zone, ''), ''), '', transforms.menu.label)}",
-    "label": "${if(eq(coalesce(transforms.menu.zone, ''), ''), '', transforms.menu.d.time)}",
-    "tooltip": "${transforms.menu.label} ${transforms.menu.d.time} (${transforms.menu.zone})"
+    "prefix": "${if(and(ne(transforms.menu, null), transforms.menu.valid), transforms.menu.label, '')}",
+    "label": "${if(and(ne(transforms.menu, null), transforms.menu.valid), transforms.menu.time, '')}",
+    "tooltip": "${if(eq(transforms.menu, null), '', concat(transforms.menu.label, ' ', transforms.menu.time, ' (', transforms.menu.zone, ')'))}"
   }
 }

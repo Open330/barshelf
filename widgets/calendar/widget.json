@@ -3,29 +3,28 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.calendar",
   "name": "Calendar",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "icon": "calendar",
-  "bucket": { "group": "Demo", "order": 13, "size": "M" },
-
-  "entry": { "kind": "workflow", "main": "workflow.json" },
-
-  "refresh": { "onOpen": true, "interval": null, "staleAfterSec": 3600 },
-
-  "permissions": {
-    "exec": [
-      {
-        "command": "/bin/sh",
-        "allowedArgs": [["-c", "y=$(/bin/date +%Y); mm=$(/bin/date +%m); mnum=$(/bin/date +%-m); today=$(/bin/date +%-d); first=$(/bin/date -j -f \"%Y-%m-%d\" \"$y-$mm-01\" +%w); [ -z \"$first\" ] && first=0; dim=$(/usr/bin/cal $mnum $y | /usr/bin/awk 'NF>0{d=$NF} END{print d}'); [ -z \"$dim\" ] && dim=30; cells=\"\"; i=0; while [ $i -lt $first ]; do cells=\"$cells\"0,; i=$((i+1)); done; d=1; while [ $d -le $dim ]; do cells=\"$cells$d,\"; d=$((d+1)); done; cells=$(printf '%s' \"$cells\" | /usr/bin/sed 's/,$//'); echo '{\"today\":'$today',\"month\":\"'$(/bin/date +%B)'\",\"cells\":['$cells']}'"]],
-        "maxOutputBytes": 8192,
-        "sensitiveOutput": false
-      }
+  "bucket": {
+    "group": "Everyday",
+    "order": 13,
+    "size": "M"
+  },
+  "entry": {
+    "kind": "workflow",
+    "main": "workflow.json"
+  },
+  "refresh": {
+    "onOpen": true,
+    "interval": 3600,
+    "staleAfterSec": 3600,
+    "triggers": [
+      "wake"
     ]
   },
-
   "appearance": {
     "accent": "red"
   },
-
   "localizations": {
     "ko": {
       "Calendar": "달력",
@@ -35,8 +34,12 @@
       "We": "수",
       "Th": "목",
       "Fr": "금",
-      "Sa": "토",
-      "${sources.data.month} ${string(sources.data.today)}": "${sources.data.month} ${string(sources.data.today)}일"
+      "Sa": "토"
     }
-  }
+  },
+  "statusItem": {
+    "mode": "icon",
+    "icon": "calendar"
+  },
+  "minHostVersion": "0.7.17"
 }

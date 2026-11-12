@@ -71,7 +71,7 @@
     }
   },
   "status": {
-    "label": "${if(transforms.has, transforms.note, '—')}",
+    "label": "${if(transforms.has, transforms.note, '')}",
     "tooltip": "${if(transforms.has, transforms.note, '')}"
   }
 }

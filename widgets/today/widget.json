@@ -3,34 +3,36 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.today",
   "name": "Today",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "icon": "calendar",
-  "bucket": { "group": "Demo", "order": 10, "size": "M" },
-
-  "entry": { "kind": "workflow", "main": "workflow.json" },
-
-  "refresh": { "onOpen": true, "interval": 60, "staleAfterSec": 60 },
-
-  "permissions": {
-    "exec": [
-      {
-        "command": "/bin/date",
-        "allowedArgs": [["+{\"weekday\":\"%A\",\"month\":\"%b\",\"day\":\"%d\",\"time\":\"%H:%M\",\"year\":\"%Y\"}"]],
-        "maxOutputBytes": 4096,
-        "sensitiveOutput": false
-      }
+  "bucket": {
+    "group": "Everyday",
+    "order": 10,
+    "size": "M"
+  },
+  "entry": {
+    "kind": "workflow",
+    "main": "workflow.json"
+  },
+  "refresh": {
+    "onOpen": true,
+    "interval": 60,
+    "staleAfterSec": 60,
+    "triggers": [
+      "wake"
     ]
   },
-
   "appearance": {
     "accent": "red"
   },
-
   "localizations": {
     "ko": {
-      "Today": "오늘",
-      "${sources.data.month} ${sources.data.year}": "${sources.data.year}년 ${sources.data.month}",
-      "${sources.data.weekday}, ${sources.data.month} ${sources.data.day}": "${sources.data.month} ${sources.data.day}일 ${sources.data.weekday}"
+      "Today": "오늘"
     }
-  }
+  },
+  "statusItem": {
+    "mode": "text",
+    "icon": "calendar"
+  },
+  "minHostVersion": "0.7.17"
 }

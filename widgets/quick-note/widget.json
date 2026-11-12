@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.quick-note",
   "name": "Quick Note",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "minHostVersion": "0.7.21",
   "icon": "note.text",
   "bucket": {

@@ -1,110 +1,252 @@
 {
   "schemaVersion": 1,
   "kind": "workflow",
-  "_comment": "Permission-free launcher. Host openApp/openFile/openURL actions only run after an explicit click.",
-
+  "_comment": "Permission-free launcher. Host openApp/openFile/openURL actions only run after an explicit click. Rows whose setting is cleared are left out. Icons are SF Symbols: a fileIcon image would need permissions.readPaths for every app and folder, which a permission-free starter should not ask for.",
   "sources": {},
-
   "view": {
-    "type": "vstack",
-    "spacing": 8,
-    "children": [
+    "type": "list",
+    "spacing": 4,
+    "searchPlaceholder": "Find a shortcut",
+    "items": [
       {
         "type": "hstack",
-        "spacing": 6,
+        "id": "quick-finder",
+        "spacing": 8,
+        "padding": 7,
+        "action": {
+          "type": "openApp",
+          "value": "com.apple.finder"
+        },
         "children": [
-          { "type": "spacer" },
-          { "type": "badge", "text": "6 shortcuts", "tone": "accent" }
+          {
+            "type": "image",
+            "source": {
+              "kind": "sfSymbol",
+              "name": "macwindow"
+            },
+            "size": 18,
+            "tint": "accent"
+          },
+          {
+            "type": "text",
+            "text": "Finder",
+            "role": "body"
+          },
+          {
+            "type": "spacer"
+          },
+          {
+            "type": "text",
+            "text": "App",
+            "role": "caption",
+            "foreground": "tertiary"
+          }
         ]
       },
       {
-        "type": "list",
-        "spacing": 4,
-        "searchPlaceholder": "Find a shortcut",
-        "items": [
+        "type": "hstack",
+        "id": "quick-calendar",
+        "spacing": 8,
+        "padding": 7,
+        "action": {
+          "type": "openApp",
+          "value": "com.apple.iCal"
+        },
+        "children": [
           {
-            "type": "hstack",
-            "id": "quick-finder",
-            "spacing": 8,
-            "padding": 7,
-            "action": { "type": "openApp", "value": "com.apple.finder" },
-            "children": [
-              { "type": "image", "source": { "kind": "sfSymbol", "name": "face.smiling" }, "size": 18, "tint": "accent" },
-              { "type": "text", "text": "Finder", "role": "body" },
-              { "type": "spacer" },
-              { "type": "text", "text": "App", "role": "caption", "foreground": "tertiary" }
-            ]
+            "type": "image",
+            "source": {
+              "kind": "sfSymbol",
+              "name": "calendar"
+            },
+            "size": 18,
+            "tint": "accent"
           },
           {
-            "type": "hstack",
-            "id": "quick-calendar",
-            "spacing": 8,
-            "padding": 7,
-            "action": { "type": "openApp", "value": "com.apple.iCal" },
-            "children": [
-              { "type": "image", "source": { "kind": "sfSymbol", "name": "calendar" }, "size": 18, "tint": "accent" },
-              { "type": "text", "text": "Calendar", "role": "body" },
-              { "type": "spacer" },
-              { "type": "text", "text": "App", "role": "caption", "foreground": "tertiary" }
-            ]
+            "type": "text",
+            "text": "Calendar",
+            "role": "body"
           },
           {
+            "type": "spacer"
+          },
+          {
+            "type": "text",
+            "text": "App",
+            "role": "caption",
+            "foreground": "tertiary"
+          }
+        ]
+      },
+      {
+        "switch": "${and(ne(coalesce(settings.appIdentifier), null), ne(coalesce(settings.appName), null))}",
+        "cases": {
+          "true": {
             "type": "hstack",
             "id": "quick-custom-app",
             "spacing": 8,
             "padding": 7,
-            "action": { "type": "openApp", "value": "${settings.appIdentifier}" },
+            "action": {
+              "type": "openApp",
+              "value": "${settings.appIdentifier}"
+            },
             "children": [
-              { "type": "image", "source": { "kind": "sfSymbol", "name": "app.fill" }, "size": 18, "tint": "accent" },
-              { "type": "text", "text": "${settings.appName}", "role": "body", "lineLimit": 1 },
-              { "type": "spacer" },
-              { "type": "text", "text": "Favorite app", "role": "caption", "foreground": "tertiary" }
+              {
+                "type": "image",
+                "source": {
+                  "kind": "sfSymbol",
+                  "name": "star.square.fill"
+                },
+                "size": 18,
+                "tint": "accent"
+              },
+              {
+                "type": "text",
+                "text": "${settings.appName}",
+                "role": "body",
+                "lineLimit": 1
+              },
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "text",
+                "text": "Favorite app",
+                "role": "caption",
+                "foreground": "tertiary"
+              }
             ]
-          },
-          {
+          }
+        },
+        "default": {
+          "type": "none"
+        }
+      },
+      {
+        "switch": "${and(ne(coalesce(settings.folderPath), null), ne(coalesce(settings.folderName), null))}",
+        "cases": {
+          "true": {
             "type": "hstack",
             "id": "quick-custom-folder",
             "spacing": 8,
             "padding": 7,
-            "action": { "type": "openFile", "path": "${settings.folderPath}" },
+            "action": {
+              "type": "openFile",
+              "path": "${settings.folderPath}"
+            },
             "children": [
-              { "type": "image", "source": { "kind": "sfSymbol", "name": "folder.fill" }, "size": 18, "tint": "accent" },
-              { "type": "text", "text": "${settings.folderName}", "role": "body", "lineLimit": 1 },
-              { "type": "spacer" },
-              { "type": "text", "text": "Folder", "role": "caption", "foreground": "tertiary" }
+              {
+                "type": "image",
+                "source": {
+                  "kind": "sfSymbol",
+                  "name": "folder.fill"
+                },
+                "size": 18,
+                "tint": "accent"
+              },
+              {
+                "type": "text",
+                "text": "${settings.folderName}",
+                "role": "body",
+                "lineLimit": 1
+              },
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "text",
+                "text": "Folder",
+                "role": "caption",
+                "foreground": "tertiary"
+              }
             ]
+          }
+        },
+        "default": {
+          "type": "none"
+        }
+      },
+      {
+        "type": "hstack",
+        "id": "quick-applications",
+        "spacing": 8,
+        "padding": 7,
+        "action": {
+          "type": "openFile",
+          "path": "/Applications"
+        },
+        "children": [
+          {
+            "type": "image",
+            "source": {
+              "kind": "sfSymbol",
+              "name": "square.grid.3x3.fill"
+            },
+            "size": 18,
+            "tint": "accent"
           },
           {
-            "type": "hstack",
-            "id": "quick-applications",
-            "spacing": 8,
-            "padding": 7,
-            "action": { "type": "openFile", "path": "/Applications" },
-            "children": [
-              { "type": "image", "source": { "kind": "sfSymbol", "name": "square.grid.3x3.fill" }, "size": 18, "tint": "accent" },
-              { "type": "text", "text": "Applications", "role": "body" },
-              { "type": "spacer" },
-              { "type": "text", "text": "Folder", "role": "caption", "foreground": "tertiary" }
-            ]
+            "type": "text",
+            "text": "Applications",
+            "role": "body"
           },
           {
+            "type": "spacer"
+          },
+          {
+            "type": "text",
+            "text": "Folder",
+            "role": "caption",
+            "foreground": "tertiary"
+          }
+        ]
+      },
+      {
+        "switch": "${and(ne(coalesce(settings.siteURL), null), ne(coalesce(settings.siteName), null))}",
+        "cases": {
+          "true": {
             "type": "hstack",
             "id": "quick-custom-site",
             "spacing": 8,
             "padding": 7,
-            "action": { "type": "openURL", "url": "${settings.siteURL}" },
+            "action": {
+              "type": "openURL",
+              "url": "${settings.siteURL}"
+            },
             "children": [
-              { "type": "image", "source": { "kind": "sfSymbol", "name": "globe" }, "size": 18, "tint": "accent" },
-              { "type": "text", "text": "${settings.siteName}", "role": "body", "lineLimit": 1 },
-              { "type": "spacer" },
-              { "type": "text", "text": "Website", "role": "caption", "foreground": "tertiary" }
+              {
+                "type": "image",
+                "source": {
+                  "kind": "sfSymbol",
+                  "name": "globe"
+                },
+                "size": 18,
+                "tint": "accent"
+              },
+              {
+                "type": "text",
+                "text": "${settings.siteName}",
+                "role": "body",
+                "lineLimit": 1
+              },
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "text",
+                "text": "Website",
+                "role": "caption",
+                "foreground": "tertiary"
+              }
             ]
           }
-        ]
+        },
+        "default": {
+          "type": "none"
+        }
       }
     ]
   },
-
   "status": {
     "tooltip": "Open apps, folders, and websites"
   }

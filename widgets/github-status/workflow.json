@@ -1,56 +1,327 @@
 {
   "schemaVersion": 1,
   "kind": "workflow",
-
+  "_comment": "GitHub's status page (Statuspage /api/v2/summary.json, same host): the overall indicator, its description, and every unresolved incident. The menu bar is tinted only during an incident. The incident alert is opt-in. The source is optional, so being offline has its own state.",
   "sources": {
     "github": {
       "use": "http",
+      "optional": true,
       "with": {
-        "url": "https://www.githubstatus.com/api/v2/status.json"
+        "url": "https://www.githubstatus.com/api/v2/summary.json"
       }
     }
   },
-
   "transforms": {
-    "ko": { "use": "assign", "from": "or(eq(coalesce(widget.locale, ''), 'ko'), or(eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko-…'), eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko_…')))" },
-    "status": { "use": "assign", "from": "$.sources.github.status" },
-    "page": { "use": "assign", "from": "$.sources.github.page" },
-    "label": { "use": "assign", "from": "if(transforms.ko, if(eq(transforms.status.indicator,'none'),'정상',if(eq(transforms.status.indicator,'minor'),'경미',if(eq(transforms.status.indicator,'major'),'주요 장애',if(eq(transforms.status.indicator,'critical'),'심각',coalesce(transforms.status.indicator,'알 수 없음'))))), if(eq(transforms.status.indicator,'none'),'OK',if(eq(transforms.status.indicator,'minor'),'Minor',if(eq(transforms.status.indicator,'major'),'Major',if(eq(transforms.status.indicator,'critical'),'Critical',coalesce(transforms.status.indicator,'Unknown'))))))" },
-    "tone": { "use": "assign", "from": "if(eq(transforms.status.indicator,'none'),'good',if(eq(transforms.status.indicator,'minor'),'warning',if(or(eq(transforms.status.indicator,'major'),eq(transforms.status.indicator,'critical')),'danger','secondary')))" }
+    "ko": {
+      "use": "assign",
+      "from": "or(eq(coalesce(widget.locale, ''), 'ko'), or(eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko-…'), eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko_…')))"
+    },
+    "status": {
+      "use": "assign",
+      "from": "$.sources.github.status"
+    },
+    "page": {
+      "use": "assign",
+      "from": "$.sources.github.page"
+    },
+    "label": {
+      "use": "assign",
+      "from": "if(transforms.ko, if(eq(transforms.status.indicator,'none'),'정상',if(eq(transforms.status.indicator,'minor'),'경미',if(eq(transforms.status.indicator,'major'),'주요 장애',if(eq(transforms.status.indicator,'critical'),'심각',coalesce(transforms.status.indicator,'알 수 없음'))))), if(eq(transforms.status.indicator,'none'),'OK',if(eq(transforms.status.indicator,'minor'),'Minor',if(eq(transforms.status.indicator,'major'),'Major',if(eq(transforms.status.indicator,'critical'),'Critical',coalesce(transforms.status.indicator,'Unknown'))))))"
+    },
+    "tone": {
+      "use": "assign",
+      "from": "if(eq(transforms.status.indicator,'none'),'good',if(eq(transforms.status.indicator,'minor'),'warning',if(or(eq(transforms.status.indicator,'major'),eq(transforms.status.indicator,'critical')),'danger','secondary')))"
+    },
+    "icon": {
+      "use": "assign",
+      "from": "if(eq(transforms.status.indicator,'none'),'checkmark.seal.fill',if(eq(transforms.status.indicator,'minor'),'exclamationmark.triangle.fill',if(or(eq(transforms.status.indicator,'major'),eq(transforms.status.indicator,'critical')),'xmark.octagon.fill','questionmark.circle')))"
+    },
+    "incidents": {
+      "use": "template",
+      "with": {
+        "forEach": "$.sources.github.incidents",
+        "as": "i",
+        "template": {
+          "id": "incident-${i.id}",
+          "name": "${coalesce(i.name, '')}",
+          "url": "${coalesce(i.shortlink, 'https://www.githubstatus.com')}",
+          "tone": "${switch(i.impact, 'critical', 'danger', 'major', 'danger', 'minor', 'warning', 'secondary')}",
+          "detail": "${concat(if(transforms.ko, switch(i.status, 'investigating', '조사 중', 'identified', '원인 파악', 'monitoring', '모니터링 중', coalesce(i.status, '')), switch(i.status, 'investigating', 'Investigating', 'identified', 'Identified', 'monitoring', 'Monitoring', coalesce(i.status, ''))), ' · ', date.relative(date.ms(i.updated_at)))}"
+        }
+      }
+    },
+    "firstIncident": {
+      "use": "assign",
+      "from": "get(transforms.incidents, 0)"
+    },
+    "tip": {
+      "use": "assign",
+      "from": "if(eq(errors.github, null), concat(if(transforms.ko, 'GitHub 상태: ', 'GitHub status: '), coalesce(transforms.status.description, '')), if(transforms.ko, 'GitHub 상태를 불러오지 못함', 'GitHub status unavailable'))"
+    }
   },
-
   "view": {
-    "action": {"type": "openURL", "url": "https://www.githubstatus.com"},
-    "type": "vstack",
-    "spacing": 8,
-    "padding": 10,
-    "children": [
-      {
-        "type": "hstack",
+    "switch": "${if(eq(errors.github, null), 'ok', errors.github.kind)}",
+    "cases": {
+      "ok": {
+        "type": "vstack",
         "spacing": 8,
+        "padding": 10,
         "children": [
-          { "type": "spacer" },
-          { "type": "badge", "text": "${transforms.label}", "tint": "${transforms.tone}" }
+          {
+            "type": "hstack",
+            "spacing": 8,
+            "action": {
+              "type": "openURL",
+              "url": "https://www.githubstatus.com"
+            },
+            "children": [
+              {
+                "type": "image",
+                "source": {
+                  "kind": "sfSymbol",
+                  "name": "${transforms.icon}"
+                },
+                "size": 16,
+                "tint": "${transforms.tone}"
+              },
+              {
+                "type": "text",
+                "text": "${transforms.status.description}",
+                "role": "body",
+                "lineLimit": 2,
+                "widthFill": true
+              },
+              {
+                "type": "badge",
+                "text": "${transforms.label}",
+                "tint": "${transforms.tone}"
+              }
+            ]
+          },
+          {
+            "type": "vstack",
+            "spacing": 6,
+            "children": {
+              "forEach": "$.transforms.incidents",
+              "as": "row",
+              "template": {
+                "type": "hstack",
+                "id": "${row.id}",
+                "spacing": 6,
+                "desktopRole": "item",
+                "action": {
+                  "type": "openURL",
+                  "url": "${row.url}"
+                },
+                "children": [
+                  {
+                    "type": "image",
+                    "source": {
+                      "kind": "sfSymbol",
+                      "name": "exclamationmark.circle.fill"
+                    },
+                    "size": 12,
+                    "tint": "${row.tone}"
+                  },
+                  {
+                    "type": "vstack",
+                    "spacing": 1,
+                    "widthFill": true,
+                    "children": [
+                      {
+                        "type": "text",
+                        "text": "${row.name}",
+                        "role": "body",
+                        "lineLimit": 2,
+                        "desktopRole": "title"
+                      },
+                      {
+                        "type": "text",
+                        "text": "${row.detail}",
+                        "role": "caption",
+                        "foreground": "secondary",
+                        "lineLimit": 1,
+                        "desktopRole": "detail"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
         ]
       },
-      {
-        "type": "text",
-        "text": "${transforms.status.description}",
-        "role": "body",
-        "lineLimit": 2
+      "offline": {
+        "type": "vstack",
+        "spacing": 6,
+        "children": [
+          {
+            "type": "empty",
+            "icon": "wifi.slash",
+            "title": "You’re offline",
+            "subtitle": "Connect to the internet, then try again."
+          },
+          {
+            "type": "text",
+            "text": "${errors.github.message}",
+            "role": "caption",
+            "foreground": "tertiary",
+            "lineLimit": 2,
+            "desktopRole": "hide"
+          },
+          {
+            "type": "hstack",
+            "children": [
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "button",
+                "title": "Try Again",
+                "icon": "arrow.clockwise",
+                "action": {
+                  "type": "refresh"
+                }
+              },
+              {
+                "type": "spacer"
+              }
+            ]
+          }
+        ]
       },
-      {
-        "type": "text",
-        "text": "Refreshes on open, every 15 minutes, and when your Mac wakes.",
-        "role": "caption",
-        "foreground": "secondary",
-        "lineLimit": 2
+      "timeout": {
+        "type": "vstack",
+        "spacing": 6,
+        "children": [
+          {
+            "type": "empty",
+            "icon": "hourglass",
+            "title": "githubstatus.com didn’t answer in time",
+            "subtitle": "It may be busy. Try again in a moment."
+          },
+          {
+            "type": "text",
+            "text": "${errors.github.message}",
+            "role": "caption",
+            "foreground": "tertiary",
+            "lineLimit": 2,
+            "desktopRole": "hide"
+          },
+          {
+            "type": "hstack",
+            "children": [
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "button",
+                "title": "Try Again",
+                "icon": "arrow.clockwise",
+                "action": {
+                  "type": "refresh"
+                }
+              },
+              {
+                "type": "spacer"
+              }
+            ]
+          }
+        ]
+      },
+      "rateLimited": {
+        "type": "vstack",
+        "spacing": 6,
+        "children": [
+          {
+            "type": "empty",
+            "icon": "tortoise",
+            "title": "githubstatus.com is limiting requests",
+            "subtitle": "The free service allows only so many. It refreshes again on its own."
+          },
+          {
+            "type": "text",
+            "text": "${errors.github.message}",
+            "role": "caption",
+            "foreground": "tertiary",
+            "lineLimit": 2,
+            "desktopRole": "hide"
+          },
+          {
+            "type": "hstack",
+            "children": [
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "button",
+                "title": "Try Again",
+                "icon": "arrow.clockwise",
+                "action": {
+                  "type": "refresh"
+                }
+              },
+              {
+                "type": "spacer"
+              }
+            ]
+          }
+        ]
       }
-    ]
+    },
+    "default": {
+      "type": "vstack",
+      "spacing": 6,
+      "children": [
+        {
+          "type": "empty",
+          "icon": "exclamationmark.icloud",
+          "title": "githubstatus.com is unavailable",
+          "subtitle": "Try again in a moment."
+        },
+        {
+          "type": "text",
+          "text": "${errors.github.message}",
+          "role": "caption",
+          "foreground": "tertiary",
+          "lineLimit": 2,
+          "desktopRole": "hide"
+        },
+        {
+          "type": "hstack",
+          "children": [
+            {
+              "type": "spacer"
+            },
+            {
+              "type": "button",
+              "title": "Try Again",
+              "icon": "arrow.clockwise",
+              "action": {
+                "type": "refresh"
+              }
+            },
+            {
+              "type": "spacer"
+            }
+          ]
+        }
+      ]
+    }
   },
-
   "status": {
-    "label": "GitHub ${transforms.label}",
-    "tooltip": "GitHub status: ${transforms.status.description}"
+    "prefix": "GitHub",
+    "label": "${if(eq(errors.github, null), transforms.label, '')}",
+    "icon": "${if(eq(errors.github, null), transforms.icon, 'exclamationmark.icloud')}",
+    "tint": "${if(or(ne(errors.github, null), eq(transforms.status.indicator, 'none')), '', transforms.tone)}",
+    "tooltip": "${transforms.tip}"
+  },
+  "alerts": {
+    "incident": {
+      "when": "${if(or(ne(settings.notifyIncidents, true), ne(errors.github, null), eq(transforms.status.indicator, null)), null, ne(transforms.status.indicator, 'none'))}",
+      "title": "${if(transforms.ko, concat('GitHub: ', transforms.label), concat('GitHub: ', transforms.label))}",
+      "body": "${coalesce(transforms.firstIncident.name, transforms.status.description)}",
+      "cooldownSec": 3600
+    }
   }
 }

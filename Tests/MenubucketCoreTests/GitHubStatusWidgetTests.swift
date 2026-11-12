@@ -37,7 +37,9 @@ final class GitHubStatusWidgetTests: XCTestCase {
         let badge = try XCTUnwrap(badge(output.viewTree))
         XCTAssertEqual(badge.text, "OK")
         XCTAssertEqual(badge.tint, "good")
-        XCTAssertEqual(output.statusLabel, "GitHub OK")
+        XCTAssertEqual(output.statusPrefix, "GitHub")
+        XCTAssertEqual(output.statusLabel, "OK")
+        XCTAssertEqual(output.statusTint, "", "no colour while all is well")
     }
 
     func testIncidentLevelsAreNamedAndColored() throws {

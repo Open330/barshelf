@@ -3,31 +3,48 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.next-meeting",
   "name": "Next Meeting",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "icon": "calendar.badge.clock",
-  "bucket": { "group": "Productivity", "order": 10, "size": "M" },
-
-  "entry": { "kind": "script", "runtime": "deno-ts@1" },
-  "source": { "kind": "script", "output": "viewtree" },
-
+  "bucket": {
+    "group": "Productivity",
+    "order": 10,
+    "size": "M"
+  },
+  "entry": {
+    "kind": "script",
+    "runtime": "deno-ts@1"
+  },
+  "source": {
+    "kind": "script",
+    "output": "viewtree"
+  },
   "refresh": {
     "onOpen": true,
     "interval": 60,
     "staleAfterSec": 60,
-    "triggers": ["wake", "popup-open"]
+    "triggers": [
+      "wake",
+      "popup-open"
+    ]
   },
-
   "permissions": {
     "exec": [
       {
         "command": "/usr/bin/osascript",
-        "allowedArgs": [["-l", "JavaScript", "./calendar.js", "*", "*"]],
+        "allowedArgs": [
+          [
+            "-l",
+            "JavaScript",
+            "./calendar.js",
+            "*",
+            "*"
+          ]
+        ],
         "maxOutputBytes": 65536,
         "sensitiveOutput": true
       }
     ]
   },
-
   "settings": [
     {
       "key": "lookAheadDays",
@@ -44,17 +61,19 @@
       "default": false
     }
   ],
-
   "appearance": {
     "accent": "blue",
     "cardStyle": "tinted"
   },
-
   "localizations": {
     "ko": {
       "Next Meeting": "다음 회의",
       "Look ahead (days)": "미리 볼 기간(일)",
       "Include all-day events": "종일 이벤트 포함"
     }
+  },
+  "statusItem": {
+    "mode": "text",
+    "icon": "calendar.badge.clock"
   }
 }

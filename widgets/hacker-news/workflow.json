@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
   "kind": "workflow",
-  "_comment": "Hacker News front page through the public Algolia HN API (no key). A row opens the story; the bubble opens the HN discussion.",
+  "_comment": "Hacker News through the public Algolia HN API (no key). The front page uses /search (ranked); Show HN and Ask HN use /search_by_date so they are recent. A minimum-points filter goes to Algolia as numericFilters. A row opens the story; the bubble opens the HN discussion.",
   "sources": {
     "hn": {
       "use": "http",
       "with": {
-        "url": "https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=${coalesce(settings.count, 10)}"
+        "url": "https://hn.algolia.com/api/v1/${if(or(eq(settings.feed, 'show_hn'), eq(settings.feed, 'ask_hn')), 'search_by_date', 'search')}?tags=${switch(settings.feed, 'show_hn', 'show_hn', 'ask_hn', 'ask_hn', 'front_page')}&hitsPerPage=${coalesce(settings.count, 10)}&numericFilters=points%3E%3D${coalesce(number(settings.minPoints), 0)}"
       }
     }
   },
@@ -22,7 +22,7 @@
         "as": "h",
         "template": {
           "id": "hn-${h.objectID}",
-          "title": "${coalesce(h.title, '(untitled)')}",
+          "title": "${coalesce(h.title, if(transforms.ko, '(제목 없음)', '(untitled)'))}",
           "link": "${if(or(eq(text.truncate(coalesce(h.url, ''), 8), 'https://…'), eq(text.truncate(coalesce(h.url, ''), 7), 'http://…')), h.url, concat('https://news.ycombinator.com/item?id=', h.objectID))}",
           "item": "https://news.ycombinator.com/item?id=${h.objectID}",
           "meta": "${if(transforms.ko, concat(string(coalesce(h.points, 0)), '점 · 댓글 ', string(coalesce(h.num_comments, 0)), ' · ', date.relative(mul(number(h.created_at_i), 1000))), concat(string(coalesce(h.points, 0)), ' points · ', string(coalesce(h.num_comments, 0)), ' comments · ', date.relative(mul(number(h.created_at_i), 1000))))}"
@@ -127,7 +127,7 @@
     "type": "empty",
     "icon": "newspaper",
     "title": "No stories",
-    "subtitle": "The front page came back empty. Try again in a moment."
+    "subtitle": "Nothing matched this feed and minimum points. Lower the minimum in widget settings, or try again later."
   },
   "status": {
     "tooltip": "Hacker News: ${string(count(transforms.rows))} stories"

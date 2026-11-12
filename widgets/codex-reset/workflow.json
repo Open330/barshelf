@@ -1,78 +1,293 @@
 {
   "schemaVersion": 1,
   "kind": "workflow",
-  "_comment": "Unofficial Codex quota-reset forecast from willcodexquotareset.com. The site's /api/forecast returns forecast.score as a 0-100 percentage; the upstream feed itself only re-derives every ~30 minutes, so the refresh interval matches.",
-
+  "_comment": "Unofficial Codex quota-reset forecast from willcodexquotareset.com. /api/forecast returns forecast.score as a 0-100 chance over forecast.horizonHours (48); the feed re-derives about every 30 minutes, so the refresh interval matches. The alert fires when the chance rises to the user's threshold. The source is optional, so being offline has its own state.",
   "sources": {
     "api": {
       "use": "http",
+      "optional": true,
       "with": {
         "url": "https://www.willcodexquotareset.com/api/forecast"
       }
     }
   },
-
   "transforms": {
-    "f": { "use": "assign", "from": "$.sources.api.forecast" },
-    "score": { "use": "assign", "from": "round(number($.sources.api.forecast.score), 0)" },
+    "ko": {
+      "use": "assign",
+      "from": "or(eq(coalesce(widget.locale, ''), 'ko'), or(eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko-…'), eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko_…')))"
+    },
+    "f": {
+      "use": "assign",
+      "from": "$.sources.api.forecast"
+    },
+    "score": {
+      "use": "assign",
+      "from": "if(eq(number(transforms.f.score), null), null, round(number(transforms.f.score), 0))"
+    },
+    "threshold": {
+      "use": "assign",
+      "from": "coalesce(number(settings.alertPct), 70)"
+    },
+    "notify": {
+      "use": "assign",
+      "from": "ne(settings.notify, false)"
+    },
     "tint": {
       "use": "assign",
-      "from": "if(gte(transforms.score, 70), 'good', if(gte(transforms.score, 40), 'warning', 'secondary'))"
+      "from": "if(eq(transforms.score, null), 'secondary', if(gte(transforms.score, transforms.threshold), 'good', if(gte(transforms.score, 40), 'warning', 'secondary')))"
+    },
+    "horizon": {
+      "use": "assign",
+      "from": "coalesce(number(transforms.f.horizonHours), 48)"
+    },
+    "hours": {
+      "use": "assign",
+      "from": "number(transforms.f.hoursSinceReset)"
+    },
+    "since": {
+      "use": "assign",
+      "from": "if(eq(transforms.hours, null), '—', if(lt(transforms.hours, 1), if(transforms.ko, '1시간 이내', 'under an hour ago'), if(lt(transforms.hours, 48), if(transforms.ko, concat(string(round(transforms.hours)), '시간 전'), concat(string(round(transforms.hours)), ' h ago')), if(transforms.ko, concat(string(round(div(transforms.hours, 24))), '일 전'), concat(string(round(div(transforms.hours, 24))), ' days ago')))))"
+    },
+    "alertNote": {
+      "use": "assign",
+      "from": "if(transforms.notify, if(transforms.ko, concat(string(transforms.threshold), '%부터 알림'), concat('alert at ', string(transforms.threshold), '%')), if(transforms.ko, '알림 꺼짐', 'alerts off'))"
+    },
+    "reason": {
+      "use": "assign",
+      "from": "coalesce(transforms.f.aggregateAssessment.reason, '')"
+    },
+    "tip": {
+      "use": "assign",
+      "from": "if(eq(transforms.score, null), if(transforms.ko, 'Codex 초기화 예보 없음', 'No Codex reset forecast'), concat(if(transforms.ko, concat('앞으로 ', string(transforms.horizon), '시간 안에 Codex 한도가 초기화될 확률 ', string(transforms.score), '%.'), concat(string(transforms.score), '% chance of a Codex quota reset in the next ', string(transforms.horizon), ' hours.')), if(eq(transforms.reason, ''), '', concat(' ', transforms.reason))))"
     }
   },
-
   "view": {
-    "action": { "type": "openURL", "url": "https://www.willcodexquotareset.com/" },
-    "type": "vstack",
-    "spacing": 6,
-    "padding": 10,
-    "children": [
-      {
-        "type": "hstack",
+    "switch": "${if(eq(errors.api, null), if(eq(transforms.score, null), 'invalid', 'ok'), errors.api.kind)}",
+    "cases": {
+      "ok": {
+        "action": {
+          "type": "openURL",
+          "url": "https://www.willcodexquotareset.com/"
+        },
+        "type": "vstack",
         "spacing": 6,
+        "padding": 10,
         "children": [
           {
-            "type": "text",
-            "text": "Will Codex reset?",
-            "role": "caption",
-            "foreground": "secondary",
-            "lineLimit": 1
+            "type": "hstack",
+            "spacing": 6,
+            "children": [
+              {
+                "type": "text",
+                "text": "Will Codex reset?",
+                "role": "caption",
+                "foreground": "secondary",
+                "lineLimit": 1
+              },
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "text",
+                "text": "Next ${transforms.horizon} h",
+                "role": "caption",
+                "foreground": "secondary",
+                "lineLimit": 1
+              }
+            ]
           },
-          { "type": "spacer" },
           {
             "type": "text",
-            "text": "48H",
+            "text": "${transforms.score}%",
+            "size": 32,
+            "role": "title",
+            "monospacedDigit": true,
+            "foreground": "${transforms.tint}"
+          },
+          {
+            "type": "progress",
+            "style": "linear",
+            "value": "${div(transforms.score, 100)}",
+            "tint": "${transforms.tint}"
+          },
+          {
+            "type": "text",
+            "text": "Last reset ${transforms.since} · ${transforms.alertNote}",
             "role": "caption",
-            "foreground": "secondary"
+            "foreground": "secondary",
+            "lineLimit": 2
           }
         ]
       },
-      {
-        "type": "text",
-        "text": "${transforms.score}%",
-        "size": 32,
-        "role": "title",
-        "monospacedDigit": true,
-        "foreground": "${transforms.tint}"
+      "offline": {
+        "type": "vstack",
+        "spacing": 6,
+        "children": [
+          {
+            "type": "empty",
+            "icon": "wifi.slash",
+            "title": "You’re offline",
+            "subtitle": "Connect to the internet, then try again."
+          },
+          {
+            "type": "text",
+            "text": "${errors.api.message}",
+            "role": "caption",
+            "foreground": "tertiary",
+            "lineLimit": 2,
+            "desktopRole": "hide"
+          },
+          {
+            "type": "hstack",
+            "children": [
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "button",
+                "title": "Try Again",
+                "icon": "arrow.clockwise",
+                "action": {
+                  "type": "refresh"
+                }
+              },
+              {
+                "type": "spacer"
+              }
+            ]
+          }
+        ]
       },
-      {
-        "type": "progress",
-        "style": "linear",
-        "value": "${div(transforms.score, 100)}",
-        "tint": "${transforms.tint}"
+      "timeout": {
+        "type": "vstack",
+        "spacing": 6,
+        "children": [
+          {
+            "type": "empty",
+            "icon": "hourglass",
+            "title": "The forecast site didn’t answer in time",
+            "subtitle": "It may be busy. Try again in a moment."
+          },
+          {
+            "type": "text",
+            "text": "${errors.api.message}",
+            "role": "caption",
+            "foreground": "tertiary",
+            "lineLimit": 2,
+            "desktopRole": "hide"
+          },
+          {
+            "type": "hstack",
+            "children": [
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "button",
+                "title": "Try Again",
+                "icon": "arrow.clockwise",
+                "action": {
+                  "type": "refresh"
+                }
+              },
+              {
+                "type": "spacer"
+              }
+            ]
+          }
+        ]
       },
-      {
-        "type": "text",
-        "text": "Last reset ${round(number(transforms.f.hoursSinceReset), 1)}h ago · alert at 70%",
-        "role": "caption",
-        "foreground": "secondary",
-        "lineLimit": 2
+      "rateLimited": {
+        "type": "vstack",
+        "spacing": 6,
+        "children": [
+          {
+            "type": "empty",
+            "icon": "tortoise",
+            "title": "The forecast site is limiting requests",
+            "subtitle": "The free service allows only so many. It refreshes again on its own."
+          },
+          {
+            "type": "text",
+            "text": "${errors.api.message}",
+            "role": "caption",
+            "foreground": "tertiary",
+            "lineLimit": 2,
+            "desktopRole": "hide"
+          },
+          {
+            "type": "hstack",
+            "children": [
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "button",
+                "title": "Try Again",
+                "icon": "arrow.clockwise",
+                "action": {
+                  "type": "refresh"
+                }
+              },
+              {
+                "type": "spacer"
+              }
+            ]
+          }
+        ]
       }
-    ]
+    },
+    "default": {
+      "type": "vstack",
+      "spacing": 6,
+      "children": [
+        {
+          "type": "empty",
+          "icon": "exclamationmark.icloud",
+          "title": "The forecast site is unavailable",
+          "subtitle": "Try again in a moment."
+        },
+        {
+          "type": "text",
+          "text": "${errors.api.message}",
+          "role": "caption",
+          "foreground": "tertiary",
+          "lineLimit": 2,
+          "desktopRole": "hide"
+        },
+        {
+          "type": "hstack",
+          "children": [
+            {
+              "type": "spacer"
+            },
+            {
+              "type": "button",
+              "title": "Try Again",
+              "icon": "arrow.clockwise",
+              "action": {
+                "type": "refresh"
+              }
+            },
+            {
+              "type": "spacer"
+            }
+          ]
+        }
+      ]
+    }
   },
-
   "status": {
-    "label": "Codex ${transforms.score}%",
-    "tooltip": "${transforms.score}% chance of a Codex quota reset in the next 48 hours. ${transforms.f.aggregateAssessment.reason}"
+    "prefix": "Codex",
+    "label": "${if(eq(transforms.score, null), '', concat(string(transforms.score), '%'))}",
+    "tooltip": "${transforms.tip}"
+  },
+  "alerts": {
+    "likely": {
+      "when": "${if(or(not(transforms.notify), eq(transforms.score, null)), null, gte(transforms.score, transforms.threshold))}",
+      "title": "${if(transforms.ko, concat('Codex 초기화 가능성 ', string(transforms.score), '%'), concat('Codex reset ', string(transforms.score), '% likely'))}",
+      "body": "${if(transforms.ko, concat('앞으로 ', string(transforms.horizon), '시간 안에 한도가 초기화될 수 있습니다.'), concat('A quota reset may come in the next ', string(transforms.horizon), ' hours.'))}",
+      "cooldownSec": 21600
+    }
   }
 }

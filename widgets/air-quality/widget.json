@@ -3,46 +3,96 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.air-quality",
   "name": "Air Quality",
-  "version": "0.1.0",
-  "minHostVersion": "0.7.21",
+  "version": "0.2.0",
+  "minHostVersion": "0.7.32",
   "icon": "aqi.medium",
-  "bucket": { "group": "Everyday", "order": 43, "size": "M" },
-
-  "entry": { "kind": "workflow", "main": "workflow.json" },
-
-  "refresh": { "onOpen": true, "interval": 900, "staleAfterSec": 1800, "runInBackground": true, "triggers": ["wake"] },
-
-  "statusItem": { "mode": "text", "icon": "aqi.medium" },
-
+  "bucket": {
+    "group": "Everyday",
+    "order": 43,
+    "size": "M"
+  },
+  "entry": {
+    "kind": "workflow",
+    "main": "workflow.json"
+  },
+  "refresh": {
+    "onOpen": true,
+    "interval": 900,
+    "staleAfterSec": 1800,
+    "runInBackground": true,
+    "triggers": [
+      "wake"
+    ]
+  },
+  "statusItem": {
+    "mode": "text",
+    "icon": "aqi.medium"
+  },
   "permissions": {
-    "network": ["air-quality-api.open-meteo.com"],
+    "network": [
+      "air-quality-api.open-meteo.com"
+    ],
     "notifications": true
   },
-
   "settings": [
-    { "key": "place", "title": "Place name", "type": "string", "default": "Seoul" },
-    { "key": "lat", "title": "Latitude", "type": "string", "default": "37.57" },
-    { "key": "lon", "title": "Longitude", "type": "string", "default": "126.98" },
-    { "key": "notify", "title": "Notify when PM2.5 is high", "type": "boolean", "default": true },
-    { "key": "alertPM25", "title": "PM2.5 alert level (µg/m³)", "type": "integer", "default": 36, "min": 5, "max": 300 }
+    {
+      "key": "place",
+      "title": "Place name",
+      "type": "string",
+      "default": "Seoul"
+    },
+    {
+      "key": "lat",
+      "title": "Latitude (−90 to 90, e.g. 37.57)",
+      "type": "string",
+      "default": "37.57"
+    },
+    {
+      "key": "lon",
+      "title": "Longitude (−180 to 180, e.g. 126.98)",
+      "type": "string",
+      "default": "126.98"
+    },
+    {
+      "key": "notify",
+      "title": "Notify when PM2.5 is high",
+      "type": "boolean",
+      "default": true
+    },
+    {
+      "key": "alertPM25",
+      "title": "PM2.5 alert level (µg/m³)",
+      "type": "integer",
+      "default": 36,
+      "min": 5,
+      "max": 300
+    }
   ],
-
   "appearance": {
     "accent": "green"
   },
-
   "localizations": {
     "ko": {
       "Air Quality": "미세먼지",
       "Place name": "장소 이름",
-      "Latitude": "위도",
-      "Longitude": "경도",
       "Notify when PM2.5 is high": "초미세먼지가 높으면 알림",
       "PM2.5 alert level (µg/m³)": "초미세먼지 알림 기준 (µg/m³)",
       "PM2.5": "초미세먼지",
       "PM10": "미세먼지",
-      "${settings.place} PM2.5 ${transforms.show.pm25} µg/m³ (${transforms.show.w25}) · PM10 ${transforms.show.pm10} µg/m³ (${transforms.show.w10})": "${settings.place} 초미세먼지 ${transforms.show.pm25} µg/m³ (${transforms.show.w25}) · 미세먼지 ${transforms.show.pm10} µg/m³ (${transforms.show.w10})",
-      "US AQI ${transforms.show.us} · EU AQI ${transforms.show.eu} · ${transforms.show.at}": "미국 AQI ${transforms.show.us} · 유럽 AQI ${transforms.show.eu} · ${transforms.show.at}"
+      "US AQI ${transforms.show.us} · EU AQI ${transforms.show.eu} · ${transforms.show.at}": "미국 AQI ${transforms.show.us} · 유럽 AQI ${transforms.show.eu} · ${transforms.show.at}",
+      "Latitude (−90 to 90, e.g. 37.57)": "위도 (−90~90, 예: 37.57)",
+      "Longitude (−180 to 180, e.g. 126.98)": "경도 (−180~180, 예: 126.98)",
+      "You’re offline": "오프라인 상태입니다",
+      "Connect to the internet, then try again.": "인터넷에 연결한 뒤 다시 시도하세요.",
+      "Open-Meteo didn’t answer in time": "Open-Meteo가 제때 응답하지 않았습니다",
+      "It may be busy. Try again in a moment.": "혼잡할 수 있습니다. 잠시 후 다시 시도하세요.",
+      "Open-Meteo is limiting requests": "Open-Meteo가 요청을 제한하고 있습니다",
+      "The free service allows only so many. It refreshes again on its own.": "무료 서비스라 요청 수가 제한됩니다. 잠시 뒤 저절로 다시 새로 고칩니다.",
+      "Open-Meteo is unavailable": "Open-Meteo에 연결할 수 없습니다",
+      "Try again in a moment.": "잠시 후 다시 시도하세요.",
+      "Try Again": "다시 시도",
+      "Check the location": "위치를 확인하세요",
+      "Latitude must be −90…90 and longitude −180…180. Fix them in this widget’s settings (⋯ ▸ Settings).": "위도는 −90…90, 경도는 −180…180이어야 합니다. 이 위젯 설정(⋯ ▸ 설정)에서 고치세요."
     }
   }
 }

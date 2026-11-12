@@ -21,7 +21,8 @@ final class OnboardingPermissionTests: XCTestCase {
     /// The welcome lists every starter's permissions; none comes pre-approved
     /// just by being seeded, and the store stays the only gate.
     func testStartersStillNeedTheirOwnApproval() throws {
-        let starters = ["today", "recent-files-grid"]
+        // Today reads BarShelf's own clock and declares nothing to approve.
+        let starters = ["recent-files-grid"]
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let directory = FileManager.default.temporaryDirectory

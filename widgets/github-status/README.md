@@ -6,19 +6,22 @@ GitHub's.
 
 ## What it shows
 
-- The status page name.
-- The overall level as a badge: OK in green, Minor in orange, Major or
-  Critical in red. The menu bar label uses the same word, for example
-  "GitHub OK".
-- The status description, for example "All Systems Operational".
+- The status description, for example "All Systems Operational", with the
+  overall level as a badge: OK in green, Minor in orange, Major or Critical in
+  red.
+- Every unresolved incident, with its stage and when it was last updated; a row
+  opens the incident page.
+- In the menu bar, "GitHub OK", tinted only while there is an incident.
+
+## Settings
+
+| Setting | Default | Effect |
+|---|---|---|
+| Notify when GitHub has an incident | Off | Sends a notification when the status leaves OK. |
 
 ## Permissions and refresh
 
-The only permission is HTTPS access to `www.githubstatus.com`; no GitHub
-account or token is involved. The widget refreshes when the popover opens,
-every 15 minutes while it is visible, and when your Mac wakes, so a status
-change that happened while the lid was closed shows up right away. Clicking it
-opens githubstatus.com.
-
-It is also a small example of an HTTP source with a wake trigger, useful as a
-starting point for any status-page widget.
+HTTPS access to `www.githubstatus.com` (no GitHub account or token), and
+notifications for the opt-in alert. The widget refreshes when the popover
+opens, every 15 minutes while it is visible (less often while it is closed),
+and when your Mac wakes. Clicking the header opens githubstatus.com.
