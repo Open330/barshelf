@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.homebrew-updates",
   "name": "Homebrew Updates",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "minHostVersion": "0.7.21",
   "icon": "mug",
   "bucket": {
@@ -29,6 +29,7 @@
     "exec": [
       {
         "command": "/bin/sh",
+        "purpose": "Check Homebrew for outdated packages",
         "allowedArgs": [
           [
             "-c",
@@ -71,6 +72,7 @@
   },
   "localizations": {
     "ko": {
+      "Check Homebrew for outdated packages": "Homebrew에서 업데이트할 패키지 확인",
       "Homebrew Updates": "Homebrew 업데이트",
       "Show": "표시",
       "Formulae and casks": "포뮬러와 캐스크",

@@ -95,6 +95,8 @@ enum CardOverlay: Equatable {
 struct PermissionRequest: Equatable, Hashable {
     let symbol: String
     let description: String
+    /// The exact command lines behind the words, for "Details".
+    var details: [String] = []
     /// Something that blocks the widget outright rather than a permission
     /// the user can grant.
     var isWarning = false
@@ -903,31 +905,26 @@ final class WidgetRuntime: ObservableObject {
 
     /// What a widget is asking to be allowed to do, one line per capability,
     /// in words rather than raw commands. The approval card lists these.
+    ///
+    /// Every command is one row: what the commands do, each phrase once, with
+    /// the exact command lines behind "Details". Two rows saying the same
+    /// thing in different words read as two different permissions.
     static func permissionRequests(for widget: LoadedWidget) -> [PermissionRequest] {
+        permissionRequests(for: widget.manifest)
+    }
+
+    static func permissionRequests(for manifest: Manifest, localization: WidgetLocalization?? = nil) -> [PermissionRequest] {
         var rows: [PermissionRequest] = []
-        let permissions = widget.manifest.permissions
-        for exec in permissions?.exec ?? [] {
-            if let patterns = exec.allowedArgs, !patterns.isEmpty {
-                for pattern in patterns {
-                    rows.append(PermissionRequest(
-                        symbol: "terminal",
-                        description: describeExec(command: exec.command, args: pattern)
-                    ))
-                }
-            } else if exec.allowedArgs != nil {
-                rows.append(PermissionRequest(
-                    symbol: "terminal",
-                    description: describeExec(command: exec.command, args: [])
-                ))
-            } else {
-                rows.append(PermissionRequest(
-                    symbol: "terminal",
-                    description: String(localized: "Run \(friendlyCommandName(exec.command)) with any arguments")
-                ))
-            }
-        }
-        if permissions?.exec?.isEmpty != false,
-           widget.manifest.entry.kind == "exec" {
+        let permissions = manifest.permissions
+        let table = localization ?? manifest.localization()
+        let exec = ExecPermissionText.summary(for: manifest, localization: table)
+        if let exec {
+            rows.append(PermissionRequest(
+                symbol: "terminal",
+                description: exec.phrases.joined(separator: "\n"),
+                details: exec.commandLines
+            ))
+        } else if manifest.entry.kind == "exec" {
             rows.append(PermissionRequest(
                 symbol: "exclamationmark.triangle.fill",
                 description: String(localized: "Blocked: this widget runs a command but does not say which"),
@@ -952,9 +949,12 @@ final class WidgetRuntime: ObservableObject {
             rows.append(PermissionRequest(symbol: "folder.fill", description: String(localized: "Read files in \(path)")))
         }
         if permissions?.storage?.granted == true {
-            rows.append(PermissionRequest(symbol: "internaldrive.fill", description: String(localized: "Save small amounts of data on this Mac")))
+            rows.append(PermissionRequest(symbol: "internaldrive.fill", description: String(localized: "Save a little data on this Mac", comment: "Permission: the widget keeps a small amount of its own data")))
         }
-        if let env = permissions?.env, !env.isEmpty {
+        // The widget's own variables and those a single command is handed.
+        var env = permissions?.env ?? []
+        for name in exec?.environment ?? [] where !env.contains(name) { env.append(name) }
+        if !env.isEmpty {
             rows.append(PermissionRequest(
                 symbol: "leaf.fill",
                 description: String(localized: "Read settings from the environment: \(env.joined(separator: ", "))")
@@ -963,7 +963,11 @@ final class WidgetRuntime: ObservableObject {
         if let vault = permissions?.vault {
             rows.append(PermissionRequest(
                 symbol: "lock.shield.fill",
-                description: String(localized: "Unlock your Bitwarden vault when you ask, list item names and copy a username, password or code you pick; locks after \(Int(vault.idleSeconds / 60)) minutes without use", comment: "Approval card: the vault permission")
+                description: String(localized: "Unlock your Bitwarden vault when you ask; it locks after \(Int(vault.idleSeconds / 60)) minutes unused", comment: "Approval card: the vault permission, first of two rows")
+            ))
+            rows.append(PermissionRequest(
+                symbol: "doc.on.doc",
+                description: String(localized: "See item names and copy a username, password or code you pick", comment: "Approval card: the vault permission, second of two rows")
             ))
         }
         if rows.isEmpty {
@@ -972,62 +976,28 @@ final class WidgetRuntime: ObservableObject {
         return rows
     }
 
-    /// Turns an exec permission (command + a specific argument pattern) into a
-    /// readable sentence. Shell wrappers (`/bin/sh -c "<script>"`) are the ugly
-    /// case: instead of printing the whole script we surface the tools it calls.
-    static func describeExec(command: String, args: [String]) -> String {
-        let name = friendlyCommandName(command)
-        // The starter clock only reads a formatted date. Its JSON format is
-        // not useful permission context; do not apply this description to
-        // date-setting arguments or an unrelated executable named date.
-        if command == "/bin/date", args.isEmpty || (args.count == 1 && args[0].hasPrefix("+")) {
-            return String(localized: "Read the current date and time using the macOS date tool")
+    /// One line on what the widget is for, shown above what it asks for: the
+    /// widget.json `description` in the app's language, else the summary the
+    /// gallery gives BarShelf's own widgets. The first sentence only.
+    @MainActor static func permissionPurpose(for widget: LoadedWidget) -> String? {
+        let key = widget.directory.path + "|" + widget.loadRevision
+        if let cached = purposeCache[key] { return cached.isEmpty ? nil : cached }
+        var text = widget.packageInfo.description?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !text.isEmpty {
+            text = widget.manifest.localization()?.text(text) ?? text
+        } else {
+            text = GalleryEntryText.summary(forID: widget.manifest.id) ?? ""
         }
-        let shells: Set<String> = ["sh", "bash", "zsh", "dash", "ksh"]
-        if shells.contains(name.lowercased()),
-           let flag = args.firstIndex(of: "-c"), flag + 1 < args.count {
-            let tools = referencedTools(in: args[flag + 1])
-            guard !tools.isEmpty else { return String(localized: "Run a shell command") }
-            let shown = tools.prefix(6).joined(separator: ", ")
-            let more = tools.count > 6 ? ", …" : ""
-            return String(localized: "Run system tools: \(shown)\(more)")
-        }
-        guard !args.isEmpty else { return String(localized: "Run \(name)") }
-        var detail = ([name] + args).joined(separator: " ")
-        if detail.count > 72 { detail = String(detail.prefix(71)) + "…" }
-        return String(localized: "Run \(detail)")
+        text = firstSentence(text)
+        purposeCache[key] = text
+        return text.isEmpty ? nil : text
     }
 
-    /// The basename of an executable path (`/usr/bin/top` → `top`).
-    static func friendlyCommandName(_ command: String) -> String {
-        let name = (command as NSString).lastPathComponent
-        return name.isEmpty ? command : name
-    }
+    @MainActor private static var purposeCache: [String: String] = [:]
 
-    /// Extracts the distinct executables a shell script invokes by absolute
-    /// path (e.g. `/usr/bin/top`, `/bin/df`), in first-seen order, so a script
-    /// can be summarized by the tools it runs rather than its full text.
-    static func referencedTools(in script: String) -> [String] {
-        let binDirs = ["/bin/", "/usr/bin/", "/sbin/", "/usr/sbin/",
-                       "/opt/homebrew/bin/", "/usr/local/bin/"]
-        let pathChars = Set(
-            "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/._-")
-        var tools: [String] = []
-        var seen = Set<String>()
-        let chars = Array(script)
-        var i = 0
-        while i < chars.count {
-            guard chars[i] == "/" else { i += 1; continue }
-            var j = i
-            while j < chars.count, pathChars.contains(chars[j]) { j += 1 }
-            let token = String(chars[i..<j])
-            if binDirs.contains(where: { token.hasPrefix($0) }) {
-                let name = (token as NSString).lastPathComponent
-                if !name.isEmpty, seen.insert(name).inserted { tools.append(name) }
-            }
-            i = j
-        }
-        return tools
+    static func firstSentence(_ text: String) -> String {
+        guard let end = text.range(of: ". ") else { return text }
+        return String(text[..<end.lowerBound]) + "."
     }
 
     // MARK: - Discovery
@@ -3601,6 +3571,9 @@ final class WidgetRuntime: ObservableObject {
         )
         attention.set(.approvalNeeded, reasons.contains(.approvalNeeded))
         attention.set(.widgetError, reasons.contains(.widgetError))
+        attention.setWaitingWidgetIDs(widgets.map(\.id).filter { id in
+            !prefs.isDisabled(id) && overlayCards[id]?.needsApproval == true
+        })
     }
 
     /// Drops per-widget state for removed widget ids (hot reload cleanup).

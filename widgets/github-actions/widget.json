@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.github-actions",
   "name": "GitHub Actions",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "minHostVersion": "0.7.32",
   "icon": "bolt.horizontal.circle.fill",
   "bucket": {
@@ -32,6 +32,7 @@
     "exec": [
       {
         "command": "gh",
+        "purpose": "Read a repository’s recent builds with gh",
         "allowedArgs": [
           [
             "run",
@@ -89,6 +90,7 @@
   },
   "localizations": {
     "ko": {
+      "Read a repository’s recent builds with gh": "gh로 저장소의 최근 빌드 읽기",
       "GitHub Actions": "GitHub Actions 빌드",
       "Repository (owner/name)": "저장소 (소유자/이름)",
       "Branch to watch": "지켜볼 브랜치",

@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.kubernetes",
   "name": "Kubernetes",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "minHostVersion": "0.7.32",
   "icon": "square.stack.3d.up.fill",
   "bucket": {
@@ -32,6 +32,7 @@
     "exec": [
       {
         "command": "kubectl",
+        "purpose": "Read your kubectl context and pod status",
         "allowedArgs": [
           [
             "config",
@@ -115,6 +116,7 @@
   },
   "localizations": {
     "ko": {
+      "Read your kubectl context and pod status": "kubectl로 현재 컨텍스트와 파드 상태 읽기",
       "Kubernetes": "Kubernetes 파드",
       "Namespace": "네임스페이스",
       "List every pod": "모든 Pod 보기",

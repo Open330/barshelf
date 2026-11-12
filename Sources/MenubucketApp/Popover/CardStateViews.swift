@@ -195,45 +195,80 @@ private struct PrivacySettingsButton: View {
 
 // MARK: - Permissions
 
-/// A widget with new or changed permissions: what it wants, in plain words,
-/// and the decision. Allow is the prominent choice; Deny sits beside it.
+/// A widget with new or changed permissions: what the widget is for, what it
+/// wants in plain words, and the decision. Allow is the prominent choice;
+/// Deny sits beside it.
+///
+/// One request or several, it is the same list, so the card reads the same
+/// whatever the widget asks for. On the shelf it starts folded to one row
+/// (what it asks for, in brief, and the decision), so a page of new widgets
+/// still shows the ones already running; the chevron unfolds the full list.
 ///
 /// Allow is not bound to Return: several cards can be waiting at once, and a
 /// stray keystroke must never grant a widget access.
 struct PermissionApprovalView: View {
     let widgetName: String
+    /// What the widget does, one sentence.
+    var summary: String?
     let requests: [PermissionRequest]
+    /// Starts folded to one row; the shelf's cards do.
+    var startsCollapsed = false
     let onAllow: () -> Void
     let onDeny: () -> Void
+    @State private var expanded: Bool?
+
+    private var isExpanded: Bool { expanded ?? !startsCollapsed }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.xs) {
+        Group {
+            if isExpanded { full } else { folded }
+        }
+        // The widget's card is the surface; a box of its own here would be
+        // a box inside a box.
+        .padding(.vertical, Spacing.xxs)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Text("\(widgetName) needs your permission to run."))
+    }
+
+    /// The folded row's brief: the first thing asked for, and how many
+    /// more, so one phrase never stands for the whole request.
+    static func briefParts(_ requests: [PermissionRequest]) -> (first: String, more: Int) {
+        let phrases = requests.flatMap { $0.description.split(separator: "\n").map(String.init) }
+        return (phrases.first ?? "", max(phrases.count - 1, 0))
+    }
+
+    static func moreLabel(_ count: Int) -> String {
+        String(localized: "+\(count) more", comment: "Folded permission card: how many more things it asks for")
+    }
+
+    /// The brief as one string (VoiceOver, tests).
+    static func brief(_ requests: [PermissionRequest]) -> String {
+        let parts = briefParts(requests)
+        return parts.more > 0 ? parts.first + " " + moreLabel(parts.more) : parts.first
+    }
+
+    private var folded: some View {
+        ViewThatFits(in: .horizontal) {
             HStack(alignment: .center, spacing: Spacing.xs) {
-                Image(systemName: PermissionWaiting.symbol)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(PermissionWaiting.tone.color)
-                    .frame(width: 26, height: 26)
-                    .background(Circle().fill(PermissionWaiting.tone.color.opacity(Fill.Wash.soft)))
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: Spacing.hair) {
-                    Text(PermissionWaiting.title)
-                        .font(.callout.weight(.medium))
-                    // One request reads as a sentence on its own; several
-                    // are listed below, where each gets its own line.
-                    if requests.count == 1, let only = requests.first {
-                        Text(only.description)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+                heading(subtitle: Self.briefParts(requests).first, more: Self.briefParts(requests).more, truncates: true)
+                PermissionDecisionButtons(onDeny: onDeny, onAllow: onAllow)
+            }
+            // A half-width card: the decision under the heading.
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                heading(subtitle: Self.briefParts(requests).first, more: Self.briefParts(requests).more)
+                HStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    PermissionDecisionButtons(onDeny: onDeny, onAllow: onAllow)
                 }
-                Spacer(minLength: 0)
             }
-            if requests.count > 1 {
-                PermissionList(requests: requests)
-                    .padding(.leading, 26 + Spacing.xs)
-            }
+        }
+    }
+
+    private var full: some View {
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            heading(subtitle: summary)
+            PermissionList(requests: requests)
+                .padding(.leading, PermissionWaiting.badgeSize + Spacing.xs)
             // The decision sits on its own row, so the reason above keeps
             // the card's full width. Deliberately no `.defaultAction`: see
             // the type's note.
@@ -242,19 +277,73 @@ struct PermissionApprovalView: View {
                 PermissionDecisionButtons(onDeny: onDeny, onAllow: onAllow)
             }
         }
-        // The widget's card is the surface; a box of its own here would be
-        // a box inside a box.
-        .padding(.vertical, Spacing.xxs)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(Text("\(widgetName) needs your permission to run."))
+    }
+
+    /// - Parameter truncates: the folded row's brief gives way to the
+    ///   buttons beside it instead of pushing them under the heading.
+    private func heading(subtitle: String?, more: Int = 0, truncates: Bool = false) -> some View {
+        HStack(alignment: .center, spacing: Spacing.xs) {
+            PermissionWaitingBadge()
+            VStack(alignment: .leading, spacing: Spacing.hair) {
+                // Folded, the row shares its width with the decision: a
+                // shorter title keeps it on one line at the popup's width.
+                Text(isExpanded ? PermissionWaiting.title : PermissionWaiting.shortTitle)
+                    .font(.callout.weight(.medium))
+                    .lineLimit(truncates ? 1 : 2)
+                if let subtitle, !subtitle.isEmpty {
+                    HStack(spacing: Spacing.xxs) {
+                        Text(subtitle)
+                            .lineLimit(isExpanded ? 3 : 1)
+                            .fixedSize(horizontal: false, vertical: true)
+                            // A small ideal width, so `ViewThatFits` judges the
+                            // row by the title and buttons, not the full brief.
+                            .frame(idealWidth: truncates ? 40 : nil, maxWidth: truncates ? .infinity : nil, alignment: .leading)
+                        if more > 0 {
+                            // Never truncated: the phrase gives way first.
+                            Text(Self.moreLabel(more))
+                                .fixedSize()
+                                .layoutPriority(1)
+                        }
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+            }
+            Spacer(minLength: 0)
+            if startsCollapsed {
+                Button {
+                    expanded = !isExpanded
+                } label: {
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                }
+                .buttonStyle(.icon)
+                .help(isExpanded ? String(localized: "Show less") : String(localized: "Show what it asks for"))
+                .accessibilityLabel(isExpanded ? Text("Show less") : Text("Show what \(widgetName) asks for"))
+            }
+        }
     }
 }
 
-/// One row per requested capability, icon first.
+/// The lock in a soft disc: a widget waiting for a decision.
+struct PermissionWaitingBadge: View {
+    var body: some View {
+        Image(systemName: PermissionWaiting.symbol)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(PermissionWaiting.tone.color)
+            .frame(width: PermissionWaiting.badgeSize, height: PermissionWaiting.badgeSize)
+            .background(Circle().fill(PermissionWaiting.tone.color.opacity(Fill.Wash.strong)))
+            .accessibilityHidden(true)
+    }
+}
+
+/// One row per requested capability, icon first, and the exact commands
+/// behind "Details" when there are any.
 struct PermissionList: View {
     let requests: [PermissionRequest]
+    @State private var showsDetails = false
 
     var body: some View {
+        let details = requests.flatMap(\.details)
         VStack(alignment: .leading, spacing: Spacing.xxs) {
             ForEach(requests, id: \.self) { request in
                 HStack(alignment: .firstTextBaseline, spacing: Spacing.xs) {
@@ -269,6 +358,19 @@ struct PermissionList: View {
                 }
                 .accessibilityElement(children: .combine)
             }
+            if !details.isEmpty {
+                Button(showsDetails ? "Hide Details" : "Details") { showsDetails.toggle() }
+                    .buttonStyle(.link)
+                    .font(.caption)
+                    .help("The exact commands this widget may run")
+                if showsDetails {
+                    ScrollView {
+                        RawErrorText(error: details.joined(separator: "\n\n"))
+                    }
+                    .frame(maxHeight: 160)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+            }
         }
     }
 }
@@ -277,6 +379,7 @@ struct PermissionList: View {
 /// and allow) and the way out (remove the widget) one click away.
 struct PermissionDeniedView: View {
     let widgetName: String
+    var summary: String?
     let requests: [PermissionRequest]
     let onAllow: () -> Void
     let onRemove: () -> Void
@@ -286,6 +389,7 @@ struct PermissionDeniedView: View {
         if reviewing {
             PermissionApprovalView(
                 widgetName: widgetName,
+                summary: summary,
                 requests: requests,
                 onAllow: onAllow,
                 onDeny: { reviewing = false }

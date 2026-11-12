@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.now-playing",
   "name": "Now Playing",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "icon": "music.note",
   "bucket": {
     "group": "Media",
@@ -26,6 +26,7 @@
     "exec": [
       {
         "command": "/bin/sh",
+        "purpose": "Ask Music and Spotify what is playing",
         "allowedArgs": [
           [
             "-c",
@@ -42,6 +43,7 @@
   },
   "localizations": {
     "ko": {
+      "Ask Music and Spotify what is playing": "Music과 Spotify에서 재생 중인 곡 확인",
       "Now Playing": "지금 재생 중",
       "Nothing playing": "재생 중인 곡 없음",
       "Play something in Music or Spotify.": "음악 앱이나 Spotify에서 재생하세요.",

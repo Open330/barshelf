@@ -458,7 +458,7 @@ final class LandingTrustPlate: LandingPlate {
         // The real permission card, filled as Keep Awake's would be.
         let host = HostedView(AnyView(
             PermissionApprovalView(widgetName: "Keep Awake", requests: [
-                PermissionRequest(symbol: "terminal", description: "Run osascript -l JavaScript ./keep-awake.js"),
+                PermissionRequest(symbol: "terminal", description: "Ask PowerDisplayGuard to keep the Mac awake for a while, or stop"),
                 PermissionRequest(symbol: "folder", description: "Read ~/Library/Application Support/PowerDisplayGuard"),
             ], onAllow: {}, onDeny: {})
                 .padding(Spacing.cardInset)

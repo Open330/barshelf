@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.project-status",
   "name": "Project Status",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "icon": "point.3.connected.trianglepath.dotted",
   "bucket": { "group": "Developer", "order": 30, "size": "M" },
 
@@ -23,6 +23,7 @@
     "exec": [
       {
         "command": "/usr/bin/git",
+        "purpose": "Read a Git project’s branch, changes and latest commit",
         "allowedArgs": [
           ["-C", "*", "status", "--porcelain=v2", "--branch", "--untracked-files=normal"],
           ["-C", "*", "log", "-1", "--format=%h%x1f%s%x1f%ct"],
@@ -50,6 +51,7 @@
 
   "localizations": {
     "ko": {
+      "Read a Git project’s branch, changes and latest commit": "Git 프로젝트의 브랜치, 변경 사항, 최근 커밋 읽기",
       "Project Status": "프로젝트 상태",
       "Project directory": "프로젝트 폴더"
     }

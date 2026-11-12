@@ -168,6 +168,13 @@ struct OnboardingView: View {
         let _ = approvals
         let status = runtime.permissionStore.status(for: widget.manifest)
         VStack(alignment: .leading, spacing: Spacing.xxs) {
+            // What the widget is for, then what it asks for, as on its card.
+            if let purpose = WidgetRuntime.permissionPurpose(for: widget) {
+                Text(purpose)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             PermissionList(requests: WidgetRuntime.permissionRequests(for: widget))
             if let folder = Self.protectedFolder(in: widget.manifest) {
                 Text("macOS will also ask once before BarShelf can open your \(folder) folder.")

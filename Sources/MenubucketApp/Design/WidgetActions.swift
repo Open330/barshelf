@@ -95,13 +95,18 @@ extension View {
 
 // MARK: - Permission
 
-/// A widget that has asked for permission and not been answered yet. The
-/// normal state of a new widget, not a fault: a lock in the info tone, so
-/// the warning colours stay for something actually wrong.
+/// A widget that has asked for permission and not been answered yet: a
+/// lock in the warning tone, everywhere it is shown (cards, the Privacy page,
+/// the widget inspector, onboarding), so "waiting" reads as one state. The
+/// info blue it used before sank into a dark card (dark blue on navy).
 enum PermissionWaiting {
     static var title: String { String(localized: "Waiting for your permission") }
+    /// The folded approval card's title, beside its Deny and Allow.
+    static var shortTitle: String { String(localized: "Needs permission", comment: "Folded permission card title, next to Deny and Allow") }
     static let symbol = "lock.fill"
-    static let tone = StatusTone.info
+    static let tone = StatusTone.warning
+    /// The lock badge's diameter; the list under it is indented to match.
+    static let badgeSize: CGFloat = 26
 }
 
 /// The decision on a widget's permissions: Deny quiet, Allow filled.

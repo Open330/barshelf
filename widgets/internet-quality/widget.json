@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.internet-quality",
   "name": "Internet Quality",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "minHostVersion": "0.7.22",
   "icon": "speedometer",
   "bucket": {
@@ -25,6 +25,7 @@
     "exec": [
       {
         "command": "/bin/sh",
+        "purpose": "Measure latency and packet loss with ping",
         "allowedArgs": [
           [
             "-c",
@@ -38,6 +39,7 @@
       },
       {
         "command": "/bin/sh",
+        "purpose": "Run a short speed test when it is due or you ask",
         "allowedArgs": [
           [
             "-c",
@@ -100,6 +102,8 @@
   },
   "localizations": {
     "ko": {
+      "Measure latency and packet loss with ping": "ping으로 지연 시간과 패킷 손실 측정",
+      "Run a short speed test when it is due or you ask": "정해진 때나 요청할 때 짧은 속도 측정 실행",
       "Internet Quality": "인터넷 품질",
       "Speed test": "속도 측정",
       "Once a day": "하루 한 번",

@@ -472,19 +472,27 @@ public struct Manifest: Codable, Equatable {
         public var env: [String]?
         public var maxOutputBytes: Int?
         public var sensitiveOutput: Bool?
+        /// What running this command does, in a few plain words ("Read the
+        /// battery level"), shown when BarShelf asks for permission instead
+        /// of the command line. Display text only: translated through the
+        /// manifest's `localizations`, and left out of the permission hash,
+        /// so writing or rewording it never asks the user again.
+        public var purpose: String?
 
         public init(
             command: String,
             allowedArgs: [[String]]? = nil,
             env: [String]? = nil,
             maxOutputBytes: Int? = nil,
-            sensitiveOutput: Bool? = nil
+            sensitiveOutput: Bool? = nil,
+            purpose: String? = nil
         ) {
             self.command = command
             self.allowedArgs = allowedArgs
             self.env = env
             self.maxOutputBytes = maxOutputBytes
             self.sensitiveOutput = sensitiveOutput
+            self.purpose = purpose
         }
     }
 

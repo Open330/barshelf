@@ -175,7 +175,7 @@ enum GalleryEntryText {
 
     /// One or two plain sentences per widget: what it shows, and anything it
     /// needs from the user. Literal keys, so the catalog picks them up.
-    private static func summary(forID id: String) -> String? {
+    static func summary(forID id: String) -> String? {
         switch id {
         case "dev.barshelf.today":
             return String(localized: "Today’s date with a large day number. Needs nothing else installed.")

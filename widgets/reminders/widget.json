@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.reminders",
   "name": "Reminders",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "icon": "checklist",
   "bucket": {
     "group": "Everyday",
@@ -26,6 +26,7 @@
     "exec": [
       {
         "command": "/bin/sh",
+        "purpose": "Count your unfinished reminders",
         "allowedArgs": [
           [
             "-c",
@@ -42,6 +43,7 @@
   },
   "localizations": {
     "ko": {
+      "Count your unfinished reminders": "끝내지 않은 미리 알림 개수 세기",
       "Reminders": "미리 알림",
       "open": "남음",
       "Allow BarShelf to read Reminders": "BarShelf가 미리 알림을 읽도록 허용하세요",

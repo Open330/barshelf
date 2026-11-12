@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.world-clock",
   "name": "World Clock",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "minHostVersion": "0.7.21",
   "icon": "globe",
   "bucket": {
@@ -31,6 +31,7 @@
     "exec": [
       {
         "command": "/bin/sh",
+        "purpose": "Read the time in the cities you choose",
         "allowedArgs": [
           [
             "-c",
@@ -151,6 +152,7 @@
   },
   "localizations": {
     "ko": {
+      "Read the time in the cities you choose": "고른 도시의 현재 시각 읽기",
       "World Clock": "세계 시계",
       "City 1 name": "도시 1 이름",
       "City 1 time zone": "도시 1 시간대",

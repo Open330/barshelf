@@ -95,6 +95,24 @@
         }
       }
     },
+    "%@ +%lld more": {
+      "comment": "Folded permission card: the first thing it asks for, and how many more",
+      "extractionState": "stale",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ +%2$lld more"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ 외 %2$lld개"
+          }
+        }
+      }
+    },
     "%@ Copy": {
       "localizations": {
         "ko": {
@@ -713,6 +731,28 @@
         }
       }
     },
+    "%lld widgets are waiting for you": {
+      "comment": "Privacy: above the waiting widgets",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯 %lld개가 기다리고 있습니다"
+          }
+        }
+      }
+    },
+    "%lld widgets are waiting for your permission": {
+      "comment": "Popup banner",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯 %lld개가 권한을 기다립니다"
+          }
+        }
+      }
+    },
     "%lld widgets installed": {
       "localizations": {
         "ko": {
@@ -745,6 +785,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "(미리 보려면 명령을 실행하십시오)"
+          }
+        }
+      }
+    },
+    "+%lld more": {
+      "comment": "Folded permission card: how many more things it asks for",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "외 %lld개"
           }
         }
       }
@@ -797,6 +848,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "위젯 1개"
+          }
+        }
+      }
+    },
+    "1 widget is waiting for you": {
+      "comment": "Privacy: above the waiting widgets",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯 1개가 기다리고 있습니다"
           }
         }
       }
@@ -1029,6 +1091,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "위젯은 선언한 명령 실행, 네트워크 사용, 파일 읽기만 할 수 있으며, 그것도 사용자가 허용한 후에만 가능합니다. 권한을 취소하면 카드에서 다시 허용할 때까지 위젯이 멈춥니다. 위젯의 복사본은 원본과 권한을 공유합니다."
+          }
+        }
+      }
+    },
+    "A widget is waiting for your permission": {
+      "comment": "Popup banner",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯 하나가 권한을 기다립니다"
           }
         }
       }
@@ -3225,6 +3298,28 @@
         }
       }
     },
+    "Commands: %@": {
+      "comment": "Permission summary tooltip: the programs behind an effect",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "명령: %@"
+          }
+        }
+      }
+    },
+    "Commands: %@ and others": {
+      "comment": "Permission summary tooltip: some of the programs behind an effect; there may be more",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "명령: %@ 등"
+          }
+        }
+      }
+    },
     "Compact": {
       "comment": "Menu bar style preset",
       "localizations": {
@@ -3293,6 +3388,17 @@
         }
       }
     },
+    "Connects to the internet": {
+      "comment": "Privacy: waiting widgets that reach the network",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "인터넷에 연결"
+          }
+        }
+      }
+    },
     "Connects to these websites: %@.": {
       "localizations": {
         "ko": {
@@ -3309,6 +3415,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "계속"
+          }
+        }
+      }
+    },
+    "Controls other apps": {
+      "comment": "Privacy: waiting widgets that script or quit other apps",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "다른 앱 제어"
           }
         }
       }
@@ -8235,6 +8352,17 @@
         }
       }
     },
+    "Needs permission": {
+      "comment": "Folded permission card title, next to Deny and Allow",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "권한 필요"
+          }
+        }
+      }
+    },
     "Network": {
       "comment": "Gallery card permission chip: connects to websites\nPrivacy by capability: hosts widgets may reach",
       "localizations": {
@@ -8716,6 +8844,17 @@
         }
       }
     },
+    "Notifications and saved data": {
+      "comment": "Privacy: waiting widgets that only notify or keep a little data",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "알림과 저장 데이터"
+          }
+        }
+      }
+    },
     "OK": {
       "localizations": {
         "ko": {
@@ -8940,6 +9079,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "로그 열기에서 무엇이 잘못됐는지 확인한 후 다시 시작하세요. 계속 충돌하면 위젯 업데이트를 확인하세요."
+          }
+        }
+      }
+    },
+    "Open Privacy to see what each widget asks for": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "개인정보 보호를 열어 위젯마다 무엇을 요청하는지 확인합니다"
           }
         }
       }
@@ -9917,7 +10066,19 @@
         }
       }
     },
+    "Read the current date and time": {
+      "comment": "Permission request: a widget that runs /bin/date to read the time",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "현재 날짜와 시간 읽기"
+          }
+        }
+      }
+    },
     "Read the current date and time using the macOS date tool": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -10015,6 +10176,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "파일 읽기: %@"
+          }
+        }
+      }
+    },
+    "Reads from this Mac": {
+      "comment": "Privacy: waiting widgets that run commands or read files and system readings",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 Mac에서 읽기"
           }
         }
       }
@@ -10848,6 +11020,17 @@
         }
       }
     },
+    "Review…": {
+      "comment": "Popup banner: open Privacy to decide on widgets waiting for permission",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "검토…"
+          }
+        }
+      }
+    },
     "Revoke": {
       "localizations": {
         "ko": {
@@ -10941,7 +11124,7 @@
       }
     },
     "Run %@": {
-      "comment": "Permission summary: commands the widget may run",
+      "comment": "Permission request: a command, by name only",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -10952,6 +11135,7 @@
       }
     },
     "Run %@ with any arguments": {
+      "comment": "Permission request: a command allowed with any arguments",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -10992,6 +11176,7 @@
       }
     },
     "Run a shell command": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -11001,7 +11186,41 @@
         }
       }
     },
+    "Run a shell script": {
+      "comment": "Permission request",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "셸 스크립트 실행"
+          }
+        }
+      }
+    },
+    "Run a shell script that uses %@": {
+      "comment": "Permission request: the commands a shell script calls, as a list",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "셸 스크립트 실행(%@ 사용)"
+          }
+        }
+      }
+    },
+    "Run a shell script that uses %@ and others": {
+      "comment": "Permission request: some of the commands a shell script calls; it may call more",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "셸 스크립트 실행(%@ 등 사용)"
+          }
+        }
+      }
+    },
     "Run system tools: %@%@": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -11148,6 +11367,17 @@
         }
       }
     },
+    "Save a little data on this Mac": {
+      "comment": "Permission: the widget keeps a small amount of its own data",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 Mac에 데이터를 조금 저장"
+          }
+        }
+      }
+    },
     "Save picture of screen as a file": {
       "localizations": {
         "ko": {
@@ -11169,6 +11399,7 @@
       }
     },
     "Save small amounts of data on this Mac": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -11409,6 +11640,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "보안"
+          }
+        }
+      }
+    },
+    "See item names and copy a username, password or code you pick": {
+      "comment": "Approval card: the vault permission, second of two rows",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "항목 이름을 보고, 고른 사용자 이름·암호·코드 복사"
           }
         }
       }
@@ -11982,6 +12224,16 @@
         }
       }
     },
+    "Show less": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "간단히 보기"
+          }
+        }
+      }
+    },
     "Show notifications": {
       "localizations": {
         "ko": {
@@ -12130,6 +12382,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "값 표시"
+          }
+        }
+      }
+    },
+    "Show what %@ asks for": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 위젯이 요청하는 권한 보기"
+          }
+        }
+      }
+    },
+    "Show what it asks for": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "요청하는 권한 보기"
           }
         }
       }
@@ -13289,6 +13561,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "편집기에 저장하지 않은 변경 사항이 있습니다. 바꾸면 되돌릴 수 없습니다."
+          }
+        }
+      }
+    },
+    "The exact commands this widget may run": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 위젯이 실행할 수 있는 정확한 명령"
           }
         }
       }
@@ -14548,11 +14830,23 @@
     },
     "Unlock your Bitwarden vault when you ask, list item names and copy a username, password or code you pick; locks after %lld minutes without use": {
       "comment": "Approval card: the vault permission",
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "요청할 때 Bitwarden 보관함을 열어 항목 이름을 보여 주고 고른 아이디·비밀번호·코드를 복사하며, %lld분 동안 쓰지 않으면 잠급니다"
+          }
+        }
+      }
+    },
+    "Unlock your Bitwarden vault when you ask; it locks after %lld minutes unused": {
+      "comment": "Approval card: the vault permission, first of two rows",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "요청할 때 Bitwarden 보관함 잠금 해제, %lld분 동안 쓰지 않으면 다시 잠금"
           }
         }
       }
@@ -14952,6 +15246,17 @@
         }
       }
     },
+    "Uses passwords and secrets": {
+      "comment": "Privacy: waiting widgets that use the Keychain, a vault or environment variables",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "암호와 비밀 정보 사용"
+          }
+        }
+      }
+    },
     "Using the bundled widget registry while the online registry is unavailable.": {
       "localizations": {
         "ko": {
@@ -15044,6 +15349,7 @@
       }
     },
     "Waiting for You": {
+      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {

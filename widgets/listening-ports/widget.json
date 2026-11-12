@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.listening-ports",
   "name": "Listening Ports",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "minHostVersion": "0.7.21",
   "icon": "network",
   "bucket": {
@@ -24,6 +24,7 @@
     "exec": [
       {
         "command": "/bin/sh",
+        "purpose": "List the ports your apps are listening on",
         "allowedArgs": [
           [
             "-c",
@@ -59,6 +60,7 @@
   },
   "localizations": {
     "ko": {
+      "List the ports your apps are listening on": "앱이 열어 둔 포트 목록 읽기",
       "Listening Ports": "열린 포트",
       "Show": "표시",
       "All listeners": "모든 리스너",

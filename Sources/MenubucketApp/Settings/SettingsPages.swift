@@ -442,34 +442,60 @@ struct PrivacySettingsPage: View {
                 }
             }
 
-            // What needs a decision comes first.
+            // What needs a decision comes first, grouped by what the widgets
+            // could do, riskiest first.
             if !waiting.isEmpty {
+                // The page-level decision sits above the groups: on a group's
+                // header it read as allowing only that group.
                 Section {
-                    ForEach(waiting) { PermissionRow(runtime: runtime, widget: $0) }
-                } header: {
-                    HStack {
-                        // The inner style wins: the tone colour over the title's.
-                        Label("Waiting for You", systemImage: PermissionWaiting.symbol)
-                            .foregroundStyle(PermissionWaiting.tone.color)
-                            .settingsSectionTitle()
+                    HStack(spacing: Spacing.xs) {
+                        Label {
+                            Text(Self.waitingLine(waiting))
+                        } icon: {
+                            Image(systemName: PermissionWaiting.symbol)
+                                .foregroundStyle(PermissionWaiting.tone.color)
+                        }
                         Spacer()
-                        if waiting.count > 1 {
+                        if Self.distinctManifests(waiting).count > 1 {
                             Button("Allow All…") { confirmingAllowAll = true }
                                 .buttonStyle(.glass(.secondary))
                                 .controlSize(.small)
                                 .help("Allow every widget waiting for you, after one confirmation")
                         }
                     }
+                    // Attached once, to the row with the button; inside the
+                    // groups' ForEach it was attached once per group.
+                    .confirmationDialog(Self.allowAllTitle(waiting), isPresented: $confirmingAllowAll, titleVisibility: .visible) {
+                        Button("Allow All") {
+                            for widget in Self.distinctManifests(waiting) {
+                                runtime.approvePermissions(widgetID: widget.id)
+                            }
+                        }
+                        Button("Cancel", role: .cancel) {}
+                    } message: {
+                        Text(Self.allowAllMessage(waiting))
+                    }
                 }
-                .confirmationDialog(Self.allowAllTitle(waiting), isPresented: $confirmingAllowAll, titleVisibility: .visible) {
-                    Button("Allow All") {
-                        for widget in Self.distinctManifests(waiting) {
-                            runtime.approvePermissions(widgetID: widget.id)
+                let groups = Self.waitingGroups(waiting)
+                ForEach(groups, id: \.risk) { group in
+                    Section {
+                        ForEach(group.widgets) { PermissionRow(runtime: runtime, widget: $0) }
+                    } header: {
+                        HStack {
+                            // Neutral title, the tone only on the icon.
+                            Label {
+                                Text(group.risk.title)
+                            } icon: {
+                                Image(systemName: group.risk.symbol)
+                                    .foregroundStyle(PermissionWaiting.tone.color)
+                            }
+                            .settingsSectionTitle()
+                            Text(verbatim: "\(group.widgets.count)")
+                                .font(.callout.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                            Spacer()
                         }
                     }
-                    Button("Cancel", role: .cancel) {}
-                } message: {
-                    Text(Self.allowAllMessage(waiting))
                 }
             }
             if !denied.isEmpty {
@@ -525,6 +551,20 @@ struct PrivacySettingsPage: View {
         }
     }
 
+    struct WaitingGroup {
+        let risk: PermissionInventory.Risk
+        let widgets: [LoadedWidget]
+    }
+
+    /// Waiting widgets by risk, riskiest group first; each group keeps the
+    /// page's order.
+    static func waitingGroups(_ waiting: [LoadedWidget]) -> [WaitingGroup] {
+        let byRisk = Dictionary(grouping: waiting) { PermissionInventory.Risk.of($0.manifest) }
+        return PermissionInventory.Risk.allCases.compactMap { risk in
+            byRisk[risk].map { WaitingGroup(risk: risk, widgets: $0) }
+        }
+    }
+
     /// One widget per manifest: copies share their permissions, so allowing
     /// one allows them all.
     static func distinctManifests(_ widgets: [LoadedWidget]) -> [LoadedWidget] {
@@ -538,18 +578,29 @@ struct PrivacySettingsPage: View {
 
     /// Names the widgets, and says which ask for sensitive access, so one
     /// confirmation still shows what is being allowed.
+    /// Sensitive access first, so it is read before the long list.
     static func allowAllMessage(_ waiting: [LoadedWidget]) -> String {
         let widgets = distinctManifests(waiting)
-        let names = widgets.map(\.displayName).formatted(.list(type: .and))
         let sensitive = widgets.filter { widget in
             WidgetPermissionSummary.lines(for: widget.manifest).contains { $0.tone == .sensitive }
         }
-        var message = String(localized: "\(names) will run the commands, reach the hosts and read the paths they declared, with your access.", comment: "Privacy: Allow All confirmation")
+        let sensitiveIDs = Set(sensitive.map(\.id))
+        let ordered = sensitive + widgets.filter { !sensitiveIDs.contains($0.id) }
+        let names = ordered.map(\.displayName).formatted(.list(type: .and))
+        var message = ""
         if !sensitive.isEmpty {
             let names = sensitive.map(\.displayName).formatted(.list(type: .and))
-            message += " " + String(localized: "Sensitive access: \(names).", comment: "Privacy: Allow All confirmation, widgets with secrets, vault or environment access")
+            message = String(localized: "Sensitive access: \(names).", comment: "Privacy: Allow All confirmation, widgets with secrets, vault or environment access") + " "
         }
+        message += String(localized: "\(names) will run the commands, reach the hosts and read the paths they declared, with your access.", comment: "Privacy: Allow All confirmation")
         return message
+    }
+
+    /// The neutral line above the waiting groups.
+    static func waitingLine(_ waiting: [LoadedWidget]) -> String {
+        waiting.count == 1
+            ? String(localized: "1 widget is waiting for you", comment: "Privacy: above the waiting widgets")
+            : String(localized: "\(waiting.count) widgets are waiting for you", comment: "Privacy: above the waiting widgets")
     }
 
     /// Allowed, waiting and (when any) denied widgets, and how many of the
@@ -638,6 +689,12 @@ struct PrivacySettingsPage: View {
                 WidgetMark(widget: widget, runtime: runtime)
                 VStack(alignment: .leading, spacing: Spacing.xxs) {
                     Text(widget.displayName).font(.headline)
+                    if state == .notAsked, let purpose = WidgetRuntime.permissionPurpose(for: widget) {
+                        Text(purpose)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     FlowLayout {
                         ForEach(WidgetPermissionSummary.lines(for: widget.manifest), id: \.self) { line in
                             PermissionChip(line: line)

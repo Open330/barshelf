@@ -7,6 +7,8 @@ enum AppMenuCommand: Hashable {
     case editShelf, addWidget, menuBar, dock, openBarShelf, settings, checkForUpdates, quit
     /// "Dock ▸ Focus Dock": the keyboard's way into the dock.
     case focusDock
+    /// The popup's "widgets are waiting" banner: Settings ▸ Privacy.
+    case reviewPermissions
 
     var title: String {
         switch self {
@@ -24,6 +26,7 @@ enum AppMenuCommand: Hashable {
             return String(localized: "Check for Updates…")
         case .quit: return String(localized: "Quit BarShelf")
         case .focusDock: return String(localized: "Focus Dock", comment: "App menu: move keyboard focus to the BarShelf Dock")
+        case .reviewPermissions: return String(localized: "Review…", comment: "Popup banner: open Privacy to decide on widgets waiting for permission")
         }
     }
 
@@ -35,7 +38,7 @@ enum AppMenuCommand: Hashable {
         case .editShelf: return "e"
         case .settings: return ","
         case .quit: return "q"
-        case .addWidget, .menuBar, .dock, .openBarShelf, .checkForUpdates, .focusDock: return ""
+        case .addWidget, .menuBar, .dock, .openBarShelf, .checkForUpdates, .focusDock, .reviewPermissions: return ""
         }
     }
 
@@ -50,6 +53,7 @@ enum AppMenuCommand: Hashable {
         case .checkForUpdates: return "arrow.down.circle"
         case .quit: return "power"
         case .focusDock: return "keyboard"
+        case .reviewPermissions: return PermissionWaiting.symbol
         }
     }
 }

@@ -18,7 +18,8 @@ import Foundation
 /// Only display text is looked up — the widget's name, setting titles and
 /// option titles, and the workflow's view text, titles, labels, placeholders,
 /// action toasts, alert titles and bodies,
-/// accessibility labels and status label/tooltip. Commands, actions, paths,
+/// accessibility labels and status label/tooltip, and (looked up by the
+/// permission request) each exec permission's `purpose`. Commands, actions, paths,
 /// URLs, setting values and the permission set are never touched, so the
 /// permission hash and everything a widget runs stay the same in every
 /// language.

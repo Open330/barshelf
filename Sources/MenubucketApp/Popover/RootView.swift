@@ -67,7 +67,13 @@ struct RootView: View {
                 // on it are what is separated.
                 VStack(spacing: 0) {
                     header(pages: pages, index: index)
-                    if !pager.isEditing { pinnedRow }
+                    if !pager.isEditing {
+                        PermissionWaitingBanner(
+                            attention: runtime.attention,
+                            currentPageIDs: Set(pages[index].widgets.map(\.id))
+                        ) { onCommand(.reviewPermissions) }
+                        pinnedRow
+                    }
                 }
                 .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { topChromeHeight = $0 }
                 // Hover hints hang below the header, over the first card.

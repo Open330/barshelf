@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.developer-inbox",
   "name": "Developer Inbox",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "icon": "tray.full.fill",
   "bucket": {
     "group": "Developer",
@@ -39,6 +39,7 @@
     "exec": [
       {
         "command": "gh",
+        "purpose": "Read your GitHub review requests and notifications with gh",
         "allowedArgs": [
           [
             "search",
@@ -92,6 +93,7 @@
   },
   "localizations": {
     "ko": {
+      "Read your GitHub review requests and notifications with gh": "gh로 GitHub 리뷰 요청과 알림 읽기",
       "Developer Inbox": "개발자 받은편지함",
       "Items per section": "섹션별 항목 수",
       "Show GitHub notifications": "GitHub 알림 보기",

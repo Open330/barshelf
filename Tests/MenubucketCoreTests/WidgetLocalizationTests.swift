@@ -214,6 +214,8 @@ final class WidgetLocalizationTests: XCTestCase {
                 shown += [setting.title, setting.label].compactMap { $0 }
                 shown += setting.optionTitles ?? setting.options ?? []
             }
+            // What each command does, as the permission request says it.
+            shown += (manifest.permissions?.exec ?? []).compactMap(\.purpose)
             if let workflow {
                 shown += displayStrings(workflow.view) + (workflow.empty.map(displayStrings) ?? [])
                 if let status = workflow.status { shown += displayStrings(try json(status)) }

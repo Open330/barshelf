@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.next-meeting",
   "name": "Next Meeting",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "icon": "calendar.badge.clock",
   "bucket": {
     "group": "Productivity",
@@ -31,6 +31,7 @@
     "exec": [
       {
         "command": "/usr/bin/osascript",
+        "purpose": "Read your upcoming Calendar events",
         "allowedArgs": [
           [
             "-l",
@@ -67,6 +68,7 @@
   },
   "localizations": {
     "ko": {
+      "Read your upcoming Calendar events": "캘린더의 다가오는 일정 읽기",
       "Next Meeting": "다음 회의",
       "Look ahead (days)": "미리 볼 기간(일)",
       "Include all-day events": "종일 이벤트 포함"

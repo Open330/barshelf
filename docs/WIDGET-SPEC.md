@@ -250,6 +250,7 @@ Workflow DSL 상세 계약은 [`docs/WORKFLOW.md`](WORKFLOW.md)를 따른다.
 | `env` | 이 명령에 주입할 수 있는 환경 변수 이름. |
 | `maxOutputBytes` | stdout 최대 바이트 수. 초과 시 실패 처리한다. |
 | `sensitiveOutput` | `true`면 stdout 로그와 디스크 캐시 저장을 금지한다. |
+| `purpose` | 이 명령이 하는 일을 짧게 쓴 문구(예: "배터리 잔량 읽기"). 권한 요청에 명령줄 대신 보이고, 정확한 명령은 "자세히"에 들어간다. `localizations`로 번역하며 권한 해시에는 들어가지 않는다. |
 
 예:
 
