@@ -58,7 +58,17 @@ final class SharedShelfPublisher {
     private var probing = false
     /// The latest render of each widget, kept back while no desktop widget
     /// is placed, and written as soon as one is.
-    private var held: [String: SharedShelf.Snapshot] = [:]
+    private var held: [String: SharedShelf.Snapshot] = [:] {
+        didSet { scheduleHeldProbe() }
+    }
+    /// Asks about placement again while renders are held, so a widget placed
+    /// meanwhile gets them even if no new render arrives.
+    private var heldProbe: DispatchWorkItem?
+    /// Widgets flushed on first placement whose write is still on its way
+    /// (thumbnails); the reload waits for the last of them.
+    private var flushing: Set<String> = []
+    /// Set while the flush is being started: the reload is its own then.
+    private var flushStarting = false
     /// What was last written per widget, minus its time, and when it turns
     /// stale: an unchanged render is not written again until then.
     private var written: [String: (content: Data, staleAfter: Date?)] = [:]
@@ -106,8 +116,39 @@ final class SharedShelfPublisher {
         guard count ?? 1 > 0, !held.isEmpty else { return }
         let waiting = held
         held = [:]
+        flushing = Set(waiting.keys)
+        flushStarting = true
         for snapshot in waiting.values { publish(snapshot) }
+        flushStarting = false
+        // Widgets written at once are done; the reload goes out when the
+        // last one with thumbnails is (`finishFlush`).
+        if flushing.isEmpty { reloadNow() }
+    }
+
+    /// One flushed widget written or given up on; the last reloads.
+    private func finishFlush(_ id: String) {
+        guard flushing.remove(id) != nil, flushing.isEmpty, !flushStarting else { return }
         reloadNow()
+    }
+
+    /// A placement question is scheduled because renders are held (tests).
+    var isWaitingToAskAgain: Bool { heldProbe != nil }
+
+    private func scheduleHeldProbe() {
+        guard placementProbe != nil, !held.isEmpty else {
+            heldProbe?.cancel()
+            heldProbe = nil
+            return
+        }
+        guard heldProbe == nil else { return }
+        let item = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.heldProbe = nil
+            self.refreshPlacementIfDue()
+            self.scheduleHeldProbe()
+        }
+        heldProbe = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.placementProbeInterval, execute: item)
     }
 
     /// The snapshot as it would be written, without the times that change on
@@ -122,9 +163,12 @@ final class SharedShelfPublisher {
     }
 
     /// Whether a render can be skipped: the same as the one written, and
-    /// that one is not about to read as old on the desktop.
+    /// that one is not about to read as old on the desktop. One that shows
+    /// files is never skipped: a file can change under the same path, and
+    /// its thumbnail is only redone by writing.
     func isUnchanged(_ snapshot: SharedShelf.Snapshot, now: Date = Date()) -> Bool {
-        guard let last = written[snapshot.widgetID], let content = Self.content(of: snapshot),
+        guard Self.imagePaths(in: snapshot).isEmpty,
+              let last = written[snapshot.widgetID], let content = Self.content(of: snapshot),
               content == last.content
         else { return false }
         guard let staleAfter = last.staleAfter else { return true }
@@ -201,6 +245,7 @@ final class SharedShelfPublisher {
         }
         held = held.filter { kept.contains($0.key) }
         written = written.filter { kept.contains($0.key) }
+        flushing.formIntersection(kept)
         do {
             try SharedShelf.writeIndex(index, to: container)
             SharedShelf.pruneSnapshots(keeping: kept, in: container)
@@ -231,11 +276,21 @@ final class SharedShelfPublisher {
             held[id] = snapshot
             return
         }
-        // The same reading as last time, still fresh on the desktop.
-        if !asked, isUnchanged(snapshot, now: now) { return }
+        // This render is the newest: nothing held may be written after it.
+        held.removeValue(forKey: id)
+        // The same reading as last time, still fresh on the desktop. Any
+        // older render still exporting is dropped, so it can't land after.
+        if !asked, isUnchanged(snapshot, now: now) {
+            invalidate(id)
+            finishFlush(id)
+            return
+        }
         let generation = invalidate(id)
         let paths = Self.imagePaths(in: snapshot)
-        guard let folder = SharedShelf.imagesDirectory(for: id, in: container) else { return }
+        guard let folder = SharedShelf.imagesDirectory(for: id, in: container) else {
+            finishFlush(id)
+            return
+        }
         guard !paths.isEmpty else {
             // Nothing to picture any more: no thumbnails left behind either.
             try? FileManager.default.removeItem(at: folder)
@@ -273,12 +328,18 @@ final class SharedShelfPublisher {
             if answering.removeValue(forKey: snapshot.widgetID) != nil {
                 // The user pressed refresh on the desktop and is watching.
                 SharedShelf.clearRefreshRequest(widgetID: snapshot.widgetID, in: container)
+                flushing.remove(snapshot.widgetID)
                 reloadNow()
+                return
+            }
+            if flushing.contains(snapshot.widgetID) {
+                finishFlush(snapshot.widgetID)
                 return
             }
             scheduleReload()
         } catch {
             NSLog("barshelf: could not share \(snapshot.widgetID) with widgets: \(error)")
+            finishFlush(snapshot.widgetID)
         }
     }
 
@@ -415,6 +476,7 @@ final class SharedShelfPublisher {
         invalidate(widgetID)
         held.removeValue(forKey: widgetID)
         written.removeValue(forKey: widgetID)
+        flushing.remove(widgetID)
         answering.removeValue(forKey: widgetID)
         SharedShelf.clearRefreshRequest(widgetID: widgetID, in: container)
         SharedShelf.removeSnapshot(widgetID: widgetID, from: container)
