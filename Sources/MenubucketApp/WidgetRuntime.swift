@@ -197,8 +197,44 @@ final class ScriptCallbackGate: @unchecked Sendable {
 /// interval, adapter deadline (`nextRefreshAtMs`), FSEvents watch, and system
 /// wake. In-flight refreshes are coalesced; failures keep the last-good render
 /// (surfaced via `snapshot.error`) and feed the exponential backoff.
+/// Why a refresh the user asked for did not run.
+enum RefreshRejection: Equatable {
+    /// The widget is switched off.
+    case disabled
+    /// Nothing runs until its permissions are allowed.
+    case waitingForPermission
+    /// Made for a newer BarShelf than this one.
+    case needsNewerBarShelf
+
+    func message(widgetName: String) -> String {
+        switch self {
+        case .disabled:
+            return String(localized: "\(widgetName) is turned off. Turn it on in Settings to refresh it.")
+        case .waitingForPermission:
+            return String(localized: "\(widgetName) is waiting for your permission. Allow it to refresh.")
+        case .needsNewerBarShelf:
+            return String(localized: "\(widgetName) needs a newer BarShelf. Update BarShelf to refresh it.")
+        }
+    }
+}
+
+/// A toast the runtime raises for something the user did: a refresh that
+/// was turned away, an action that failed.
+struct RuntimeFeedback: Equatable {
+    let message: String
+    let detail: String?
+    let tone: Toast.Tone
+    let surface: ToastSurface
+}
+
 final class WidgetRuntime: ObservableObject {
     @Published private(set) var widgets: [LoadedWidget] = []
+    /// Where `RuntimeFeedback` goes; tests replace it to observe.
+    var feedback: (RuntimeFeedback) -> Void = { item in
+        Task { @MainActor in
+            ToastCenter.shared.show(item.message, detail: item.detail, tone: item.tone, on: item.surface)
+        }
+    }
     /// Feeds the macOS widget extension (R14).
     let sharedShelf: SharedShelfPublisher
     /// Source of truth for renders. Deliberately *not* `@Published`: updates
@@ -1213,7 +1249,7 @@ final class WidgetRuntime: ObservableObject {
         }
         guard Self.isRemovableWidgetDirectory(widget.directory) else {
             throw RuntimeError.notRemovable(
-                String(localized: "widget \"\(id)\" is not inside the user widgets directory")
+                String(localized: "This widget came with BarShelf or was added from another folder, so it can’t be removed here. Turn it off instead.")
             )
         }
         if id == widget.manifest.id {
@@ -1225,7 +1261,7 @@ final class WidgetRuntime: ObservableObject {
             ))?.contains { $0.lastPathComponent.hasPrefix(aliasPrefix) } ?? false
             if hasInstances {
                 throw RuntimeError.notRemovable(
-                    String(localized: "Remove the additional \"\(widget.manifest.name)\" instances before removing its package.")
+                    String(localized: "Remove the copies of “\(widget.manifest.name)” first, then remove the original.")
                 )
             }
         }
@@ -1294,13 +1330,13 @@ final class WidgetRuntime: ObservableObject {
         }
         guard WidgetDiscovery.isValidWidgetID(widget.manifest.id) else {
             throw RuntimeError.invalidInstanceName(
-                String(localized: "This widget has an invalid ID. Fix the id in widget.json before adding an instance.")
+                String(localized: "This widget can’t be duplicated because its widget ID isn’t valid. The widget’s author needs to fix it.")
             )
         }
         let normalized = Self.normalizedInstanceLabel(label)
         guard !normalized.isEmpty else {
             throw RuntimeError.invalidInstanceName(
-                String(localized: "Instance name must contain a letter or number.")
+                String(localized: "Give the copy a name with at least one letter or number.")
             )
         }
 
@@ -1309,7 +1345,7 @@ final class WidgetRuntime: ObservableObject {
                 in: Self.userWidgetsRoot
               )[widget.manifest.id] else {
             throw RuntimeError.notRemovable(
-                String(localized: "Install \"\(widget.manifest.name)\" before adding another instance.")
+                String(localized: "Install “\(widget.manifest.name)” before making a copy of it.")
             )
         }
         let canonical = installed.directory
@@ -1318,7 +1354,7 @@ final class WidgetRuntime: ObservableObject {
         let destination = Self.userWidgetsRoot.appendingPathComponent(instanceID)
         guard !FileManager.default.fileExists(atPath: destination.path) else {
             throw RuntimeError.invalidInstanceName(
-                String(localized: "An instance named \"\(normalized)\" already exists.")
+                String(localized: "There’s already a copy named “\(normalized)”. Choose another name.")
             )
         }
         do {
@@ -1327,7 +1363,7 @@ final class WidgetRuntime: ObservableObject {
             )
         } catch {
             throw RuntimeError.invalidInstanceName(
-                String(localized: "Could not create instance \"\(normalized)\": \(error.localizedDescription)")
+                String(localized: "Couldn’t make the copy “\(normalized)”. \(error.localizedDescription)")
             )
         }
 
@@ -1660,12 +1696,34 @@ final class WidgetRuntime: ObservableObject {
     ///
     /// Newly promoted widgets are refreshed once so the strip fills in without
     /// waiting a whole interval for the first tick.
+    /// A failed refresh as the menu bar item's tooltip: what happened and
+    /// what to do, the way the card says it, not the raw message.
+    static func errorTooltip(_ raw: String) -> String {
+        let explanation = ErrorExplainer.explain(raw)
+        return "\(explanation.cause)\n\(explanation.fix)"
+    }
+
+    /// How often this widget's reading is meant to change: the menu bar
+    /// item's own interval, else the user's, else the author's, scaled by
+    /// the app-wide refresh speed.
+    func effectiveReadingInterval(for widget: LoadedWidget) -> Double? {
+        let placement = prefs.menuBarPlacement(for: widget.manifest, widgetID: widget.id)
+        let multiplier = SchedulePolicy.normalizedRefreshMultiplier(appPrefs.preferences.refreshMultiplier)
+        return (placement.interval ?? prefs.refreshIntervals[widget.id] ?? widget.manifest.refresh?.interval)
+            .map { $0 * multiplier }
+    }
+
+    /// The one staleness rule for a reading, wherever it is drawn (the menu
+    /// bar item, its chip, its card): judged against the cadence the widget
+    /// actually runs at, so a user who slows it to 30 s does not see it
+    /// dimmed as stale after 2.
+    func readingIsStale(_ widget: LoadedWidget, updatedAt: Date?, now: Date = Date()) -> Bool {
+        MenuBarPolicy.isStale(updatedAt: updatedAt, interval: effectiveReadingInterval(for: widget), now: now)
+    }
+
     func syncMenuBar() {
         menuBarUpdateBatch.cancel()
         let previous = menuBarWidgetIDs
-        let multiplier = SchedulePolicy.normalizedRefreshMultiplier(
-            appPrefs.preferences.refreshMultiplier
-        )
         var candidates: [(entry: MenuBarEntry, order: Double?)] = []
         var intervalOverrides: [String: Double] = [:]
         var charting = Set<String>()
@@ -1723,14 +1781,8 @@ final class WidgetRuntime: ObservableObject {
                     ? MenuBarPolicy.normalizedLabel(snapshot?.statusLabel) : nil,
                 metrics: statusItem.showsLabel
                     ? MenuBarPolicy.normalizedMetrics(snapshot?.statusMetrics ?? []) : [],
-                tooltip: snapshot?.error ?? snapshot?.statusTooltip,
-                // Judged against the cadence the item actually runs at: a user
-                // who slows it to 30 s must not see it dimmed as stale after 2.
-                isStale: MenuBarPolicy.isStale(
-                    updatedAt: snapshot?.updatedAt,
-                    interval: (placement.interval ?? prefs.refreshIntervals[widget.id] ?? widget.manifest.refresh?.interval)
-                        .map { $0 * multiplier }
-                ),
+                tooltip: snapshot?.error.map(Self.errorTooltip) ?? snapshot?.statusTooltip,
+                isStale: readingIsStale(widget, updatedAt: snapshot?.updatedAt),
                 separate: separate,
                 presentation: presentation
             )
@@ -2116,9 +2168,36 @@ final class WidgetRuntime: ObservableObject {
     /// Workflows see `widget.requested: true` on it, so expensive work — a
     /// speed test — can wait for an explicit request instead of running on
     /// every open, resize or settings change.
-    func requestRefresh(widgetID: String) {
-        userRequestedRefreshIDs.insert(widgetID)
+    ///
+    /// Returns why the refresh was turned away, if it was, so the place it
+    /// was asked from can say so instead of doing nothing.
+    @discardableResult
+    func requestRefresh(widgetID: String) -> RefreshRejection? {
+        let rejection = widgets.first { $0.id == widgetID }.flatMap(refreshRejection(for:))
+        if rejection == nil { userRequestedRefreshIDs.insert(widgetID) }
+        // Still goes through `refresh`: a widget waiting for permission
+        // brings its approval card back, a too-new one says what to update.
         refresh(widgetID: widgetID, manual: true)
+        return rejection
+    }
+
+    /// A refresh someone asked for on `surface`; a refused one is explained
+    /// there with a toast.
+    func requestRefresh(widgetID: String, feedbackOn surface: ToastSurface) {
+        guard let rejection = requestRefresh(widgetID: widgetID),
+              let widget = widgets.first(where: { $0.id == widgetID }) else { return }
+        feedback(RuntimeFeedback(
+            message: rejection.message(widgetName: widget.displayName),
+            detail: nil, tone: .neutral, surface: surface
+        ))
+    }
+
+    /// Why a refresh asked for now would not run. `nil` when it would.
+    func refreshRejection(for widget: LoadedWidget) -> RefreshRejection? {
+        if prefs.isDisabled(widget.id) { return .disabled }
+        if widget.manifest.incompatibility(hostVersion: Self.hostVersion) != nil { return .needsNewerBarShelf }
+        if permissionStore.status(for: widget.manifest) != .approved { return .waitingForPermission }
+        return nil
     }
 
     /// Refreshes stale widgets (system-wake batch). While the popup is closed
@@ -3268,7 +3347,9 @@ final class WidgetRuntime: ObservableObject {
     /// Executes a `run` action's command iff it matches the widget's
     /// `permissions.exec` allowlist; mismatches are blocked and logged.
     @discardableResult
-    func performRun(action: NodeAction, widgetID: String) -> Task<Void, Never>? {
+    func performRun(
+        action: NodeAction, widgetID: String, title: String? = nil, surface: ToastSurface = .popup
+    ) -> Task<Void, Never>? {
         guard let widget = widgets.first(where: { $0.id == widgetID }) else { return nil }
         guard !prefs.isDisabled(widgetID), !removingWidgetIDs.contains(widgetID) else { return nil }
         guard gatePermissions(for: widget) else { return nil }
@@ -3287,6 +3368,11 @@ final class WidgetRuntime: ObservableObject {
                 "command": .string(command.joined(separator: " ")),
                 "reason": .string("run action not in permissions.exec allowlist"),
             ])
+            feedback(RuntimeFeedback(
+                message: Self.actionFailureTitle(title),
+                detail: String(localized: "This widget isn’t allowed to run that command. Check for a widget update."),
+                tone: .failure, surface: surface
+            ))
             return nil
         }
         auditLog.record("exec.run", widgetId: widgetID, detail: [
@@ -3324,14 +3410,30 @@ final class WidgetRuntime: ObservableObject {
                     self.refresh(widgetID: widgetID, manual: true)
                 }
             case let .failure(error):
-                self.updateSnapshot(widgetID) {
-                    $0.error = "run action failed: \(error.localizedDescription)"
-                }
-                self.persistShareableSnapshot(widgetID: widgetID)
+                // An action has its own channel: a toast where the button
+                // was. The card's reading is still as good as it was, so the
+                // snapshot keeps it — no "Cached — refresh failed" badge for
+                // something that was not a refresh.
+                let raw = error.localizedDescription
+                NSLog("barshelf: run action from %@ failed: %@", widgetID, raw)
+                let explanation = ErrorExplainer.explain(raw, context: .action)
+                self.feedback(RuntimeFeedback(
+                    message: Self.actionFailureTitle(title),
+                    detail: "\(explanation.cause) \(explanation.fix)",
+                    tone: .failure, surface: surface
+                ))
             }
         }
         runActionTasks[widgetID, default: [:]][actionID] = task
         return task
+    }
+
+    /// "Couldn't Restart", or a plain "That didn't work" for a button with
+    /// no words (an icon, a whole row).
+    static func actionFailureTitle(_ title: String?) -> String {
+        let trimmed = title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmed.isEmpty else { return String(localized: "That didn’t work") }
+        return String(localized: "Couldn’t \(trimmed)", comment: "Toast: a widget's button failed; the argument is the button's title.")
     }
 
     /// Declarative run-action launch seam, also used by the production action
@@ -3367,7 +3469,7 @@ final class WidgetRuntime: ObservableObject {
             switch self {
             case let .missingAdapter(message): return message
             case let .invalidWorkflow(message): return message
-            case let .widgetNotFound(id): return String(localized: "widget \"\(id)\" was not found")
+            case .widgetNotFound: return String(localized: "This widget is no longer installed. It may have been removed or updated a moment ago.")
             case let .notRemovable(message): return message
             case let .invalidInstanceName(message): return message
             }

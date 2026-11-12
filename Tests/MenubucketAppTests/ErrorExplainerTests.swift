@@ -103,4 +103,29 @@ final class ErrorExplainerTests: XCTestCase {
         XCTAssertEqual(ErrorExplainer.explain("SyntaxError: Unexpected token } in JSON at position 5").kind, .invalidJSON)
         XCTAssertEqual(ErrorExplainer.explain("SyntaxError: JSON.parse: unexpected character").kind, .invalidJSON)
     }
+
+    // MARK: Contexts
+
+    /// The classification is shared; only the words naming what failed
+    /// change, so an install never says "this widget couldn't refresh".
+    func testContextsNameWhatFailed() {
+        let refresh = ErrorExplainer.explain("boom")
+        let install = ErrorExplainer.explain("boom", context: .install)
+        let update = ErrorExplainer.explain("boom", context: .update)
+        let action = ErrorExplainer.explain("boom", context: .action)
+        let save = ErrorExplainer.explain("boom", context: .save)
+        XCTAssertEqual(Set([refresh.cause, install.cause, update.cause, action.cause, save.cause]).count, 5)
+        XCTAssertFalse(install.cause.lowercased().contains("refresh"))
+        XCTAssertEqual(install.kind, .generic)
+    }
+
+    func testDownloadHTTPErrorsSpeakOfTheLinkNotTheWidgetsSettings() {
+        let install = ErrorExplainer.explain("HTTP 404", context: .install)
+        XCTAssertEqual(install.kind, .httpStatus(404))
+        XCTAssertFalse(install.fix.contains("Settings"))
+        XCTAssertTrue(install.fix.contains("link"))
+        XCTAssertTrue(ErrorExplainer.explain("HTTP 503", context: .update).cause.contains("503"))
+        XCTAssertEqual(ErrorExplainer.explain("The request timed out.", context: .install).kind, .timedOut)
+        XCTAssertFalse(ErrorExplainer.explain("The request timed out.", context: .install).cause.contains("widget"))
+    }
 }

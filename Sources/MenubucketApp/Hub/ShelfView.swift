@@ -15,7 +15,14 @@ struct ShelfView: View {
     @State private var removalTarget: LoadedWidget?
     @State private var duplicateTarget: LoadedWidget?
     @State private var duplicateName = ""
-    @State private var actionError: String?
+    /// A failed board action: its own title ("Couldn't Duplicate Weather")
+    /// and what went wrong.
+    @State private var actionError: ActionError?
+
+    struct ActionError: Equatable {
+        let title: String
+        let message: String
+    }
     @State private var dropHighlight: String?
     /// The page being renamed, and the name typed for it.
     @State private var renamingPage: String?
@@ -38,7 +45,7 @@ struct ShelfView: View {
     var body: some View {
         withPageDialogs(content)
             .alert(
-                "Couldn't Do That",
+                actionError?.title ?? "",
                 isPresented: Binding(
                     get: { actionError != nil },
                     set: { if !$0 { actionError = nil } }
@@ -46,7 +53,7 @@ struct ShelfView: View {
             ) {
                 Button("OK", role: .cancel) { actionError = nil }
             } message: {
-                Text(actionError ?? "")
+                Text(actionError?.message ?? "")
             }
     }
 
@@ -559,8 +566,14 @@ struct ShelfView: View {
     /// page's order as a dense sequence so the popup shows the same thing.
     private func move(_ id: String, toPage page: String, before target: String?) {
         guard runtime.widgets.contains(where: { $0.id == id }) else { return }
+        let changesPage = runtime.effectiveGroup(for: id) != page
         runtime.changeLayout(String(localized: "Move Widget"), undoManager: undoManager) {
             place(id, onPage: page, before: target)
+        }
+        // Reordering within a page shows itself; a move to another page
+        // (often one scrolled out of view) says where it went, as the popup does.
+        if changesPage {
+            ToastCenter.shared.show(String(localized: "Moved to \(PageName.label(page))"), on: .hub)
         }
     }
 
@@ -651,8 +664,12 @@ struct ShelfView: View {
         Task { @MainActor in
             do {
                 try await runtime.removeWidget(id: widget.id)
+                ToastCenter.shared.show(String(localized: "Removed \(widget.displayName)"), on: .hub)
             } catch {
-                actionError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                actionError = ActionError(
+                    title: String(localized: "Couldn’t Remove \(widget.displayName)"),
+                    message: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                )
             }
         }
     }
@@ -663,8 +680,12 @@ struct ShelfView: View {
         duplicateTarget = nil
         do {
             selection = try runtime.duplicateWidget(id: widget.id, label: name)
+            ToastCenter.shared.show(String(localized: "Made a copy of \(widget.displayName)"), on: .hub)
         } catch {
-            actionError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            actionError = ActionError(
+                title: String(localized: "Couldn’t Duplicate \(widget.displayName)"),
+                message: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            )
         }
     }
 }

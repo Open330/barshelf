@@ -349,7 +349,7 @@ final class WidgetBuilderModel: ObservableObject {
             }
             params = try HttpSource.Params(from: .object(object))
         } catch {
-            testError = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+            testError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             return
         }
 
@@ -368,7 +368,7 @@ final class WidgetBuilderModel: ObservableObject {
             } catch {
                 await MainActor.run {
                     self.testRunning = false
-                    self.testError = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+                    self.testError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
                 }
             }
         }
@@ -745,7 +745,7 @@ final class WidgetBuilderModel: ObservableObject {
             )
             return .tree(output.viewTree)
         } catch {
-            return .failure((error as? LocalizedError)?.errorDescription ?? "\(error)")
+            return .failure((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
         }
     }
 
@@ -805,7 +805,7 @@ final class WidgetBuilderModel: ObservableObject {
             createError = nil
             onCreated?()  // triggers WidgetRuntime rescan
         } catch {
-            createError = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+            createError = String(localized: "Couldn’t save the new widget’s files. \((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)")
         }
     }
 

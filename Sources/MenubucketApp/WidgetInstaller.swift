@@ -203,16 +203,129 @@ enum WidgetInstallFlow {
     /// files on disk get words that say what was kept and what to do. Paths
     /// and ids stay as they are, so they can be found and copied.
     static func userFacingDescription(of error: Error) -> String {
+        explainFailure(error).message
+    }
+
+    /// An install failure as what happened and what to do, with the raw
+    /// text (addresses, archive paths, parser output) kept apart: it goes
+    /// to the log and behind "Copy Details", never into the sentence.
+    struct Failure: Equatable {
+        let cause: String
+        let fix: String
+        let detail: String?
+
+        var message: String { "\(cause) \(fix)" }
+    }
+
+    static func explainFailure(_ error: Error) -> Failure {
         switch error as? HeadlessInstallError {
         case let .invalidWidgetID(id):
-            return String(localized: "“\(id)” isn’t a valid widget ID, so nothing was installed. The widget’s author needs to fix the id in its widget.json.")
+            return Failure(
+                cause: String(localized: "“\(id)” isn’t a valid widget ID, so nothing was installed."),
+                fix: String(localized: "The widget’s author needs to fix the id in its widget.json."),
+                detail: nil)
         case let .symbolicLinkInstall(path):
-            return String(localized: "This widget is installed as a link to a folder elsewhere (\(path)). BarShelf doesn’t update linked widgets and changed nothing. To update it, update the folder the link points to — for example with git pull — or remove the link and install the widget again.")
+            return Failure(
+                cause: String(localized: "This widget is installed as a link to a folder elsewhere (\(path)). BarShelf doesn’t update linked widgets and changed nothing."),
+                fix: String(localized: "To update it, update the folder the link points to — for example with git pull — or remove the link and install the widget again."),
+                detail: nil)
         case let .destinationOccupied(path):
-            return String(localized: "Something that isn’t this widget is already at \(path). BarShelf left it exactly as it was. Move or rename it in Finder, then install again.")
-        default:
-            return error.localizedDescription
+            return Failure(
+                cause: String(localized: "Something that isn’t this widget is already at \(path). BarShelf left it exactly as it was."),
+                fix: String(localized: "Move or rename it in Finder, then install again."),
+                detail: nil)
+        case let .needsNewerHost(reason):
+            return Failure(
+                cause: String(localized: "This widget needs a newer version of BarShelf."),
+                fix: String(localized: "Update BarShelf, then install the widget again."),
+                detail: reason)
+        case .noDownloadCandidates:
+            return noDownload(detail: error.localizedDescription)
+        case let .notHTTP(url):
+            return insecure(url)
+        case let .httpStatus(code, url):
+            return http(code, url)
+        case let .downloadTooLarge(limit):
+            return tooLarge(limit)
+        case let .noWidgetsFound(details):
+            return noWidgets(details)
+        case nil:
+            break
         }
+        switch error as? WidgetInstallFlowError {
+        case .noDownloadCandidates:
+            return noDownload(detail: nil)
+        case let .notHTTP(url):
+            return insecure(url)
+        case let .httpStatus(code, url):
+            return http(code, url)
+        case let .downloadTooLarge(limit):
+            return tooLarge(limit)
+        case let .noWidgetsFound(details):
+            return noWidgets(details)
+        case nil:
+            break
+        }
+        if case let .subdirectoryNotFound(folder)? = error as? WidgetDiscovery.DiscoveryError {
+            return Failure(
+                cause: String(localized: "The folder “\(folder)” isn’t in this repository."),
+                fix: String(localized: "Check the folder name and branch in the link, then try again."),
+                detail: nil)
+        }
+        // Network and file errors: classified like a widget's refresh error,
+        // in install words; the system's own text stays in Details.
+        let raw = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        let explanation = ErrorExplainer.explain(raw, context: .install)
+        return Failure(cause: explanation.cause, fix: explanation.fix, detail: raw)
+    }
+
+    private static func noDownload(detail: String?) -> Failure {
+        Failure(
+            cause: String(localized: "BarShelf couldn’t find a widget to download at that address."),
+            fix: String(localized: "Use a link to a GitHub repository or folder, or to a .zip file."),
+            detail: detail)
+    }
+
+    private static func insecure(_ url: URL) -> Failure {
+        Failure(
+            cause: String(localized: "That address doesn’t offer a secure download."),
+            fix: String(localized: "Use an https:// link to the widget."),
+            detail: url.absoluteString)
+    }
+
+    private static func http(_ code: Int, _ url: URL) -> Failure {
+        let explanation = ErrorExplainer.explain("HTTP \(code)", context: .install)
+        return Failure(cause: explanation.cause, fix: explanation.fix, detail: "HTTP \(code): \(url.absoluteString)")
+    }
+
+    private static func tooLarge(_ limitBytes: Int) -> Failure {
+        Failure(
+            cause: String(localized: "The download is larger than the \(limitBytes / (1024 * 1024)) MB BarShelf accepts for a widget."),
+            fix: String(localized: "Check that the link points to the widget itself, not a whole project."),
+            detail: nil)
+    }
+
+    private static func noWidgets(_ details: [String]) -> Failure {
+        guard !details.isEmpty else {
+            return Failure(
+                cause: String(localized: "There’s no BarShelf widget in this download."),
+                fix: String(localized: "Check that the link points to a widget’s folder or repository."),
+                detail: nil)
+        }
+        return Failure(
+            cause: String(localized: "A widget was found, but BarShelf couldn’t read it."),
+            fix: String(localized: "The widget’s author needs to fix its widget.json."),
+            detail: details.joined(separator: "\n"))
+    }
+
+    /// A widget folder that discovery skipped, for an install summary: its
+    /// folder and a plain reason. The parser's own message goes to the log.
+    static func describeSkipped(_ failure: WidgetDiscovery.Failure) -> String {
+        NSLog("barshelf: install skipped %@: %@", failure.relativePath, failure.reason)
+        let reason = failure.reason.hasPrefix("invalid widget id")
+            ? String(localized: "its widget ID isn’t valid")
+            : String(localized: "its widget.json couldn’t be read")
+        return "\(failure.relativePath): \(reason)"
     }
 
     static func isInstalled(id: String) -> Bool {
@@ -417,7 +530,7 @@ final class WidgetInstaller {
                     }
                     defer { if let staging { try? FileManager.default.removeItem(at: staging) } }
                     guard let candidate = discovery.candidates.first(where: { $0.manifest.id == entry.id }) else {
-                        failed.append("\(entry.name): \(String(localized: "the widget wasn't found at its source"))")
+                        failed.append("\(entry.name): \(String(localized: "It wasn’t found where the gallery says it is. Try again later."))")
                         done.insert(entry.id)
                         continue
                     }
@@ -435,6 +548,7 @@ final class WidgetInstaller {
                 } catch is CancellationError {
                     break
                 } catch {
+                    NSLog("barshelf: pack install of %@ failed: %@", entry.id, String(describing: error))
                     failed.append("\(entry.name): \(WidgetInstallFlow.userFacingDescription(of: error))")
                     done.insert(entry.id)
                 }
@@ -537,9 +651,7 @@ final class WidgetInstaller {
 
         var installed: [String] = []
         var installedIDs: [String] = []
-        var failed: [String] = discovery.failures.map {
-            "\($0.relativePath): \($0.reason)"
-        }
+        var failed: [String] = discovery.failures.map(WidgetInstallFlow.describeSkipped)
 
         for candidate in discovery.candidates {
             let isUpdate = WidgetInstallFlow.isInstalled(id: candidate.manifest.id)
@@ -554,8 +666,9 @@ final class WidgetInstaller {
                 )
                 installedIDs.append(candidate.manifest.id)
             } catch {
+                NSLog("barshelf: install of %@ failed: %@", candidate.manifest.id, String(describing: error))
                 failed.append(
-                    "\(candidate.manifest.id): \(WidgetInstallFlow.userFacingDescription(of: error))"
+                    "\(candidate.manifest.name): \(WidgetInstallFlow.userFacingDescription(of: error))"
                 )
             }
         }
@@ -634,12 +747,20 @@ final class WidgetInstaller {
     }
 
     private func showError(_ error: Error) {
+        let failure = WidgetInstallFlow.explainFailure(error)
+        NSLog("barshelf: widget install failed: %@", failure.detail ?? String(describing: error))
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = String(localized: "Widget install failed")
-        alert.informativeText = WidgetInstallFlow.userFacingDescription(of: error)
+        alert.messageText = String(localized: "Couldn’t install the widget")
+        alert.informativeText = failure.message
         alert.addButton(withTitle: String(localized: "OK"))
-        alert.runModal()
+        if failure.detail != nil {
+            alert.addButton(withTitle: String(localized: "Copy Details"))
+        }
+        if alert.runModal() == .alertSecondButtonReturn, let detail = failure.detail {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(detail, forType: .string)
+        }
     }
 }
 

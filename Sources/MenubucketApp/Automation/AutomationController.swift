@@ -68,6 +68,13 @@ final class AutomationController: ObservableObject {
         draft = text == source ? nil : text
     }
 
+    /// Whether putting `text` in the editor (an import, the example) would
+    /// throw away edits that were never saved, so the editor should ask.
+    func replacingDraftLosesChanges(with text: String) -> Bool {
+        guard let draft else { return false }
+        return draft != text
+    }
+
     @discardableResult
     func apply(source candidate: String, enabled: Bool) -> Bool {
         do {

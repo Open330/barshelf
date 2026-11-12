@@ -4,7 +4,15 @@ import MenubucketCore
 
 /// Executes declarative `NodeAction`s coming from rendered buttons.
 enum ActionRouter {
-    static func perform(_ action: NodeAction, widgetID: String, runtime: WidgetRuntime?) {
+    /// `title` is the button's own label, for a failure to name what did not
+    /// happen; `surface` is where the button was, so its toast shows there.
+    static func perform(
+        _ action: NodeAction, widgetID: String, runtime: WidgetRuntime?,
+        title: String? = nil, surface: ToastSurface = .popup
+    ) {
+        // Later toasts from this press (the vault's "Copied", a failure that
+        // arrives after the command ran) belong to the same surface.
+        Task { @MainActor in ToastCenter.shared.lastSurface = surface }
         switch action.type {
         case "copyText":
             guard let value = action.value else { return }
@@ -24,7 +32,7 @@ enum ActionRouter {
             }
             // Always confirm visually; sound is an explicit user preference.
             // Never log the copied value — it may be sensitive.
-            Task { @MainActor in ToastCenter.shared.show(action.toast ?? String(localized: "Copied")) }
+            Task { @MainActor in ToastCenter.shared.show(action.toast ?? String(localized: "Copied"), on: surface) }
             if (runtime?.appPrefs ?? AppPrefs.shared).preferences.copySoundEnabled {
                 NSSound.beep()
             }
@@ -34,7 +42,7 @@ enum ActionRouter {
         case "run":
             // Only commands matching the manifest permissions.exec allowlist
             // may run; the runtime blocks and logs mismatches.
-            runtime?.performRun(action: action, widgetID: widgetID)
+            runtime?.performRun(action: action, widgetID: widgetID, title: title, surface: surface)
 
         case "openURL":
             guard let urlString = action.url ?? action.value,
@@ -67,11 +75,7 @@ enum ActionRouter {
             runtime?.performQuitApp(action: action, widgetID: widgetID)
 
         case "refresh":
-            if let targetID = action.id {
-                runtime?.requestRefresh(widgetID: targetID)
-            } else {
-                runtime?.requestRefresh(widgetID: widgetID)
-            }
+            runtime?.requestRefresh(widgetID: action.id ?? widgetID, feedbackOn: surface)
 
         case "vaultUnlock", "vaultLock", "vaultSignOut", "vaultCopy":
             // Needs permissions.vault; the host's provider does the work.

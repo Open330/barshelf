@@ -16,6 +16,24 @@ struct DockSettingsPage: View {
     @State private var newProfileName = ""
     @State private var showNewProfilePrompt = false
     @State private var profileToDelete: DockProfile?
+    /// A saved Apple Dock layout about to be overwritten or forgotten.
+    @State private var layoutChange: LayoutChange?
+
+    private enum LayoutChange: Identifiable {
+        case replace(DockProfile)
+        case forget(DockProfile)
+        var id: String {
+            switch self {
+            case .replace(let profile): return "replace-\(profile.id)"
+            case .forget(let profile): return "forget-\(profile.id)"
+            }
+        }
+        var profile: DockProfile {
+            switch self {
+            case .replace(let profile), .forget(let profile): return profile
+            }
+        }
+    }
     @ObservedObject private var hotkeyStatus = DockHotkeyStatus.shared
     @State private var nameDraft = ""
     @FocusState private var nameFocused: Bool
@@ -108,6 +126,43 @@ struct DockSettingsPage: View {
             }
         } message: {
             Text("Its items and saved Apple Dock layout are removed. Nothing on disk is touched.")
+        }
+        .alert(
+            layoutChangeTitle,
+            isPresented: Binding(get: { layoutChange != nil }, set: { if !$0 { layoutChange = nil } }),
+            presenting: layoutChange
+        ) { change in
+            Button("Cancel", role: .cancel) { layoutChange = nil }
+            switch change {
+            case .replace(let profile):
+                Button("Replace") {
+                    store.captureAppleDock(into: profile.id)
+                    layoutChange = nil
+                }
+            case .forget(let profile):
+                Button("Forget", role: .destructive) {
+                    store.updateProfile(profile.id) { $0.appleDock = nil }
+                    layoutChange = nil
+                }
+            }
+        } message: { change in
+            switch change {
+            case .replace(let profile):
+                Text("The layout saved in \(profile.name) is replaced by the apps in the Apple Dock now. This can’t be undone.")
+            case .forget(let profile):
+                Text("Switching to \(profile.name) will leave the Apple Dock as it is. This can’t be undone.")
+            }
+        }
+    }
+
+    private var layoutChangeTitle: String {
+        switch layoutChange {
+        case .replace(let profile)?:
+            return String(localized: "Replace the Apple Dock layout saved in \(profile.name)?")
+        case .forget(let profile)?:
+            return String(localized: "Forget the Apple Dock layout saved in \(profile.name)?")
+        case nil:
+            return ""
         }
     }
 
@@ -430,7 +485,7 @@ struct DockSettingsPage: View {
                 .fixedSize()
             }
             Button {
-                store.removeItem(item.id, profileID: profileID)
+                store.removeItemOfferingUndo(item, profileID: profileID, surface: .hub)
             } label: {
                 Image(systemName: "minus.circle")
             }
@@ -581,13 +636,19 @@ struct DockSettingsPage: View {
                     .foregroundStyle(.secondary)
             }
             HStack {
-                Button(profile.appleDock == nil ? "Save Current Apple Dock" : "Replace with Current Apple Dock") {
-                    store.captureAppleDock(into: profile.id)
+                Button(profile.appleDock == nil ? "Save Current Apple Dock" : "Replace with Current Apple Dock…") {
+                    // A first save loses nothing; replacing loses the saved
+                    // layout, so it asks first.
+                    if profile.appleDock == nil {
+                        store.captureAppleDock(into: profile.id)
+                    } else {
+                        layoutChange = .replace(profile)
+                    }
                 }
                 Button("Apply Now") { store.applyAppleDockLayout(of: profile.id) }
                     .disabled(profile.appleDock == nil)
                 Spacer()
-                Button("Forget") { store.updateProfile(profile.id) { $0.appleDock = nil } }
+                Button("Forget…") { layoutChange = .forget(profile) }
                     .disabled(profile.appleDock == nil)
             }
         } header: {
@@ -624,6 +685,7 @@ struct DockSettingsPage: View {
                     Button("Copy") {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(url, forType: .string)
+                        ToastCenter.shared.show(String(localized: "Copied"), on: .hub)
                     }
                     .controlSize(.small)
                 }

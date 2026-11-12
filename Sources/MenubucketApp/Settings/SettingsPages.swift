@@ -10,7 +10,8 @@ private struct PrefsErrorSection: View {
     var body: some View {
         if let error = appPrefs.lastError {
             Section {
-                StatusBanner(tone: .critical, message: String(localized: "Couldn't save settings: \(error)"))
+                let explanation = ErrorExplainer.explain(error, context: .save)
+                StatusBanner(tone: .critical, message: "\(explanation.cause) \(explanation.fix)")
             }
         }
     }
@@ -619,7 +620,10 @@ struct PrivacySettingsPage: View {
                 case .allowed:
                     // Always there for keyboard, VoiceOver and automation;
                     // quiet (text until hovered) because the decision is made.
-                    Button("Revoke") { runtime.revokePermissions(widgetID: widget.id) }
+                    Button("Revoke") {
+                        runtime.revokePermissions(widgetID: widget.id)
+                        ToastCenter.shared.show(String(localized: "\(widget.displayName) stopped until you allow it again"), on: .hub)
+                    }
                         .buttonStyle(.glass(.plain))
                         .controlSize(.small)
                         .help("Stop this widget until you allow it again")

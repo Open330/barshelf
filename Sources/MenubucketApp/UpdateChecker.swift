@@ -378,7 +378,11 @@ enum UpdateChecker {
     private static func presentError(_ error: Error) {
         let alert = NSAlert()
         alert.messageText = String(localized: "Couldn't check for updates")
-        alert.informativeText = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+        // What happened and what to do; the raw message is for the log.
+        let raw = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        NSLog("barshelf: update check failed: %@", raw)
+        let explanation = ErrorExplainer.explain(raw, context: .update)
+        alert.informativeText = "\(explanation.cause) \(explanation.fix)"
         alert.addButton(withTitle: String(localized: "OK"))
         alert.addButton(withTitle: String(localized: "Open Releases"))
         if alert.runModal() == .alertSecondButtonReturn {

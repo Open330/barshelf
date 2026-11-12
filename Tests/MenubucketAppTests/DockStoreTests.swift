@@ -295,6 +295,23 @@ final class DockStoreTests: XCTestCase {
         XCTAssertEqual(DockConfiguration.load(from: fileURL).activeProfile.items.map(\.id), [b.id, a.id])
     }
 
+    /// Remove from Dock offers Undo; undoing puts the item back where it was.
+    func testRemovedItemComesBackWhereItWas() {
+        let store = makeStore()
+        let a = DockItem(kind: .app(path: "/Applications/A.app"))
+        let b = DockItem(kind: .app(path: "/Applications/B.app"))
+        let c = DockItem(kind: .app(path: "/Applications/C.app"))
+        store.addItems([a, b, c])
+        let removed = store.removeItem(b.id)
+        XCTAssertEqual(removed?.index, 1)
+        XCTAssertEqual(store.activeProfile.items.map(\.id), [a.id, c.id])
+        store.restoreItem(removed!)
+        XCTAssertEqual(store.activeProfile.items.map(\.id), [a.id, b.id, c.id])
+        store.restoreItem(removed!)
+        XCTAssertEqual(store.activeProfile.items.map(\.id), [a.id, b.id, c.id], "undoing twice adds nothing")
+        XCTAssertNil(store.removeItem("missing"))
+    }
+
     func testTheLastProfileCannotBeRemoved() {
         let store = makeStore()
         store.removeProfile(DockProfile.defaultID)
@@ -534,4 +551,5 @@ final class DockMenuTests: XCTestCase {
         }
         XCTAssertEqual(ran, ["open", "work", "remove"])
     }
+
 }

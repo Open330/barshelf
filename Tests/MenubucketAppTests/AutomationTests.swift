@@ -544,4 +544,25 @@ final class AutomationTests: XCTestCase {
         XCTAssertNil(released)
     }
 
+
+    /// Import and Load Example ask before replacing edits that were never saved.
+    func testReplacingAnUnsavedDraftNeedsConfirmation() {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let controller = AutomationController(fileURL: folder.appendingPathComponent("automation.json"))
+        XCTAssertFalse(controller.replacingDraftLosesChanges(with: "anything"), "nothing unsaved")
+        controller.setDraft("// my edits")
+        XCTAssertTrue(controller.replacingDraftLosesChanges(with: AutomationScript.example))
+        XCTAssertFalse(controller.replacingDraftLosesChanges(with: "// my edits"), "same text loses nothing")
+    }
+
+    /// A failed window action says what to do, not an Accessibility error code.
+    func testWindowActionFailuresAreExplained() {
+        let untrusted = AutomationWindows.failureMessage(.cannotComplete, action: "move window", trusted: false)
+        XCTAssertTrue(untrusted.contains("Accessibility"))
+        XCTAssertFalse(untrusted.contains("-25204"))
+        let busy = AutomationWindows.failureMessage(.cannotComplete, action: "move window", trusted: true)
+        XCTAssertNotEqual(busy, untrusted)
+        XCTAssertFalse(AutomationWindows.failureMessage(.attributeUnsupported, action: "move window", trusted: true).contains("error"))
+    }
 }

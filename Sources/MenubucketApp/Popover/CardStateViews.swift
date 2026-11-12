@@ -85,6 +85,39 @@ struct CardErrorView: View {
     }
 }
 
+/// An error anywhere outside a card (a builder test, a settings page): the
+/// explained cause and fix, with the raw message behind "Details".
+struct ExplainedErrorView: View {
+    let error: String
+    var context: ErrorExplainer.Context = .refresh
+    @State private var showsDetails = false
+
+    var body: some View {
+        let explanation = ErrorExplainer.explain(error, context: context)
+        VStack(alignment: .leading, spacing: Spacing.xxs) {
+            Label {
+                Text(explanation.cause)
+            } icon: {
+                Image(systemName: StatusTone.critical.symbol)
+                    .foregroundStyle(StatusTone.critical.color)
+            }
+            .font(.caption.weight(.medium))
+            HStack(alignment: .firstTextBaseline, spacing: Spacing.xs) {
+                Text(explanation.fix)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Button(showsDetails ? "Hide Details" : "Details") { showsDetails.toggle() }
+                    .buttonStyle(.link)
+            }
+            .font(.caption)
+            if showsDetails {
+                RawErrorText(error: error)
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
 /// The error exactly as the widget reported it, selectable so it can be
 /// copied into a bug report.
 struct RawErrorText: View {
@@ -279,25 +312,46 @@ struct PermissionDeniedView: View {
 
 // MARK: - Crash-disabled
 
-/// A script widget that kept crashing and was stopped.
+/// A script widget that kept crashing and was stopped: what happened, what
+/// to try, and the supervisor's own reason behind "Details".
 struct CrashDisabledView: View {
     let reason: String
     let onRestart: () -> Void
     let onOpenLogs: () -> Void
+    @State private var showsDetails = false
+
+    /// The fix line: the explainer's when it recognises the reason (a
+    /// missing command, a timeout), otherwise the crash's own advice.
+    static func fix(for reason: String) -> String {
+        let explanation = ErrorExplainer.explain(reason)
+        guard explanation.kind != .generic else {
+            return String(localized: "Open Logs to see what went wrong, then restart it. If it keeps crashing, check for a widget update.")
+        }
+        return explanation.fix
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.xs) {
             StatusBanner(
                 tone: .critical,
-                message: String(localized: "Stopped after crashing repeatedly: \(reason)")
+                message: String(localized: "This widget stopped after crashing several times.")
             )
+            Text(Self.fix(for: reason))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: Spacing.xs) {
                 Button("Restart Widget", action: onRestart)
                     .buttonStyle(.glass(.primary))
                 Button("Open Logs", action: onOpenLogs)
                     .buttonStyle(.glass(.secondary))
+                Button(showsDetails ? "Hide Details" : "Details") { showsDetails.toggle() }
+                    .buttonStyle(.glass(.secondary))
             }
             .controlSize(.small)
+            if showsDetails {
+                RawErrorText(error: reason)
+            }
         }
     }
 

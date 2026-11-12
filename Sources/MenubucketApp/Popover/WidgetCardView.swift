@@ -37,6 +37,8 @@ struct WidgetCardView: View {
     @State private var pendingRefreshOutcome: RefreshBaseline?
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.shelfIsEditing) private var shelfIsEditing
+    /// Where this card is drawn, so its confirmations and failures show there.
+    @Environment(\.toastSurface) private var toastSurface
 
     /// Effective theming (user override → author default → neutral). Injected
     /// into the rendered tree and used for the card's own chrome.
@@ -155,6 +157,7 @@ struct WidgetCardView: View {
                     runtime.changeLayout(String(localized: "Move Widget"), undoManager: undoManager) {
                         runtime.moveWidget(id: widget.id, toGroup: name)
                     }
+                    ToastCenter.shared.show(String(localized: "Moved to \(PageName.label(name))"), on: toastSurface)
                 }
                 newBucketName = ""
             }
@@ -282,7 +285,7 @@ struct WidgetCardView: View {
 
     fileprivate func retry() {
         pendingRefreshOutcome = RefreshBaseline(model.snapshot)
-        runtime.requestRefresh(widgetID: widget.id)
+        runtime.requestRefresh(widgetID: widget.id, feedbackOn: toastSurface)
         // Loading starts synchronously. A refresh turned away (disabled,
         // waiting for approval, too new for this BarShelf) never loads, so
         // nothing is pending — the next automatic load is not announced.
@@ -378,7 +381,7 @@ struct WidgetCardView: View {
                     }
                     // Same confirmation as dropping a card on a page dot;
                     // it is also what VoiceOver hears.
-                    ToastCenter.shared.show(String(localized: "Moved to \(PageName.label(group))"))
+                    ToastCenter.shared.show(String(localized: "Moved to \(PageName.label(group))"), on: toastSurface)
                 }
                 .disabled(group == current)
             }
@@ -411,8 +414,8 @@ struct WidgetCardView: View {
     }
 
     private var actionContext: ActionContext {
-        ActionContext(widgetID: widget.id) { [weak runtime] action in
-            ActionRouter.perform(action, widgetID: widget.id, runtime: runtime)
+        ActionContext(widgetID: widget.id) { [weak runtime, toastSurface] action, title in
+            ActionRouter.perform(action, widgetID: widget.id, runtime: runtime, title: title, surface: toastSurface)
         }
     }
 

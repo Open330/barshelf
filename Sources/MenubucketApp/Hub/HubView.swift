@@ -35,7 +35,11 @@ struct HubView: View {
                 // the toolbar truncates) only stays for the others.
                 .navigationTitle(model.tab.title)
                 .navigationSubtitle(model.tab.hasPageHeader ? "" : model.tab.subtitle)
+                // Confirmations for what is done here (Duplicate, Move,
+                // Revoke, Copy), over whichever page is showing.
+                .overlay { ToastOverlay(surface: .hub, bottomInset: Spacing.m) }
         }
+        .environment(\.toastSurface, .hub)
     }
 
     private func sidebarRow(_ tab: HubTab) -> some View {

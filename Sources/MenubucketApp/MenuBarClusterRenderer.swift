@@ -27,7 +27,7 @@ extension MenuBarController {
         static let glyphBox: CGFloat = 9.5
         /// The arc's track, barely there.
         static let trackAlpha: CGFloat = 0.12
-        static let staleAlpha: CGFloat = 0.45
+        static let staleAlpha = CGFloat(Fill.staleOpacity)
         /// How much lighter the disc's top is than its colour.
         static let sheenAlpha: CGFloat = 0.22
         /// The disc's fine inner edge, which keeps a dark colour from
