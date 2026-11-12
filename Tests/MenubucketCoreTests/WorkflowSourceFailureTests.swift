@@ -72,4 +72,25 @@ final class WorkflowSourceFailureTests: XCTestCase {
         )
         XCTAssertEqual(fine.viewTree.text, "ok/none")
     }
+
+    func testTheGenericEmptyNeverCoversAFailedSource() throws {
+        let definition = try WorkflowDefinition.decode(from: Data("""
+        {"schemaVersion":1,
+         "sources":{"data":{"use":"http","optional":true,"with":{"url":"https://example.com"}}},
+         "view":{"type":"vstack","children":
+           {"forEach":"sources.data.items","as":"row","template":{"type":"text","text":"${row.name}"}}},
+         "empty":{"type":"empty","title":"Nothing here"}}
+        """.utf8))
+        let failed = try WorkflowEngine.evaluate(
+            definition, sources: ["data": .null], settings: .object([:]),
+            errors: ["data": WorkflowSourceFailure(kind: .offline, message: "offline").value]
+        )
+        XCTAssertFalse(failed.usedEmpty)
+        XCTAssertEqual(failed.viewTree.type, "vstack")
+
+        let nothing = try WorkflowEngine.evaluate(
+            definition, sources: ["data": .object(["items": .array([])])], settings: .object([:])
+        )
+        XCTAssertTrue(nothing.usedEmpty)
+    }
 }

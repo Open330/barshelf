@@ -443,7 +443,10 @@ public enum WorkflowEngine {
         let expandedView = try context.expand(definition.view)
         var usedEmpty = false
         var tree = expandedView
-        if context.expandedItemCount == 0, let empty = definition.empty {
+        // A failed optional source leaves its lists empty; the view's own
+        // error branch says why, so the generic `empty` must not cover it.
+        let anySourceFailed = errorEntries.values.contains { $0 != .null }
+        if context.expandedItemCount == 0, !anySourceFailed, let empty = definition.empty {
             tree = try context.expand(empty)
             usedEmpty = true
         }

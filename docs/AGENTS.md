@@ -151,9 +151,15 @@ shape):
   "title": "Folder",       // label shown in settings UI (label also accepted)
   "options": ["a", "b"],   // for enum types
   "min": 1, "max": 48,     // numeric bounds
-  "default": "~/Downloads" // default value (any JSON type)
+  "default": "~/Downloads", // default value (any JSON type)
+  "hint": "e.g. ~/Projects" // one line under the control (0.7.32)
 }
 ```
+
+`integer` gets a field with a stepper; `number` (0.7.32) a decimal field, for a
+latitude or a price; before 0.7.32 hosts drew `number` as a text field. An
+`enum` whose stored value is no longer among its `options` still shows that
+value, so changing the options doesn't blank a user's choice.
 
 The host also shows a built-in **Appearance** section for every widget (accent,
 density, card style, show-header) on top of your `settings[]`.
@@ -363,13 +369,17 @@ shows the host's own message ("This widget couldn't refresh"). Mark a source
   "data": { "use": "http", "optional": true,
             "with": { "url": "https://api.example.com/v1/now" } }
 },
-"view": { "type": "switch", "on": "${errors.data.kind}", "cases": {
+"view": { "switch": "${coalesce(errors.data.kind, 'ok')}", "cases": {
   "offline":     { "type": "empty", "symbol": "wifi.slash", "title": "You're offline" },
-  "rateLimited": { "type": "empty", "title": "Too many requests", "subtitle": "Trying again soon." }
-}, "default": { "...": "the normal view, reading sources.data" } }
+  "rateLimited": { "type": "empty", "title": "Too many requests", "subtitle": "Trying again soon." },
+  "ok":          { "...": "the normal view, reading sources.data" }
+}, "default": { "type": "empty", "title": "Couldn't load", "subtitle": "${errors.data.message}" } }
 ```
 
 - A failed optional source reads as `null` in `sources.<id>`.
+- While any source has failed, the workflow's top-level `empty` is not used:
+  a list that came back empty because its source failed shows your error
+  branch, not "nothing here".
 - `errors.<id>` is `null` when the source succeeded, and otherwise
   `{ "kind", "code"?, "command"?, "message" }`. Every source has an entry, so
   `eq(errors.x, null)` is safe either way.
@@ -580,7 +590,9 @@ Gating specifics:
   grant; quitting can lose work, so it is declared, approved with the rest of
   the permission set, and still confirmed by the user every time.
 - `keychain` gates `barshelf.secret.*`; `notifications` gates `barshelf.notify.show`.
-- `barshelf.storage.*` needs **no** permission (per-widget sandbox).
+- `barshelf.storage.*` (scripts) needs **no** permission (per-widget sandbox). A
+  **workflow** that reads `storage.*` or writes a `store` block must declare
+  `"storage": true`; without it `storage` reads empty and `store` is ignored.
 
 The install-confirm summary (`barshelf install`) prints one line per gated capability,
 e.g. `exec: /bin/ls`, `network: fetches from api.github.com`, `files: reads
@@ -603,7 +615,8 @@ an unsupported placeholder today):
 Shared/common fields: `id` (stable identity, needed for lists & action routing),
 `padding` (points), `widthFill` (bool), `tint`/`tone`/`foreground`
 (`primary`|`secondary`|`tertiary`|`accent`|`good`|`warning`|`danger`|`neutral`),
-`accessibilityLabel`, `desktopRole` (desktop widgets only, see §8B).
+`accessibilityLabel`, `desktopRole` (desktop widgets only, see §8B), `help` (hover
+text, BarShelf 0.7.32; the place for detail such as a failure's raw message).
 
 ### Containers
 
@@ -622,6 +635,9 @@ Shared/common fields: `id` (stable identity, needed for lists & action routing),
   { "type": "hstack", "id": "row-1", "children": [ { "type": "text", "text": "Row 1" } ] }
 ] }
 ```
+`scroll` takes one `child`; from BarShelf 0.7.32 it also takes `children`, stacked
+vertically (before that, `children` on a scroll rendered nothing).
+
 `searchPlaceholder` enables a host-local search field on a `list`. Each
 whitespace-delimited query term filters against visible row text recursively;
 action payloads are excluded and typing does not re-run the widget.
@@ -674,7 +690,8 @@ row. Set `height` on the list to have it scroll inside that height instead.
 }
 ```
 `value` is 0.0–1.0. `countdown` (epoch ms) makes the host tick the ring 1 Hz with
-no re-run; `labelFrom: "remainingSeconds"` renders the seconds left; `tintRules`
+no re-run; `labelFrom: "remainingSeconds"` renders the seconds left, and
+`labelFrom: "remaining"` (0.7.32) a short duration ("45s", "12m", "1h5m"); `tintRules`
 (first match wins) override `tint`.
 
 Stacked meter (linear only): `segments` replaces `value`; parts are drawn left
@@ -871,7 +888,10 @@ Workflow sources: `use` is `"exec"`, `"fs.directory"`, `"fs.json"`, `"http"`, `"
 `"value"`. Values flow
 into `${...}` expressions in `transforms`/`view`: reference source output as
 `$.sources.<id>.<path>`, transforms as `transforms.<id>`, settings as
-`settings.<key>`. From 0.7.5, `widget.locale` is the app's display language
+`settings.<key>`, and an optional source's failure as `errors.<id>` (§8E).
+Expressions have string, number, `true`/`false` and `null` literals but no
+array or object literals (`coalesce(x, [])` is an error); for "no list", test
+`eq(x, null)` instead. From 0.7.5, `widget.locale` is the app's display language
 (`ko`, `en`, etc.). Use it only for fixed display vocabulary produced by
 transforms; preserve user/provider data and action identifiers. Missing or
 unknown language should retain the original text for older hosts.

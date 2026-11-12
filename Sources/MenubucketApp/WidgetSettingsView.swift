@@ -1505,6 +1505,19 @@ struct WidgetSettingsView: View {
 
     @ViewBuilder
     private func row(for entry: Manifest.Setting, key: String) -> some View {
+        VStack(alignment: .leading, spacing: Spacing.hair) {
+            control(for: entry, key: key)
+            if let hint = entry.hint, !hint.isEmpty {
+                Text(hint)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func control(for entry: Manifest.Setting, key: String) -> some View {
         let title = entry.title ?? entry.label ?? key
         switch entry.type {
         case "boolean":
@@ -1546,6 +1559,39 @@ struct WidgetSettingsView: View {
                     }
                 }
             }
+        case "number":
+            // Decimals (a latitude, a price), so no stepper.
+            VStack(alignment: .leading, spacing: Spacing.hair) {
+                HStack {
+                    Text(title).font(.callout)
+                    Spacer()
+                    TextField("", text: Binding(
+                        get: { values[key]?.numberValue.map(Self.numberText) ?? "" },
+                        set: { text in
+                            let filtered = text.filter { $0.isNumber || $0 == "-" || $0 == "." }
+                            if filtered.isEmpty {
+                                values[key] = nil
+                            } else if let number = Double(filtered) {
+                                values[key] = .number(number)
+                            }
+                        }
+                    ))
+                    .frame(width: 90)
+                    .multilineTextAlignment(.trailing)
+                    .accessibilityLabel(title)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit {
+                        if let number = values[key]?.numberValue {
+                            values[key] = .number(min(max(number, entry.min ?? -.greatestFiniteMagnitude), entry.max ?? .greatestFiniteMagnitude))
+                        }
+                    }
+                }
+                if let hint = rangeHint(for: entry) {
+                    Text(hint)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
         case "enum":
             LabeledContent(title) {
                 Picker(title, selection: Binding(
@@ -1554,6 +1600,15 @@ struct WidgetSettingsView: View {
                 )) {
                     ForEach(entry.options ?? [], id: \.self) { option in
                         Text(Self.optionTitle(option, in: entry)).tag(option)
+                    }
+                    // A value saved before the options changed (or typed
+                    // into the manifest) is still what the widget uses;
+                    // show it rather than a blank picker.
+                    if let stored = values[key]?.stringValue, !stored.isEmpty,
+                       !(entry.options ?? []).contains(stored),
+                       !dynamicOptions(for: entry, selected: stored).contains(where: { $0.value == stored }) {
+                        Divider()
+                        Text(stored).tag(stored)
                     }
                     let extra = dynamicOptions(for: entry, selected: values[key]?.stringValue)
                     if !extra.isEmpty {
@@ -1673,6 +1728,13 @@ struct WidgetSettingsView: View {
             },
             set: { values[key] = .number(clampedInteger(Double($0), entry: entry)) }
         )
+    }
+
+    /// "37.57", not "37.570000"; whole numbers without a decimal point.
+    static func numberText(_ number: Double) -> String {
+        number == number.rounded() && abs(number) < 1e15
+            ? String(Int(number))
+            : String(number)
     }
 
     private func rangeHint(for entry: Manifest.Setting) -> String? {

@@ -64,7 +64,8 @@ public struct UINode: Codable, Equatable {
     /// the popup is open — no script re-run needed.
     public var countdown: Countdown?
     /// "remainingSeconds" → render the remaining seconds as the ring's center
-    /// label (or trailing label for linear style).
+    /// label (or trailing label for linear style). "remaining" → the same as
+    /// a short duration ("45s", "12m", "1h5m"), BarShelf 0.7.32.
     public var labelFrom: String?
     /// First matching rule overrides `tint` (e.g. danger under 10s).
     public var tintRules: [TintRule]?
@@ -107,6 +108,9 @@ public struct UINode: Codable, Equatable {
     /// default behavior (decorative images stay hidden, file thumbnails use
     /// the file name, etc.).
     public var accessibilityLabel: String?
+    /// Hover text for the rendered view (BarShelf 0.7.32): the place for
+    /// detail that would crowd the card, such as a failure's raw message.
+    public var help: String? = nil
     /// SDK/schema-native nested accessibility metadata. The flat label stays
     /// supported for existing workflow widgets.
     public var accessibility: Accessibility?
