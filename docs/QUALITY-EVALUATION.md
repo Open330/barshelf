@@ -40,6 +40,11 @@ or the keyboard.
 | Keyboard extension kept | Fn-arrow mappings and window shortcuts used every day, including after sleep and after a new login; `log show --last 7d --predicate 'process == "barshelf-app" AND eventMessage CONTAINS "automation stopped"'` | they keep working, and every logged stop has a known cause (for example, Accessibility was turned off) |
 | Menu bar item kept | the BarShelf icon after sleep, a display change and a login; the BarShelf window's hidden-item warning | the icon is visible and the warning is not shown |
 
+The CPU and memory limits come from a real regression: 0.7.3 on june-mba
+reached 3–10% idle CPU and a 267 MB footprint after four days (a closed popup
+kept its view alive, fixed in 0.7.4). After the fix it held under 1% CPU and
+at 31–43 MB.
+
 Any failure means the release is not accepted. When it breaks something
 people use every day (the app does not open, data is lost, the keyboard
 extension stops), the fix ships at once under the exception in
