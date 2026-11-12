@@ -431,12 +431,22 @@ struct PrivacySettingsPage: View {
 
     enum Grouping: Hashable { case byWidget, byCapability }
 
+    /// Installed widgets with no use in the usage window; nil while there is
+    /// nothing to judge by (counting off, or no day with use yet).
+    private var unusedStat: SettingsStat? {
+        guard runtime.appPrefs.preferences.usageCountsEnabled else { return nil }
+        let summary = runtime.usageStore.summary(
+            days: UsageCountsSection.windowDays, known: runtime.widgets.map(\.id))
+        guard summary.activeDays > 0 else { return nil }
+        return SettingsStat(value: "\(summary.neverUsed.count)", label: UsageCountsSection.idleStatLabel(summary))
+    }
+
     var body: some View {
         let needing = runtime.widgets.filter { runtime.permissionState(for: $0) != .notNeeded }
         let waiting = needing.filter { runtime.permissionState(for: $0) == .notAsked }
         let denied = needing.filter { runtime.permissionState(for: $0) == .denied }
         let allowed = needing.filter { runtime.permissionState(for: $0) == .allowed }
-        SettingsPage(.privacy, stats: Self.stats(allowed: allowed, waiting: waiting, denied: denied)) {
+        SettingsPage(.privacy, stats: Self.stats(allowed: allowed, waiting: waiting, denied: denied, unused: unusedStat)) {
             if needing.isEmpty {
                 Section {
                     Text("No installed widget asks for permissions.")
@@ -509,6 +519,10 @@ struct PrivacySettingsPage: View {
                 }
             }
 
+            // Above the allowed list, which grows with every widget: what you
+            // use is the shorter answer and was a long scroll away.
+            UsageCountsSection(runtime: runtime, appPrefs: runtime.appPrefs)
+
             if !allowed.isEmpty || !inEffectGroups.isEmpty {
                 Section {
                     switch grouping {
@@ -538,8 +552,6 @@ struct PrivacySettingsPage: View {
                         .formFooter()
                 }
             }
-
-            UsageCountsSection(runtime: runtime, appPrefs: runtime.appPrefs)
 
             Section {
                 LabeledContent {
@@ -609,7 +621,8 @@ struct PrivacySettingsPage: View {
 
     /// Allowed, waiting and (when any) denied widgets, and how many of the
     /// allowed hold sensitive access: secrets, the vault, environment variables.
-    static func stats(allowed: [LoadedWidget], waiting: [LoadedWidget], denied: [LoadedWidget]) -> [SettingsStat] {
+    static func stats(allowed: [LoadedWidget], waiting: [LoadedWidget], denied: [LoadedWidget],
+                      unused: SettingsStat? = nil) -> [SettingsStat] {
         // Access, not requests: a widget waiting for you holds nothing yet.
         let sensitive = allowed.filter { widget in
             WidgetPermissionSummary.lines(for: widget.manifest).contains { $0.tone == .sensitive }
@@ -623,6 +636,8 @@ struct PrivacySettingsPage: View {
         if !denied.isEmpty {
             stats.append(SettingsStat(value: "\(denied.count)", label: String(localized: "Denied", comment: "Privacy summary: widgets denied")))
         }
+        // What the usage counts are for: the widgets you could do without.
+        if let unused { stats.append(unused) }
         return stats
     }
 

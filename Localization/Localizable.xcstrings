@@ -189,7 +189,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ 새로고침에 실패했습니다. %@"
+            "value": "%1$@ 새로고침에 실패했습니다. %2$@"
           }
         }
       }
@@ -537,7 +537,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@, %@, %lld번째, 전체 %lld개"
+            "value": "%1$@, %2$@, %3$lld번째, 전체 %4$lld개"
           }
         }
       }
@@ -814,7 +814,24 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "%lld일 동안 쓰지 않은 위젯 %lld개"
+            "value": "%2$lld일 동안 쓰지 않은 위젯 %1$lld개"
+          }
+        }
+      }
+    },
+    "%lld widgets not used since %@": {
+      "comment": "Privacy usage: widgets never seen or used since counting began",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld widgets not used since %2$@"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%2$@ 이후 쓰지 않은 위젯 %1$lld개"
           }
         }
       }
@@ -926,6 +943,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld일 동안 쓰지 않은 위젯 1개"
+          }
+        }
+      }
+    },
+    "1 widget not used since %@": {
+      "comment": "Privacy usage: widgets never seen or used since counting began",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 이후 쓰지 않은 위젯 1개"
           }
         }
       }
@@ -9155,6 +9183,28 @@
         }
       }
     },
+    "Not used in %lld days": {
+      "comment": "Privacy summary: installed widgets with no use in the window",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld일 동안 쓰지 않음"
+          }
+        }
+      }
+    },
+    "Not used since %@": {
+      "comment": "Privacy summary: installed widgets with no use since counting began",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 이후 쓰지 않음"
+          }
+        }
+      }
+    },
     "Not yet": {
       "comment": "Updates summary: never checked for updates",
       "localizations": {
@@ -13132,6 +13182,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@부터, 사용한 날 %lld일"
+          }
+        }
+      }
+    },
+    "Since %@, 1 day with use": {
+      "comment": "Privacy usage: the period covered, when one day had any use",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@부터, 사용한 날 1일"
           }
         }
       }
