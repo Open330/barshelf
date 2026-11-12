@@ -60,6 +60,23 @@ final class StringCatalogTests: XCTestCase {
         XCTAssertEqual(mismatched, [])
     }
 
+    /// Two values of the same type can swap places in Korean word order
+    /// without the check above noticing ("%lld widgets not used in %lld
+    /// days" came out as "10일 동안 쓰지 않은 위젯 30개"). Such a translation
+    /// has to number its values (`%1$lld`, `%2$lld`), which makes the order a
+    /// decision someone wrote down.
+    func testKoreanNumbersValuesOfTheSameType() throws {
+        var unnumbered: [String] = []
+        for entry in try liveEntries() {
+            let types = Self.specifiers(in: entry.key).map { String($0.split(separator: ":")[1]) }
+            guard Set(types).count < types.count else { continue }
+            for value in entry.korean where !value.contains("$") {
+                unnumbered.append("\(entry.key) → \(value)")
+            }
+        }
+        XCTAssertEqual(unnumbered, [], "Write these with %1$…, %2$… so the order is explicit")
+    }
+
     /// docs/GLOSSARY.md: one Korean word per thing and one tone. Instructions
     /// end in -세요 and confirmations in -할까요?, never -십시오/-겠습니까;
     /// macOS calls it 창, 새로고침, 팝업, 허용, 갤러리.

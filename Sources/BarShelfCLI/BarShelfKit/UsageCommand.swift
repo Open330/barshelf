@@ -93,7 +93,9 @@ public enum UsageCommand {
         let idle = summary.neverUsed
         if !idle.isEmpty {
             if !used.isEmpty { lines.append("") }
-            lines.append("not used in \(summary.days) days:")
+            // Counts younger than the window cannot speak for all of it.
+            lines.append(summary.coversWholeWindow(calendar: calendar)
+                ? "not used in \(summary.days) days:" : "not used since \(summary.from):")
             for row in idle {
                 lines.append("  " + (widgets[row.widgetID].map { "\($0) (\(row.widgetID))" } ?? row.widgetID))
             }

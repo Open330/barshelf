@@ -213,7 +213,26 @@ public struct UsageSummary: Codable, Equatable, Sendable {
     public var activeDays: Int
     public var rows: [Row]
 
+    public init(from: String, to: String, days: Int, popupOpens: Int, activeDays: Int, rows: [Row]) {
+        self.from = from
+        self.to = to
+        self.days = days
+        self.popupOpens = popupOpens
+        self.activeDays = activeDays
+        self.rows = rows
+    }
+
     public var neverUsed: [Row] { rows.filter { $0.installed && $0.neverUsed } }
+
+    /// Whether counting has been going for the whole window. When it has
+    /// not, "not used in 30 days" would claim more than is known: counts that
+    /// began this week can only say "not used since Monday".
+    public func coversWholeWindow(calendar: Calendar) -> Bool {
+        guard let first = UsageDay.date(from, calendar: calendar),
+              let last = UsageDay.date(to, calendar: calendar),
+              let span = calendar.dateComponents([.day], from: first, to: last).day else { return true }
+        return span + 1 >= days
+    }
 }
 
 /// `yyyy-MM-dd` day keys in a given calendar, without a shared formatter.

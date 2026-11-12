@@ -87,7 +87,7 @@ struct UsageCountsSection: View {
                 EmptyView()
             } label: {
                 Label {
-                    Text(Self.idleTitle(idle.count, days: summary.days))
+                    Text(Self.idleTitle(idle.count, summary: summary))
                 } icon: {
                     Image(systemName: "moon.zzz")
                         .foregroundStyle(.secondary)
@@ -117,13 +117,36 @@ struct UsageCountsSection: View {
     static func windowLine(_ summary: UsageSummary) -> String {
         let from = UsageDay.date(summary.from, calendar: .current)
             .map { $0.formatted(date: .abbreviated, time: .omitted) } ?? summary.from
-        return String(localized: "Since \(from), \(summary.activeDays) days with use", comment: "Privacy usage: the period covered and how many days had any use")
+        return summary.activeDays == 1
+            ? String(localized: "Since \(from), 1 day with use", comment: "Privacy usage: the period covered, when one day had any use")
+            : String(localized: "Since \(from), \(summary.activeDays) days with use", comment: "Privacy usage: the period covered and how many days had any use")
     }
 
-    static func idleTitle(_ count: Int, days: Int) -> String {
-        count == 1
-            ? String(localized: "1 widget not used in \(days) days", comment: "Privacy usage: widgets never seen or used in the window")
-            : String(localized: "\(count) widgets not used in \(days) days", comment: "Privacy usage: widgets never seen or used in the window")
+    /// The day counting began, when that is inside the window: the counts
+    /// then say "since" that day, not "in 30 days".
+    static func countingSince(_ summary: UsageSummary) -> String? {
+        guard !summary.coversWholeWindow(calendar: .current) else { return nil }
+        return UsageDay.date(summary.from, calendar: .current)
+            .map { $0.formatted(.dateTime.month(.abbreviated).day()) } ?? summary.from
+    }
+
+    static func idleTitle(_ count: Int, summary: UsageSummary) -> String {
+        if let since = countingSince(summary) {
+            return count == 1
+                ? String(localized: "1 widget not used since \(since)", comment: "Privacy usage: widgets never seen or used since counting began")
+                : String(localized: "\(count) widgets not used since \(since)", comment: "Privacy usage: widgets never seen or used since counting began")
+        }
+        return count == 1
+            ? String(localized: "1 widget not used in \(summary.days) days", comment: "Privacy usage: widgets never seen or used in the window")
+            : String(localized: "\(count) widgets not used in \(summary.days) days", comment: "Privacy usage: widgets never seen or used in the window")
+    }
+
+    /// The label under the page's "not used" figure.
+    static func idleStatLabel(_ summary: UsageSummary) -> String {
+        if let since = countingSince(summary) {
+            return String(localized: "Not used since \(since)", comment: "Privacy summary: installed widgets with no use since counting began")
+        }
+        return String(localized: "Not used in \(summary.days) days", comment: "Privacy summary: installed widgets with no use in the window")
     }
 }
 
