@@ -3,30 +3,61 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.stock",
   "name": "Stock",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "icon": "chart.line.uptrend.xyaxis",
-  "bucket": { "group": "Demo", "order": 15, "size": "S" },
-
-  "entry": { "kind": "workflow", "main": "workflow.json" },
-
-  "refresh": { "onOpen": true, "interval": 300, "staleAfterSec": 300 },
-
-  "permissions": {
-    "network": ["query1.finance.yahoo.com"]
+  "bucket": {
+    "group": "Everyday",
+    "order": 15,
+    "size": "S"
   },
-
+  "entry": {
+    "kind": "workflow",
+    "main": "workflow.json"
+  },
+  "refresh": {
+    "onOpen": true,
+    "interval": 300,
+    "staleAfterSec": 300,
+    "triggers": [
+      "wake"
+    ]
+  },
+  "permissions": {
+    "network": [
+      "query1.finance.yahoo.com"
+    ]
+  },
   "settings": [
-    { "key": "symbol", "title": "Ticker", "type": "string", "default": "AAPL" }
+    {
+      "key": "symbol",
+      "title": "Ticker (Yahoo Finance, e.g. AAPL or 005930.KS)",
+      "type": "string",
+      "default": "AAPL"
+    }
   ],
-
   "appearance": {
     "accent": "green"
   },
-
   "localizations": {
     "ko": {
       "Stock": "주식",
-      "Ticker": "종목 코드"
+      "Ticker (Yahoo Finance, e.g. AAPL or 005930.KS)": "종목 코드 (Yahoo Finance, 예: AAPL, 005930.KS)",
+      "You’re offline": "오프라인 상태입니다",
+      "Connect to the internet, then try again.": "인터넷에 연결한 뒤 다시 시도하세요.",
+      "Yahoo Finance didn’t answer in time": "Yahoo Finance가 제때 응답하지 않았습니다",
+      "It may be busy. Try again in a moment.": "혼잡할 수 있습니다. 잠시 후 다시 시도하세요.",
+      "Yahoo Finance is limiting requests": "Yahoo Finance가 요청을 제한하고 있습니다",
+      "The free service allows only so many. It refreshes again on its own.": "무료 서비스라 요청 수가 제한됩니다. 잠시 뒤 저절로 다시 새로 고칩니다.",
+      "Yahoo Finance is unavailable": "Yahoo Finance에 연결할 수 없습니다",
+      "Try again in a moment.": "잠시 후 다시 시도하세요.",
+      "Try Again": "다시 시도",
+      "No quote for this ticker": "이 종목 코드의 시세가 없습니다",
+      "Check the ticker in this widget’s settings (⋯ ▸ Settings). Yahoo Finance symbols look like AAPL or 005930.KS.": "이 위젯 설정(⋯ ▸ 설정)에서 종목 코드를 확인하세요. Yahoo Finance 코드는 AAPL이나 005930.KS 같은 형식입니다."
     }
+  },
+  "minHostVersion": "0.7.32",
+  "statusItem": {
+    "mode": "text",
+    "icon": "chart.line.uptrend.xyaxis"
   }
 }

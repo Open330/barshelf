@@ -303,3 +303,77 @@ Deno.test("Next Meeting counts down in Korean and keeps event data as it is", as
   shows("앞으로 7일 동안 일정이 없습니다.");
   assertEquals(host.lastRender.options.status?.label, "일정 없음");
 });
+
+Deno.test("Next Meeting keeps a meeting in progress, Join included, until it ends", async () => {
+  const running = {
+    status: "ok",
+    title: "Standup",
+    calendar: "Work",
+    startMs: NOW - 10 * 60_000,
+    endMs: NOW + 20 * 60_000,
+    meetingURL: "https://meet.example/x",
+  };
+  host.reset();
+  host.exec = () => ({ stdout: "", json: running });
+  await nextMeeting.handlers.load!(load("en-US"));
+  shows("Join");
+  const badge = strings(host.lastRender).find((text) =>
+    text.startsWith("Now · ends ")
+  );
+  assert(
+    badge,
+    `no "Now · ends" badge in ${JSON.stringify(strings(host.lastRender))}`,
+  );
+  assertEquals(host.lastRender.options.status?.label, "Now");
+
+  host.reset();
+  host.exec = () => ({ stdout: "", json: running });
+  await nextMeeting.handlers.load!(load("ko"));
+  assert(
+    strings(host.lastRender).some((text) => text.startsWith("진행 중 · ")),
+    JSON.stringify(strings(host.lastRender)),
+  );
+  assertEquals(host.lastRender.options.status?.label, "진행 중");
+});
+
+Deno.test("Next Meeting's menu bar label stays within 14 characters", async () => {
+  for (const minutes of [5, 59, 61, 125, 23 * 60 + 59, 3 * 24 * 60]) {
+    for (const locale of ["en-US", "ko"]) {
+      host.reset();
+      host.exec = () => ({
+        stdout: "",
+        json: {
+          status: "ok",
+          title: "X",
+          startMs: NOW + minutes * 60_000,
+          endMs: NOW + (minutes + 30) * 60_000,
+        },
+      });
+      await nextMeeting.handlers.load!(load(locale));
+      const label = host.lastRender.options.status?.label ?? "";
+      assert(
+        label.length > 0 && label.length <= 14,
+        `${locale} ${minutes}: "${label}"`,
+      );
+    }
+  }
+});
+
+Deno.test("Next Meeting sends only an Automation denial to Privacy settings", async () => {
+  host.reset();
+  host.exec = () => {
+    throw new Error(
+      "execution error: Not authorized to send Apple events to Calendar. (-1743)",
+    );
+  };
+  await nextMeeting.handlers.load!(load("en-US"));
+  shows("Open Automation Settings");
+
+  host.reset();
+  host.exec = () => {
+    throw new Error("timed out after 15000 ms");
+  };
+  await nextMeeting.handlers.load!(load("en-US"));
+  hides("Open Automation Settings");
+  shows("Calendar took too long to answer. Open it once, then try again.");
+});

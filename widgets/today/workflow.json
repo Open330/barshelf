@@ -1,22 +1,130 @@
 {
   "schemaVersion": 1,
   "kind": "workflow",
-  "_comment": "Native Calendar/Clock-style date widget. `date` emits one JSON line; the layout adapts to the widget's size via `switch` on ${widget.size} — like a native small/medium/large widget.",
-
-  "sources": {
-    "data": {
-      "use": "exec",
-      "with": {
-        "command": ["/bin/date", "+{\"weekday\":\"%A\",\"month\":\"%b\",\"day\":\"%d\",\"time\":\"%H:%M\",\"year\":\"%Y\"}"]
-      }
+  "_comment": "Native Calendar/Clock-style date widget. No subprocess: the date comes from now() and date.clock() (see the transforms), and month/weekday names follow the app's language. The layout adapts to the widget's size via `switch` on ${widget.size}.",
+  "sources": {},
+  "transforms": {
+    "utcMin": {
+      "use": "assign",
+      "from": "round(sub(div(now(), 60000), 0.5))"
+    },
+    "utcDayMin": {
+      "use": "assign",
+      "from": "sub(transforms.utcMin, mul(1440, sub(round(add(div(transforms.utcMin, 1440), 0.5)), 1)))"
+    },
+    "localDayMin": {
+      "use": "assign",
+      "from": "round(div(date.ms(concat('1970-01-01T', date.clock(now()), ':00Z')), 60000))"
+    },
+    "offRaw": {
+      "use": "assign",
+      "from": "sub(transforms.localDayMin, transforms.utcDayMin)"
+    },
+    "offMin": {
+      "use": "assign",
+      "from": "if(gte(transforms.offRaw, 840), sub(transforms.offRaw, 1440), if(lt(transforms.offRaw, -600), add(transforms.offRaw, 1440), transforms.offRaw))"
+    },
+    "days": {
+      "use": "assign",
+      "from": "sub(round(add(div(add(now(), mul(transforms.offMin, 60000)), 86400000), 0.5)), 1)"
+    },
+    "weekday": {
+      "use": "assign",
+      "from": "sub(add(transforms.days, 4), mul(7, sub(round(add(div(add(transforms.days, 4), 7), 0.5)), 1)))"
+    },
+    "z": {
+      "use": "assign",
+      "from": "add(transforms.days, 719468)"
+    },
+    "era": {
+      "use": "assign",
+      "from": "sub(round(add(div(transforms.z, 146097), 0.5)), 1)"
+    },
+    "doe": {
+      "use": "assign",
+      "from": "sub(transforms.z, mul(transforms.era, 146097))"
+    },
+    "yoe": {
+      "use": "assign",
+      "from": "sub(round(add(div(add(sub(transforms.doe, sub(round(add(div(transforms.doe, 1460), 0.5)), 1)), sub(sub(round(add(div(transforms.doe, 36524), 0.5)), 1), sub(round(add(div(transforms.doe, 146096), 0.5)), 1))), 365), 0.5)), 1)"
+    },
+    "doy": {
+      "use": "assign",
+      "from": "sub(transforms.doe, sub(add(mul(365, transforms.yoe), sub(round(add(div(transforms.yoe, 4), 0.5)), 1)), sub(round(add(div(transforms.yoe, 100), 0.5)), 1)))"
+    },
+    "mp": {
+      "use": "assign",
+      "from": "sub(round(add(div(add(mul(5, transforms.doy), 2), 153), 0.5)), 1)"
+    },
+    "day": {
+      "use": "assign",
+      "from": "add(sub(transforms.doy, sub(round(add(div(add(mul(153, transforms.mp), 2), 5), 0.5)), 1)), 1)"
+    },
+    "month": {
+      "use": "assign",
+      "from": "if(lt(transforms.mp, 10), add(transforms.mp, 3), sub(transforms.mp, 9))"
+    },
+    "year": {
+      "use": "assign",
+      "from": "add(add(transforms.yoe, mul(transforms.era, 400)), if(lte(transforms.month, 2), 1, 0))"
+    },
+    "hour": {
+      "use": "assign",
+      "from": "sub(round(add(div(transforms.localDayMin, 60), 0.5)), 1)"
+    },
+    "minute": {
+      "use": "assign",
+      "from": "sub(transforms.localDayMin, mul(transforms.hour, 60))"
+    },
+    "ko": {
+      "use": "assign",
+      "from": "or(eq(coalesce(widget.locale, ''), 'ko'), or(eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko-…'), eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko_…')))"
+    },
+    "monthName": {
+      "use": "assign",
+      "from": "switch(transforms.month, 1, 'January', 2, 'February', 3, 'March', 4, 'April', 5, 'May', 6, 'June', 7, 'July', 8, 'August', 9, 'September', 10, 'October', 11, 'November', 12, 'December', '')"
+    },
+    "monthShort": {
+      "use": "assign",
+      "from": "switch(transforms.month, 1, 'Jan', 2, 'Feb', 3, 'Mar', 4, 'Apr', 5, 'May', 6, 'Jun', 7, 'Jul', 8, 'Aug', 9, 'Sep', 10, 'Oct', 11, 'Nov', 12, 'Dec', '')"
+    },
+    "weekdayName": {
+      "use": "assign",
+      "from": "if(transforms.ko, concat(switch(transforms.weekday, 0, '일', 1, '월', 2, '화', 3, '수', 4, '목', 5, '금', 6, '토', ''), '요일'), switch(transforms.weekday, 0, 'Sunday', 1, 'Monday', 2, 'Tuesday', 3, 'Wednesday', 4, 'Thursday', 5, 'Friday', 6, 'Saturday', ''))"
+    },
+    "weekdayShort": {
+      "use": "assign",
+      "from": "if(transforms.ko, switch(transforms.weekday, 0, '일', 1, '월', 2, '화', 3, '수', 4, '목', 5, '금', 6, '토', ''), switch(transforms.weekday, 0, 'Sun', 1, 'Mon', 2, 'Tue', 3, 'Wed', 4, 'Thu', 5, 'Fri', 6, 'Sat', ''))"
+    },
+    "dayText": {
+      "use": "assign",
+      "from": "string(transforms.day)"
+    },
+    "time": {
+      "use": "assign",
+      "from": "date.clock(now())"
+    },
+    "monthYear": {
+      "use": "assign",
+      "from": "if(transforms.ko, concat(string(transforms.year), '년 ', string(transforms.month), '월'), concat(transforms.monthShort, ' ', string(transforms.year)))"
+    },
+    "monthOnly": {
+      "use": "assign",
+      "from": "if(transforms.ko, concat(string(transforms.month), '월'), transforms.monthShort)"
+    },
+    "fullDate": {
+      "use": "assign",
+      "from": "if(transforms.ko, concat(string(transforms.year), '년 ', string(transforms.month), '월 ', string(transforms.day), '일 ', transforms.weekdayName), concat(transforms.weekdayName, ', ', transforms.monthName, ' ', string(transforms.day), ', ', string(transforms.year)))"
     }
   },
-
   "view": {
     "switch": "${widget.size}",
     "cases": {
       "M": {
-        "action": {"type": "openApp", "value": "com.apple.iCal"},
+        "action": {
+          "type": "openApp",
+          "value": "com.apple.iCal"
+        },
         "type": "hstack",
         "spacing": 10,
         "children": [
@@ -24,54 +132,129 @@
             "type": "vstack",
             "spacing": 0,
             "children": [
-              { "type": "text", "text": "${sources.data.weekday}", "role": "caption", "foreground": "danger" },
-              { "type": "text", "text": "${sources.data.day}", "size": 40, "role": "title" }
+              {
+                "type": "text",
+                "text": "${transforms.weekdayName}",
+                "role": "caption",
+                "foreground": "danger",
+                "lineLimit": 1
+              },
+              {
+                "type": "text",
+                "text": "${transforms.dayText}",
+                "size": 40,
+                "role": "title",
+                "monospacedDigit": true
+              }
             ]
           },
-          { "type": "spacer" },
+          {
+            "type": "spacer"
+          },
           {
             "type": "vstack",
             "spacing": 2,
             "children": [
-              { "type": "text", "text": "${sources.data.time}", "size": 30, "role": "title", "monospacedDigit": true },
-              { "type": "text", "text": "${sources.data.month} ${sources.data.year}", "role": "caption", "foreground": "secondary" }
+              {
+                "type": "text",
+                "text": "${transforms.time}",
+                "size": 30,
+                "role": "title",
+                "monospacedDigit": true
+              },
+              {
+                "type": "text",
+                "text": "${transforms.monthYear}",
+                "role": "caption",
+                "foreground": "secondary",
+                "lineLimit": 1
+              }
             ]
           }
         ]
       },
       "L": {
-        "action": {"type": "openApp", "value": "com.apple.iCal"},
+        "action": {
+          "type": "openApp",
+          "value": "com.apple.iCal"
+        },
         "type": "vstack",
         "spacing": 6,
         "children": [
-          { "type": "text", "text": "${sources.data.weekday}", "role": "body", "foreground": "danger" },
+          {
+            "type": "text",
+            "text": "${transforms.weekdayName}",
+            "role": "body",
+            "foreground": "danger",
+            "lineLimit": 1
+          },
           {
             "type": "hstack",
             "spacing": 8,
             "children": [
-              { "type": "text", "text": "${sources.data.day}", "size": 64, "role": "title" },
-              { "type": "spacer" },
-              { "type": "text", "text": "${sources.data.time}", "size": 40, "role": "title", "monospacedDigit": true }
+              {
+                "type": "text",
+                "text": "${transforms.dayText}",
+                "size": 64,
+                "role": "title",
+                "monospacedDigit": true
+              },
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "text",
+                "text": "${transforms.time}",
+                "size": 40,
+                "role": "title",
+                "monospacedDigit": true
+              }
             ]
           },
-          { "type": "text", "text": "${sources.data.month} ${sources.data.year}", "role": "caption", "foreground": "secondary" }
+          {
+            "type": "text",
+            "text": "${transforms.monthYear}",
+            "role": "caption",
+            "foreground": "secondary",
+            "lineLimit": 1
+          }
         ]
       }
     },
     "default": {
-      "action": {"type": "openApp", "value": "com.apple.iCal"},
+      "action": {
+        "type": "openApp",
+        "value": "com.apple.iCal"
+      },
       "type": "vstack",
       "spacing": 1,
       "children": [
-        { "type": "text", "text": "${sources.data.weekday}", "role": "caption", "foreground": "danger" },
-        { "type": "text", "text": "${sources.data.day}", "size": 46, "role": "title" },
-        { "type": "text", "text": "${sources.data.month}", "role": "caption", "foreground": "secondary" }
+        {
+          "type": "text",
+          "text": "${transforms.weekdayName}",
+          "role": "caption",
+          "foreground": "danger",
+          "lineLimit": 1
+        },
+        {
+          "type": "text",
+          "text": "${transforms.dayText}",
+          "size": 46,
+          "role": "title",
+          "monospacedDigit": true
+        },
+        {
+          "type": "text",
+          "text": "${transforms.monthOnly}",
+          "role": "caption",
+          "foreground": "secondary",
+          "lineLimit": 1
+        }
       ]
     }
   },
-
   "status": {
-    "label": "${sources.data.time}",
-    "tooltip": "${sources.data.weekday}, ${sources.data.month} ${sources.data.day}"
+    "label": "${transforms.time}",
+    "tooltip": "${transforms.fullDate}"
   }
 }

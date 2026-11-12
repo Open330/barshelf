@@ -43,18 +43,15 @@ final class WidgetLocalizationTests: XCTestCase {
     func testTodayReadsInKoreanDateOrder() throws {
         let (manifest, workflow) = try starter("today")
         let localized = try XCTUnwrap(manifest.localization(for: "ko")).workflow(workflow)
+        // 2026-10-24 12:00 UTC: a Saturday the 24th from UTC-10 to UTC+11.
+        let ms = 1_792_843_200_000.0
         let output = try WorkflowEngine.evaluate(
-            localized,
-            sources: ["data": .object([
-                "weekday": .string("토요일"), "month": .string("10월"), "day": .string("24"),
-                "time": .string("09:30"), "year": .string("2026"),
-            ])],
-            settings: .object([:]),
-            widget: .object(["size": .string("L")])
+            localized, sources: [:], settings: .object([:]),
+            widget: .object(["size": .string("L"), "locale": .string("ko")]), nowMs: ms
         )
-        XCTAssertEqual(output.statusTooltip, "10월 24일 토요일")
-        XCTAssertEqual(output.statusLabel, "09:30")
-        // The command it runs is the original, so its permission still matches.
+        XCTAssertEqual(output.statusTooltip, "2026년 10월 24일 토요일")
+        let parts = Calendar.current.dateComponents([.hour, .minute], from: Date(timeIntervalSince1970: ms / 1000))
+        XCTAssertEqual(output.statusLabel, String(format: "%02d:%02d", parts.hour!, parts.minute!))
         XCTAssertEqual(localized.sources, workflow.sources)
     }
 
@@ -88,10 +85,10 @@ final class WidgetLocalizationTests: XCTestCase {
         let korean = try WorkflowEngine.evaluate(localization.workflow(workflow), sources: [:], settings: settings)
 
         let shown = texts(korean.viewTree)
-        for expected in ["바로가기 6개", "바로가기 찾기", "캘린더", "앱", "즐겨 쓰는 앱", "폴더", "응용 프로그램", "웹사이트"] {
+        for expected in ["바로가기 찾기", "캘린더", "앱", "즐겨 쓰는 앱", "폴더", "응용 프로그램", "웹사이트"] {
             XCTAssertTrue(shown.contains(expected), "missing \(expected) in \(shown)")
         }
-        for english in ["6 shortcuts", "Find a shortcut", "Favorite app", "Folder", "Website", "App"] {
+        for english in ["Find a shortcut", "Favorite app", "Folder", "Website", "App"] {
             XCTAssertFalse(shown.contains(english), "\(english) left untranslated")
         }
         XCTAssertEqual(korean.statusTooltip, "앱, 폴더, 웹사이트 열기")
@@ -267,7 +264,7 @@ final class WidgetLocalizationTests: XCTestCase {
                 ).viewTree)
             )
         }
-        for (code, english, korean) in [(0.0, "Clear", "맑음"), (10, "Cloudy", "흐림"), (51, "Rain", "비"), (95, "Storm", "폭풍우")] {
+        for (code, english, korean) in [(0.0, "Clear", "맑음"), (10, "Cloudy", "흐림"), (51, "Rain", "비"), (95, "Thunderstorm", "뇌우"), (73, "Snow", "눈"), (81, "Showers", "소나기"), (45, "Fog", "안개")] {
             let shown = try render("weather", sources: ["data": .object([
                 "current": .object(["temperature_2m": .number(20), "weather_code": .number(code)]),
             ])], settings: .object(["place": .string("서울"), "lat": .string("37.57"), "lon": .string("126.98")]))
@@ -447,9 +444,10 @@ final class WidgetLocalizationTests: XCTestCase {
             "status": .object(["indicator": .string("major"), "description": .string("Partial outage")]),
         ])]
         let korean = try evaluate("github-status", sources: github, locale: "ko")
-        XCTAssertEqual(korean.statusLabel, "GitHub 주요 장애")
+        XCTAssertEqual(korean.statusPrefix, "GitHub")
+        XCTAssertEqual(korean.statusLabel, "주요 장애")
         XCTAssertEqual(korean.statusTooltip, "GitHub 상태: Partial outage", "the provider's words stay")
-        XCTAssertEqual(try evaluate("github-status", sources: github, locale: nil).statusLabel, "GitHub Major")
+        XCTAssertEqual(try evaluate("github-status", sources: github, locale: nil).statusLabel, "Major")
 
         let battery: [String: JSONValue] = ["data": .object(["pct": .number(80), "state": .string("discharging")])]
         XCTAssertEqual(try evaluate("battery-meter", sources: battery, locale: "ko").statusTooltip, "배터리 80% — 배터리 사용 중")

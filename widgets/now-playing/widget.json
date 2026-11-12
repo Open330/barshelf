@@ -3,32 +3,56 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.now-playing",
   "name": "Now Playing",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "icon": "music.note",
-  "bucket": { "group": "Media", "order": 10, "size": "M" },
-
-  "entry": { "kind": "workflow", "main": "workflow.json" },
-
-  "refresh": { "onOpen": true, "interval": 5, "staleAfterSec": 5 },
-
+  "bucket": {
+    "group": "Media",
+    "order": 10,
+    "size": "M"
+  },
+  "entry": {
+    "kind": "workflow",
+    "main": "workflow.json"
+  },
+  "refresh": {
+    "onOpen": true,
+    "interval": 20,
+    "staleAfterSec": 20,
+    "triggers": [
+      "wake"
+    ]
+  },
   "permissions": {
     "exec": [
       {
         "command": "/bin/sh",
-        "allowedArgs": [["-c", "t=$(/usr/bin/osascript -e 'tell application \"Music\" to if it is running and player state is playing then (name of current track) & \" - \" & (artist of current track)' 2>/dev/null | /usr/bin/tr -d '\"'); [ -z \"$t\" ] && t=$(/usr/bin/osascript -e 'tell application \"Spotify\" to if it is running and player state is playing then (name of current track) & \" - \" & (artist of current track)' 2>/dev/null | /usr/bin/tr -d '\"'); [ -z \"$t\" ] && t=\"Nothing playing\"; echo '{\"track\":\"'\"$t\"'\"}'"]],
+        "allowedArgs": [
+          [
+            "-c",
+            "for app in Music Spotify; do /usr/bin/pgrep -xq \"$app\" || continue; out=$(/usr/bin/osascript -l JavaScript -e 'function run(argv){var a=Application(argv[0]);if(!a.running())return \"\";if(a.playerState()!==\"playing\")return \"\";var t=a.currentTrack();return JSON.stringify({state:\"playing\",app:argv[0],title:String(t.name()||\"\"),artist:String(t.artist()||\"\")})}' \"$app\" 2>&1); case \"$out\" in *-1743*) printf '{\"state\":\"denied\",\"app\":\"%s\"}\\n' \"$app\"; exit 0;; '{'*) printf '%s\\n' \"$out\"; exit 0;; esac; done; echo '{\"state\":\"idle\"}'"
+          ]
+        ],
         "maxOutputBytes": 8192,
         "sensitiveOutput": false
       }
     ]
   },
-
   "appearance": {
     "accent": "pink"
   },
-
   "localizations": {
     "ko": {
-      "Now Playing": "지금 재생 중"
+      "Now Playing": "지금 재생 중",
+      "Nothing playing": "재생 중인 곡 없음",
+      "Play something in Music or Spotify.": "음악 앱이나 Spotify에서 재생하세요.",
+      "Allow BarShelf to read ${sources.data.app}": "BarShelf가 ${sources.data.app}을 읽도록 허용하세요",
+      "Turn BarShelf on for ${sources.data.app} in System Settings ▸ Privacy & Security ▸ Automation, then refresh.": "시스템 설정 ▸ 개인정보 보호 및 보안 ▸ 자동화에서 BarShelf의 ${sources.data.app} 항목을 켠 뒤 새로 고치세요.",
+      "Open Automation Settings": "자동화 설정 열기",
+      "Try Again": "다시 시도"
     }
+  },
+  "statusItem": {
+    "mode": "text",
+    "icon": "music.note"
   }
 }

@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.world-clock",
   "name": "World Clock",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "minHostVersion": "0.7.21",
   "icon": "globe",
   "bucket": {
@@ -17,8 +17,8 @@
   },
   "refresh": {
     "onOpen": true,
-    "interval": 20,
-    "staleAfterSec": 30,
+    "interval": 60,
+    "staleAfterSec": 60,
     "triggers": [
       "wake"
     ]
@@ -30,22 +30,16 @@
   "permissions": {
     "exec": [
       {
-        "command": "/bin/date",
-        "allowedArgs": [
-          [
-            "+{\"time\":\"%H:%M\",\"hour\":1%H,\"ymd\":%Y%m%d,\"wd\":%u,\"abbr\":\"%Z\",\"off\":\"%z\"}"
-          ]
-        ],
-        "maxOutputBytes": 4096,
-        "sensitiveOutput": false
-      },
-      {
         "command": "/bin/sh",
         "allowedArgs": [
           [
             "-c",
-            "TZ=\"$1\"; export TZ; exec /bin/date '+{\"time\":\"%H:%M\",\"hour\":1%H,\"ymd\":%Y%m%d,\"wd\":%u,\"abbr\":\"%Z\",\"off\":\"%z\"}'",
+            "f='{\"time\":\"%H:%M\",\"hour\":1%H,\"ymd\":%Y%m%d,\"wd\":%u,\"off\":\"%z\"}'; printf '{\"local\":%s' \"$(/bin/date \"+$f\")\"; i=0; for z in \"$@\"; do i=$((i+1)); if [ -z \"$z\" ]; then printf ',\"z%d\":null' \"$i\"; elif [ -f \"/usr/share/zoneinfo/$z\" ]; then printf ',\"z%d\":%s' \"$i\" \"$(TZ=\"$z\" /bin/date \"+$f\")\"; else printf ',\"z%d\":{\"invalid\":true}' \"$i\"; fi; done; echo '}'",
             "world-clock",
+            "*",
+            "*",
+            "*",
+            "*",
             "*"
           ]
         ],
@@ -178,7 +172,8 @@
       "Working hours end": "업무 종료 시각",
       "No cities": "도시 없음",
       "Add a city and an IANA time zone such as Asia/Seoul in widget settings.": "위젯 설정에서 도시와 Asia/Seoul 같은 IANA 시간대를 추가하세요.",
-      "Dimmed: outside ${string(settings.workStart)}:00–${string(settings.workEnd)}:00 or a weekend": "흐리게: ${string(settings.workStart)}:00–${string(settings.workEnd)}:00 밖이거나 주말"
+      "Dimmed outside working hours (${string(settings.workStart)}:00–${string(settings.workEnd)}:00) and on weekends": "업무 시간(${string(settings.workStart)}:00–${string(settings.workEnd)}:00) 밖과 주말은 흐리게 표시",
+      "${string(transforms.badCount)} time zone name not recognized. Use an IANA name such as Europe/Paris.": "알 수 없는 시간대 이름 ${string(transforms.badCount)}개. Europe/Paris 같은 IANA 이름을 쓰세요."
     }
   }
 }

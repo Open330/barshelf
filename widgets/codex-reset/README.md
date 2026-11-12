@@ -7,16 +7,22 @@ affiliated with OpenAI; treat the number as a community estimate, not a promise.
 
 ## What it shows
 
-- A 0–100 score for a reset within 48 hours, as a large number and a meter.
-- A tint that changes at the 70 and 40 marks, so a likely reset stands out.
-- How long ago the last reset was, and the alert threshold.
+- A 0–100 chance of a reset within the forecast window, as a large number and
+  a meter, tinted when it reaches your alert threshold.
+- How long ago the last reset was ("3 days ago"), and whether alerts are on.
 
-The score is mirrored into the widget's status item, so you can keep it in the
-menu bar.
+The chance can sit in the menu bar as "Codex 16%".
+
+## Settings
+
+| Setting | Default | Effect |
+|---|---|---|
+| Notify when a reset looks likely | On | Sends a notification when the chance rises to the threshold. |
+| Notify at this chance (%) | 70 | The threshold. |
 
 ## Permissions and refresh
 
-The only permission is HTTPS access to `www.willcodexquotareset.com`. The feed
-re-derives its forecast about every 30 minutes, so the widget refreshes on the
-same cadence, plus when the popover opens and when your Mac wakes. Clicking it
-opens the site.
+HTTPS access to `www.willcodexquotareset.com`, and notifications for the alert.
+The feed re-derives its forecast about every 30 minutes, so the widget
+refreshes on the same cadence (less often while the popover is closed), plus
+when the popover opens and when your Mac wakes. Clicking it opens the site.

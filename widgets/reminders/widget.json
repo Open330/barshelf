@@ -3,34 +3,59 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.reminders",
   "name": "Reminders",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "icon": "checklist",
-  "bucket": { "group": "Media", "order": 11, "size": "S" },
-
-  "entry": { "kind": "workflow", "main": "workflow.json" },
-
-  "refresh": { "onOpen": true, "interval": 60, "staleAfterSec": 60 },
-
+  "bucket": {
+    "group": "Everyday",
+    "order": 11,
+    "size": "S"
+  },
+  "entry": {
+    "kind": "workflow",
+    "main": "workflow.json"
+  },
+  "refresh": {
+    "onOpen": true,
+    "interval": 300,
+    "staleAfterSec": 300,
+    "triggers": [
+      "wake"
+    ]
+  },
   "permissions": {
     "exec": [
       {
         "command": "/bin/sh",
-        "allowedArgs": [["-c", "n=$(/usr/bin/osascript -e 'tell application \"Reminders\" to count (reminders whose completed is false)' 2>/dev/null); [ -z \"$n\" ] && n=0; echo '{\"count\":'\"$n\"'}'"]],
+        "allowedArgs": [
+          [
+            "-c",
+            "n=$(/usr/bin/osascript -e 'tell application \"Reminders\" to count (reminders whose completed is false)') || exit $?; [ -n \"$n\" ] || exit 1; echo '{\"count\":'\"$n\"'}'"
+          ]
+        ],
         "maxOutputBytes": 4096,
         "sensitiveOutput": false
       }
     ]
   },
-
   "appearance": {
     "accent": "orange"
   },
-
   "localizations": {
     "ko": {
       "Reminders": "미리 알림",
       "open": "남음",
-      "${string(sources.data.count)} open reminders": "남은 미리 알림 ${string(sources.data.count)}개"
+      "Allow BarShelf to read Reminders": "BarShelf가 미리 알림을 읽도록 허용하세요",
+      "Turn BarShelf on for Reminders in System Settings ▸ Privacy & Security ▸ Automation, then refresh.": "시스템 설정 ▸ 개인정보 보호 및 보안 ▸ 자동화에서 BarShelf의 미리 알림 항목을 켠 뒤 새로 고치세요.",
+      "Open Automation Settings": "자동화 설정 열기",
+      "Reminders didn’t answer in time": "미리 알림이 제때 응답하지 않았습니다",
+      "Couldn’t read Reminders": "미리 알림을 읽지 못했습니다",
+      "Open Reminders once, then try again.": "미리 알림 앱을 한 번 연 뒤 다시 시도하세요.",
+      "Try Again": "다시 시도"
     }
+  },
+  "minHostVersion": "0.7.32",
+  "statusItem": {
+    "mode": "text",
+    "icon": "checklist"
   }
 }

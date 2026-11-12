@@ -3,35 +3,78 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.crypto",
   "name": "Crypto",
-  "version": "0.1.0",
-  "minHostVersion": "0.7.21",
+  "version": "0.2.0",
+  "minHostVersion": "0.7.32",
   "icon": "bitcoinsign.circle.fill",
-  "bucket": { "group": "Everyday", "order": 44, "size": "M" },
-
-  "entry": { "kind": "workflow", "main": "workflow.json" },
-
-  "refresh": { "onOpen": true, "interval": 600, "staleAfterSec": 600 },
-
-  "statusItem": { "mode": "text", "icon": "bitcoinsign.circle.fill" },
-
-  "permissions": {
-    "network": ["api.coingecko.com"]
+  "bucket": {
+    "group": "Everyday",
+    "order": 44,
+    "size": "M"
   },
-
+  "entry": {
+    "kind": "workflow",
+    "main": "workflow.json"
+  },
+  "refresh": {
+    "onOpen": true,
+    "interval": 600,
+    "staleAfterSec": 600,
+    "triggers": [
+      "wake"
+    ]
+  },
+  "statusItem": {
+    "mode": "text",
+    "icon": "bitcoinsign.circle.fill"
+  },
+  "permissions": {
+    "network": [
+      "api.coingecko.com"
+    ]
+  },
   "settings": [
-    { "key": "coins", "title": "Coins (CoinGecko ids, comma-separated)", "type": "string", "default": "bitcoin,ethereum" },
     {
-      "key": "currency", "title": "Currency", "type": "enum", "default": "usd",
-      "options": ["usd", "krw", "eur", "jpy", "gbp"],
-      "optionTitles": ["US dollar ($)", "Korean won (₩)", "Euro (€)", "Japanese yen (¥)", "British pound (£)"]
+      "key": "coins",
+      "title": "Coins (CoinGecko ids, comma-separated)",
+      "type": "string",
+      "default": "bitcoin,ethereum"
     },
-    { "key": "menuBarCoin", "title": "Menu bar coin (id)", "type": "string", "default": "bitcoin" }
+    {
+      "key": "currency",
+      "title": "Currency",
+      "type": "enum",
+      "default": "usd",
+      "options": [
+        "usd",
+        "krw",
+        "eur",
+        "jpy",
+        "gbp"
+      ],
+      "optionTitles": [
+        "US dollar ($)",
+        "Korean won (₩)",
+        "Euro (€)",
+        "Japanese yen (¥)",
+        "British pound (£)"
+      ]
+    },
+    {
+      "key": "menuBarCoin",
+      "title": "Menu bar coin (id)",
+      "type": "string",
+      "default": "bitcoin"
+    },
+    {
+      "key": "sparkline",
+      "title": "Show 7-day chart",
+      "type": "boolean",
+      "default": false
+    }
   ],
-
   "appearance": {
     "accent": "orange"
   },
-
   "localizations": {
     "ko": {
       "Crypto": "암호화폐",
@@ -46,7 +89,16 @@
       "24h change · CoinGecko · ${date.clock(date.ms(transforms.first.last_updated))}": "24시간 변동 · CoinGecko · ${date.clock(date.ms(transforms.first.last_updated))}",
       "No coins found": "코인을 찾지 못함",
       "Use CoinGecko ids such as bitcoin,ethereum,solana in widget settings.": "위젯 설정에 bitcoin,ethereum,solana 같은 CoinGecko id를 입력하세요.",
-      "${transforms.menu.name} ${transforms.menu.price} (${transforms.menu.change}, 24h)": "${transforms.menu.name} ${transforms.menu.price} (24시간 ${transforms.menu.change})"
+      "Show 7-day chart": "7일 차트 표시",
+      "You’re offline": "오프라인 상태입니다",
+      "Connect to the internet, then try again.": "인터넷에 연결한 뒤 다시 시도하세요.",
+      "CoinGecko didn’t answer in time": "CoinGecko가 제때 응답하지 않았습니다",
+      "It may be busy. Try again in a moment.": "혼잡할 수 있습니다. 잠시 후 다시 시도하세요.",
+      "CoinGecko is limiting requests": "CoinGecko가 요청을 제한하고 있습니다",
+      "The free service allows only so many. It refreshes again on its own.": "무료 서비스라 요청 수가 제한됩니다. 잠시 뒤 저절로 다시 새로 고칩니다.",
+      "CoinGecko is unavailable": "CoinGecko에 연결할 수 없습니다",
+      "Try again in a moment.": "잠시 후 다시 시도하세요.",
+      "Try Again": "다시 시도"
     }
   }
 }

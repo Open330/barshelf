@@ -1,50 +1,361 @@
 {
   "schemaVersion": 1,
   "kind": "workflow",
-  "_comment": "Native weather widget over an HTTPS JSON API (open-meteo, no key). Big temperature + a condition icon mapped from the weather code. Demonstrates the http source with settings-driven location.",
-
+  "_comment": "Weather over open-meteo (no key). WMO weather codes map to a condition: 0 clear, 1-2 partly cloudy, 3 cloudy, 45/48 fog, 51-67 rain (drizzle, freezing rain), 71-77 snow, 80-82 showers, 85/86 snow showers, 95+ thunderstorm. The source is optional: offline, a timeout or a bad latitude/longitude (HTTP 400) gets its own state instead of the host's error card.",
   "sources": {
     "data": {
       "use": "http",
+      "optional": true,
       "with": {
-        "url": "https://api.open-meteo.com/v1/forecast?latitude=${settings.lat}&longitude=${settings.lon}&current=temperature_2m,weather_code"
+        "url": "https://api.open-meteo.com/v1/forecast?latitude=${settings.lat}&longitude=${settings.lon}&current=temperature_2m,weather_code,is_day&temperature_unit=${if(eq(settings.unit, 'fahrenheit'), 'fahrenheit', 'celsius')}"
       }
     }
   },
-
+  "transforms": {
+    "ko": {
+      "use": "assign",
+      "from": "or(eq(coalesce(widget.locale, ''), 'ko'), or(eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko-…'), eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko_…')))"
+    },
+    "code": {
+      "use": "assign",
+      "from": "number(sources.data.current.weather_code)"
+    },
+    "cond": {
+      "use": "assign",
+      "from": "if(eq(transforms.code, null), 'none', if(eq(transforms.code, 0), 'clear', if(lte(transforms.code, 2), 'partly', if(eq(transforms.code, 3), 'cloudy', if(or(eq(transforms.code, 45), eq(transforms.code, 48)), 'fog', if(and(gte(transforms.code, 51), lte(transforms.code, 67)), 'rain', if(and(gte(transforms.code, 71), lte(transforms.code, 77)), 'snow', if(and(gte(transforms.code, 80), lte(transforms.code, 82)), 'showers', if(or(eq(transforms.code, 85), eq(transforms.code, 86)), 'snowShowers', if(gte(transforms.code, 95), 'storm', 'cloudy'))))))))))"
+    },
+    "night": {
+      "use": "assign",
+      "from": "eq(number(sources.data.current.is_day), 0)"
+    },
+    "icon": {
+      "use": "assign",
+      "from": "switch(transforms.cond, 'clear', if(transforms.night, 'moon.stars.fill', 'sun.max.fill'), 'partly', if(transforms.night, 'cloud.moon.fill', 'cloud.sun.fill'), 'fog', 'cloud.fog.fill', 'rain', 'cloud.rain.fill', 'snow', 'cloud.snow.fill', 'showers', 'cloud.heavyrain.fill', 'snowShowers', 'cloud.snow.fill', 'storm', 'cloud.bolt.rain.fill', 'cloud.fill')"
+    },
+    "temp": {
+      "use": "assign",
+      "from": "if(eq(number(sources.data.current.temperature_2m), null), null, round(number(sources.data.current.temperature_2m)))"
+    },
+    "unit": {
+      "use": "assign",
+      "from": "if(eq(settings.unit, 'fahrenheit'), '°F', '°C')"
+    },
+    "condWord": {
+      "use": "assign",
+      "from": "if(transforms.ko, switch(transforms.cond, 'clear', '맑음', 'partly', '구름 조금', 'cloudy', '흐림', 'fog', '안개', 'rain', '비', 'snow', '눈', 'showers', '소나기', 'snowShowers', '소낙눈', 'storm', '뇌우', ''), switch(transforms.cond, 'clear', 'Clear', 'partly', 'Partly cloudy', 'cloudy', 'Cloudy', 'fog', 'Fog', 'rain', 'Rain', 'snow', 'Snow', 'showers', 'Showers', 'snowShowers', 'Snow showers', 'storm', 'Thunderstorm', ''))"
+    },
+    "tip": {
+      "use": "assign",
+      "from": "if(eq(transforms.temp, null), if(transforms.ko, concat(settings.place, ': 날씨 정보 없음'), concat(settings.place, ': no weather data')), concat(settings.place, ': ', string(sources.data.current.temperature_2m), transforms.unit, ' · ', transforms.condWord))"
+    }
+  },
   "view": {
-    "action": {"type": "openApp", "value": "com.apple.weather"},
-    "type": "vstack",
-    "spacing": 2,
-    "children": [
-      {
-        "type": "hstack",
+    "switch": "${if(eq(errors.data, null), 'ok', if(eq(errors.data.code, 400), 'badPlace', errors.data.kind))}",
+    "cases": {
+      "ok": {
+        "action": {
+          "type": "openApp",
+          "value": "com.apple.weather"
+        },
+        "type": "vstack",
+        "spacing": 2,
+        "children": [
+          {
+            "type": "hstack",
+            "spacing": 6,
+            "children": [
+              {
+                "type": "image",
+                "source": {
+                  "kind": "sfSymbol",
+                  "name": "${transforms.icon}"
+                },
+                "size": 14,
+                "tint": "accent"
+              },
+              {
+                "type": "text",
+                "text": "${settings.place}",
+                "role": "caption",
+                "foreground": "secondary",
+                "lineLimit": 1
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "text": "${string(transforms.temp)}°",
+            "size": 44,
+            "role": "title",
+            "monospacedDigit": true
+          },
+          {
+            "switch": "${transforms.cond}",
+            "cases": {
+              "clear": {
+                "type": "text",
+                "text": "Clear",
+                "role": "caption",
+                "foreground": "secondary"
+              },
+              "partly": {
+                "type": "text",
+                "text": "Partly cloudy",
+                "role": "caption",
+                "foreground": "secondary"
+              },
+              "cloudy": {
+                "type": "text",
+                "text": "Cloudy",
+                "role": "caption",
+                "foreground": "secondary"
+              },
+              "fog": {
+                "type": "text",
+                "text": "Fog",
+                "role": "caption",
+                "foreground": "secondary"
+              },
+              "rain": {
+                "type": "text",
+                "text": "Rain",
+                "role": "caption",
+                "foreground": "secondary"
+              },
+              "snow": {
+                "type": "text",
+                "text": "Snow",
+                "role": "caption",
+                "foreground": "secondary"
+              },
+              "showers": {
+                "type": "text",
+                "text": "Showers",
+                "role": "caption",
+                "foreground": "secondary"
+              },
+              "snowShowers": {
+                "type": "text",
+                "text": "Snow showers",
+                "role": "caption",
+                "foreground": "secondary"
+              },
+              "storm": {
+                "type": "text",
+                "text": "Thunderstorm",
+                "role": "caption",
+                "foreground": "secondary"
+              }
+            },
+            "default": {
+              "type": "text",
+              "text": "Cloudy",
+              "role": "caption",
+              "foreground": "secondary"
+            }
+          }
+        ]
+      },
+      "offline": {
+        "type": "vstack",
         "spacing": 6,
         "children": [
           {
-            "type": "image",
-            "source": { "kind": "sfSymbol", "name": "${if(lt(number(sources.data.current.weather_code), 3), 'sun.max.fill', if(lt(number(sources.data.current.weather_code), 50), 'cloud.fill', if(lt(number(sources.data.current.weather_code), 70), 'cloud.rain.fill', 'cloud.bolt.rain.fill')))}" },
-            "size": 14,
-            "tint": "accent"
+            "type": "empty",
+            "icon": "wifi.slash",
+            "title": "You’re offline",
+            "subtitle": "Connect to the internet, then try again."
           },
-          { "type": "text", "text": "${settings.place}", "role": "caption", "foreground": "secondary", "lineLimit": 1 }
+          {
+            "type": "text",
+            "text": "${errors.data.message}",
+            "role": "caption",
+            "foreground": "tertiary",
+            "lineLimit": 2,
+            "desktopRole": "hide"
+          },
+          {
+            "type": "hstack",
+            "children": [
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "button",
+                "title": "Try Again",
+                "icon": "arrow.clockwise",
+                "action": {
+                  "type": "refresh"
+                }
+              },
+              {
+                "type": "spacer"
+              }
+            ]
+          }
         ]
       },
-      { "type": "text", "text": "${string(round(number(sources.data.current.temperature_2m), 0))}°", "size": 44, "role": "title", "monospacedDigit": true },
-      {
-        "switch": "${if(lt(number(sources.data.current.weather_code), 3), 'clear', if(lt(number(sources.data.current.weather_code), 50), 'cloudy', if(lt(number(sources.data.current.weather_code), 70), 'rain', 'storm')))}",
-        "cases": {
-          "clear": { "type": "text", "text": "Clear", "role": "caption", "foreground": "secondary" },
-          "cloudy": { "type": "text", "text": "Cloudy", "role": "caption", "foreground": "secondary" },
-          "rain": { "type": "text", "text": "Rain", "role": "caption", "foreground": "secondary" }
-        },
-        "default": { "type": "text", "text": "Storm", "role": "caption", "foreground": "secondary" }
+      "timeout": {
+        "type": "vstack",
+        "spacing": 6,
+        "children": [
+          {
+            "type": "empty",
+            "icon": "hourglass",
+            "title": "Open-Meteo didn’t answer in time",
+            "subtitle": "It may be busy. Try again in a moment."
+          },
+          {
+            "type": "text",
+            "text": "${errors.data.message}",
+            "role": "caption",
+            "foreground": "tertiary",
+            "lineLimit": 2,
+            "desktopRole": "hide"
+          },
+          {
+            "type": "hstack",
+            "children": [
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "button",
+                "title": "Try Again",
+                "icon": "arrow.clockwise",
+                "action": {
+                  "type": "refresh"
+                }
+              },
+              {
+                "type": "spacer"
+              }
+            ]
+          }
+        ]
+      },
+      "rateLimited": {
+        "type": "vstack",
+        "spacing": 6,
+        "children": [
+          {
+            "type": "empty",
+            "icon": "tortoise",
+            "title": "Open-Meteo is limiting requests",
+            "subtitle": "The free service allows only so many. It refreshes again on its own."
+          },
+          {
+            "type": "text",
+            "text": "${errors.data.message}",
+            "role": "caption",
+            "foreground": "tertiary",
+            "lineLimit": 2,
+            "desktopRole": "hide"
+          },
+          {
+            "type": "hstack",
+            "children": [
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "button",
+                "title": "Try Again",
+                "icon": "arrow.clockwise",
+                "action": {
+                  "type": "refresh"
+                }
+              },
+              {
+                "type": "spacer"
+              }
+            ]
+          }
+        ]
+      },
+      "badPlace": {
+        "type": "vstack",
+        "spacing": 6,
+        "children": [
+          {
+            "type": "empty",
+            "icon": "mappin.slash",
+            "title": "Check the location",
+            "subtitle": "Latitude must be −90…90 and longitude −180…180. Fix them in this widget’s settings (⋯ ▸ Settings)."
+          },
+          {
+            "type": "text",
+            "text": "${errors.data.message}",
+            "role": "caption",
+            "foreground": "tertiary",
+            "lineLimit": 2,
+            "desktopRole": "hide"
+          },
+          {
+            "type": "hstack",
+            "children": [
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "button",
+                "title": "Try Again",
+                "icon": "arrow.clockwise",
+                "action": {
+                  "type": "refresh"
+                }
+              },
+              {
+                "type": "spacer"
+              }
+            ]
+          }
+        ]
       }
-    ]
+    },
+    "default": {
+      "type": "vstack",
+      "spacing": 6,
+      "children": [
+        {
+          "type": "empty",
+          "icon": "exclamationmark.icloud",
+          "title": "Open-Meteo is unavailable",
+          "subtitle": "Try again in a moment."
+        },
+        {
+          "type": "text",
+          "text": "${errors.data.message}",
+          "role": "caption",
+          "foreground": "tertiary",
+          "lineLimit": 2,
+          "desktopRole": "hide"
+        },
+        {
+          "type": "hstack",
+          "children": [
+            {
+              "type": "spacer"
+            },
+            {
+              "type": "button",
+              "title": "Try Again",
+              "icon": "arrow.clockwise",
+              "action": {
+                "type": "refresh"
+              }
+            },
+            {
+              "type": "spacer"
+            }
+          ]
+        }
+      ]
+    }
   },
-
   "status": {
-    "label": "${string(round(number(sources.data.current.temperature_2m), 0))}°",
-    "tooltip": "${settings.place}: ${string(sources.data.current.temperature_2m)}°C"
+    "label": "${if(eq(transforms.temp, null), '', concat(string(transforms.temp), '°'))}",
+    "icon": "${if(eq(transforms.temp, null), 'exclamationmark.icloud', transforms.icon)}",
+    "tooltip": "${transforms.tip}"
   }
 }

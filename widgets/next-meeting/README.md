@@ -3,7 +3,9 @@
 See the next event from macOS Calendar without opening the app. The widget shows
 the event title, its calendar, time, time remaining, and location. When Calendar
 contains a Zoom, Google Meet, Teams, Webex, or other HTTP(S) URL, a **Join**
-button appears automatically.
+button appears automatically. A meeting that has started stays on the card,
+Join button included, as "Now · ends 10:30" until it ends. The menu bar label is
+a short countdown ("in 15m", "Now").
 
 ## Setup
 

@@ -1,41 +1,133 @@
 {
   "schemaVersion": 1,
   "kind": "workflow",
-
-  "sources": {
-    "time": {
-      "use": "exec",
-      "with": {
-        "command": ["/bin/date", "+%H:%M:%S"],
-        "parse": "text"
-      }
+  "_comment": "Local time and date from now() and date.clock(), no subprocess. Plain stack instead of a card so it fits a small widget at popup width.",
+  "sources": {},
+  "transforms": {
+    "utcMin": {
+      "use": "assign",
+      "from": "round(sub(div(now(), 60000), 0.5))"
     },
-    "date": {
-      "use": "exec",
-      "with": {
-        "command": ["/bin/date", "+%A, %b %d"],
-        "parse": "text"
-      }
+    "utcDayMin": {
+      "use": "assign",
+      "from": "sub(transforms.utcMin, mul(1440, sub(round(add(div(transforms.utcMin, 1440), 0.5)), 1)))"
+    },
+    "localDayMin": {
+      "use": "assign",
+      "from": "round(div(date.ms(concat('1970-01-01T', date.clock(now()), ':00Z')), 60000))"
+    },
+    "offRaw": {
+      "use": "assign",
+      "from": "sub(transforms.localDayMin, transforms.utcDayMin)"
+    },
+    "offMin": {
+      "use": "assign",
+      "from": "if(gte(transforms.offRaw, 840), sub(transforms.offRaw, 1440), if(lt(transforms.offRaw, -600), add(transforms.offRaw, 1440), transforms.offRaw))"
+    },
+    "days": {
+      "use": "assign",
+      "from": "sub(round(add(div(add(now(), mul(transforms.offMin, 60000)), 86400000), 0.5)), 1)"
+    },
+    "weekday": {
+      "use": "assign",
+      "from": "sub(add(transforms.days, 4), mul(7, sub(round(add(div(add(transforms.days, 4), 7), 0.5)), 1)))"
+    },
+    "z": {
+      "use": "assign",
+      "from": "add(transforms.days, 719468)"
+    },
+    "era": {
+      "use": "assign",
+      "from": "sub(round(add(div(transforms.z, 146097), 0.5)), 1)"
+    },
+    "doe": {
+      "use": "assign",
+      "from": "sub(transforms.z, mul(transforms.era, 146097))"
+    },
+    "yoe": {
+      "use": "assign",
+      "from": "sub(round(add(div(add(sub(transforms.doe, sub(round(add(div(transforms.doe, 1460), 0.5)), 1)), sub(sub(round(add(div(transforms.doe, 36524), 0.5)), 1), sub(round(add(div(transforms.doe, 146096), 0.5)), 1))), 365), 0.5)), 1)"
+    },
+    "doy": {
+      "use": "assign",
+      "from": "sub(transforms.doe, sub(add(mul(365, transforms.yoe), sub(round(add(div(transforms.yoe, 4), 0.5)), 1)), sub(round(add(div(transforms.yoe, 100), 0.5)), 1)))"
+    },
+    "mp": {
+      "use": "assign",
+      "from": "sub(round(add(div(add(mul(5, transforms.doy), 2), 153), 0.5)), 1)"
+    },
+    "day": {
+      "use": "assign",
+      "from": "add(sub(transforms.doy, sub(round(add(div(add(mul(153, transforms.mp), 2), 5), 0.5)), 1)), 1)"
+    },
+    "month": {
+      "use": "assign",
+      "from": "if(lt(transforms.mp, 10), add(transforms.mp, 3), sub(transforms.mp, 9))"
+    },
+    "year": {
+      "use": "assign",
+      "from": "add(add(transforms.yoe, mul(transforms.era, 400)), if(lte(transforms.month, 2), 1, 0))"
+    },
+    "hour": {
+      "use": "assign",
+      "from": "sub(round(add(div(transforms.localDayMin, 60), 0.5)), 1)"
+    },
+    "minute": {
+      "use": "assign",
+      "from": "sub(transforms.localDayMin, mul(transforms.hour, 60))"
+    },
+    "ko": {
+      "use": "assign",
+      "from": "or(eq(coalesce(widget.locale, ''), 'ko'), or(eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko-…'), eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko_…')))"
+    },
+    "monthName": {
+      "use": "assign",
+      "from": "switch(transforms.month, 1, 'January', 2, 'February', 3, 'March', 4, 'April', 5, 'May', 6, 'June', 7, 'July', 8, 'August', 9, 'September', 10, 'October', 11, 'November', 12, 'December', '')"
+    },
+    "monthShort": {
+      "use": "assign",
+      "from": "switch(transforms.month, 1, 'Jan', 2, 'Feb', 3, 'Mar', 4, 'Apr', 5, 'May', 6, 'Jun', 7, 'Jul', 8, 'Aug', 9, 'Sep', 10, 'Oct', 11, 'Nov', 12, 'Dec', '')"
+    },
+    "weekdayName": {
+      "use": "assign",
+      "from": "if(transforms.ko, concat(switch(transforms.weekday, 0, '일', 1, '월', 2, '화', 3, '수', 4, '목', 5, '금', 6, '토', ''), '요일'), switch(transforms.weekday, 0, 'Sunday', 1, 'Monday', 2, 'Tuesday', 3, 'Wednesday', 4, 'Thursday', 5, 'Friday', 6, 'Saturday', ''))"
+    },
+    "weekdayShort": {
+      "use": "assign",
+      "from": "if(transforms.ko, switch(transforms.weekday, 0, '일', 1, '월', 2, '화', 3, '수', 4, '목', 5, '금', 6, '토', ''), switch(transforms.weekday, 0, 'Sun', 1, 'Mon', 2, 'Tue', 3, 'Wed', 4, 'Thu', 5, 'Fri', 6, 'Sat', ''))"
+    },
+    "time": {
+      "use": "assign",
+      "from": "date.clock(now())"
+    },
+    "dateLine": {
+      "use": "assign",
+      "from": "if(transforms.ko, concat(string(transforms.month), '월 ', string(transforms.day), '일 ', transforms.weekdayName), concat(transforms.weekdayName, ', ', transforms.monthShort, ' ', string(transforms.day)))"
     }
   },
-
-  "transforms": {
-    "time": { "use": "assign", "from": "$.sources.time" },
-    "date": { "use": "assign", "from": "$.sources.date" }
-  },
-
   "view": {
-    "type": "card",
-    "tone": "accent",
-    "spacing": 6,
+    "type": "vstack",
+    "spacing": 2,
     "children": [
-      { "type": "text", "text": "${text.truncate(string(transforms.time), 8)}", "role": "code", "monospacedDigit": true },
-      { "type": "text", "text": "${string(transforms.date)}", "role": "caption", "foreground": "secondary", "lineLimit": 1 }
+      {
+        "type": "text",
+        "text": "${transforms.time}",
+        "size": 34,
+        "role": "title",
+        "monospacedDigit": true,
+        "lineLimit": 1
+      },
+      {
+        "type": "text",
+        "text": "${transforms.dateLine}",
+        "role": "caption",
+        "foreground": "secondary",
+        "lineLimit": 1
+      }
     ]
   },
-
   "status": {
-    "label": "${text.truncate(string(transforms.time), 5)}",
-    "tooltip": "Local time: ${string(transforms.time)}"
+    "label": "${transforms.time}",
+    "tooltip": "Local time: ${transforms.dateLine} ${transforms.time}"
   }
 }

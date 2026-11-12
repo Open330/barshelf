@@ -3,27 +3,137 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.exchange",
   "name": "Exchange",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "icon": "dollarsign.circle.fill",
-  "bucket": { "group": "Demo", "order": 14, "size": "S" },
-
-  "entry": { "kind": "workflow", "main": "workflow.json" },
-
-  "refresh": { "onOpen": true, "interval": 3600, "staleAfterSec": 3600 },
-
-  "permissions": {
-    "network": ["open.er-api.com"]
+  "bucket": {
+    "group": "Everyday",
+    "order": 14,
+    "size": "S"
   },
-
+  "entry": {
+    "kind": "workflow",
+    "main": "workflow.json"
+  },
+  "refresh": {
+    "onOpen": true,
+    "interval": 3600,
+    "staleAfterSec": 3600,
+    "triggers": [
+      "wake"
+    ]
+  },
+  "permissions": {
+    "network": [
+      "open.er-api.com"
+    ]
+  },
   "appearance": {
     "accent": "green"
   },
-
   "localizations": {
     "ko": {
       "Exchange": "환율",
-      "per $1": "1달러당",
-      "USD to KRW: ${string(sources.data.rates.KRW)}": "달러-원 환율: ${string(sources.data.rates.KRW)}"
+      "From currency": "기준 통화",
+      "To currency": "환산 통화",
+      "per 1 ${transforms.base} · ${transforms.updated}": "1 ${transforms.base}당 · ${transforms.updated}",
+      "US dollar (USD)": "미국 달러 (USD)",
+      "Euro (EUR)": "유로 (EUR)",
+      "Japanese yen (JPY)": "일본 엔 (JPY)",
+      "British pound (GBP)": "영국 파운드 (GBP)",
+      "Chinese yuan (CNY)": "중국 위안 (CNY)",
+      "Korean won (KRW)": "한국 원 (KRW)",
+      "Canadian dollar (CAD)": "캐나다 달러 (CAD)",
+      "Australian dollar (AUD)": "호주 달러 (AUD)",
+      "Swiss franc (CHF)": "스위스 프랑 (CHF)",
+      "Hong Kong dollar (HKD)": "홍콩 달러 (HKD)",
+      "Singapore dollar (SGD)": "싱가포르 달러 (SGD)",
+      "New Taiwan dollar (TWD)": "대만 달러 (TWD)",
+      "You’re offline": "오프라인 상태입니다",
+      "Connect to the internet, then try again.": "인터넷에 연결한 뒤 다시 시도하세요.",
+      "The rate service didn’t answer in time": "환율 서비스가 제때 응답하지 않았습니다",
+      "It may be busy. Try again in a moment.": "혼잡할 수 있습니다. 잠시 후 다시 시도하세요.",
+      "The rate service is limiting requests": "환율 서비스가 요청을 제한하고 있습니다",
+      "The free service allows only so many. It refreshes again on its own.": "무료 서비스라 요청 수가 제한됩니다. 잠시 뒤 저절로 다시 새로 고칩니다.",
+      "The rate service is unavailable": "환율 서비스에 연결할 수 없습니다",
+      "Try again in a moment.": "잠시 후 다시 시도하세요.",
+      "Try Again": "다시 시도",
+      "No rate for this pair": "이 통화 쌍의 환율이 없습니다",
+      "Pick another currency in this widget’s settings (⋯ ▸ Settings).": "이 위젯 설정(⋯ ▸ 설정)에서 다른 통화를 고르세요."
     }
-  }
+  },
+  "minHostVersion": "0.7.32",
+  "statusItem": {
+    "mode": "text",
+    "icon": "dollarsign.circle.fill"
+  },
+  "settings": [
+    {
+      "key": "base",
+      "title": "From currency",
+      "type": "enum",
+      "default": "USD",
+      "options": [
+        "USD",
+        "EUR",
+        "JPY",
+        "GBP",
+        "CNY",
+        "KRW",
+        "CAD",
+        "AUD",
+        "CHF",
+        "HKD",
+        "SGD",
+        "TWD"
+      ],
+      "optionTitles": [
+        "US dollar (USD)",
+        "Euro (EUR)",
+        "Japanese yen (JPY)",
+        "British pound (GBP)",
+        "Chinese yuan (CNY)",
+        "Korean won (KRW)",
+        "Canadian dollar (CAD)",
+        "Australian dollar (AUD)",
+        "Swiss franc (CHF)",
+        "Hong Kong dollar (HKD)",
+        "Singapore dollar (SGD)",
+        "New Taiwan dollar (TWD)"
+      ]
+    },
+    {
+      "key": "quote",
+      "title": "To currency",
+      "type": "enum",
+      "default": "KRW",
+      "options": [
+        "USD",
+        "EUR",
+        "JPY",
+        "GBP",
+        "CNY",
+        "KRW",
+        "CAD",
+        "AUD",
+        "CHF",
+        "HKD",
+        "SGD",
+        "TWD"
+      ],
+      "optionTitles": [
+        "US dollar (USD)",
+        "Euro (EUR)",
+        "Japanese yen (JPY)",
+        "British pound (GBP)",
+        "Chinese yuan (CNY)",
+        "Korean won (KRW)",
+        "Canadian dollar (CAD)",
+        "Australian dollar (AUD)",
+        "Swiss franc (CHF)",
+        "Hong Kong dollar (HKD)",
+        "Singapore dollar (SGD)",
+        "New Taiwan dollar (TWD)"
+      ]
+    }
+  ]
 }

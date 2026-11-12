@@ -3,32 +3,55 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.clock",
   "name": "Clock",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "icon": "clock.fill",
-  "bucket": { "group": "Demo", "order": 11, "size": "M" },
-
-  "entry": { "kind": "workflow", "main": "workflow.json" },
-
-  "refresh": { "onOpen": true, "interval": 1, "staleAfterSec": 1 },
-
-  "permissions": {
-    "exec": [
-      {
-        "command": "/bin/date",
-        "allowedArgs": [["+{\"h\":\"%H\",\"m\":\"%M\",\"s\":\"%S\",\"date\":\"%a %b %d\"}"]],
-        "maxOutputBytes": 4096,
-        "sensitiveOutput": false
-      }
+  "bucket": {
+    "group": "Everyday",
+    "order": 11,
+    "size": "M"
+  },
+  "entry": {
+    "kind": "workflow",
+    "main": "workflow.json"
+  },
+  "refresh": {
+    "onOpen": true,
+    "interval": 10,
+    "staleAfterSec": 10,
+    "triggers": [
+      "wake"
     ]
   },
-
   "appearance": {
     "accent": "blue"
   },
-
   "localizations": {
     "ko": {
-      "Clock": "시계"
+      "Clock": "시계",
+      "Hour format": "시간 표시",
+      "24-hour": "24시간제",
+      "12-hour": "12시간제"
     }
-  }
+  },
+  "statusItem": {
+    "mode": "text",
+    "icon": "clock"
+  },
+  "settings": [
+    {
+      "key": "hourFormat",
+      "title": "Hour format",
+      "type": "enum",
+      "default": "24",
+      "options": [
+        "24",
+        "12"
+      ],
+      "optionTitles": [
+        "24-hour",
+        "12-hour"
+      ]
+    }
+  ],
+  "minHostVersion": "0.7.17"
 }

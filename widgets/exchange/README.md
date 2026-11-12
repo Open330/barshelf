@@ -1,21 +1,26 @@
 # Exchange
 
-The US dollar to Korean won exchange rate as one large figure, from the free
+An exchange rate as one large figure, from the free
 [open.er-api.com](https://open.er-api.com) API. No API key is needed.
 
 ## What it shows
 
-- The pair, "USD → KRW".
-- The rate as a large won amount per dollar.
+- The pair, for example "USD → KRW".
+- The rate with thousands separators and the target currency's symbol, for
+  example "₩1,337.42", per one unit of the base currency.
+- Its own message when you are offline or the pair has no rate.
 
-The widget is also a compact example of BarShelf's HTTP source: one request,
-one value pulled out of the JSON, and a native card, with no code. To follow a
-different pair, copy the widget and change the currency in the workflow's URL
-and expression.
+## Settings
+
+| Setting | Default | Effect |
+|---|---|---|
+| From currency | USD | The base currency. |
+| To currency | KRW | The currency the rate is given in. |
+
+Twelve major currencies are offered. The rate can sit in the menu bar.
 
 ## Permissions and refresh
 
-The only permission is HTTPS access to `open.er-api.com`. The widget refreshes
-when the popover opens if the last rate is more than an hour old, and every
-hour while it is visible. Clicking it opens a currency converter in your
-browser.
+The only permission is HTTPS access to `open.er-api.com`. The service updates
+its rates daily; the widget refreshes every hour while visible and when your
+Mac wakes. Clicking it opens a currency converter in your browser.

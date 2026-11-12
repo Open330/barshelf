@@ -3,34 +3,73 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.codex-reset",
   "name": "Codex Reset",
-  "version": "0.1.2",
-  "icon": "cloud.sun.fill",
-  "bucket": { "group": "Developer", "order": 41, "size": "S" },
-
-  "entry": { "kind": "workflow", "main": "workflow.json" },
-
+  "version": "0.2.0",
+  "icon": "arrow.counterclockwise.circle.fill",
+  "bucket": {
+    "group": "Developer",
+    "order": 41,
+    "size": "S"
+  },
+  "entry": {
+    "kind": "workflow",
+    "main": "workflow.json"
+  },
   "refresh": {
     "onOpen": true,
     "interval": 1800,
     "staleAfterSec": 1800,
-    "triggers": ["wake"]
+    "runInBackground": true,
+    "triggers": [
+      "wake"
+    ]
   },
-
   "permissions": {
-    "network": ["www.willcodexquotareset.com"]
+    "network": [
+      "www.willcodexquotareset.com"
+    ],
+    "notifications": true
   },
-
   "appearance": {
     "accent": "orange"
   },
-
   "localizations": {
     "ko": {
       "Codex Reset": "Codex 초기화",
+      "Notify when a reset looks likely": "초기화 가능성이 높으면 알림",
+      "Notify at this chance (%)": "알림 기준 확률 (%)",
       "Will Codex reset?": "Codex 한도가 초기화될까요?",
-      "48H": "48시간",
-      "Last reset ${round(number(transforms.f.hoursSinceReset), 1)}h ago · alert at 70%": "마지막 초기화 ${round(number(transforms.f.hoursSinceReset), 1)}시간 전 · 70%부터 알림",
-      "${transforms.score}% chance of a Codex quota reset in the next 48 hours. ${transforms.f.aggregateAssessment.reason}": "앞으로 48시간 안에 Codex 한도가 초기화될 확률 ${transforms.score}%. ${transforms.f.aggregateAssessment.reason}"
+      "Next ${transforms.horizon} h": "앞으로 ${transforms.horizon}시간",
+      "Last reset ${transforms.since} · ${transforms.alertNote}": "마지막 초기화 ${transforms.since} · ${transforms.alertNote}",
+      "You’re offline": "오프라인 상태입니다",
+      "Connect to the internet, then try again.": "인터넷에 연결한 뒤 다시 시도하세요.",
+      "The forecast site didn’t answer in time": "예보 사이트가 제때 응답하지 않았습니다",
+      "It may be busy. Try again in a moment.": "혼잡할 수 있습니다. 잠시 후 다시 시도하세요.",
+      "The forecast site is limiting requests": "예보 사이트가 요청을 제한하고 있습니다",
+      "The free service allows only so many. It refreshes again on its own.": "무료 서비스라 요청 수가 제한됩니다. 잠시 뒤 저절로 다시 새로 고칩니다.",
+      "The forecast site is unavailable": "예보 사이트에 연결할 수 없습니다",
+      "Try again in a moment.": "잠시 후 다시 시도하세요.",
+      "Try Again": "다시 시도"
     }
-  }
+  },
+  "minHostVersion": "0.7.32",
+  "statusItem": {
+    "mode": "text",
+    "icon": "arrow.counterclockwise.circle.fill"
+  },
+  "settings": [
+    {
+      "key": "notify",
+      "title": "Notify when a reset looks likely",
+      "type": "boolean",
+      "default": false
+    },
+    {
+      "key": "alertPct",
+      "title": "Notify at this chance (%)",
+      "type": "integer",
+      "default": 70,
+      "min": 10,
+      "max": 100
+    }
+  ]
 }

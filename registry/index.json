@@ -9,7 +9,7 @@
       "accent": "red",
       "name": "Today",
       "description": "Native Calendar/Clock-style date widget with a large day number — the layout adapts to the widget size (small / medium / large) like a native iOS/macOS widget. No external dependency.",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "author": "barshelf",
       "icon": "calendar",
       "kind": "workflow",
@@ -20,19 +20,18 @@
         "native",
         "workflow"
       ],
-      "category": "Demo",
+      "category": "Everyday",
       "install": {
         "url": "https://github.com/Open330/barshelf/tree/main/widgets/today",
         "bundled": "today"
       },
       "permissions": {
-        "exec": [
-          "/bin/date"
-        ],
+        "exec": [],
         "keychain": false,
         "notifications": false
       },
-      "homepage": "https://github.com/Open330/barshelf"
+      "homepage": "https://github.com/Open330/barshelf",
+      "minHostVersion": "0.7.17"
     },
     {
       "id": "dev.barshelf.recent-files-grid",
@@ -265,10 +264,10 @@
       "collection": "custom",
       "accent": "orange",
       "name": "Codex Reset",
-      "description": "Unofficial forecast of a Codex quota reset in the next 48 hours, from willcodexquotareset.com — a 0-100 score tinted at the 70/40 marks and mirrored into the status item. The upstream feed re-derives every ~30 minutes, so the widget refreshes on that cadence.",
-      "version": "0.1.2",
+      "description": "Unofficial forecast of a Codex quota reset in the next 48 hours, from willcodexquotareset.com — a 0-100 chance mirrored into the menu bar, with an optional notification when it reaches your threshold (70% by default).",
+      "version": "0.2.0",
       "author": "barshelf",
-      "icon": "cloud.sun.fill",
+      "icon": "arrow.counterclockwise.circle.fill",
       "kind": "workflow",
       "tags": [
         "developer",
@@ -288,12 +287,13 @@
       "permissions": {
         "exec": [],
         "keychain": false,
-        "notifications": false,
+        "notifications": true,
         "network": [
           "www.willcodexquotareset.com"
         ]
       },
-      "homepage": "https://www.willcodexquotareset.com/"
+      "homepage": "https://www.willcodexquotareset.com/",
+      "minHostVersion": "0.7.32"
     },
     {
       "id": "dev.barshelf.downloads-new",
@@ -332,8 +332,8 @@
       "id": "dev.barshelf.github-status",
       "accent": "green",
       "name": "GitHub Status",
-      "description": "Fetches GitHub's public status JSON over HTTPS and refreshes when your Mac wakes — an HTTP-source example.",
-      "version": "0.1.3",
+      "description": "GitHub's status page over HTTPS: the overall state, every unresolved incident, a menu bar item tinted only during an incident, and an opt-in incident notification.",
+      "version": "0.2.0",
       "author": "barshelf",
       "icon": "checkmark.seal.fill",
       "kind": "workflow",
@@ -353,19 +353,20 @@
       "permissions": {
         "exec": [],
         "keychain": false,
-        "notifications": false,
+        "notifications": true,
         "network": [
           "www.githubstatus.com"
         ]
       },
-      "homepage": "https://www.githubstatus.com/"
+      "homepage": "https://www.githubstatus.com/",
+      "minHostVersion": "0.7.32"
     },
     {
       "id": "dev.barshelf.clock",
       "accent": "blue",
       "name": "Clock",
-      "description": "Native digital clock — a big HH:MM with a live seconds counter and the date. No external dependency.",
-      "version": "0.1.2",
+      "description": "Native digital clock — a big HH:MM (24- or 12-hour) and the date in the app's language. Runs no commands.",
+      "version": "0.2.0",
       "author": "barshelf",
       "icon": "clock.fill",
       "kind": "workflow",
@@ -375,7 +376,7 @@
         "native",
         "workflow"
       ],
-      "category": "Demo",
+      "category": "Everyday",
       "screenshot": "https://raw.githubusercontent.com/Open330/barshelf/main/assets/widget-previews/tile-clock.png",
       "readme": "https://github.com/Open330/barshelf/blob/main/widgets/clock/README.md",
       "install": {
@@ -383,13 +384,12 @@
         "bundled": "clock"
       },
       "permissions": {
-        "exec": [
-          "/bin/date"
-        ],
+        "exec": [],
         "keychain": false,
         "notifications": false
       },
-      "homepage": "https://github.com/Open330/barshelf"
+      "homepage": "https://github.com/Open330/barshelf",
+      "minHostVersion": "0.7.17"
     },
     {
       "id": "dev.barshelf.system",
@@ -471,7 +471,7 @@
       "accent": "blue",
       "name": "Weather",
       "description": "Native weather widget over a free HTTPS API (open-meteo, no key) — a big temperature and a condition icon for any latitude/longitude. Demonstrates the HTTP source.",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "author": "barshelf",
       "icon": "cloud.sun.fill",
       "kind": "workflow",
@@ -481,7 +481,7 @@
         "native",
         "workflow"
       ],
-      "category": "Demo",
+      "category": "Everyday",
       "readme": "https://github.com/Open330/barshelf/blob/main/widgets/weather/README.md",
       "install": {
         "url": "https://github.com/Open330/barshelf/tree/main/widgets/weather",
@@ -495,14 +495,15 @@
           "api.open-meteo.com"
         ]
       },
-      "homepage": "https://open-meteo.com/"
+      "homepage": "https://open-meteo.com/",
+      "minHostVersion": "0.7.32"
     },
     {
       "id": "dev.barshelf.calendar",
       "accent": "red",
       "name": "Calendar",
-      "description": "Native month calendar grid with today highlighted — a 7-column grid built from a shell source. No external dependency.",
-      "version": "0.1.2",
+      "description": "Native month calendar grid with today highlighted, computed without any command; moves to the new day at midnight and on wake.",
+      "version": "0.2.0",
       "author": "barshelf",
       "icon": "calendar",
       "kind": "workflow",
@@ -513,7 +514,7 @@
         "native",
         "workflow"
       ],
-      "category": "Demo",
+      "category": "Everyday",
       "screenshot": "https://raw.githubusercontent.com/Open330/barshelf/main/assets/widget-previews/tile-calendar.png",
       "readme": "https://github.com/Open330/barshelf/blob/main/widgets/calendar/README.md",
       "install": {
@@ -521,20 +522,19 @@
         "bundled": "calendar"
       },
       "permissions": {
-        "exec": [
-          "/bin/sh"
-        ],
+        "exec": [],
         "keychain": false,
         "notifications": false
       },
-      "homepage": "https://github.com/Open330/barshelf"
+      "homepage": "https://github.com/Open330/barshelf",
+      "minHostVersion": "0.7.17"
     },
     {
       "id": "dev.barshelf.exchange",
       "accent": "green",
       "name": "Exchange",
-      "description": "USD→KRW exchange rate over a free HTTPS API (open.er-api.com, no key) — a big rate figure. Another HTTP-source example.",
-      "version": "0.1.2",
+      "description": "Exchange rate for any pair of twelve major currencies over a free HTTPS API (open.er-api.com, no key) — a big, comma-grouped rate that can sit in the menu bar.",
+      "version": "0.2.0",
       "author": "barshelf",
       "icon": "dollarsign.circle.fill",
       "kind": "workflow",
@@ -544,7 +544,7 @@
         "http",
         "native"
       ],
-      "category": "Demo",
+      "category": "Everyday",
       "screenshot": "https://raw.githubusercontent.com/Open330/barshelf/main/assets/widget-previews/tile-exchange.png",
       "readme": "https://github.com/Open330/barshelf/blob/main/widgets/exchange/README.md",
       "install": {
@@ -559,7 +559,8 @@
           "open.er-api.com"
         ]
       },
-      "homepage": "https://www.exchangerate-api.com/"
+      "homepage": "https://www.exchangerate-api.com/",
+      "minHostVersion": "0.7.32"
     },
     {
       "id": "dev.barshelf.network",
@@ -598,8 +599,8 @@
       "id": "dev.barshelf.stock",
       "accent": "green",
       "name": "Stock",
-      "description": "Live stock quote (any ticker) over the Yahoo Finance API — a big price with a colored up/down change. Demonstrates the HTTP source with a required User-Agent header.",
-      "version": "0.1.2",
+      "description": "Live stock quote (any Yahoo Finance ticker) — a big price in its currency with the day's change and percentage, tinted up/down in the menu bar. Says so when a ticker is unknown or you're offline.",
+      "version": "0.2.0",
       "author": "barshelf",
       "icon": "chart.line.uptrend.xyaxis",
       "kind": "workflow",
@@ -610,7 +611,7 @@
         "headers",
         "native"
       ],
-      "category": "Demo",
+      "category": "Everyday",
       "screenshot": "https://raw.githubusercontent.com/Open330/barshelf/main/assets/widget-previews/tile-stock.png",
       "readme": "https://github.com/Open330/barshelf/blob/main/widgets/stock/README.md",
       "install": {
@@ -625,14 +626,15 @@
           "query1.finance.yahoo.com"
         ]
       },
-      "homepage": "https://finance.yahoo.com/"
+      "homepage": "https://finance.yahoo.com/",
+      "minHostVersion": "0.7.32"
     },
     {
       "id": "dev.barshelf.now-playing",
       "accent": "pink",
       "name": "Now Playing",
       "description": "The current track from Music or Spotify. Requires macOS Automation permission — approve the one-time prompt so BarShelf can read Now Playing.",
-      "version": "0.1.2",
+      "version": "0.2.0",
       "author": "barshelf",
       "icon": "music.note",
       "kind": "workflow",
@@ -663,7 +665,7 @@
       "accent": "orange",
       "name": "Reminders",
       "description": "How many open (incomplete) reminders you have. Requires macOS Automation permission for the Reminders app — approve the one-time prompt.",
-      "version": "0.1.2",
+      "version": "0.2.0",
       "author": "barshelf",
       "icon": "checklist",
       "kind": "workflow",
@@ -686,14 +688,15 @@
         "keychain": false,
         "notifications": false
       },
-      "homepage": "https://github.com/Open330/barshelf"
+      "homepage": "https://github.com/Open330/barshelf",
+      "minHostVersion": "0.7.32"
     },
     {
       "id": "dev.barshelf.next-meeting",
       "accent": "blue",
       "name": "Next Meeting",
       "description": "Your next macOS Calendar event with time remaining, location, and a one-click Join button for Zoom, Meet, Teams, Webex, and other meeting links.",
-      "version": "0.1.2",
+      "version": "0.2.0",
       "author": "barshelf",
       "icon": "calendar.badge.clock",
       "kind": "script",
@@ -726,7 +729,7 @@
       "accent": "purple",
       "name": "Quick Shelf",
       "description": "A searchable, permission-free launcher for frequently used apps, folders, and websites, with three customizable favorites.",
-      "version": "0.1.2",
+      "version": "0.2.0",
       "author": "barshelf",
       "icon": "square.grid.2x2.fill",
       "kind": "workflow",
@@ -1054,7 +1057,7 @@
       "accent": "yellow",
       "name": "Quick Note",
       "description": "A short note on your shelf, with an optional heading and a copy button; promote it to the menu bar to keep a reminder in view.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "author": "barshelf",
       "icon": "note.text",
       "kind": "workflow",
@@ -1273,7 +1276,7 @@
       "accent": "purple",
       "name": "World Clock",
       "description": "Local time in up to five cities, with the day offset, the hour difference and dimmed rows outside working hours.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "author": "barshelf",
       "icon": "globe",
       "kind": "workflow",
@@ -1290,7 +1293,6 @@
       },
       "permissions": {
         "exec": [
-          "/bin/date",
           "/bin/sh"
         ],
         "keychain": false,
@@ -1303,8 +1305,8 @@
       "id": "dev.barshelf.countdown",
       "accent": "pink",
       "name": "Countdown",
-      "description": "A D-day counter for one or two dates: D-12, D-day or D+3 in big type, the date and the days left, with a notification on the day.",
-      "version": "0.1.0",
+      "description": "A D-day counter for one or two dates: D-12, D-day or D+3 in big type, the date and the days left, with a notification on the day and, optionally, some days before.",
+      "version": "0.2.0",
       "author": "barshelf",
       "icon": "calendar.badge.clock",
       "kind": "workflow",
@@ -1334,7 +1336,7 @@
       "accent": "green",
       "name": "Air Quality",
       "description": "PM2.5 and PM10 for any latitude/longitude from Open-Meteo (no key), graded on the Korean scale, with US/EU AQI and a notification when PM2.5 gets bad.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "author": "barshelf",
       "icon": "aqi.medium",
       "kind": "workflow",
@@ -1358,14 +1360,14 @@
         ]
       },
       "homepage": "https://open-meteo.com/en/docs/air-quality-api",
-      "minHostVersion": "0.7.21"
+      "minHostVersion": "0.7.32"
     },
     {
       "id": "dev.barshelf.crypto",
       "accent": "orange",
       "name": "Crypto",
-      "description": "Coin prices and 24-hour change from CoinGecko's public API (no key) in USD, KRW, EUR, JPY or GBP; one coin can sit in the menu bar.",
-      "version": "0.1.0",
+      "description": "Coin prices and 24-hour change from CoinGecko's public API (no key) in USD, KRW, EUR, JPY or GBP, with an optional 7-day chart; one coin can sit in the menu bar.",
+      "version": "0.2.0",
       "author": "barshelf",
       "icon": "bitcoinsign.circle.fill",
       "kind": "workflow",
@@ -1390,14 +1392,14 @@
         ]
       },
       "homepage": "https://www.coingecko.com/",
-      "minHostVersion": "0.7.21"
+      "minHostVersion": "0.7.32"
     },
     {
       "id": "dev.barshelf.hacker-news",
       "accent": "orange",
       "name": "Hacker News",
-      "description": "The Hacker News front page through the public Algolia API (no key): title, points, comments and age; a row opens the story, the bubble opens the discussion.",
-      "version": "0.1.0",
+      "description": "Hacker News through the public Algolia API (no key): the front page, Show HN or Ask HN, with a minimum-points filter; a row opens the story, the bubble opens the discussion.",
+      "version": "0.2.0",
       "author": "barshelf",
       "icon": "newspaper.fill",
       "kind": "workflow",

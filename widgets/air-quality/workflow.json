@@ -1,13 +1,14 @@
 {
   "schemaVersion": 1,
   "kind": "workflow",
-  "_comment": "Air quality from Open-Meteo (no key). Grades follow the Korean PM standard: PM2.5 0-15 / 16-35 / 36-75 / 76+, PM10 0-30 / 31-80 / 81-150 / 151+ µg/m³.",
+  "_comment": "Air quality from Open-Meteo (no key). Grades follow the Korean PM standard: PM2.5 0-15 / 16-35 / 36-75 / 76+, PM10 0-30 / 31-80 / 81-150 / 151+ µg/m³. The source is optional: offline, a timeout or a bad latitude/longitude (HTTP 400) gets its own state.",
   "sources": {
     "air": {
       "use": "http",
       "with": {
         "url": "https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${settings.lat}&longitude=${settings.lon}&current=pm10,pm2_5,us_aqi,european_aqi"
-      }
+      },
+      "optional": true
     }
   },
   "transforms": {
@@ -50,132 +51,336 @@
     "threshold": {
       "use": "assign",
       "from": "coalesce(number(settings.alertPM25), 36)"
+    },
+    "tip": {
+      "use": "assign",
+      "from": "if(eq(transforms.pm25, null), if(transforms.ko, concat(settings.place, ': 미세먼지 정보 없음'), concat(settings.place, ': no air quality data')), if(transforms.ko, concat(settings.place, ' 초미세먼지 ', transforms.show.pm25, ' µg/m³ (', transforms.show.w25, ') · 미세먼지 ', transforms.show.pm10, ' µg/m³ (', transforms.show.w10, ')'), concat(settings.place, ' PM2.5 ', transforms.show.pm25, ' µg/m³ (', transforms.show.w25, ') · PM10 ', transforms.show.pm10, ' µg/m³ (', transforms.show.w10, ')')))"
     }
   },
   "view": {
-    "action": {
-      "type": "openApp",
-      "value": "com.apple.weather"
-    },
-    "type": "vstack",
-    "spacing": 6,
-    "children": [
-      {
-        "type": "hstack",
+    "switch": "${if(eq(errors.air, null), 'ok', if(eq(errors.air.code, 400), 'badPlace', errors.air.kind))}",
+    "cases": {
+      "ok": {
+        "action": {
+          "type": "openApp",
+          "value": "com.apple.weather"
+        },
+        "type": "vstack",
         "spacing": 6,
         "children": [
           {
-            "type": "image",
-            "source": {
-              "kind": "sfSymbol",
-              "name": "${transforms.show.icon}"
-            },
-            "size": 14,
-            "tint": "${transforms.show.t25}"
+            "type": "hstack",
+            "spacing": 6,
+            "children": [
+              {
+                "type": "image",
+                "source": {
+                  "kind": "sfSymbol",
+                  "name": "${transforms.show.icon}"
+                },
+                "size": 14,
+                "tint": "${transforms.show.t25}"
+              },
+              {
+                "type": "text",
+                "text": "${settings.place}",
+                "role": "caption",
+                "foreground": "secondary",
+                "lineLimit": 1
+              },
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "badge",
+                "text": "${transforms.show.w25}",
+                "tone": "${transforms.show.t25}"
+              }
+            ]
+          },
+          {
+            "type": "hstack",
+            "spacing": 12,
+            "children": [
+              {
+                "type": "vstack",
+                "spacing": 0,
+                "desktopRole": "item",
+                "children": [
+                  {
+                    "type": "text",
+                    "text": "PM2.5",
+                    "role": "caption",
+                    "foreground": "secondary",
+                    "desktopRole": "title"
+                  },
+                  {
+                    "type": "text",
+                    "text": "${transforms.show.pm25}",
+                    "size": 36,
+                    "role": "title",
+                    "monospacedDigit": true,
+                    "foreground": "${transforms.show.t25}",
+                    "desktopRole": "value"
+                  },
+                  {
+                    "type": "text",
+                    "text": "µg/m³ · ${transforms.show.w25}",
+                    "role": "caption",
+                    "foreground": "secondary",
+                    "lineLimit": 1,
+                    "desktopRole": "detail"
+                  }
+                ]
+              },
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "vstack",
+                "spacing": 0,
+                "desktopRole": "item",
+                "children": [
+                  {
+                    "type": "text",
+                    "text": "PM10",
+                    "role": "caption",
+                    "foreground": "secondary",
+                    "desktopRole": "title"
+                  },
+                  {
+                    "type": "text",
+                    "text": "${transforms.show.pm10}",
+                    "size": 24,
+                    "role": "title",
+                    "monospacedDigit": true,
+                    "foreground": "${transforms.show.t10}",
+                    "desktopRole": "value"
+                  },
+                  {
+                    "type": "text",
+                    "text": "µg/m³ · ${transforms.show.w10}",
+                    "role": "caption",
+                    "foreground": "secondary",
+                    "lineLimit": 1,
+                    "desktopRole": "detail"
+                  }
+                ]
+              }
+            ]
           },
           {
             "type": "text",
-            "text": "${settings.place}",
+            "text": "US AQI ${transforms.show.us} · EU AQI ${transforms.show.eu} · ${transforms.show.at}",
             "role": "caption",
-            "foreground": "secondary",
-            "lineLimit": 1
-          },
-          {
-            "type": "spacer"
-          },
-          {
-            "type": "badge",
-            "text": "${transforms.show.w25}",
-            "tone": "${transforms.show.t25}"
+            "foreground": "tertiary",
+            "lineLimit": 1,
+            "desktopRole": "hide"
           }
         ]
       },
-      {
-        "type": "hstack",
-        "spacing": 12,
+      "offline": {
+        "type": "vstack",
+        "spacing": 6,
         "children": [
           {
-            "type": "vstack",
-            "spacing": 0,
-            "desktopRole": "item",
-            "children": [
-              {
-                "type": "text",
-                "text": "PM2.5",
-                "role": "caption",
-                "foreground": "secondary",
-                "desktopRole": "title"
-              },
-              {
-                "type": "text",
-                "text": "${transforms.show.pm25}",
-                "size": 36,
-                "role": "title",
-                "monospacedDigit": true,
-                "foreground": "${transforms.show.t25}",
-                "desktopRole": "value"
-              },
-              {
-                "type": "text",
-                "text": "µg/m³ · ${transforms.show.w25}",
-                "role": "caption",
-                "foreground": "secondary",
-                "lineLimit": 1,
-                "desktopRole": "detail"
-              }
-            ]
+            "type": "empty",
+            "icon": "wifi.slash",
+            "title": "You’re offline",
+            "subtitle": "Connect to the internet, then try again."
           },
           {
-            "type": "spacer"
+            "type": "text",
+            "text": "${errors.air.message}",
+            "role": "caption",
+            "foreground": "tertiary",
+            "lineLimit": 2,
+            "desktopRole": "hide"
           },
           {
-            "type": "vstack",
-            "spacing": 0,
-            "desktopRole": "item",
+            "type": "hstack",
             "children": [
               {
-                "type": "text",
-                "text": "PM10",
-                "role": "caption",
-                "foreground": "secondary",
-                "desktopRole": "title"
+                "type": "spacer"
               },
               {
-                "type": "text",
-                "text": "${transforms.show.pm10}",
-                "size": 24,
-                "role": "title",
-                "monospacedDigit": true,
-                "foreground": "${transforms.show.t10}",
-                "desktopRole": "value"
+                "type": "button",
+                "title": "Try Again",
+                "icon": "arrow.clockwise",
+                "action": {
+                  "type": "refresh"
+                }
               },
               {
-                "type": "text",
-                "text": "µg/m³ · ${transforms.show.w10}",
-                "role": "caption",
-                "foreground": "secondary",
-                "lineLimit": 1,
-                "desktopRole": "detail"
+                "type": "spacer"
               }
             ]
           }
         ]
       },
-      {
-        "type": "text",
-        "text": "US AQI ${transforms.show.us} · EU AQI ${transforms.show.eu} · ${transforms.show.at}",
-        "role": "caption",
-        "foreground": "tertiary",
-        "lineLimit": 1,
-        "desktopRole": "hide"
+      "timeout": {
+        "type": "vstack",
+        "spacing": 6,
+        "children": [
+          {
+            "type": "empty",
+            "icon": "hourglass",
+            "title": "Open-Meteo didn’t answer in time",
+            "subtitle": "It may be busy. Try again in a moment."
+          },
+          {
+            "type": "text",
+            "text": "${errors.air.message}",
+            "role": "caption",
+            "foreground": "tertiary",
+            "lineLimit": 2,
+            "desktopRole": "hide"
+          },
+          {
+            "type": "hstack",
+            "children": [
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "button",
+                "title": "Try Again",
+                "icon": "arrow.clockwise",
+                "action": {
+                  "type": "refresh"
+                }
+              },
+              {
+                "type": "spacer"
+              }
+            ]
+          }
+        ]
+      },
+      "rateLimited": {
+        "type": "vstack",
+        "spacing": 6,
+        "children": [
+          {
+            "type": "empty",
+            "icon": "tortoise",
+            "title": "Open-Meteo is limiting requests",
+            "subtitle": "The free service allows only so many. It refreshes again on its own."
+          },
+          {
+            "type": "text",
+            "text": "${errors.air.message}",
+            "role": "caption",
+            "foreground": "tertiary",
+            "lineLimit": 2,
+            "desktopRole": "hide"
+          },
+          {
+            "type": "hstack",
+            "children": [
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "button",
+                "title": "Try Again",
+                "icon": "arrow.clockwise",
+                "action": {
+                  "type": "refresh"
+                }
+              },
+              {
+                "type": "spacer"
+              }
+            ]
+          }
+        ]
+      },
+      "badPlace": {
+        "type": "vstack",
+        "spacing": 6,
+        "children": [
+          {
+            "type": "empty",
+            "icon": "mappin.slash",
+            "title": "Check the location",
+            "subtitle": "Latitude must be −90…90 and longitude −180…180. Fix them in this widget’s settings (⋯ ▸ Settings)."
+          },
+          {
+            "type": "text",
+            "text": "${errors.air.message}",
+            "role": "caption",
+            "foreground": "tertiary",
+            "lineLimit": 2,
+            "desktopRole": "hide"
+          },
+          {
+            "type": "hstack",
+            "children": [
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "button",
+                "title": "Try Again",
+                "icon": "arrow.clockwise",
+                "action": {
+                  "type": "refresh"
+                }
+              },
+              {
+                "type": "spacer"
+              }
+            ]
+          }
+        ]
       }
-    ]
+    },
+    "default": {
+      "type": "vstack",
+      "spacing": 6,
+      "children": [
+        {
+          "type": "empty",
+          "icon": "exclamationmark.icloud",
+          "title": "Open-Meteo is unavailable",
+          "subtitle": "Try again in a moment."
+        },
+        {
+          "type": "text",
+          "text": "${errors.air.message}",
+          "role": "caption",
+          "foreground": "tertiary",
+          "lineLimit": 2,
+          "desktopRole": "hide"
+        },
+        {
+          "type": "hstack",
+          "children": [
+            {
+              "type": "spacer"
+            },
+            {
+              "type": "button",
+              "title": "Try Again",
+              "icon": "arrow.clockwise",
+              "action": {
+                "type": "refresh"
+              }
+            },
+            {
+              "type": "spacer"
+            }
+          ]
+        }
+      ]
+    }
   },
   "status": {
     "prefix": "PM2.5",
     "label": "${if(eq(transforms.pm25, null), '', string(transforms.pm25))}",
     "tint": "${transforms.show.menuTint}",
-    "tooltip": "${settings.place} PM2.5 ${transforms.show.pm25} µg/m³ (${transforms.show.w25}) · PM10 ${transforms.show.pm10} µg/m³ (${transforms.show.w10})"
+    "tooltip": "${transforms.tip}"
   },
   "alerts": {
     "bad": {

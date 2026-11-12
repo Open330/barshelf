@@ -1,27 +1,129 @@
 {
   "schemaVersion": 1,
   "kind": "workflow",
-  "_comment": "Now Playing from Music (then Spotify) via osascript. Needs macOS Automation permission — approve the one-time prompt to let BarShelf read the current track. The command is brace-free so it doesn't collide with ${…} interpolation.",
-
+  "_comment": "Now Playing from Music, then Spotify. pgrep first, so a player that is not running is never touched (and never launched); osascript JXA only for a running one, and JSON.stringify does the escaping. Needs macOS Automation permission for each player — approve the one-time prompt. A denial (-1743) comes back as state:denied. The command is free of ${ so it doesn't collide with interpolation.",
   "sources": {
     "data": {
       "use": "exec",
       "with": {
-        "command": ["/bin/sh", "-c", "t=$(/usr/bin/osascript -e 'tell application \"Music\" to if it is running and player state is playing then (name of current track) & \" - \" & (artist of current track)' 2>/dev/null | /usr/bin/tr -d '\"'); [ -z \"$t\" ] && t=$(/usr/bin/osascript -e 'tell application \"Spotify\" to if it is running and player state is playing then (name of current track) & \" - \" & (artist of current track)' 2>/dev/null | /usr/bin/tr -d '\"'); [ -z \"$t\" ] && t=\"Nothing playing\"; echo '{\"track\":\"'\"$t\"'\"}'"]
+        "command": [
+          "/bin/sh",
+          "-c",
+          "for app in Music Spotify; do /usr/bin/pgrep -xq \"$app\" || continue; out=$(/usr/bin/osascript -l JavaScript -e 'function run(argv){var a=Application(argv[0]);if(!a.running())return \"\";if(a.playerState()!==\"playing\")return \"\";var t=a.currentTrack();return JSON.stringify({state:\"playing\",app:argv[0],title:String(t.name()||\"\"),artist:String(t.artist()||\"\")})}' \"$app\" 2>&1); case \"$out\" in *-1743*) printf '{\"state\":\"denied\",\"app\":\"%s\"}\\n' \"$app\"; exit 0;; '{'*) printf '%s\\n' \"$out\"; exit 0;; esac; done; echo '{\"state\":\"idle\"}'"
+        ],
+        "timeoutMs": 10000
       }
     }
   },
-
-  "view": {
-    "action": {"type": "openApp", "value": "com.apple.Music"},
-    "type": "vstack",
-    "spacing": 4,
-    "children": [
-      { "type": "text", "text": "${sources.data.track}", "role": "title", "lineLimit": 2 }
-    ]
+  "transforms": {
+    "playing": {
+      "use": "assign",
+      "from": "eq(sources.data.state, 'playing')"
+    },
+    "appID": {
+      "use": "assign",
+      "from": "if(eq(sources.data.app, 'Spotify'), 'com.spotify.client', 'com.apple.Music')"
+    }
   },
-
+  "view": {
+    "switch": "${coalesce(sources.data.state, 'idle')}",
+    "cases": {
+      "playing": {
+        "action": {
+          "type": "openApp",
+          "value": "${transforms.appID}"
+        },
+        "type": "vstack",
+        "spacing": 2,
+        "children": [
+          {
+            "type": "hstack",
+            "spacing": 6,
+            "children": [
+              {
+                "type": "image",
+                "source": {
+                  "kind": "sfSymbol",
+                  "name": "music.note"
+                },
+                "size": 12,
+                "tint": "accent"
+              },
+              {
+                "type": "text",
+                "text": "${sources.data.app}",
+                "role": "caption",
+                "foreground": "secondary",
+                "lineLimit": 1
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "text": "${sources.data.title}",
+            "role": "title",
+            "lineLimit": 2
+          },
+          {
+            "type": "text",
+            "text": "${sources.data.artist}",
+            "role": "caption",
+            "foreground": "secondary",
+            "lineLimit": 1
+          }
+        ]
+      },
+      "denied": {
+        "type": "vstack",
+        "spacing": 6,
+        "children": [
+          {
+            "type": "empty",
+            "icon": "lock.shield",
+            "title": "Allow BarShelf to read ${sources.data.app}",
+            "subtitle": "Turn BarShelf on for ${sources.data.app} in System Settings ▸ Privacy & Security ▸ Automation, then refresh."
+          },
+          {
+            "type": "hstack",
+            "spacing": 6,
+            "children": [
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "button",
+                "title": "Open Automation Settings",
+                "icon": "gearshape",
+                "action": {
+                  "type": "openURL",
+                  "url": "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation"
+                }
+              },
+              {
+                "type": "button",
+                "title": "Try Again",
+                "icon": "arrow.clockwise",
+                "action": {
+                  "type": "refresh"
+                }
+              },
+              {
+                "type": "spacer"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "default": {
+      "type": "empty",
+      "icon": "music.note",
+      "title": "Nothing playing",
+      "subtitle": "Play something in Music or Spotify."
+    }
+  },
   "status": {
-    "tooltip": "${sources.data.track}"
+    "label": "${if(transforms.playing, sources.data.title, '')}",
+    "tooltip": "${if(transforms.playing, concat(sources.data.title, ' — ', sources.data.artist), '')}"
   }
 }

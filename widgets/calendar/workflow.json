@@ -1,35 +1,249 @@
 {
   "schemaVersion": 1,
   "kind": "workflow",
-  "_comment": "Native month calendar grid. A shell source emits {today, month, cells:[…]} where cells are day numbers padded with 0 for leading blanks; a 7-column grid renders them with today accented.",
-
-  "sources": {
-    "data": {
-      "use": "exec",
+  "_comment": "Native month calendar grid with no subprocess: today's date, the month's first weekday and its length come from now() (see the transforms). The grid is 42 slots, trimmed after the last day; leading blanks are 0. Refreshes hourly and on wake so 'today' moves at midnight.",
+  "sources": {},
+  "transforms": {
+    "utcMin": {
+      "use": "assign",
+      "from": "round(sub(div(now(), 60000), 0.5))"
+    },
+    "utcDayMin": {
+      "use": "assign",
+      "from": "sub(transforms.utcMin, mul(1440, sub(round(add(div(transforms.utcMin, 1440), 0.5)), 1)))"
+    },
+    "localDayMin": {
+      "use": "assign",
+      "from": "round(div(date.ms(concat('1970-01-01T', date.clock(now()), ':00Z')), 60000))"
+    },
+    "offRaw": {
+      "use": "assign",
+      "from": "sub(transforms.localDayMin, transforms.utcDayMin)"
+    },
+    "offMin": {
+      "use": "assign",
+      "from": "if(gte(transforms.offRaw, 840), sub(transforms.offRaw, 1440), if(lt(transforms.offRaw, -600), add(transforms.offRaw, 1440), transforms.offRaw))"
+    },
+    "days": {
+      "use": "assign",
+      "from": "sub(round(add(div(add(now(), mul(transforms.offMin, 60000)), 86400000), 0.5)), 1)"
+    },
+    "weekday": {
+      "use": "assign",
+      "from": "sub(add(transforms.days, 4), mul(7, sub(round(add(div(add(transforms.days, 4), 7), 0.5)), 1)))"
+    },
+    "z": {
+      "use": "assign",
+      "from": "add(transforms.days, 719468)"
+    },
+    "era": {
+      "use": "assign",
+      "from": "sub(round(add(div(transforms.z, 146097), 0.5)), 1)"
+    },
+    "doe": {
+      "use": "assign",
+      "from": "sub(transforms.z, mul(transforms.era, 146097))"
+    },
+    "yoe": {
+      "use": "assign",
+      "from": "sub(round(add(div(add(sub(transforms.doe, sub(round(add(div(transforms.doe, 1460), 0.5)), 1)), sub(sub(round(add(div(transforms.doe, 36524), 0.5)), 1), sub(round(add(div(transforms.doe, 146096), 0.5)), 1))), 365), 0.5)), 1)"
+    },
+    "doy": {
+      "use": "assign",
+      "from": "sub(transforms.doe, sub(add(mul(365, transforms.yoe), sub(round(add(div(transforms.yoe, 4), 0.5)), 1)), sub(round(add(div(transforms.yoe, 100), 0.5)), 1)))"
+    },
+    "mp": {
+      "use": "assign",
+      "from": "sub(round(add(div(add(mul(5, transforms.doy), 2), 153), 0.5)), 1)"
+    },
+    "day": {
+      "use": "assign",
+      "from": "add(sub(transforms.doy, sub(round(add(div(add(mul(153, transforms.mp), 2), 5), 0.5)), 1)), 1)"
+    },
+    "month": {
+      "use": "assign",
+      "from": "if(lt(transforms.mp, 10), add(transforms.mp, 3), sub(transforms.mp, 9))"
+    },
+    "year": {
+      "use": "assign",
+      "from": "add(add(transforms.yoe, mul(transforms.era, 400)), if(lte(transforms.month, 2), 1, 0))"
+    },
+    "hour": {
+      "use": "assign",
+      "from": "sub(round(add(div(transforms.localDayMin, 60), 0.5)), 1)"
+    },
+    "minute": {
+      "use": "assign",
+      "from": "sub(transforms.localDayMin, mul(transforms.hour, 60))"
+    },
+    "ko": {
+      "use": "assign",
+      "from": "or(eq(coalesce(widget.locale, ''), 'ko'), or(eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko-…'), eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko_…')))"
+    },
+    "monthName": {
+      "use": "assign",
+      "from": "switch(transforms.month, 1, 'January', 2, 'February', 3, 'March', 4, 'April', 5, 'May', 6, 'June', 7, 'July', 8, 'August', 9, 'September', 10, 'October', 11, 'November', 12, 'December', '')"
+    },
+    "monthShort": {
+      "use": "assign",
+      "from": "switch(transforms.month, 1, 'Jan', 2, 'Feb', 3, 'Mar', 4, 'Apr', 5, 'May', 6, 'Jun', 7, 'Jul', 8, 'Aug', 9, 'Sep', 10, 'Oct', 11, 'Nov', 12, 'Dec', '')"
+    },
+    "weekdayName": {
+      "use": "assign",
+      "from": "if(transforms.ko, concat(switch(transforms.weekday, 0, '일', 1, '월', 2, '화', 3, '수', 4, '목', 5, '금', 6, '토', ''), '요일'), switch(transforms.weekday, 0, 'Sunday', 1, 'Monday', 2, 'Tuesday', 3, 'Wednesday', 4, 'Thursday', 5, 'Friday', 6, 'Saturday', ''))"
+    },
+    "weekdayShort": {
+      "use": "assign",
+      "from": "if(transforms.ko, switch(transforms.weekday, 0, '일', 1, '월', 2, '화', 3, '수', 4, '목', 5, '금', 6, '토', ''), switch(transforms.weekday, 0, 'Sun', 1, 'Mon', 2, 'Tue', 3, 'Wed', 4, 'Thu', 5, 'Fri', 6, 'Sat', ''))"
+    },
+    "leap": {
+      "use": "assign",
+      "from": "and(eq(sub(transforms.year, mul(4, sub(round(add(div(transforms.year, 4), 0.5)), 1))), 0), or(ne(sub(transforms.year, mul(100, sub(round(add(div(transforms.year, 100), 0.5)), 1))), 0), eq(sub(transforms.year, mul(400, sub(round(add(div(transforms.year, 400), 0.5)), 1))), 0)))"
+    },
+    "daysInMonth": {
+      "use": "assign",
+      "from": "switch(transforms.month, 2, if(transforms.leap, 29, 28), 4, 30, 6, 30, 9, 30, 11, 30, 31)"
+    },
+    "firstWeekday": {
+      "use": "assign",
+      "from": "sub(add(sub(transforms.days, sub(transforms.day, 1)), 4), mul(7, sub(round(add(div(add(sub(transforms.days, sub(transforms.day, 1)), 4), 7), 0.5)), 1)))"
+    },
+    "slots": {
+      "use": "template",
+      "with": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41
+      ]
+    },
+    "grid": {
+      "use": "template",
       "with": {
-        "command": ["/bin/sh", "-c", "y=$(/bin/date +%Y); mm=$(/bin/date +%m); mnum=$(/bin/date +%-m); today=$(/bin/date +%-d); first=$(/bin/date -j -f \"%Y-%m-%d\" \"$y-$mm-01\" +%w); [ -z \"$first\" ] && first=0; dim=$(/usr/bin/cal $mnum $y | /usr/bin/awk 'NF>0{d=$NF} END{print d}'); [ -z \"$dim\" ] && dim=30; cells=\"\"; i=0; while [ $i -lt $first ]; do cells=\"$cells\"0,; i=$((i+1)); done; d=1; while [ $d -le $dim ]; do cells=\"$cells$d,\"; d=$((d+1)); done; cells=$(printf '%s' \"$cells\" | /usr/bin/sed 's/,$//'); echo '{\"today\":'$today',\"month\":\"'$(/bin/date +%B)'\",\"cells\":['$cells']}'"]
+        "forEach": "$.transforms.slots",
+        "as": "i",
+        "template": {
+          "n": "${if(and(gte(i, transforms.firstWeekday), lt(i, add(transforms.firstWeekday, transforms.daysInMonth))), add(sub(i, transforms.firstWeekday), 1), 0)}",
+          "keep": "${lt(i, add(transforms.firstWeekday, transforms.daysInMonth))}"
+        }
       }
+    },
+    "cells": {
+      "use": "filter",
+      "from": "$.transforms.grid",
+      "with": {
+        "field": "keep",
+        "equals": true
+      }
+    },
+    "title": {
+      "use": "assign",
+      "from": "if(transforms.ko, concat(string(transforms.year), '년 ', string(transforms.month), '월'), concat(transforms.monthName, ' ', string(transforms.year)))"
+    },
+    "fullDate": {
+      "use": "assign",
+      "from": "if(transforms.ko, concat(string(transforms.month), '월 ', string(transforms.day), '일 ', transforms.weekdayName), concat(transforms.weekdayName, ', ', transforms.monthName, ' ', string(transforms.day)))"
     }
   },
-
   "view": {
-    "action": {"type": "openApp", "value": "com.apple.iCal"},
+    "action": {
+      "type": "openApp",
+      "value": "com.apple.iCal"
+    },
     "type": "vstack",
     "spacing": 4,
     "children": [
-      { "type": "text", "text": "${sources.data.month}", "role": "title", "lineLimit": 1 },
+      {
+        "type": "text",
+        "text": "${transforms.title}",
+        "role": "title",
+        "lineLimit": 1
+      },
       {
         "type": "grid",
         "columns": 7,
         "spacing": 2,
         "children": [
-          { "type": "text", "text": "Su", "role": "caption", "foreground": "tertiary" },
-          { "type": "text", "text": "Mo", "role": "caption", "foreground": "tertiary" },
-          { "type": "text", "text": "Tu", "role": "caption", "foreground": "tertiary" },
-          { "type": "text", "text": "We", "role": "caption", "foreground": "tertiary" },
-          { "type": "text", "text": "Th", "role": "caption", "foreground": "tertiary" },
-          { "type": "text", "text": "Fr", "role": "caption", "foreground": "tertiary" },
-          { "type": "text", "text": "Sa", "role": "caption", "foreground": "tertiary" }
+          {
+            "type": "text",
+            "text": "Su",
+            "role": "caption",
+            "foreground": "tertiary"
+          },
+          {
+            "type": "text",
+            "text": "Mo",
+            "role": "caption",
+            "foreground": "tertiary"
+          },
+          {
+            "type": "text",
+            "text": "Tu",
+            "role": "caption",
+            "foreground": "tertiary"
+          },
+          {
+            "type": "text",
+            "text": "We",
+            "role": "caption",
+            "foreground": "tertiary"
+          },
+          {
+            "type": "text",
+            "text": "Th",
+            "role": "caption",
+            "foreground": "tertiary"
+          },
+          {
+            "type": "text",
+            "text": "Fr",
+            "role": "caption",
+            "foreground": "tertiary"
+          },
+          {
+            "type": "text",
+            "text": "Sa",
+            "role": "caption",
+            "foreground": "tertiary"
+          }
         ]
       },
       {
@@ -37,22 +251,21 @@
         "columns": 7,
         "spacing": 2,
         "items": {
-          "forEach": "$.sources.data.cells",
+          "forEach": "$.transforms.cells",
           "as": "cell",
           "template": {
             "type": "text",
-            "text": "${if(eq(cell, 0), '', string(cell))}",
-            "role": "${if(eq(cell, sources.data.today), 'title', 'body')}",
+            "text": "${if(eq(cell.n, 0), '', string(cell.n))}",
+            "role": "${if(eq(cell.n, transforms.day), 'title', 'body')}",
             "monospacedDigit": true,
             "foreground": "primary",
-            "fill": "${if(eq(cell, sources.data.today), 'accent', '')}"
+            "fill": "${if(eq(cell.n, transforms.day), 'accent', '')}"
           }
         }
       }
     ]
   },
-
   "status": {
-    "tooltip": "${sources.data.month} ${string(sources.data.today)}"
+    "tooltip": "${transforms.fullDate}"
   }
 }

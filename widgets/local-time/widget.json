@@ -3,33 +3,37 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.local-time",
   "name": "Local Time",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "icon": "clock.fill",
-  "bucket": { "group": "Demo", "order": 40, "size": "S" },
-
-  "entry": { "kind": "workflow", "main": "workflow.json" },
-
-  "refresh": { "onOpen": true, "interval": 60, "staleAfterSec": 60 },
-
-  "permissions": {
-    "exec": [
-      {
-        "command": "/bin/date",
-        "allowedArgs": [["+%H:%M:%S"], ["+%A, %b %d"]],
-        "maxOutputBytes": 4096,
-        "sensitiveOutput": false
-      }
+  "bucket": {
+    "group": "Everyday",
+    "order": 40,
+    "size": "S"
+  },
+  "entry": {
+    "kind": "workflow",
+    "main": "workflow.json"
+  },
+  "refresh": {
+    "onOpen": true,
+    "interval": 10,
+    "staleAfterSec": 10,
+    "triggers": [
+      "wake"
     ]
   },
-
   "appearance": {
     "accent": "blue"
   },
-
   "localizations": {
     "ko": {
       "Local Time": "현지 시간",
-      "Local time: ${string(transforms.time)}": "현지 시간: ${string(transforms.time)}"
+      "Local time: ${transforms.dateLine} ${transforms.time}": "현지 시간: ${transforms.dateLine} ${transforms.time}"
     }
-  }
+  },
+  "statusItem": {
+    "mode": "text",
+    "icon": "clock.fill"
+  },
+  "minHostVersion": "0.7.17"
 }

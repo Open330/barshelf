@@ -1,29 +1,208 @@
 {
   "schemaVersion": 1,
   "kind": "workflow",
-  "_comment": "Count of open (incomplete) reminders via osascript. Needs macOS Automation permission for the Reminders app — approve the one-time prompt. Brace-free command.",
-
+  "_comment": "Count of open (incomplete) reminders via osascript. Needs macOS Automation permission for Reminders — approve the one-time prompt. The source is optional and the command fails when osascript does, so a denial (-1743) or a timeout is its own state, never a count of 0. Brace-free command.",
   "sources": {
     "data": {
       "use": "exec",
+      "optional": true,
       "with": {
-        "command": ["/bin/sh", "-c", "n=$(/usr/bin/osascript -e 'tell application \"Reminders\" to count (reminders whose completed is false)' 2>/dev/null); [ -z \"$n\" ] && n=0; echo '{\"count\":'\"$n\"'}'"]
+        "command": [
+          "/bin/sh",
+          "-c",
+          "n=$(/usr/bin/osascript -e 'tell application \"Reminders\" to count (reminders whose completed is false)') || exit $?; [ -n \"$n\" ] || exit 1; echo '{\"count\":'\"$n\"'}'"
+        ],
+        "timeoutMs": 20000
       }
     }
   },
-
-  "view": {
-    "action": {"type": "openApp", "value": "com.apple.reminders"},
-    "type": "vstack",
-    "spacing": 2,
-    "children": [
-      { "type": "text", "text": "${string(sources.data.count)}", "size": 40, "role": "title", "monospacedDigit": true },
-      { "type": "text", "text": "open", "role": "caption", "foreground": "secondary" }
-    ]
+  "transforms": {
+    "ko": {
+      "use": "assign",
+      "from": "or(eq(coalesce(widget.locale, ''), 'ko'), or(eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko-…'), eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko_…')))"
+    },
+    "tip": {
+      "use": "assign",
+      "from": "if(eq(number(sources.data.count), null), if(transforms.ko, '미리 알림을 읽지 못함', 'Couldn’t read Reminders'), if(transforms.ko, concat('남은 미리 알림 ', string(sources.data.count), '개'), concat(string(sources.data.count), ' open reminders')))"
+    }
   },
-
+  "view": {
+    "switch": "${if(eq(errors.data, null), if(eq(number(sources.data.count), null), 'failed', 'ok'), if(contains(errors.data.message, '-1743'), 'denied', if(eq(errors.data.kind, 'timeout'), 'timeout', 'failed')))}",
+    "cases": {
+      "ok": {
+        "action": {
+          "type": "openApp",
+          "value": "com.apple.reminders"
+        },
+        "type": "vstack",
+        "spacing": 2,
+        "children": [
+          {
+            "type": "text",
+            "text": "${string(sources.data.count)}",
+            "size": 40,
+            "role": "title",
+            "monospacedDigit": true
+          },
+          {
+            "type": "text",
+            "text": "open",
+            "role": "caption",
+            "foreground": "secondary"
+          }
+        ]
+      },
+      "denied": {
+        "type": "vstack",
+        "spacing": 6,
+        "children": [
+          {
+            "type": "empty",
+            "icon": "lock.shield",
+            "title": "Allow BarShelf to read Reminders",
+            "subtitle": "Turn BarShelf on for Reminders in System Settings ▸ Privacy & Security ▸ Automation, then refresh."
+          },
+          {
+            "type": "text",
+            "text": "${errors.data.message}",
+            "role": "caption",
+            "foreground": "tertiary",
+            "lineLimit": 2,
+            "desktopRole": "hide"
+          },
+          {
+            "type": "hstack",
+            "spacing": 6,
+            "children": [
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "button",
+                "title": "Open Automation Settings",
+                "icon": "gearshape",
+                "action": {
+                  "type": "openURL",
+                  "url": "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation"
+                }
+              },
+              {
+                "type": "button",
+                "title": "Try Again",
+                "icon": "arrow.clockwise",
+                "action": {
+                  "type": "refresh"
+                }
+              },
+              {
+                "type": "spacer"
+              }
+            ]
+          }
+        ]
+      },
+      "timeout": {
+        "type": "vstack",
+        "spacing": 6,
+        "children": [
+          {
+            "type": "empty",
+            "icon": "hourglass",
+            "title": "Reminders didn’t answer in time",
+            "subtitle": "Open Reminders once, then try again."
+          },
+          {
+            "type": "text",
+            "text": "${errors.data.message}",
+            "role": "caption",
+            "foreground": "tertiary",
+            "lineLimit": 2,
+            "desktopRole": "hide"
+          },
+          {
+            "type": "hstack",
+            "spacing": 6,
+            "children": [
+              {
+                "type": "spacer"
+              },
+              {
+                "type": "button",
+                "title": "Reminders",
+                "icon": "checklist",
+                "action": {
+                  "type": "openApp",
+                  "value": "com.apple.reminders"
+                }
+              },
+              {
+                "type": "button",
+                "title": "Try Again",
+                "icon": "arrow.clockwise",
+                "action": {
+                  "type": "refresh"
+                }
+              },
+              {
+                "type": "spacer"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "default": {
+      "type": "vstack",
+      "spacing": 6,
+      "children": [
+        {
+          "type": "empty",
+          "icon": "exclamationmark.triangle",
+          "title": "Couldn’t read Reminders",
+          "subtitle": "Open Reminders once, then try again."
+        },
+        {
+          "type": "text",
+          "text": "${errors.data.message}",
+          "role": "caption",
+          "foreground": "tertiary",
+          "lineLimit": 2,
+          "desktopRole": "hide"
+        },
+        {
+          "type": "hstack",
+          "spacing": 6,
+          "children": [
+            {
+              "type": "spacer"
+            },
+            {
+              "type": "button",
+              "title": "Reminders",
+              "icon": "checklist",
+              "action": {
+                "type": "openApp",
+                "value": "com.apple.reminders"
+              }
+            },
+            {
+              "type": "button",
+              "title": "Try Again",
+              "icon": "arrow.clockwise",
+              "action": {
+                "type": "refresh"
+              }
+            },
+            {
+              "type": "spacer"
+            }
+          ]
+        }
+      ]
+    }
+  },
   "status": {
-    "label": "${string(sources.data.count)}",
-    "tooltip": "${string(sources.data.count)} open reminders"
+    "label": "${if(eq(number(sources.data.count), null), '', string(sources.data.count))}",
+    "tooltip": "${transforms.tip}"
   }
 }
