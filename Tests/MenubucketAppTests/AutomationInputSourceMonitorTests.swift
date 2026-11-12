@@ -1,6 +1,7 @@
 import XCTest
 import MenubucketCore
 @testable import MenubucketApp
+@testable import BarShelfAutomation
 
 @MainActor
 final class AutomationInputSourceMonitorTests: XCTestCase {

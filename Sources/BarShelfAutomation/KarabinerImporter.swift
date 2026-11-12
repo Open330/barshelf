@@ -2,13 +2,13 @@ import Foundation
 
 /// Convert only behavior the native event tap can preserve. Reject the whole
 /// candidate on unsupported actions instead of silently dropping rules.
-enum KarabinerImporter {
-    struct Result {
-        let script: String
-        let summary: String
+package enum KarabinerImporter {
+    package struct Result {
+        package let script: String
+        package let summary: String
     }
 
-    static func convert(_ source: String, excludingFunctionKeys: Bool = false) throws -> Result {
+    package static func convert(_ source: String, excludingFunctionKeys: Bool = false) throws -> Result {
         guard let data = source.data(using: .utf8),
               let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw AutomationFailure(String(localized: "Choose a Karabiner JSON configuration or rules file."))

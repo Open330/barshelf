@@ -25,7 +25,7 @@ final class AppCommandsTests: XCTestCase {
     }
 
     func testLaunchInstallsTheCommandsIntoTheMainMenu() throws {
-        let main = try source("Sources/MenubucketApp/main.swift")
+        let main = try source("Sources/MenubucketApp/AppMain.swift")
         XCTAssertTrue(main.contains("installCommands(in:"))
     }
 

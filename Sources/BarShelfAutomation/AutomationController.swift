@@ -5,26 +5,26 @@ import Combine
 /// One user-owned automation extension, independent of widget permissions.
 /// Source + enabled intent are saved atomically; runtime replacement rolls back
 /// on registration or persistence errors. Import alone never requests TCC.
-final class AutomationController: ObservableObject {
-    static let shared = AutomationController()
-    struct Configuration: Codable {
-        var source: String
-        var enabled: Bool
+package final class AutomationController: ObservableObject {
+    package static let shared = AutomationController()
+    package struct Configuration: Codable {
+        package var source: String
+        package var enabled: Bool
     }
-    @Published private(set) var source = AutomationScript.example
-    @Published private(set) var isRunning = false
+    @Published package private(set) var source = AutomationScript.example
+    @Published package private(set) var isRunning = false
     /// Unsaved edits in the settings editor; nil when the editor shows the
     /// saved script. Kept here rather than in the view, so leaving the page
     /// and coming back does not throw edits away.
-    @Published private(set) var draft: String?
-    @Published private(set) var message: String?
-    @Published private(set) var importSummary: String?
+    @Published package private(set) var draft: String?
+    @Published package private(set) var message: String?
+    @Published package private(set) var importSummary: String?
     /// Running bindings that macOS also uses for one of its shortcuts.
-    @Published private(set) var systemShortcutConflicts: [SystemShortcutConflicts.Conflict] = []
+    @Published package private(set) var systemShortcutConflicts: [SystemShortcutConflicts.Conflict] = []
     /// What the running extension saw after its last input source switch.
     /// A failed switch is reported here and leaves the extension running:
     /// its other shortcuts still work.
-    @Published private(set) var inputSourceStatus: AutomationInputSource.Status = .idle
+    @Published package private(set) var inputSourceStatus: AutomationInputSource.Status = .idle
     private var runningBindings: [HotkeyGrammar.Combination] = []
     private var engine: AutomationRunning?
     private var launchEnabled = false
@@ -33,7 +33,7 @@ final class AutomationController: ObservableObject {
     private let isTrusted: () -> Bool
     private let hammerspoonRunning: () -> Bool
 
-    init(fileURL: URL = WidgetRuntime.applicationSupportDirectory.appendingPathComponent("automation.json"),
+    package init(fileURL: URL = AutomationController.defaultFileURL,
          makeEngine: @escaping (AutomationScript) -> AutomationRunning = { AutomationEngine(script: $0) },
          isTrusted: @escaping () -> Bool = { AXIsProcessTrusted() },
          hammerspoonRunning: @escaping () -> Bool = {
@@ -52,16 +52,16 @@ final class AutomationController: ObservableObject {
     }
 
     /// What a script registers, for the Automation page's figures.
-    struct Summary: Equatable {
-        let shortcuts: Int
-        let remaps: Int
+    package struct Summary: Equatable {
+        package let shortcuts: Int
+        package let remaps: Int
     }
 
     private var summaryCache: (source: String, summary: Summary?)?
 
     /// What the saved script registers: its shortcuts and its remapped
     /// keys. Compiled once per saved script; nil when it does not compile.
-    func savedSummary() -> Summary? {
+    package func savedSummary() -> Summary? {
         if let summaryCache, summaryCache.source == source { return summaryCache.summary }
         let script = try? AutomationScript(source: source)
         let summary = script.map {
@@ -73,30 +73,30 @@ final class AutomationController: ObservableObject {
 
     /// Reads the system shortcuts again: they change in System Settings with
     /// no notice to other apps.
-    func refreshSystemShortcutConflicts() {
+    package func refreshSystemShortcutConflicts() {
         let conflicts = SystemShortcutConflicts.current(bindings: runningBindings)
         if conflicts != systemShortcutConflicts { systemShortcutConflicts = conflicts }
     }
 
-    func startAtLaunch() {
+    package func startAtLaunch() {
         guard launchEnabled else { return }
         apply(source: source, enabled: true)
     }
 
     /// Records editor text; matching the saved script clears the draft.
-    func setDraft(_ text: String) {
+    package func setDraft(_ text: String) {
         draft = text == source ? nil : text
     }
 
     /// Whether putting `text` in the editor (an import, the example) would
     /// throw away edits that were never saved, so the editor should ask.
-    func replacingDraftLosesChanges(with text: String) -> Bool {
+    package func replacingDraftLosesChanges(with text: String) -> Bool {
         guard let draft else { return false }
         return draft != text
     }
 
     @discardableResult
-    func apply(source candidate: String, enabled: Bool) -> Bool {
+    package func apply(source candidate: String, enabled: Bool) -> Bool {
         do {
             let script = try AutomationScript(source: candidate)
             if enabled {
@@ -173,7 +173,7 @@ final class AutomationController: ObservableObject {
 
     /// Disabling must always release native resources, even if the file cannot
     /// be saved or the draft being edited currently contains a syntax error.
-    func disable() {
+    package func disable() {
         engine?.stop()
         engine = nil
         isRunning = false
@@ -187,10 +187,10 @@ final class AutomationController: ObservableObject {
         } catch { message = String(localized: "Stopped for this session, but could not save disabled state: \(error.localizedDescription)") }
     }
 
-    func stopForTermination() { engine?.stop() }
+    package func stopForTermination() { engine?.stop() }
 
     /// Returns a draft for review; does not replace a saved/running extension.
-    func importFile(_ url: URL, excludingFunctionKeys: Bool = false) -> String? {
+    package func importFile(_ url: URL, excludingFunctionKeys: Bool = false) -> String? {
         importSummary = nil
         do {
             let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
@@ -211,12 +211,24 @@ final class AutomationController: ObservableObject {
     /// Opens the drag-in helper beside Accessibility settings. Once macOS
     /// allows BarShelf, an extension saved as enabled starts without another
     /// click.
-    func requestAccessibility() {
-        AccessibilityHelper.shared.show { [weak self] in
+    package func requestAccessibility() {
+        presentAccessibilityHelper { [weak self] in
             guard let self else { return }
             self.message = nil
             if !self.isRunning { self.startAtLaunch() }
         }
+    }
+
+    /// Shows the drag-in helper and calls back once macOS trusts BarShelf.
+    /// The helper is a view, so the app supplies it; this target has no UI.
+    package var presentAccessibilityHelper: (_ onTrusted: @escaping () -> Void) -> Void = { _ in }
+
+    /// `~/Library/Application Support/barshelf/automation.json`, beside the
+    /// app's other files (the same folder as `WidgetRuntime`'s).
+    package static var defaultFileURL: URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support")
+        return base.appendingPathComponent("barshelf", isDirectory: true).appendingPathComponent("automation.json")
     }
 
     private func save(_ config: Configuration) throws {

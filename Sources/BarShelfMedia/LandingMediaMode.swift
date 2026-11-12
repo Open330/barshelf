@@ -1,7 +1,9 @@
+#if DEBUG
 import AppKit
 import CoreImage
 import MenubucketCore
 import SwiftUI
+@testable import MenubucketApp
 
 /// `barshelf-app landing-media <dir> [hero] [popup] [stills] [film]` records the
 /// landing page's videos and stills (site/shots) from the real app views.
@@ -632,3 +634,4 @@ struct LandingCluster {
                        y: LandingMenuBar.height / 2 + 1)
     }
 }
+#endif

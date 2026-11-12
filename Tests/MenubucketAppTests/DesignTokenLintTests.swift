@@ -18,14 +18,12 @@ final class DesignTokenLintTests: XCTestCase {
         ("animation", #"\.(?:easeInOut|easeOut|easeIn|linear|snappy|smooth|bouncy)\(|\.spring\((?:response|duration):"#),
     ]
 
-    /// Where the tokens themselves are defined, and the landing film's own
-    /// staging (kinetic type, sticker captions, a terminal, camera moves):
-    /// a video's look, not the app's. The BarShelf surfaces in the film are
-    /// the real views, which this lint already covers.
+    /// Where the tokens themselves are defined. The landing page's media
+    /// tool (`Sources/BarShelfMedia`) is outside this lint: its staging is a
+    /// video's look, not the app's, and the BarShelf surfaces it films are
+    /// the real views, which are covered here.
     static let exempt: Set<String> = [
         "Sources/MenubucketApp/Design/DesignTokens.swift",
-        "Sources/MenubucketApp/LandingMedia/LandingFilm.swift",
-        "Sources/MenubucketApp/LandingMedia/LandingFilmPlates.swift",
     ]
 
     private static var repoRoot: URL {

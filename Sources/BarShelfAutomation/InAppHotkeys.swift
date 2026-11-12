@@ -7,34 +7,39 @@ import Foundation
 ///
 /// The user's Automation script wins: while it runs, the dock leaves its keys
 /// alone and shows them as taken.
-final class InAppHotkeys {
-    static let shared = InAppHotkeys()
+package final class InAppHotkeys {
+    package static let shared = InAppHotkeys()
 
-    struct Key: Hashable {
-        let keyCode: UInt32
-        let modifiers: UInt32
+    package struct Key: Hashable {
+        package let keyCode: UInt32
+        package let modifiers: UInt32
+
+        package init(keyCode: UInt32, modifiers: UInt32) {
+            self.keyCode = keyCode
+            self.modifiers = modifiers
+        }
     }
 
-    private(set) var automation: Set<Key> = []
+    package private(set) var automation: Set<Key> = []
     private var observers: [UUID: () -> Void] = [:]
 
     /// Automation is about to register these (or, with none, has stopped).
     /// Observers run synchronously, so a key the dock held is free by the
     /// time this returns.
-    func setAutomationKeys(_ keys: Set<Key>) {
+    package func setAutomationKeys(_ keys: Set<Key>) {
         guard keys != automation else { return }
         automation = keys
         observers.values.forEach { $0() }
     }
 
     @discardableResult
-    func observe(_ handler: @escaping () -> Void) -> UUID {
+    package func observe(_ handler: @escaping () -> Void) -> UUID {
         let id = UUID()
         observers[id] = handler
         return id
     }
 
-    func removeObserver(_ id: UUID) {
+    package func removeObserver(_ id: UUID) {
         observers.removeValue(forKey: id)
     }
 }

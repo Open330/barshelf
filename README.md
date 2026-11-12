@@ -327,9 +327,13 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test    # full te
 bash scripts/build_app.sh                                              # dist/BarShelf.app + dist/barshelf + dist/bsf
 ```
 
-The package splits into `MenubucketCore` (models, manifest/workflow parsing,
-schedule policy — UI-free, tested) and `MenubucketApp` (AppKit shell, SwiftUI
-renderer, runtime), with standalone `barshelf` and `bsf` CLI executable targets.
+The package splits into:
+
+- `MenubucketCore` — models, manifest/workflow parsing, schedule policy. UI-free and tested.
+- `BarShelfAutomation` — the keyboard and window extension engine (event tap, key remaps, script runner, Hammerspoon/Karabiner import). No views; it does not depend on the app.
+- `MenubucketApp` — the app itself as a library: AppKit shell, SwiftUI renderer, runtime. The `barshelf-app` executable is a one-line `main.swift` on top of it.
+- `barshelf` and `bsf` — the standalone CLI.
+- `barshelf-media` — a development tool that records the landing page's videos and stills from the real views. It is not part of BarShelf.app.
 
 ## License
 

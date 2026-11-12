@@ -2,19 +2,19 @@ import CoreGraphics
 import Foundation
 
 /// Native, bounded key-to-key rules. No JavaScript runs on the event tap.
-struct AutomationKeyRemap: Equatable {
-    let from: Int64
-    let to: Int64
-    let mandatory: UInt64
-    let optional: UInt64
-    let anyOptional: Bool
+package struct AutomationKeyRemap: Equatable {
+    package let from: Int64
+    package let to: Int64
+    package let mandatory: UInt64
+    package let optional: UInt64
+    package let anyOptional: Bool
 
-    static let modifierFlags: [String: CGEventFlags] = [
+    package static let modifierFlags: [String: CGEventFlags] = [
         "command": .maskCommand, "control": .maskControl, "option": .maskAlternate,
         "shift": .maskShift, "fn": .maskSecondaryFn, "caps_lock": .maskAlphaShift
     ]
-    static let modifierMask = modifierFlags.values.reduce(UInt64(0)) { $0 | $1.rawValue }
-    static let keys: [String: Int64] = AutomationScript.physicalKeys.merging([
+    package static let modifierMask = modifierFlags.values.reduce(UInt64(0)) { $0 | $1.rawValue }
+    package static let keys: [String: Int64] = AutomationScript.physicalKeys.merging([
         "1": 18, "2": 19, "3": 20, "4": 21, "5": 23, "6": 22,
         "7": 26, "8": 28, "9": 25, "0": 29,
         "return_or_enter": 36, "tab": 48, "spacebar": 49,
@@ -28,12 +28,12 @@ struct AutomationKeyRemap: Equatable {
     /// says nothing about whether fn was held, so it is left out of matching;
     /// otherwise `control+left_arrow` never matched (the event carries
     /// control|fn) and a rule requiring fn fired on every plain arrow.
-    static let fnImpliedKeys: Set<Int64> = [
+    package static let fnImpliedKeys: Set<Int64> = [
         123, 124, 125, 126, 115, 119, 116, 121, 117, 114,
         122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111, 105, 107, 113,
     ]
 
-    static func decode(_ values: [[String: Any]]) throws -> [Self] {
+    package static func decode(_ values: [[String: Any]]) throws -> [Self] {
         guard !values.isEmpty, values.count <= 128 else {
             throw AutomationFailure(String(localized: "Register between 1 and 128 key remaps."))
         }
@@ -71,7 +71,7 @@ struct AutomationKeyRemap: Equatable {
         }
     }
 
-    func matches(code: Int64, flags: UInt64) -> Bool {
+    package func matches(code: Int64, flags: UInt64) -> Bool {
         var modifiers = flags & Self.modifierMask
         if Self.fnImpliedKeys.contains(code) { modifiers &= ~CGEventFlags.maskSecondaryFn.rawValue }
         return code == from && modifiers & mandatory == mandatory &&
@@ -79,10 +79,10 @@ struct AutomationKeyRemap: Equatable {
     }
 }
 
-struct AutomationKeyRemapState {
-    var held: [AutomationRemapState.Key: AutomationKeyRemap] = [:]
+package struct AutomationKeyRemapState {
+    package var held: [AutomationRemapState.Key: AutomationKeyRemap] = [:]
 
-    mutating func target(code: Int64, keyboard: Int64, down: Bool, flags: UInt64,
+    package mutating func target(code: Int64, keyboard: Int64, down: Bool, flags: UInt64,
                          rules: [AutomationKeyRemap]) -> AutomationKeyRemap? {
         let key = AutomationRemapState.Key(code: code, keyboard: keyboard)
         if !down { return held.removeValue(forKey: key) }

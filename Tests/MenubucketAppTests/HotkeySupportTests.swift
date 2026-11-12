@@ -1,6 +1,7 @@
 import Carbon.HIToolbox
 import XCTest
 @testable import MenubucketApp
+@testable import BarShelfAutomation
 
 final class HotkeySupportTests: XCTestCase {
     func testParserAcceptsAliasesAndReturnsCanonicalShortcut() throws {

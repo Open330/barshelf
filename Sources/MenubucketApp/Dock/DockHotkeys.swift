@@ -1,3 +1,4 @@
+import BarShelfAutomation
 import Carbon.HIToolbox
 import Combine
 import Foundation

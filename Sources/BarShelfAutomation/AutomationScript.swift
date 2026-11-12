@@ -1,34 +1,34 @@
 import Foundation
 import JavaScriptCore
 
-struct AutomationFailure: LocalizedError {
-    let message: String
-    init(_ message: String) { self.message = message }
-    var errorDescription: String? { message }
+package struct AutomationFailure: LocalizedError {
+    package let message: String
+    package init(_ message: String) { self.message = message }
+    package var errorDescription: String? { message }
 }
 
 /// Compilation only collects registrations. Native effects are allowed solely
 /// inside a registered callback, after the host has enabled the extension.
-final class AutomationScript {
-    struct Binding {
-        let combination: HotkeyGrammar.Combination
-        let callback: JSValue
+package final class AutomationScript {
+    package struct Binding {
+        package let combination: HotkeyGrammar.Combination
+        package let callback: JSValue
     }
-    struct Remap: Equatable {
-        let keyboardTypes: Set<Int64>
-        let keys: [Int64: Int64]
+    package struct Remap: Equatable {
+        package let keyboardTypes: Set<Int64>
+        package let keys: [Int64: Int64]
     }
 
     private let context: JSContext
-    private(set) var bindings: [Binding] = []
-    private(set) var remap: Remap?
-    private(set) var keyRemaps: [AutomationKeyRemap] = []
+    package private(set) var bindings: [Binding] = []
+    package private(set) var remap: Remap?
+    package private(set) var keyRemaps: [AutomationKeyRemap] = []
     private var invoking = false
     private var reportedInputExceptions: [JSValue] = []
-    var command: ((String, JSValue) throws -> Void)?
-    var report: ((String) -> Void)?
+    package var command: ((String, JSValue) throws -> Void)?
+    package var report: ((String) -> Void)?
 
-    init(source: String) throws {
+    package init(source: String) throws {
         guard let context = JSContext() else { throw AutomationFailure(String(localized: "Cannot create JavaScript runtime.")) }
         self.context = context
         let dispatch: @convention(block) (String, JSValue) -> Void = { [weak self] name, argument in
@@ -101,7 +101,7 @@ final class AutomationScript {
         }
     }
 
-    func invoke(_ index: Int) {
+    package func invoke(_ index: Int) {
         guard bindings.indices.contains(index) else { return }
         context.exception = nil
         invoking = true
@@ -127,13 +127,13 @@ final class AutomationScript {
         }
     }
 
-    static let physicalKeys: [String: Int64] = [
+    package static let physicalKeys: [String: Int64] = [
         "a": 0, "s": 1, "d": 2, "f": 3, "h": 4, "g": 5, "z": 6, "x": 7,
         "c": 8, "v": 9, "b": 11, "q": 12, "w": 13, "e": 14, "r": 15, "y": 16,
         "t": 17, "o": 31, "u": 32, "i": 34, "p": 35, "l": 37, "j": 38, "k": 40,
         "n": 45, "m": 46, "ㅑ": 34, "ㅓ": 38, "ㅏ": 40, "ㅣ": 37,
     ]
-    static let arrows: [String: Int64] = ["up": 126, "down": 125, "left": 123, "right": 124]
+    package static let arrows: [String: Int64] = ["up": 126, "down": 125, "left": 123, "right": 124]
 
     private static let bootstrap = #"""
     "use strict";
@@ -174,7 +174,7 @@ final class AutomationScript {
     const rotateWindowFocus = barshelf.rotateWindowFocus;
     """#
 
-    static let example = #"""
+    package static let example = #"""
     // Monitor numbers are 1-based; see the display list in Settings.
     barshelf.remapFn({
       keyboardTypes: [91],

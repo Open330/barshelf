@@ -256,6 +256,6 @@ scripts/render-landing-media.sh film       # 랜딩 필름 (전부에는 포함 
   (`LandingDemo`). 이 Mac의 값·이름·파일은 들어가지 않고, 스크립트가 임시
   홈 폴더를 쓰므로 내 BarShelf 설정도 건드리지 않는다.
 - 커서·키캡·바탕화면·유리 재질은 연출이다(오프스크린 렌더에는 vibrancy가
-  없다). 장면 타이밍과 구성은 `Sources/MenubucketApp/LandingMedia/`에 있다.
+  없다). 장면 타이밍과 구성은 `Sources/BarShelfMedia/`에 있다.
 - 결과 프레임을 몇 장 뽑아 확인한 뒤 커밋한다:
   `ffmpeg -ss 6 -i site/shots/hero-menubar.mp4 -frames:v 1 /tmp/hero.png`

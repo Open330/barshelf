@@ -210,7 +210,7 @@ final class RelaunchVerificationTests: XCTestCase {
     /// written *after* the status item exists — otherwise it attests to a
     /// process rather than to the icon the user looks for.
     func testTheAppWritesItsReceiptAfterTheStatusItemIsUp() throws {
-        let main = try source("Sources/MenubucketApp/main.swift")
+        let main = try source("Sources/MenubucketApp/AppMain.swift")
         let statusItem = try XCTUnwrap(main.range(of: "statusItemController = StatusItemController()"))
         let receipt = try XCTUnwrap(main.range(of: "LaunchReceiptStore.write("))
         XCTAssertTrue(

@@ -4,13 +4,13 @@ import Foundation
 /// profile. Validate the *entire* token stream, including helper bodies, before
 /// translating configurable tables and bindings. Never regex-extract a few
 /// shortcuts from arbitrary Lua and silently discard the rest of the program.
-enum HammerspoonImporter {
-    struct Result {
-        let script: String
-        let summary: String
+package enum HammerspoonImporter {
+    package struct Result {
+        package let script: String
+        package let summary: String
     }
 
-    static func convert(_ source: String) throws -> Result {
+    package static func convert(_ source: String) throws -> Result {
         let profile = try extract(source)
         let reference = try extract(referenceSource)
         guard profile.skeleton == reference.skeleton else {
@@ -30,27 +30,27 @@ enum HammerspoonImporter {
     }
 
     private struct Profile {
-        var skeleton: [String] = []
-        var types: [Int] = []
-        var keys: [String: String] = [:]
-        var bindings: [String] = []
+        package var skeleton: [String] = []
+        package var types: [Int] = []
+        package var keys: [String: String] = [:]
+        package var bindings: [String] = []
     }
 
     private struct Cursor {
-        let tokens: [String]
-        var index = 0
-        var next: String? { index < tokens.count ? tokens[index] : nil }
-        mutating func take() throws -> String {
+        package let tokens: [String]
+        package var index = 0
+        package var next: String? { index < tokens.count ? tokens[index] : nil }
+        package mutating func take() throws -> String {
             guard let next else { throw AutomationFailure(String(localized: "Incomplete Lua navigation profile.")) }
             index += 1
             return next
         }
-        mutating func expect(_ token: String) throws {
+        package mutating func expect(_ token: String) throws {
             guard try take() == token else {
                 throw AutomationFailure(String(localized: "Unsupported Lua syntax near token \(index); expected \(token). Nothing was imported."))
             }
         }
-        mutating func string() throws -> String {
+        package mutating func string() throws -> String {
             let token = try take()
             guard token.hasPrefix("\""), let data = token.data(using: .utf8),
                   let value = try JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed) as? String else {
@@ -58,7 +58,7 @@ enum HammerspoonImporter {
             }
             return value
         }
-        mutating func integer() throws -> Int {
+        package mutating func integer() throws -> Int {
             guard let value = Int(try take()), value >= 0, value <= 65535 else {
                 throw AutomationFailure(String(localized: "Expected an integer from 0 to 65535 in the Lua profile."))
             }
@@ -159,7 +159,7 @@ enum HammerspoonImporter {
         }
     }
 
-    static let referenceSource = #"""
+    package static let referenceSource = #"""
     local application = require "hs.application"
     
     hs.logger.defaultLogLevel = "info"

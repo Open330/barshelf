@@ -1,3 +1,4 @@
+import BarShelfAutomation
 import MenubucketCore
 import SwiftUI
 
