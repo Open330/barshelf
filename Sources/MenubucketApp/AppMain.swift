@@ -29,6 +29,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AutomationController.shared.presentAccessibilityHelper = { onTrusted in
             AccessibilityHelper.shared.show(onGranted: onTrusted)
         }
+        // In the packaged app the extension runs in a helper process (this
+        // same executable), so it survives the app crashing or stalling.
+        if Bundle.main.bundleURL.pathExtension == "app", let executable = Bundle.main.executableURL {
+            let helper = AutomationHelperClient(executable: executable)
+            helper.onQuitRequested = { NSApp.terminate(nil) }
+            helper.onReopenRequested = { HubWindowController.shared.reopen() }
+            AutomationController.shared.useHelper(helper)
+        }
         AutomationController.shared.startAtLaunch()
         // `replace` hides the Apple Dock again; a crash's leftover backup is
         // put back otherwise.
@@ -114,6 +122,12 @@ public enum BarShelfApp {
     @MainActor
     public static func main() -> Never {
         let commandLineArguments = CommandLine.arguments
+        // `barshelf-app automation-helper`: the keyboard extension's own
+        // process, started by the app (see AutomationHelperProcess).
+        if commandLineArguments.count >= 2, commandLineArguments[1] == AutomationHelperProcess.argument {
+            AutomationHelperProcess.run(arguments: Array(commandLineArguments.dropFirst(2)))
+        }
+
         // App-binary headless mode: `barshelf-app install <url>` installs and exits
         // before NSApplication starts. Public automation should use the standalone
         // `barshelf install` CLI, which shares the same installer pipeline.
