@@ -3,9 +3,9 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.clock-script",
   "name": "Script Clock",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "icon": "clock",
-  "bucket": { "group": "Demo", "order": 30, "size": "S" },
+  "bucket": { "group": "Everyday", "order": 30, "size": "S" },
 
   "entry": { "kind": "script", "runtime": "deno-ts@1" },
   "source": {

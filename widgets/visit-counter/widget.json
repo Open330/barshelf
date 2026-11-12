@@ -3,9 +3,9 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.visit-counter",
   "name": "Visit Counter",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "icon": "sparkles",
-  "bucket": { "group": "Demo", "order": 45, "size": "S" },
+  "bucket": { "group": "Everyday", "order": 45, "size": "S" },
 
   "entry": { "kind": "workflow", "main": "workflow.json" },
 
