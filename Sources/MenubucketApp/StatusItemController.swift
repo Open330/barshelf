@@ -27,7 +27,9 @@ final class StatusItemController: NSObject {
     /// Hover, peek and cards for the cluster layout.
     private var cluster: MenuBarClusterController!
     /// The BarShelf Dock on the screen edge, and its profile hotkeys (R15).
-    private var dockPanel: DockPanelController!
+    /// Only while the Dock is on. Off, its panel, SwiftUI graph and app
+    /// observers would redraw a hidden view on every app switch.
+    private var dockPanel: DockPanelController?
     private var dockHotkeys: DockHotkeys!
     private var keyboardMonitor: Any?
     private var scrollMonitor: Any?
@@ -108,10 +110,15 @@ final class StatusItemController: NSObject {
         dockStore.onProfileActivated = { [weak self] profile in
             self?.showPopupPage(named: profile.popupPage)
         }
-        dockPanel = DockPanelController(store: dockStore, runtime: runtime)
-        dockPanel.onOpenSettings = {
-            Task { @MainActor in HubWindowController.shared.show(tab: .dock) }
-        }
+        dockStore.$configuration
+            .map(\.mode.showsDock)
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self, weak runtime] shows in
+                guard let self, let runtime else { return }
+                self.setDockPanel(shown: shows, store: dockStore, runtime: runtime)
+            }
+            .store(in: &cancellables)
         dockHotkeys = DockHotkeys(store: dockStore)
 
         // Register the app's single runtime so runtime-less hub shims work.
@@ -424,7 +431,7 @@ final class StatusItemController: NSObject {
         case .focusDock:
             popup.hide()
             // After the popup has given up key, or it would take it back.
-            DispatchQueue.main.async { [weak self] in self?.dockPanel.focusDock() }
+            DispatchQueue.main.async { [weak self] in _ = self?.dockPanel?.focusDock() }
         case .reviewPermissions:
             popup.hide()
             Task { @MainActor in HubWindowController.shared.show(runtime: runtime, tab: .privacy) }
@@ -637,6 +644,22 @@ final class StatusItemController: NSObject {
 
     /// A profile's popup page, selected for the next time the popup opens
     /// (or right away while it is open).
+    /// Builds the Dock's panel when the Dock is turned on and lets it go
+    /// when it is turned off.
+    private func setDockPanel(shown: Bool, store: DockStore, runtime: WidgetRuntime) {
+        if shown {
+            guard dockPanel == nil else { return }
+            let panel = DockPanelController(store: store, runtime: runtime)
+            panel.onOpenSettings = {
+                Task { @MainActor in HubWindowController.shared.show(tab: .dock) }
+            }
+            dockPanel = panel
+        } else {
+            dockPanel?.tearDown()
+            dockPanel = nil
+        }
+    }
+
     private func showPopupPage(named page: String?) {
         guard let page else { return }
         let pages = runtime.pages

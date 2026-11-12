@@ -42,6 +42,67 @@ final class SharedShelfPublisherTests: XCTestCase {
         XCTAssertNil(SharedShelf.readSnapshot(widgetID: "private", from: container))
     }
 
+    /// With no BarShelf widget on the desktop nothing is written or
+    /// reloaded; the first one placed gets the held readings at once.
+    @MainActor
+    func testNothingIsWrittenUntilADesktopWidgetIsPlaced() throws {
+        let container = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: container) }
+        var reloads = 0
+        var answer: ((Int?) -> Void)?
+        var probes = 0
+        let publisher = SharedShelfPublisher(container: container, reload: { reloads += 1 },
+            placementProbe: { probes += 1; answer = $0 })
+        publisher.publishIndex([.init(id: "sys", name: "System")])
+        let start = Date()
+        publisher.publish(.init(widgetID: "sys", name: "System", viewTree: UINode(type: "text", text: "1")), now: start)
+        answer?(0)
+        reloads = 0
+        for second in 1...20 {
+            publisher.publish(.init(widgetID: "sys", name: "System", viewTree: UINode(type: "text", text: "\(second)")),
+                              now: start.addingTimeInterval(Double(second) * 30))
+        }
+        XCTAssertEqual(probes, 2, "asked again after five minutes, not on every render")
+        answer?(0)
+        XCTAssertEqual(reloads, 0)
+        // The first render went out before the first answer; the rest were held.
+        XCTAssertEqual(SharedShelf.readSnapshot(widgetID: "sys", from: container)?.viewTree?.text, "1")
+
+        publisher.placementChanged(to: 1)
+        XCTAssertEqual(SharedShelf.readSnapshot(widgetID: "sys", from: container)?.viewTree?.text, "20")
+        XCTAssertEqual(reloads, 1)
+    }
+
+    /// A reading that did not change is not written again, until the copy
+    /// on the desktop would soon read as old.
+    @MainActor
+    func testAnUnchangedReadingIsWrittenOnlyBeforeItTurnsStale() throws {
+        let container = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: container) }
+        let publisher = SharedShelfPublisher(container: container, reload: {}, placementProbe: nil)
+        publisher.publishIndex([.init(id: "sys", name: "System")])
+        // Whole seconds: the shared file keeps dates to the second.
+        let start = Date(timeIntervalSince1970: Date().timeIntervalSince1970.rounded(.down))
+        func render(at offset: TimeInterval, text: String = "same") -> SharedShelf.Snapshot {
+            let date = start.addingTimeInterval(offset)
+            return .init(widgetID: "sys", name: "System", viewTree: UINode(type: "text", text: text),
+                         updatedAt: date, staleAfter: date.addingTimeInterval(3600))
+        }
+        func writtenAt() -> Date? { SharedShelf.readSnapshot(widgetID: "sys", from: container)?.updatedAt }
+
+        publisher.publish(render(at: 0), now: start)
+        XCTAssertEqual(writtenAt(), start)
+        publisher.publish(render(at: 600), now: start.addingTimeInterval(600))
+        XCTAssertEqual(writtenAt(), start, "unchanged and fresh: skipped")
+        publisher.publish(render(at: 700, text: "new"), now: start.addingTimeInterval(700))
+        XCTAssertEqual(writtenAt(), start.addingTimeInterval(700), "changed: written")
+        // 15 minutes before the written copy turns stale, the same reading is
+        // written again so the desktop keeps saying it is current.
+        let nearStale = 700 + 3600 - SharedShelfPublisher.minimumReloadInterval + 1
+        publisher.publish(render(at: nearStale, text: "new"), now: start.addingTimeInterval(nearStale))
+        XCTAssertEqual(writtenAt(), start.addingTimeInterval(nearStale))
+    }
+
     /// macOS budgets widget reloads; changes inside 15 minutes wait.
     func testReloadsAreAtLeastFifteenMinutesApart() {
         let now = Date()
