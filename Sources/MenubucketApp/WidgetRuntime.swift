@@ -546,13 +546,7 @@ final class WidgetRuntime: ObservableObject {
 
     // MARK: - Script runtime supervisor
 
-    static var applicationSupportDirectory: URL {
-        let base = FileManager.default.urls(
-            for: .applicationSupportDirectory, in: .userDomainMask
-        ).first ?? FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support")
-        return base.appendingPathComponent("barshelf", isDirectory: true)
-    }
+    static var applicationSupportDirectory: URL { BarShelfDirectories.applicationSupport }
 
     /// Created on first script-widget use (deno-based launch plans injected;
     /// tests build their own supervisor with stub launch plans).

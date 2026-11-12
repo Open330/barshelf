@@ -1,4 +1,5 @@
 #if DEBUG
+import BarShelfDock
 import AppKit
 import MenubucketCore
 import SwiftUI

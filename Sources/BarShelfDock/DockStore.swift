@@ -5,31 +5,31 @@ import MenubucketCore
 /// The BarShelf Dock's settings and profiles (R15), and the one place that
 /// changes the Apple Dock: hiding it for `replace`, putting it back, and
 /// rewriting its layout when a profile carries one.
-final class DockStore: ObservableObject {
-    static let shared = DockStore()
+package final class DockStore: ObservableObject {
+    package static let shared = DockStore()
 
-    static var defaultFileURL: URL {
-        WidgetRuntime.applicationSupportDirectory.appendingPathComponent("dock.json")
+    package static var defaultFileURL: URL {
+        BarShelfDirectories.applicationSupport.appendingPathComponent("dock.json")
     }
 
-    static var backupDirectory: URL {
-        WidgetRuntime.applicationSupportDirectory.appendingPathComponent("dock-backups", isDirectory: true)
+    package static var backupDirectory: URL {
+        BarShelfDirectories.applicationSupport.appendingPathComponent("dock-backups", isDirectory: true)
     }
 
-    @Published private(set) var configuration: DockConfiguration
-    @Published private(set) var lastError: String?
+    @Published package private(set) var configuration: DockConfiguration
+    @Published package private(set) var lastError: String?
     /// The profile just switched to, for the dock's brief name banner.
-    @Published private(set) var announcedProfile: DockProfile?
+    @Published package private(set) var announcedProfile: DockProfile?
 
     /// Runs after a profile becomes active (popup page, and so on).
-    var onProfileActivated: ((DockProfile) -> Void)?
+    package var onProfileActivated: ((DockProfile) -> Void)?
 
-    let appleDock: AppleDock
+    package let appleDock: AppleDock
     private let fileURL: URL
     private let persistConfiguration: (DockConfiguration, URL) throws -> Void
     private var announceTask: Task<Void, Never>?
 
-    init(
+    package init(
         fileURL: URL = DockStore.defaultFileURL,
         appleDock: AppleDock = AppleDock(backupDirectory: DockStore.backupDirectory),
         persistConfiguration: @escaping (DockConfiguration, URL) throws -> Void = { try $0.save(to: $1) }
@@ -46,13 +46,13 @@ final class DockStore: ObservableObject {
         self.configuration = configuration
     }
 
-    var activeProfile: DockProfile { configuration.activeProfile }
+    package var activeProfile: DockProfile { configuration.activeProfile }
 
     // MARK: Editing
 
     /// Applies an edit, saves it, and carries out what a mode change means
     /// for the Apple Dock.
-    func update(_ change: (inout DockConfiguration) -> Void) {
+    package func update(_ change: (inout DockConfiguration) -> Void) {
         var copy = configuration
         change(&copy)
         copy.normalize()
@@ -79,7 +79,7 @@ final class DockStore: ObservableObject {
         save()
     }
 
-    func updateProfile(_ id: String, _ change: (inout DockProfile) -> Void) {
+    package func updateProfile(_ id: String, _ change: (inout DockProfile) -> Void) {
         update { config in
             guard let index = config.profiles.firstIndex(where: { $0.id == id }) else { return }
             change(&config.profiles[index])
@@ -87,7 +87,7 @@ final class DockStore: ObservableObject {
     }
 
     /// Adds items to the active profile, before `beforeID` or at the end.
-    func addItems(_ items: [DockItem], before beforeID: String? = nil, profileID: String? = nil) {
+    package func addItems(_ items: [DockItem], before beforeID: String? = nil, profileID: String? = nil) {
         guard !items.isEmpty else { return }
         updateProfile(profileID ?? configuration.activeProfileID) { profile in
             let index = beforeID.flatMap { id in profile.items.firstIndex { $0.id == id } } ?? profile.items.count
@@ -96,14 +96,14 @@ final class DockStore: ObservableObject {
     }
 
     /// What `removeItem` took out, and from where, so it can be put back.
-    struct RemovedItem: Equatable {
-        let item: DockItem
-        let index: Int
-        let profileID: String
+    package struct RemovedItem: Equatable {
+        package let item: DockItem
+        package let index: Int
+        package let profileID: String
     }
 
     @discardableResult
-    func removeItem(_ itemID: String, profileID: String? = nil) -> RemovedItem? {
+    package func removeItem(_ itemID: String, profileID: String? = nil) -> RemovedItem? {
         let profileID = profileID ?? configuration.activeProfileID
         guard let profile = configuration.profiles.first(where: { $0.id == profileID }),
               let index = profile.items.firstIndex(where: { $0.id == itemID }) else { return nil }
@@ -116,28 +116,15 @@ final class DockStore: ObservableObject {
 
     /// Undoes `removeItem`: the item goes back where it was (or as near as
     /// the profile now allows), unless it is already there again.
-    func restoreItem(_ removed: RemovedItem) {
+    package func restoreItem(_ removed: RemovedItem) {
         updateProfile(removed.profileID) { profile in
             guard !profile.items.contains(where: { $0.id == removed.item.id }) else { return }
             profile.items.insert(removed.item, at: min(removed.index, profile.items.count))
         }
     }
 
-    /// Removes an item and offers Undo on `surface` for a few seconds: the
-    /// Dock has no Edit menu to undo from, and a dragged-out icon is easy to
-    /// lose by accident.
-    @MainActor
-    func removeItemOfferingUndo(_ item: DockItem, profileID: String? = nil, surface: ToastSurface) {
-        guard let removed = removeItem(item.id, profileID: profileID) else { return }
-        ToastCenter.shared.show(
-            String(localized: "Removed \(DockActions.displayName(for: item)) from the Dock"),
-            on: surface,
-            action: Toast.Action(title: String(localized: "Undo")) { [weak self] in self?.restoreItem(removed) }
-        )
-    }
-
     /// Moves an item in front of another (or to the end with nil).
-    func moveItem(_ itemID: String, before targetID: String?, profileID: String? = nil) {
+    package func moveItem(_ itemID: String, before targetID: String?, profileID: String? = nil) {
         guard itemID != targetID else { return }
         updateProfile(profileID ?? configuration.activeProfileID) { profile in
             guard let from = profile.items.firstIndex(where: { $0.id == itemID }) else { return }
@@ -147,7 +134,7 @@ final class DockStore: ObservableObject {
         }
     }
 
-    func replaceItem(_ item: DockItem, profileID: String? = nil) {
+    package func replaceItem(_ item: DockItem, profileID: String? = nil) {
         updateProfile(profileID ?? configuration.activeProfileID) { profile in
             guard let index = profile.items.firstIndex(where: { $0.id == item.id }) else { return }
             profile.items[index] = item
@@ -155,7 +142,7 @@ final class DockStore: ObservableObject {
     }
 
     @discardableResult
-    func addProfile(named name: String, copying source: DockProfile? = nil) -> String {
+    package func addProfile(named name: String, copying source: DockProfile? = nil) -> String {
         var profile = DockProfile(name: name)
         if let source {
             profile.symbol = source.symbol
@@ -167,7 +154,7 @@ final class DockStore: ObservableObject {
         return profile.id
     }
 
-    func removeProfile(_ id: String) {
+    package func removeProfile(_ id: String) {
         let wasActive = configuration.activeProfileID == id
         update { config in
             guard config.profiles.count > 1 else { return }
@@ -185,7 +172,7 @@ final class DockStore: ObservableObject {
     /// Makes a profile active: the BarShelf Dock shows its items, the Apple
     /// Dock takes its saved layout (when that is turned on), and the popup
     /// moves to its page.
-    func activate(profileID: String) {
+    package func activate(profileID: String) {
         guard let profile = configuration.profiles.first(where: { $0.id == profileID }) else { return }
         if configuration.activeProfileID != profileID {
             update { $0.activeProfileID = profileID }
@@ -199,13 +186,13 @@ final class DockStore: ObservableObject {
 
     /// For URLs, the CLI, and Shortcuts: an id, a name, or a 1-based number.
     @discardableResult
-    func activate(matching query: String) -> Bool {
+    package func activate(matching query: String) -> Bool {
         guard let profile = configuration.profile(matching: query) else { return false }
         activate(profileID: profile.id)
         return true
     }
 
-    func activate(offset: Int) {
+    package func activate(offset: Int) {
         guard configuration.profiles.count > 1 else { return }
         activate(profileID: configuration.profile(offsetFromActive: offset).id)
     }
@@ -225,7 +212,7 @@ final class DockStore: ObservableObject {
     /// Saves what the Apple Dock shows now into a profile. False when its
     /// layout could not be read; an empty save would unpin everything later.
     @discardableResult
-    func captureAppleDock(into profileID: String) -> Bool {
+    package func captureAppleDock(into profileID: String) -> Bool {
         let layout = appleDock.currentLayout()
         guard !layout.isEmpty else {
             lastError = String(localized: "Couldn't read the Apple Dock's layout, so nothing was saved.")
@@ -237,7 +224,7 @@ final class DockStore: ObservableObject {
 
     /// `barshelf dock restore-apple-dock` while BarShelf runs: the app owns
     /// dock.json then, so the CLI asks it instead of editing the file.
-    func restoreAppleDockOnRequest() {
+    package func restoreAppleDockOnRequest() {
         if configuration.mode == .replace {
             update { $0.mode = .alongside }
         } else if configuration.appleDockBackup != nil {
@@ -254,13 +241,13 @@ final class DockStore: ObservableObject {
     }
 
     /// Puts a profile's saved layout into the Apple Dock now.
-    func applyAppleDockLayout(of profileID: String) {
+    package func applyAppleDockLayout(of profileID: String) {
         guard let layout = configuration.profiles.first(where: { $0.id == profileID })?.appleDock else { return }
         appleDock.apply(layout)
     }
 
     /// The Apple Dock's apps, folders, and files as BarShelf Dock items.
-    func appleDockItems() -> [DockItem] {
+    package func appleDockItems() -> [DockItem] {
         let layout = appleDock.currentLayout()
         func items(_ tiles: [Any]) -> [DockItem] {
             tiles.compactMap { tile in
@@ -279,7 +266,7 @@ final class DockStore: ObservableObject {
     /// Follows the Apple Dock's icon size when that is turned on. Its size
     /// changes in System Settings without telling anyone, so this is called
     /// at launch and whenever apps or Spaces change.
-    func syncSizeWithAppleDock() {
+    package func syncSizeWithAppleDock() {
         guard configuration.matchAppleDockSize, let size = appleDock.tileSize,
               abs(size - configuration.tileSize) >= 0.5 else { return }
         update { $0.tileSize = size }
@@ -314,7 +301,7 @@ final class DockStore: ObservableObject {
     /// At launch: `replace` hides the Apple Dock again (it was shown at quit,
     /// or something put it back); anything else restores a backup left
     /// behind by a crash.
-    func reconcileAppleDockAtLaunch() {
+    package func reconcileAppleDockAtLaunch() {
         let before = configuration
         do {
             if configuration.mode == .replace {
@@ -332,7 +319,7 @@ final class DockStore: ObservableObject {
 
     /// At quit the Apple Dock comes back, so the Mac is never left without a
     /// dock while BarShelf is not running. Launch hides it again.
-    func restoreAppleDockForTermination() {
+    package func restoreAppleDockForTermination() {
         guard configuration.mode == .replace, configuration.appleDockBackup != nil else { return }
         do {
             try restoreAppleDock()
@@ -342,11 +329,11 @@ final class DockStore: ObservableObject {
 
     /// Whether settings were kept to put the Apple Dock back with: the
     /// Restore Apple Dock action has something to restore.
-    var hasAppleDockBackup: Bool { configuration.appleDockBackup != nil }
+    package var hasAppleDockBackup: Bool { configuration.appleDockBackup != nil }
 
     /// What went wrong, in the app's language. Core's errors carry English
     /// text only (the CLI has no string catalog), so the app words them.
-    static func message(for error: Error, hiding: Bool = false) -> String {
+    package static func message(for error: Error, hiding: Bool = false) -> String {
         switch error as? AppleDockError {
         case .preferenceWriteFailed where hiding:
             return String(localized: "macOS couldn’t confirm hiding the Apple Dock, so it is still showing. Choose Instead of the Apple Dock again to retry.")

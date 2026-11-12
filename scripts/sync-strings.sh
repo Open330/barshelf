@@ -28,14 +28,15 @@ if ! log=$(swift build --package-path "${ROOT}" --target MenubucketApp --scratch
   exit 1
 fi
 
-# Only the app's own sources (the app and its Automation engine):
+# Only the app's own sources (the app and its feature engines):
 # MenubucketCore's messages are not UI text, and a file that no longer exists
 # must not keep its strings alive.
 files=()
 while IFS= read -r source; do
   name=$(basename "${source}" .swift)
   [[ -f "${DATA}/${name}.stringsdata" ]] && files+=("${DATA}/${name}.stringsdata")
-done < <(find "${ROOT}/Sources/MenubucketApp" "${ROOT}/Sources/BarShelfAutomation" -name '*.swift' | sort)
+done < <(find "${ROOT}/Sources/MenubucketApp" "${ROOT}/Sources/BarShelfAutomation" \
+  "${ROOT}/Sources/BarShelfDock" "${ROOT}/Sources/BarShelfBuilder" -name '*.swift' | sort)
 
 WORK=$(mktemp -d)
 trap 'rm -rf "${WORK}"' EXIT

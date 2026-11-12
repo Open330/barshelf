@@ -1,3 +1,4 @@
+import BarShelfDock
 import BarShelfAutomation
 import AppKit
 import MenubucketCore

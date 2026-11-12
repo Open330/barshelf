@@ -1,3 +1,4 @@
+import BarShelfDock
 import AppKit
 import SwiftUI
 import UniformTypeIdentifiers

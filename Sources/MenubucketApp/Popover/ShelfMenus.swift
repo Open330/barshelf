@@ -1,3 +1,4 @@
+import BarShelfDock
 import MenubucketCore
 import SwiftUI
 

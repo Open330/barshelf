@@ -1,3 +1,4 @@
+import BarShelfDock
 import AppKit
 
 /// The commands the popup's ⋯ menu and the status item's right-click menu

@@ -2,6 +2,7 @@ import AppKit
 import MenubucketCore
 import XCTest
 @testable import MenubucketApp
+@testable import BarShelfDock
 
 final class RefreshOverheadTests: XCTestCase {
     @MainActor

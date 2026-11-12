@@ -23,9 +23,19 @@ let package = Package(
             name: "BarShelfAutomation",
             dependencies: ["MenubucketCore"]
         ),
+        // Feature engines: state and logic without views. They sit below the
+        // app and cannot reach into it; their pages and panels stay in the app.
+        .target(
+            name: "BarShelfDock",
+            dependencies: ["MenubucketCore", "BarShelfAutomation"]
+        ),
+        .target(
+            name: "BarShelfBuilder",
+            dependencies: ["MenubucketCore"]
+        ),
         .target(
             name: "MenubucketApp",
-            dependencies: ["MenubucketCore", "BarShelfAutomation"]
+            dependencies: ["MenubucketCore", "BarShelfAutomation", "BarShelfDock", "BarShelfBuilder"]
         ),
         .executableTarget(
             name: "BarShelfAppMain",
@@ -35,7 +45,7 @@ let package = Package(
         // Development only (debug builds): never part of BarShelf.app.
         .executableTarget(
             name: "BarShelfMedia",
-            dependencies: ["MenubucketApp", "BarShelfAutomation", "MenubucketCore"]
+            dependencies: ["MenubucketApp", "BarShelfAutomation", "BarShelfDock", "BarShelfBuilder", "MenubucketCore"]
         ),
         // barshelf CLI — command logic lives in BarShelfKit (library, unit-testable);
         // the executable target is a thin main.swift. Foundation only, no AppKit.
@@ -60,7 +70,7 @@ let package = Package(
         ),
         .testTarget(
             name: "MenubucketAppTests",
-            dependencies: ["MenubucketApp", "BarShelfAutomation", "MenubucketCore"]
+            dependencies: ["MenubucketApp", "BarShelfAutomation", "BarShelfDock", "BarShelfBuilder", "MenubucketCore"]
         ),
         .testTarget(
             name: "BarShelfCLITests",
