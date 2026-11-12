@@ -37,7 +37,7 @@ final class ManifestTests: XCTestCase {
 
     func testParsesHelloExampleManifest() throws {
         let url = packageRoot
-            .appendingPathComponent("widgets/hello/widget.json")
+            .appendingPathComponent("examples/hello/widget.json")
         let data = try Data(contentsOf: url)
         let manifest = try Manifest.decode(from: data)
 

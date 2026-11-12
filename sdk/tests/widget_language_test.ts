@@ -12,7 +12,7 @@ import {
 } from "barshelf";
 import focusTimer from "../../widgets/focus-timer/index.ts";
 import developerInbox from "../../widgets/developer-inbox/index.ts";
-import battery from "../../widgets/battery/index.ts";
+import battery from "../../examples/battery/index.ts";
 import projectStatus from "../../widgets/project-status/index.ts";
 import clipboardShelf from "../../widgets/clipboard-shelf/index.ts";
 import nextMeeting from "../../widgets/next-meeting/index.ts";

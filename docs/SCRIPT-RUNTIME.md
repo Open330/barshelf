@@ -247,8 +247,8 @@ Action helper:
 
 예제 위치:
 
-- `widgets/clock-script/widget.json`
-- `widgets/clock-script/index.ts`
+- `examples/clock-script/widget.json`
+- `examples/clock-script/index.ts`
 
 Manifest 핵심:
 

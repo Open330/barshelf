@@ -711,7 +711,7 @@ OTP, access token, 계정별 사용량처럼 민감할 수 있는 값은 다음 
 
 가장 단순한 위젯은 `output=viewtree` 명령이 UINode JSON을 stdout으로 출력한다.
 
-저장소의 실제 샘플은 [`widgets/hello/widget.json`](../widgets/hello/widget.json)과 [`widgets/hello/hello.sh`](../widgets/hello/hello.sh)에 있다. 설치용 위젯에서는 아래처럼 `permissions.exec` allowlist를 명시하는 것을 권장한다.
+저장소의 실제 샘플은 [`examples/hello/widget.json`](../examples/hello/widget.json)과 [`examples/hello/hello.sh`](../examples/hello/hello.sh)에 있다. 설치용 위젯에서는 아래처럼 `permissions.exec` allowlist를 명시하는 것을 권장한다.
 
 ```json
 {

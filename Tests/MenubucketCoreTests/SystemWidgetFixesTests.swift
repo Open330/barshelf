@@ -8,9 +8,11 @@ final class SystemWidgetFixesTests: XCTestCase {
     private func definition(_ name: String) throws -> WorkflowDefinition {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        return try WorkflowDefinition.decode(
-            from: try Data(contentsOf: root.appendingPathComponent("widgets/\(name)/workflow.json"))
-        )
+        // Gallery widgets live in widgets/, unlisted samples in examples/.
+        let listed = root.appendingPathComponent("widgets/\(name)/workflow.json")
+        let url = FileManager.default.fileExists(atPath: listed.path)
+            ? listed : root.appendingPathComponent("examples/\(name)/workflow.json")
+        return try WorkflowDefinition.decode(from: try Data(contentsOf: url))
     }
 
     private func evaluate(

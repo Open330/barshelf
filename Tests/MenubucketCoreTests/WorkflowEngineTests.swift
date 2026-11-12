@@ -1310,7 +1310,10 @@ final class PersistenceWidgetTests: XCTestCase {
     private func widgetWorkflow(_ name: String) throws -> WorkflowDefinition {
         let packageRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let url = packageRoot.appendingPathComponent("widgets/\(name)/workflow.json")
+        // Gallery widgets live in widgets/, unlisted samples in examples/.
+        let listed = packageRoot.appendingPathComponent("widgets/\(name)/workflow.json")
+        let url = FileManager.default.fileExists(atPath: listed.path)
+            ? listed : packageRoot.appendingPathComponent("examples/\(name)/workflow.json")
         return try WorkflowDefinition.decode(from: try Data(contentsOf: url))
     }
 
