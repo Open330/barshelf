@@ -37,3 +37,4 @@ CLI, and developer docs.
 - Confirmation questions end in -할까요?: "위젯을 제거할까요?". Not -하겠습니까?/-하시겠습니까?.
 - Short labels and buttons stay as nouns or verb stems, as in macOS: "위젯 추가", "새로고침".
 - Write natural Korean, and check particles when a word changes: 창을, 팝업이, 사본을.
+
