@@ -17,6 +17,29 @@ final class PermissionStoreTests: XCTestCase {
             .appendingPathComponent("barshelf-permissions-\(UUID().uuidString).json"))
     }
 
+    /// One record this build cannot read must not cost every other
+    /// approval: they used to decode as one dictionary or not at all.
+    func testOneUnreadableRecordKeepsTheOthers() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("barshelf-permissions-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let widget = manifest(permissions: .init(network: ["example.com"]))
+        let first = PermissionStore(fileURL: url)
+        first.approve(widget)
+
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        object["dev.test.broken"] = ["hash": 12]
+        if var record = object[widget.id] as? [String: Any] {
+            record["permissions"] = ["exec": "not a list"]
+            object[widget.id] = record
+        }
+        try JSONSerialization.data(withJSONObject: object).write(to: url)
+
+        let reloaded = PermissionStore(fileURL: url)
+        XCTAssertEqual(reloaded.status(for: widget), .approved)
+        XCTAssertNil(reloaded.record(forWidget: "dev.test.broken"))
+    }
+
     func testPermissionFreeWidgetIsApprovedWithoutRecord() {
         let store = store()
         let widget = manifest()

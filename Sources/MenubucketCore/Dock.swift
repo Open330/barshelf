@@ -257,22 +257,14 @@ public struct DockConfiguration: Codable, Equatable, Sendable {
     // MARK: File persistence
 
     public static func load(from fileURL: URL) -> DockConfiguration {
-        guard let data = try? Data(contentsOf: fileURL),
-              let decoded = try? JSONDecoder().decode(DockConfiguration.self, from: data)
-        else { return DockConfiguration() }
-        return decoded
+        JSONFile.load(DockConfiguration.self, from: fileURL) ?? DockConfiguration()
     }
 
     /// Atomic write (creates the parent directory).
     public func save(to fileURL: URL) throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        let data = try encoder.encode(self)
-        try FileManager.default.createDirectory(
-            at: fileURL.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try data.write(to: fileURL, options: .atomic)
+        try JSONFile.write(self, to: fileURL, encoder: encoder)
     }
 }
 
@@ -485,25 +477,5 @@ public struct DockItem: Codable, Equatable, Identifiable, Sendable {
         case .separator:
             try c.encode("separator", forKey: .type)
         }
-    }
-}
-
-/// Decodes an array element by element, dropping the ones that fail, so one
-/// item from a newer build does not cost the user the whole list.
-struct LenientArray<Element: Decodable>: Decodable {
-    let elements: [Element]
-
-    init(from decoder: Decoder) throws {
-        var container = try decoder.unkeyedContainer()
-        var elements: [Element] = []
-        while !container.isAtEnd {
-            if let element = try? container.decode(Element.self) {
-                elements.append(element)
-            } else {
-                // Any JSON value: advances past the element whatever it is.
-                _ = try? container.decode(JSONValue.self)
-            }
-        }
-        self.elements = elements
     }
 }

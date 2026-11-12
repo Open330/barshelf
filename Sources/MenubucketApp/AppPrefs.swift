@@ -37,6 +37,7 @@ final class AppPrefs: ObservableObject {
             try preferences.save(to: fileURL)
             lastError = nil
         } catch {
+            JSONFile.reportWriteFailure(fileURL, error: error)
             lastError = (error as? LocalizedError)?.errorDescription
                 ?? error.localizedDescription
         }

@@ -84,15 +84,9 @@ public final class RefreshStatsStore: @unchecked Sendable {
     public init(fileURL: URL? = nil, persistDebounce: TimeInterval = 30) {
         self.fileURL = fileURL
         self.persistDebounce = persistDebounce
-        if let fileURL,
-           let data = try? Data(contentsOf: fileURL),
-           let decoded = try? Self.decoder.decode(
-               [String: WidgetRefreshStats].self, from: data
-           ) {
-            statsByWidget = decoded
-        } else {
-            statsByWidget = [:]
-        }
+        statsByWidget = fileURL.flatMap {
+            JSONFile.load(LenientDictionary<WidgetRefreshStats>.self, from: $0, decoder: Self.decoder)?.entries
+        } ?? [:]
     }
 
     // MARK: - Recording
@@ -190,16 +184,8 @@ public final class RefreshStatsStore: @unchecked Sendable {
         lock.lock()
         let snapshot = statsByWidget
         lock.unlock()
-        do {
-            let data = try Self.encoder.encode(snapshot)
-            try FileManager.default.createDirectory(
-                at: fileURL.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-            try data.write(to: fileURL, options: .atomic)
-        } catch {
-            // Stats are advisory; never fail a refresh over them.
-        }
+        // Stats are advisory: logged, never announced, never failing a refresh.
+        JSONFile.save(snapshot, to: fileURL, encoder: Self.encoder, announce: false)
     }
 
     private static let encoder: JSONEncoder = {
