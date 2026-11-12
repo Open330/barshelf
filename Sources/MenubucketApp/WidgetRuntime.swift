@@ -2491,13 +2491,16 @@ final class WidgetRuntime: ObservableObject {
                     guard let adapter = adapters[adapterName] else {
                         throw RuntimeError.missingAdapter("unknown adapter \"\(adapterName)\"")
                     }
+                    // The preferences are main-actor state and this runs
+                    // off it; see `checkNativeRefresh`.
+                    let adapterSettings = await MainActor.run {
+                        self.prefs.effectiveSettings(for: widget.manifest, widgetID: widget.id).objectValue ?? [:]
+                    }
                     let context = HostAdapterContext(
                         widget: widget,
                         execService: execService,
                         defaultTimeoutMs: source.timeoutMs ?? Self.defaultTimeoutMs,
-                        settings: prefs.effectiveSettings(
-                            for: widget.manifest, widgetID: widget.id
-                        ).objectValue ?? [:]
+                        settings: adapterSettings
                     )
                     let result = try await adapter(data, context)
                     return .success(RefreshSuccess(

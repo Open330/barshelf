@@ -189,6 +189,41 @@ final class AutomationHelperTests: XCTestCase {
         XCTAssertEqual(forced, [getpid()])
     }
 
+    /// An update starts the new build before the old one quits. The old
+    /// app has seen the helper's new owner in its status; quitting must not
+    /// stop the helper on that owner's behalf.
+    func testAnAppThatLostTheHelperToItsSuccessorDoesNotStopItOnQuit() throws {
+        let engine = StubEngine()
+        let (server, _) = makeServer(engine: engine, owner: 1)
+        var helperStopped = 0
+        server.stopped = { helperStopped += 1 }
+        server.start()
+
+        var forced: [Int32] = []
+        func client(_ pid: Int32) -> AutomationHelperClient {
+            AutomationHelperClient(executable: URL(fileURLWithPath: "/usr/bin/false"), channel: channel,
+                                   build: "test", appPID: pid, exitTimeout: 0.2, forceQuit: { forced.append($0) })
+        }
+        let old = client(1001)
+        XCTAssertTrue(old.ensureRunning())
+        XCTAssertNotNil(old.apply(source: AutomationScript.example))
+
+        let successor = client(2002)
+        XCTAssertTrue(successor.ensureRunning())
+        XCTAssertEqual(server.ownerPID, 2002)
+        // The old app hears about the new owner like everyone else.
+        RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        XCTAssertEqual(old.status?.ownerPID, 2002)
+
+        old.stop()
+        XCTAssertEqual(helperStopped, 0)
+        XCTAssertTrue(forced.isEmpty)
+        XCTAssertTrue(try readStatus().isRunning)
+
+        successor.stop()
+        XCTAssertEqual(helperStopped, 1)
+    }
+
     func testStatusRoundTripsTheInputSourceState() {
         for state in [AutomationInputSource.Status.idle, .checking, .changed, .needsAttention("F18 is off")] {
             let (name, message) = AutomationHelperStatus.encode(state)
