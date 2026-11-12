@@ -117,7 +117,7 @@ if commandLineArguments.count >= 2, commandLineArguments[1] == "screenshot-hub" 
     let outDir = rest.first.flatMap { $0.hasPrefix("-") ? nil : $0 } ?? "./hub-shots"
     let only = rest.firstIndex(of: "--only").flatMap { rest.indices.contains($0 + 1) ? rest[$0 + 1] : nil }
     exit(MainActor.assumeIsolated {
-        HubScreenshotMode.run(outputDir: outDir, dark: rest.contains("--dark"), only: only)
+        HubScreenshotMode.run(outputDir: outDir, dark: rest.contains("--dark"), only: only, live: rest.contains("--live"))
     })
 }
 
