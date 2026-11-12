@@ -196,13 +196,22 @@ struct ShelfView: View {
         }
     }
 
+    /// Pages wrap onto as many rows as the window needs instead of running
+    /// off its trailing edge, so every page is in view at any width and the
+    /// board scrolls one way only. Opening the inspector narrows the board;
+    /// the chosen widget is scrolled back into view once the pages reflow.
     private var shelfColumns: some View {
         ScrollViewReader { proxy in
-            ScrollView([.horizontal, .vertical]) {
-                HStack(alignment: .top, spacing: Spacing.m) {
-                    let pages = shelfPages
-                    ForEach(Array(pages.enumerated()), id: \.element.name) { index, page in
-                        column(page, index: index, count: pages.count)
+            ScrollView(.vertical) {
+                VStack(alignment: .leading, spacing: Spacing.s) {
+                    CompactPageHeader(tab: .shelf, summary: shelfSummary)
+                    // Not lazy: every chip must exist for `scrollTo` to reach
+                    // it — Show in Shelf, ⌥⌘ moves, the inspector opening.
+                    FlowLayout(spacing: Spacing.m) {
+                        let pages = shelfPages
+                        ForEach(Array(pages.enumerated()), id: \.element.name) { index, page in
+                            column(page, index: index, count: pages.count)
+                        }
                     }
                 }
                 .padding(Spacing.m)
@@ -218,6 +227,14 @@ struct ShelfView: View {
                 guard let selection else { return }
                 // After the move has laid out.
                 Task { @MainActor in withAnimation(Motion.quick) { proxy.scrollTo(selection) } }
+            }
+            .onChange(of: inspectorShown) { _, shown in
+                guard shown, let selection else { return }
+                // After the inspector has opened and the pages have reflowed.
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(300))
+                    withAnimation(Motion.quick) { proxy.scrollTo(selection) }
+                }
             }
         }
         // The system focus ring says the board has the keyboard.
@@ -484,13 +501,13 @@ struct ShelfView: View {
         }
     }
 
-    /// What the row's trailing glyph says. Waiting for a first OK is the
-    /// normal state of a new widget, not a fault: a quiet lock, so the
-    /// warning colors stay reserved for something actually wrong.
+    /// What the row's trailing glyph says, with the same words as its tooltip.
     private func chipStatus(_ widget: LoadedWidget, disabled: Bool) -> (text: String, symbol: String, color: Color)? {
         if disabled { return (String(localized: "Turned off"), "pause.circle", .secondary) }
         switch runtime.permissionState(for: widget) {
-        case .notAsked: return (PermissionWaiting.title, PermissionWaiting.symbol, PermissionWaiting.tone.color)
+        // In the warning colour here: on a board of chips a quiet lock read
+        // as decoration. The tooltip says what it waits for.
+        case .notAsked: return (PermissionWaiting.title, PermissionWaiting.symbol, StatusTone.warning.color)
         case .denied: return (String(localized: "Permission denied"), "hand.raised.fill", StatusTone.warning.color)
         default: break
         }
@@ -527,6 +544,18 @@ struct ShelfView: View {
             .padding()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+    }
+
+    /// "48 widgets on 4 pages", and what needs a look, for the header.
+    private var shelfSummary: String {
+        let pages = shelfPages
+        let count = pages.reduce(0) { $0 + $1.widgets.count }
+        var parts = [String(AttributedString(localized: "^[\(count) widget](inflect: true) on ^[\(pages.count) page](inflect: true)", comment: "Shelf header: widgets installed and the popup pages they are on").characters)]
+        let off = runtime.widgets.filter { runtime.prefs.isDisabled($0.id) }.count
+        if off > 0 { parts.append(String(localized: "\(off) turned off", comment: "Shelf header: widgets switched off")) }
+        let waiting = runtime.widgets.filter { runtime.permissionState(for: $0) == .notAsked }.count
+        if waiting > 0 { parts.append(String(localized: "\(waiting) waiting for permission", comment: "Shelf header: widgets waiting for the user to allow them")) }
+        return parts.joined(separator: " · ")
     }
 
     private var selectedWidget: LoadedWidget? {

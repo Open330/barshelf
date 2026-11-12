@@ -48,13 +48,13 @@ struct DockSettingsPage: View {
 
     /// The Dock's mode, its profiles and the active profile's items.
     private var stats: [SettingsStat] {
+        // The mode is the radio group just below; not repeated here.
         [
-            SettingsStat(value: config.mode == .off ? String(localized: "Off", comment: "Dock summary: no BarShelf Dock")
-                                                    : String(localized: "On", comment: "Dock summary: BarShelf Dock shown"),
-                         label: String(localized: "BarShelf Dock")),
+            SettingsStat(value: config.activeProfile.displayName,
+                         label: String(localized: "Active profile", comment: "Dock summary")),
             SettingsStat(value: "\(config.profiles.count)", label: String(localized: "Profiles")),
             SettingsStat(value: "\(config.activeProfile.items.count)",
-                         label: String(localized: "Items in \(config.activeProfile.name)")),
+                         label: String(localized: "Items in \(config.activeProfile.displayName)")),
         ]
     }
 
@@ -170,24 +170,36 @@ struct DockSettingsPage: View {
 
     private var modeSection: some View {
         Section {
-            Picker(selection: Binding(
-                get: { config.mode },
-                set: { mode in store.update { $0.mode = mode } }
-            )) {
-                Text("Off").tag(DockConfiguration.Mode.off)
-                Text("Alongside the Apple Dock").tag(DockConfiguration.Mode.alongside)
-                Text("Instead of the Apple Dock").tag(DockConfiguration.Mode.replace)
-            } label: {
-                Text("BarShelf Dock")
-                // What the chosen mode does, as the menu bar's mode says.
-                switch config.mode {
-                case .off: Text("No BarShelf Dock. Profiles can still switch the Apple Dock's apps.")
-                case .alongside: Text("A second dock on the edge you choose, next to the Apple Dock.")
-                case .replace: Text("The BarShelf Dock takes the Apple Dock's place while BarShelf runs.")
+            // A feature choice: the question and what the chosen answer
+            // does, then the answers one under another, so none of them is
+            // squeezed beside the description.
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                VStack(alignment: .leading, spacing: Spacing.hair) {
+                    Text("BarShelf Dock")
+                    Group {
+                        switch config.mode {
+                        case .off: Text("No BarShelf Dock. Profiles can still switch the Apple Dock's apps.")
+                        case .alongside: Text("A second dock on the edge you choose, next to the Apple Dock.")
+                        case .replace: Text("The BarShelf Dock takes the Apple Dock's place while BarShelf runs.")
+                        }
+                    }
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
+                Picker("BarShelf Dock", selection: Binding(
+                    get: { config.mode },
+                    set: { mode in store.update { $0.mode = mode } }
+                )) {
+                    Text("Off").tag(DockConfiguration.Mode.off)
+                    Text("Alongside the Apple Dock").tag(DockConfiguration.Mode.alongside)
+                    Text("Instead of the Apple Dock").tag(DockConfiguration.Mode.replace)
+                }
+                .pickerStyle(.radioGroup)
+                .labelsHidden()
+                .accessibilityLabel("BarShelf Dock")
             }
-            .pickerStyle(.radioGroup)
-            .accessibilityLabel("BarShelf Dock")
+            .frame(maxWidth: .infinity, alignment: .leading)
             if config.mode == .replace {
                 StatusBanner(
                     tone: .info,
@@ -203,8 +215,11 @@ struct DockSettingsPage: View {
             Text("Dock")
                 .settingsSectionTitle()
         } footer: {
-            Text("Profiles below also work with the BarShelf Dock off: they can switch the Apple Dock's apps.")
-                .formFooter()
+            // Off already says this in the line under the choice.
+            if config.mode != .off {
+                Text("Profiles below also work with the BarShelf Dock off: they can switch the Apple Dock's apps.")
+                    .formFooter()
+            }
         }
     }
 
@@ -341,12 +356,14 @@ struct DockSettingsPage: View {
                 Button("Add Profile…") { showNewProfilePrompt = true }
                 Button("Duplicate") {
                     selectedProfileID = store.addProfile(
-                        named: String(localized: "\(selectedProfile.name) Copy"), copying: selectedProfile
+                        named: String(localized: "\(selectedProfile.displayName) Copy"), copying: selectedProfile
                     )
                 }
                 Spacer()
-                Button("Remove…", role: .destructive) { profileToDelete = selectedProfile }
-                    .disabled(config.profiles.count < 2)
+                // The last profile cannot go: no button rather than a dead one.
+                if config.profiles.count > 1 {
+                    Button("Remove…", role: .destructive) { profileToDelete = selectedProfile }
+                }
             }
         } header: {
             Text("Profiles")
@@ -364,7 +381,7 @@ struct DockSettingsPage: View {
             Image(systemName: profile.symbol)
                 .frame(width: 20)
                 .foregroundStyle(isSelected ? Color.accentColor : .secondary)
-            Text(profile.name)
+            Text(profile.displayName)
                 .fontWeight(isSelected ? .semibold : .regular)
             if isActive {
                 Pill(text: String(localized: "Active"), color: .accentColor)
@@ -412,10 +429,10 @@ struct DockSettingsPage: View {
                     // Switching profiles mid-edit keeps the edit, on the
                     // profile it was made to.
                     if previous != current { commitName(profileID: previous) }
-                    nameDraft = profile.name
+                    nameDraft = profile.displayName
                 }
-                .onChange(of: profile.name) { _, name in
-                    if !nameFocused { nameDraft = name }
+                .onChange(of: profile.name) { _, _ in
+                    if !nameFocused { nameDraft = profile.displayName }
                 }
             Picker("Symbol", selection: Binding(
                 get: { profile.symbol },
@@ -437,6 +454,7 @@ struct DockSettingsPage: View {
             }
             if profile.items.isEmpty {
                 Text("No items yet. Add some below, or drop apps, folders, and files on the dock.")
+                    .font(.callout)
                     .foregroundStyle(.secondary)
             }
             ForEach(profile.items) { item in
@@ -447,7 +465,7 @@ struct DockSettingsPage: View {
             }
             addMenu(profileID: profile.id)
         } header: {
-            Text("Items in \(profile.name)")
+            Text("Items in \(profile.displayName)")
                 .settingsSectionTitle()
         }
     }
@@ -455,10 +473,12 @@ struct DockSettingsPage: View {
     private func commitName(profileID: String) {
         let name = nameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else {
-            nameDraft = config.profiles.first { $0.id == profileID }?.name ?? ""
+            nameDraft = config.profiles.first { $0.id == profileID }?.displayName ?? ""
             return
         }
-        guard config.profiles.first(where: { $0.id == profileID })?.name != name else { return }
+        // The default profile's translated name, untouched, is no rename.
+        guard let current = config.profiles.first(where: { $0.id == profileID }),
+              current.name != name, current.displayName != name else { return }
         store.updateProfile(profileID) { $0.name = name }
     }
 
@@ -621,7 +641,7 @@ struct DockSettingsPage: View {
         return Section {
             Toggle("Switch the Apple Dock's apps with the profile", isOn: binding(\.appleDockLayouts))
             if let layout = profile.appleDock {
-                LabeledContent("Saved in \(profile.name)") {
+                LabeledContent("Saved in \(profile.displayName)") {
                     VStack(alignment: .trailing, spacing: Spacing.hair) {
                         Text(Self.summary(layout.appNames + layout.otherNames))
                             .lineLimit(2)
@@ -632,7 +652,8 @@ struct DockSettingsPage: View {
                     }
                 }
             } else {
-                Text("\(profile.name) has no Apple Dock layout saved; switching to it leaves the Apple Dock as it is.")
+                Text("\(profile.displayName) has no Apple Dock layout saved; switching to it leaves the Apple Dock as it is.")
+                    .font(.callout)
                     .foregroundStyle(.secondary)
             }
             HStack {
@@ -645,11 +666,12 @@ struct DockSettingsPage: View {
                         layoutChange = .replace(profile)
                     }
                 }
-                Button("Apply Now") { store.applyAppleDockLayout(of: profile.id) }
-                    .disabled(profile.appleDock == nil)
-                Spacer()
-                Button("Forget…") { layoutChange = .forget(profile) }
-                    .disabled(profile.appleDock == nil)
+                // Shown only with a layout to apply or forget.
+                if profile.appleDock != nil {
+                    Button("Apply Now") { store.applyAppleDockLayout(of: profile.id) }
+                    Spacer()
+                    Button("Forget…") { layoutChange = .forget(profile) }
+                }
             }
         } header: {
             Text("Apple Dock Layout")
@@ -675,7 +697,7 @@ struct DockSettingsPage: View {
             Text("You can also swipe sideways with two fingers on the dock, or scroll over it holding ⌘, or pick a profile from the BarShelf menu.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            LabeledContent("Link to \(profile.name)") {
+            LabeledContent("Link to \(profile.displayName)") {
                 HStack {
                     Text(url)
                         .font(.caption.monospaced())
@@ -704,6 +726,15 @@ struct DockSettingsPage: View {
     static func switchURL(for profile: DockProfile) -> String {
         let value = profile.id.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed.subtracting(CharacterSet(charactersIn: "&=+"))) ?? profile.id
         return "barshelf://dock?profile=\(value)"
+    }
+}
+
+extension DockProfile {
+    /// The name as the app shows it: the default profile, still under its
+    /// stored English name, in the app's language. A renamed one as typed.
+    var displayName: String {
+        guard id == DockProfile.defaultID, name == DockProfile.defaultName else { return name }
+        return String(localized: "Default", comment: "The Dock's first profile, before the user renames it")
     }
 }
 

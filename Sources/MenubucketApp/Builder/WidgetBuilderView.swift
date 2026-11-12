@@ -27,14 +27,29 @@ struct WidgetBuilderView: View {
         ("5m", 300),
         ("15m", 900),
     ]
+    @State private var confirmingCancel = false
+
     var body: some View {
         VStack(spacing: 0) {
-            stepIndicator
+            VStack(alignment: .leading, spacing: Spacing.s) {
+                CompactPageHeader(tab: .create)
+                stepIndicator
+            }
+            .padding(.horizontal, Spacing.m)
+            .padding(.top, Spacing.s)
+            .padding(.bottom, Spacing.xs)
+            .frame(maxWidth: model.step == .source ? SettingsMetrics.contentWidth : .infinity)
+            .frame(maxWidth: .infinity)
             Divider()
             HStack(spacing: 0) {
-                controls
-                    .frame(maxWidth: model.step == .source ? .infinity : 320, alignment: .leading)
-                if model.step != .source {
+                if model.step == .source {
+                    // The settings pages' readable column.
+                    controls
+                        .frame(maxWidth: SettingsMetrics.contentWidth, alignment: .leading)
+                        .frame(maxWidth: .infinity)
+                } else {
+                    controls
+                        .frame(maxWidth: 320, alignment: .leading)
                     Divider()
                     preview
                         .frame(maxWidth: .infinity)
@@ -43,26 +58,57 @@ struct WidgetBuilderView: View {
             Divider()
             footer
         }
+        .confirmationDialog("Discard this widget?", isPresented: $confirmingCancel) {
+            Button("Discard", role: .destructive) { model.onClose?() }
+            Button("Keep Editing", role: .cancel) {}
+        } message: {
+            Text("What you've set up so far is not saved.")
+        }
+    }
+
+    private func cancel() {
+        if model.hasDraft { confirmingCancel = true } else { model.onClose?() }
     }
 
     // MARK: Step indicator
 
+    /// Numbered steps joined by a line, the done ones checked: a stepper,
+    /// not a row of radio buttons.
     private var stepIndicator: some View {
-        HStack(spacing: Spacing.m) {
+        HStack(spacing: Spacing.xs) {
             ForEach(WidgetBuilderModel.Step.allCases, id: \.self) { step in
-                HStack(spacing: Spacing.stack) {
-                    Image(systemName: step.rawValue < model.step.rawValue
-                        ? "checkmark.circle.fill"
-                        : (step == model.step ? "circle.inset.filled" : "circle"))
-                        .foregroundStyle(step == model.step ? Color.accentColor : .secondary)
-                    Text(step.title)
-                        .font(.callout.weight(step == model.step ? .semibold : .regular))
-                        .foregroundStyle(step == model.step ? .primary : .secondary)
+                let done = step.rawValue < model.step.rawValue
+                let current = step == model.step
+                if step.rawValue > 0 {
+                    Capsule()
+                        .fill(done || current ? Color.accentColor : Fill.track)
+                        .frame(width: Spacing.l, height: Spacing.hair)
+                        .accessibilityHidden(true)
                 }
+                HStack(spacing: Spacing.stack) {
+                    ZStack {
+                        Circle()
+                            .fill(current || done ? Color.accentColor : Fill.track)
+                        if done {
+                            Image(systemName: "checkmark")
+                                .font(.caption2.weight(.bold))
+                        } else {
+                            Text("\(step.rawValue + 1)")
+                                .font(.caption.weight(.semibold))
+                                .monospacedDigit()
+                        }
+                    }
+                    .foregroundStyle(current || done ? Color.white : Color.secondary)
+                    .frame(width: ControlMetrics.smallHeight - Spacing.xxs, height: ControlMetrics.smallHeight - Spacing.xxs)
+                    Text(step.title)
+                        .font(.callout.weight(current ? .semibold : .regular))
+                        .foregroundStyle(current ? .primary : .secondary)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text("Step \(step.rawValue + 1) of \(WidgetBuilderModel.Step.allCases.count): \(step.title)"))
+                .accessibilityAddTraits(current ? .isSelected : [])
             }
         }
-        .padding(.horizontal, Spacing.m)
-        .padding(.vertical, Spacing.xs + Spacing.hair)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -275,9 +321,15 @@ struct WidgetBuilderView: View {
         Button {
             model.selectSource(kind)
         } label: {
-            HStack {
+            HStack(spacing: Spacing.xs) {
                 Image(systemName: kind.symbol).frame(width: 22)
-                Text(kind.label).font(.callout)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(kind.label).font(.callout)
+                    Text(kind.summary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
                 Spacer()
                 if model.sourceKind == kind {
                     Image(systemName: "checkmark").foregroundStyle(Color.accentColor)
@@ -293,7 +345,9 @@ struct WidgetBuilderView: View {
 
     private var commandTemplatePicker: some View {
         LazyVGrid(
-            columns: [GridItem(.adaptive(minimum: 148, maximum: 220), spacing: Spacing.xs)],
+            // Three even columns: the six templates fill two rows, with no
+            // chip left alone on a row of its own.
+            columns: Array(repeating: GridItem(.flexible(), spacing: Spacing.xs), count: 3),
             alignment: .leading,
             spacing: Spacing.xs
         ) {
@@ -760,7 +814,16 @@ struct WidgetBuilderView: View {
                 Divider()
                 Label("Created \(created.lastPathComponent)", systemImage: "checkmark.seal.fill")
                     .foregroundStyle(StatusTone.success.color).font(.callout)
-                Button("Show in Finder") { model.revealCreated() }.font(.caption)
+                HStack(spacing: Spacing.xs) {
+                    if let id = model.createdWidgetID {
+                        Button("Show in Popup") { WidgetInstaller.shared.onReveal?(id) }
+                            .buttonStyle(.glass(.secondary))
+                            .controlSize(.small)
+                    }
+                    Button("Show in Finder") { model.revealCreated() }
+                        .buttonStyle(.glass(.secondary))
+                        .controlSize(.small)
+                }
             }
             if let err = model.createError {
                 Label {
@@ -916,10 +979,16 @@ struct WidgetBuilderView: View {
             if model.step != .source {
                 Button("Back") { model.step = WidgetBuilderModel.Step(rawValue: model.step.rawValue - 1)! }
                     .buttonStyle(.glass(.plain))
+                    .keyboardShortcut("[", modifiers: .command)
+                    .hoverHint("Back", key: "⌘[")
             }
             Spacer()
-            Button("Cancel") { model.onClose?() }
-                .buttonStyle(.glass(.plain))
+            if model.createdPath == nil {
+                // Esc, and a question first when there is something to lose.
+                Button("Cancel", action: cancel)
+                    .buttonStyle(.glass(.plain))
+                    .keyboardShortcut(.cancelAction)
+            }
             Group {
                 switch model.step {
                 // "Continue", as onboarding says it, with the key it answers to.

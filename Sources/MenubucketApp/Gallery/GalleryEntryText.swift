@@ -27,6 +27,54 @@ enum GalleryEntryText {
         return WidgetLocalizations(tables).localization(for: language)?.text(entry.name) ?? entry.name
     }
 
+    /// A pack's name in the app's language. The project's own packs (known
+    /// by id and English name, so a third-party pack reusing an id keeps
+    /// its own words) are translated through the string catalog.
+    static func packTitle(_ pack: RegistryPack) -> String {
+        guard let official = officialPacks[pack.id], official.name == pack.name else { return pack.name }
+        return official.title()
+    }
+
+    /// A pack's summary in the app's language, the same way as its name.
+    static func packDescription(_ pack: RegistryPack) -> String? {
+        guard let official = officialPacks[pack.id], official.name == pack.name else { return pack.description }
+        return official.summary()
+    }
+
+    private struct OfficialPack {
+        let name: String
+        let title: () -> String
+        let summary: () -> String
+    }
+
+    private static let officialPacks: [String: OfficialPack] = [
+        "everyday": OfficialPack(
+            name: "Everyday",
+            title: { String(localized: "Everyday", comment: "Gallery pack name") },
+            summary: { String(localized: "The date, the weather and air quality, other cities' time, a countdown, your next meeting and your reminders.", comment: "Gallery pack summary") }
+        ),
+        "system": OfficialPack(
+            name: "System",
+            title: { String(localized: "System", comment: "Gallery pack name") },
+            summary: { String(localized: "CPU, memory, temperatures, network, battery and your Bluetooth devices, ready for the menu bar.", comment: "Gallery pack summary") }
+        ),
+        "developer": OfficialPack(
+            name: "Developer",
+            title: { String(localized: "Developer", comment: "Gallery pack name") },
+            summary: { String(localized: "CI runs, a site you watch, open ports, Homebrew updates, agent usage and the inbox that needs you. Some need their own CLI.", comment: "Gallery pack summary") }
+        ),
+        "files": OfficialPack(
+            name: "Files",
+            title: { String(localized: "Files", comment: "Gallery pack name") },
+            summary: { String(localized: "What just arrived in Downloads, recent files, and a shelf to drop things on.", comment: "Gallery pack summary") }
+        ),
+        "infrastructure": OfficialPack(
+            name: "Infrastructure",
+            title: { String(localized: "Infrastructure", comment: "Gallery pack name") },
+            summary: { String(localized: "Your tailnet, containers, a Kubernetes namespace and your password vault's sync. Each needs its own CLI.", comment: "Gallery pack summary") }
+        ),
+    ]
+
     /// Words every entry answers to: each one is a widget, so "날씨 위젯" or
     /// "weather widget" still requires the other word to match.
     static let genericTerms = ["widget", "위젯"]

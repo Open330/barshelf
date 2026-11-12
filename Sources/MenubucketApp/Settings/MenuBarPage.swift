@@ -36,17 +36,21 @@ struct MenuBarPage: View {
         }
     }
 
-    /// How many widgets are in the menu bar, how many could be, and how
-    /// they are shown.
+    /// How many widgets are in the menu bar, how much room is left, and —
+    /// when any — how many wait hidden for their alert level. The layout is
+    /// the radio group just below, so it is not repeated here.
     private var stats: [SettingsStat] {
         let shown = store.entries.filter { !$0.isEmpty }.count
-        let possible = runtime.widgets.filter { $0.manifest.statusItem != nil }.count
-        return [
+        let room = max(0, MenuBarPolicy.maxEntries - runtime.menuBarWidgetIDs.count)
+        var stats = [
             SettingsStat(value: "\(shown)", label: String(localized: "In the menu bar")),
-            SettingsStat(value: "\(possible)", label: String(localized: "Can show a reading")),
-            SettingsStat(value: isCluster ? String(localized: "Cluster") : String(localized: "Items"),
-                         label: String(localized: "Shown as")),
+            SettingsStat(value: "\(room)", label: String(localized: "Room for more", comment: "Menu Bar summary: how many more widgets fit in the menu bar")),
         ]
+        let dormant = runtime.dormantMenuBarWidgetIDs.count
+        if dormant > 0 {
+            stats.append(SettingsStat(value: "\(dormant)", label: String(localized: "Waiting for an alert", comment: "Menu Bar summary: items hidden until their reading reaches the level set")))
+        }
+        return stats
     }
 
     /// The chips the bar draws now.
@@ -414,13 +418,31 @@ private struct ClusterChipControls: View {
                 ))
             }
         } label: {
-            Circle()
-                .fill(WidgetAppearance(accent: current).accentColor ?? .accentColor)
-                .frame(width: 12, height: 12)
+            // A menu button draws its label through AppKit, which drops a
+            // SwiftUI shape: a drawn, non-template image keeps its colour.
+            Image(nsImage: ColorSwatchImage.make(NSColor(WidgetAppearance(accent: current).accentColor ?? .accentColor)))
         }
         .menuIndicator(.hidden)
         .fixedSize()
         .help("Chip colour")
         .accessibilityLabel("Chip colour for \(widget.displayName)")
+    }
+}
+
+/// A filled circle in one colour with a hairline rim, as an image a menu
+/// button or menu item shows in colour.
+enum ColorSwatchImage {
+    static func make(_ color: NSColor, diameter: CGFloat = 12) -> NSImage {
+        let image = NSImage(size: NSSize(width: diameter, height: diameter), flipped: false) { rect in
+            let path = NSBezierPath(ovalIn: rect.insetBy(dx: 0.5, dy: 0.5))
+            color.setFill()
+            path.fill()
+            NSColor.separatorColor.setStroke()
+            path.lineWidth = 1
+            path.stroke()
+            return true
+        }
+        image.isTemplate = false
+        return image
     }
 }

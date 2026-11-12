@@ -84,8 +84,9 @@ struct AutomationSettingsView: View {
                 if let summary = controller.importSummary {
                     Text(summary).font(.caption).textSelection(.enabled)
                 }
-                TextEditor(text: Binding(get: { draft }, set: { controller.setDraft($0) }))
-                    .font(.system(.body, design: .monospaced))
+                // Code: one line per line, scrolled sideways rather than
+                // wrapped mid-token, in the size of the notes around it.
+                ScriptEditor(text: Binding(get: { draft }, set: { controller.setDraft($0) }))
                     .frame(minHeight: 230)
                     .border(Fill.hairline)
                     .accessibilityLabel("Automation JavaScript")
@@ -130,20 +131,43 @@ struct AutomationSettingsView: View {
         }
     }
 
-    /// Active, Inactive, or Active with a warning when the last input source
-    /// switch did not take: the extension still runs, so not green.
+    /// Active, Off, or Active with a warning when the last input source
+    /// switch did not take: the extension still runs, so not green. A
+    /// status dot and a word, as elsewhere: a hollow circle read as an
+    /// unchosen radio button.
     private var statusLabel: some View {
         let warning = controller.isRunning && controller.inputSourceStatus.needsAttention
-        return Label {
-            Text(!controller.isRunning ? String(localized: "Inactive")
+        let tone: Color = !controller.isRunning ? .secondary : warning ? StatusTone.warning.color : StatusTone.success.color
+        return HStack(spacing: Spacing.xxs) {
+            Circle()
+                .fill(tone)
+                .frame(width: Spacing.stack, height: Spacing.stack)
+                .accessibilityHidden(true)
+            Text(!controller.isRunning ? String(localized: "Off", comment: "Automation status: the extension is not running")
                  : warning ? String(localized: "Active — input switching needs attention")
                  : String(localized: "Active"))
-        } icon: {
-            Image(systemName: !controller.isRunning ? "circle"
-                  : warning ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+                .foregroundStyle(controller.isRunning ? tone : .secondary)
         }
         .font(.caption)
-        .foregroundStyle(!controller.isRunning ? Color.secondary : warning ? StatusTone.warning.color : StatusTone.success.color)
+        .accessibilityElement(children: .combine)
+    }
+
+    /// On or off, and what the saved script holds.
+    static func stats(controller: AutomationController) -> [SettingsStat] {
+        let summary = controller.savedSummary()
+        let warning = controller.isRunning && controller.inputSourceStatus.needsAttention
+        return [
+            SettingsStat(
+                value: controller.isRunning ? String(localized: "On", comment: "Automation summary: extension running")
+                                            : String(localized: "Off", comment: "Automation status: the extension is not running"),
+                label: String(localized: "Keyboard & Windows"),
+                tone: warning ? .warning : nil
+            ),
+            SettingsStat(value: summary.map { "\($0.shortcuts)" } ?? "–",
+                         label: String(localized: "Shortcuts in the script", comment: "Automation summary")),
+            SettingsStat(value: summary.map { "\($0.remaps)" } ?? "–",
+                         label: String(localized: "Remapped keys", comment: "Automation summary")),
+        ]
     }
 
     /// The last input source switch. "Changed" only means the selected
@@ -214,6 +238,53 @@ struct AutomationSettingsView: View {
         catch {
             let alert = NSAlert(error: error)
             alert.runModal()
+        }
+    }
+}
+
+/// A plain-text code editor: monospaced at the size of a caption, no line
+/// wrapping (long lines scroll sideways), no smart quotes or dashes.
+private struct ScriptEditor: NSViewRepresentable {
+    @Binding var text: String
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scroll = NSTextView.scrollableTextView()
+        scroll.hasHorizontalScroller = true
+        scroll.autohidesScrollers = true
+        guard let view = scroll.documentView as? NSTextView else { return scroll }
+        view.delegate = context.coordinator
+        view.isRichText = false
+        view.allowsUndo = true
+        view.isAutomaticQuoteSubstitutionEnabled = false
+        view.isAutomaticDashSubstitutionEnabled = false
+        view.isAutomaticTextReplacementEnabled = false
+        view.isAutomaticSpellingCorrectionEnabled = false
+        view.isContinuousSpellCheckingEnabled = false
+        view.font = .monospacedSystemFont(ofSize: NSFont.preferredFont(forTextStyle: .footnote).pointSize, weight: .regular)
+        view.textContainerInset = NSSize(width: Spacing.xxs, height: Spacing.xxs)
+        // No wrapping: the container grows with the longest line.
+        view.isHorizontallyResizable = true
+        view.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        view.textContainer?.widthTracksTextView = false
+        view.textContainer?.containerSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        view.string = text
+        return scroll
+    }
+
+    func updateNSView(_ scroll: NSScrollView, context: Context) {
+        guard let view = scroll.documentView as? NSTextView, view.string != text else { return }
+        view.string = text
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(text: $text) }
+
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        var text: Binding<String>
+        init(text: Binding<String>) { self.text = text }
+
+        func textDidChange(_ notification: Notification) {
+            guard let view = notification.object as? NSTextView else { return }
+            text.wrappedValue = view.string
         }
     }
 }

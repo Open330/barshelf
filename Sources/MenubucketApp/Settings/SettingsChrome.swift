@@ -11,6 +11,8 @@ enum SettingsMetrics {
     static let contentWidth: CGFloat = 660
     /// The tile beside a page's name.
     static let headerTile: CGFloat = 44
+    /// The tile in a one-line page header (the Shelf, the Gallery, Create).
+    static let compactHeaderTile: CGFloat = 32
 }
 
 /// A figure under a settings page's header: 13 Allowed, 2 Waiting.
@@ -95,6 +97,40 @@ struct SettingsHeader: View {
         .padding(.top, Spacing.xs)
         .padding(.bottom, Spacing.m)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// A page's header in one compact line, for the pages that are not a
+/// settings form (the Shelf, Create): the same tile, name and purpose as a
+/// settings page has, and a short summary on the trailing side, so the
+/// page's own content starts high in the window.
+struct CompactPageHeader: View {
+    let tab: HubTab
+    var summary: String?
+
+    var body: some View {
+        HStack(alignment: .center, spacing: Spacing.s) {
+            CardIconTile(symbol: tab.symbol, color: tab.tint, size: SettingsMetrics.compactHeaderTile)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(tab.title)
+                    .font(.title3.weight(.bold))
+                    .accessibilityAddTraits(.isHeader)
+                Text(tab.subtitle)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: Spacing.s)
+            if let summary {
+                Text(summary)
+                    .font(.callout)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.trailing)
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 

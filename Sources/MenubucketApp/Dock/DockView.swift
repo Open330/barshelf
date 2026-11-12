@@ -298,7 +298,7 @@ struct DockView: View {
     @ViewBuilder
     private var profileBanner: some View {
         if let profile = store.announcedProfile {
-            Label(profile.name, systemImage: profile.symbol)
+            Label(profile.displayName, systemImage: profile.symbol)
                 .font(.headline)
                 .padding(.horizontal, Spacing.s + Spacing.hair)
                 .padding(.vertical, Spacing.stack)
@@ -306,7 +306,7 @@ struct DockView: View {
                 .offset(y: edge == .bottom ? -44 : 0)
                 .transition(.opacity.combined(with: .scale(scale: 0.9)))
                 .allowsHitTesting(false)
-                .accessibilityLabel(Text("Dock profile: \(profile.name)"))
+                .accessibilityLabel(Text("Dock profile: \(profile.displayName)"))
         }
     }
 
@@ -759,7 +759,7 @@ struct DockView: View {
             entries.append(.submenu(
                 String(localized: "Profile"),
                 config.profiles.map { profile in
-                    .action(profile.name, symbol: profile.symbol, checked: profile.id == config.activeProfileID) {
+                    .action(profile.displayName, symbol: profile.symbol, checked: profile.id == config.activeProfileID) {
                         store.activate(profileID: profile.id)
                     }
                 }

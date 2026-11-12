@@ -133,6 +133,12 @@ enum HubScreenshotMode {
             ok = render(WidgetSettingsView(widget: widget, runtime: runtime, page: .look),
                         size: NSSize(width: 640, height: 760), name: "inspector-look", to: dir) && ok
         }
+        // The inspector's General page for a widget with options of its
+        // own: the label column, switches, and the location disclosure.
+        if let widget = runtime.widgets.first(where: { $0.id == "dev.barshelf.air-quality" }) ?? shown.first {
+            ok = render(WidgetSettingsView(widget: widget, runtime: runtime, page: .general),
+                        size: NSSize(width: 640, height: 760), name: "inspector-general", to: dir) && ok
+        }
         return ok ? 0 : 1
     }
 

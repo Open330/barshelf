@@ -462,7 +462,10 @@ final class WidgetInstaller {
         install(input: url.absoluteString)
     }
 
-    func install(input: String, completion: (() -> Void)? = nil) {
+    /// `onInstalledOne`, when given, takes over the single-widget reveal:
+    /// the Gallery keeps the user where they are and says where it went,
+    /// instead of jumping to the popup.
+    func install(input: String, onInstalledOne: ((String) -> Void)? = nil, completion: (() -> Void)? = nil) {
         let panel = DownloadProgressPanel()
         panel.show()
         let task = Task { @MainActor in
@@ -475,7 +478,7 @@ final class WidgetInstaller {
                 }
                 panel.close()
                 defer { try? FileManager.default.removeItem(at: prepared.stagingRoot) }
-                if self.processCandidates(prepared) {
+                if self.processCandidates(prepared, onInstalledOne: onInstalledOne) {
                     completion?()
                 }
             } catch is CancellationError {
@@ -488,13 +491,13 @@ final class WidgetInstaller {
         panel.onCancel = { task.cancel() }
     }
 
-    func install(registryEntry entry: RegistryWidgetEntry, completion: (() -> Void)? = nil) {
+    func install(registryEntry entry: RegistryWidgetEntry, onInstalledOne: ((String) -> Void)? = nil, completion: (() -> Void)? = nil) {
         if let bundled = entry.install.bundled,
            let directory = WidgetInstallFlow.bundledWidgetDirectory(named: bundled) {
-            installBundledWidget(at: directory, completion: completion)
+            installBundledWidget(at: directory, onInstalledOne: onInstalledOne, completion: completion)
             return
         }
-        install(input: entry.install.url, completion: completion)
+        install(input: entry.install.url, onInstalledOne: onInstalledOne, completion: completion)
     }
 
     /// Installs a registry pack: one confirmation for the set, then each
@@ -628,10 +631,10 @@ final class WidgetInstaller {
 
     // MARK: internals (main thread)
 
-    private func installBundledWidget(at directory: URL, completion: (() -> Void)?) {
+    private func installBundledWidget(at directory: URL, onInstalledOne: ((String) -> Void)?, completion: (() -> Void)?) {
         do {
             let discovery = try WidgetInstallFlow.discoverBundledWidget(at: directory)
-            if processDiscovery(discovery) {
+            if processDiscovery(discovery, onInstalledOne: onInstalledOne) {
                 completion?()
             }
         } catch {
@@ -640,12 +643,12 @@ final class WidgetInstaller {
     }
 
     @discardableResult
-    private func processCandidates(_ prepared: WidgetInstallFlow.Prepared) -> Bool {
-        processDiscovery(prepared.discovery)
+    private func processCandidates(_ prepared: WidgetInstallFlow.Prepared, onInstalledOne: ((String) -> Void)? = nil) -> Bool {
+        processDiscovery(prepared.discovery, onInstalledOne: onInstalledOne)
     }
 
     @discardableResult
-    private func processDiscovery(_ discovery: WidgetDiscovery.Result) -> Bool {
+    private func processDiscovery(_ discovery: WidgetDiscovery.Result, onInstalledOne: ((String) -> Void)? = nil) -> Bool {
         guard !discovery.candidates.isEmpty else {
             showError(WidgetInstallFlowError.noWidgetsFound(
                 details: discovery.failures.map { "\($0.relativePath): \($0.reason)" }
@@ -686,7 +689,11 @@ final class WidgetInstaller {
         // else (multiple widgets, or partial failures) keeps the summary and
         // then opens the popup so the result is visible.
         if installedIDs.count == 1, failed.isEmpty {
-            onReveal?(installedIDs[0])
+            if let onInstalledOne {
+                onInstalledOne(installedIDs[0])
+            } else {
+                onReveal?(installedIDs[0])
+            }
         } else {
             showSummary(installed: installed, failed: failed)
             if !installed.isEmpty {

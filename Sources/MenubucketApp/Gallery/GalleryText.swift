@@ -8,6 +8,9 @@ import MenubucketCore
 /// One permission a widget declares, as an icon plus a sentence.
 struct GalleryPermissionLine: Hashable {
     let symbol: String
+    /// One word naming the kind of access, beside the symbol on a card:
+    /// "Network", "Commands".
+    var label: String = ""
     /// Short form for a card tooltip: "Runs: aas".
     let short: String
     /// Full sentence for the detail page.
@@ -24,6 +27,7 @@ enum GalleryPermissionText {
         if !commands.isEmpty {
             lines.append(GalleryPermissionLine(
                 symbol: "terminal",
+                label: String(localized: "Commands", comment: "Gallery card permission chip: runs commands"),
                 short: String(localized: "Runs: \(list(commands))", comment: "Gallery permission; the list of commands a widget runs"),
                 sentence: String(localized: "Runs these commands on your Mac: \(list(commands)).")
             ))
@@ -32,6 +36,7 @@ enum GalleryPermissionText {
         if !hosts.isEmpty {
             lines.append(GalleryPermissionLine(
                 symbol: "network",
+                label: String(localized: "Network", comment: "Gallery card permission chip: connects to websites"),
                 short: String(localized: "Network: \(list(hosts))"),
                 sentence: String(localized: "Connects to these websites: \(list(hosts)).")
             ))
@@ -40,6 +45,7 @@ enum GalleryPermissionText {
         if !paths.isEmpty {
             lines.append(GalleryPermissionLine(
                 symbol: "folder",
+                label: String(localized: "Files", comment: "Gallery card permission chip: reads files"),
                 short: String(localized: "Reads files in: \(list(paths))"),
                 sentence: String(localized: "Reads files in these folders: \(list(paths)).")
             ))
@@ -48,6 +54,7 @@ enum GalleryPermissionText {
         if !telemetry.isEmpty {
             lines.append(GalleryPermissionLine(
                 symbol: "gauge",
+                label: String(localized: "System info", comment: "Gallery card permission chip: reads information about the Mac"),
                 short: String(localized: "Reads system information: \(list(telemetry))"),
                 sentence: String(localized: "Reads information about your Mac: \(list(telemetry)).")
             ))
@@ -55,6 +62,7 @@ enum GalleryPermissionText {
         if permissions.keychain == true {
             lines.append(GalleryPermissionLine(
                 symbol: "key",
+                label: String(localized: "Keychain", comment: "Gallery card permission chip: reads a Keychain secret"),
                 short: String(localized: "Reads a Keychain secret"),
                 sentence: String(localized: "Reads a password or token you save in your Keychain.")
             ))
@@ -62,6 +70,7 @@ enum GalleryPermissionText {
         if permissions.notifications == true {
             lines.append(GalleryPermissionLine(
                 symbol: "bell",
+                label: String(localized: "Notifications", comment: "Gallery card permission chip: posts notifications"),
                 short: String(localized: "Posts notifications"),
                 sentence: String(localized: "Can show notifications.")
             ))

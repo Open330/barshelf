@@ -49,6 +49,15 @@ final class GalleryModel: ObservableObject {
     @Published var detailEntryID: String?
     /// The last failed removal, shown on the detail page.
     @Published var removeError: String?
+    /// A widget just installed from here: the Gallery stays put and says
+    /// where it went, with a way to go and see it.
+    @Published var justInstalled: JustInstalled?
+    private var justInstalledClear: Task<Void, Never>?
+
+    struct JustInstalled: Equatable {
+        let widgetID: String
+        let name: String
+    }
 
     /// The app's runtime, for removing widgets. `GalleryView` sets it.
     weak var runtime: WidgetRuntime?
@@ -198,7 +207,28 @@ final class GalleryModel: ObservableObject {
 
     private func matchesCategory(_ entry: RegistryWidgetEntry) -> Bool {
         guard let category = selectedCategory else { return true }
-        return categories(of: entry).contains(category)
+        return categories(of: entry).contains { Self.category($0, matches: category) }
+    }
+
+    /// Two registry categories that the app shows under one label ("demo"
+    /// and "everyday" are both "Everyday") are one chip and one filter.
+    static func category(_ value: String, matches selected: String) -> Bool {
+        GalleryEntryText.categoryLabel(value)
+            .caseInsensitiveCompare(GalleryEntryText.categoryLabel(selected)) == .orderedSame
+    }
+
+    /// One value per label, first seen first, sorted by label.
+    static func distinctCategories(_ values: [String]) -> [String] {
+        var seen = Set<String>()
+        var ordered: [String] = []
+        for value in values where !value.isEmpty {
+            let key = GalleryEntryText.categoryLabel(value).lowercased()
+            if seen.insert(key).inserted { ordered.append(value) }
+        }
+        return ordered.sorted {
+            GalleryEntryText.categoryLabel($0)
+                .localizedStandardCompare(GalleryEntryText.categoryLabel($1)) == .orderedAscending
+        }
     }
 
     /// Every word of the query must appear in some field — the registry's own
@@ -232,25 +262,15 @@ final class GalleryModel: ObservableObject {
     /// sorted so the picker is stable. Tags are left to search: there are
     /// too many to pick from. A registry with no categories offers its tags.
     var availableCategories: [String] {
-        var seen = Set<String>()
-        var ordered: [String] = []
         let curated = entries.contains {
             !($0.category?.trimmingCharacters(in: .whitespaces).isEmpty ?? true)
         }
-        for entry in entries where matchesKind(entry) {
-            let values = curated
+        let values = entries.filter(matchesKind).flatMap { entry in
+            curated
                 ? [entry.category?.trimmingCharacters(in: .whitespaces) ?? ""]
                 : (entry.tags ?? [])
-            for value in values where !value.isEmpty {
-                let key = value.lowercased()
-                if seen.insert(key).inserted { ordered.append(value) }
-            }
         }
-        // In the order the picker shows them: by label, not registry value.
-        return ordered.sorted {
-            GalleryEntryText.categoryLabel($0)
-                .localizedStandardCompare(GalleryEntryText.categoryLabel($1)) == .orderedAscending
-        }
+        return Self.distinctCategories(values)
     }
 
     /// True when the registry advertises a strictly newer version than the
@@ -470,8 +490,23 @@ final class GalleryModel: ObservableObject {
     /// Kicks off the existing GUI install flow (per-widget confirmation
     /// dialog with the permission summary, then the completion alert).
     func install(_ entry: RegistryWidgetEntry) {
-        WidgetInstaller.shared.install(registryEntry: entry) { [weak self] in
+        let name = GalleryEntryText.title(for: entry)
+        WidgetInstaller.shared.install(registryEntry: entry, onInstalledOne: { [weak self] id in
+            self?.announceInstalled(JustInstalled(widgetID: id, name: name))
+        }) { [weak self] in
             self?.refreshInstalledStates()
+        }
+    }
+
+    /// Shows the "added to your shelf" notice for a few seconds.
+    func announceInstalled(_ installed: JustInstalled) {
+        justInstalled = installed
+        AccessibilityAnnouncer.shared.announce(String(localized: "\(installed.name) is on your shelf"))
+        justInstalledClear?.cancel()
+        justInstalledClear = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(8))
+            guard !Task.isCancelled else { return }
+            self?.justInstalled = nil
         }
     }
 

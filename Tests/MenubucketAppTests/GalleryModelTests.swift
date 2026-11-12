@@ -236,6 +236,35 @@ final class GalleryModelTests: XCTestCase {
         XCTAssertFalse(model.filtersAreActive)
     }
 
+    /// "demo" and "everyday" are both shown as Everyday: one chip, and that
+    /// chip finds the entries of either.
+    func testCategoriesWithTheSameLabelAreOneChipAndOneFilter() {
+        let model = GalleryModel(
+            widgetsDirectory: FileManager.default.temporaryDirectory
+                .appendingPathComponent("barshelf-gallery-dedupe-\(UUID().uuidString)")
+        )
+        var clock = makeEntry(id: "dev.test.clock", version: "1.0")
+        clock.category = "demo"
+        var weather = makeEntry(id: "dev.test.weather", version: "1.0")
+        weather.category = "Everyday"
+        var otp = makeEntry(id: "dev.test.otp", version: "1.0")
+        otp.category = "Security"
+        model.setEntries(forPreview: [clock, weather, otp])
+
+        let labels = model.availableCategories.map(GalleryEntryText.categoryLabel)
+        XCTAssertEqual(labels.count, Set(labels).count, "no label twice: \(labels)")
+        XCTAssertEqual(model.availableCategories.count, 2)
+
+        model.selectedCategory = model.availableCategories.first { GalleryEntryText.categoryLabel($0) == GalleryEntryText.categoryLabel("everyday") }
+        XCTAssertEqual(Set(model.filteredEntries.map(\.id)), [clock.id, weather.id])
+    }
+
+    func testDistinctCategoriesKeepsDifferentLabels() {
+        XCTAssertEqual(GalleryModel.distinctCategories(["demo", "Everyday", "files", "Files", ""]).count, 2)
+        XCTAssertTrue(GalleryModel.category("demo", matches: "everyday"))
+        XCTAssertFalse(GalleryModel.category("files", matches: "media"))
+    }
+
     func testSectionCopyNamesNoPersonalTools() {
         let model = GalleryModel(
             widgetsDirectory: FileManager.default.temporaryDirectory

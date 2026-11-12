@@ -576,7 +576,7 @@ enum AccentPalette {
     }
 
     static let swatches: [Swatch] = [
-        .init(name: String(localized: "Default", comment: "Accent color choice"), value: nil),
+        .init(name: String(localized: "System accent", comment: "Accent color choice: follows the Mac's accent colour"), value: nil),
         .init(name: String(localized: "Blue"), value: "blue"),
         .init(name: String(localized: "Purple"), value: "purple"),
         .init(name: String(localized: "Pink"), value: "pink"),
@@ -608,7 +608,7 @@ struct AccentSwatchButton: View {
     var body: some View {
         Button(action: action) {
             Circle()
-                .fill(swatch.color)
+                .fill(fill)
                 .frame(width: Self.diameter, height: Self.diameter)
                 .overlay(
                     Circle().strokeBorder(
@@ -621,6 +621,17 @@ struct AccentSwatchButton: View {
         .hoverHint(LocalizedStringKey(swatch.name))
         .accessibilityLabel("\(swatch.name) accent")
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+    }
+
+    /// The system accent drawn as the Mac draws its own "follow the
+    /// system" swatch, a colour wheel, so it is not a second blue beside
+    /// Blue.
+    private var fill: AnyShapeStyle {
+        guard swatch.value == nil else { return AnyShapeStyle(swatch.color) }
+        return AnyShapeStyle(AngularGradient(
+            colors: [.red, .orange, .yellow, .green, .blue, .purple, .pink, .red],
+            center: .center
+        ))
     }
 }
 

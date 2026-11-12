@@ -36,7 +36,7 @@ struct GeneralSettingsPage: View {
     ]
 
     var body: some View {
-        SettingsPage(.general) {
+        SettingsPage(.general, stats: stats) {
             Section {
                 MenuBarIconGrid(selection: Binding(
                     get: { appPrefs.preferences.menuBarSymbol },
@@ -58,10 +58,14 @@ struct GeneralSettingsPage: View {
                     Text("Fit to Screen").tag(AppPreferences.PopupHeight.fitScreen)
                 } label: {
                     Text("Popup height")
-                    Text("How tall the popup grows before its pages scroll. It is shorter when there is less to show.")
                 }
                 .pickerStyle(.segmented)
                 .accessibilityLabel("Popup height")
+            } footer: {
+                // Under the row rather than under the label, where the
+                // segmented control squeezed it into a narrow column.
+                Text("How tall the popup grows before its pages scroll. It is shorter when there is less to show.")
+                    .formFooter()
             }
 
             Section {
@@ -90,6 +94,24 @@ struct GeneralSettingsPage: View {
             PrefsErrorSection(appPrefs: appPrefs)
         }
         .onAppear(perform: syncLaunchAtLoginStatus)
+    }
+
+    /// Whether BarShelf opens at login, its icon in the menu bar, and how
+    /// tall the popup grows.
+    private var stats: [SettingsStat] {
+        let prefs = appPrefs.preferences
+        let height: String = switch prefs.popupHeight {
+        case .standard: String(localized: "Standard")
+        case .tall: String(localized: "Tall")
+        case .fitScreen: String(localized: "Fit to Screen")
+        }
+        return [
+            SettingsStat(value: prefs.launchAtLogin ? String(localized: "On", comment: "General summary: opens at login")
+                                                    : String(localized: "Off", comment: "General summary: does not open at login"),
+                         label: String(localized: "Open at login")),
+            SettingsStat(value: Self.name(for: prefs.menuBarSymbol), label: String(localized: "Menu bar icon")),
+            SettingsStat(value: height, label: String(localized: "Popup height")),
+        ]
     }
 
     static func name(for symbol: String) -> String {
@@ -203,6 +225,7 @@ private struct MenuBarIconGrid: View {
 struct ShortcutsSettingsPage: View {
     @ObservedObject var appPrefs: AppPrefs
     @ObservedObject private var registration = HotkeyRegistrationCoordinator.shared
+    @ObservedObject private var dock = DockStore.shared
 
     var body: some View {
         SettingsPage(.shortcuts, stats: stats) {
@@ -226,35 +249,39 @@ struct ShortcutsSettingsPage: View {
                     .settingsSectionTitle()
             }
 
-            Section {
-                ForEach(Self.appShortcuts, id: \.keys) { shortcut in
-                    LabeledContent(shortcut.title) {
-                        KeyCombo(keys: shortcut.keys)
+            ForEach(ShortcutList.sections(dockProfileKeys: dock.configuration.profileHotkeysEnabled), id: \.title) { section in
+                Section {
+                    ForEach(section.items, id: \.self) { shortcut in
+                        LabeledContent(shortcut.title) {
+                            KeyCombo(keys: shortcut.keys)
+                        }
+                    }
+                } header: {
+                    Text(section.title)
+                        .settingsSectionTitle()
+                } footer: {
+                    if let footer = section.footer {
+                        Text(footer)
+                            .formFooter()
                     }
                 }
-            } header: {
-                Text("In BarShelf")
-                    .settingsSectionTitle()
-            } footer: {
-                Text("These work in the popup and in this window.")
-                    .formFooter()
             }
         }
     }
 
     private var stats: [SettingsStat] {
         let enabled = appPrefs.preferences.popupHotkeyEnabled && !appPrefs.preferences.popupHotkey.isEmpty
+        let config = dock.configuration
+        let profileKeys = min(config.profiles.count, DockConfiguration.hotkeyProfileLimit)
         return [
             SettingsStat(value: enabled ? HotkeyGrammar.displayText(appPrefs.preferences.popupHotkey)
-                                       : String(localized: "Off", comment: "Shortcuts summary: no global shortcut set"),
-                         label: String(localized: "Opens BarShelf")),
-            SettingsStat(value: "\(Self.appShortcuts.count)", label: String(localized: "Shortcuts in BarShelf")),
+                                       : String(localized: "Not set", comment: "Shortcuts summary: no global shortcut set"),
+                         label: String(localized: "Opens BarShelf from any app")),
+            SettingsStat(value: config.profileHotkeysEnabled && profileKeys > 0
+                            ? (profileKeys == 1 ? "⌃⌥1" : "⌃⌥1–\(profileKeys)")
+                            : String(localized: "Off", comment: "Shortcuts summary: Dock profile keys are off"),
+                         label: String(localized: "Switches Dock profiles")),
         ]
-    }
-
-    private struct AppShortcut {
-        let title: String
-        let keys: String
     }
 
     /// Keys as keycaps: "⌘F" one cap, "← →" two, "…" between caps plain.
@@ -276,15 +303,6 @@ struct ShortcutsSettingsPage: View {
         }
     }
 
-    private static let appShortcuts = [
-        AppShortcut(title: String(localized: "Search the popup"), keys: "⌘F"),
-        AppShortcut(title: String(localized: "Refresh all widgets"), keys: "⌘R"),
-        AppShortcut(title: String(localized: "Create a widget"), keys: "⌘N"),
-        AppShortcut(title: String(localized: "Open Settings"), keys: "⌘,"),
-        AppShortcut(title: String(localized: "Go to page 1–9"), keys: "⌘1 … ⌘9"),
-        AppShortcut(title: String(localized: "Previous or next page"), keys: "← →"),
-        AppShortcut(title: String(localized: "Quit BarShelf"), keys: "⌘Q"),
-    ]
 }
 
 // MARK: - Updates
@@ -294,27 +312,17 @@ struct UpdatesSettingsPage: View {
     @ObservedObject private var status = UpdateStatus.shared
 
     var body: some View {
-        SettingsPage(.updates) {
+        SettingsPage(.updates, stats: stats) {
             Section {
-                // The version is the page's figure: big, with what the last
-                // check found beside it.
+                // The version, the last check and the source are the page's
+                // figures; this row says what the last check found.
                 HStack(spacing: Spacing.s) {
                     Image(systemName: statusTone.symbol)
-                        .font(.largeTitle)
+                        .font(.title2)
                         .foregroundStyle(statusTone.color)
                         .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: Spacing.hair) {
-                        MetricText(value: AppVersionInfo.current.versionLabel, size: .compact)
-                            .textSelection(.enabled)
-                        Text(statusLine)
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                        if let checked = status.lastChecked {
-                            Text("Last checked \(checked.formatted(.relative(presentation: .named)))")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
+                    Text(statusLine)
+                        .font(.callout)
                     Spacer()
                     Button("Check Now") { UpdateChecker.check(explicit: true) }
                         .buttonStyle(.glass(status.available == nil ? .secondary : .primary))
@@ -381,6 +389,21 @@ struct UpdatesSettingsPage: View {
 
             PrefsErrorSection(appPrefs: appPrefs)
         }
+    }
+
+    private var stats: [SettingsStat] {
+        [
+            SettingsStat(value: AppVersionInfo.current.versionLabel,
+                         label: String(localized: "Installed version", comment: "Updates summary")),
+            SettingsStat(value: status.lastChecked.map { $0.formatted(.relative(presentation: .named)) }
+                            ?? String(localized: "Not yet", comment: "Updates summary: never checked for updates"),
+                         label: String(localized: "Last checked", comment: "Updates summary")),
+            SettingsStat(value: UpdateChecker.isUsingOverriddenFeed
+                            ? String(localized: "Custom", comment: "Updates summary: updates come from another repository")
+                            : String(localized: "Official", comment: "Updates summary: updates come from the official releases"),
+                         label: String(localized: "Update source", comment: "Updates summary"),
+                         tone: UpdateChecker.isUsingOverriddenFeed ? .warning : nil),
+        ]
     }
 
     private var statusTone: StatusTone {
@@ -698,9 +721,14 @@ struct AdvancedSettingsPage: View {
                     Text("Slowest").tag(4.0)
                 } label: {
                     Text("Refresh speed")
-                    Text("Faster halves the wait between refreshes; Slower and Slowest double and quadruple it, saving battery and network.")
                 }
+                // Four values of one thing: segmented (the rule atop Components).
+                .pickerStyle(.segmented)
                 .accessibilityLabel("Refresh speed")
+                Text(Self.refreshSpeedEffect(appPrefs.preferences.refreshMultiplier))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Toggle(isOn: Binding(
                     get: { appPrefs.preferences.pauseWhenClosed },
@@ -767,6 +795,16 @@ struct AdvancedSettingsPage: View {
         }
     }
 
+    /// What the chosen speed does, in terms of what the user sees.
+    static func refreshSpeedEffect(_ multiplier: Double) -> String {
+        switch multiplier {
+        case ..<1: return String(localized: "Widgets refresh twice as often as they ask to. Readings stay fresher; battery and network work harder.")
+        case 1: return String(localized: "Each widget refreshes as often as it asks to.")
+        case ...2: return String(localized: "Widgets wait twice as long between refreshes, for longer battery life and less network use.")
+        default: return String(localized: "Widgets wait four times as long between refreshes: the least battery and network use, the oldest readings.")
+        }
+    }
+
     /// How the widgets' last refreshes went, as the page's figures.
     private var stats: [SettingsStat] {
         let outcomes = runtime.widgets.map { refreshStats.stats[$0.id]?.lastOutcomeWasSuccess }
@@ -799,26 +837,29 @@ private struct DiagnosticsRow: View {
 
     var body: some View {
         LabeledContent {
-            VStack(alignment: .trailing, spacing: Spacing.hair) {
-                if hasRun {
+            if hasRun {
+                VStack(alignment: .trailing, spacing: Spacing.hair) {
                     Label(outcome.text, systemImage: outcome.tone.symbol)
                         .foregroundStyle(outcome.tone.color)
-                } else {
-                    Text(outcome.text).foregroundStyle(.secondary)
+                    Text(detail)
+                        .font(.caption)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
                 }
-                Text(detail)
-                    .font(.caption)
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
+            } else {
+                // Before the first run there is one thing to say, once.
+                Text(outcome.text).foregroundStyle(.secondary)
             }
         } label: {
             HStack(spacing: Spacing.xs) {
                 WidgetMark(widget: widget, runtime: runtime)
                 VStack(alignment: .leading, spacing: Spacing.hair) {
                     Text(widget.displayName)
-                    Text(lastRefresh)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    if hasRun {
+                        Text(lastRefresh)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
         }

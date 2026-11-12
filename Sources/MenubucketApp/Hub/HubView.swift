@@ -99,7 +99,7 @@ struct HubView: View {
         case .create:
             HubCreateView(runtime: runtime) { model.tab = .shelf }
         case .automation:
-            SettingsPage(.automation) { AutomationSettingsView() }
+            AutomationSettingsPage()
         case .general:
             GeneralSettingsPage(appPrefs: appPrefs)
         case .shortcuts:
@@ -110,6 +110,17 @@ struct HubView: View {
             PrivacySettingsPage(runtime: runtime)
         case .advanced:
             AdvancedSettingsPage(appPrefs: appPrefs, runtime: runtime)
+        }
+    }
+}
+
+/// Automation's page: its header figures follow the extension's state.
+private struct AutomationSettingsPage: View {
+    @ObservedObject private var controller = AutomationController.shared
+
+    var body: some View {
+        SettingsPage(.automation, stats: AutomationSettingsView.stats(controller: controller)) {
+            AutomationSettingsView(controller: controller)
         }
     }
 }
