@@ -14114,6 +14114,26 @@
         }
       }
     },
+    "The keyboard extension did not respond. Try again, or restart BarShelf.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "키보드 확장이 응답하지 않았습니다. 다시 시도하거나 BarShelf를 재시작하세요."
+          }
+        }
+      }
+    },
+    "The keyboard extension stopped and could not be started again. Turn it off and on, or restart BarShelf.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "키보드 확장이 멈췄고 다시 시작하지 못했습니다. 확장을 껐다 켜거나 BarShelf를 재시작하세요."
+          }
+        }
+      }
+    },
     "The last input source switch did not change the input source. Other shortcuts keep working. Check “Select next source in Input menu” in Keyboard Shortcuts.": {
       "localizations": {
         "ko": {

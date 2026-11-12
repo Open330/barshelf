@@ -33,6 +33,15 @@ package final class AutomationController: ObservableObject {
     private let makeEngine: (AutomationScript) -> AutomationRunning
     private let isTrusted: () -> Bool
     private let hammerspoonRunning: () -> Bool
+    /// Set in the app: the extension then runs in the helper process and this
+    /// object mirrors it. Nil in the helper itself and in tests, where the
+    /// engine runs here.
+    private var helper: AutomationHelperClient?
+
+    /// Whether the saved extension starts with the app.
+    package var isEnabledAtLaunch: Bool { launchEnabled }
+    /// The shortcuts the running extension registered.
+    package var activeBindings: [HotkeyGrammar.Combination] { runningBindings }
 
     package init(fileURL: URL = AutomationController.defaultFileURL,
          makeEngine: @escaping (AutomationScript) -> AutomationRunning = { AutomationEngine(script: $0) },
@@ -80,8 +89,69 @@ package final class AutomationController: ObservableObject {
     }
 
     package func startAtLaunch() {
+        if let helper {
+            // The helper starts the saved extension itself. One that
+            // outlived a crashed app is adopted, not restarted, so its keys
+            // never stop.
+            if launchEnabled {
+                if !helper.ensureRunning() { helperLost() }
+            } else {
+                helper.stop()
+            }
+            return
+        }
         guard launchEnabled else { return }
         apply(source: source, enabled: true)
+    }
+
+    /// Runs the extension in the helper process from now on.
+    package func useHelper(_ client: AutomationHelperClient) {
+        helper = client
+        client.onStatus = { [weak self] in self?.mirror($0) }
+        client.onHelperLost = { [weak self] in self?.helperLost() }
+    }
+
+    /// Takes over what the helper reports.
+    private func mirror(_ status: AutomationHelperStatus) {
+        isRunning = status.isRunning
+        launchEnabled = status.enabled
+        if status.isRunning || status.reply?.ok == true { source = status.source }
+        message = status.message
+        inputSourceStatus = status.inputSourceStatus
+        runningBindings = status.bindings.map {
+            HotkeyGrammar.Combination(keyCode: $0.keyCode, modifiers: $0.modifiers, canonicalText: $0.text)
+        }
+        // The dock's profile keys give way to the extension's, as they do
+        // when both run in one process.
+        InAppHotkeys.shared.setAutomationKeys(Set(status.bindings.map {
+            InAppHotkeys.Key(keyCode: $0.keyCode, modifiers: $0.modifiers)
+        }))
+        refreshSystemShortcutConflicts()
+    }
+
+    private func helperLost() {
+        isRunning = false
+        inputSourceStatus = .idle
+        runningBindings = []
+        InAppHotkeys.shared.setAutomationKeys([])
+        message = String(localized: "The keyboard extension stopped and could not be started again. Turn it off and on, or restart BarShelf.")
+    }
+
+    /// `apply` when the extension runs in the helper. The script was already
+    /// compiled and the preconditions checked here, so the usual mistakes
+    /// are reported without a round trip.
+    private func applyThroughHelper(_ helper: AutomationHelperClient, script: AutomationScript, source candidate: String) -> Bool {
+        let previousKeys = InAppHotkeys.shared.automation
+        InAppHotkeys.shared.setAutomationKeys(Set(script.bindings.map {
+            InAppHotkeys.Key(keyCode: $0.combination.keyCode, modifiers: $0.combination.modifiers)
+        }))
+        guard helper.ensureRunning(), let status = helper.apply(source: candidate) else {
+            InAppHotkeys.shared.setAutomationKeys(previousKeys)
+            message = String(localized: "The keyboard extension did not respond. Try again, or restart BarShelf.")
+            return false
+        }
+        mirror(status)
+        return status.reply?.ok == true
     }
 
     /// Records editor text; matching the saved script clears the draft.
@@ -107,6 +177,12 @@ package final class AutomationController: ObservableObject {
                 guard !hammerspoonRunning() else {
                     throw AutomationFailure(String(localized: "Quit Hammerspoon before enabling this extension so the same keys are not handled twice."))
                 }
+            }
+            if let helper {
+                if enabled { return applyThroughHelper(helper, script: script, source: candidate) }
+                // Saving a script without running it: nothing for the helper
+                // to do, so it goes away and the file is written here.
+                helper.stop()
             }
             let replacement = enabled ? makeEngine(script) : nil
             replacement?.report = { [weak self, weak replacement] message in
@@ -175,6 +251,8 @@ package final class AutomationController: ObservableObject {
     /// Disabling must always release native resources, even if the file cannot
     /// be saved or the draft being edited currently contains a syntax error.
     package func disable() {
+        helper?.stop()
+        InAppHotkeys.shared.setAutomationKeys([])
         engine?.stop()
         engine = nil
         isRunning = false
@@ -188,7 +266,12 @@ package final class AutomationController: ObservableObject {
         } catch { message = String(localized: "Stopped for this session, but could not save disabled state: \(error.localizedDescription)") }
     }
 
-    package func stopForTermination() { engine?.stop() }
+    package func stopForTermination() {
+        // A clean quit takes the helper with it; only a crash leaves it
+        // running.
+        helper?.stop()
+        engine?.stop()
+    }
 
     /// Returns a draft for review; does not replace a saved/running extension.
     package func importFile(_ url: URL, excludingFunctionKeys: Bool = false) -> String? {
