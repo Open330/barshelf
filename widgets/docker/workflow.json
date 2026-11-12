@@ -2,7 +2,7 @@
   "$schema": "https://barshelf.jiun.dev/schema/workflow-0.1.json",
   "schemaVersion": 1,
   "kind": "workflow",
-  "_comment": "Containers from the Docker CLI (Docker Desktop, OrbStack, Colima, Rancher Desktop: whatever `docker` points at, including its current context). `docker ps --format '{{json .}}'` prints one JSON object per line, so a fixed shell wrapper joins the lines into one array and reports whether the CLI exists and whether the daemon answered. It never starts, stops or changes a container.",
+  "_comment": "Containers from the Docker CLI (Docker Desktop, OrbStack, Colima, Rancher Desktop: whatever `docker` points at, including its current context). `docker ps --format '{{json .}}'` prints one JSON object per line, so a fixed shell wrapper joins the lines into one array and reports whether the CLI exists and whether the daemon answered. It never starts, stops or changes a container. A container whose status says (unhealthy) is tinted warning, and so is the menu bar. When the daemon isn't running the card offers to open Docker Desktop (com.docker.docker) or OrbStack (dev.kdrag0n.MacVirt).",
   "sources": {
     "docker": {
       "use": "exec",
@@ -51,14 +51,27 @@
           "status": "${c.Status}",
           "ports": "${string(c.Ports)}",
           "hasPorts": "${ne(string(c.Ports), '')}",
-          "icon": "${switch(c.State, 'running', 'shippingbox.fill', 'paused', 'pause.circle.fill', 'restarting', 'arrow.clockwise.circle.fill', 'dead', 'xmark.octagon.fill', 'created', 'shippingbox', 'stop.circle')}",
-          "tint": "${switch(c.State, 'running', 'good', 'paused', 'warning', 'restarting', 'warning', 'dead', 'danger', 'secondary')}"
+          "icon": "${if(contains(string(c.Status), '(unhealthy)'), 'cross.case.fill', switch(c.State, 'running', 'shippingbox.fill', 'paused', 'pause.circle.fill', 'restarting', 'arrow.clockwise.circle.fill', 'dead', 'xmark.octagon.fill', 'created', 'shippingbox', 'stop.circle'))}",
+          "tint": "${if(contains(string(c.Status), '(unhealthy)'), 'warning', switch(c.State, 'running', 'good', 'paused', 'warning', 'restarting', 'warning', 'dead', 'danger', 'secondary'))}",
+          "unhealthy": "${contains(string(c.Status), '(unhealthy)')}"
         }
       }
     },
     "summary": {
       "use": "assign",
-      "from": "if(transforms.ko, concat('실행 중 ', string(transforms.runningCount), if(settings.showStopped, concat(' · 전체 ', string(transforms.total)), '')), concat(string(transforms.runningCount), ' running', if(settings.showStopped, concat(' · ', string(transforms.total), ' total'), '')))"
+      "from": "if(transforms.ko, concat('실행 중 ', string(transforms.runningCount), if(gt(transforms.unhealthyCount, 0), concat(' · 비정상 ', string(transforms.unhealthyCount)), ''), if(settings.showStopped, concat(' · 전체 ', string(transforms.total)), '')), concat(string(transforms.runningCount), ' running', if(gt(transforms.unhealthyCount, 0), concat(' · ', string(transforms.unhealthyCount), ' unhealthy'), ''), if(settings.showStopped, concat(' · ', string(transforms.total), ' total'), '')))"
+    },
+    "unhealthy": {
+      "use": "filter",
+      "from": "$.transforms.rows",
+      "with": {
+        "field": "unhealthy",
+        "equals": true
+      }
+    },
+    "unhealthyCount": {
+      "use": "assign",
+      "from": "count(transforms.unhealthy)"
     }
   },
   "view": {
@@ -69,16 +82,76 @@
         "switch": "${if(not(sources.docker.installed), 'missing', if(not(sources.docker.running), 'down', if(eq(transforms.total, 0), 'none', 'list')))}",
         "cases": {
           "missing": {
-            "type": "empty",
-            "icon": "shippingbox",
-            "title": "Docker CLI not found",
-            "subtitle": "Install Docker Desktop, OrbStack or another Docker runtime."
+            "type": "vstack",
+            "spacing": 8,
+            "children": [
+              {
+                "type": "empty",
+                "icon": "shippingbox",
+                "title": "Docker CLI not found",
+                "subtitle": "Install Docker Desktop, OrbStack or another Docker runtime.",
+                "action": {
+                  "type": "openURL",
+                  "url": "https://docs.docker.com/desktop/setup/install/mac-install/"
+                }
+              },
+              {
+                "type": "button",
+                "title": "Get Docker Desktop",
+                "icon": "arrow.down.circle",
+                "action": {
+                  "type": "openURL",
+                  "url": "https://docs.docker.com/desktop/setup/install/mac-install/"
+                }
+              },
+              {
+                "type": "button",
+                "title": "Get OrbStack",
+                "icon": "arrow.down.circle",
+                "action": {
+                  "type": "openURL",
+                  "url": "https://orbstack.dev"
+                }
+              }
+            ]
           },
           "down": {
-            "type": "empty",
-            "icon": "powersleep",
-            "title": "Docker isn’t running",
-            "subtitle": "Start Docker Desktop, OrbStack or your Docker runtime."
+            "type": "vstack",
+            "spacing": 8,
+            "children": [
+              {
+                "type": "empty",
+                "icon": "powersleep",
+                "title": "Docker isn’t running",
+                "subtitle": "Start Docker Desktop, OrbStack or your Docker runtime."
+              },
+              {
+                "type": "button",
+                "title": "Open Docker Desktop",
+                "icon": "shippingbox",
+                "action": {
+                  "type": "openApp",
+                  "value": "com.docker.docker"
+                }
+              },
+              {
+                "type": "button",
+                "title": "Open OrbStack",
+                "icon": "circle.hexagongrid",
+                "action": {
+                  "type": "openApp",
+                  "value": "dev.kdrag0n.MacVirt"
+                }
+              },
+              {
+                "type": "button",
+                "title": "Try Again",
+                "icon": "arrow.clockwise",
+                "action": {
+                  "type": "refresh"
+                }
+              }
+            ]
           },
           "none": {
             "type": "empty",
@@ -102,7 +175,7 @@
                     "name": "shippingbox.fill"
                   },
                   "size": 14,
-                  "tint": "accent"
+                  "tint": "${if(gt(transforms.unhealthyCount, 0), 'warning', 'accent')}"
                 },
                 {
                   "type": "text",
@@ -205,6 +278,7 @@
   },
   "status": {
     "label": "${if(sources.docker.running, string(transforms.runningCount), if(sources.docker.installed, if(transforms.ko, '꺼짐', 'off'), ''))}",
-    "tooltip": "${if(sources.docker.running, transforms.summary, if(transforms.ko, 'Docker가 실행 중이 아닙니다', 'Docker isn’t running'))}"
+    "tooltip": "${if(sources.docker.running, transforms.summary, if(transforms.ko, 'Docker가 실행 중이 아닙니다', 'Docker isn’t running'))}",
+    "tint": "${if(and(sources.docker.running, gt(transforms.unhealthyCount, 0)), 'warning', '')}"
   }
 }

@@ -3,48 +3,66 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.developer-inbox",
   "name": "Developer Inbox",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "icon": "tray.full.fill",
-  "bucket": { "group": "Developer", "order": 20, "size": "L" },
-
-  "entry": { "kind": "script", "runtime": "deno-ts@1" },
-  "source": { "kind": "script", "output": "viewtree" },
-
+  "bucket": {
+    "group": "Developer",
+    "order": 20,
+    "size": "L"
+  },
+  "entry": {
+    "kind": "script",
+    "runtime": "deno-ts@1"
+  },
+  "source": {
+    "kind": "script",
+    "output": "viewtree",
+    "command": [
+      "gh"
+    ],
+    "discover": [
+      "/opt/homebrew/bin/gh",
+      "/usr/local/bin/gh",
+      "PATH"
+    ]
+  },
   "refresh": {
     "onOpen": true,
     "interval": 300,
     "staleAfterSec": 300,
     "runInBackground": false,
-    "triggers": ["wake"]
+    "triggers": [
+      "wake"
+    ]
   },
-
   "permissions": {
     "exec": [
       {
-        "command": "/opt/homebrew/bin/gh",
+        "command": "gh",
         "allowedArgs": [
-          ["--version"],
-          ["auth", "status"],
-          ["search", "prs", "--review-requested", "@me", "--state", "open", "--limit", "10", "--json", "number,title,url,repository,author,isDraft,updatedAt"],
-          ["api", "notifications?per_page=30"]
-        ],
-        "maxOutputBytes": 524288,
-        "sensitiveOutput": true
-      },
-      {
-        "command": "/usr/local/bin/gh",
-        "allowedArgs": [
-          ["--version"],
-          ["auth", "status"],
-          ["search", "prs", "--review-requested", "@me", "--state", "open", "--limit", "10", "--json", "number,title,url,repository,author,isDraft,updatedAt"],
-          ["api", "notifications?per_page=30"]
+          [
+            "search",
+            "prs",
+            "--review-requested",
+            "@me",
+            "--state",
+            "open",
+            "--limit",
+            "10",
+            "--json",
+            "number,title,url,repository,author,isDraft,updatedAt"
+          ],
+          [
+            "api",
+            "notifications?per_page=30"
+          ]
         ],
         "maxOutputBytes": 524288,
         "sensitiveOutput": true
       }
-    ]
+    ],
+    "notifications": true
   },
-
   "settings": [
     {
       "key": "itemLimit",
@@ -59,20 +77,29 @@
       "type": "boolean",
       "title": "Show GitHub notifications",
       "default": true
+    },
+    {
+      "key": "notifyReviewRequests",
+      "type": "boolean",
+      "title": "Notify about new review requests",
+      "default": false
     }
   ],
-
   "appearance": {
     "accent": "blue",
     "density": "compact",
     "cardStyle": "plain"
   },
-
   "localizations": {
     "ko": {
       "Developer Inbox": "개발자 받은편지함",
       "Items per section": "섹션별 항목 수",
-      "Show GitHub notifications": "GitHub 알림 보기"
+      "Show GitHub notifications": "GitHub 알림 보기",
+      "Notify about new review requests": "새 리뷰 요청이 오면 알림"
     }
+  },
+  "statusItem": {
+    "mode": "text",
+    "icon": "tray.full.fill"
   }
 }

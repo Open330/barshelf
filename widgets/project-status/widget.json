@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.project-status",
   "name": "Project Status",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "icon": "point.3.connected.trianglepath.dotted",
   "bucket": { "group": "Developer", "order": 30, "size": "M" },
 
@@ -16,6 +16,8 @@
     "staleAfterSec": 60,
     "triggers": ["wake"]
   },
+
+  "statusItem": { "mode": "text", "icon": "point.3.connected.trianglepath.dotted" },
 
   "permissions": {
     "exec": [

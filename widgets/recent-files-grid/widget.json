@@ -3,29 +3,64 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.recent-files-grid",
   "name": "Recent Files",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "icon": "square.grid.2x2",
-  "bucket": { "group": "Files", "order": 31, "size": "M" },
-
-  "entry": { "kind": "workflow", "main": "workflow.json" },
-
-  "refresh": { "onOpen": true, "interval": null, "staleAfterSec": 600 },
-
-  "permissions": {
-    "readPaths": ["~/Downloads"]
+  "bucket": {
+    "group": "Files",
+    "order": 31,
+    "size": "M"
   },
-
+  "entry": {
+    "kind": "workflow",
+    "main": "workflow.json"
+  },
+  "refresh": {
+    "onOpen": true,
+    "interval": null,
+    "staleAfterSec": 600
+  },
+  "permissions": {
+    "readPaths": [
+      "~/Downloads"
+    ]
+  },
   "settings": [
-    { "key": "folder", "title": "Folder", "type": "directory", "default": "~/Downloads" },
-    { "key": "limit", "title": "Maximum files", "type": "integer", "default": 24, "min": 6, "max": 60 },
-    { "key": "viewMode", "title": "View", "type": "enum", "options": ["Grid", "List"], "default": "Grid" },
-    { "key": "thumbSize", "title": "Thumbnail size", "type": "integer", "default": 52, "min": 28, "max": 96 }
+    {
+      "key": "folder",
+      "title": "Folder",
+      "type": "directory",
+      "default": "~/Downloads"
+    },
+    {
+      "key": "limit",
+      "title": "Maximum files",
+      "type": "integer",
+      "default": 24,
+      "min": 6,
+      "max": 60
+    },
+    {
+      "key": "viewMode",
+      "title": "View",
+      "type": "enum",
+      "options": [
+        "Grid",
+        "List"
+      ],
+      "default": "Grid"
+    },
+    {
+      "key": "thumbSize",
+      "title": "Thumbnail size",
+      "type": "integer",
+      "default": 52,
+      "min": 28,
+      "max": 96
+    }
   ],
-
   "appearance": {
     "accent": "blue"
   },
-
   "localizations": {
     "ko": {
       "Recent Files": "최근 파일",
@@ -35,10 +70,14 @@
       "Grid": "격자",
       "List": "목록",
       "Thumbnail size": "썸네일 크기",
-      "${count(sources.files.items)} files": "파일 ${count(sources.files.items)}개",
-      "${count(sources.files.items)} files in ${file.basename(settings.folder)}": "${file.basename(settings.folder)}의 파일 ${count(sources.files.items)}개",
       "No files": "파일 없음",
-      "Files added to this folder appear here.": "이 폴더에 추가된 파일이 여기에 표시됩니다."
+      "Files added to this folder appear here.": "이 폴더에 추가된 파일이 여기에 표시됩니다.",
+      "${transforms.countText} files": "파일 ${transforms.countText}개",
+      "Show in Finder": "Finder에서 보기",
+      "Folder not found": "폴더를 찾을 수 없음",
+      "${file.basename(settings.folder)} was moved or deleted. Pick another folder in the widget settings.": "${file.basename(settings.folder)} 폴더가 옮겨졌거나 삭제되었습니다. 위젯 설정에서 다른 폴더를 고르세요.",
+      "${transforms.countText} files in ${file.basename(settings.folder)}": "${file.basename(settings.folder)}의 파일 ${transforms.countText}개"
     }
-  }
+  },
+  "minHostVersion": "0.7.32"
 }

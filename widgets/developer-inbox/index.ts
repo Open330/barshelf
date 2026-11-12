@@ -1,6 +1,13 @@
-import { barshelf, ui, type UINode, type WidgetLoadContext } from "barshelf";
+import {
+  barshelf,
+  JsonRpcError,
+  ProtocolErrorCode,
+  ui,
+  type UINode,
+  type WidgetLoadContext,
+  type WidgetTimerContext,
+} from "barshelf";
 
-const GH_PATHS = ["/opt/homebrew/bin/gh", "/usr/local/bin/gh"];
 const PR_ARGS = [
   "search",
   "prs",
@@ -152,22 +159,68 @@ function relativeDate(value: string, now: number): string {
   return t(`${days}d ago`, `${days}일 전`);
 }
 
-async function findGh(ctx: WidgetLoadContext): Promise<string | undefined> {
-  for (const command of GH_PATHS) {
-    try {
-      await ctx.exec.run({
-        command,
-        args: ["--version"],
-        parse: "text",
-        timeoutMs: 3_000,
-        sensitive: true,
-      });
-      return command;
-    } catch {
-      // Continue to the other standard Homebrew installation location.
-    }
+type GhFailure = "missing" | "auth" | "offline" | "rateLimited" | "timeout" | "error";
+
+/** Reads why a gh call failed: a thrown host error, or a non-zero exit's stderr. */
+function ghFailure(result: GhResult): GhFailure | undefined {
+  if (result.thrown !== undefined) {
+    const code = result.thrown instanceof JsonRpcError ? result.thrown.code : undefined;
+    if (code === ProtocolErrorCode.ExecNotFound) return "missing";
+    if (code === ProtocolErrorCode.Timeout) return "timeout";
+    return "error";
   }
-  return undefined;
+  if (result.exitCode === 0) return undefined;
+  const text = result.stderr.toLowerCase();
+  if (
+    ["auth login", "not logged", "authentication", "bad credentials", "http 401"]
+      .some((marker) => text.includes(marker))
+  ) return "auth";
+  if (
+    [
+      "could not resolve",
+      "no such host",
+      "dial tcp",
+      "network is unreachable",
+      "connection refused",
+      "i/o timeout",
+      "tls handshake timeout",
+      "not connected to the internet",
+      "error connecting to",
+      "check your internet connection",
+    ].some((marker) => text.includes(marker))
+  ) return "offline";
+  if (text.includes("rate limit")) return "rateLimited";
+  return "error";
+}
+
+interface GhResult {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+  thrown?: unknown;
+}
+
+/**
+ * Runs gh, found by the host from the manifest's `source.discover`
+ * (Homebrew on Apple silicon or Intel, then PATH). Never throws: a missing
+ * gh or a timeout comes back as `thrown`.
+ */
+async function gh(
+  exec: WidgetLoadContext["exec"],
+  args: string[],
+): Promise<GhResult> {
+  try {
+    const result = await exec.run({
+      command: "gh",
+      args,
+      parse: "text",
+      timeoutMs: 12_000,
+      sensitive: true,
+    });
+    return { exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr ?? "" };
+  } catch (error) {
+    return { exitCode: -1, stdout: "", stderr: "", thrown: error };
+  }
 }
 
 function placeholder(title: string, subtitle: string, icon = "tray"): UINode {
@@ -207,8 +260,8 @@ function prRow(pr: PullRequest, now: number): UINode {
     ui.hstack([
       ui.text(
         [
-          pr.author ? t(`by ${pr.author}`, `${pr.author} 작성`) : "",
           relativeDate(pr.updatedAt, now),
+          pr.author ? t(`by ${pr.author}`, `${pr.author} 작성`) : "",
         ]
           .filter(Boolean).join(" · "),
         {
@@ -246,13 +299,15 @@ function notificationRow(notification: InboxNotification, now: number): UINode {
       foreground: "secondary",
     }),
   ];
-  if (notification.url) {
-    content.push(
-      ui.button(t("Open", "열기"), ui.action.openURL(notification.url), {
-        icon: "arrow.up.right.square",
-      }),
-    );
-  }
+  // Releases, discussions and check suites have no web URL we can derive;
+  // they still open on GitHub's notification list.
+  content.push(
+    ui.button(
+      t("Open", "열기"),
+      ui.action.openURL(notification.url ?? "https://github.com/notifications"),
+      { icon: "arrow.up.right.square" },
+    ),
+  );
   return ui.card(content, {
     id: `notification-${notification.id}`,
     spacing: 4,
@@ -260,87 +315,159 @@ function notificationRow(notification: InboxNotification, now: number): UINode {
   });
 }
 
-async function load(ctx: WidgetLoadContext): Promise<void> {
-  language = typeof ctx.locale === "string" && /^ko(?:[-_]|$)/i.test(ctx.locale)
-    ? "ko"
-    : "en";
-  const gh = await findGh(ctx);
-  if (!gh) {
-    await renderState(placeholder(
-      t("GitHub CLI not found", "GitHub CLI를 찾을 수 없습니다"),
-      t(
-        "Install gh with Homebrew, then reopen this widget.",
-        "Homebrew로 gh를 설치한 뒤 이 위젯을 다시 여세요.",
-      ),
-      "terminal",
-    ));
+function failureView(failure: GhFailure): UINode {
+  const retry = ui.button(t("Try Again", "다시 시도"), ui.action.refresh(), {
+    id: "retry",
+    icon: "arrow.clockwise",
+  });
+  switch (failure) {
+    case "missing":
+      return ui.vstack([
+        placeholder(
+          t("GitHub CLI not found", "GitHub CLI를 찾을 수 없습니다"),
+          t(
+            "Install gh (Homebrew: brew install gh), sign in, then try again.",
+            "gh를 설치하고(Homebrew: brew install gh) 로그인한 뒤 다시 시도하세요.",
+          ),
+          "terminal",
+        ),
+        ui.hstack([
+          ui.spacer(),
+          ui.button(
+            t("Get GitHub CLI", "GitHub CLI 받기"),
+            ui.action.openURL("https://cli.github.com"),
+            { id: "get-gh", icon: "arrow.down.circle" },
+          ),
+          retry,
+          ui.spacer(),
+        ], { spacing: 6 }),
+      ], { spacing: 8 });
+    case "auth":
+      return ui.vstack([
+        ui.banner(
+          t(
+            "Run gh auth login in Terminal, then try again.",
+            "터미널에서 gh auth login을 실행한 뒤 다시 시도하세요.",
+          ),
+          {
+            title: t("GitHub sign-in required", "GitHub 로그인 필요"),
+            tone: "warning",
+          },
+        ),
+        ui.hstack([
+          ui.button(
+            t("Copy gh auth login", "gh auth login 복사"),
+            ui.action.copyText("gh auth login", { toast: t("Copied", "복사됨") }),
+            { id: "copy-login", icon: "doc.on.doc" },
+          ),
+          retry,
+          ui.spacer(),
+        ], { spacing: 6 }),
+      ], { spacing: 8 });
+    case "offline":
+      return placeholder(
+        t("You’re offline", "오프라인 상태"),
+        t(
+          "Review requests come back when this Mac is online again.",
+          "Mac이 다시 온라인이 되면 리뷰 요청이 돌아옵니다.",
+        ),
+        "wifi.slash",
+      );
+    case "rateLimited":
+      return placeholder(
+        t("GitHub is limiting requests", "GitHub이 요청을 제한하고 있음"),
+        t("Trying again on the next refresh.", "다음 새로 고침 때 다시 시도합니다."),
+        "hourglass",
+      );
+    case "timeout":
+      return ui.vstack([
+        placeholder(
+          t("GitHub didn’t answer in time", "GitHub이 제때 응답하지 않음"),
+          t("Trying again on the next refresh.", "다음 새로 고침 때 다시 시도합니다."),
+          "clock.badge.exclamationmark",
+        ),
+        ui.hstack([ui.spacer(), retry, ui.spacer()]),
+      ], { spacing: 8 });
+    case "error":
+      return ui.vstack([
+        placeholder(
+          t("GitHub couldn’t be read", "GitHub을 읽지 못했습니다"),
+          t(
+            "gh search prs failed. Try again, or run it in Terminal to see why.",
+            "gh search prs가 실패했습니다. 다시 시도하거나 터미널에서 실행해 원인을 확인하세요.",
+          ),
+          "exclamationmark.triangle",
+        ),
+        ui.hstack([ui.spacer(), retry, ui.spacer()]),
+      ], { spacing: 8 });
+  }
+}
+
+const SEEN_KEY = "seen-review-requests";
+const POLL_TIMER = "review-requests";
+const POLL_MS = 10 * 60_000;
+
+/** The last load's settings and language, for the background timer. */
+let lastSettings: Record<string, unknown> = {};
+
+/**
+ * Opt-in: a notification for review requests that were not there at the
+ * previous check. Only the PR URLs are kept (BarShelf storage), and only
+ * while the setting is on; the first check after turning it on is the
+ * baseline and never notifies.
+ */
+async function notifyNewReviews(prs: PullRequest[], enabled: boolean): Promise<void> {
+  if (!enabled) {
+    await barshelf.storage.delete(SEEN_KEY);
     return;
   }
+  const seen = await barshelf.storage.get<string[]>(SEEN_KEY);
+  const fresh = Array.isArray(seen)
+    ? prs.filter((pr) => !seen.includes(pr.url))
+    : [];
+  await barshelf.storage.set(SEEN_KEY, prs.map((pr) => pr.url));
+  if (fresh.length === 0) return;
+  const first = fresh[0];
+  await barshelf.notify.show({
+    title: fresh.length === 1
+      ? t("New review request", "새 리뷰 요청")
+      : t(`${fresh.length} new review requests`, `새 리뷰 요청 ${fresh.length}개`),
+    body: [first.repository, first.title].filter(Boolean).join(": "),
+  });
+}
 
-  try {
-    await ctx.exec.run({
-      command: gh,
-      args: ["auth", "status"],
-      parse: "text",
-      timeoutMs: 5_000,
-      sensitive: true,
-    });
-  } catch {
-    await renderState(ui.vstack([
-      ui.banner(
-        t(
-          "Run `gh auth login` in Terminal, then refresh.",
-          "터미널에서 `gh auth login`을 실행한 뒤 새로 고치세요.",
-        ),
-        {
-          title: t("GitHub sign-in required", "GitHub 로그인 필요"),
-          tone: "warning",
-        },
-      ),
-      placeholder(
-        t("No authenticated account", "로그인된 계정 없음"),
-        t(
-          "Developer Inbox uses your existing gh session.",
-          "개발자 받은편지함은 이미 로그인된 gh 세션을 사용합니다.",
-        ),
-        "person.crop.circle.badge.exclamationmark",
-      ),
-    ], { spacing: 8 }));
-    return;
-  }
-
-  const showNotifications = ctx.settings.showNotifications !== false;
-  const limit = integerSetting(ctx.settings.itemLimit);
-  const [prsResult, notificationsResult] = await Promise.allSettled([
-    ctx.exec.run({
-      command: gh,
-      args: PR_ARGS,
-      parse: "text",
-      timeoutMs: 12_000,
-      sensitive: true,
-    }),
-    showNotifications
-      ? ctx.exec.run({
-        command: gh,
-        args: NOTIFICATION_ARGS,
-        parse: "text",
-        timeoutMs: 12_000,
-        sensitive: true,
-      })
-      : Promise.resolve(undefined),
+async function refresh(
+  exec: WidgetLoadContext["exec"],
+  settings: Record<string, unknown>,
+  now: number,
+): Promise<void> {
+  const showNotifications = settings.showNotifications !== false;
+  const notifyReviews = settings.notifyReviewRequests === true;
+  const limit = integerSetting(settings.itemLimit);
+  const [prsResult, notificationsResult] = await Promise.all([
+    gh(exec, PR_ARGS),
+    showNotifications ? gh(exec, NOTIFICATION_ARGS) : Promise.resolve(undefined),
   ]);
 
-  const prs = prsResult.status === "fulfilled"
-    ? parsePullRequests(prsResult.value.stdout)
-    : [];
-  const notifications =
-    notificationsResult.status === "fulfilled" && notificationsResult.value
-      ? parseNotifications(notificationsResult.value.stdout)
-      : [];
-  const failed = prsResult.status === "rejected" ||
-    (showNotifications && notificationsResult.status === "rejected");
-  const total = prs.length + notifications.length;
+  const prsFailure = ghFailure(prsResult);
+  if (prsFailure) {
+    // Nothing reliable to show: lead with what to do, not a zero.
+    await renderState(failureView(prsFailure), "—");
+    return;
+  }
 
+  const prs = parsePullRequests(prsResult.stdout);
+  const notifications = notificationsResult && !ghFailure(notificationsResult)
+    ? parseNotifications(notificationsResult.stdout)
+    : [];
+  const failed = showNotifications &&
+    (notificationsResult === undefined || ghFailure(notificationsResult) !== undefined);
+  const total = prs.length + notifications.length;
+  try {
+    await notifyNewReviews(prs, notifyReviews);
+  } catch {
+    // A notification or storage failure must not hide the inbox.
+  }
   const children: UINode[] = [
     ui.hstack([
       ui.stat(t("Review requests", "리뷰 요청"), prs.length, {
@@ -372,7 +499,7 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
     children.push(
       ui.section(
         t("Review requested", "리뷰 요청됨"),
-        prs.slice(0, limit).map((pr) => prRow(pr, ctx.now)),
+        prs.slice(0, limit).map((pr) => prRow(pr, now)),
         { spacing: 6 },
       ),
     );
@@ -382,7 +509,7 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
       ui.section(
         t("Notifications", "알림"),
         notifications.slice(0, limit).map((item) =>
-          notificationRow(item, ctx.now)
+          notificationRow(item, now)
         ),
         { spacing: 6 },
       ),
@@ -403,8 +530,28 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
 
   await renderState(
     ui.vstack(children, { spacing: 8 }),
-    total > 0 ? String(total) : undefined,
+    failed && total === 0 ? "—" : String(total),
   );
 }
 
-export default barshelf.widget({ load });
+async function load(ctx: WidgetLoadContext): Promise<void> {
+  language = typeof ctx.locale === "string" && /^ko(?:[-_]|$)/i.test(ctx.locale)
+    ? "ko"
+    : "en";
+  lastSettings = ctx.settings;
+  if (ctx.settings.notifyReviewRequests === true) {
+    // Script timers keep running while the popup is closed, so a new
+    // review request is noticed without the widget being on screen.
+    await ctx.timer.every(POLL_TIMER, POLL_MS);
+  } else {
+    await ctx.timer.clear(POLL_TIMER);
+  }
+  await refresh(ctx.exec, ctx.settings, ctx.now);
+}
+
+async function timer(ctx: WidgetTimerContext, event: { id: string; now: number }): Promise<void> {
+  if (event.id !== POLL_TIMER) return;
+  await refresh(ctx.exec, lastSettings, event.now);
+}
+
+export default barshelf.widget({ load, timer });

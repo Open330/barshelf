@@ -103,6 +103,96 @@ function webRemote(remote: string): { url: string; host: string } | null {
   }
 }
 
+interface GitRun {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+}
+
+type GitFailure = "tools" | "missing" | "notRepo" | "other";
+
+/** Set when git answered that the Command Line Tools are missing. */
+let toolsMissing = false;
+
+/** What a failed `git status` means, from its stderr. */
+function gitFailure(stderr: string): GitFailure {
+  const text = stderr.toLowerCase();
+  // /usr/bin/git is a shim: without the Command Line Tools it prints
+  // "xcode-select: note: No developer tools were found…" (or "invalid
+  // active developer path") instead of running Git.
+  if (
+    text.includes("xcode-select") || text.includes("developer tools") ||
+    text.includes("active developer path") || text.includes("commandlinetools")
+  ) return "tools";
+  if (text.includes("cannot change to") || text.includes("no such file or directory")) {
+    return "missing";
+  }
+  if (text.includes("not a git repository")) return "notRepo";
+  return "other";
+}
+
+function failureView(failure: GitFailure, directory: string): UINode {
+  const finder = ui.button(
+    t("Open in Finder", "Finder에서 열기"),
+    ui.action.openFile(directory),
+    { id: "open-project", icon: "folder" },
+  );
+  const retry = ui.button(t("Try Again", "다시 시도"), ui.action.refresh(), {
+    id: "refresh-project",
+    icon: "arrow.clockwise",
+  });
+  if (failure === "tools") {
+    return ui.vstack([
+      ui.banner(
+        t(
+          "Git comes with Apple's Command Line Tools. Run xcode-select --install in Terminal, then try again.",
+          "Git은 Apple Command Line Tools에 들어 있습니다. 터미널에서 xcode-select --install을 실행한 뒤 다시 시도하세요.",
+        ),
+        { title: t("Install Command Line Tools", "Command Line Tools 설치"), tone: "warning" },
+      ),
+      ui.hstack([
+        ui.button(
+          t("Copy Install Command", "설치 명령 복사"),
+          ui.action.copyText("xcode-select --install", { toast: t("Copied", "복사됨") }),
+          { id: "copy-clt", icon: "doc.on.doc" },
+        ),
+        retry,
+      ], { spacing: 6 }),
+    ], { id: "project-status-error", spacing: 8 });
+  }
+  const [title, message] = failure === "missing"
+    ? [
+      t("Folder not found", "폴더를 찾을 수 없음"),
+      t(
+        "The project folder was moved or deleted. Choose it again in the widget settings.",
+        "프로젝트 폴더가 옮겨졌거나 삭제되었습니다. 위젯 설정에서 다시 고르세요.",
+      ),
+    ]
+    : failure === "notRepo"
+    ? [
+      t("Not a Git repository", "Git 저장소가 아님"),
+      t(
+        "Choose the folder that contains the project's .git in the widget settings.",
+        "위젯 설정에서 .git이 들어 있는 프로젝트 폴더를 고르세요.",
+      ),
+    ]
+    : [
+      t("Unable to read repository", "저장소를 읽을 수 없음"),
+      t("git status failed. Try again, or check the folder in Terminal.", "git status가 실패했습니다. 다시 시도하거나 터미널에서 폴더를 확인하세요."),
+    ];
+  return ui.vstack([
+    ui.banner(message, { title, tone: "warning" }),
+    ui.hstack(failure === "missing" ? [retry] : [finder, retry], { spacing: 6 }),
+  ], { id: "project-status-error", spacing: 8 });
+}
+
+/** Menu bar text: the branch, clipped so a dirty count still fits 14 characters. */
+function menuBarLabel(branch: string, dirtyFiles: number): string {
+  const clip = (text: string, limit: number) =>
+    text.length > limit ? `${text.slice(0, limit - 1)}…` : text;
+  return dirtyFiles === 0 ? clip(branch, 14) : `${clip(branch, 9)} • ${dirtyFiles}`;
+}
+
 function setupView(message: string): UINode {
   return ui.vstack([
     ui.empty({
@@ -141,60 +231,39 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
     return;
   }
 
+  // Without the Command Line Tools every /usr/bin/git call asks macOS to
+  // offer the install, so once that is known only an explicit Refresh (the
+  // Try Again button) runs git again.
+  if (toolsMissing && ctx.reason !== "manual") {
+    await ctx.render(failureView("tools", directory), {
+      status: { label: "—", tooltip: directoryName(directory) },
+      sensitive: true,
+    });
+    return;
+  }
+  const git = (args: string[]): Promise<GitRun> =>
+    ctx.exec.run({
+      command: "/usr/bin/git",
+      args: ["-C", directory, ...args],
+      parse: "text",
+      timeoutMs: 5_000,
+      sensitive: true,
+    }).then(
+      (result) => ({ exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr }),
+      (error) => ({ exitCode: -1, stdout: "", stderr: error instanceof Error ? error.message : String(error) }),
+    );
   const [statusResult, commitResult, remoteResult] = await Promise.all([
-    ctx.exec.run({
-      command: "/usr/bin/git",
-      args: [
-        "-C",
-        directory,
-        "status",
-        "--porcelain=v2",
-        "--branch",
-        "--untracked-files=normal",
-      ],
-      parse: "text",
-      timeoutMs: 5_000,
-      sensitive: true,
-    }),
-    ctx.exec.run({
-      command: "/usr/bin/git",
-      args: ["-C", directory, "log", "-1", "--format=%h%x1f%s%x1f%ct"],
-      parse: "text",
-      timeoutMs: 5_000,
-      sensitive: true,
-    }),
-    ctx.exec.run({
-      command: "/usr/bin/git",
-      args: ["-C", directory, "remote", "get-url", "origin"],
-      parse: "text",
-      timeoutMs: 5_000,
-      sensitive: true,
-    }),
+    git(["status", "--porcelain=v2", "--branch", "--untracked-files=normal"]),
+    git(["log", "-1", "--format=%h%x1f%s%x1f%ct"]),
+    git(["remote", "get-url", "origin"]),
   ]);
 
+  toolsMissing = statusResult.exitCode !== 0 && gitFailure(statusResult.stderr) === "tools";
   if (statusResult.exitCode !== 0) {
-    await ctx.render(
-      ui.vstack([
-        ui.banner(
-          t(
-            "The selected directory is unavailable or is not a Git repository.",
-            "선택한 폴더를 열 수 없거나 Git 저장소가 아닙니다.",
-          ),
-          {
-            title: t("Unable to read repository", "저장소를 읽을 수 없음"),
-            tone: "warning",
-          },
-        ),
-        ui.button(
-          t("Open in Finder", "Finder에서 열기"),
-          ui.action.openFile(directory),
-          {
-            icon: "folder",
-          },
-        ),
-      ], { id: "project-status-error", spacing: 8 }),
-      { sensitive: true },
-    );
+    await ctx.render(failureView(gitFailure(statusResult.stderr), directory), {
+      status: { label: "—", tooltip: directoryName(directory) },
+      sensitive: true,
+    });
     return;
   }
 
@@ -267,8 +336,12 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
       ], { spacing: 6 }),
       ui.stat(t("Upstream", "업스트림"), syncText, {
         icon: "arrow.up.arrow.down",
-        caption: status.upstream ??
-          t(
+        caption: status.upstream
+          ? t(
+            `${status.upstream} · as of the last fetch`,
+            `${status.upstream} · 마지막 fetch 기준`,
+          )
+          : t(
             "This branch is not tracking a remote branch.",
             "이 브랜치는 원격 브랜치를 추적하지 않습니다.",
           ),
@@ -301,9 +374,7 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
     ], { id: "project-status-root", spacing: 8 }),
     {
       status: {
-        label: clean
-          ? status.branch
-          : `${status.branch} • ${status.dirtyFiles}`,
+        label: menuBarLabel(status.branch, status.dirtyFiles),
         tooltip: `${directoryName(directory)} · ${
           clean ? t("clean", "깨끗함") : changedText
         }`,

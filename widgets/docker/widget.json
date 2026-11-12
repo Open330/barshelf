@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.docker",
   "name": "Docker",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "minHostVersion": "0.7.21",
   "icon": "shippingbox.fill",
   "bucket": {
@@ -66,7 +66,12 @@
       "No containers running": "실행 중인 컨테이너 없음",
       "Containers you start show up here.": "컨테이너를 실행하면 여기에 나타납니다.",
       "Search containers": "컨테이너 검색",
-      "Copied": "복사됨"
+      "Copied": "복사됨",
+      "Open Docker Desktop": "Docker Desktop 열기",
+      "Open OrbStack": "OrbStack 열기",
+      "Try Again": "다시 시도",
+      "Get Docker Desktop": "Docker Desktop 받기",
+      "Get OrbStack": "OrbStack 받기"
     }
   }
 }

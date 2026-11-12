@@ -2,29 +2,64 @@
   "$schema": "https://barshelf.jiun.dev/schema/workflow-0.1.json",
   "schemaVersion": 1,
   "kind": "workflow",
-  "_comment": "Recent GitHub Actions runs through the gh CLI. `runs` is the list; `branch` is the latest completed run on the watched branch, which drives the menu bar and the alerts. A cancelled or skipped run is no reading (null), so it neither raises nor clears the failing state.",
-
+  "_comment": "Recent GitHub Actions runs through the gh CLI. `runs` is the list; `branch` is the latest completed run on the watched branch, which drives the menu bar and the alerts. A cancelled or skipped run is no reading (null), so it neither raises nor clears the failing state. Both sources are optional (BarShelf 0.7.32): gh missing, not signed in, offline or an unknown repository read as errors.<id> and the card says what to do instead of printing gh's stderr; a failed refresh is no reading for the alerts. No repository is set by default, so the card asks for one rather than watching somebody else's.",
   "sources": {
     "runs": {
       "use": "exec",
       "with": {
-        "command": ["gh", "run", "list", "-R", "${settings.repo}", "--limit", "8", "--json", "databaseId,name,displayTitle,status,conclusion,headBranch,event,createdAt,url"],
-        "discover": ["/opt/homebrew/bin/gh", "/usr/local/bin/gh", "PATH"],
+        "command": [
+          "gh",
+          "run",
+          "list",
+          "-R",
+          "${settings.repo}",
+          "--limit",
+          "8",
+          "--json",
+          "databaseId,name,displayTitle,status,conclusion,headBranch,event,createdAt,url"
+        ],
+        "discover": [
+          "/opt/homebrew/bin/gh",
+          "/usr/local/bin/gh",
+          "PATH"
+        ],
         "timeoutMs": 20000
-      }
+      },
+      "optional": true
     },
     "branch": {
       "use": "exec",
       "with": {
-        "command": ["gh", "run", "list", "-R", "${settings.repo}", "--branch", "${settings.branch}", "--status", "completed", "--limit", "1", "--json", "databaseId,name,displayTitle,conclusion,headBranch,createdAt,url"],
-        "discover": ["/opt/homebrew/bin/gh", "/usr/local/bin/gh", "PATH"],
+        "command": [
+          "gh",
+          "run",
+          "list",
+          "-R",
+          "${settings.repo}",
+          "--branch",
+          "${settings.branch}",
+          "--status",
+          "completed",
+          "--limit",
+          "1",
+          "--json",
+          "databaseId,name,displayTitle,conclusion,headBranch,createdAt,url"
+        ],
+        "discover": [
+          "/opt/homebrew/bin/gh",
+          "/usr/local/bin/gh",
+          "PATH"
+        ],
         "timeoutMs": 20000
-      }
+      },
+      "optional": true
     }
   },
-
   "transforms": {
-    "ko": { "use": "assign", "from": "or(eq(coalesce(widget.locale, ''), 'ko'), or(eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko-…'), eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko_…')))" },
+    "ko": {
+      "use": "assign",
+      "from": "or(eq(coalesce(widget.locale, ''), 'ko'), or(eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko-…'), eq(text.truncate(coalesce(widget.locale, ''), 3), 'ko_…')))"
+    },
     "rows": {
       "use": "template",
       "with": {
@@ -41,17 +76,67 @@
         }
       }
     },
-    "last": { "use": "assign", "from": "$.sources.branch.0" },
-    "lastFailing": { "use": "assign", "from": "if(eq(transforms.last, null), null, switch(transforms.last.conclusion, 'success', false, 'failure', true, 'timed_out', true, 'startup_failure', true, null))" },
-    "lastPassing": { "use": "assign", "from": "if(eq(transforms.last, null), null, switch(transforms.last.conclusion, 'success', true, 'failure', false, 'timed_out', false, 'startup_failure', false, null))" },
-    "lastWord": { "use": "assign", "from": "if(eq(transforms.last, null), '', if(transforms.ko, switch(transforms.last.conclusion, 'success', '통과', 'failure', '실패', 'timed_out', '시간 초과', 'startup_failure', '실패', 'cancelled', '취소됨', 'skipped', '건너뜀', '—'), switch(transforms.last.conclusion, 'success', 'Passing', 'failure', 'Failing', 'timed_out', 'Timed out', 'startup_failure', 'Failing', 'cancelled', 'Cancelled', 'skipped', 'Skipped', '—')))" },
-    "lastTint": { "use": "assign", "from": "if(eq(transforms.lastFailing, true), 'danger', if(eq(transforms.lastPassing, true), 'good', 'secondary'))" },
-    "lastIcon": { "use": "assign", "from": "if(eq(transforms.lastFailing, true), 'xmark.circle.fill', if(eq(transforms.lastPassing, true), 'checkmark.circle.fill', 'circle.dashed'))" },
-    "failTitle": { "use": "assign", "from": "if(transforms.ko, concat(settings.repo, ' ', settings.branch, ' 빌드 실패'), concat(settings.repo, ' ', settings.branch, ' is failing'))" },
-    "failBody": { "use": "assign", "from": "concat(coalesce(transforms.last.name, ''), ': ', coalesce(transforms.last.displayTitle, ''))" },
-    "okTitle": { "use": "assign", "from": "if(transforms.ko, concat(settings.repo, ' ', settings.branch, ' 다시 통과'), concat(settings.repo, ' ', settings.branch, ' is passing again'))" }
+    "last": {
+      "use": "assign",
+      "from": "$.sources.branch.0"
+    },
+    "lastFailing": {
+      "use": "assign",
+      "from": "if(or(transforms.failed, eq(transforms.last, null)), null, switch(transforms.last.conclusion, 'success', false, 'failure', true, 'timed_out', true, 'startup_failure', true, null))"
+    },
+    "lastPassing": {
+      "use": "assign",
+      "from": "if(or(transforms.failed, eq(transforms.last, null)), null, switch(transforms.last.conclusion, 'success', true, 'failure', false, 'timed_out', false, 'startup_failure', false, null))"
+    },
+    "lastWord": {
+      "use": "assign",
+      "from": "if(eq(transforms.last, null), '', if(transforms.ko, switch(transforms.last.conclusion, 'success', '통과', 'failure', '실패', 'timed_out', '시간 초과', 'startup_failure', '실패', 'cancelled', '취소됨', 'skipped', '건너뜀', '—'), switch(transforms.last.conclusion, 'success', 'Passing', 'failure', 'Failing', 'timed_out', 'Timed out', 'startup_failure', 'Failing', 'cancelled', 'Cancelled', 'skipped', 'Skipped', '—')))"
+    },
+    "lastTint": {
+      "use": "assign",
+      "from": "if(eq(transforms.lastFailing, true), 'danger', if(eq(transforms.lastPassing, true), 'good', 'secondary'))"
+    },
+    "lastIcon": {
+      "use": "assign",
+      "from": "if(eq(transforms.lastFailing, true), 'xmark.circle.fill', if(eq(transforms.lastPassing, true), 'checkmark.circle.fill', 'circle.dashed'))"
+    },
+    "failTitle": {
+      "use": "assign",
+      "from": "if(transforms.ko, concat(settings.repo, ' ', settings.branch, ' 빌드 실패'), concat(settings.repo, ' ', settings.branch, ' is failing'))"
+    },
+    "failBody": {
+      "use": "assign",
+      "from": "concat(coalesce(transforms.last.name, ''), ': ', coalesce(transforms.last.displayTitle, ''))"
+    },
+    "okTitle": {
+      "use": "assign",
+      "from": "if(transforms.ko, concat(settings.repo, ' ', settings.branch, ' 다시 통과'), concat(settings.repo, ' ', settings.branch, ' is passing again'))"
+    },
+    "hasRepo": {
+      "use": "assign",
+      "from": "ne(string(coalesce(settings.repo, '')), '')"
+    },
+    "failKind": {
+      "use": "assign",
+      "from": "coalesce(errors.runs.kind, errors.branch.kind, 'ok')"
+    },
+    "failed": {
+      "use": "assign",
+      "from": "ne(transforms.failKind, 'ok')"
+    },
+    "errorText": {
+      "use": "assign",
+      "from": "string(coalesce(errors.runs.message, errors.branch.message, ''))"
+    },
+    "state": {
+      "use": "assign",
+      "from": "if(not(transforms.hasRepo), 'setup', if(transforms.failed, transforms.failKind, if(eq(count(transforms.rows), 0), 'none', 'list')))"
+    },
+    "failWord": {
+      "use": "assign",
+      "from": "if(not(transforms.hasRepo), if(transforms.ko, '저장소 없음', 'No repo'), if(transforms.ko, switch(transforms.failKind, 'auth', '로그인 필요', 'notFound', 'gh 없음', 'offline', '오프라인', 'rateLimited', '요청 제한', 'timeout', '응답 없음', '오류'), switch(transforms.failKind, 'auth', 'Sign in', 'notFound', 'No gh', 'offline', 'Offline', 'rateLimited', 'Rate limited', 'timeout', 'No answer', 'Error')))"
+    }
   },
-
   "view": {
     "type": "vstack",
     "spacing": 8,
@@ -59,67 +144,459 @@
       {
         "type": "hstack",
         "spacing": 6,
-        "action": { "type": "openURL", "url": "https://github.com/${settings.repo}/actions" },
-        "children": [
-          { "type": "image", "source": { "kind": "sfSymbol", "name": "${transforms.lastIcon}" }, "size": 14, "tint": "${transforms.lastTint}" },
-          { "type": "text", "text": "${settings.repo}", "role": "body", "lineLimit": 1, "truncation": "middle" },
-          { "type": "spacer" },
-          { "type": "badge", "text": "${settings.branch} ${transforms.lastWord}", "tint": "${transforms.lastTint}" }
-        ]
-      },
-      { "type": "divider" },
-      {
-        "switch": "${if(eq(count(transforms.rows), 0), 'none', 'some')}",
-        "cases": {
-          "none": { "type": "empty", "icon": "bolt.horizontal.circle", "title": "No workflow runs", "subtitle": "This repository has no Actions runs yet." }
+        "action": {
+          "type": "openURL",
+          "url": "${if(transforms.hasRepo, concat('https://github.com/', settings.repo, '/actions'), 'https://github.com')}"
         },
-        "default": {
-          "type": "list",
-          "spacing": 2,
-          "items": {
-            "forEach": "$.transforms.rows",
-            "as": "row",
-            "template": {
-              "type": "hstack",
-              "id": "${row.id}",
-              "spacing": 8,
-              "action": { "type": "openURL", "url": "${row.url}" },
-              "children": [
-                { "type": "image", "source": { "kind": "sfSymbol", "name": "${row.icon}" }, "size": 14, "tint": "${row.tint}" },
-                {
-                  "type": "vstack",
-                  "spacing": 1,
-                  "widthFill": true,
-                  "children": [
-                    { "type": "text", "text": "${row.title}", "role": "body", "lineLimit": 1 },
-                    { "type": "text", "text": "${row.detail}", "role": "caption", "foreground": "secondary", "lineLimit": 1 }
-                  ]
+        "children": [
+          {
+            "type": "image",
+            "source": {
+              "kind": "sfSymbol",
+              "name": "${transforms.lastIcon}"
+            },
+            "size": 14,
+            "tint": "${transforms.lastTint}"
+          },
+          {
+            "type": "text",
+            "text": "${if(transforms.hasRepo, settings.repo, 'GitHub Actions')}",
+            "role": "body",
+            "lineLimit": 1,
+            "truncation": "middle"
+          },
+          {
+            "type": "spacer"
+          },
+          {
+            "type": "badge",
+            "text": "${if(or(transforms.failed, not(transforms.hasRepo)), transforms.failWord, concat(settings.branch, ' ', transforms.lastWord))}",
+            "tint": "${if(or(transforms.failed, not(transforms.hasRepo)), 'secondary', transforms.lastTint)}"
+          }
+        ],
+        "hidden": "${not(transforms.hasRepo)}"
+      },
+      {
+        "type": "divider",
+        "hidden": "${not(transforms.hasRepo)}"
+      },
+      {
+        "switch": "${transforms.state}",
+        "cases": {
+          "setup": {
+            "type": "empty",
+            "icon": "gearshape",
+            "title": "Set a repository in Settings",
+            "subtitle": "Enter owner/name, for example cli/cli, and the branch to watch."
+          },
+          "none": {
+            "type": "empty",
+            "icon": "bolt.horizontal.circle",
+            "title": "No workflow runs",
+            "subtitle": "This repository has no Actions runs yet."
+          },
+          "auth": {
+            "type": "vstack",
+            "spacing": 8,
+            "children": [
+              {
+                "type": "hstack",
+                "spacing": 8,
+                "children": [
+                  {
+                    "type": "image",
+                    "source": {
+                      "kind": "sfSymbol",
+                      "name": "person.crop.circle.badge.exclamationmark"
+                    },
+                    "size": 22,
+                    "tint": "warning"
+                  },
+                  {
+                    "type": "vstack",
+                    "spacing": 2,
+                    "widthFill": true,
+                    "children": [
+                      {
+                        "type": "text",
+                        "text": "Sign in to GitHub CLI",
+                        "role": "body",
+                        "lineLimit": 2
+                      },
+                      {
+                        "type": "text",
+                        "text": "Run gh auth login in Terminal, then try again.",
+                        "role": "caption",
+                        "foreground": "secondary",
+                        "lineLimit": 3
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "hstack",
+                "spacing": 6,
+                "children": [
+                  {
+                    "type": "button",
+                    "title": "Copy gh auth login",
+                    "icon": "doc.on.doc",
+                    "action": {
+                      "type": "copyText",
+                      "value": "gh auth login",
+                      "toast": "Copied"
+                    }
+                  },
+                  {
+                    "type": "button",
+                    "title": "Try Again",
+                    "icon": "arrow.clockwise",
+                    "action": {
+                      "type": "refresh"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "notFound": {
+            "type": "vstack",
+            "spacing": 8,
+            "children": [
+              {
+                "type": "hstack",
+                "spacing": 8,
+                "children": [
+                  {
+                    "type": "image",
+                    "source": {
+                      "kind": "sfSymbol",
+                      "name": "terminal"
+                    },
+                    "size": 22,
+                    "tint": "warning"
+                  },
+                  {
+                    "type": "vstack",
+                    "spacing": 2,
+                    "widthFill": true,
+                    "children": [
+                      {
+                        "type": "text",
+                        "text": "GitHub CLI isn’t installed",
+                        "role": "body",
+                        "lineLimit": 2
+                      },
+                      {
+                        "type": "text",
+                        "text": "Install gh (Homebrew: brew install gh), sign in with gh auth login, then try again.",
+                        "role": "caption",
+                        "foreground": "secondary",
+                        "lineLimit": 3
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "hstack",
+                "spacing": 6,
+                "children": [
+                  {
+                    "type": "button",
+                    "title": "Get GitHub CLI",
+                    "icon": "arrow.down.circle",
+                    "action": {
+                      "type": "openURL",
+                      "url": "https://cli.github.com"
+                    }
+                  },
+                  {
+                    "type": "button",
+                    "title": "Try Again",
+                    "icon": "arrow.clockwise",
+                    "action": {
+                      "type": "refresh"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "offline": {
+            "type": "vstack",
+            "spacing": 8,
+            "children": [
+              {
+                "type": "hstack",
+                "spacing": 8,
+                "children": [
+                  {
+                    "type": "image",
+                    "source": {
+                      "kind": "sfSymbol",
+                      "name": "wifi.slash"
+                    },
+                    "size": 22,
+                    "tint": "warning"
+                  },
+                  {
+                    "type": "vstack",
+                    "spacing": 2,
+                    "widthFill": true,
+                    "children": [
+                      {
+                        "type": "text",
+                        "text": "You’re offline",
+                        "role": "body",
+                        "lineLimit": 2
+                      },
+                      {
+                        "type": "text",
+                        "text": "Runs come back when this Mac is online again.",
+                        "role": "caption",
+                        "foreground": "secondary",
+                        "lineLimit": 3
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "rateLimited": {
+            "type": "vstack",
+            "spacing": 8,
+            "children": [
+              {
+                "type": "hstack",
+                "spacing": 8,
+                "children": [
+                  {
+                    "type": "image",
+                    "source": {
+                      "kind": "sfSymbol",
+                      "name": "hourglass"
+                    },
+                    "size": 22,
+                    "tint": "warning"
+                  },
+                  {
+                    "type": "vstack",
+                    "spacing": 2,
+                    "widthFill": true,
+                    "children": [
+                      {
+                        "type": "text",
+                        "text": "GitHub is limiting requests",
+                        "role": "body",
+                        "lineLimit": 2
+                      },
+                      {
+                        "type": "text",
+                        "text": "Trying again on the next refresh.",
+                        "role": "caption",
+                        "foreground": "secondary",
+                        "lineLimit": 3
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "timeout": {
+            "type": "vstack",
+            "spacing": 8,
+            "children": [
+              {
+                "type": "hstack",
+                "spacing": 8,
+                "children": [
+                  {
+                    "type": "image",
+                    "source": {
+                      "kind": "sfSymbol",
+                      "name": "clock.badge.exclamationmark"
+                    },
+                    "size": 22,
+                    "tint": "warning"
+                  },
+                  {
+                    "type": "vstack",
+                    "spacing": 2,
+                    "widthFill": true,
+                    "children": [
+                      {
+                        "type": "text",
+                        "text": "GitHub didn’t answer in time",
+                        "role": "body",
+                        "lineLimit": 2
+                      },
+                      {
+                        "type": "text",
+                        "text": "Trying again on the next refresh.",
+                        "role": "caption",
+                        "foreground": "secondary",
+                        "lineLimit": 3
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "hstack",
+                "spacing": 6,
+                "children": [
+                  {
+                    "type": "button",
+                    "title": "Try Again",
+                    "icon": "arrow.clockwise",
+                    "action": {
+                      "type": "refresh"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "list": {
+            "type": "list",
+            "spacing": 2,
+            "items": {
+              "forEach": "$.transforms.rows",
+              "as": "row",
+              "template": {
+                "type": "hstack",
+                "id": "${row.id}",
+                "spacing": 8,
+                "action": {
+                  "type": "openURL",
+                  "url": "${row.url}"
                 },
-                { "type": "text", "text": "${row.word}", "role": "caption", "foreground": "${row.tint}", "lineLimit": 1 }
-              ]
+                "children": [
+                  {
+                    "type": "image",
+                    "source": {
+                      "kind": "sfSymbol",
+                      "name": "${row.icon}"
+                    },
+                    "size": 14,
+                    "tint": "${row.tint}"
+                  },
+                  {
+                    "type": "vstack",
+                    "spacing": 1,
+                    "widthFill": true,
+                    "children": [
+                      {
+                        "type": "text",
+                        "text": "${row.title}",
+                        "role": "body",
+                        "lineLimit": 1
+                      },
+                      {
+                        "type": "text",
+                        "text": "${row.detail}",
+                        "role": "caption",
+                        "foreground": "secondary",
+                        "lineLimit": 1
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "text": "${row.word}",
+                    "role": "caption",
+                    "foreground": "${row.tint}",
+                    "lineLimit": 1
+                  }
+                ]
+              }
             }
           }
+        },
+        "default": {
+          "type": "vstack",
+          "spacing": 8,
+          "children": [
+            {
+              "type": "hstack",
+              "spacing": 8,
+              "children": [
+                {
+                  "type": "image",
+                  "source": {
+                    "kind": "sfSymbol",
+                    "name": "exclamationmark.triangle"
+                  },
+                  "size": 22,
+                  "tint": "warning"
+                },
+                {
+                  "type": "vstack",
+                  "spacing": 2,
+                  "widthFill": true,
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "gh couldn’t list the runs",
+                      "role": "body",
+                      "lineLimit": 2
+                    },
+                    {
+                      "type": "text",
+                      "text": "Check the repository in the widget settings.",
+                      "role": "caption",
+                      "foreground": "secondary",
+                      "lineLimit": 3
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "hstack",
+              "spacing": 6,
+              "children": [
+                {
+                  "type": "button",
+                  "title": "Try Again",
+                  "icon": "arrow.clockwise",
+                  "action": {
+                    "type": "refresh"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "text": "${transforms.errorText}",
+              "role": "caption",
+              "foreground": "tertiary",
+              "lineLimit": 2
+            }
+          ]
         }
       }
     ]
   },
-
   "status": {
-    "label": "${transforms.lastWord}",
+    "label": "${if(or(transforms.failed, not(transforms.hasRepo)), '—', transforms.lastWord)}",
     "icon": "${transforms.lastIcon}",
     "tint": "${if(eq(transforms.lastFailing, true), 'danger', '')}",
-    "tooltip": "${settings.repo} ${settings.branch}: ${transforms.lastWord}"
+    "tooltip": "${if(or(transforms.failed, not(transforms.hasRepo)), concat('GitHub Actions: ', transforms.failWord), concat(settings.repo, ' ', settings.branch, ': ', transforms.lastWord))}"
   },
-
   "alerts": {
     "failing": {
-      "when": "${transforms.lastFailing}",
+      "when": "${if(coalesce(settings.alertOnFailure, true), transforms.lastFailing, null)}",
       "title": "${transforms.failTitle}",
       "body": "${transforms.failBody}",
       "cooldownSec": 900
     },
     "recovered": {
-      "when": "${transforms.lastPassing}",
+      "when": "${if(coalesce(settings.alertOnFailure, true), transforms.lastPassing, null)}",
       "title": "${transforms.okTitle}",
       "body": "${transforms.failBody}",
       "cooldownSec": 900

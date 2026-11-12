@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.site-monitor",
   "name": "Site Monitor",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "minHostVersion": "0.7.21",
   "icon": "antenna.radiowaves.left.and.right",
   "bucket": {
@@ -46,7 +46,10 @@
       }
     ],
     "storage": true,
-    "notifications": true
+    "notifications": true,
+    "system": [
+      "network"
+    ]
   },
   "settings": [
     {
@@ -70,6 +73,12 @@
       "min": 2,
       "max": 30,
       "default": 10
+    },
+    {
+      "key": "alertOnSlow",
+      "type": "boolean",
+      "title": "Notify when it gets slow",
+      "default": false
     }
   ],
   "appearance": {
@@ -83,7 +92,10 @@
       "Give up after (seconds)": "제한 시간 (초)",
       "Enter an http:// or https:// address in the widget settings.": "위젯 설정에 http:// 또는 https:// 주소를 입력하세요.",
       "HTTP ${string(transforms.code)} · response time": "HTTP ${string(transforms.code)} · 응답 시간",
-      "Down since ${date.clock(transforms.downSince)}": "${date.clock(transforms.downSince)}부터 응답 없음"
+      "Down since ${date.clock(transforms.downSince)}": "${date.clock(transforms.downSince)}부터 응답 없음",
+      "Notify when it gets slow": "느려지면 알림",
+      "You’re offline": "오프라인 상태",
+      "This Mac has no connection, so the site isn’t counted as down.": "이 Mac이 연결되어 있지 않아 사이트를 다운으로 보지 않습니다."
     }
   }
 }

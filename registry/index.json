@@ -38,7 +38,7 @@
       "accent": "blue",
       "name": "Recent Files",
       "description": "Stashbar-style recent files with a Grid/List view toggle and adjustable thumbnail size. QuickLook thumbnails that drag out to Finder/apps and open on click. Inspired by https://github.com/jiunbae/stashbar.",
-      "version": "0.1.2",
+      "version": "0.2.0",
       "author": "barshelf",
       "icon": "square.grid.2x2",
       "kind": "workflow",
@@ -63,7 +63,8 @@
         "keychain": false,
         "notifications": false
       },
-      "homepage": "https://github.com/jiunbae/stashbar"
+      "homepage": "https://github.com/jiunbae/stashbar",
+      "minHostVersion": "0.7.32"
     },
     {
       "id": "dev.menubucket.stashbar-recent-files",
@@ -299,8 +300,8 @@
       "id": "dev.barshelf.downloads-new",
       "accent": "green",
       "name": "Downloads",
-      "description": "Counts files in a folder and shows how many were added or removed since your last check, persisting the count across refreshes with the workflow storage layer.",
-      "version": "0.1.3",
+      "description": "What arrived in a folder (Downloads by default) since you last marked it as seen, with the newest files as thumbnails to open, drag or reveal in Finder. Watches the folder, and the menu bar can show the new-file count.",
+      "version": "0.2.0",
       "author": "barshelf",
       "icon": "arrow.down.circle.fill",
       "kind": "workflow",
@@ -326,7 +327,8 @@
         "keychain": false,
         "notifications": false
       },
-      "homepage": "https://github.com/Open330/barshelf"
+      "homepage": "https://github.com/Open330/barshelf",
+      "minHostVersion": "0.7.32"
     },
     {
       "id": "dev.barshelf.github-status",
@@ -759,7 +761,7 @@
       "accent": "purple",
       "name": "Project Status",
       "description": "A glanceable Git repository dashboard: branch, working-tree changes, ahead/behind state, latest commit, Finder, and remote links.",
-      "version": "0.1.2",
+      "version": "0.2.0",
       "author": "barshelf",
       "icon": "point.3.connected.trianglepath.dotted",
       "kind": "script",
@@ -822,8 +824,8 @@
       "id": "dev.barshelf.clipboard-shelf",
       "accent": "purple",
       "name": "Clipboard Shelf",
-      "description": "A privacy-first, memory-only clipboard history with search, re-copy, pin, delete, secret detection, and redacted caching.",
-      "version": "0.1.2",
+      "description": "A privacy-first clipboard history that keeps collecting every 5 seconds while the popup is closed (optional), with search, re-copy, pin, delete, secret detection and redacted caching. Only pinned items are kept on disk.",
+      "version": "0.2.0",
       "author": "barshelf",
       "icon": "clipboard.fill",
       "kind": "script",
@@ -856,7 +858,7 @@
       "accent": "blue",
       "name": "Developer Inbox",
       "description": "GitHub review requests and unread notifications in one private, actionable inbox with dedicated setup, empty, and partial-failure states.",
-      "version": "0.1.2",
+      "version": "0.2.0",
       "author": "barshelf",
       "icon": "tray.full.fill",
       "kind": "script",
@@ -877,11 +879,10 @@
       },
       "permissions": {
         "exec": [
-          "/opt/homebrew/bin/gh",
-          "/usr/local/bin/gh"
+          "gh"
         ],
         "keychain": false,
-        "notifications": false
+        "notifications": true
       },
       "homepage": "https://github.com/Open330/barshelf"
     },
@@ -1022,8 +1023,8 @@
       "id": "dev.barshelf.homebrew-updates",
       "accent": "orange",
       "name": "Homebrew Updates",
-      "description": "Outdated Homebrew formulae and casks with installed → current versions, a count for the menu bar, and a one-click copy of the upgrade command.",
-      "version": "0.1.0",
+      "description": "Outdated Homebrew formulae and casks with installed → current versions, a count for the menu bar, a one-click copy of the upgrade command, and an optional notification when updates appear.",
+      "version": "0.2.0",
       "author": "barshelf",
       "icon": "mug",
       "kind": "workflow",
@@ -1047,7 +1048,7 @@
           "/bin/sh"
         ],
         "keychain": false,
-        "notifications": false
+        "notifications": true
       },
       "homepage": "https://github.com/Open330/barshelf",
       "minHostVersion": "0.7.21"
@@ -1085,8 +1086,8 @@
       "id": "dev.barshelf.github-actions",
       "accent": "green",
       "name": "GitHub Actions",
-      "description": "Recent GitHub Actions runs for one repository with status colors; click a run to open it. The menu bar shows the watched branch's latest result, with notifications when it starts failing and when it passes again.",
-      "version": "0.1.0",
+      "description": "Recent GitHub Actions runs for a repository you choose, with status colors; click a run to open it. The menu bar shows the watched branch's latest result, with optional notifications when it starts failing and when it passes again. Tells you when gh is missing or signed out.",
+      "version": "0.2.0",
       "author": "barshelf",
       "icon": "bolt.horizontal.circle.fill",
       "kind": "workflow",
@@ -1111,14 +1112,14 @@
         "notifications": true
       },
       "homepage": "https://github.com/Open330/barshelf",
-      "minHostVersion": "0.7.21"
+      "minHostVersion": "0.7.32"
     },
     {
       "id": "dev.barshelf.site-monitor",
       "accent": "blue",
       "name": "Site Monitor",
-      "description": "Checks one http(s) URL with curl: up or down, response time, and why it failed. The menu bar shows milliseconds or \"down\", with notifications when the site goes down and when it recovers.",
-      "version": "0.1.0",
+      "description": "Checks one http(s) URL with curl: up or down, response time, and why it failed. The menu bar shows milliseconds or \"down\", with notifications when the site goes down and when it recovers (and, optionally, when it gets slow). A Mac that is itself offline is not counted as down.",
+      "version": "0.2.0",
       "author": "barshelf",
       "icon": "antenna.radiowaves.left.and.right",
       "kind": "workflow",
@@ -1139,7 +1140,10 @@
           "/bin/sh"
         ],
         "keychain": false,
-        "notifications": true
+        "notifications": true,
+        "system": [
+          "network"
+        ]
       },
       "homepage": "https://github.com/Open330/barshelf",
       "minHostVersion": "0.7.21"
@@ -1149,7 +1153,7 @@
       "accent": "blue",
       "name": "Docker",
       "description": "Running containers (optionally stopped ones too) with image, status and ports from the Docker CLI; works with Docker Desktop, OrbStack, Colima or Rancher Desktop. The menu bar can show the running count.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "author": "barshelf",
       "icon": "shippingbox.fill",
       "kind": "workflow",
@@ -1210,8 +1214,8 @@
       "id": "dev.barshelf.kubernetes",
       "accent": "blue",
       "name": "Kubernetes",
-      "description": "kubectl's current context and the pods in one namespace: phase counts, ready count, and every pod that isn't ready with its reason and restarts. Optional notification when pods stay not ready past a grace period.",
-      "version": "0.1.0",
+      "description": "The pods of a kubectl context (yours or one you set) in one namespace or all of them: phase counts, ready count, and every pod that isn't ready with its reason and restarts. Lapsed cluster credentials, a missing kubectl or an unreachable cluster read as a short message with the fix. Optional notification when pods stay not ready past a grace period.",
+      "version": "0.2.0",
       "author": "barshelf",
       "icon": "square.stack.3d.up.fill",
       "kind": "workflow",
@@ -1236,14 +1240,14 @@
         "notifications": true
       },
       "homepage": "https://kubernetes.io/",
-      "minHostVersion": "0.7.21"
+      "minHostVersion": "0.7.32"
     },
     {
       "id": "dev.barshelf.bitwarden",
       "accent": "blue",
       "name": "Bitwarden",
       "description": "Unlock your Bitwarden vault from the card, search items and copy a username, password or verification code (cleared from the clipboard after 30 s). BarShelf's built-in provider keeps only the session, in memory, and locks after 10 minutes without use, an hour at most, on screen lock and sleep. Tick Touch ID once and it reopens with your finger for 8 hours. Sign out of BarShelf's Bitwarden sign-in from the card. Also shows lock state and last sync.",
-      "version": "0.5.0",
+      "version": "0.5.1",
       "author": "barshelf",
       "icon": "lock.shield.fill",
       "kind": "workflow",

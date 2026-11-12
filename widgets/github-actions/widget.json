@@ -3,8 +3,8 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.github-actions",
   "name": "GitHub Actions",
-  "version": "0.1.0",
-  "minHostVersion": "0.7.21",
+  "version": "0.2.0",
+  "minHostVersion": "0.7.32",
   "icon": "bolt.horizontal.circle.fill",
   "bucket": {
     "group": "Developer",
@@ -69,13 +69,19 @@
       "key": "repo",
       "type": "string",
       "title": "Repository (owner/name)",
-      "default": "Open330/barshelf"
+      "default": ""
     },
     {
       "key": "branch",
       "type": "string",
       "title": "Branch to watch",
       "default": "main"
+    },
+    {
+      "key": "alertOnFailure",
+      "type": "boolean",
+      "title": "Notify when the branch fails or recovers",
+      "default": true
     }
   ],
   "appearance": {
@@ -87,7 +93,25 @@
       "Repository (owner/name)": "저장소 (소유자/이름)",
       "Branch to watch": "지켜볼 브랜치",
       "No workflow runs": "워크플로 실행 없음",
-      "This repository has no Actions runs yet.": "이 저장소에는 아직 Actions 실행 기록이 없습니다."
+      "This repository has no Actions runs yet.": "이 저장소에는 아직 Actions 실행 기록이 없습니다.",
+      "Notify when the branch fails or recovers": "브랜치 빌드가 실패하거나 복구되면 알림",
+      "Set a repository in Settings": "설정에서 저장소를 지정하세요",
+      "Enter owner/name, for example cli/cli, and the branch to watch.": "소유자/이름(예: cli/cli)과 지켜볼 브랜치를 입력하세요.",
+      "Sign in to GitHub CLI": "GitHub CLI에 로그인하세요",
+      "Run gh auth login in Terminal, then try again.": "터미널에서 gh auth login을 실행한 뒤 다시 시도하세요.",
+      "Copy gh auth login": "gh auth login 복사",
+      "Copied": "복사됨",
+      "Try Again": "다시 시도",
+      "GitHub CLI isn’t installed": "GitHub CLI가 설치되어 있지 않음",
+      "Install gh (Homebrew: brew install gh), sign in with gh auth login, then try again.": "gh를 설치하고(Homebrew: brew install gh) gh auth login으로 로그인한 뒤 다시 시도하세요.",
+      "Get GitHub CLI": "GitHub CLI 받기",
+      "You’re offline": "오프라인 상태",
+      "Runs come back when this Mac is online again.": "Mac이 다시 온라인이 되면 실행 기록이 돌아옵니다.",
+      "GitHub is limiting requests": "GitHub이 요청을 제한하고 있음",
+      "Trying again on the next refresh.": "다음 새로 고침 때 다시 시도합니다.",
+      "GitHub didn’t answer in time": "GitHub이 제때 응답하지 않음",
+      "gh couldn’t list the runs": "gh가 실행 목록을 가져오지 못함",
+      "Check the repository in the widget settings.": "위젯 설정에서 저장소를 확인하세요."
     }
   }
 }

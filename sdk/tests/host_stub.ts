@@ -27,7 +27,7 @@ export const host = {
   /** Answers `exec.run`; throw to fail the command. */
   exec: (
     _call: ExecCall,
-  ): { stdout: string; exitCode?: number; json?: unknown } => {
+  ): { stdout: string; stderr?: string; exitCode?: number; json?: unknown } => {
     throw new Error("no exec answer set");
   },
   reset(): void {
@@ -58,7 +58,7 @@ const exec: typeof sdk.exec = {
     const answer = host.exec(call);
     return {
       stdout: answer.stdout,
-      stderr: "",
+      stderr: answer.stderr ?? "",
       exitCode: answer.exitCode ?? 0,
       json: answer.json,
       durationMs: 1,

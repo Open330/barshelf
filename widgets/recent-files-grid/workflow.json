@@ -1,8 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "workflow",
-  "_comment": "Stashbar-style recent files with a Grid/List view toggle (a `switch` on settings.viewMode) and an adjustable thumbnail size. Tiles/rows drag out to Finder and open on click.",
-
+  "_comment": "Stashbar-style recent files with a Grid/List view toggle (a `switch` on settings.viewMode) and an adjustable thumbnail size. Tiles/rows drag out to Finder and open on click; list rows also reveal in Finder. The folder setting is a directory picker: the folder picked there is readable by this widget in addition to ~/Downloads. The source is optional (BarShelf 0.7.32), so a folder that was moved or deleted says so instead of failing the card.",
   "sources": {
     "files": {
       "use": "fs.directory",
@@ -13,10 +12,10 @@
         "sortBy": "modifiedAt",
         "sortDirection": "descending",
         "limit": "${settings.limit}"
-      }
+      },
+      "optional": true
     }
   },
-
   "view": {
     "type": "vstack",
     "spacing": 0,
@@ -26,78 +25,173 @@
         "spacing": 8,
         "padding": 10,
         "children": [
-          { "type": "text", "text": "${file.basename(settings.folder)}", "role": "title", "lineLimit": 1 },
-          { "type": "spacer" },
-          { "type": "text", "text": "${count(sources.files.items)} files", "role": "caption", "foreground": "secondary" }
+          {
+            "type": "text",
+            "text": "${file.basename(settings.folder)}",
+            "role": "title",
+            "lineLimit": 1
+          },
+          {
+            "type": "spacer"
+          },
+          {
+            "type": "text",
+            "text": "${transforms.countText} files",
+            "role": "caption",
+            "foreground": "secondary"
+          }
         ]
       },
-      { "type": "divider" },
       {
-        "switch": "${settings.viewMode}",
+        "type": "divider"
+      },
+      {
+        "switch": "${if(transforms.missing, 'missing', if(eq(transforms.n, 0), 'empty', 'files'))}",
         "cases": {
-          "List": {
-            "type": "list",
-            "spacing": 2,
-            "padding": 6,
-            "items": {
-              "forEach": "$.sources.files.items",
-              "as": "file",
-              "template": {
-                "type": "hstack",
-                "id": "row-${file.path}",
-                "spacing": 8,
+          "missing": {
+            "type": "empty",
+            "icon": "questionmark.folder",
+            "title": "Folder not found",
+            "subtitle": "${file.basename(settings.folder)} was moved or deleted. Pick another folder in the widget settings."
+          },
+          "empty": {
+            "type": "empty",
+            "icon": "square.grid.2x2",
+            "title": "No files",
+            "subtitle": "Files added to this folder appear here."
+          },
+          "files": {
+            "switch": "${settings.viewMode}",
+            "cases": {
+              "List": {
+                "type": "list",
+                "spacing": 2,
                 "padding": 6,
-                "drag": { "filePath": "${file.path}" },
-                "action": { "type": "openFile", "path": "${file.path}" },
-                "children": [
-                  { "type": "image", "source": { "kind": "fileThumbnail", "path": "${file.path}", "modifiedAt": "${file.modifiedAt}" }, "size": "${settings.thumbSize}" },
-                  {
-                    "type": "vstack",
-                    "spacing": 2,
-                    "widthFill": true,
+                "items": {
+                  "forEach": "$.transforms.items",
+                  "as": "file",
+                  "template": {
+                    "type": "hstack",
+                    "id": "row-${file.path}",
+                    "spacing": 8,
+                    "padding": 6,
+                    "drag": {
+                      "filePath": "${file.path}"
+                    },
+                    "action": {
+                      "type": "openFile",
+                      "path": "${file.path}"
+                    },
                     "children": [
-                      { "type": "text", "text": "${file.name}", "role": "body", "lineLimit": 1 },
-                      { "type": "text", "text": "${date.relative(file.modifiedAt)}", "role": "caption", "foreground": "tertiary" }
+                      {
+                        "type": "image",
+                        "source": {
+                          "kind": "fileThumbnail",
+                          "path": "${file.path}",
+                          "modifiedAt": "${file.modifiedAt}"
+                        },
+                        "size": "${settings.thumbSize}"
+                      },
+                      {
+                        "type": "vstack",
+                        "spacing": 2,
+                        "widthFill": true,
+                        "children": [
+                          {
+                            "type": "text",
+                            "text": "${file.name}",
+                            "role": "body",
+                            "lineLimit": 1
+                          },
+                          {
+                            "type": "text",
+                            "text": "${date.relative(file.modifiedAt)}",
+                            "role": "caption",
+                            "foreground": "tertiary"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "button",
+                        "icon": "magnifyingglass",
+                        "accessibilityLabel": "Show in Finder",
+                        "action": {
+                          "type": "revealFile",
+                          "path": "${file.path}"
+                        }
+                      }
                     ]
                   }
-                ]
+                }
               }
-            }
-          }
-        },
-        "default": {
-          "type": "grid",
-          "spacing": 10,
-          "padding": 10,
-          "size": "${add(settings.thumbSize, 22)}",
-          "items": {
-            "forEach": "$.sources.files.items",
-            "as": "file",
-            "template": {
-              "type": "vstack",
-              "spacing": 4,
-              "id": "tile-${file.path}",
-              "drag": { "filePath": "${file.path}" },
-              "action": { "type": "openFile", "path": "${file.path}" },
-              "children": [
-                { "type": "image", "source": { "kind": "fileThumbnail", "path": "${file.path}", "modifiedAt": "${file.modifiedAt}" }, "size": "${settings.thumbSize}" },
-                { "type": "text", "text": "${file.name}", "role": "caption", "lineLimit": 1 }
-              ]
+            },
+            "default": {
+              "type": "grid",
+              "spacing": 10,
+              "padding": 10,
+              "size": "${add(settings.thumbSize, 22)}",
+              "items": {
+                "forEach": "$.transforms.items",
+                "as": "file",
+                "template": {
+                  "type": "vstack",
+                  "spacing": 4,
+                  "id": "tile-${file.path}",
+                  "drag": {
+                    "filePath": "${file.path}"
+                  },
+                  "action": {
+                    "type": "openFile",
+                    "path": "${file.path}"
+                  },
+                  "children": [
+                    {
+                      "type": "image",
+                      "source": {
+                        "kind": "fileThumbnail",
+                        "path": "${file.path}",
+                        "modifiedAt": "${file.modifiedAt}"
+                      },
+                      "size": "${settings.thumbSize}"
+                    },
+                    {
+                      "type": "text",
+                      "text": "${file.name}",
+                      "role": "caption",
+                      "lineLimit": 1
+                    }
+                  ]
+                }
+              }
             }
           }
         }
       }
     ]
   },
-
-  "empty": {
-    "type": "empty",
-    "icon": "square.grid.2x2",
-    "title": "No files",
-    "subtitle": "Files added to this folder appear here."
-  },
-
   "status": {
-    "tooltip": "${count(sources.files.items)} files in ${file.basename(settings.folder)}"
+    "tooltip": "${transforms.countText} files in ${file.basename(settings.folder)}"
+  },
+  "transforms": {
+    "items": {
+      "use": "assign",
+      "from": "$.sources.files.items"
+    },
+    "n": {
+      "use": "assign",
+      "from": "count(transforms.items)"
+    },
+    "capped": {
+      "use": "assign",
+      "from": "and(gt(transforms.n, 0), gte(transforms.n, coalesce(settings.limit, 24)))"
+    },
+    "countText": {
+      "use": "assign",
+      "from": "if(transforms.capped, concat(string(transforms.n), '+'), string(transforms.n))"
+    },
+    "missing": {
+      "use": "assign",
+      "from": "ne(errors.files, null)"
+    }
   }
 }

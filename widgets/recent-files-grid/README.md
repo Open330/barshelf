@@ -8,7 +8,8 @@ Inspired by [Stashbar](https://github.com/jiunbae/stashbar).
 
 - The folder name and how many files are listed.
 - The newest files first, with real QuickLook thumbnails.
-- Grid tiles or list rows with names and dates, whichever you pick.
+- Grid tiles or list rows with names and dates, whichever you pick. List
+  rows also have a magnifying glass that reveals the file in Finder.
 
 The widget watches the folder, so a new download appears without waiting for
 the next refresh.
@@ -24,4 +25,6 @@ the next refresh.
 
 ## Permissions
 
-The widget asks for read access to the chosen folder. Hidden files are skipped.
+The widget asks for read access to `~/Downloads`; a folder you pick in the
+**Folder** setting is readable too, without another prompt. Hidden files are
+skipped. A folder that was moved or deleted is reported as such.

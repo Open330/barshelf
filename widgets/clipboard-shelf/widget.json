@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.clipboard-shelf",
   "name": "Clipboard Shelf",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "icon": "clipboard.fill",
   "bucket": { "group": "Everyday", "order": 40, "size": "M" },
 
@@ -38,6 +38,12 @@
       "default": 8
     },
     {
+      "key": "collectInBackground",
+      "type": "boolean",
+      "title": "Keep collecting while the popup is closed",
+      "default": true
+    },
+    {
       "key": "clearAfterSec",
       "type": "integer",
       "title": "Clear clipboard after re-copy (seconds, 0 = never)",
@@ -57,7 +63,8 @@
     "ko": {
       "Clipboard Shelf": "클립보드 선반",
       "History items": "기록 항목 수",
-      "Clear clipboard after re-copy (seconds, 0 = never)": "다시 복사한 뒤 클립보드 지우기(초, 0 = 지우지 않음)"
+      "Clear clipboard after re-copy (seconds, 0 = never)": "다시 복사한 뒤 클립보드 지우기(초, 0 = 지우지 않음)",
+      "Keep collecting while the popup is closed": "팝업이 닫혀 있어도 계속 수집"
     }
   }
 }
