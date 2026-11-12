@@ -11,14 +11,27 @@
 # it will replace anything, so a release that clients would silently refuse
 # fails here instead.
 #
-#   scripts/verify-release.sh v0.2.0
+#   scripts/verify-release.sh v0.2.0           the published assets
+#   scripts/verify-release.sh v0.2.0 --tap     … and the Homebrew tap
+#
+# The tap is a separate check because it cannot pass when the release is
+# published: Open330/homebrew-tap's sync-upstream picks a release up later
+# (daily, or when dispatched). Checking both in the release-event run made
+# that run fail on every release, so it stopped being read. Run it with
+# --tap (or CHECK_TAP=1) after the sync.
 #
 # EXPECTED_TEAM (optional): fail unless the assets are signed by this Team ID.
 set -euo pipefail
 
 TAG=${1:-}
+CHECK_TAP=${CHECK_TAP:-0}
+case "${2:-}" in
+  "") ;;
+  --tap) CHECK_TAP=1 ;;
+  *) echo "usage: scripts/verify-release.sh <tag> [--tap]" >&2; exit 2 ;;
+esac
 if [[ -z "${TAG}" ]]; then
-  echo "usage: scripts/verify-release.sh <tag>   (e.g. v0.2.0)" >&2
+  echo "usage: scripts/verify-release.sh <tag> [--tap]   (e.g. v0.2.0)" >&2
   exit 2
 fi
 VERSION=${TAG#v}
@@ -104,9 +117,12 @@ ok "Gatekeeper accepts the app"
 
 # The desktop widget extension (0.6.0+). Signed on its own, inside-out: a
 # `--deep` signature would give it the app's entitlements instead of its
-# sandbox, and macOS would never show it in the widget gallery.
+# sandbox, and macOS would never show it in the widget gallery. Required:
+# every release since 0.6.0 ships it, and a build without it (BUILD_WIDGETS=0
+# left in a shell) silently drops desktop widgets for everyone who updates.
 EXTENSION="${APP}/Contents/PlugIns/BarShelfWidgets.appex"
-if [[ -d "${EXTENSION}" ]]; then
+[[ -d "${EXTENSION}" ]] || fail "the app has no widget extension (Contents/PlugIns/BarShelfWidgets.appex)"
+{
   EXT_INFO=$(codesign -dv --verbose=2 "${EXTENSION}" 2>&1)
   [[ "$(sed -n 's/^TeamIdentifier=//p' <<<"${EXT_INFO}")" == "${TEAM}" ]] \
     || fail "the widget extension is not signed by team ${TEAM}"
@@ -120,7 +136,7 @@ if [[ -d "${EXTENSION}" ]]; then
   codesign -d --entitlements :- "${APP}" 2>/dev/null | grep -q "${TEAM}.com.barshelf.shared" \
     || fail "the app does not share the App Group with its widget extension"
   ok "widget extension is signed, sandboxed, and shares the App Group"
-fi
+}
 
 # --- CLI -------------------------------------------------------------------
 # `barshelf upgrade` extracts these two by member name from the root of the
@@ -140,6 +156,13 @@ for binary in barshelf bsf; do
     || fail "${binary} reports ${CLI_VERSION}, not ${VERSION} (stale upload?)"
 done
 ok "both CLI binaries are signed, pinned, and report ${VERSION}"
+
+if [[ "${CHECK_TAP}" != "1" ]]; then
+  echo
+  echo "${TAG} verified: a Mac will install this."
+  echo "(Homebrew tap not checked; after the tap syncs, run again with --tap.)"
+  exit 0
+fi
 
 # --- Homebrew tap ----------------------------------------------------------
 # The cask and the formula live in Open330/homebrew-tap, and a release that

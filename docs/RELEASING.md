@@ -39,6 +39,19 @@
 `scripts/release.sh`는 fail-closed다. 위 조건이 없으면 공개 릴리스를 만들지
 않는다. 로컬 패키징만 필요하면
 `VERSION=X.Y.Z NOTARIZE=0 ALLOW_UNNOTARIZED=1 SIGN_IDENTITY=- bash scripts/release.sh`.
+CI가 `main`에 머지될 때마다 이 경로(릴리스 구성 빌드와 위젯 확장 포함)를
+돌리므로, 태그를 만들기 전에 패키징이 깨졌는지 알 수 있다.
+
+공개 릴리스 경로는 몇 가지를 더 강제한다:
+
+- 버전은 `X.Y.Z`만 받는다. 끝나면 다음 패치를 열어야 하는데 `0.7.36-rc1`에는
+  다음 패치가 없다(예전에는 `RELEASED_VERSION`을 쓴 뒤에야 거기서 멈췄다).
+- `BUILD_WIDGETS`·`BUILD_CONFIGURATION`·`BUNDLE_IDENTIFIER`·`WIDGETS_DIR`·
+  `APP_STORE_BUILD`·`OUTPUT_DIR` 같은 `build_app.sh` 설정은 공개 릴리스 값으로
+  고정한다. 셸에 다른 값이 남아 있으면 멈추고 무엇을 풀지 알려 준다.
+- 번들에 위젯 확장이 없으면 멈춘다.
+- 다음 패치로 올리는 세 줄은 빌드 전에 있는지 보고, 바꾼 뒤 정말 바뀌었는지
+  다시 본다(`sed`는 아무것도 못 바꿔도 성공한다).
 
 ## 버전 규칙
 
@@ -117,17 +130,23 @@
      dist/release/SHA256SUMS --prerelease \
      --title "BarShelf X.Y.Z" --notes-file dist/release/RELEASE_NOTES.md
    ```
-8. **검증한다.** CI의 `Verify Release` 워크플로가 릴리스 게시 시 자동으로 돌고,
-   수동으로도 돌릴 수 있다:
+8. **검증한다.** CI의 `Verify Release` 워크플로가 릴리스 게시 시 자동으로 돌아
+   **자산만** 검사한다. 로컬에서도 같다:
 
    ```bash
    bash scripts/verify-release.sh vX.Y.Z
    ```
 
    체크섬, 번들 버전이 태그와 일치하는지, 더티 트리에서 빌드되지 않았는지,
-   서명·공증·Gatekeeper, 그리고 **자가 업데이터가 요구하는 Developer ID
+   서명·공증·Gatekeeper, 데스크톱 위젯 확장(`BarShelfWidgets.appex`)이 들어
+   있고 제대로 서명됐는지, 그리고 **자가 업데이터가 요구하는 Developer ID
    요구문**까지 확인한다. 마지막 항목이 실패하면 모든 클라이언트가 그 업데이트를
    거부한다.
+
+   Homebrew 탭은 여기서 보지 않는다. 탭은 게시 뒤에야 따라오므로(10번), 게시
+   시점에 함께 검사하면 매번 실패한다 — 실제로 0.7.5부터 모든 실행이 실패하거나
+   취소됐고(0.7.13부터는 `macos-14` 러너가 배정되지 않아 첫 단계 전에 취소),
+   그래서 아무도 결과를 보지 않았다. 탭 검사는 10번에서 따로 한다.
 9. 자가 업데이터의 수락 경로를 확인한다. **0.2.0에서는 건너뛴다** — 0.1.3에는
    Install and Relaunch 버튼 자체가 없어서(그 버전의 업데이터는 릴리스 페이지를
    열 뿐이다) 아무도 0.2.0으로 자가 업데이트할 수 없고, 따라서 잘못된 자동
@@ -140,7 +159,12 @@
    `open330/homebrew-tap`의 `sync-upstream` 워크플로가 하루 한 번 돌며
    cask와 `barshelf-cli` formula를 여기에 맞춘다. 즉시 반영하려면
    `gh workflow run sync-upstream.yml --repo Open330/homebrew-tap`.
-   8번의 `verify-release.sh`가 뒤처진 탭을 실패로 잡는다.
+   탭이 따라온 뒤 탭까지 검사한다 — 뒤처진 탭은 여기서 실패로 잡힌다:
+
+   ```bash
+   bash scripts/verify-release.sh vX.Y.Z --tap
+   # 또는 CI에서: gh workflow run verify-release.yml -f tag=vX.Y.Z
+   ```
 11. 이제 문서의 버전 문구를 갱신한다 — `README.md`, `docs/INSTALL.md`,
     `site/index.html`. 갱신된 cask와 함께 커밋한다.
 12. `python3 scripts/check-release-versions.py`가 통과하는지 확인한다. 통과하지

@@ -34,6 +34,41 @@ if [[ "${ARCH}" != "arm64" ]]; then
 fi
 
 if [[ "${NOTARIZE}" == "1" ]]; then
+  # A public release opens the next patch when it is done, so its version
+  # has to be one that has a next patch. `0.7.36-rc1` used to pass the check
+  # above and then stop the script at the arithmetic, after RELEASED_VERSION
+  # had already been written.
+  if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "error: a public release needs a plain X.Y.Z version: ${VERSION}" >&2
+    exit 1
+  fi
+  NEXT_VERSION="${VERSION%.*}.$(( 10#${VERSION##*.} + 1 ))"
+  # The lines the bump rewrites must exist before anything is built, not be
+  # found missing afterwards.
+  grep -q '^APP_VERSION=${APP_VERSION:-.*}$' "${PROJECT_ROOT}/scripts/build_app.sh" \
+    || { echo "error: no APP_VERSION default line in scripts/build_app.sh to bump" >&2; exit 1; }
+  grep -q '^    public static let version = ".*"$' "${PROJECT_ROOT}/Sources/BarShelfCLI/BarShelfKit/BarShelfMain.swift" \
+    || { echo "error: no version line in BarShelfMain.swift to bump" >&2; exit 1; }
+  head -n 1 "${PROJECT_ROOT}/RELEASE_NOTES.md" | grep -q '^# BarShelf ' \
+    || { echo "error: RELEASE_NOTES.md does not start with '# BarShelf …'" >&2; exit 1; }
+
+  # What ships is the full app, whatever the shell says. These are build_app.sh
+  # knobs for local and App Store builds; inherited by accident (BUILD_WIDGETS=0
+  # left over from a quick build), they would publish a bundle without the
+  # desktop widget extension or under another identity.
+  for pinned in "BUILD_WIDGETS=1" "BUILD_CONFIGURATION=release" "BUNDLE_IDENTIFIER=com.barshelf.app" \
+                "WIDGETS_DIR=${PROJECT_ROOT}/widgets" "APP_STORE_BUILD=0" "OUTPUT_DIR=${DIST_DIR}" \
+                "PRODUCT_NAME=barshelf-app" "EXECUTABLE_NAME=barshelf-app"; do
+    name=${pinned%%=*}
+    want=${pinned#*=}
+    if [[ -n "${!name:-}" && "${!name}" != "${want}" ]]; then
+      echo "error: ${name}=${!name} is set in this shell; a public release is built with ${name}=${want}." >&2
+      echo "       Unset it (unset ${name}) and run again." >&2
+      exit 1
+    fi
+    export "${name}=${want}"
+  done
+
   if [[ -z "${SIGN_IDENTITY:-}" || "${SIGN_IDENTITY}" == "-" ]]; then
     echo "error: a Developer ID Application SIGN_IDENTITY is required" >&2
     exit 1
@@ -93,6 +128,11 @@ fi
 # stale binaries, and APP_VERSION must exactly match the requested release.
 APP_VERSION="${VERSION}" SIGN_IDENTITY="${SIGN_IDENTITY}" \
   bash "${PROJECT_ROOT}/scripts/build_app.sh"
+
+if [[ "${NOTARIZE}" == "1" && ! -d "${APP_BUNDLE_PATH}/Contents/PlugIns/BarShelfWidgets.appex" ]]; then
+  echo "error: the bundle has no widget extension (Contents/PlugIns/BarShelfWidgets.appex)" >&2
+  exit 1
+fi
 
 BUNDLE_VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' \
   "${APP_BUNDLE_PATH}/Contents/Info.plist")
@@ -225,7 +265,6 @@ if [[ "${NOTARIZE}" == "1" ]]; then
   # upgrade` answers "up to date" to anyone running it. That happened three
   # times in one afternoon — each caught by CI, which is the wrong place to
   # catch a thing a script can simply do.
-  NEXT_VERSION="${VERSION%.*}.$(( ${VERSION##*.} + 1 ))"
   /usr/bin/sed -i '' \
     -e "s/^APP_VERSION=\${APP_VERSION:-.*}$/APP_VERSION=\${APP_VERSION:-${NEXT_VERSION}}/" \
     "${PROJECT_ROOT}/scripts/build_app.sh"
@@ -235,6 +274,13 @@ if [[ "${NOTARIZE}" == "1" ]]; then
   /usr/bin/sed -i '' \
     -e "1s/^# BarShelf .*$/# BarShelf ${NEXT_VERSION}/" \
     "${PROJECT_ROOT}/RELEASE_NOTES.md"
+  # sed succeeds when nothing matched; check each file says the new version.
+  grep -qx "APP_VERSION=\${APP_VERSION:-${NEXT_VERSION}}" "${PROJECT_ROOT}/scripts/build_app.sh" \
+    || { echo "error: build_app.sh was not moved to ${NEXT_VERSION}" >&2; exit 1; }
+  grep -qx "    public static let version = \"${NEXT_VERSION}\"" "${PROJECT_ROOT}/Sources/BarShelfCLI/BarShelfKit/BarShelfMain.swift" \
+    || { echo "error: BarShelfMain.swift was not moved to ${NEXT_VERSION}" >&2; exit 1; }
+  [[ "$(head -n 1 "${PROJECT_ROOT}/RELEASE_NOTES.md")" == "# BarShelf ${NEXT_VERSION}" ]] \
+    || { echo "error: RELEASE_NOTES.md was not moved to ${NEXT_VERSION}" >&2; exit 1; }
   echo "Opened ${NEXT_VERSION} in build_app.sh, BarShelfMain.swift and RELEASE_NOTES.md"
 else
   echo "Skipped recording the released version for a local unnotarized package"
