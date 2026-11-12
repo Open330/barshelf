@@ -2369,8 +2369,14 @@ final class WidgetRuntime: ObservableObject {
         scheduler.setMonitoringWidgetIDs(alertMonitoringIDs)
     }
 
-    private func checkNativeRefresh(_ widget: LoadedWidget, token: NativeRefreshGate.Token) throws {
-        guard nativeRefreshMayContinue(widget, token: token) else { throw CancellationError() }
+    /// Refreshes run off the main actor; the gate, the preferences and the
+    /// permission store are main-actor state. Reading them from the refresh's
+    /// own thread raced with the main thread changing them (a crash in
+    /// `Dictionary` lookup under `NativeRefreshGate.isCurrent`), so the check
+    /// goes to the main actor.
+    private func checkNativeRefresh(_ widget: LoadedWidget, token: NativeRefreshGate.Token) async throws {
+        let mayContinue = await MainActor.run { self.nativeRefreshMayContinue(widget, token: token) }
+        guard mayContinue else { throw CancellationError() }
     }
 
     /// Script widgets: ensure the resident process runs and (re)send
@@ -2452,7 +2458,10 @@ final class WidgetRuntime: ObservableObject {
         permission: Manifest.ExecPermission,
         token: NativeRefreshGate.Token
     ) async -> Result<RefreshSuccess, Error> {
-        guard nativeRefreshMayContinue(widget, token: token) else { return .failure(CancellationError()) }
+        // Off the main actor here; see `checkNativeRefresh`.
+        guard await MainActor.run(body: { self.nativeRefreshMayContinue(widget, token: token) }) else {
+            return .failure(CancellationError())
+        }
         auditLog.record("exec.run", widgetId: widget.id, detail: [
             "command": .string(
                 permission.sensitiveOutput == true
@@ -2474,7 +2483,7 @@ final class WidgetRuntime: ObservableObject {
         case let .success(data):
             do {
                 // An adapter may run more commands of its own.
-                try checkNativeRefresh(widget, token: token)
+                try await checkNativeRefresh(widget, token: token)
                 if source.output == "data" {
                     guard let adapterName = source.adapter else {
                         throw RuntimeError.missingAdapter("source.output is \"data\" but no adapter is set")
@@ -2685,7 +2694,7 @@ final class WidgetRuntime: ObservableObject {
             var sourceErrors: [String: JSONValue] = [:]
             for (sourceID, source) in definition.sources {
                 // Each source runs after the previous one's suspension.
-                try checkNativeRefresh(widget, token: token)
+                try await checkNativeRefresh(widget, token: token)
                 let value = params[sourceID] ?? .object([:])
                 do {
                 switch source.use {
@@ -2707,7 +2716,7 @@ final class WidgetRuntime: ObservableObject {
                         )
                     }
                     sourceValues[sourceID] = listing.value
-                    try checkNativeRefresh(widget, token: token)
+                    try await checkNativeRefresh(widget, token: token)
                     if fsParams.watch {
                         registerWorkflowWatch(widgetID: widget.id, directory: listing.directory)
                     }
@@ -2731,7 +2740,7 @@ final class WidgetRuntime: ObservableObject {
                         ])
                         throw error
                     }
-                    try checkNativeRefresh(widget, token: token)
+                    try await checkNativeRefresh(widget, token: token)
                 case "exec":
                     sourceValues[sourceID] = try await runWorkflowExecSource(
                         widget: widget, params: value
@@ -2769,7 +2778,7 @@ final class WidgetRuntime: ObservableObject {
                 }
             }
 
-            try checkNativeRefresh(widget, token: token)
+            try await checkNativeRefresh(widget, token: token)
             let output = try WorkflowEngine.evaluate(
                 definition, sources: sourceValues, settings: settings,
                 storage: storageSnapshot, widget: widgetContext, errors: sourceErrors
@@ -2780,7 +2789,7 @@ final class WidgetRuntime: ObservableObject {
             // notifications and is still allowed when macOS answers.
             alertStates.reconcile(widgetID: widget.id, alertIDs: Set(output.alerts.map(\.id)))
             if !output.alerts.isEmpty, widget.manifest.permissions?.notifications == true {
-                try checkNativeRefresh(widget, token: token)
+                try await checkNativeRefresh(widget, token: token)
                 let firing = alertStates.record(
                     widgetID: widget.id, samples: output.alerts, nowMs: Date().timeIntervalSince1970 * 1000
                 )
