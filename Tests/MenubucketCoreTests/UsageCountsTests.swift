@@ -121,11 +121,12 @@ final class UsageCountsTests: XCTestCase {
         let url = tempDir.appendingPathComponent("usage.json")
         let store = UsageStore(fileURL: url, calendar: calendar, writeDelay: 0.05)
         store.record(.popupOpen)
-        let written = expectation(description: "written")
-        DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) {
-            if FileManager.default.fileExists(atPath: url.path) { written.fulfill() }
+        // Polls instead of looking once at 0.5 s, which a busy runner can miss.
+        let deadline = Date().addingTimeInterval(10)
+        while !FileManager.default.fileExists(atPath: url.path), Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.01)
         }
-        wait(for: [written], timeout: 2)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path), "the batched write happens without a flush")
     }
 
     func testDamagedFileLoadsEmpty() throws {

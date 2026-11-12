@@ -45,7 +45,7 @@ final class RuntimeSupervisorTests: XCTestCase {
                 secrets: InMemorySecretStore(), locale: { input }), events: RuntimeSupervisorEvents())
             try await supervisor.load(ScriptWidgetDescriptor(manifest: makeManifest(), directory: tempDir), reason: "manual")
             var received: JSONValue?
-            let deadline = Date().addingTimeInterval(5)
+            let deadline = Date().addingTimeInterval(15)
             while received == nil, Date() < deadline {
                 if let data = try? Data(contentsOf: request) { received = try? JSONDecoder().decode(JSONValue.self, from: data) }
                 if received == nil { try await Task.sleep(nanoseconds: 10_000_000) }
@@ -178,7 +178,7 @@ final class RuntimeSupervisorTests: XCTestCase {
         ))
         let original = ScriptWidgetDescriptor(manifest: manifest, directory: tempDir, revision: "original")
         try await supervisor.load(original, reason: "manual")
-        let deadline = Date().addingTimeInterval(5)
+        let deadline = Date().addingTimeInterval(15)
         while !(await latch.entered), Date() < deadline {
             try await Task.sleep(nanoseconds: 10_000_000)
         }
@@ -241,7 +241,7 @@ final class RuntimeSupervisorTests: XCTestCase {
         store.reset(widgetId: manifest.id)
         try Data().write(to: trigger)
         var lines: [String] = []
-        let deadline = Date().addingTimeInterval(5)
+        let deadline = Date().addingTimeInterval(15)
         while Date() < deadline {
             lines = (try? String(contentsOf: responses, encoding: .utf8))?.split(separator: "\n").map(String.init) ?? []
             if lines.count == 6 { break }
@@ -273,7 +273,7 @@ final class RuntimeSupervisorTests: XCTestCase {
         store.approve(manifest)
         let started = tempDir.appendingPathComponent("command-started")
         let witness = tempDir.appendingPathComponent("command-must-not-finish")
-        let command = "printf started > \(started.path); /bin/sleep 1; printf escaped > \(witness.path)"
+        let command = "printf '%s' $$ > \(started.path); /bin/sleep 1; printf escaped > \(witness.path)"
         let request = JsonRpcRequest(id: .number(1), method: ScriptMethod.hostExecRun, params: .object([
             "command": .string("/bin/sh"), "args": .array([.string("-c"), .string(command)])
         ]))
@@ -293,14 +293,21 @@ final class RuntimeSupervisorTests: XCTestCase {
         ), events: RuntimeSupervisorEvents())
         let widget = ScriptWidgetDescriptor(manifest: manifest, directory: tempDir)
         try await supervisor.load(widget, reason: "manual")
-        let deadline = Date().addingTimeInterval(5)
+        let deadline = Date().addingTimeInterval(15)
         while !FileManager.default.fileExists(atPath: started.path), Date() < deadline {
             try await Task.sleep(nanoseconds: 10_000_000)
         }
         XCTAssertTrue(FileManager.default.fileExists(atPath: started.path))
+        let commandPID = try XCTUnwrap(Int32(String(contentsOf: started, encoding: .utf8)))
         store.reset(widgetId: manifest.id)
         await supervisor.stop(widgetId: widget.id)
-        try await Task.sleep(nanoseconds: 1_300_000_000)
+        // The command writes the witness only after its 1 s sleep; once its
+        // shell is gone it never can. Wait for that instead of for 1.3 s.
+        let goneDeadline = Date().addingTimeInterval(15)
+        while kill(commandPID, 0) == 0, Date() < goneDeadline {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertNotEqual(kill(commandPID, 0), 0, "revocation must stop commands already started by a resident script")
         XCTAssertFalse(FileManager.default.fileExists(atPath: witness.path), "revocation must stop commands already started by a resident script")
         let running = await supervisor.isRunning(widgetId: widget.id)
         XCTAssertFalse(running)
@@ -316,7 +323,7 @@ final class RuntimeSupervisorTests: XCTestCase {
         try (stubbornEncoded + "\n").write(to: requestFile, atomically: true, encoding: .utf8)
         store.approve(manifest)
         try await supervisor.load(widget, reason: "manual")
-        let secondDeadline = Date().addingTimeInterval(5)
+        let secondDeadline = Date().addingTimeInterval(15)
         while !FileManager.default.fileExists(atPath: started.path), Date() < secondDeadline {
             try await Task.sleep(nanoseconds: 10_000_000)
         }
@@ -353,7 +360,7 @@ final class RuntimeSupervisorTests: XCTestCase {
             }
         ), events: RuntimeSupervisorEvents())
         try await supervisor.load(ScriptWidgetDescriptor(manifest: manifest, directory: tempDir, revision: "old"), reason: "manual")
-        let deadline = Date().addingTimeInterval(5)
+        let deadline = Date().addingTimeInterval(15)
         while !(await latch.entered), Date() < deadline { try await Task.sleep(nanoseconds: 10_000_000) }
         let entered = await latch.entered
         XCTAssertTrue(entered)
@@ -403,12 +410,12 @@ final class RuntimeSupervisorTests: XCTestCase {
             var widget = original
             widget.revision = String(revision)
             try await supervisor.load(widget, reason: "manual")
-            let rendered = await capture.waitForCount(revision + 1, timeout: 3)
+            let rendered = await capture.waitForCount(revision + 1, timeout: 15)
             XCTAssertTrue(rendered)
         }
         let pids = capture.captured.compactMap(Int32.init)
         XCTAssertEqual(Set(pids).count, 4, "each package revision must launch a fresh process")
-        let deadline = Date().addingTimeInterval(5)
+        let deadline = Date().addingTimeInterval(15)
         while Date() < deadline, pids.dropLast().contains(where: { kill($0, 0) == 0 }) {
             try await Task.sleep(nanoseconds: 20_000_000)
         }
@@ -416,7 +423,7 @@ final class RuntimeSupervisorTests: XCTestCase {
         let running = await supervisor.isRunning(widgetId: original.id)
         XCTAssertTrue(running, "late termination must preserve the newest instance")
         await supervisor.stopAll()
-        let stopDeadline = Date().addingTimeInterval(5)
+        let stopDeadline = Date().addingTimeInterval(15)
         while Date() < stopDeadline, pids.contains(where: { kill($0, 0) == 0 }) {
             try await Task.sleep(nanoseconds: 20_000_000)
         }
@@ -447,7 +454,7 @@ final class RuntimeSupervisorTests: XCTestCase {
         let descriptor = ScriptWidgetDescriptor(manifest: try makeManifest(), directory: tempDir)
         await supervisor.setTimerActivity(allowing: widgetIDs)
         try await supervisor.load(descriptor, reason: "manual")
-        await fulfillment(of: [rendered], timeout: 3)
+        await fulfillment(of: [rendered], timeout: 15)
         XCTAssertEqual(capture.captured, ["timer-quota"])
         await supervisor.stopAll()
     }
@@ -470,7 +477,7 @@ final class RuntimeSupervisorTests: XCTestCase {
         let supervisor = RuntimeSupervisor(configuration: configuration, events: events)
         let descriptor = ScriptWidgetDescriptor(manifest: try makeManifest(), directory: tempDir)
         try await supervisor.load(descriptor, reason: "manual")
-        await fulfillment(of: [reported], timeout: 3)
+        await fulfillment(of: [reported], timeout: 15)
         await supervisor.stopAll()
     }
 
@@ -673,7 +680,7 @@ final class RuntimeSupervisorTests: XCTestCase {
     }
 
     private func waitForActivityTimerFile(_ name: String, count: Int) async throws -> Bool {
-        let deadline = Date().addingTimeInterval(3)
+        let deadline = Date().addingTimeInterval(15)
         while Date() < deadline {
             if activityTimerLines(name).count >= count { return true }
             try await Task.sleep(nanoseconds: 10_000_000)
@@ -688,7 +695,9 @@ final class RuntimeSupervisorTests: XCTestCase {
         let initialized = try await waitForActivityTimerFile("initialized", count: 1)
         XCTAssertTrue(initialized)
         XCTAssertEqual(activityTimerLines("errors"), [])
-        try await Task.sleep(nanoseconds: 1_300_000_000)
+        // Every timer is due within 400 ms (the repeat); twice that while
+        // paused proves none fires.
+        try await Task.sleep(nanoseconds: 800_000_000)
         XCTAssertEqual(activityTimerLines("ticks"), [])
         XCTAssertEqual(activityTimerLines("launches").count, 1)
 
@@ -722,7 +731,8 @@ final class RuntimeSupervisorTests: XCTestCase {
         try await supervisor.load(widget, reason: "open")
         let initialized = try await waitForActivityTimerFile("initialized", count: 1)
         XCTAssertTrue(initialized)
-        try await Task.sleep(nanoseconds: 1_300_000_000)
+        // Due within 400 ms; twice that while paused proves none respawns.
+        try await Task.sleep(nanoseconds: 800_000_000)
         let runningWhilePaused = await supervisor.isRunning(widgetId: widget.id)
         XCTAssertFalse(runningWhilePaused)
         XCTAssertEqual(activityTimerLines("launches").count, 1)

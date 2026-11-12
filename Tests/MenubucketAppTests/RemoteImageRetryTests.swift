@@ -123,7 +123,7 @@ final class RemoteImageRetryTests: XCTestCase {
             XCTAssertNil(image)
             failed.fulfill()
         }
-        wait(for: [failed], timeout: 1)
+        wait(for: [failed], timeout: 10)
         waitUntil { RemoteImageURLProtocol.stoppedRequests > 0 }
         XCTAssertGreaterThan(RemoteImageURLProtocol.stoppedRequests, 0)
     }
@@ -189,7 +189,7 @@ final class RemoteImageRetryTests: XCTestCase {
             XCTAssertNil(image, file: file, line: line)
             completed.fulfill()
         }
-        wait(for: [completed], timeout: 1)
+        wait(for: [completed], timeout: 10)
     }
 
     private func expectDiskHit(
@@ -203,7 +203,7 @@ final class RemoteImageRetryTests: XCTestCase {
             XCTAssertNotNil(image, file: file, line: line)
             completed.fulfill()
         }
-        wait(for: [completed], timeout: 1)
+        wait(for: [completed], timeout: 10)
     }
 
     func testFailureRetriesAfterTTLAndLoadsDiskCache() throws {
@@ -221,7 +221,7 @@ final class RemoteImageRetryTests: XCTestCase {
             XCTAssertNil(image)
             blocked.fulfill()
         }
-        wait(for: [blocked], timeout: 1)
+        wait(for: [blocked], timeout: 10)
 
         current = current.addingTimeInterval(RemoteImageService.failureDelay(attempt: 1) + 1)
         expectDiskHit(service, url: url)
@@ -282,7 +282,7 @@ final class RemoteImageRetryTests: XCTestCase {
             XCTAssertNil(image)
             failed.fulfill()
         })
-        wait(for: [failed], timeout: 1)
+        wait(for: [failed], timeout: 10)
         XCTAssertEqual(RemoteImageURLProtocol.requests.count, 1)
 
         let suppressed = expectation(description: "backoff avoids duplicate request")
@@ -290,7 +290,7 @@ final class RemoteImageRetryTests: XCTestCase {
             XCTAssertNil(image)
             suppressed.fulfill()
         })
-        wait(for: [suppressed], timeout: 1)
+        wait(for: [suppressed], timeout: 10)
         XCTAssertEqual(RemoteImageURLProtocol.requests.count, 1)
 
         RemoteImageURLProtocol.statusCode = 200
@@ -300,7 +300,7 @@ final class RemoteImageRetryTests: XCTestCase {
             XCTAssertNotNil(image)
             retried.fulfill()
         })
-        wait(for: [retried], timeout: 1)
+        wait(for: [retried], timeout: 10)
         XCTAssertEqual(RemoteImageURLProtocol.requests.count, 2)
     }
 
@@ -316,7 +316,7 @@ final class RemoteImageRetryTests: XCTestCase {
             XCTAssertNil(image)
             failed.fulfill()
         })
-        wait(for: [failed], timeout: 1)
+        wait(for: [failed], timeout: 10)
         XCTAssertEqual(RemoteImageURLProtocol.requests.count, 1)
         XCTAssertGreaterThan(RemoteImageURLProtocol.stoppedRequests, 0)
     }
@@ -339,7 +339,7 @@ final class RemoteImageRetryTests: XCTestCase {
             XCTAssertNil(image)
             first.fulfill()
         }
-        wait(for: [first], timeout: 1)
+        wait(for: [first], timeout: 10)
 
         current = current.addingTimeInterval(RemoteImageService.failureDelay(attempt: 1) + 1)
         let second = expectation(description: "second failure")
@@ -347,7 +347,7 @@ final class RemoteImageRetryTests: XCTestCase {
             XCTAssertNil(image)
             second.fulfill()
         }
-        wait(for: [second], timeout: 1)
+        wait(for: [second], timeout: 10)
         XCTAssertEqual(RemoteImageURLProtocol.requests.count, 2)
 
         // Sixteen seconds clears attempt 1's 15-second delay, but must not
@@ -358,7 +358,7 @@ final class RemoteImageRetryTests: XCTestCase {
             XCTAssertNil(image)
             suppressed.fulfill()
         }
-        wait(for: [suppressed], timeout: 1)
+        wait(for: [suppressed], timeout: 10)
         XCTAssertEqual(RemoteImageURLProtocol.requests.count, 2)
     }
 }

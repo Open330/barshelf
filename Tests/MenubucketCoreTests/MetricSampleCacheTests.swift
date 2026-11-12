@@ -2,16 +2,31 @@ import XCTest
 @testable import MenubucketCore
 
 final class MetricSampleCacheTests: XCTestCase {
+    /// A clock the test moves by hand.
+    private final class ManualClock: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value: TimeInterval = 100
+        var now: TimeInterval { lock.withLock { value } }
+        func advance(_ seconds: TimeInterval) { lock.withLock { value += seconds } }
+    }
+
     func testSlowCollectionStillHasAReuseWindowAfterItCompletes() {
-        let cache = MetricSampleCache<Int>(window: 0.03)
+        let clock = ManualClock()
+        let cache = MetricSampleCache<Int>(window: 0.03, clock: { clock.now })
         var reads = 0
+        // The collection takes longer than the window.
         XCTAssertEqual(cache.sample {
             reads += 1
-            Thread.sleep(forTimeInterval: 0.05)
+            clock.advance(0.05)
             return 1
         }, 1)
         XCTAssertEqual(cache.sample { reads += 1; return 2 }, 1)
         XCTAssertEqual(reads, 1, "slow collection must not expire its own freshly completed sample")
+        clock.advance(0.029)
+        XCTAssertEqual(cache.sample { reads += 1; return 3 }, 1, "still inside the window")
+        clock.advance(0.002)
+        XCTAssertEqual(cache.sample { reads += 1; return 4 }, 4, "past the window it collects again")
+        XCTAssertEqual(reads, 2)
     }
 
     func testLockCacheChurnCannotStartASecondCollectionForAnActiveKey() {
@@ -31,7 +46,7 @@ final class MetricSampleCacheTests: XCTestCase {
             XCTAssertEqual(result, 1)
             completed.fulfill()
         }
-        XCTAssertEqual(firstStarted.wait(timeout: .now() + 1), .success)
+        XCTAssertEqual(firstStarted.wait(timeout: .now() + 10), .success)
         // Force eviction pressure while the first collection owns its lock.
         for index in 0..<(MetricSampleCache<Int>.keyLimit * 4 + 1) {
             _ = cache.sample(key: "other-\(index)", now: 10) { index }
@@ -46,7 +61,7 @@ final class MetricSampleCacheTests: XCTestCase {
         }
         wait(for: [duplicate], timeout: 0.15)
         releaseFirst.signal()
-        wait(for: [completed], timeout: 1)
+        wait(for: [completed], timeout: 10)
     }
 
     func testAlignedWidgetsShareCollectionButOtherMountsAndExpiredSamplesDoNot() {

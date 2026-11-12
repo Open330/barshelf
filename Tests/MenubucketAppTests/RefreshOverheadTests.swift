@@ -25,11 +25,11 @@ final class RefreshOverheadTests: XCTestCase {
         batch.request()
         samples["power"] = 14
         batch.request()
-        await fulfillment(of: [first], timeout: 1)
+        await fulfillment(of: [first], timeout: 10)
         XCTAssertEqual(calculated, [["cpu": 999, "ram": 77, "power": 14]])
         samples["cpu"] = 12
         batch.request()
-        await fulfillment(of: [next], timeout: 1)
+        await fulfillment(of: [next], timeout: 10)
         XCTAssertEqual(calculated.count, 2)
         XCTAssertEqual(calculated.last?["cpu"], 12)
     }

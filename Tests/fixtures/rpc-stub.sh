@@ -32,10 +32,27 @@ load_error=""
 
 send() { printf '%s\n' "$1"; }
 
-# Sends a request and reads the host's response line into $resp.
+# Host notifications (widget.*) that arrived while a request waited for its
+# response; the main loop handles them once the current handler returns.
+queued=()
+
+# Sends a request and reads lines until the host's response to *this* id,
+# into $resp. A notification that arrives first (the host can send
+# widget.action while host.render is still unanswered) is queued, not
+# swallowed as the response.
 request() {
   send "$1"
-  IFS= read -r resp
+  local line want="${1#*\"id\":}"
+  want="${want%%[!0-9]*}"
+  resp=""
+  while IFS= read -r line; do
+    case "$line" in
+      *'"method":"widget.'*) queued+=("$line") ;;
+      *"\"id\":$want,"*|*"\"id\":$want}"*) resp="$line"; return 0 ;;
+      *) ;; # a stale response to another id
+    esac
+  done
+  return 1
 }
 
 render() { # $1 = text to render
@@ -164,10 +181,10 @@ handle_timer() {
   render "timer-fired"
 }
 
-while IFS= read -r line; do
-  case "$line" in
+handle_line() {
+  case "$1" in
     *'"method":"widget.load"'*)
-      load_generation=$(printf '%s' "$line" | sed -n 's/.*"loadGeneration":"\([^"]*\)".*/\1/p')
+      load_generation=$(printf '%s' "$1" | sed -n 's/.*"loadGeneration":"\([^"]*\)".*/\1/p')
       handle_load
       complete_load
       load_generation=""
@@ -176,6 +193,16 @@ while IFS= read -r line; do
     *'"method":"widget.timer"'*) handle_timer ;;
     *'"method":"widget.action"'*) render "action-received" ;;
   esac
+}
+
+while :; do
+  if [ "${#queued[@]}" -gt 0 ]; then
+    next="${queued[0]}"
+    queued=("${queued[@]:1}")
+  else
+    IFS= read -r next || break
+  fi
+  handle_line "$next"
 done
 
 # Keep the same PID alive after stdin EOF, with SIGTERM still ignored.

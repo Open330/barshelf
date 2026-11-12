@@ -34,11 +34,13 @@ final class ExecPipeDeadlineTests: XCTestCase {
 
     func testExitedParentDoesNotWaitForInheritedPipePastDeadline() {
         let start = DispatchTime.now().uptimeNanoseconds
-        let result = ExecService.captureSync(command: ["/bin/sh", "-c", "sleep 2 & exit 0"], discover: nil,
+        // The descendant holds the pipes for 20 s, so "well under 20 s" proves
+        // the 200 ms deadline held without a margin a busy runner can miss.
+        let result = ExecService.captureSync(command: ["/bin/sh", "-c", "sleep 20 & exit 0"], discover: nil,
                                              timeoutMs: 200, workingDirectory: nil)
         let elapsed = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000_000
         guard case .failure(.timeout) = result else { return XCTFail("Expected inherited-pipe timeout, got \(result)") }
-        XCTAssertLessThan(elapsed, 1.5, "must not wait for the 2-second descendant to close stdout/stderr")
+        XCTAssertLessThan(elapsed, 8, "must not wait for the 20-second descendant to close stdout/stderr")
     }
 
     func testNormalOutputStillDrainsBothPipesBeforeReturning() throws {

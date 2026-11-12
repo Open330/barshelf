@@ -103,10 +103,10 @@ final class ThumbnailServiceTests: XCTestCase {
             XCTAssertTrue(image === fresh)
             replacement.fulfill()
         })
-        wait(for: [replacementStarted], timeout: 1)
+        wait(for: [replacementStarted], timeout: 10)
         oldCallback(Self.image(16))
         try XCTUnwrap(probe.completion("/stalled0", at: 1))(fresh)
-        wait(for: [replacement], timeout: 1)
+        wait(for: [replacement], timeout: 10)
     }
 
     func testCacheKeyRetainsSubsecondModificationIdentity() {
