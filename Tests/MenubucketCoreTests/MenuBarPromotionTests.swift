@@ -157,10 +157,10 @@ final class MenuBarPromotionTests: XCTestCase {
 
     // MARK: - Staleness
 
-    func testStalenessAllowsThreeMissedRefreshesWithAThirtySecondFloor() {
+    func testStalenessAllowsThreeMissedRefreshesWithAOneMinuteFloor() {
         XCTAssertEqual(MenuBarPolicy.stalenessThreshold(interval: 30), 90)
         // A fast cadence must not flicker between fresh and stale.
-        XCTAssertEqual(MenuBarPolicy.stalenessThreshold(interval: 2), 30)
+        XCTAssertEqual(MenuBarPolicy.stalenessThreshold(interval: 2), 60)
     }
 
     func testNeverRefreshedCountsAsStale() {
@@ -169,8 +169,12 @@ final class MenuBarPromotionTests: XCTestCase {
         XCTAssertFalse(MenuBarPolicy.isStale(
             updatedAt: now.addingTimeInterval(-10), interval: 2, now: now
         ))
+        // Still "Updated just now", so not stale either.
+        XCTAssertFalse(MenuBarPolicy.isStale(
+            updatedAt: now.addingTimeInterval(-45), interval: 2, now: now
+        ))
         XCTAssertTrue(MenuBarPolicy.isStale(
-            updatedAt: now.addingTimeInterval(-31), interval: 2, now: now
+            updatedAt: now.addingTimeInterval(-61), interval: 2, now: now
         ))
     }
 
