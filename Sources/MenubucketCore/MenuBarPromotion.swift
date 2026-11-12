@@ -1234,15 +1234,17 @@ public enum MenuBarPolicy {
     }
 
     /// How far past its refresh cadence a value may drift before it is drawn
-    /// as stale. Three missed refreshes, and never less than 30 s so a widget
-    /// with a fast cadence does not flicker between fresh and stale.
+    /// as stale. Three missed refreshes, and never less than 60 s: a widget
+    /// with a fast cadence does not flicker between fresh and stale, and a
+    /// card never says "Updated just now" (under a minute) and "not
+    /// refreshed recently" at once.
     ///
     /// `nil` when the widget has no interval at all: an event-driven or
     /// manual-refresh widget is as current as it is ever going to be, so
     /// there is no cadence to fall behind.
     public static func stalenessThreshold(interval: Double?) -> Double? {
         guard let interval, interval > 0 else { return nil }
-        return max(interval * 3, 30)
+        return max(interval * 3, 60)
     }
 
     public static func isStale(

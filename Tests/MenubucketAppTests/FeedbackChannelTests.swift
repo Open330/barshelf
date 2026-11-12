@@ -134,11 +134,11 @@ final class FeedbackChannelTests: XCTestCase {
         let fixture = try makeRuntime(interval: 10)
         let widget = try XCTUnwrap(fixture.runtime.widgets.first { $0.id == fixture.id })
         let now = Date()
-        let fortySecondsAgo = now.addingTimeInterval(-40)
-        XCTAssertTrue(fixture.runtime.readingIsStale(widget, updatedAt: fortySecondsAgo, now: now),
-                      "author's 10 s → stale after 30 s")
+        let ninetySecondsAgo = now.addingTimeInterval(-90)
+        XCTAssertTrue(fixture.runtime.readingIsStale(widget, updatedAt: ninetySecondsAgo, now: now),
+                      "author's 10 s → stale after the 60 s floor")
         fixture.runtime.prefs.setRefreshInterval(60, for: fixture.id)
-        XCTAssertFalse(fixture.runtime.readingIsStale(widget, updatedAt: fortySecondsAgo, now: now),
+        XCTAssertFalse(fixture.runtime.readingIsStale(widget, updatedAt: ninetySecondsAgo, now: now),
                        "user's 60 s → not stale until 180 s")
         XCTAssertTrue(fixture.runtime.readingIsStale(widget, updatedAt: now.addingTimeInterval(-200), now: now))
     }
