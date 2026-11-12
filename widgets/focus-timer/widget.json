@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.focus-timer",
   "name": "Focus Timer",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "icon": "timer",
   "bucket": {
     "group": "Productivity",
@@ -41,8 +41,7 @@
     }
   ],
   "appearance": {
-    "accent": "orange",
-    "cardStyle": "tinted"
+    "accent": "orange"
   },
   "localizations": {
     "ko": {

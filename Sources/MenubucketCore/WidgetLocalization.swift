@@ -108,10 +108,12 @@ public struct WidgetLocalization: Equatable, Sendable {
     // MARK: Manifest
 
     /// The manifest with its display text translated: the name, setting
-    /// titles/labels and option titles. Everything else is the original.
+    /// titles/labels, option titles and the empty-card hint. Everything else
+    /// is the original.
     public func manifest(_ manifest: Manifest) -> Manifest {
         var localized = manifest
         localized.name = text(manifest.name)
+        localized.emptyHint = manifest.emptyHint.map(text)
         localized.settings = manifest.settings.map { settings($0) }
         return localized
     }
@@ -226,5 +228,13 @@ extension Manifest {
     /// The name shown to the user in `language`.
     public func localizedName(for language: String = WidgetLocalization.appLanguage) -> String {
         localization(for: language)?.text(name) ?? name
+    }
+
+    /// The author's empty-card hint in `language`; nil when there is none
+    /// (blank counts as none).
+    public func localizedEmptyHint(for language: String = WidgetLocalization.appLanguage) -> String? {
+        guard let hint = emptyHint?.trimmingCharacters(in: .whitespacesAndNewlines), !hint.isEmpty
+        else { return nil }
+        return localization(for: language)?.text(hint) ?? hint
     }
 }

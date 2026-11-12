@@ -331,13 +331,22 @@ struct RootView: View {
                             at: pageIndex, selectedIndex: index,
                             pageID: page.id, visited: materializedPageIDs
                         ) {
+                            let overflows = Self.pageOverflows(
+                                content: pageContentHeights[page.id], visible: geometry.size.height
+                            )
                             ScrollViewReader { proxy in
                                 ScrollView {
                                     pageContent(page, pages: pages)
                                         .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { height in
                                             pageContentHeights[page.id] = height
                                         }
+                                        // Room under the last card, so scrolled
+                                        // to the end it clears the fade.
+                                        .padding(.bottom, overflows ? Self.scrollFadeHeight : 0)
                                 }
+                                // A page taller than the popup fades out at
+                                // the bottom instead of ending on a flat cut.
+                                .mask { ScrollFadeMask(fades: overflows, height: Self.scrollFadeHeight) }
                                 .onChange(of: revealToken, initial: true) {
                                     guard let id = highlightedID,
                                           page.widgets.contains(where: { $0.id == id }) else { return }
@@ -447,7 +456,9 @@ struct RootView: View {
                     jump: { target in pager.jump(to: target, pageCount: pages.count) },
                     runtime: runtime, onCommand: onCommand
                 )
-                if pages.count > 1 {
+                // The dots show where you are; the count only when there
+                // are more pages than dots fit.
+                if Self.showsPageCount(pageCount: pages.count) {
                     Text(verbatim: "\(index + 1)/\(pages.count)")
                         .font(.caption.weight(.medium).monospacedDigit())
                         .foregroundStyle(.tertiary)
@@ -498,7 +509,7 @@ struct RootView: View {
                     }
                 }
             }
-            .frame(maxWidth: 220, maxHeight: 24)
+            .frame(maxWidth: Self.pageDotsMaxWidth, maxHeight: Self.pageDotCell)
             .fixedSize(horizontal: true, vertical: false)
             .onChange(of: index) { _, newIndex in
                 guard pages.indices.contains(newIndex) else { return }
@@ -534,7 +545,7 @@ struct RootView: View {
                     }
                 }
                 .frame(width: diameter, height: diameter)
-                .frame(width: 24, height: 24)
+                .frame(width: Self.pageDotCell, height: Self.pageDotCell)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -560,6 +571,25 @@ struct RootView: View {
                 ToastCenter.shared.show(String(localized: "Moved to \(PageName.label(page.group))"), on: .popup)
             }
         }
+    }
+
+    /// Each dot's hit area, and the widest the row of dots gets before it
+    /// scrolls.
+    static let pageDotCell: CGFloat = 24
+    static let pageDotsMaxWidth: CGFloat = 220
+
+    /// "2/12" beside the page name only once the dots no longer all fit.
+    static func showsPageCount(pageCount: Int) -> Bool {
+        CGFloat(pageCount) * pageDotCell > pageDotsMaxWidth
+    }
+
+    /// How tall the fade at the bottom of an overflowing page is.
+    static let scrollFadeHeight: CGFloat = Spacing.m
+
+    /// A page's content is taller than the space it is shown in.
+    static func pageOverflows(content: CGFloat?, visible: CGFloat) -> Bool {
+        guard let content, visible > 0 else { return false }
+        return content > visible + 1
     }
 
     /// Large enough to see at a glance; the 24 pt hit area is separate.

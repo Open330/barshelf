@@ -523,7 +523,9 @@ public actor RuntimeSupervisor {
         process.executableURL = plan.executable
         process.arguments = plan.arguments
         process.currentDirectoryURL = plan.currentDirectory ?? widget.directory
-        process.environment = ExecService.childEnvironment(extraEnvironment: plan.environment)
+        process.environment = ExecService.childEnvironment(
+            extraEnvironment: plan.environment, appLanguage: WidgetLocalization.appLanguage
+        )
 
         let stdinPipe = Self.makeStdinPipe()
         let stdoutPipe = Pipe()

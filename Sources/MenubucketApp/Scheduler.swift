@@ -297,6 +297,14 @@ final class Scheduler {
         backoff[widgetID]?.allowsAutomaticRefresh(now: now) ?? true
     }
 
+    /// When the widget's interval timer next fires, if it is on one — what
+    /// an empty card says it is waiting for.
+    func nextIntervalFire(widgetID: String) -> Date? {
+        guard let interval = intervalMembers.first(where: { $0.value.contains(widgetID) })?.key
+        else { return nil }
+        return intervalTimers[interval]?.fireDate
+    }
+
     // MARK: - Interval trigger
 
     private func rebuildIntervalTimers() {

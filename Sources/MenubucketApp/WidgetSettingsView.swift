@@ -1404,14 +1404,6 @@ struct WidgetSettingsView: View {
                 .pickerStyle(.segmented).labelsHidden().fixedSize()
             }
 
-            LabeledContent("Card style") {
-                Picker("Card style", selection: cardStyleBinding) {
-                    Text("Plain").tag(WidgetAppearance.CardStyle.plain)
-                    Text("Tinted").tag(WidgetAppearance.CardStyle.tinted)
-                }
-                .pickerStyle(.segmented).labelsHidden().fixedSize()
-            }
-
             LabeledContent("Height") {
                 VStack(alignment: .leading, spacing: Spacing.xxs) {
                     Picker("Height", selection: heightBinding) {
@@ -1458,13 +1450,6 @@ struct WidgetSettingsView: View {
         Binding(
             get: { appearanceDraft.density ?? .regular },
             set: { appearanceDraft.density = $0 }
-        )
-    }
-
-    private var cardStyleBinding: Binding<WidgetAppearance.CardStyle> {
-        Binding(
-            get: { appearanceDraft.cardStyle ?? .plain },
-            set: { appearanceDraft.cardStyle = $0 }
         )
     }
 

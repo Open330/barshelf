@@ -59,7 +59,7 @@ private struct MenuBarCardFrame: View {
             header
             if model.overlay == nil, snapshot.error == nil, let hero = MenuBarCardHero.Content(
                 widget: widget, snapshot: snapshot, history: history.values[widget.id] ?? []
-            ) {
+            ) ?? MenuBarCardHero.Content.placeholder(widget: widget, snapshot: snapshot) {
                 MenuBarCardHero(content: hero)
                     .opacity(isStale ? Fill.staleOpacity : 1)
             }
@@ -99,16 +99,6 @@ private struct MenuBarCardFrame: View {
                 ProgressView().controlSize(.mini)
                     .accessibilityLabel("Refreshing")
             }
-            if let action = snapshot.viewTree?.action, let title = PrimaryActionTitle.title(for: action) {
-                Button {
-                    ActionRouter.perform(action, widgetID: widget.id, runtime: runtime, title: title, surface: .menuBarCard)
-                } label: {
-                    Image(systemName: "arrow.up.forward.app")
-                }
-                .buttonStyle(.icon)
-                .hoverHint(LocalizedStringKey(title))
-                .accessibilityLabel(title)
-            }
             Button { runtime.requestRefresh(widgetID: widget.id, feedbackOn: .menuBarCard) } label: {
                 Image(systemName: "arrow.clockwise")
             }
@@ -129,22 +119,70 @@ private struct MenuBarCardFrame: View {
 
     // MARK: Footer
 
-    @ViewBuilder
+    /// The whole row is tried with the action named, then with its icon
+    /// alone: each at its natural width, so the name shows whenever the row
+    /// has room for it beside the hints.
     private var footer: some View {
-        HStack(spacing: Spacing.xs) {
-            if isStale {
-                Label("Not updated recently", systemImage: "clock.badge.exclamationmark")
-                    .foregroundStyle(StatusTone.warning.color)
-            }
-            Spacer(minLength: 0)
-            if switchesWithArrows {
-                ShortcutLabel("Other widgets", key: "← →")
-            }
-            ShortcutLabel("Close", key: "esc")
+        ViewThatFits(in: .horizontal) {
+            footerRow(namesAction: true)
+            footerRow(namesAction: false)
         }
-        .font(.caption2)
-        .foregroundStyle(.secondary)
-        .accessibilityElement(children: .combine)
+    }
+
+    private func footerRow(namesAction: Bool) -> some View {
+        HStack(spacing: Spacing.xs) {
+            // A button of its own, outside the combined hint element below.
+            primaryAction(named: namesAction)
+            HStack(spacing: Spacing.xs) {
+                if isStale {
+                    Label("Not updated recently", systemImage: "clock.badge.exclamationmark")
+                        .foregroundStyle(StatusTone.warning.color)
+                }
+                Spacer(minLength: 0)
+                // Key hints, not buttons: a key cap, then what it does.
+                if switchesWithArrows {
+                    keyHint("Other widgets", key: "← →")
+                }
+                keyHint("Close", key: "esc")
+            }
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    /// The widget's whole-card action, by name — "Open Activity Monitor" —
+    /// or its icon alone.
+    @ViewBuilder
+    private func primaryAction(named: Bool) -> some View {
+        if let action = snapshot.viewTree?.action, let title = PrimaryActionTitle.title(for: action) {
+            let perform = {
+                ActionRouter.perform(action, widgetID: widget.id, runtime: runtime, title: title, surface: .menuBarCard)
+            }
+            if named {
+                Button(action: perform) {
+                    Label(title, systemImage: "arrow.up.forward.app")
+                        .labelStyle(.titleAndIcon)
+                }
+                .buttonStyle(.glass(.secondary))
+                .controlSize(.small)
+                .fixedSize()
+            } else {
+                Button(action: perform) {
+                    Image(systemName: "arrow.up.forward.app")
+                }
+                .buttonStyle(.icon)
+                .hoverHint(LocalizedStringKey(title))
+                .accessibilityLabel(title)
+            }
+        }
+    }
+
+    private func keyHint(_ title: LocalizedStringKey, key: String) -> some View {
+        HStack(spacing: Spacing.xxs) {
+            KeyCap(key)
+            Text(title)
+        }
     }
 }
 
@@ -190,6 +228,8 @@ struct MenuBarCardHero: View {
         let tint: String?
         let history: [Double]
         let isPercent: Bool
+        /// Holding the place of a reading that has not arrived yet.
+        var isPlaceholder = false
 
         /// Nil when the widget has nothing for the menu bar, or opted out.
         init?(widget: LoadedWidget, snapshot: WidgetSnapshot, history: [Double]) {
@@ -209,6 +249,30 @@ struct MenuBarCardHero: View {
             }
             self.history = history
         }
+
+        private init(label: String, value: String) {
+            self.label = label
+            self.value = value
+            tint = nil
+            history = []
+            isPercent = false
+            isPlaceholder = true
+        }
+
+        /// "—" and the reading's name, while a widget that shows a reading
+        /// has none yet (loading, nothing yet): the card keeps its height
+        /// instead of jumping when the number arrives.
+        static func placeholder(widget: LoadedWidget, snapshot: WidgetSnapshot) -> Content? {
+            // Only before the first reading, or while one is on its way; a
+            // widget that has refreshed and shows nothing gets no hero.
+            guard snapshot.updatedAt == nil || snapshot.isLoading,
+                  let statusItem = widget.manifest.statusItem, statusItem.isPromotable,
+                  statusItem.popoverHero != false else { return nil }
+            let label = snapshot.statusPrefix
+                ?? statusItem.label.map { widget.manifest.localization()?.text($0) ?? $0 }
+                ?? ""
+            return Content(label: label, value: "—")
+        }
     }
 
     let content: Content
@@ -216,6 +280,7 @@ struct MenuBarCardHero: View {
     /// Colour only when the reading asks for attention; a reading in the
     /// normal range stays neutral, as everywhere else.
     private var color: Color {
+        if content.isPlaceholder { return .secondary }
         switch content.tint {
         case "warning": return StatusTone.warning.color
         case "danger", "critical", "error": return StatusTone.critical.color
@@ -249,6 +314,8 @@ struct MenuBarCardHero: View {
         .padding(Spacing.cardInset)
         .background(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).fill(Fill.card))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(Text(verbatim: "\(content.label) \(content.value)"))
+        .accessibilityLabel(content.isPlaceholder
+            ? Text("\(content.label) no reading yet", comment: "VoiceOver: a card's big reading before it has one")
+            : Text(verbatim: "\(content.label) \(content.value)"))
     }
 }

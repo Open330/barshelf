@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.next-meeting",
   "name": "Next Meeting",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "icon": "calendar.badge.clock",
   "bucket": {
     "group": "Productivity",
@@ -63,8 +63,7 @@
     }
   ],
   "appearance": {
-    "accent": "blue",
-    "cardStyle": "tinted"
+    "accent": "blue"
   },
   "localizations": {
     "ko": {

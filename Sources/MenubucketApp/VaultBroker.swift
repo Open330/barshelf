@@ -1122,6 +1122,8 @@ final class VaultBroker {
         func field(_ placeholder: String, _ value: String?, secure: Bool = false) -> NSTextField {
             let field = secure ? NSSecureTextField(frame: .zero) : NSTextField(frame: .zero)
             field.placeholderString = placeholder
+            // A placeholder is not a label: VoiceOver needs one of its own.
+            field.setAccessibilityLabel(placeholder)
             field.stringValue = value ?? ""
             field.translatesAutoresizingMaskIntoConstraints = false
             field.widthAnchor.constraint(equalToConstant: width).isActive = true
@@ -1169,6 +1171,8 @@ final class VaultBroker {
         if emailSent { popup.selectItem(at: 1) }
         let code = NSTextField(frame: .zero)
         code.placeholderString = String(localized: "Code")
+        code.setAccessibilityLabel(String(localized: "Two-step login code"))
+        popup.setAccessibilityLabel(String(localized: "Two-step login method"))
         let stack = NSStackView(views: [popup, code])
         stack.orientation = .vertical
         stack.alignment = .leading
@@ -1209,9 +1213,11 @@ final class VaultBroker {
         alert.messageText = String(localized: "Sign In with an API Key")
         alert.informativeText = String(localized: "In the Bitwarden web vault, open Settings ▸ Security ▸ Keys ▸ View API Key. BarShelf passes the key to the Bitwarden CLI for this sign-in only and does not keep it; your master password then unlocks.")
         let id = NSTextField(frame: .zero)
-        id.placeholderString = "client_id"
+        id.placeholderString = String(localized: "Client ID", comment: "Bitwarden API key field")
+        id.setAccessibilityLabel(id.placeholderString)
         let secret = NSSecureTextField(frame: .zero)
-        secret.placeholderString = "client_secret"
+        secret.placeholderString = String(localized: "Client secret", comment: "Bitwarden API key field")
+        secret.setAccessibilityLabel(secret.placeholderString)
         for field in [id, secret] {
             field.translatesAutoresizingMaskIntoConstraints = false
             field.widthAnchor.constraint(equalToConstant: 300).isActive = true

@@ -877,17 +877,6 @@ struct WidgetBuilderView: View {
                 .frame(width: 150)
             }
 
-            HStack {
-                Text("Card style").font(.callout)
-                Picker("Card style", selection: $model.appearanceCardStyle) {
-                    Text("Plain").tag(WidgetAppearance.CardStyle.plain)
-                    Text("Tinted").tag(WidgetAppearance.CardStyle.tinted)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(width: 150)
-            }
-
             Toggle("Show header", isOn: $model.appearanceShowHeader)
                 .toggleStyle(.switch)
                 // A switch drops its title from accessibility; name it.
@@ -934,12 +923,12 @@ struct WidgetBuilderView: View {
     }
 
     /// Drawn the way the popup draws a card: a flat section with the card
-    /// header (icon and name) when it is on, tinted when the style says so —
+    /// header (icon and name) when it is on —
     /// so what the preview shows is what lands on the shelf.
     private func previewCard(_ node: UINode) -> some View {
         let appearance = model.previewAppearance
         let accent = appearance.accentColor ?? .accentColor
-        let inset: CGFloat = appearance.density == .compact ? Spacing.xs : Spacing.s
+        let inset: CGFloat = Spacing.s
         return VStack(alignment: .leading, spacing: Spacing.stack) {
             if appearance.showsHeader {
                 HStack(spacing: Spacing.stack) {
@@ -964,9 +953,6 @@ struct WidgetBuilderView: View {
         .padding(.horizontal, inset + 2)
         .padding(.vertical, Spacing.xs + Spacing.hair)
         .frame(maxWidth: .infinity, minHeight: model.previewMinHeight, alignment: .topLeading)
-        .background(
-            Rectangle().fill(appearance.cardStyle == .tinted ? accent.opacity(Fill.Wash.soft) : Color.clear)
-        )
         .background(Color(nsColor: .controlBackgroundColor))
         .overlay(alignment: .top) { Divider() }
         .overlay(alignment: .bottom) { Divider() }

@@ -3,9 +3,10 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.quick-note",
   "name": "Quick Note",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "minHostVersion": "0.7.21",
   "icon": "note.text",
+  "emptyHint": "Write your first note",
   "bucket": {
     "group": "Everyday",
     "order": 50,
@@ -40,8 +41,7 @@
     }
   ],
   "appearance": {
-    "accent": "yellow",
-    "cardStyle": "tinted"
+    "accent": "yellow"
   },
   "localizations": {
     "ko": {
@@ -52,6 +52,7 @@
       "${settings.note}": "${settings.note}",
       "Copy": "복사",
       "Copied": "복사됨",
+      "Write your first note": "첫 메모를 적어 보세요",
       "No note yet": "아직 메모 없음",
       "Write one in this widget’s settings (⋯ ▸ Settings).": "이 위젯 설정(⋯ ▸ 설정)에서 메모를 쓰세요."
     }

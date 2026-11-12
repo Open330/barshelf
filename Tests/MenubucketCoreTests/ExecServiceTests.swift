@@ -218,6 +218,80 @@ final class ExecServiceTests: XCTestCase {
         XCTAssertTrue(output.contains("1월"), output)
     }
 
+    func testChildrenSpeakTheAppsLanguageEvenFromAnotherLanguagesShell() {
+        let environment = ExecService.childEnvironment(
+            hostEnvironment: ["LANG": "en_US.UTF-8", "LC_TIME": "en_US.UTF-8"],
+            locale: Locale(identifier: "en_KR"),
+            appLanguage: "ko"
+        )
+        XCTAssertEqual(environment["LANG"], "ko_KR.UTF-8")
+        XCTAssertNil(environment["LC_TIME"], "an English LC_TIME would keep the month English")
+        XCTAssertEqual(environment["LC_NUMERIC"], "C")
+        XCTAssertEqual(ExecService.childEnvironment(
+            hostEnvironment: ["LANG": "de_DE.UTF-8", "LC_NUMERIC": "de_DE.UTF-8"], appLanguage: "de"
+        )["LC_NUMERIC"], "C", "numbers stay C whatever the shell or UI language")
+        let shellAll = ExecService.childEnvironment(
+            hostEnvironment: ["LANG": "de_DE.UTF-8", "LC_ALL": "de_DE.UTF-8"], appLanguage: "de"
+        )
+        XCTAssertNil(shellAll["LC_ALL"], "LC_ALL would override the pinned LC_NUMERIC")
+        XCTAssertEqual(shellAll["LANG"], "de_DE.UTF-8")
+        XCTAssertEqual(shellAll["LC_NUMERIC"], "C")
+        XCTAssertEqual(ExecService.childEnvironment(
+            extraEnvironment: ["LC_NUMERIC": "de_DE.UTF-8"], hostEnvironment: [:], appLanguage: "ko"
+        )["LC_NUMERIC"], "de_DE.UTF-8", "a widget's own LC_NUMERIC wins")
+
+        XCTAssertEqual(ExecService.childEnvironment(
+            hostEnvironment: [:], locale: Locale(identifier: "en_US"), appLanguage: "ko"
+        )["LANG"]?.hasPrefix("ko_"), true, "launchd: no LANG, app in Korean")
+        XCTAssertEqual(ExecService.childEnvironment(
+            hostEnvironment: ["LANG": "ko_KR.UTF-8"], appLanguage: "ko-KR"
+        )["LANG"], "ko_KR.UTF-8", "same language: left alone")
+        XCTAssertEqual(ExecService.childEnvironment(
+            extraEnvironment: ["LANG": "fr_FR.UTF-8"],
+            hostEnvironment: ["LANG": "en_US.UTF-8"], appLanguage: "ko"
+        )["LANG"], "fr_FR.UTF-8", "the widget's own LANG wins")
+    }
+
+    func testEnglishOnAnotherRegionGetsUSEnglishNotTheFirstEnglishLocale() {
+        XCTAssertEqual(ExecService.childEnvironment(
+            hostEnvironment: [:], locale: Locale(identifier: "de_DE"), appLanguage: "en"
+        )["LANG"], "en_US.UTF-8", "en_AU would print \"Thu  1 Jan\"")
+        XCTAssertEqual(ExecService.childEnvironment(
+            hostEnvironment: [:], locale: Locale(identifier: "en_DE")
+        )["LANG"], "en_US.UTF-8")
+        XCTAssertEqual(ExecService.childEnvironment(
+            hostEnvironment: [:], locale: Locale(identifier: "ja_JP"), appLanguage: "en"
+        )["LANG"], "en_US.UTF-8")
+        XCTAssertEqual(ExecService.childEnvironment(
+            hostEnvironment: [:], locale: Locale(identifier: "en_GB"), appLanguage: "en"
+        )["LANG"], "en_GB.UTF-8", "a region that exists is kept")
+    }
+
+    func testShellLocaleVariablesAreReconciledToTheAppLanguage() {
+        // LANG in the app's language, LC_ALL in another: LC_ALL must not win.
+        let mixed = ExecService.childEnvironment(
+            hostEnvironment: ["LANG": "ko_KR.UTF-8", "LC_ALL": "en_US.UTF-8"],
+            locale: Locale(identifier: "ko_KR"), appLanguage: "ko"
+        )
+        XCTAssertEqual(mixed["LANG"], "ko_KR.UTF-8")
+        XCTAssertNil(mixed["LC_ALL"])
+        // No LANG, LC_ALL in another language: the app's language still wins.
+        let allOnly = ExecService.childEnvironment(
+            hostEnvironment: ["LC_ALL": "en_US.UTF-8", "LC_TIME": "en_US.UTF-8"],
+            locale: Locale(identifier: "ko_KR"), appLanguage: "ko"
+        )
+        XCTAssertEqual(allOnly["LANG"], "ko_KR.UTF-8")
+        XCTAssertNil(allOnly["LC_ALL"])
+        XCTAssertNil(allOnly["LC_TIME"])
+        // A widget's own values still win.
+        let own = ExecService.childEnvironment(
+            extraEnvironment: ["LC_ALL": "en_US.UTF-8", "LC_TIME": "ja_JP.UTF-8"],
+            hostEnvironment: ["LANG": "ko_KR.UTF-8"], appLanguage: "ko"
+        )
+        XCTAssertEqual(own["LC_ALL"], "en_US.UTF-8")
+        XCTAssertEqual(own["LC_TIME"], "ja_JP.UTF-8")
+    }
+
     func testExplicitLocaleEnvironmentTakesPrecedence() {
         let environment = ExecService.childEnvironment(
             extraEnvironment: ["LANG": "fr_FR.UTF-8"],

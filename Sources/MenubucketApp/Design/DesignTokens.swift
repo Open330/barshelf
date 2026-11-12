@@ -89,14 +89,11 @@ enum Fill {
         static let rim: Double = 0.18
     }
 
-    /// The filled button that carries a screen's main action: near-white on
-    /// dark glass, the accent on light.
-    static let primaryButton = Color(nsColor: NSColor(name: nil) { appearance in
-        isDark(appearance) ? NSColor(white: 0.96, alpha: 1) : .controlAccentColor
-    })
-    static let primaryButtonInk = Color(nsColor: NSColor(name: nil) { appearance in
-        isDark(appearance) ? NSColor(white: 0.07, alpha: 1) : .white
-    })
+    /// The filled button that carries a screen's main action: the system
+    /// accent with white text in light and dark alike, as macOS draws its
+    /// own default button. (It was near-white on dark until 0.7.32.)
+    static let primaryButton = Color(nsColor: .controlAccentColor)
+    static let primaryButtonInk = Color(nsColor: .alternateSelectedControlTextColor)
     /// How much a filled button lightens under the pointer.
     static let hoverBrightness: Double = 0.05
     /// A control that cannot be used right now.

@@ -70,6 +70,7 @@ own output; the host never translates rendered user data.
   "name": "My Widget",                // REQUIRED, display name
   "version": "0.1.0",                 // recommended string; used for display/updates
   "icon": "sparkles",                 // SF Symbol name
+  "emptyHint": "Write your first note", // 0.7.32+: card text before the first reading (see below)
 
   "bucket": {                         // where it sits in the shelf
     "group": "My Widgets",            // section title
@@ -119,6 +120,11 @@ Notes:
 - `source.output: "data"` routes stdout through a builtin adapter (`source.adapter`).
   Only a small set of builtin adapters exists; for anything custom use
   `output: "viewtree"` and emit UINode JSON yourself.
+- `emptyHint` (BarShelf 0.7.32+, optional) is the one line a card shows before
+  the widget has drawn anything: say what to do or what will appear ("Write your
+  first note", "Plug in a display"). Translate it in `localizations`. Without it
+  the card says it is waiting for the first refresh. A widget that can be empty
+  after it has run should still draw its own `empty` node (§10).
 - **`category`, `screenshot`, and `readme` are NOT manifest fields.** They live on the
   *registry* entry (see §11). Do not put them in `widget.json`.
 
@@ -218,15 +224,16 @@ parse failure). Neutral (all absent) renders exactly as an un-themed widget.
 ```jsonc
 "appearance": {
   "accent": "blue",       // SF color name: default|blue|purple|pink|red|orange|yellow|green|gray  OR  "#RRGGBB"
-  "density": "regular",   // "compact" | "regular"   (compact tightens padding/fonts ~0.85x)
-  "cardStyle": "plain",   // "plain" | "tinted"      (tinted = accent-wash card background)
+  "density": "regular",   // "compact" | "regular"   (compact tightens row spacing/fonts ~0.85x; the card inset stays 12)
+  "cardStyle": "plain",   // deprecated (0.7.32): "tinted" is ignored; cards are never washed in the accent
   "showHeader": true      // false hides the card header row (refresh stays in the context menu)
 }
 ```
 
 Effective appearance = user override merged over author default merged over
 neutral (field-wise, user wins). `accent` recolors progress/meter/badge/link;
-`density` scales padding/text.
+`density` scales the widget's own padding and text. The accent colours the
+card's icon tile and the widget's numbers and bars, never the whole card.
 
 ---
 
@@ -743,6 +750,9 @@ ui.stat("Source", "AC Power", { icon: "powerplug.fill", tone: "accent" })
   "action": { "type": "copyText", "value": "hello", "toast": "Copied" } }
 ```
 
+An icon-only button (no `title`) must carry `accessibilityLabel`: VoiceOver
+reads it, and the pointer shows it as the button's tooltip.
+
 ### Badge / Banner / Empty / Divider / Spacer
 
 ```json
@@ -866,7 +876,7 @@ EOF
   "entry": { "kind": "workflow", "main": "workflow.json" },
   "refresh": { "onOpen": true, "interval": 300, "triggers": ["wake"] },
   "permissions": { "network": ["www.githubstatus.com"] },
-  "appearance": { "accent": "green", "cardStyle": "tinted" }
+  "appearance": { "accent": "green" }
 }
 ```
 `workflow.json`

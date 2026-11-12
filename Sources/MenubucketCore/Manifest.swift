@@ -36,6 +36,11 @@ public struct Manifest: Codable, Equatable {
     /// lenient: a malformed table is dropped, never a reason to refuse the
     /// widget, and a host that predates it shows the English text.
     public var localizations: WidgetLocalizations?
+    /// What the card says before the widget has shown anything, e.g.
+    /// "Write your first note" (0.7.32). Optional, translated through
+    /// `localizations`; without it the card says it is waiting for the first
+    /// refresh. Older hosts ignore it.
+    public var emptyHint: String?
 
     /// `desktop` in widget.json. Decoded leniently: a wrong value is
     /// dropped, never a reason to refuse the widget.
@@ -82,8 +87,10 @@ public struct Manifest: Codable, Equatable {
         appearance: WidgetAppearance? = nil,
         minHostVersion: String? = nil,
         desktop: Desktop? = nil,
-        localizations: WidgetLocalizations? = nil
+        localizations: WidgetLocalizations? = nil,
+        emptyHint: String? = nil
     ) {
+        self.emptyHint = emptyHint
         self.minHostVersion = minHostVersion
         self.desktop = desktop
         self.localizations = localizations
