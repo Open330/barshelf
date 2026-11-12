@@ -4,6 +4,7 @@ import {
   type UINode,
   type WidgetActionContext,
   type WidgetLoadContext,
+  type WidgetTimerContext,
 } from "barshelf";
 
 interface ClipboardItem {
@@ -20,6 +21,17 @@ let historyLimit = 8;
 let clearAfterSec = 0;
 let sequence = 0;
 let ignoredSensitive = false;
+/** Poll the clipboard from a script timer, so copies made while the popup is closed are kept. */
+let collectInBackground = true;
+let pinsRestored = false;
+/** The last value read, so an unchanged clipboard is not re-processed every poll. */
+let lastValue: string | undefined;
+
+const CAPTURE_TIMER = "capture";
+/** The host's floor for `timer.every`. */
+const CAPTURE_MS = 5_000;
+/** Pinned entries, the only ones written to BarShelf storage. */
+const PINS_KEY = "pins-v1";
 
 /**
  * The app's language at the last load. Actions carry no locale, so they
@@ -91,9 +103,12 @@ function trimHistory(): void {
   }
 }
 
-async function capture(ctx: WidgetLoadContext): Promise<void> {
-  ignoredSensitive = false;
-  const result = await ctx.exec.run({
+/** Reads the clipboard once; true when the history (or the warning) changed. */
+async function capture(
+  exec: WidgetLoadContext["exec"],
+  now: number,
+): Promise<boolean> {
+  const result = await exec.run({
     command: "/usr/bin/pbpaste",
     args: [],
     parse: "text",
@@ -101,28 +116,69 @@ async function capture(ctx: WidgetLoadContext): Promise<void> {
     sensitive: true,
   });
   const value = result.stdout.replace(/\0+$/g, "");
+  if (value === lastValue) return false;
+  lastValue = value;
+  const wasIgnored = ignoredSensitive;
+  ignoredSensitive = false;
   if (
     value.length === 0 ||
     new TextEncoder().encode(value).length > MAX_CLIPBOARD_BYTES
-  ) return;
+  ) return wasIgnored;
   if (looksSensitive(value)) {
     ignoredSensitive = true;
-    return;
+    return true;
   }
 
   const existing = items.find((item) => item.value === value);
   if (existing) {
-    existing.capturedAt = ctx.now;
+    existing.capturedAt = now;
     items = [existing, ...items.filter((item) => item.id !== existing.id)];
   } else {
     items.unshift({
-      id: `clip-${ctx.now}-${sequence++}`,
+      id: `clip-${now}-${sequence++}`,
       value,
-      capturedAt: ctx.now,
+      capturedAt: now,
       pinned: false,
     });
   }
   trimHistory();
+  return true;
+}
+
+/** Pins survive a restart; nothing else is written anywhere. */
+async function savePins(): Promise<void> {
+  const pins = items.filter((item) => item.pinned)
+    .map(({ id, value, capturedAt }) => ({ id, value, capturedAt }));
+  try {
+    if (pins.length === 0) await barshelf.storage.delete(PINS_KEY);
+    else await barshelf.storage.set(PINS_KEY, pins);
+  } catch {
+    await barshelf.log("warn", "Pinned clipboard items could not be saved.");
+  }
+}
+
+async function restorePins(): Promise<void> {
+  if (pinsRestored) return;
+  pinsRestored = true;
+  try {
+    const saved = await barshelf.storage.get<unknown>(PINS_KEY);
+    if (!Array.isArray(saved)) return;
+    for (const entry of saved) {
+      const record = entry as Partial<ClipboardItem> | null;
+      if (
+        typeof record?.value !== "string" || typeof record.id !== "string" ||
+        looksSensitive(record.value) || items.some((item) => item.value === record.value)
+      ) continue;
+      items.push({
+        id: record.id,
+        value: record.value,
+        capturedAt: typeof record.capturedAt === "number" ? record.capturedAt : 0,
+        pinned: true,
+      });
+    }
+  } catch {
+    // Storage unavailable: start without pins.
+  }
 }
 
 function redactedCache(): UINode {
@@ -176,10 +232,15 @@ async function render(now: number): Promise<void> {
   const children: UINode[] = [
     ui.hstack([
       ui.text(
-        t(
-          "Memory-only history · secrets are skipped",
-          "메모리에만 보관 · 비밀 정보는 건너뜀",
-        ),
+        collectInBackground
+          ? t(
+            "Collects every 5 s · secrets are skipped",
+            "5초마다 수집 · 비밀 정보는 건너뜀",
+          )
+          : t(
+            "Collects while open · secrets are skipped",
+            "열려 있을 때만 수집 · 비밀 정보는 건너뜀",
+          ),
         {
           role: "caption",
           foreground: "secondary",
@@ -210,10 +271,12 @@ async function render(now: number): Promise<void> {
     children.push(ui.empty({
       icon: "clipboard",
       title: t("No clipboard history yet", "아직 클립보드 기록이 없습니다"),
-      subtitle: t(
-        "Copy some text, then reopen this shelf.",
-        "텍스트를 복사한 뒤 이 선반을 다시 여세요.",
-      ),
+      subtitle: collectInBackground
+        ? t("Text you copy shows up here.", "복사한 텍스트가 여기에 나타납니다.")
+        : t(
+          "Copy some text, then reopen this shelf.",
+          "텍스트를 복사한 뒤 이 선반을 다시 여세요.",
+        ),
     }));
   } else {
     children.push(ui.list(items.map(itemRow), {
@@ -222,10 +285,15 @@ async function render(now: number): Promise<void> {
     }));
     children.push(ui.hstack([
       ui.text(
-        pinned > 0 ? t(`${pinned} pinned`, `고정 ${pinned}개`) : t(
-          "Stored only until this widget stops",
-          "이 위젯이 멈출 때까지만 보관됩니다",
-        ),
+        pinned > 0
+          ? t(
+            `${pinned} pinned · pins are kept on this Mac`,
+            `고정 ${pinned}개 · 고정 항목은 이 Mac에 보관`,
+          )
+          : t(
+            "Stored only until this widget stops",
+            "이 위젯이 멈출 때까지만 보관됩니다",
+          ),
         {
           role: "caption",
           foreground: "secondary",
@@ -260,9 +328,16 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
     : "en";
   historyLimit = integerSetting(ctx.settings.historyLimit, 8, 3, HARD_LIMIT);
   clearAfterSec = integerSetting(ctx.settings.clearAfterSec, 0, 0, 300);
+  collectInBackground = ctx.settings.collectInBackground !== false;
+  await restorePins();
   trimHistory();
+  // A script timer keeps running while the popup is closed (unless the
+  // user pauses hidden work), which is what makes this a history rather
+  // than one entry per popup open.
+  if (collectInBackground) await ctx.timer.every(CAPTURE_TIMER, CAPTURE_MS);
+  else await ctx.timer.clear(CAPTURE_TIMER);
   try {
-    await capture(ctx);
+    await capture(ctx.exec, ctx.now);
   } catch {
     await ctx.log(
       "warn",
@@ -270,6 +345,20 @@ async function load(ctx: WidgetLoadContext): Promise<void> {
     );
   }
   await render(ctx.now);
+}
+
+async function handleTimer(
+  ctx: WidgetTimerContext,
+  event: { id: string; now: number },
+): Promise<void> {
+  if (event.id !== CAPTURE_TIMER || !collectInBackground) return;
+  let changed = false;
+  try {
+    changed = await capture(ctx.exec, event.now);
+  } catch {
+    return;
+  }
+  if (changed) await render(event.now);
 }
 
 async function handleAction(ctx: WidgetActionContext): Promise<void> {
@@ -285,7 +374,8 @@ async function handleAction(ctx: WidgetActionContext): Promise<void> {
   } else {
     return;
   }
+  await savePins();
   await render(ctx.now);
 }
 
-export default barshelf.widget({ load, action: handleAction });
+export default barshelf.widget({ load, action: handleAction, timer: handleTimer });

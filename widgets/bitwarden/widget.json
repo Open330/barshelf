@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.bitwarden",
   "name": "Bitwarden",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "minHostVersion": "0.7.30",
   "icon": "lock.shield.fill",
   "bucket": {
@@ -95,7 +95,11 @@
       "Bitwarden is checking the master password; this takes a few seconds.": "Bitwarden이 마스터 비밀번호를 확인하고 있습니다. 몇 초 걸립니다.",
       "BarShelf keeps its own Bitwarden sign-in, separate from Terminal. Sign in once below.": "BarShelf는 터미널과 별도로 자체 Bitwarden 로그인을 유지합니다. 아래에서 한 번 로그인하세요.",
       "Sign In": "로그인",
-      "Once, with your server, email and master password.": "서버, 이메일, 마스터 비밀번호로 한 번만 하면 됩니다."
+      "Once, with your server, email and master password.": "서버, 이메일, 마스터 비밀번호로 한 번만 하면 됩니다.",
+      "Sign Out…": "로그아웃…",
+      "Sign out of Bitwarden in BarShelf": "BarShelf에서 Bitwarden 로그아웃",
+      "Get the Bitwarden CLI": "Bitwarden CLI 받기",
+      "Try Again": "다시 시도"
     }
   }
 }

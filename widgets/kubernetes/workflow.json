@@ -2,7 +2,7 @@
   "$schema": "https://barshelf.jiun.dev/schema/workflow-0.1.json",
   "schemaVersion": 1,
   "kind": "workflow",
-  "_comment": "Pods in one namespace of kubectl's current context. kubectl's go-template output builds one small JSON array (name, phase, ready, highest restart count, waiting reason, node, created), so no secrets or specs reach BarShelf. The context comes from `kubectl config view -o jsonpath={.current-context}`, which prints only that name. A pod is a problem when it is not Succeeded, not terminating and not ready; the alert counts only problems in pods older than the 'ignore younger than' setting, so a fresh rollout does not notify. It measures pod age, not how long a pod has been unready: an old pod that turns unready notifies at once. If the cluster cannot be reached the refresh fails, which is no reading for the alert.",
+  "_comment": "Pods in one namespace (or all of them) of a kubectl context: the one set in the widget, else kubectl's current context. kubectl's go-template output builds one small JSON array (name, namespace, phase, ready, highest restart count, waiting reason, node, created), so no secrets or specs reach BarShelf. `--context \"\"` is kubectl's own default (the current context). Both sources are optional (BarShelf 0.7.32): a cluster that can't be reached, lapsed credentials (an exec plugin such as `aws eks get-token` asking for a new login) or a missing kubectl read as errors.pods, which the card names with a fix instead of printing kubectl's stderr. A pod is a problem when it is not Succeeded, not terminating and not ready; the alert counts only problems in pods older than the 'ignore younger than' setting, so a fresh rollout does not notify. It measures pod age, not how long a pod has been unready. A failed refresh is no reading (null) for the alert.",
   "sources": {
     "context": {
       "use": "exec",
@@ -24,20 +24,25 @@
         ],
         "parse": "text",
         "timeoutMs": 10000
-      }
+      },
+      "optional": true
     },
     "pods": {
       "use": "exec",
+      "optional": true,
       "with": {
         "command": [
           "kubectl",
           "get",
           "pods",
           "-n",
-          "${settings.namespace}",
+          "${coalesce(settings.namespace, 'default')}",
+          "${if(settings.allNamespaces, '--all-namespaces=true', '--all-namespaces=false')}",
+          "--context",
+          "${string(coalesce(settings.context, ''))}",
           "--request-timeout=8s",
           "-o",
-          "go-template=[{{range $i, $p := .items}}{{if $i}},{{end}}{{$ready := true}}{{$restarts := 0.0}}{{$reason := \"\"}}{{if not .status.containerStatuses}}{{$ready = false}}{{end}}{{range .status.containerStatuses}}{{if not .ready}}{{$ready = false}}{{end}}{{if gt .restartCount $restarts}}{{$restarts = .restartCount}}{{end}}{{if .state.waiting}}{{$reason = or .state.waiting.reason \"Waiting\"}}{{end}}{{end}}{\"name\":{{printf \"%q\" .metadata.name}},\"phase\":{{printf \"%q\" (or .status.phase \"Unknown\")}},\"terminating\":{{if .metadata.deletionTimestamp}}true{{else}}false{{end}},\"ready\":{{$ready}},\"restarts\":{{$restarts}},\"reason\":{{printf \"%q\" $reason}},\"node\":{{printf \"%q\" (or .spec.nodeName \"\")}},\"created\":{{printf \"%q\" .metadata.creationTimestamp}}}{{end}}]"
+          "go-template=[{{range $i, $p := .items}}{{if $i}},{{end}}{{$ready := true}}{{$restarts := 0.0}}{{$reason := \"\"}}{{if not .status.containerStatuses}}{{$ready = false}}{{end}}{{range .status.containerStatuses}}{{if not .ready}}{{$ready = false}}{{end}}{{if gt .restartCount $restarts}}{{$restarts = .restartCount}}{{end}}{{if .state.waiting}}{{$reason = or .state.waiting.reason \"Waiting\"}}{{end}}{{end}}{\"name\":{{printf \"%q\" .metadata.name}},\"ns\":{{printf \"%q\" .metadata.namespace}},\"phase\":{{printf \"%q\" (or .status.phase \"Unknown\")}},\"terminating\":{{if .metadata.deletionTimestamp}}true{{else}}false{{end}},\"ready\":{{$ready}},\"restarts\":{{$restarts}},\"reason\":{{printf \"%q\" $reason}},\"node\":{{printf \"%q\" (or .spec.nodeName \"\")}},\"created\":{{printf \"%q\" .metadata.creationTimestamp}}}{{end}}]"
         ],
         "discover": [
           "/opt/homebrew/bin/kubectl",
@@ -62,7 +67,7 @@
         "forEach": "$.sources.pods",
         "as": "p",
         "template": {
-          "id": "pod-${p.name}",
+          "id": "pod-${p.ns}-${p.name}",
           "name": "${p.name}",
           "phase": "${if(p.terminating, 'Terminating', p.phase)}",
           "ready": "${p.ready}",
@@ -73,7 +78,8 @@
           "age": "${date.relative(date.ms(p.created))}",
           "node": "${string(p.node)}",
           "tint": "${if(p.terminating, 'secondary', if(eq(p.phase, 'Succeeded'), 'secondary', if(p.ready, 'good', if(eq(p.phase, 'Failed'), 'danger', 'warning'))))}",
-          "icon": "${if(p.terminating, 'hourglass', switch(p.phase, 'Succeeded', 'checkmark.circle', 'Failed', 'xmark.octagon.fill', 'Pending', 'clock', if(p.ready, 'circle.fill', 'exclamationmark.triangle.fill')))}"
+          "icon": "${if(p.terminating, 'hourglass', switch(p.phase, 'Succeeded', 'checkmark.circle', 'Failed', 'xmark.octagon.fill', 'Pending', 'clock', if(p.ready, 'circle.fill', 'exclamationmark.triangle.fill')))}",
+          "where": "${if(transforms.allNs, concat(p.ns, ' · '), '')}"
         }
       }
     },
@@ -94,12 +100,8 @@
       }
     },
     "failed": {
-      "use": "filter",
-      "from": "$.transforms.pods",
-      "with": {
-        "field": "phase",
-        "equals": "Failed"
-      }
+      "use": "assign",
+      "from": "ne(transforms.failKind, 'ok')"
     },
     "succeeded": {
       "use": "filter",
@@ -143,7 +145,7 @@
     },
     "context": {
       "use": "assign",
-      "from": "coalesce(sources.context, '—')"
+      "from": "coalesce(settings.context, sources.context, '—')"
     },
     "stuckCount": {
       "use": "assign",
@@ -151,11 +153,43 @@
     },
     "alertTitle": {
       "use": "assign",
-      "from": "if(transforms.ko, concat(settings.namespace, ': 준비되지 않은 Pod ', string(transforms.stuckCount), '개'), concat(string(transforms.stuckCount), if(eq(transforms.stuckCount, 1), ' pod', ' pods'), ' not ready in ', settings.namespace))"
+      "from": "if(transforms.ko, concat(transforms.nsLabel, ': 준비되지 않은 Pod ', string(transforms.stuckCount), '개'), concat(string(transforms.stuckCount), if(eq(transforms.stuckCount, 1), ' pod', ' pods'), ' not ready in ', transforms.nsLabel))"
     },
     "alertBody": {
       "use": "assign",
       "from": "concat(transforms.context, ' · ', coalesce(transforms.stuck.0.name, ''), ' ', coalesce(transforms.stuck.0.why, ''))"
+    },
+    "allNs": {
+      "use": "assign",
+      "from": "eq(settings.allNamespaces, true)"
+    },
+    "failKind": {
+      "use": "assign",
+      "from": "coalesce(errors.pods.kind, 'ok')"
+    },
+    "errorText": {
+      "use": "assign",
+      "from": "string(coalesce(errors.pods.message, ''))"
+    },
+    "signInCommand": {
+      "use": "assign",
+      "from": "if(contains(transforms.errorText, 'aws'), 'aws sso login', if(contains(transforms.errorText, 'gcloud'), 'gcloud auth login', if(or(contains(transforms.errorText, 'kubelogin'), contains(transforms.errorText, 'azure')), 'az login', '')))"
+    },
+    "nsLabel": {
+      "use": "assign",
+      "from": "if(transforms.allNs, if(transforms.ko, '모든 네임스페이스', 'All namespaces'), coalesce(settings.namespace, 'default'))"
+    },
+    "readyText": {
+      "use": "assign",
+      "from": "concat(string(count(transforms.readyPods)), '/', string(transforms.active))"
+    },
+    "failWord": {
+      "use": "assign",
+      "from": "if(transforms.ko, switch(transforms.failKind, 'auth', '다시 로그인 필요', 'notFound', 'kubectl 없음', 'offline', '오프라인', 'timeout', '응답 없음', 'unreachable', '클러스터에 연결할 수 없음', 'kubectl 오류'), switch(transforms.failKind, 'auth', 'Sign in again', 'notFound', 'kubectl not found', 'offline', 'Offline', 'timeout', 'No answer', 'unreachable', 'Cluster unreachable', 'kubectl failed'))"
+    },
+    "emptyText": {
+      "use": "assign",
+      "from": "if(transforms.ko, if(transforms.allNs, '이 컨텍스트에서 실행 중인 것이 없습니다.', '이 네임스페이스에서 실행 중인 것이 없습니다.'), if(transforms.allNs, 'Nothing runs in this context.', 'Nothing runs in this namespace.'))"
     }
   },
   "view": {
@@ -173,7 +207,7 @@
               "name": "square.stack.3d.up.fill"
             },
             "size": 14,
-            "tint": "${if(gt(count(transforms.problems), 0), 'warning', 'accent')}"
+            "tint": "${if(transforms.failed, 'warning', if(gt(count(transforms.problems), 0), 'warning', 'accent'))}"
           },
           {
             "type": "text",
@@ -187,280 +221,662 @@
           },
           {
             "type": "badge",
-            "text": "${settings.namespace}",
+            "text": "${transforms.nsLabel}",
             "tint": "secondary"
           }
         ]
       },
       {
-        "type": "hstack",
-        "spacing": 12,
-        "children": [
-          {
-            "type": "vstack",
-            "spacing": 0,
-            "children": [
-              {
-                "type": "text",
-                "text": "${string(count(transforms.running))}",
-                "role": "title",
-                "monospacedDigit": true
-              },
-              {
-                "type": "text",
-                "text": "Running",
-                "role": "caption",
-                "foreground": "secondary"
-              }
-            ]
-          },
-          {
-            "type": "vstack",
-            "spacing": 0,
-            "children": [
-              {
-                "type": "text",
-                "text": "${string(count(transforms.pending))}",
-                "role": "title",
-                "monospacedDigit": true,
-                "foreground": "${if(gt(count(transforms.pending), 0), 'warning', 'primary')}"
-              },
-              {
-                "type": "text",
-                "text": "Pending",
-                "role": "caption",
-                "foreground": "secondary"
-              }
-            ]
-          },
-          {
-            "type": "vstack",
-            "spacing": 0,
-            "children": [
-              {
-                "type": "text",
-                "text": "${string(count(transforms.failed))}",
-                "role": "title",
-                "monospacedDigit": true,
-                "foreground": "${if(gt(count(transforms.failed), 0), 'danger', 'primary')}"
-              },
-              {
-                "type": "text",
-                "text": "Failed",
-                "role": "caption",
-                "foreground": "secondary"
-              }
-            ]
-          },
-          {
-            "type": "vstack",
-            "spacing": 0,
-            "children": [
-              {
-                "type": "text",
-                "text": "${string(count(transforms.succeeded))}",
-                "role": "title",
-                "monospacedDigit": true
-              },
-              {
-                "type": "text",
-                "text": "Completed",
-                "role": "caption",
-                "foreground": "secondary"
-              }
-            ]
-          },
-          {
-            "type": "spacer"
-          },
-          {
-            "type": "vstack",
-            "spacing": 0,
-            "children": [
-              {
-                "type": "text",
-                "text": "${string(count(transforms.readyPods))}/${string(transforms.active)}",
-                "role": "title",
-                "monospacedDigit": true,
-                "foreground": "${if(gt(count(transforms.problems), 0), 'warning', 'good')}"
-              },
-              {
-                "type": "text",
-                "text": "Ready",
-                "role": "caption",
-                "foreground": "secondary"
-              }
-            ]
-          }
-        ]
-      },
-      {
-        "type": "divider"
-      },
-      {
-        "switch": "${if(eq(transforms.total, 0), 'empty', if(settings.showAll, 'all', if(gt(count(transforms.problems), 0), 'problems', 'fine')))}",
+        "switch": "${transforms.failKind}",
         "cases": {
-          "empty": {
-            "type": "empty",
-            "icon": "square.stack.3d.up.slash",
-            "title": "No pods",
-            "subtitle": "Nothing runs in this namespace."
-          },
-          "fine": {
-            "type": "hstack",
-            "spacing": 6,
+          "ok": {
+            "type": "vstack",
+            "spacing": 8,
             "children": [
               {
-                "type": "image",
-                "source": {
-                  "kind": "sfSymbol",
-                  "name": "checkmark.circle.fill"
-                },
-                "size": 13,
-                "tint": "good"
+                "type": "hstack",
+                "spacing": 12,
+                "children": [
+                  {
+                    "type": "vstack",
+                    "spacing": 0,
+                    "children": [
+                      {
+                        "type": "text",
+                        "text": "${string(count(transforms.running))}",
+                        "role": "title",
+                        "monospacedDigit": true
+                      },
+                      {
+                        "type": "text",
+                        "text": "Running",
+                        "role": "caption",
+                        "foreground": "secondary"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "vstack",
+                    "spacing": 0,
+                    "children": [
+                      {
+                        "type": "text",
+                        "text": "${string(count(transforms.pending))}",
+                        "role": "title",
+                        "monospacedDigit": true,
+                        "foreground": "${if(gt(count(transforms.pending), 0), 'warning', 'primary')}"
+                      },
+                      {
+                        "type": "text",
+                        "text": "Pending",
+                        "role": "caption",
+                        "foreground": "secondary"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "vstack",
+                    "spacing": 0,
+                    "children": [
+                      {
+                        "type": "text",
+                        "text": "${string(count(transforms.failed))}",
+                        "role": "title",
+                        "monospacedDigit": true,
+                        "foreground": "${if(gt(count(transforms.failed), 0), 'danger', 'primary')}"
+                      },
+                      {
+                        "type": "text",
+                        "text": "Failed",
+                        "role": "caption",
+                        "foreground": "secondary"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "vstack",
+                    "spacing": 0,
+                    "children": [
+                      {
+                        "type": "text",
+                        "text": "${string(count(transforms.succeeded))}",
+                        "role": "title",
+                        "monospacedDigit": true
+                      },
+                      {
+                        "type": "text",
+                        "text": "Completed",
+                        "role": "caption",
+                        "foreground": "secondary"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "spacer"
+                  },
+                  {
+                    "type": "vstack",
+                    "spacing": 0,
+                    "children": [
+                      {
+                        "type": "text",
+                        "text": "${string(count(transforms.readyPods))}/${string(transforms.active)}",
+                        "role": "title",
+                        "monospacedDigit": true,
+                        "foreground": "${if(gt(count(transforms.problems), 0), 'warning', 'good')}"
+                      },
+                      {
+                        "type": "text",
+                        "text": "Ready",
+                        "role": "caption",
+                        "foreground": "secondary"
+                      }
+                    ]
+                  }
+                ]
               },
               {
-                "type": "text",
-                "text": "Every pod is ready.",
-                "role": "caption",
-                "foreground": "secondary"
-              }
-            ]
-          },
-          "problems": {
-            "type": "section",
-            "title": "Not ready",
-            "spacing": 2,
-            "children": [
+                "type": "divider"
+              },
               {
-                "type": "list",
-                "spacing": 2,
-                "items": {
-                  "forEach": "$.transforms.problems",
-                  "as": "row",
-                  "template": {
+                "switch": "${if(eq(transforms.total, 0), 'empty', if(settings.showAll, 'all', if(gt(count(transforms.problems), 0), 'problems', 'fine')))}",
+                "cases": {
+                  "empty": {
+                    "type": "empty",
+                    "icon": "square.stack.3d.up.slash",
+                    "title": "No pods",
+                    "subtitle": "${transforms.emptyText}"
+                  },
+                  "fine": {
                     "type": "hstack",
-                    "id": "${row.id}",
-                    "spacing": 8,
-                    "action": {
-                      "type": "copyText",
-                      "value": "${row.name}",
-                      "toast": "Copied"
-                    },
+                    "spacing": 6,
                     "children": [
                       {
                         "type": "image",
                         "source": {
                           "kind": "sfSymbol",
-                          "name": "${row.icon}"
+                          "name": "checkmark.circle.fill"
                         },
                         "size": 13,
-                        "tint": "${row.tint}"
-                      },
-                      {
-                        "type": "vstack",
-                        "spacing": 1,
-                        "widthFill": true,
-                        "children": [
-                          {
-                            "type": "text",
-                            "text": "${row.name}",
-                            "role": "body",
-                            "lineLimit": 1,
-                            "truncation": "middle"
-                          },
-                          {
-                            "type": "text",
-                            "text": "${row.why} · ${row.age}",
-                            "role": "caption",
-                            "foreground": "${row.tint}",
-                            "lineLimit": 1
-                          }
-                        ]
+                        "tint": "good"
                       },
                       {
                         "type": "text",
-                        "text": "${row.restartText}",
+                        "text": "Every pod is ready.",
                         "role": "caption",
-                        "foreground": "secondary",
-                        "monospacedDigit": true
+                        "foreground": "secondary"
+                      }
+                    ]
+                  },
+                  "problems": {
+                    "type": "section",
+                    "title": "Not ready",
+                    "spacing": 2,
+                    "children": [
+                      {
+                        "type": "list",
+                        "spacing": 2,
+                        "items": {
+                          "forEach": "$.transforms.problems",
+                          "as": "row",
+                          "template": {
+                            "type": "hstack",
+                            "id": "${row.id}",
+                            "spacing": 8,
+                            "action": {
+                              "type": "copyText",
+                              "value": "${row.name}",
+                              "toast": "Copied"
+                            },
+                            "children": [
+                              {
+                                "type": "image",
+                                "source": {
+                                  "kind": "sfSymbol",
+                                  "name": "${row.icon}"
+                                },
+                                "size": 13,
+                                "tint": "${row.tint}"
+                              },
+                              {
+                                "type": "vstack",
+                                "spacing": 1,
+                                "widthFill": true,
+                                "children": [
+                                  {
+                                    "type": "text",
+                                    "text": "${row.name}",
+                                    "role": "body",
+                                    "lineLimit": 1,
+                                    "truncation": "middle"
+                                  },
+                                  {
+                                    "type": "text",
+                                    "text": "${row.where}${row.why} · ${row.age}",
+                                    "role": "caption",
+                                    "foreground": "${row.tint}",
+                                    "lineLimit": 1
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "text",
+                                "text": "${row.restartText}",
+                                "role": "caption",
+                                "foreground": "secondary",
+                                "monospacedDigit": true
+                              }
+                            ]
+                          }
+                        }
                       }
                     ]
                   }
+                },
+                "default": {
+                  "type": "list",
+                  "spacing": 2,
+                  "searchPlaceholder": "Search pods",
+                  "items": {
+                    "forEach": "$.transforms.pods",
+                    "as": "row",
+                    "template": {
+                      "type": "hstack",
+                      "id": "${row.id}",
+                      "spacing": 8,
+                      "action": {
+                        "type": "copyText",
+                        "value": "${row.name}",
+                        "toast": "Copied"
+                      },
+                      "children": [
+                        {
+                          "type": "image",
+                          "source": {
+                            "kind": "sfSymbol",
+                            "name": "${row.icon}"
+                          },
+                          "size": 13,
+                          "tint": "${row.tint}"
+                        },
+                        {
+                          "type": "vstack",
+                          "spacing": 1,
+                          "widthFill": true,
+                          "children": [
+                            {
+                              "type": "text",
+                              "text": "${row.name}",
+                              "role": "body",
+                              "lineLimit": 1,
+                              "truncation": "middle"
+                            },
+                            {
+                              "type": "text",
+                              "text": "${row.where}${row.why} · ${row.age}",
+                              "role": "caption",
+                              "foreground": "${row.tint}",
+                              "lineLimit": 1
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "text": "${row.restartText}",
+                          "role": "caption",
+                          "foreground": "secondary",
+                          "monospacedDigit": true
+                        }
+                      ]
+                    }
+                  }
                 }
+              }
+            ]
+          },
+          "auth": {
+            "type": "vstack",
+            "spacing": 8,
+            "children": [
+              {
+                "type": "hstack",
+                "spacing": 8,
+                "children": [
+                  {
+                    "type": "image",
+                    "source": {
+                      "kind": "sfSymbol",
+                      "name": "person.crop.circle.badge.exclamationmark"
+                    },
+                    "size": 22,
+                    "tint": "warning"
+                  },
+                  {
+                    "type": "vstack",
+                    "spacing": 2,
+                    "widthFill": true,
+                    "children": [
+                      {
+                        "type": "text",
+                        "text": "Sign in to the cluster again",
+                        "role": "body",
+                        "lineLimit": 2
+                      },
+                      {
+                        "type": "text",
+                        "text": "The credentials in your kubeconfig expired. Its exec plugin needs a fresh login; run the command in Terminal, then try again.",
+                        "role": "caption",
+                        "foreground": "secondary",
+                        "lineLimit": 3
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "hstack",
+                "spacing": 6,
+                "children": [
+                  {
+                    "type": "button",
+                    "title": "Copy ${transforms.signInCommand}",
+                    "icon": "doc.on.doc",
+                    "hidden": "${eq(transforms.signInCommand, '')}",
+                    "action": {
+                      "type": "copyText",
+                      "value": "${transforms.signInCommand}",
+                      "toast": "Copied"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "hstack",
+                "spacing": 6,
+                "children": [
+                  {
+                    "type": "button",
+                    "title": "Try Again",
+                    "icon": "arrow.clockwise",
+                    "action": {
+                      "type": "refresh"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "text",
+                "text": "${transforms.errorText}",
+                "role": "caption",
+                "foreground": "tertiary",
+                "lineLimit": 2
+              }
+            ]
+          },
+          "notFound": {
+            "type": "vstack",
+            "spacing": 8,
+            "children": [
+              {
+                "type": "hstack",
+                "spacing": 8,
+                "children": [
+                  {
+                    "type": "image",
+                    "source": {
+                      "kind": "sfSymbol",
+                      "name": "terminal"
+                    },
+                    "size": 22,
+                    "tint": "warning"
+                  },
+                  {
+                    "type": "vstack",
+                    "spacing": 2,
+                    "widthFill": true,
+                    "children": [
+                      {
+                        "type": "text",
+                        "text": "kubectl isn’t installed",
+                        "role": "body",
+                        "lineLimit": 2
+                      },
+                      {
+                        "type": "text",
+                        "text": "Install kubectl (Homebrew: brew install kubectl), then try again.",
+                        "role": "caption",
+                        "foreground": "secondary",
+                        "lineLimit": 3
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "hstack",
+                "spacing": 6,
+                "children": [
+                  {
+                    "type": "button",
+                    "title": "Install kubectl",
+                    "icon": "arrow.down.circle",
+                    "action": {
+                      "type": "openURL",
+                      "url": "https://kubernetes.io/docs/tasks/tools/install-kubectl-macos/"
+                    }
+                  },
+                  {
+                    "type": "button",
+                    "title": "Try Again",
+                    "icon": "arrow.clockwise",
+                    "action": {
+                      "type": "refresh"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "offline": {
+            "type": "vstack",
+            "spacing": 8,
+            "children": [
+              {
+                "type": "hstack",
+                "spacing": 8,
+                "children": [
+                  {
+                    "type": "image",
+                    "source": {
+                      "kind": "sfSymbol",
+                      "name": "wifi.slash"
+                    },
+                    "size": 22,
+                    "tint": "warning"
+                  },
+                  {
+                    "type": "vstack",
+                    "spacing": 2,
+                    "widthFill": true,
+                    "children": [
+                      {
+                        "type": "text",
+                        "text": "You’re offline",
+                        "role": "body",
+                        "lineLimit": 2
+                      },
+                      {
+                        "type": "text",
+                        "text": "The cluster status comes back when this Mac is online again.",
+                        "role": "caption",
+                        "foreground": "secondary",
+                        "lineLimit": 3
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "timeout": {
+            "type": "vstack",
+            "spacing": 8,
+            "children": [
+              {
+                "type": "hstack",
+                "spacing": 8,
+                "children": [
+                  {
+                    "type": "image",
+                    "source": {
+                      "kind": "sfSymbol",
+                      "name": "clock.badge.exclamationmark"
+                    },
+                    "size": 22,
+                    "tint": "warning"
+                  },
+                  {
+                    "type": "vstack",
+                    "spacing": 2,
+                    "widthFill": true,
+                    "children": [
+                      {
+                        "type": "text",
+                        "text": "The cluster didn’t answer in time",
+                        "role": "body",
+                        "lineLimit": 2
+                      },
+                      {
+                        "type": "text",
+                        "text": "It may be busy or behind a VPN that isn’t connected.",
+                        "role": "caption",
+                        "foreground": "secondary",
+                        "lineLimit": 3
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "hstack",
+                "spacing": 6,
+                "children": [
+                  {
+                    "type": "button",
+                    "title": "Try Again",
+                    "icon": "arrow.clockwise",
+                    "action": {
+                      "type": "refresh"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "text",
+                "text": "${transforms.errorText}",
+                "role": "caption",
+                "foreground": "tertiary",
+                "lineLimit": 2
+              }
+            ]
+          },
+          "unreachable": {
+            "type": "vstack",
+            "spacing": 8,
+            "children": [
+              {
+                "type": "hstack",
+                "spacing": 8,
+                "children": [
+                  {
+                    "type": "image",
+                    "source": {
+                      "kind": "sfSymbol",
+                      "name": "bolt.horizontal.circle"
+                    },
+                    "size": 22,
+                    "tint": "warning"
+                  },
+                  {
+                    "type": "vstack",
+                    "spacing": 2,
+                    "widthFill": true,
+                    "children": [
+                      {
+                        "type": "text",
+                        "text": "Can’t reach the cluster",
+                        "role": "body",
+                        "lineLimit": 2
+                      },
+                      {
+                        "type": "text",
+                        "text": "Is it running, and is this the right context? Set one in the widget settings.",
+                        "role": "caption",
+                        "foreground": "secondary",
+                        "lineLimit": 3
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "hstack",
+                "spacing": 6,
+                "children": [
+                  {
+                    "type": "button",
+                    "title": "Try Again",
+                    "icon": "arrow.clockwise",
+                    "action": {
+                      "type": "refresh"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "text",
+                "text": "${transforms.errorText}",
+                "role": "caption",
+                "foreground": "tertiary",
+                "lineLimit": 2
               }
             ]
           }
         },
         "default": {
-          "type": "list",
-          "spacing": 2,
-          "searchPlaceholder": "Search pods",
-          "items": {
-            "forEach": "$.transforms.pods",
-            "as": "row",
-            "template": {
+          "type": "vstack",
+          "spacing": 8,
+          "children": [
+            {
               "type": "hstack",
-              "id": "${row.id}",
               "spacing": 8,
-              "action": {
-                "type": "copyText",
-                "value": "${row.name}",
-                "toast": "Copied"
-              },
               "children": [
                 {
                   "type": "image",
                   "source": {
                     "kind": "sfSymbol",
-                    "name": "${row.icon}"
+                    "name": "exclamationmark.triangle"
                   },
-                  "size": 13,
-                  "tint": "${row.tint}"
+                  "size": 22,
+                  "tint": "warning"
                 },
                 {
                   "type": "vstack",
-                  "spacing": 1,
+                  "spacing": 2,
                   "widthFill": true,
                   "children": [
                     {
                       "type": "text",
-                      "text": "${row.name}",
+                      "text": "kubectl couldn’t list the pods",
                       "role": "body",
-                      "lineLimit": 1,
-                      "truncation": "middle"
+                      "lineLimit": 2
                     },
                     {
                       "type": "text",
-                      "text": "${row.why} · ${row.age}",
+                      "text": "Check the context and namespace in the widget settings.",
                       "role": "caption",
-                      "foreground": "${row.tint}",
-                      "lineLimit": 1
+                      "foreground": "secondary",
+                      "lineLimit": 3
                     }
                   ]
-                },
-                {
-                  "type": "text",
-                  "text": "${row.restartText}",
-                  "role": "caption",
-                  "foreground": "secondary",
-                  "monospacedDigit": true
                 }
               ]
+            },
+            {
+              "type": "hstack",
+              "spacing": 6,
+              "children": [
+                {
+                  "type": "button",
+                  "title": "Try Again",
+                  "icon": "arrow.clockwise",
+                  "action": {
+                    "type": "refresh"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "text": "${transforms.errorText}",
+              "role": "caption",
+              "foreground": "tertiary",
+              "lineLimit": 2
             }
-          }
+          ]
         }
       }
     ]
   },
   "status": {
-    "label": "${concat(string(count(transforms.readyPods)), '/', string(transforms.active))}",
-    "tint": "${if(gt(count(transforms.problems), 0), 'warning', '')}",
-    "tooltip": "${transforms.context} · ${settings.namespace}: ${string(count(transforms.readyPods))}/${string(transforms.active)} ready"
+    "label": "${if(transforms.failed, '—', if(eq(transforms.active, 0), '—', transforms.readyText))}",
+    "icon": "${if(transforms.failed, 'exclamationmark.triangle', 'square.stack.3d.up.fill')}",
+    "tint": "${if(eq(transforms.failKind, 'auth'), 'warning', if(transforms.failed, '', if(gt(count(transforms.problems), 0), 'warning', '')))}",
+    "tooltip": "${if(transforms.failed, concat(transforms.context, ': ', transforms.failWord), concat(transforms.context, ' · ', transforms.nsLabel, ': ', transforms.readyText, if(transforms.ko, ' 준비됨', ' ready')))}"
   },
   "alerts": {
     "notReady": {
-      "when": "${if(coalesce(settings.alertOnNotReady, true), gt(transforms.stuckCount, 0), null)}",
+      "when": "${if(transforms.failed, null, if(coalesce(settings.alertOnNotReady, true), gt(transforms.stuckCount, 0), null))}",
       "title": "${transforms.alertTitle}",
       "body": "${transforms.alertBody}",
       "cooldownSec": 1800

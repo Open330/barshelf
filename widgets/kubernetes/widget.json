@@ -3,8 +3,8 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.kubernetes",
   "name": "Kubernetes",
-  "version": "0.1.0",
-  "minHostVersion": "0.7.21",
+  "version": "0.2.0",
+  "minHostVersion": "0.7.32",
   "icon": "square.stack.3d.up.fill",
   "bucket": {
     "group": "Developer",
@@ -44,9 +44,24 @@
             "pods",
             "-n",
             "*",
+            "--all-namespaces=false",
+            "--context",
+            "*",
             "--request-timeout=8s",
             "-o",
-            "go-template=[{{range $i, $p := .items}}{{if $i}},{{end}}{{$ready := true}}{{$restarts := 0.0}}{{$reason := \"\"}}{{if not .status.containerStatuses}}{{$ready = false}}{{end}}{{range .status.containerStatuses}}{{if not .ready}}{{$ready = false}}{{end}}{{if gt .restartCount $restarts}}{{$restarts = .restartCount}}{{end}}{{if .state.waiting}}{{$reason = or .state.waiting.reason \"Waiting\"}}{{end}}{{end}}{\"name\":{{printf \"%q\" .metadata.name}},\"phase\":{{printf \"%q\" (or .status.phase \"Unknown\")}},\"terminating\":{{if .metadata.deletionTimestamp}}true{{else}}false{{end}},\"ready\":{{$ready}},\"restarts\":{{$restarts}},\"reason\":{{printf \"%q\" $reason}},\"node\":{{printf \"%q\" (or .spec.nodeName \"\")}},\"created\":{{printf \"%q\" .metadata.creationTimestamp}}}{{end}}]"
+            "go-template=[{{range $i, $p := .items}}{{if $i}},{{end}}{{$ready := true}}{{$restarts := 0.0}}{{$reason := \"\"}}{{if not .status.containerStatuses}}{{$ready = false}}{{end}}{{range .status.containerStatuses}}{{if not .ready}}{{$ready = false}}{{end}}{{if gt .restartCount $restarts}}{{$restarts = .restartCount}}{{end}}{{if .state.waiting}}{{$reason = or .state.waiting.reason \"Waiting\"}}{{end}}{{end}}{\"name\":{{printf \"%q\" .metadata.name}},\"ns\":{{printf \"%q\" .metadata.namespace}},\"phase\":{{printf \"%q\" (or .status.phase \"Unknown\")}},\"terminating\":{{if .metadata.deletionTimestamp}}true{{else}}false{{end}},\"ready\":{{$ready}},\"restarts\":{{$restarts}},\"reason\":{{printf \"%q\" $reason}},\"node\":{{printf \"%q\" (or .spec.nodeName \"\")}},\"created\":{{printf \"%q\" .metadata.creationTimestamp}}}{{end}}]"
+          ],
+          [
+            "get",
+            "pods",
+            "-n",
+            "*",
+            "--all-namespaces=true",
+            "--context",
+            "*",
+            "--request-timeout=8s",
+            "-o",
+            "go-template=[{{range $i, $p := .items}}{{if $i}},{{end}}{{$ready := true}}{{$restarts := 0.0}}{{$reason := \"\"}}{{if not .status.containerStatuses}}{{$ready = false}}{{end}}{{range .status.containerStatuses}}{{if not .ready}}{{$ready = false}}{{end}}{{if gt .restartCount $restarts}}{{$restarts = .restartCount}}{{end}}{{if .state.waiting}}{{$reason = or .state.waiting.reason \"Waiting\"}}{{end}}{{end}}{\"name\":{{printf \"%q\" .metadata.name}},\"ns\":{{printf \"%q\" .metadata.namespace}},\"phase\":{{printf \"%q\" (or .status.phase \"Unknown\")}},\"terminating\":{{if .metadata.deletionTimestamp}}true{{else}}false{{end}},\"ready\":{{$ready}},\"restarts\":{{$restarts}},\"reason\":{{printf \"%q\" $reason}},\"node\":{{printf \"%q\" (or .spec.nodeName \"\")}},\"created\":{{printf \"%q\" .metadata.creationTimestamp}}}{{end}}]"
           ]
         ],
         "maxOutputBytes": 2097152,
@@ -57,10 +72,22 @@
   },
   "settings": [
     {
+      "key": "context",
+      "type": "string",
+      "title": "Context (empty: kubectl’s current)",
+      "default": ""
+    },
+    {
       "key": "namespace",
       "type": "string",
       "title": "Namespace",
       "default": "default"
+    },
+    {
+      "key": "allNamespaces",
+      "type": "boolean",
+      "title": "Every namespace",
+      "default": false
     },
     {
       "key": "showAll",
@@ -97,14 +124,29 @@
       "Completed": "완료",
       "Ready": "준비됨",
       "No pods": "Pod 없음",
-      "Nothing runs in this namespace.": "이 네임스페이스에서 실행 중인 것이 없습니다.",
       "Every pod is ready.": "모든 Pod가 준비되었습니다.",
       "Not ready": "준비되지 않음",
       "Search pods": "Pod 검색",
       "Copied": "복사됨",
-      "${transforms.context} · ${settings.namespace}: ${string(count(transforms.readyPods))}/${string(transforms.active)} ready": "${transforms.context} · ${settings.namespace}: ${string(count(transforms.readyPods))}/${string(transforms.active)} 준비됨",
       "Notify when older pods are not ready": "오래된 Pod가 준비되지 않으면 알림",
-      "Ignore pods younger than (minutes)": "이보다 새 Pod는 무시 (분)"
+      "Ignore pods younger than (minutes)": "이보다 새 Pod는 무시 (분)",
+      "Context (empty: kubectl’s current)": "컨텍스트 (비우면 kubectl 현재 컨텍스트)",
+      "Every namespace": "모든 네임스페이스",
+      "Sign in to the cluster again": "클러스터에 다시 로그인하세요",
+      "The credentials in your kubeconfig expired. Its exec plugin needs a fresh login; run the command in Terminal, then try again.": "kubeconfig의 자격 증명이 만료되었습니다. exec 플러그인이 새로 로그인해야 합니다. 터미널에서 명령을 실행한 뒤 다시 시도하세요.",
+      "Copy ${transforms.signInCommand}": "${transforms.signInCommand} 복사",
+      "Try Again": "다시 시도",
+      "kubectl isn’t installed": "kubectl이 설치되어 있지 않음",
+      "Install kubectl (Homebrew: brew install kubectl), then try again.": "kubectl을 설치한 뒤(Homebrew: brew install kubectl) 다시 시도하세요.",
+      "Install kubectl": "kubectl 설치",
+      "You’re offline": "오프라인 상태",
+      "The cluster status comes back when this Mac is online again.": "Mac이 다시 온라인이 되면 클러스터 상태가 돌아옵니다.",
+      "The cluster didn’t answer in time": "클러스터가 제때 응답하지 않음",
+      "It may be busy or behind a VPN that isn’t connected.": "바쁘거나, 연결되지 않은 VPN 뒤에 있을 수 있습니다.",
+      "Can’t reach the cluster": "클러스터에 연결할 수 없음",
+      "Is it running, and is this the right context? Set one in the widget settings.": "클러스터가 실행 중이고 컨텍스트가 맞는지 확인하세요. 위젯 설정에서 지정할 수 있습니다.",
+      "kubectl couldn’t list the pods": "kubectl이 Pod 목록을 가져오지 못함",
+      "Check the context and namespace in the widget settings.": "위젯 설정에서 컨텍스트와 네임스페이스를 확인하세요."
     }
   }
 }

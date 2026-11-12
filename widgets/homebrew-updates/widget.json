@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.homebrew-updates",
   "name": "Homebrew Updates",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "minHostVersion": "0.7.21",
   "icon": "mug",
   "bucket": {
@@ -18,7 +18,8 @@
   "refresh": {
     "onOpen": true,
     "interval": 10800,
-    "staleAfterSec": 10800
+    "staleAfterSec": 10800,
+    "runInBackground": true
   },
   "statusItem": {
     "mode": "dynamic",
@@ -37,7 +38,8 @@
         "maxOutputBytes": 1048576,
         "sensitiveOutput": false
       }
-    ]
+    ],
+    "notifications": true
   },
   "settings": [
     {
@@ -55,6 +57,12 @@
         "Formulae only",
         "Casks only"
       ]
+    },
+    {
+      "key": "alertOnUpdates",
+      "type": "boolean",
+      "title": "Notify when updates are available",
+      "default": false
     }
   ],
   "appearance": {
@@ -76,14 +84,14 @@
       "Install it from brew.sh to see outdated packages here.": "brew.sh에서 설치하면 오래된 패키지를 여기서 볼 수 있습니다.",
       "brew outdated failed": "brew outdated 실패",
       "Run brew outdated in Terminal to see why.": "터미널에서 brew outdated를 실행해 원인을 확인하세요.",
-      "Copy upgrade command": "업그레이드 명령 복사",
       "Copied": "복사됨",
       "${row.name}": "${row.name}",
       "${row.from} → ${row.to}": "${row.from} → ${row.to}",
       "Formulae": "포뮬러",
       "Casks": "캐스크",
       "pinned": "고정됨",
-      "${string(transforms.total)} Homebrew updates": "Homebrew 업데이트 ${string(transforms.total)}개"
+      "Copy Upgrade Command": "업그레이드 명령 복사",
+      "Notify when updates are available": "업데이트가 있으면 알림"
     }
   }
 }

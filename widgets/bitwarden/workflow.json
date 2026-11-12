@@ -253,10 +253,34 @@
                 "switch": "${transforms.state}",
                 "cases": {
                   "missing": {
-                    "type": "empty",
-                    "icon": "lock.slash",
-                    "title": "Bitwarden CLI not found",
-                    "subtitle": "Install it with Homebrew (bitwarden-cli) or npm (@bitwarden/cli)."
+                    "type": "vstack",
+                    "spacing": 8,
+                    "children": [
+                      {
+                        "type": "empty",
+                        "icon": "lock.slash",
+                        "title": "Bitwarden CLI not found",
+                        "subtitle": "Install it with Homebrew (bitwarden-cli) or npm (@bitwarden/cli)."
+                      },
+                      {
+                        "type": "hstack",
+                        "spacing": 6,
+                        "children": [
+                          {
+                            "type": "button",
+                            "title": "Get the Bitwarden CLI",
+                            "icon": "arrow.down.circle",
+                            "action": { "type": "openURL", "url": "https://bitwarden.com/help/cli/" }
+                          },
+                          {
+                            "type": "button",
+                            "title": "Try Again",
+                            "icon": "arrow.clockwise",
+                            "action": { "type": "refresh" }
+                          }
+                        ]
+                      }
+                    ]
                   },
                   "error": {
                     "type": "banner",

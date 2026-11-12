@@ -1337,7 +1337,10 @@ final class PersistenceWidgetTests: XCTestCase {
         XCTAssertEqual(byKey["lastAt"], .number(nowMs))     // stamped now
     }
 
-    func testDownloadsNewShowsSignedDelta() throws {
+    /// "+N since last check" used to compare against a count rewritten on
+    /// every refresh, so it read +0 almost always. New files are now the
+    /// ones modified after a timestamp that moves only on request.
+    func testDownloadsNewCountsFilesSinceTheLastRequestedCheck() throws {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("barshelf-downloads-new-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -1350,24 +1353,25 @@ final class PersistenceWidgetTests: XCTestCase {
         let settings: JSONValue = .object(["folder": .string(dir.path)])
         let params = try WorkflowEngine.resolvedSourceParams(def, settings: settings)
         let listing = try FileSource.list(try FileSource.Params(from: try XCTUnwrap(params["files"])))
+        let now = Date().timeIntervalSince1970 * 1000
+        let checkedAt = now - 3_600_000
 
-        // 5 files now, 3 at the last check → +2.
+        // Five files written after the last check: all five are new, and an
+        // ordinary refresh leaves the baseline where it was.
         let output = try WorkflowEngine.evaluate(
             def, sources: ["files": listing], settings: settings,
-            storage: .object(["count": .number(3)]), nowMs: nowMs
+            storage: .object(["checkedAt": .number(checkedAt)]), nowMs: now
         )
-        let deltaNode = output.viewTree.children?[1]
-        XCTAssertEqual(deltaNode?.text, "+2 since last check")
-        XCTAssertEqual(deltaNode?.foreground, "good")
-        XCTAssertEqual(output.writes.first(where: { $0.key == "count" })?.value, .number(5))
+        XCTAssertEqual(output.statusLabel, "5")
+        XCTAssertEqual(output.writes.first(where: { $0.key == "checkedAt" })?.value, .number(checkedAt))
 
-        // First-ever check (no stored count) → no change, neutral tint.
+        // First-ever check: the baseline is now, nothing is new yet.
         let firstRun = try WorkflowEngine.evaluate(
             def, sources: ["files": listing], settings: settings,
-            storage: .object([:]), nowMs: nowMs
+            storage: .object([:]), nowMs: now + 60_000
         )
-        XCTAssertEqual(firstRun.viewTree.children?[1].text, "+0 since last check")
-        XCTAssertEqual(firstRun.viewTree.children?[1].foreground, "secondary")
+        XCTAssertEqual(firstRun.statusLabel, "0")
+        XCTAssertEqual(firstRun.writes.first(where: { $0.key == "checkedAt" })?.value, .number(now + 60_000))
     }
 
     func testConcatBuildsStringsInsideAnExpression() throws {

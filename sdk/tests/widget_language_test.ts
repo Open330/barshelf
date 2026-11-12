@@ -1,10 +1,20 @@
 // Bundled script widgets show their fixed text in the app's language
 // (`ctx.locale`): Korean for `ko`, otherwise the English exactly as before.
 // What they run, store and send back as actions is the same in both.
-import { context, fireTimer, host, sendAction, strings } from "barshelf";
+import {
+  context,
+  fireTimer,
+  host,
+  JsonRpcError,
+  ProtocolErrorCode,
+  sendAction,
+  strings,
+} from "barshelf";
 import focusTimer from "../../widgets/focus-timer/index.ts";
 import developerInbox from "../../widgets/developer-inbox/index.ts";
 import battery from "../../widgets/battery/index.ts";
+import projectStatus from "../../widgets/project-status/index.ts";
+import clipboardShelf from "../../widgets/clipboard-shelf/index.ts";
 import nextMeeting from "../../widgets/next-meeting/index.ts";
 
 function assert(
@@ -128,9 +138,7 @@ Deno.test("Focus Timer keeps its English for English and unknown languages", asy
 
 function ghAnswers(prs = "[]", notifications = "[]") {
   host.exec = ({ command, args }) => {
-    if (command !== "/opt/homebrew/bin/gh") {
-      throw new Error("not installed here");
-    }
+    if (command !== "gh") throw new Error("gh is found by the host's discover");
     if (args?.[0] === "search") return { stdout: prs };
     if (args?.[0] === "api") return { stdout: notifications };
     return { stdout: "" };
@@ -198,7 +206,7 @@ Deno.test("Developer Inbox rows translate their labels, never the GitHub data", 
       "리뷰",
       "열기",
       "멘션",
-      "octo 작성 · 5분 전",
+      "5분 전 · octo 작성",
       "3시간 전",
     ]
   ) shows(text);
@@ -232,13 +240,175 @@ Deno.test("Developer Inbox rows translate their labels, never the GitHub data", 
 });
 
 Deno.test("Developer Inbox explains a missing gh in either language", async () => {
+  const missing = () => {
+    throw new JsonRpcError({ code: ProtocolErrorCode.ExecNotFound, message: "gh not found" });
+  };
   host.reset();
+  host.exec = missing;
   await developerInbox.handlers.load!(load("ko"));
   shows("GitHub CLI를 찾을 수 없습니다");
+  shows("https://cli.github.com");
   host.reset();
+  host.exec = missing;
   await developerInbox.handlers.load!(load("en"));
   shows("GitHub CLI not found");
-  shows("Install gh with Homebrew, then reopen this widget.");
+  shows("Get GitHub CLI");
+  assertEquals(host.lastRender.options.status?.label, "—");
+});
+
+Deno.test("Developer Inbox tells signed-out from offline instead of showing zero", async () => {
+  host.reset();
+  host.exec = () => ({
+    stdout: "",
+    exitCode: 4,
+    stderr: "To get started with GitHub CLI, please run:  gh auth login\nAlternatively, populate the GH_TOKEN environment variable",
+  });
+  await developerInbox.handlers.load!(load("en"));
+  shows("GitHub sign-in required");
+  shows("gh auth login");
+  hides("Inbox zero");
+  hides("You’re offline");
+
+  host.reset();
+  host.exec = () => ({
+    stdout: "",
+    exitCode: 1,
+    stderr: "error connecting to api.github.com\ncheck your internet connection or https://githubstatus.com",
+  });
+  await developerInbox.handlers.load!(load("ko"));
+  shows("오프라인 상태");
+  hides("GitHub 로그인 필요");
+  hides("모두 확인함");
+  assertEquals(host.lastRender.options.status?.label, "—");
+});
+
+Deno.test("a notification without a web URL still opens GitHub's list", async () => {
+  host.reset();
+  ghAnswers("[]", JSON.stringify([{
+    id: "9",
+    reason: "subscribed",
+    repository: { full_name: "o/r" },
+    subject: { title: "v1.0", type: "Release", url: "https://api.github.com/repos/o/r/releases/1" },
+    updated_at: new Date(NOW).toISOString(),
+  }]));
+  await developerInbox.handlers.load!(load("en"));
+  shows("https://github.com/notifications");
+  assertEquals(host.lastRender.options.status?.label, "1");
+});
+
+Deno.test("new review requests notify only when asked, after a baseline", async () => {
+  const pr = (number: number) => ({
+    number,
+    title: `PR ${number}`,
+    url: `https://github.com/o/r/pull/${number}`,
+    repository: { nameWithOwner: "o/r" },
+    author: { login: "octo" },
+    isDraft: false,
+    updatedAt: new Date(NOW).toISOString(),
+  });
+  host.reset();
+  ghAnswers(JSON.stringify([pr(1)]));
+  await developerInbox.handlers.load!(load("en"));
+  assertEquals(host.notifications.length, 0, "off by default");
+  assertEquals(host.storage.has("seen-review-requests"), false, "nothing kept while off");
+
+  const on = { notifyReviewRequests: true };
+  await developerInbox.handlers.load!(load("en", on));
+  assertEquals(host.notifications.length, 0, "the first check is the baseline");
+  ghAnswers(JSON.stringify([pr(1), pr(2)]));
+  await developerInbox.handlers.load!(load("en", on));
+  assertEquals(host.notifications.length, 1);
+  assertEquals(host.notifications[0].title, "New review request");
+  assertEquals(host.notifications[0].body, "o/r: PR 2");
+  await developerInbox.handlers.load!(load("en", on));
+  assertEquals(host.notifications.length, 1, "not again for the same PR");
+
+  await developerInbox.handlers.load!(load("en"));
+  assertEquals(host.storage.has("seen-review-requests"), false, "turning it off forgets");
+});
+
+// MARK: Project Status
+
+Deno.test("Project Status asks for the Command Line Tools instead of calling the folder not a repo", async () => {
+  const settings = { projectDirectory: "/Users/me/code/app" };
+  host.reset();
+  host.exec = () => ({
+    stdout: "",
+    exitCode: 1,
+    stderr: "xcode-select: note: No developer tools were found, requesting install.",
+  });
+  await projectStatus.handlers.load!(load("en", settings));
+  shows("Install Command Line Tools");
+  shows("xcode-select --install");
+  hides("Not a Git repository");
+  assertEquals(host.lastRender.options.status?.label, "—");
+  // An interval refresh does not run git (and macOS's install prompt) again.
+  const calls = host.execCalls.length;
+  await projectStatus.handlers.load!(load("en", settings));
+  assertEquals(host.execCalls.length, calls, "git ran again without a request");
+  shows("Install Command Line Tools");
+
+  host.reset();
+  host.exec = () => ({
+    stdout: "",
+    exitCode: 128,
+    stderr: "fatal: not a git repository (or any of the parent directories): .git",
+  });
+  // Try Again is a manual refresh.
+  await projectStatus.handlers.load!({ ...load("ko", settings), reason: "manual" as const });
+  shows("Git 저장소가 아님");
+  hides("Command Line Tools 설치");
+});
+
+Deno.test("Project Status says ahead/behind is as of the last fetch and keeps the menu bar short", async () => {
+  host.reset();
+  host.exec = ({ args }) => {
+    if (args?.[2] === "status") {
+      return {
+        stdout: "# branch.oid 0123456789abcdef\n# branch.head feature/very-long-branch-name\n# branch.upstream origin/feature/very-long-branch-name\n# branch.ab +2 -1\n1 .M N... 100644 100644 100644 a b file.txt\n",
+      };
+    }
+    if (args?.[2] === "log") return { stdout: "abc1234\x1fSubject\x1f1761000000" };
+    return { stdout: "git@github.com:o/r.git" };
+  };
+  await projectStatus.handlers.load!(load("en", { projectDirectory: "/Users/me/code/app" }));
+  shows("origin/feature/very-long-branch-name · as of the last fetch");
+  const label = host.lastRender.options.status?.label ?? "";
+  assert(label.length <= 14, `menu bar label too long: ${label}`);
+  assertEquals(label, "feature/… • 1");
+});
+
+// MARK: Clipboard Shelf (a fake pbpaste: the real clipboard is never read)
+
+Deno.test("Clipboard Shelf keeps collecting from its timer and keeps pins", async () => {
+  host.reset();
+  let clipboard = "first";
+  host.exec = () => ({ stdout: clipboard });
+  const handlers = clipboardShelf.handlers;
+  await handlers.load!(load("en"));
+  shows("first");
+  shows("Collects every 5 s · secrets are skipped");
+
+  // Copies made while the popup is closed arrive through the timer.
+  const renders = host.renders.length;
+  await fireTimer(handlers, "capture", NOW + 5_000);
+  assertEquals(host.renders.length, renders, "an unchanged clipboard does not re-render");
+  clipboard = "second";
+  await fireTimer(handlers, "capture", NOW + 10_000);
+  shows("second");
+  shows("first");
+  clipboard = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";
+  await fireTimer(handlers, "capture", NOW + 15_000);
+  shows("A clipboard value that looked sensitive was not captured.");
+  hides("ghp_abcdefghijklmnopqrstuvwxyz0123456789");
+
+  const first = (host.storage.get("pins-v1") as unknown[] | undefined);
+  assertEquals(first, undefined, "nothing stored before a pin");
+  const pinId = JSON.stringify(host.lastRender.root).match(/"id":"(clip-[^"]+)"/)?.[1];
+  await sendAction(handlers, "toggle-pin", NOW + 16_000, { id: pinId });
+  const pins = host.storage.get("pins-v1") as { value: string }[];
+  assertEquals(pins.length, 1);
+  shows("1 pinned · pins are kept on this Mac");
 });
 
 // MARK: Battery, Next Meeting

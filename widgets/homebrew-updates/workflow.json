@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "workflow",
-  "_comment": "Outdated Homebrew formulae and casks from `brew outdated --json=v2`, run through a fixed /bin/sh wrapper that finds brew at /opt/homebrew or /usr/local and reports missing/failed as JSON. HOMEBREW_NO_AUTO_UPDATE keeps it from git-fetching taps; brew may still refresh its API cache. Read-only: the button copies `brew upgrade`, nothing is upgraded from the widget. Every 3 hours while visible.",
+  "_comment": "Outdated Homebrew formulae and casks from `brew outdated --json=v2`, run through a fixed /bin/sh wrapper that finds brew at /opt/homebrew or /usr/local and reports missing/failed as JSON. HOMEBREW_NO_AUTO_UPDATE keeps it from git-fetching taps; brew may still refresh its API cache. Read-only: the button copies `brew upgrade`, nothing is upgraded from the widget. Every 3 hours while visible; with runInBackground the closed-popup check is every 12 hours, and the menu bar item keeps its own interval. The optional alert (off by default) fires when updates appear after a reading with none; a failed brew run is no reading.",
   "sources": {
     "brew": {
       "use": "exec",
@@ -93,7 +93,7 @@
         "children": [
           {
             "type": "hstack",
-            "spacing": 6,
+            "spacing": 8,
             "children": [
               {
                 "type": "text",
@@ -104,147 +104,152 @@
                 "desktopRole": "value"
               },
               {
-                "type": "text",
-                "text": "${transforms.summary}",
-                "role": "caption",
-                "foreground": "secondary",
-                "lineLimit": 1
-              },
-              {
-                "type": "spacer"
-              },
-              {
-                "type": "button",
-                "title": "Copy upgrade command",
-                "icon": "doc.on.doc",
-                "action": {
-                  "type": "copyText",
-                  "value": "${transforms.upgradeCmd}",
-                  "toast": "Copied"
-                }
+                "type": "vstack",
+                "spacing": 1,
+                "widthFill": true,
+                "children": [
+                  {
+                    "type": "text",
+                    "text": "${if(transforms.ko, '업데이트', if(eq(transforms.total, 1), 'update', 'updates'))}",
+                    "role": "body",
+                    "lineLimit": 1
+                  },
+                  {
+                    "type": "text",
+                    "text": "${transforms.summary}",
+                    "role": "caption",
+                    "foreground": "secondary",
+                    "lineLimit": 2
+                  }
+                ]
               }
             ]
           },
           {
-            "type": "scroll",
+            "type": "button",
+            "title": "Copy Upgrade Command",
+            "icon": "doc.on.doc",
+            "action": {
+              "type": "copyText",
+              "value": "${transforms.upgradeCmd}",
+              "toast": "Copied"
+            }
+          },
+          {
+            "type": "vstack",
+            "spacing": 8,
             "children": [
               {
-                "type": "vstack",
-                "spacing": 8,
-                "children": [
-                  {
-                    "switch": "${if(and(transforms.showF, gt(count(coalesce(transforms.formulae, [])), 0)), 'on', 'off')}",
-                    "cases": {
-                      "on": {
-                        "type": "section",
-                        "title": "Formulae",
-                        "spacing": 3,
-                        "children": {
-                          "forEach": "$.transforms.formulae",
-                          "as": "row",
-                          "template": {
-                            "type": "hstack",
-                            "id": "${row.id}",
-                            "spacing": 6,
-                            "children": [
-                              {
-                                "type": "text",
-                                "text": "${row.name}",
-                                "role": "body",
-                                "lineLimit": 1,
-                                "truncation": "middle"
-                              },
-                              {
-                                "switch": "${if(row.pinned, 'pinned', 'no')}",
-                                "cases": {
-                                  "pinned": {
-                                    "type": "badge",
-                                    "text": "pinned",
-                                    "tone": "neutral"
-                                  }
-                                },
-                                "default": {
-                                  "type": "none"
-                                }
-                              },
-                              {
-                                "type": "spacer"
-                              },
-                              {
-                                "type": "text",
-                                "text": "${row.from} → ${row.to}",
-                                "role": "caption",
-                                "foreground": "secondary",
-                                "monospacedDigit": true,
-                                "lineLimit": 1,
-                                "truncation": "middle"
+                "switch": "${if(and(transforms.showF, gt(count(coalesce(transforms.formulae, [])), 0)), 'on', 'off')}",
+                "cases": {
+                  "on": {
+                    "type": "section",
+                    "title": "Formulae",
+                    "spacing": 3,
+                    "children": {
+                      "forEach": "$.transforms.formulae",
+                      "as": "row",
+                      "template": {
+                        "type": "hstack",
+                        "id": "${row.id}",
+                        "spacing": 6,
+                        "children": [
+                          {
+                            "type": "text",
+                            "text": "${row.name}",
+                            "role": "body",
+                            "lineLimit": 1,
+                            "truncation": "middle"
+                          },
+                          {
+                            "switch": "${if(row.pinned, 'pinned', 'no')}",
+                            "cases": {
+                              "pinned": {
+                                "type": "badge",
+                                "text": "pinned",
+                                "tone": "neutral"
                               }
-                            ]
+                            },
+                            "default": {
+                              "type": "none"
+                            }
+                          },
+                          {
+                            "type": "spacer"
+                          },
+                          {
+                            "type": "text",
+                            "text": "${row.from} → ${row.to}",
+                            "role": "caption",
+                            "foreground": "secondary",
+                            "monospacedDigit": true,
+                            "lineLimit": 1,
+                            "truncation": "middle"
                           }
-                        }
+                        ]
                       }
-                    },
-                    "default": {
-                      "type": "none"
-                    }
-                  },
-                  {
-                    "switch": "${if(and(transforms.showC, gt(count(coalesce(transforms.casks, [])), 0)), 'on', 'off')}",
-                    "cases": {
-                      "on": {
-                        "type": "section",
-                        "title": "Casks",
-                        "spacing": 3,
-                        "children": {
-                          "forEach": "$.transforms.casks",
-                          "as": "row",
-                          "template": {
-                            "type": "hstack",
-                            "id": "${row.id}",
-                            "spacing": 6,
-                            "children": [
-                              {
-                                "type": "text",
-                                "text": "${row.name}",
-                                "role": "body",
-                                "lineLimit": 1,
-                                "truncation": "middle"
-                              },
-                              {
-                                "switch": "${if(row.pinned, 'pinned', 'no')}",
-                                "cases": {
-                                  "pinned": {
-                                    "type": "badge",
-                                    "text": "pinned",
-                                    "tone": "neutral"
-                                  }
-                                },
-                                "default": {
-                                  "type": "none"
-                                }
-                              },
-                              {
-                                "type": "spacer"
-                              },
-                              {
-                                "type": "text",
-                                "text": "${row.from} → ${row.to}",
-                                "role": "caption",
-                                "foreground": "secondary",
-                                "monospacedDigit": true,
-                                "lineLimit": 1,
-                                "truncation": "middle"
-                              }
-                            ]
-                          }
-                        }
-                      }
-                    },
-                    "default": {
-                      "type": "none"
                     }
                   }
-                ]
+                },
+                "default": {
+                  "type": "none"
+                }
+              },
+              {
+                "switch": "${if(and(transforms.showC, gt(count(coalesce(transforms.casks, [])), 0)), 'on', 'off')}",
+                "cases": {
+                  "on": {
+                    "type": "section",
+                    "title": "Casks",
+                    "spacing": 3,
+                    "children": {
+                      "forEach": "$.transforms.casks",
+                      "as": "row",
+                      "template": {
+                        "type": "hstack",
+                        "id": "${row.id}",
+                        "spacing": 6,
+                        "children": [
+                          {
+                            "type": "text",
+                            "text": "${row.name}",
+                            "role": "body",
+                            "lineLimit": 1,
+                            "truncation": "middle"
+                          },
+                          {
+                            "switch": "${if(row.pinned, 'pinned', 'no')}",
+                            "cases": {
+                              "pinned": {
+                                "type": "badge",
+                                "text": "pinned",
+                                "tone": "neutral"
+                              }
+                            },
+                            "default": {
+                              "type": "none"
+                            }
+                          },
+                          {
+                            "type": "spacer"
+                          },
+                          {
+                            "type": "text",
+                            "text": "${row.from} → ${row.to}",
+                            "role": "caption",
+                            "foreground": "secondary",
+                            "monospacedDigit": true,
+                            "lineLimit": 1,
+                            "truncation": "middle"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                },
+                "default": {
+                  "type": "none"
+                }
               }
             ]
           }
@@ -276,6 +281,14 @@
   },
   "status": {
     "label": "${if(eq(transforms.state, 'ok'), string(transforms.total), '—')}",
-    "tooltip": "${string(transforms.total)} Homebrew updates"
+    "tooltip": "${if(eq(transforms.state, 'ok'), if(transforms.ko, concat('Homebrew 업데이트 ', string(transforms.total), '개'), concat(string(transforms.total), ' Homebrew updates')), if(eq(transforms.state, 'missing'), if(transforms.ko, 'Homebrew가 설치되어 있지 않음', 'Homebrew isn’t installed'), if(transforms.ko, 'brew outdated 실패', 'brew outdated failed')))}"
+  },
+  "alerts": {
+    "updates": {
+      "when": "${if(and(coalesce(settings.alertOnUpdates, false), eq(transforms.state, 'ok')), gt(transforms.total, 0), null)}",
+      "title": "${if(transforms.ko, concat('Homebrew 업데이트 ', string(transforms.total), '개'), concat(string(transforms.total), if(eq(transforms.total, 1), ' Homebrew update', ' Homebrew updates')))}",
+      "body": "${transforms.summary}",
+      "cooldownSec": 86400
+    }
   }
 }
