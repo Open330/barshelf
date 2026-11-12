@@ -61,16 +61,30 @@ final class SettingsFileProblems {
         let problems = pendingUnreadable
         pendingUnreadable = []
         guard !problems.isEmpty else { return }
-        let names = problems.map(\.file.lastPathComponent).joined(separator: ", ")
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = String(localized: "BarShelf couldn't read some of your settings")
-        alert.informativeText = String(localized: "\(names) could not be read, so BarShelf started without it. The original file was kept beside it, with \"corrupt\" and the date in its name.")
-        alert.addButton(withTitle: String(localized: "OK"))
         let kept = problems.compactMap { problem -> URL? in
             if case .unreadable(let movedTo) = problem.kind { return movedTo }
             return nil
         }
+        let movedNames = problems.filter { problem in
+            if case .unreadable(.some) = problem.kind { return true }
+            return false
+        }.map(\.file.lastPathComponent).joined(separator: ", ")
+        let leftNames = problems.filter { problem in
+            if case .unreadable(nil) = problem.kind { return true }
+            return false
+        }.map(\.file.lastPathComponent).joined(separator: ", ")
+        var lines: [String] = []
+        if !movedNames.isEmpty {
+            lines.append(String(localized: "\(movedNames) could not be read, so BarShelf started without it. The original file was kept beside it, with \"corrupt\" and the date in its name."))
+        }
+        if !leftNames.isEmpty {
+            lines.append(String(localized: "\(leftNames) could not be read and was left as it is. BarShelf won't save over it; check that you can open the file, then quit and reopen BarShelf."))
+        }
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = String(localized: "BarShelf couldn't read some of your settings")
+        alert.informativeText = lines.joined(separator: "\n\n")
+        alert.addButton(withTitle: String(localized: "OK"))
         if !kept.isEmpty { alert.addButton(withTitle: String(localized: "Show in Finder")) }
         NSApp.activate()
         if alert.runModal() == .alertSecondButtonReturn {

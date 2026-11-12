@@ -72,4 +72,26 @@ final class AuditLogTests: XCTestCase {
         XCTAssertLessThan(size, 400)
         XCTAssertEqual(try lines().last?["widgetId"] as? String, "w39")
     }
+
+    /// Failures are never folded into a count.
+    func testRepeatedFailuresAreAllWritten() throws {
+        let log = AuditLog(fileURL: url)
+        for _ in 0..<3 {
+            log.record("exec.run", widgetId: "w", detail: ["command": .string("a"), "exitCode": .number(1)])
+        }
+        XCTAssertEqual(try lines().count, 3)
+    }
+
+    /// A write that failed does not open the window: the next run retries.
+    func testAFailedWriteIsRetriedByTheNextRun() throws {
+        let blocker = directory!
+        try Data("x".utf8).write(to: blocker)
+        let log = AuditLog(fileURL: blocker.appendingPathComponent("audit.log"))
+        let run: [String: JSONValue] = ["command": .string("a"), "trigger": .string("refresh")]
+        log.record("exec.run", widgetId: "w", detail: run)
+        try FileManager.default.removeItem(at: blocker)
+        log.record("exec.run", widgetId: "w", detail: run)
+        XCTAssertEqual(try lines(blocker.appendingPathComponent("audit.log")).count, 1)
+    }
+
 }

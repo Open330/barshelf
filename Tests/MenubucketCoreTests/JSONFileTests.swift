@@ -81,4 +81,57 @@ final class JSONFileTests: XCTestCase {
         let array = try JSONDecoder().decode(LenientArray<Point>.self, from: Data(#"[{"x": 1}, 7, {"x": 3}]"#.utf8))
         XCTAssertEqual(array.elements, [Point(x: 1), Point(x: 3)])
     }
+
+    /// A file that is there but cannot be read (permissions) is set aside
+    /// like an undecodable one; when even that fails, no save replaces it
+    /// until it can be.
+    func testAFileThatCannotBeReadOrSetAsideIsNeverReplaced() throws {
+        try XCTSkipIf(getuid() == 0, "root reads and renames anything")
+        let fm = FileManager.default
+        let url = directory.appendingPathComponent("prefs.json")
+        try JSONFile.write(Data(#"{"pinned": ["mine"]}"#.utf8), to: url)
+        try fm.setAttributes([.posixPermissions: 0o000], ofItemAtPath: url.path)
+        // A folder nothing can be renamed in.
+        try fm.setAttributes([.posixPermissions: 0o555], ofItemAtPath: directory.path)
+        defer {
+            try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: directory.path)
+            try? fm.setAttributes([.posixPermissions: 0o644], ofItemAtPath: url.path)
+        }
+
+        XCTAssertNil(JSONFile.load([String: [String]].self, from: url))
+        XCTAssertTrue(fm.fileExists(atPath: url.path))
+        XCTAssertFalse(JSONFile.save(["pinned": ["default"]], to: url, announce: false))
+        XCTAssertThrowsError(try JSONFile.write(["pinned": ["default"]], to: url))
+
+        // Once the folder allows it, the next save sets the original aside
+        // first, then writes.
+        try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: directory.path)
+        XCTAssertTrue(JSONFile.save(["pinned": ["new"]], to: url, announce: false))
+        let aside = try XCTUnwrap(try asideFiles().first)
+        try fm.setAttributes([.posixPermissions: 0o644], ofItemAtPath: directory.appendingPathComponent(aside).path)
+        XCTAssertEqual(try String(contentsOf: directory.appendingPathComponent(aside), encoding: .utf8), #"{"pinned": ["mine"]}"#)
+        XCTAssertEqual(try JSONDecoder().decode([String: [String]].self, from: Data(contentsOf: url)), ["pinned": ["new"]])
+    }
+
+    func testAFileThatCannotBeReadIsSetAside() throws {
+        try XCTSkipIf(getuid() == 0, "root reads and renames anything")
+        let fm = FileManager.default
+        let url = directory.appendingPathComponent("prefs.json")
+        try JSONFile.write(Data(#"{"pinned": ["mine"]}"#.utf8), to: url)
+        try fm.setAttributes([.posixPermissions: 0o000], ofItemAtPath: url.path)
+        XCTAssertNil(JSONFile.load([String: [String]].self, from: url))
+        XCTAssertFalse(fm.fileExists(atPath: url.path))
+        let aside = try XCTUnwrap(try asideFiles().first)
+        try fm.setAttributes([.posixPermissions: 0o644], ofItemAtPath: directory.appendingPathComponent(aside).path)
+        XCTAssertTrue(JSONFile.save(["pinned": ["new"]], to: url, announce: false))
+        XCTAssertEqual(try String(contentsOf: directory.appendingPathComponent(aside), encoding: .utf8), #"{"pinned": ["mine"]}"#)
+    }
+
+    /// A number too large for a Double used to stop the array decoder from
+    /// moving on, looping forever at launch.
+    func testLenientArraySkipsAValueNothingCanDecode() throws {
+        let array = try JSONDecoder().decode(LenientArray<String>.self, from: Data(#"[1e400, "ok", {"n": 1e400}, "two"]"#.utf8))
+        XCTAssertEqual(array.elements, ["ok", "two"])
+    }
+
 }

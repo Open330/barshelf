@@ -29,6 +29,43 @@ public enum JSONFile {
 
     public static let problemKey = "problem"
 
+    /// A write refused because the file there could not be read or moved
+    /// aside, so writing would replace what the user had.
+    public struct ProtectedFileError: LocalizedError, Sendable {
+        public let file: URL
+        public var errorDescription: String? {
+            "\(file.lastPathComponent) could not be read or set aside, so it was not replaced."
+        }
+    }
+
+    /// Files whose load failed without a copy being kept. Writing to one is
+    /// refused until it can be moved aside (permissions fixed, say).
+    private final class Protected: @unchecked Sendable {
+        let lock = NSLock()
+        var paths: Set<String> = []
+    }
+    private static let protected = Protected()
+
+    private static func protect(_ url: URL) {
+        protected.lock.lock(); defer { protected.lock.unlock() }
+        protected.paths.insert(url.standardizedFileURL.path)
+    }
+
+    /// Whether `url` may be written: not protected, or now moved aside.
+    private static func clearToWrite(_ url: URL) -> Bool {
+        let path = url.standardizedFileURL.path
+        protected.lock.lock(); defer { protected.lock.unlock() }
+        guard protected.paths.contains(path) else { return true }
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: path) else {
+            protected.paths.remove(path)
+            return true
+        }
+        guard moveAside(url) != nil else { return false }
+        protected.paths.remove(path)
+        return true
+    }
+
     /// The decoded file, or nil when there is none or it could not be
     /// decoded. A file that is there but undecodable is moved aside before
     /// returning nil, so the caller's defaults never overwrite it.
@@ -43,9 +80,13 @@ public enum JSONFile {
             data = try Data(contentsOf: url)
         } catch {
             if !isMissing(error) {
-                // Present but unreadable (permissions, I/O). Leave it where it
-                // is: moving it would likely fail the same way.
-                NSLog("barshelf: could not read \(url.path): \(error)")
+                // Present but unreadable (permissions, I/O): set aside like an
+                // undecodable one. If even that fails, no write replaces it.
+                let movedTo = moveAside(url, now: now)
+                if movedTo == nil { protect(url) }
+                let message = String(describing: error)
+                NSLog("barshelf: could not read \(url.path), moved to \(movedTo?.path ?? "nowhere"): \(message)")
+                post(Problem(kind: .unreadable(movedTo: movedTo), file: url, message: message))
             }
             return nil
         }
@@ -53,6 +94,7 @@ public enum JSONFile {
             return try decoder.decode(T.self, from: data)
         } catch {
             let movedTo = moveAside(url, now: now)
+            if movedTo == nil { protect(url) }
             let message = String(describing: error)
             NSLog("barshelf: could not decode \(url.path), moved to \(movedTo?.path ?? "nowhere"): \(message)")
             post(Problem(kind: .unreadable(movedTo: movedTo), file: url, message: message))
@@ -66,6 +108,7 @@ public enum JSONFile {
     }
 
     public static func write(_ data: Data, to url: URL) throws {
+        guard clearToWrite(url) else { throw ProtectedFileError(file: url) }
         try FileManager.default.createDirectory(
             at: url.deletingLastPathComponent(), withIntermediateDirectories: true
         )
@@ -146,11 +189,12 @@ public struct LenientArray<Element: Decodable>: Decodable {
         var container = try decoder.unkeyedContainer()
         var elements: [Element] = []
         while !container.isAtEnd {
-            if let element = try? container.decode(Element.self) {
-                elements.append(element)
-            } else {
-                // Any JSON value: advances past the element whatever it is.
-                _ = try? container.decode(JSONValue.self)
+            // A decoder of its own per element always moves on, even past a
+            // value nothing can decode (`1e400`): decoding the element from
+            // the container directly would not, and loop forever.
+            let element = try container.superDecoder()
+            if let value = try? Element(from: element) {
+                elements.append(value)
             }
         }
         self.elements = elements

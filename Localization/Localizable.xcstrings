@@ -176,6 +176,16 @@
         }
       }
     },
+    "%@ could not be read and was left as it is. BarShelf won't save over it; check that you can open the file, then quit and reopen BarShelf.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 파일을 읽을 수 없어 그대로 두었습니다. BarShelf는 이 파일을 덮어쓰지 않습니다. 파일을 열 수 있는지 확인한 뒤 BarShelf를 종료했다가 다시 여세요."
+          }
+        }
+      }
+    },
     "%@ could not be read, so BarShelf started without it. The original file was kept beside it, with \"corrupt\" and the date in its name.": {
       "localizations": {
         "ko": {

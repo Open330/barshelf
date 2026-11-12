@@ -9,12 +9,15 @@ import Foundation
 /// Two limits keep it from growing forever (it reached 33 MB on a Mac that
 /// ran BarShelf all day, nearly all of it `exec.run` from automatic
 /// refreshes):
-/// - Routine runs (`exec.run`, `network.fetch` not started by a click) are
-///   written once per `routineWindow` for the same widget, command or URL,
-///   trigger and exit code. The next one written carries `repeats`: how
+/// - Routine runs (`exec.run`, `network.fetch` not started by a click and
+///   not a nonzero exit) are written once per `routineWindow` for the same
+///   widget, command or URL, trigger and exit code. The next one written carries `repeats`: how
 ///   many identical runs it stands for since the last entry. Anything else
 ///   (a different command, a failure, a permission decision, a click) is
-///   written at once.
+///   written at once. The count is best effort: runs skipped after the last
+///   entry go unwritten if no matching run follows (the widget stopped,
+///   BarShelf quit). A script's own `host.exec` carries no trigger, so a
+///   click inside a script widget counts as routine.
 /// - At `rotateAtBytes` the file moves to `audit.log.1` (and `.1` to `.2`),
 ///   so at most three files are kept.
 public final class AuditLog: @unchecked Sendable {
@@ -56,7 +59,8 @@ public final class AuditLog: @unchecked Sendable {
 
         lock.lock()
         defer { lock.unlock() }
-        if let key = Self.routineKey(event: event, widgetId: widgetId, detail: detail) {
+        let key = Self.routineKey(event: event, widgetId: widgetId, detail: detail)
+        if let key {
             if let last = routine[key], date.timeIntervalSince(last.writtenAt) < routineWindow {
                 routine[key] = (last.writtenAt, last.skipped + 1)
                 return
@@ -64,8 +68,6 @@ public final class AuditLog: @unchecked Sendable {
             if let skipped = routine[key]?.skipped, skipped > 0 {
                 object["repeats"] = .number(Double(skipped))
             }
-            routine[key] = (date, 0)
-            if routine.count > 2_000 { pruneRoutineLocked(before: date) }
         }
 
         let timestampFormatter = ISO8601DateFormatter()
@@ -92,6 +94,12 @@ public final class AuditLog: @unchecked Sendable {
             defer { try? handle.close() }
             try handle.seekToEnd()
             try handle.write(contentsOf: data)
+            // Only once it is on disk: a failed write is tried again by the
+            // next matching run instead of being skipped for the window.
+            if let key {
+                routine[key] = (date, 0)
+                if routine.count > 2_000 { pruneRoutineLocked(before: date) }
+            }
         } catch {
             NSLog("barshelf: audit log write failed: \(error)")
         }
@@ -102,6 +110,8 @@ public final class AuditLog: @unchecked Sendable {
     static func routineKey(event: String, widgetId: String, detail: [String: JSONValue]) -> String? {
         guard routineEvents.contains(event) else { return nil }
         if case .string("run-action")? = detail["trigger"] { return nil }
+        // A run that failed is always written.
+        if case .number(let code)? = detail["exitCode"], code != 0 { return nil }
         func text(_ key: String) -> String {
             switch detail[key] {
             case .string(let value)?: return value
