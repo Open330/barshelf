@@ -230,6 +230,7 @@ struct NodeView: View {
             // Non-button nodes with an `action` become tappable as a whole
             // (e.g. a file row/tile opens on click), mirroring native lists.
             .modifier(NodeTapModifier(action: node.type == "button" ? nil : node.action))
+            .modifier(NodeHelpModifier(text: node.help))
     }
 
     @ViewBuilder
@@ -273,7 +274,15 @@ struct NodeView: View {
             }
         case .scroll:
             ScrollView(scrollAxes, showsIndicators: true) {
-                if let child = node.child?.node { NodeView(node: child) }
+                if let child = node.child?.node {
+                    NodeView(node: child)
+                } else if let children = node.children, !children.isEmpty {
+                    // Authors reach for `children` as on every other
+                    // container; it used to render nothing.
+                    VStack(alignment: .leading, spacing: (node.spacing ?? Spacing.stack) * scale) {
+                        NodeChildrenView(nodes: children)
+                    }
+                }
             }
         case .list:
             NodeListView(
@@ -522,10 +531,15 @@ struct NodeView: View {
                 }
                 if let title = node.title ?? node.text {
                     Text(title)
+                        .lineLimit(1)
                 }
             }
             .font(.callout)
         }
+        // A button keeps its whole label; the text beside it gives way
+        // ("Copy u…" and "Ope…" were buttons squeezed by their row).
+        .fixedSize()
+        .layoutPriority(1)
         // The app's capsule, so a widget's buttons match every other
         // button in BarShelf.
         .buttonStyle(.glass(.secondary))
@@ -605,6 +619,19 @@ struct NodeView: View {
 /// Renders a `progress` node with a `countdown` window. The host re-evaluates
 /// remaining time every second via `TimelineView` — no script re-run needed.
 /// Ticks stop when the page is offscreen or the popup leaves the window.
+enum CountdownLabel {
+    /// "45s", "12m", "1h5m": short enough for a ring's centre. Rounded up,
+    /// so a countdown reads "1m" until it is under a minute, never "0m".
+    static func shortDuration(_ seconds: Double) -> String {
+        let total = max(0, Int(seconds.rounded(.up)))
+        if total < 60 { return "\(total)s" }
+        let minutes = (total + 59) / 60
+        if minutes < 60 { return "\(minutes)m" }
+        let hours = minutes / 60, rest = minutes % 60
+        return rest == 0 ? "\(hours)h" : "\(hours)h\(rest)m"
+    }
+}
+
 private struct CountdownProgressView: View {
     let node: UINode
     @Environment(\.widgetAppearance) private var appearance
@@ -632,9 +659,11 @@ private struct CountdownProgressView: View {
         let remaining = node.countdownRemainingSeconds(nowMs: nowMs) ?? 0
         let tint = nodeColor(node.countdownTint(nowMs: nowMs), accent: appearance.accentColor)
             ?? (appearance.accentColor ?? .accentColor)
-        let remainingText = node.labelFrom == "remainingSeconds"
-            ? String(Int(remaining.rounded(.down)))
-            : nil
+        let remainingText: String? = switch node.labelFrom {
+        case "remainingSeconds": String(Int(remaining.rounded(.down)))
+        case "remaining": CountdownLabel.shortDuration(remaining)
+        default: nil
+        }
 
         if node.style == "ring" {
             RingProgressView(
@@ -653,7 +682,7 @@ private struct CountdownProgressView: View {
                 }
                 LinearMeter(fraction: fraction, tint: tint)
                 if let remainingText {
-                    Text(remainingText + "s")
+                    Text(node.labelFrom == "remainingSeconds" ? remainingText + "s" : remainingText)
                         .font(.caption)
                         .monospacedDigit()
                         .foregroundColor(.secondary)
@@ -1234,5 +1263,18 @@ private struct MonogramView: View {
                     .font(.system(size: pointSize * 0.5, weight: .semibold, design: .rounded))
                     .foregroundColor(accent)
             )
+    }
+}
+
+/// A node's `help` as hover text; nothing when it has none.
+private struct NodeHelpModifier: ViewModifier {
+    let text: String?
+
+    func body(content: Content) -> some View {
+        if let text, !text.isEmpty {
+            content.help(text)
+        } else {
+            content
+        }
     }
 }

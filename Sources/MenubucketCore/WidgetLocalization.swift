@@ -122,6 +122,7 @@ public struct WidgetLocalization: Equatable, Sendable {
         settings.map { setting in
             var localized = setting
             localized.title = setting.title.map(text)
+            localized.hint = setting.hint.map(text)
             localized.label = setting.label.map(text)
             if let titles = setting.optionTitles {
                 localized.optionTitles = titles.map(text)
@@ -136,7 +137,7 @@ public struct WidgetLocalization: Equatable, Sendable {
 
     /// View-tree keys whose string values are display text.
     static let textKeys: Set<String> = [
-        "text", "title", "subtitle", "label", "searchPlaceholder", "accessibilityLabel", "hint",
+        "text", "title", "subtitle", "label", "searchPlaceholder", "accessibilityLabel", "hint", "help",
     ]
     /// Subtrees that carry behavior or data, never display text.
     static let skippedKeys: Set<String> = ["action", "source", "drag", "value"]

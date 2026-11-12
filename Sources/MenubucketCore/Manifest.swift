@@ -509,11 +509,14 @@ public struct Manifest: Codable, Equatable {
         /// `key:<KEY>`, which a `system` source's `sensors` param reads on its
         /// own. A host that does not know the name shows `options` alone.
         public var optionsSource: String?
+        /// One line under the control (BarShelf 0.7.32): an example or the
+        /// allowed form ("e.g. 37.57"), so the title can stay short.
+        public var hint: String?
 
         public static let sensorOptionsSource = "system.sensors"
 
         private enum CodingKeys: String, CodingKey {
-            case key, type, label, title, options, optionTitles, min, max, optionsSource
+            case key, type, label, title, options, optionTitles, min, max, optionsSource, hint
             case defaultValue = "default"
         }
 
@@ -527,9 +530,11 @@ public struct Manifest: Codable, Equatable {
             min: Double? = nil,
             max: Double? = nil,
             defaultValue: JSONValue? = nil,
-            optionsSource: String? = nil
+            optionsSource: String? = nil,
+            hint: String? = nil
         ) {
             self.optionsSource = optionsSource
+            self.hint = hint
             self.key = key
             self.type = type
             self.label = label
