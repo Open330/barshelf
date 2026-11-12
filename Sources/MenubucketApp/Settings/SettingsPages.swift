@@ -463,6 +463,18 @@ struct PrivacySettingsPage: View {
                                 .help("Allow every widget waiting for you, after one confirmation")
                         }
                     }
+                    // Attached once, to the row with the button; inside the
+                    // groups' ForEach it was attached once per group.
+                    .confirmationDialog(Self.allowAllTitle(waiting), isPresented: $confirmingAllowAll, titleVisibility: .visible) {
+                        Button("Allow All") {
+                            for widget in Self.distinctManifests(waiting) {
+                                runtime.approvePermissions(widgetID: widget.id)
+                            }
+                        }
+                        Button("Cancel", role: .cancel) {}
+                    } message: {
+                        Text(Self.allowAllMessage(waiting))
+                    }
                 }
                 let groups = Self.waitingGroups(waiting)
                 ForEach(groups, id: \.risk) { group in
@@ -484,16 +496,6 @@ struct PrivacySettingsPage: View {
                             Spacer()
                         }
                     }
-                }
-                .confirmationDialog(Self.allowAllTitle(waiting), isPresented: $confirmingAllowAll, titleVisibility: .visible) {
-                    Button("Allow All") {
-                        for widget in Self.distinctManifests(waiting) {
-                            runtime.approvePermissions(widgetID: widget.id)
-                        }
-                    }
-                    Button("Cancel", role: .cancel) {}
-                } message: {
-                    Text(Self.allowAllMessage(waiting))
                 }
             }
             if !denied.isEmpty {

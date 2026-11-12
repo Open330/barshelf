@@ -230,21 +230,32 @@ struct PermissionApprovalView: View {
         .accessibilityLabel(Text("\(widgetName) needs your permission to run."))
     }
 
-    /// One line per request's first phrase, for the folded row.
-    private var brief: String {
-        requests.compactMap { $0.description.split(separator: "\n").first.map(String.init) }
-            .joined(separator: " · ")
+    /// The folded row's brief: the first thing asked for, and how many
+    /// more, so one phrase never stands for the whole request.
+    static func briefParts(_ requests: [PermissionRequest]) -> (first: String, more: Int) {
+        let phrases = requests.flatMap { $0.description.split(separator: "\n").map(String.init) }
+        return (phrases.first ?? "", max(phrases.count - 1, 0))
+    }
+
+    static func moreLabel(_ count: Int) -> String {
+        String(localized: "+\(count) more", comment: "Folded permission card: how many more things it asks for")
+    }
+
+    /// The brief as one string (VoiceOver, tests).
+    static func brief(_ requests: [PermissionRequest]) -> String {
+        let parts = briefParts(requests)
+        return parts.more > 0 ? parts.first + " " + moreLabel(parts.more) : parts.first
     }
 
     private var folded: some View {
         ViewThatFits(in: .horizontal) {
             HStack(alignment: .center, spacing: Spacing.xs) {
-                heading(subtitle: brief, truncates: true)
+                heading(subtitle: Self.briefParts(requests).first, more: Self.briefParts(requests).more, truncates: true)
                 PermissionDecisionButtons(onDeny: onDeny, onAllow: onAllow)
             }
             // A half-width card: the decision under the heading.
             VStack(alignment: .leading, spacing: Spacing.xs) {
-                heading(subtitle: brief)
+                heading(subtitle: Self.briefParts(requests).first, more: Self.briefParts(requests).more)
                 HStack(spacing: 0) {
                     Spacer(minLength: 0)
                     PermissionDecisionButtons(onDeny: onDeny, onAllow: onAllow)
@@ -270,24 +281,32 @@ struct PermissionApprovalView: View {
 
     /// - Parameter truncates: the folded row's brief gives way to the
     ///   buttons beside it instead of pushing them under the heading.
-    private func heading(subtitle: String?, truncates: Bool = false) -> some View {
+    private func heading(subtitle: String?, more: Int = 0, truncates: Bool = false) -> some View {
         HStack(alignment: .center, spacing: Spacing.xs) {
             PermissionWaitingBadge()
             VStack(alignment: .leading, spacing: Spacing.hair) {
                 // Folded, the row shares its width with the decision: a
                 // shorter title keeps it on one line at the popup's width.
-                Text(truncates ? PermissionWaiting.shortTitle : PermissionWaiting.title)
+                Text(isExpanded ? PermissionWaiting.title : PermissionWaiting.shortTitle)
                     .font(.callout.weight(.medium))
-                    .lineLimit(1)
+                    .lineLimit(truncates ? 1 : 2)
                 if let subtitle, !subtitle.isEmpty {
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(isExpanded ? 3 : 1)
-                        .fixedSize(horizontal: false, vertical: true)
-                        // A small ideal width, so `ViewThatFits` judges the
-                        // row by the title and buttons, not the full brief.
-                        .frame(idealWidth: truncates ? 40 : nil, maxWidth: truncates ? .infinity : nil, alignment: .leading)
+                    HStack(spacing: Spacing.xxs) {
+                        Text(subtitle)
+                            .lineLimit(isExpanded ? 3 : 1)
+                            .fixedSize(horizontal: false, vertical: true)
+                            // A small ideal width, so `ViewThatFits` judges the
+                            // row by the title and buttons, not the full brief.
+                            .frame(idealWidth: truncates ? 40 : nil, maxWidth: truncates ? .infinity : nil, alignment: .leading)
+                        if more > 0 {
+                            // Never truncated: the phrase gives way first.
+                            Text(Self.moreLabel(more))
+                                .fixedSize()
+                                .layoutPriority(1)
+                        }
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 }
             }
             Spacer(minLength: 0)

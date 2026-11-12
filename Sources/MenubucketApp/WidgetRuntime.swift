@@ -917,7 +917,8 @@ final class WidgetRuntime: ObservableObject {
         var rows: [PermissionRequest] = []
         let permissions = manifest.permissions
         let table = localization ?? manifest.localization()
-        if let exec = ExecPermissionText.summary(for: manifest, localization: table) {
+        let exec = ExecPermissionText.summary(for: manifest, localization: table)
+        if let exec {
             rows.append(PermissionRequest(
                 symbol: "terminal",
                 description: exec.phrases.joined(separator: "\n"),
@@ -950,7 +951,10 @@ final class WidgetRuntime: ObservableObject {
         if permissions?.storage?.granted == true {
             rows.append(PermissionRequest(symbol: "internaldrive.fill", description: String(localized: "Save a little data on this Mac", comment: "Permission: the widget keeps a small amount of its own data")))
         }
-        if let env = permissions?.env, !env.isEmpty {
+        // The widget's own variables and those a single command is handed.
+        var env = permissions?.env ?? []
+        for name in exec?.environment ?? [] where !env.contains(name) { env.append(name) }
+        if !env.isEmpty {
             rows.append(PermissionRequest(
                 symbol: "leaf.fill",
                 description: String(localized: "Read settings from the environment: \(env.joined(separator: ", "))")

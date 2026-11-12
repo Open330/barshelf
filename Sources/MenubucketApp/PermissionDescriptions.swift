@@ -17,6 +17,15 @@ enum ExecPermissionText {
         /// The programs involved, by name: the declared commands and, for a
         /// shell script, the commands it calls.
         let tools: [String]
+        /// False when `tools` may not be all of them: a script runs
+        /// something it finds at run time, or a command may be given any
+        /// arguments or code.
+        let toolsAreComplete: Bool
+        /// A command that may be run with any arguments, or a shell or
+        /// interpreter that may be handed any code.
+        let isOpenEnded: Bool
+        /// Variables a command is handed besides the widget's own `env`.
+        let environment: [String]
     }
 
     /// Nil when the manifest declares no commands.
@@ -26,29 +35,74 @@ enum ExecPermissionText {
         var phrases = OrderedSet()
         var lines: [String] = []
         var tools = OrderedSet()
+        var environment = OrderedSet()
+        var complete = true
+        var openEnded = false
         for entry in entries {
+            let name = friendlyCommandName(entry.command)
             let patterns: [[String]]? = entry.allowedArgs.map { $0.isEmpty ? [[]] : $0 }
             let purpose = entry.purpose?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if !purpose.isEmpty {
                 phrases.append(localization?.text(purpose) ?? purpose)
             }
-            tools.append(friendlyCommandName(entry.command))
+            tools.append(name)
+            environment.append(contentsOf: entry.env ?? [])
             guard let patterns else {
-                if purpose.isEmpty {
-                    phrases.append(String(localized: "Run \(friendlyCommandName(entry.command)) with any arguments", comment: "Permission request: a command allowed with any arguments"))
-                }
+                // Always said, purpose or not: a purpose describes what the
+                // widget means to do, not everything the grant allows. The
+                // phrase differs from a narrow entry's, so the two are never
+                // merged into one line.
+                phrases.append(anyArguments(name))
                 lines.append(commandLine(entry.command, ["…"]))
+                complete = false
+                openEnded = true
                 continue
             }
             for args in patterns {
                 lines.append(commandLine(entry.command, args))
+                if takesAnyCode(command: entry.command, args: args) {
+                    phrases.append(anyArguments(name))
+                    complete = false
+                    openEnded = true
+                    continue
+                }
                 if let script = shellScript(command: entry.command, args: args) {
-                    tools.append(contentsOf: ShellScriptCommands.analyze(script).commands)
+                    let found = ShellScriptCommands.analyze(script)
+                    tools.append(contentsOf: found.commands)
+                    if !found.isComplete { complete = false }
                 }
                 if purpose.isEmpty { phrases.append(describe(command: entry.command, args: args)) }
             }
         }
-        return Summary(phrases: phrases.items, commandLines: lines, tools: tools.items)
+        return Summary(
+            phrases: phrases.items, commandLines: lines, tools: tools.items,
+            toolsAreComplete: complete, isOpenEnded: openEnded, environment: environment.items
+        )
+    }
+
+    private static func anyArguments(_ name: String) -> String {
+        String(localized: "Run \(name) with any arguments", comment: "Permission request: a command allowed with any arguments")
+    }
+
+    /// Programs that run code handed to them on the command line.
+    static let interpreters: Set<String> = ["python", "python2", "python3", "perl", "ruby", "node", "deno", "osascript", "php", "lua", "tclsh"]
+    static let shells: Set<String> = ["sh", "bash", "zsh", "dash", "ksh", "fish", "csh", "tcsh"]
+
+    static func isInterpreter(_ name: String) -> Bool {
+        let name = name.lowercased()
+        return interpreters.contains(name) || name.hasPrefix("python") || name.hasPrefix("perl")
+    }
+
+    /// A shell or interpreter whose code comes from a wildcard: whatever
+    /// the widget passes runs.
+    static func takesAnyCode(command: String, args: [String]) -> Bool {
+        let name = friendlyCommandName(command).lowercased()
+        guard shells.contains(name) || isInterpreter(name) else { return false }
+        for (index, arg) in args.enumerated() where ["-c", "-e", "--eval", "-E"].contains(arg) {
+            if index + 1 >= args.count || args[index + 1] == "*" { return true }
+        }
+        // A shell given only wildcards runs a script file someone else chose.
+        return !args.isEmpty && args.allSatisfy { $0 == "*" }
     }
 
     /// One allowed command line in words, for a command with no `purpose`:
@@ -76,7 +130,6 @@ enum ExecPermissionText {
 
     /// The script of `sh -c "<script>"` (any common shell), else nil.
     static func shellScript(command: String, args: [String]) -> String? {
-        let shells: Set<String> = ["sh", "bash", "zsh", "dash", "ksh"]
         guard shells.contains(friendlyCommandName(command).lowercased()),
               let flag = args.firstIndex(of: "-c"), flag + 1 < args.count else { return nil }
         return args[flag + 1]
@@ -136,9 +189,13 @@ enum ShellScriptCommands {
         "case", "esac", "function", "select", "time", "!", "{", "}", "[", "[[", "]]", "]",
         "echo", "printf", "test", "true", "false", "exit", "break", "continue", "read",
         "local", "return", "shift", "set", "unset", "export", "readonly", "cd", "pwd",
-        "wait", "trap", ":", ".", "source", "type", "alias", "unalias", "getopts", "umask",
-        "let", "declare", "typeset", "hash", "shopt", "builtin",
+        "wait", ":", "type", "unalias", "getopts", "umask",
+        "let", "declare", "typeset", "hash", "shopt",
     ]
+
+    /// Words that run code the reader cannot see: another file, a string
+    /// run later, a command line built from input.
+    static let opaque: Set<String> = ["eval", "source", ".", "trap", "builtin", "alias", "xargs", "parallel"]
 
     static func analyze(_ script: String) -> Result {
         var commands: [String] = []
@@ -203,6 +260,15 @@ enum ShellScriptCommands {
                         j = end + 1
                         continue
                     }
+                    if chars[j] == "`" {
+                        // A command substitution inside double quotes.
+                        var k = j + 1
+                        while k < chars.count, chars[k] != "`" { k += 1 }
+                        scan(String(chars[(j + 1)..<min(k, chars.count)]), add: add, dynamic: dynamic)
+                        content += "$_"
+                        j = k + 1
+                        continue
+                    }
                     content.append(chars[j]); j += 1
                 }
                 word += content
@@ -222,6 +288,9 @@ enum ShellScriptCommands {
                 word += "$_"; hasWord = true
                 i = j + 1
                 continue
+            case "&" where i > 0 && (chars[i - 1] == ">" || chars[i - 1] == "<"):
+                // `2>&1`: part of a redirection, not a separator.
+                word.append(c); hasWord = true
             case ";", "|", "&", "(", ")", "\n":
                 endWord()
                 pieces.append(.separator)
@@ -268,43 +337,87 @@ enum ShellScriptCommands {
         return (String(chars[start..<min(j, chars.count)]), j)
     }
 
-    /// One simple command: skips assignments and keywords, then names the
-    /// program it runs.
+    /// One simple command: skips assignments, keywords and wrappers
+    /// (`exec`, `nohup`, `time`, `env`, `sudo`), then names the program it
+    /// runs. Anything that hides what runs marks the script incomplete.
     private static func read(_ words: [(String, Bool)], add: (String) -> Void, dynamic: () -> Void) {
-        var index = 0
-        let leading: Set<String> = ["if", "then", "else", "elif", "do", "while", "until", "!", "{", "}", "time", "exec", "nohup", "env"]
-        while index < words.count {
-            let (text, quoted) = words[index]
-            if !quoted, leading.contains(text) { index += 1; continue }
-            if isAssignment(text) { index += 1; continue }
+        let leading: Set<String> = ["if", "then", "else", "elif", "do", "while", "until", "!", "{", "}", "exec", "nohup", "coproc"]
+        var rest = ArraySlice(words)
+        while let (word, quoted) = rest.first {
+            let name = (word as NSString).lastPathComponent
+            if !quoted, leading.contains(word) { rest = rest.dropFirst(); continue }
+            if isAssignment(word) || isRedirection(word) { rest = rest.dropFirst(); continue }
+            if !quoted, word == "time" {
+                // Harmless itself, but `time` and `env` are ways to run a
+                // command the reader might misjudge; say the list may be short.
+                dynamic()
+                rest = rest.dropFirst()
+                while let option = rest.first?.0, option.hasPrefix("-") { rest = rest.dropFirst() }
+                continue
+            }
+            if name == "env" {
+                add("env")
+                dynamic()
+                rest = rest.dropFirst()
+                // Its options and NAME=value pairs; `-S` splits a string
+                // into a command line the reader does not see.
+                while let option = rest.first?.0, option.hasPrefix("-") || isAssignment(option) {
+                    if option.hasPrefix("-S") || option.hasPrefix("--split-string") { dynamic() }
+                    rest = rest.dropFirst()
+                    if ["-u", "-C", "-P", "--unset", "--chdir"].contains(option) { rest = rest.dropFirst() }
+                }
+                continue
+            }
+            if name == "sudo" || name == "doas" {
+                // Runs the rest as another user, and its options can take
+                // a command of their own.
+                add(name)
+                dynamic()
+                rest = rest.dropFirst()
+                while let option = rest.first?.0, option.hasPrefix("-") { rest = rest.dropFirst() }
+                continue
+            }
             break
         }
-        guard index < words.count else { return }
-        let (first, _) = words[index]
+        guard let first = rest.first?.0 else { return }
         // A word list or a pattern, not a command.
-        if ["for", "case", "select", "function", "fi", "done", "esac", ";;"].contains(first) { return }
-        if first == "eval" { dynamic(); return }
+        if ["for", "case", "select", "function", "fi", "done", "esac", ";;", "in"].contains(first) { return }
+        let name = (first as NSString).lastPathComponent
+        if opaque.contains(first) || opaque.contains(name) {
+            if isName(name) { add(name) }
+            dynamic()
+            return
+        }
+        let args = rest.dropFirst().map(\.0)
         if first == "command" {
-            let rest = words[(index + 1)...].map(\.0)
-            if let flag = rest.firstIndex(where: { $0 == "-v" || $0 == "-V" }) {
-                if let name = rest.dropFirst(flag - rest.startIndex + 1).first, isName(name) { add(name) }
+            if let flag = args.firstIndex(where: { $0 == "-v" || $0 == "-V" }) {
+                if flag + 1 < args.count, isName(args[flag + 1]) { add(args[flag + 1]) }
                 return
             }
-            if let name = rest.first(where: { !$0.hasPrefix("-") }) { classify(name, add: add, dynamic: dynamic) }
+            read(Array(rest.dropFirst().drop { $0.0.hasPrefix("-") }), add: add, dynamic: dynamic)
             return
         }
-        classify(first, add: add, dynamic: dynamic)
-    }
-
-    private static func classify(_ word: String, add: (String) -> Void, dynamic: () -> Void) {
-        if word.contains("$") { dynamic(); return }
-        if word.contains("/") {
-            let name = (word as NSString).lastPathComponent
-            if isName(name) { add(name) }
-            return
+        if first.contains("$") { dynamic(); return }
+        guard isName(name), !builtins.contains(first) else { return }
+        add(name)
+        let lower = name.lowercased()
+        if ExecPermissionText.shells.contains(lower), let flag = args.firstIndex(of: "-c") {
+            // A shell inside the script: read its script too, but what it
+            // runs may be built from input.
+            if flag + 1 < args.count { scan(args[flag + 1], add: add, dynamic: dynamic) }
+            dynamic()
+        } else if ExecPermissionText.isInterpreter(lower),
+                  args.contains(where: { ["-c", "-e", "-E", "--eval"].contains($0) }) {
+            // Code on the command line (`python3 -c`, `osascript -e`) can
+            // run anything.
+            dynamic()
+        } else if lower == "find", args.contains(where: { ["-exec", "-execdir", "-ok", "-okdir"].contains($0) }) {
+            dynamic()
+        } else if ["awk", "gawk", "nawk", "mawk"].contains(lower),
+                  args.contains(where: { $0.contains("system(") || $0.contains("|") }) {
+            // An awk program that starts commands of its own.
+            dynamic()
         }
-        guard !builtins.contains(word), isName(word) else { return }
-        add(word)
     }
 
     private static func isAssignment(_ word: String) -> Bool {
@@ -313,8 +426,15 @@ enum ShellScriptCommands {
         return name.allSatisfy { $0 == "_" || $0.isLetter || $0.isNumber } && !(name.first?.isNumber ?? true)
     }
 
+    /// `2>/dev/null`, `>out`, `3>&1`.
+    private static func isRedirection(_ word: String) -> Bool {
+        guard let index = word.firstIndex(where: { $0 == ">" || $0 == "<" }) else { return false }
+        return word[..<index].allSatisfy(\.isNumber)
+    }
+
     private static func isName(_ word: String) -> Bool {
-        guard let first = word.first, first.isLetter || first.isNumber else { return false }
+        guard let first = word.first, first.isLetter || first.isNumber,
+              !word.allSatisfy(\.isNumber) else { return false }
         return word.allSatisfy { $0.isLetter || $0.isNumber || "._+-".contains($0) }
     }
 

@@ -142,15 +142,25 @@ extension PermissionInventory {
         }
 
         /// Commands that reach the network on their own.
-        static let networkTools: Set<String> = ["curl", "wget", "ping", "networkQuality", "gh", "ssh", "nc", "kubectl"]
+        static let networkTools: Set<String> = [
+            "curl", "wget", "ping", "networkQuality", "ssh", "nc", "dig", "nslookup", "host",
+            "scp", "sftp", "rsync", "git", "brew", "docker", "openssl", "gh", "kubectl", "aws", "gcloud",
+        ]
 
-        /// The most a widget's declared permissions allow.
+        /// The most a widget's declared permissions allow. A command that
+        /// may be given any arguments or code, or a script whose commands
+        /// cannot all be read, could do anything a command can, so it sits
+        /// with the riskiest command group rather than with what it seems
+        /// to call.
         static func of(_ manifest: Manifest) -> Risk {
             let permissions = manifest.permissions
-            if permissions?.keychain == true || permissions?.vault != nil || !(permissions?.env ?? []).isEmpty {
+            let exec = ExecPermissionText.summary(for: manifest, localization: nil)
+            if permissions?.keychain == true || permissions?.vault != nil || !(permissions?.env ?? []).isEmpty
+                || !(exec?.environment ?? []).isEmpty {
                 return .secrets
             }
-            let tools = Set(ExecPermissionText.summary(for: manifest, localization: nil)?.tools ?? [])
+            let tools = Set(exec?.tools ?? [])
+            if let exec, exec.isOpenEnded || !exec.toolsAreComplete { return .controlsApps }
             if permissions?.quitApps == true || tools.contains("osascript") { return .controlsApps }
             if !(permissions?.network ?? []).isEmpty || !tools.isDisjoint(with: networkTools) { return .internet }
             if !tools.isEmpty || !(permissions?.readPaths ?? []).isEmpty || !(permissions?.system ?? []).isEmpty {

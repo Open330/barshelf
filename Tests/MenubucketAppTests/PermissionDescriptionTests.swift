@@ -92,7 +92,11 @@ final class PermissionDescriptionTests: XCTestCase {
         """#
         let found = ShellScriptCommands.analyze(script)
         XCTAssertEqual(found.commands, ["osascript", "tr", "awk"])
-        XCTAssertTrue(found.isComplete)
+        // AppleScript on the command line can run anything.
+        XCTAssertFalse(found.isComplete)
+        let plain = ShellScriptCommands.analyze(#"t=$(/usr/bin/pmset -g batt | tr -d '"'); [ -z "$t" ] && t="Nothing playing"; awk '{print $1}' file"#)
+        XCTAssertEqual(plain.commands, ["pmset", "tr", "awk"])
+        XCTAssertTrue(plain.isComplete)
     }
 
     func testExecAndEnvironmentPrefixesAreSkipped() {
@@ -157,5 +161,104 @@ final class PermissionDescriptionTests: XCTestCase {
         XCTAssertFalse(ShelfAttention.showsWaitingBanner(waitingIDs: ["a"], currentPageIDs: ["a"]))
         XCTAssertTrue(ShelfAttention.showsWaitingBanner(waitingIDs: ["a"], currentPageIDs: ["b"]))
         XCTAssertTrue(ShelfAttention.showsWaitingBanner(waitingIDs: ["a", "b"], currentPageIDs: ["a", "b"]))
+    }
+
+    // MARK: Review: nothing more than it says
+
+    func testAnyArgumentsIsSaidEvenWithAPurposeAndNeverMerged() throws {
+        let purpose = "Open the page you pick"
+        let m = try manifest([
+            .init(command: "/usr/bin/open", allowedArgs: [["-a", "Safari"]], purpose: purpose),
+            .init(command: "/usr/bin/open", purpose: purpose),
+        ])
+        let summary = try XCTUnwrap(ExecPermissionText.summary(for: m, localization: nil))
+        XCTAssertEqual(summary.phrases, [purpose, "Run open with any arguments"])
+        XCTAssertTrue(summary.isOpenEnded)
+        XCTAssertFalse(summary.toolsAreComplete)
+    }
+
+    func testAShellGivenAnyScriptIsOpenEnded() throws {
+        let m = try manifest([.init(command: "/bin/sh", allowedArgs: [["-c", "*"]], purpose: "Run a check")])
+        let summary = try XCTUnwrap(ExecPermissionText.summary(for: m, localization: nil))
+        XCTAssertTrue(summary.phrases.contains("Run sh with any arguments"), "\(summary.phrases)")
+        XCTAssertTrue(summary.isOpenEnded)
+        XCTAssertTrue(ExecPermissionText.takesAnyCode(command: "/usr/bin/python3", args: ["-c", "*"]))
+        XCTAssertTrue(ExecPermissionText.takesAnyCode(command: "/usr/bin/osascript", args: ["-e", "*"]))
+        XCTAssertFalse(ExecPermissionText.takesAnyCode(command: "/usr/bin/osascript", args: ["-l", "JavaScript", "./a.js", "*"]))
+    }
+
+    func testScriptsThatHideWhatRunsAreIncomplete() {
+        let hidden = [
+            "source ./x.sh", ". ./x.sh", "trap 'curl evil' EXIT; true", "builtin eval curl",
+            "xargs curl < list", "find / -exec rm {} +", "find . -execdir rm {} +", "sudo rm -rf /",
+            "env curl x", "/usr/bin/env -i curl x", "env FOO=1 curl x", "time -p curl x",
+            "bash -c 'curl x'", "/bin/zsh -c \"curl x\"", "python3 -c 'print(1)'", "perl -e 'system(1)'",
+            "ruby -e 'x'", "node -e 'x'", "osascript -e 'do shell script \"curl x\"'", "eval \"$x\"",
+        ]
+        for script in hidden {
+            XCTAssertFalse(ShellScriptCommands.analyze(script).isComplete, script)
+        }
+        // Wrappers are read through to the command they run.
+        XCTAssertEqual(ShellScriptCommands.analyze("/usr/bin/env -i FOO=1 curl x").commands, ["env", "curl"])
+        XCTAssertEqual(ShellScriptCommands.analyze("time -p curl x").commands, ["curl"])
+        XCTAssertTrue(ShellScriptCommands.analyze("bash -c 'curl x'").commands.contains("curl"))
+        // Plain scripts stay complete.
+        XCTAssertTrue(ShellScriptCommands.analyze("/usr/bin/pmset -g batt | /usr/bin/grep -Eo '[0-9]+%' 2>&1").isComplete)
+        XCTAssertEqual(ShellScriptCommands.analyze("exec 3>&1; curl x").commands, ["curl"])
+    }
+
+    func testBackticksInsideDoubleQuotesAreRead() {
+        XCTAssertEqual(ShellScriptCommands.analyze("echo \"`curl evil.com`\"").commands, ["curl"])
+        XCTAssertEqual(ShellScriptCommands.analyze("x=\"`/usr/bin/dig a`\"; echo $x").commands, ["dig"])
+    }
+
+    func testOpenEndedOrUnreadableCommandsGroupWithTheRiskiest() throws {
+        func risk(_ permissions: Manifest.Permissions) -> PermissionInventory.Risk {
+            PermissionInventory.Risk.of(Manifest(schemaVersion: 1, id: "dev.test.r", name: "R", entry: .init(kind: "workflow"), permissions: permissions))
+        }
+        XCTAssertEqual(risk(.init(exec: [.init(command: "/bin/sh")])), .controlsApps)
+        XCTAssertEqual(risk(.init(exec: [.init(command: "/bin/sh", allowedArgs: [["-c", "*"]])])), .controlsApps)
+        XCTAssertEqual(risk(.init(exec: [.init(command: "/bin/sh", allowedArgs: [["-c", "d=$(command -v x); \"$d\" run"]])])), .controlsApps)
+        XCTAssertEqual(risk(.init(exec: [.init(command: "/usr/bin/top", allowedArgs: [["-l", "1"]], env: ["API_TOKEN"])])), .secrets)
+        for tool in ["dig", "nslookup", "host", "scp", "sftp", "rsync", "git", "brew", "docker", "openssl", "gh", "kubectl", "aws", "gcloud"] {
+            XCTAssertEqual(risk(.init(exec: [.init(command: "/usr/local/bin/\(tool)", allowedArgs: [["x"]])])), .internet, tool)
+        }
+    }
+
+    func testACommandsOwnEnvironmentIsShown() throws {
+        let m = try manifest([.init(command: "/usr/bin/top", allowedArgs: [["-l", "1"]], env: ["API_TOKEN"])])
+        let rows = WidgetRuntime.permissionRequests(for: m, localization: .some(nil))
+        XCTAssertTrue(rows.contains { $0.description.contains("API_TOKEN") }, "\(rows)")
+    }
+
+    func testFoldedBriefCountsEveryPhrase() {
+        let requests = [
+            PermissionRequest(symbol: "terminal", description: "Read the time\nRun a speed test"),
+            PermissionRequest(symbol: "bell.fill", description: "Show notifications"),
+        ]
+        XCTAssertEqual(PermissionApprovalView.brief(requests), "Read the time +2 more")
+        XCTAssertEqual(PermissionApprovalView.brief(Array(requests.suffix(1))), "Show notifications")
+    }
+
+    func testChipTooltipSaysWhenTheCommandListIsPartial() throws {
+        let partial = try manifest([.init(command: "/bin/sh", allowedArgs: [["-c", "d=$(command -v docker); \"$d\" ps"]], purpose: "List containers")])
+        let help = try XCTUnwrap(WidgetPermissionSummary.lines(for: partial).first { $0.symbol == "terminal" }?.help)
+        XCTAssertTrue(help.hasSuffix("and others"), help)
+        let whole = try manifest([.init(command: "/usr/bin/pmset", allowedArgs: [["-g", "batt"]], purpose: "Read the battery")])
+        let wholeHelp = try XCTUnwrap(WidgetPermissionSummary.lines(for: whole).first?.help)
+        XCTAssertEqual(wholeHelp, "Commands: pmset")
+    }
+
+    func testArgumentsAndCommandsChangeTheHashButPurposeDoesNot() throws {
+        let base = try manifest([.init(command: "/bin/ps", allowedArgs: [["-ax"]], purpose: "List processes")])
+        let reworded = try manifest([.init(command: "/bin/ps", allowedArgs: [["-ax"]], purpose: "See what is running")])
+        let wider = try manifest([.init(command: "/bin/ps", allowedArgs: [["-ax"], ["*"]], purpose: "List processes")])
+        let anyArgs = try manifest([.init(command: "/bin/ps", purpose: "List processes")])
+        let other = try manifest([.init(command: "/bin/sh", allowedArgs: [["-ax"]], purpose: "List processes")])
+        let hash = PermissionStore.permissionsHash
+        XCTAssertEqual(hash(base), hash(reworded))
+        XCTAssertNotEqual(hash(base), hash(wider))
+        XCTAssertNotEqual(hash(base), hash(anyArgs))
+        XCTAssertNotEqual(hash(base), hash(other))
     }
 }

@@ -95,6 +95,24 @@
         }
       }
     },
+    "%@ +%lld more": {
+      "comment": "Folded permission card: the first thing it asks for, and how many more",
+      "extractionState": "stale",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ +%2$lld more"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ 외 %2$lld개"
+          }
+        }
+      }
+    },
     "%@ Copy": {
       "localizations": {
         "ko": {
@@ -767,6 +785,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "(미리 보려면 명령을 실행하십시오)"
+          }
+        }
+      }
+    },
+    "+%lld more": {
+      "comment": "Folded permission card: how many more things it asks for",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "외 %lld개"
           }
         }
       }
@@ -3276,6 +3305,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "명령: %@"
+          }
+        }
+      }
+    },
+    "Commands: %@ and others": {
+      "comment": "Permission summary tooltip: some of the programs behind an effect; there may be more",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "명령: %@ 등"
           }
         }
       }

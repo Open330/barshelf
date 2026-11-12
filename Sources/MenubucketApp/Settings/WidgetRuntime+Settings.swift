@@ -255,7 +255,12 @@ enum WidgetPermissionSummary {
         // What the commands do, as the permission request says it; the
         // commands themselves in the tooltip.
         if let exec = ExecPermissionText.summary(for: manifest, localization: manifest.localization()) {
-            let help = String(localized: "Commands: \(exec.tools.joined(separator: ", "))", comment: "Permission summary tooltip: the programs behind an effect")
+            let names = exec.tools.joined(separator: ", ")
+            // Some commands are only known when a script runs: the list
+            // must not read as the whole of it.
+            let help = exec.toolsAreComplete
+                ? String(localized: "Commands: \(names)", comment: "Permission summary tooltip: the programs behind an effect")
+                : String(localized: "Commands: \(names) and others", comment: "Permission summary tooltip: some of the programs behind an effect; there may be more")
             for phrase in exec.phrases {
                 lines.append(Line(symbol: "terminal", text: phrase, help: help))
             }
