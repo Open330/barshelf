@@ -21,15 +21,30 @@ final class AutomationHelperTests: XCTestCase {
 
     private var directory: URL!
     private var channel: AutomationHelperChannel!
+    /// The lock a real helper holds for as long as it runs. The tests'
+    /// "helper" is this process, so the test holds it.
+    private var helperLock: Int32 = -1
+
+    private func holdHelperLock() {
+        helperLock = open(channel.lockURL.path, O_CREAT | O_RDWR, 0o600)
+        XCTAssertEqual(flock(helperLock, LOCK_EX | LOCK_NB), 0)
+    }
+
+    private func releaseHelperLock() {
+        if helperLock >= 0 { close(helperLock) }
+        helperLock = -1
+    }
 
     override func setUpWithError() throws {
         directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("barshelf-helper-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         channel = AutomationHelperChannel(directory: directory, prefix: "dev.barshelf.test.\(UUID().uuidString)")
+        holdHelperLock()
     }
 
     override func tearDownWithError() throws {
+        releaseHelperLock()
         try? FileManager.default.removeItem(at: directory)
     }
 
@@ -222,6 +237,55 @@ final class AutomationHelperTests: XCTestCase {
 
         successor.stop()
         XCTAssertEqual(helperStopped, 1)
+    }
+
+    /// A status file outlives its helper, and after a restart its pid can be
+    /// anyone's. Without the helper's lock it is not a helper: not adopted,
+    /// and above all not signalled.
+    func testALeftoverStatusFileIsNotTakenForAHelper() throws {
+        let (server, _) = makeServer(owner: 1)
+        server.start()                       // writes a status naming this (live) process
+        releaseHelperLock()                  // …but no helper is running
+        XCTAssertFalse(channel.helperHoldsLock)
+        XCTAssertNil(channel.liveStatus())
+
+        var forced: [Int32] = []
+        let client = AutomationHelperClient(executable: URL(fileURLWithPath: "/usr/bin/false"),
+                                            channel: channel, build: "another build", appPID: 31337,
+                                            exitTimeout: 0.2, forceQuit: { forced.append($0) })
+        let started = Date()
+        XCTAssertFalse(client.ensureRunning(), "/usr/bin/false is no helper")
+        XCTAssertTrue(forced.isEmpty, "the pid in a leftover file must never be signalled")
+        XCTAssertEqual(server.ownerPID, 1, "and it was not asked to adopt")
+        XCTAssertLessThan(Date().timeIntervalSince(started), 3, "a helper that exits at once is not waited for")
+    }
+
+    func testRetiringRemovesTheStatusFile() throws {
+        let (server, _) = makeServer()
+        server.start()
+        XCTAssertTrue(FileManager.default.fileExists(atPath: channel.statusURL.path))
+        server.retire()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: channel.statusURL.path))
+    }
+
+    func testOnlyTheAppsOwnExecutableCountsAsItsHelper() {
+        let own = URL(fileURLWithPath: CommandLine.arguments[0])
+        let mine = Bundle.main.executableURL ?? own
+        XCTAssertTrue(AutomationHelperChannel.process(getpid(), runs: mine))
+        XCTAssertFalse(AutomationHelperChannel.process(getpid(), runs: URL(fileURLWithPath: "/bin/ls")))
+        XCTAssertFalse(AutomationHelperChannel.process(1, runs: mine), "launchd is not ours")
+    }
+
+    /// Another app instance's fresh request (an update runs two apps for a
+    /// moment) survives this app starting a helper.
+    func testStartingAHelperLeavesAnotherAppsRequestAlone() throws {
+        releaseHelperLock()
+        let theirs = AutomationHelperRequest(kind: .apply, appPID: 2002, source: AutomationScript.example)
+        try channel.write(theirs, to: channel.requestURL)
+        let client = AutomationHelperClient(executable: URL(fileURLWithPath: "/usr/bin/false"),
+                                            channel: channel, build: "test", appPID: 1001, exitTimeout: 0.2)
+        XCTAssertFalse(client.ensureRunning())
+        XCTAssertEqual(channel.read(AutomationHelperRequest.self, from: channel.requestURL), theirs)
     }
 
     func testStatusRoundTripsTheInputSourceState() {

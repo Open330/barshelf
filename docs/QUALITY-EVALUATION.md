@@ -34,8 +34,15 @@ The release runs for seven days of ordinary use on **june-mba** and
 belongs to one build. Read-only commands only; none of these touches the screen
 or the keyboard.
 
+Since 0.7.35 BarShelf is two processes while the keyboard extension is on: the
+app, and a helper that is the same executable started as
+`barshelf-app automation-helper`. `pgrep -f 'MacOS/barshelf-app$'` finds the
+app alone and `pgrep -f 'barshelf-app automation-helper'` the helper;
+`scripts/profile-idle.sh` reports both. The CPU and memory limits below are
+for the two together.
+
 CPU and memory readings belong to one process. Write down its PID and start
-time (`ps -o pid=,lstart= -p $(pgrep -x barshelf-app)`) with every reading. A
+time (`ps -o pid=,lstart= -p $(pgrep -f 'MacOS/barshelf-app$')`) with every reading. A
 process that restarted between two readings, for an update, a login or a
 crash, gives no comparison for that interval: mark it "not verified" and start
 a new interval. Do the login checks after the day-7 readings so they don't
@@ -46,8 +53,8 @@ cut the week short.
 | No crash | `/bin/ls ~/Library/Logs/DiagnosticReports \| grep barshelf-app`, then the report's `app_version` | no report from the installed version on either Mac |
 | No hang | the same folder: `.hang` and `.spin` reports for `barshelf-app` | none from the installed version |
 | Idle CPU | `scripts/profile-idle.sh 300` with the popup closed and nobody using the Mac (screen unlocked) | at most 1.0%, and at most 0.3 points above the previous release on the same Mac |
-| CPU over the week | `ps -o etime=,cputime= -p $(pgrep -x barshelf-app)` on day 1 and day 7, same process; the rate is the change in CPU time over the change in elapsed time | recorded; a rate more than half above the previous release's, measured the same way, is investigated before the next release. A lifetime total alone is context, not a weekly figure |
-| Memory | `footprint $(pgrep -x barshelf-app)` (phys_footprint) on day 1, at least an hour after launch, and on day 7, same process | day 7 is at most 1.5× day 1 |
+| CPU over the week | `ps -o etime=,cputime= -p $(pgrep -f 'MacOS/barshelf-app$')` on day 1 and day 7, same process; the rate is the change in CPU time over the change in elapsed time | recorded; a rate more than half above the previous release's, measured the same way, is investigated before the next release. A lifetime total alone is context, not a weekly figure |
+| Memory | `footprint $(pgrep -f 'MacOS/barshelf-app$')` (phys_footprint) on day 1, at least an hour after launch, and on day 7, same process | day 7 is at most 1.5× day 1 |
 | Keyboard extension kept | Fn-arrow mappings and window shortcuts used every day, including after sleep and after a new login; `log show --last 7d --predicate 'process == "barshelf-app" AND eventMessage CONTAINS "automation stopped"'` | they keep working, and every logged stop has a known cause (for example, Accessibility was turned off) |
 | Menu bar item kept | the BarShelf icon after sleep, a display change and a login; the BarShelf window's hidden-item warning | the icon is visible and the warning is not shown |
 

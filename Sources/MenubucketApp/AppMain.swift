@@ -24,6 +24,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let runtime = HubWindowController.shared.runtime {
             OnboardingWindowController.shared.showIfNeeded(runtime: runtime)
         }
+        // `replace` hides the Apple Dock again; a crash's leftover backup is
+        // put back otherwise.
+        DockStore.shared.reconcileAppleDockAtLaunch()
+        // Record that this build genuinely came up — after the status item
+        // exists, so the receipt attests to the thing a user would look for
+        // rather than to a process having been created. An updater waits for
+        // it before quitting the build it replaced; see `LaunchReceipt`.
+        LaunchReceiptStore.write(
+            version: AppVersionInfo.current.version,
+            bundlePath: Bundle.main.bundleURL.path
+        )
+        // After the receipt: starting or adopting the helper can wait on
+        // another process for seconds, and an updater that is watching for
+        // the receipt would count a slow start as a failed one.
         // The engine has no views of its own; it asks the app for the drag-in
         // helper when macOS has not trusted BarShelf yet.
         AutomationController.shared.presentAccessibilityHelper = { onTrusted in
@@ -38,17 +52,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             AutomationController.shared.useHelper(helper)
         }
         AutomationController.shared.startAtLaunch()
-        // `replace` hides the Apple Dock again; a crash's leftover backup is
-        // put back otherwise.
-        DockStore.shared.reconcileAppleDockAtLaunch()
-        // Record that this build genuinely came up — after the status item
-        // exists, so the receipt attests to the thing a user would look for
-        // rather than to a process having been created. An updater waits for
-        // it before quitting the build it replaced; see `LaunchReceipt`.
-        LaunchReceiptStore.write(
-            version: AppVersionInfo.current.version,
-            bundlePath: Bundle.main.bundleURL.path
-        )
         // An update replaces the bundle but not a widget extension already
         // running from it; that one would keep drawing desktop widgets with
         // old code until the Mac restarts.

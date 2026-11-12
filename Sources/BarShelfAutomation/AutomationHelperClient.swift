@@ -15,6 +15,10 @@ package final class AutomationHelperClient {
     private var tokens: [Int32] = []
     private var wanted = false
     private var respawns: [Date] = []
+    /// A request is waiting for its answer; the helper must not be
+    /// restarted underneath it.
+    private var awaitingReply = false
+    private var respawnPending = false
     package private(set) var status: AutomationHelperStatus?
 
     package var onStatus: ((AutomationHelperStatus) -> Void)?
@@ -28,13 +32,17 @@ package final class AutomationHelperClient {
     package init(executable: URL, channel: AutomationHelperChannel = .standard,
                  build: String = AutomationHelperChannel.currentBuild, appPID: Int32 = getpid(),
                  exitTimeout: TimeInterval = 2,
-                 forceQuit: @escaping (Int32) -> Void = { kill($0, SIGTERM) }) {
+                 forceQuit: ((Int32) -> Void)? = nil) {
         self.executable = executable
         self.channel = channel
         self.build = build
         self.appPID = appPID
         self.exitTimeout = exitTimeout
-        self.forceQuit = forceQuit
+        // Never signal a pid that is not this app's executable: the number
+        // came from a file.
+        self.forceQuit = forceQuit ?? { pid in
+            if AutomationHelperChannel.process(pid, runs: executable) { kill(pid, SIGTERM) }
+        }
         tokens.append(channel.observe(channel.statusName) { [weak self] in self?.refresh() })
         tokens.append(channel.observe(channel.quitAppName) { [weak self] in self?.onQuitRequested?() })
         tokens.append(channel.observe(channel.reopenAppName) { [weak self] in self?.onReopenRequested?() })
@@ -63,7 +71,7 @@ package final class AutomationHelperClient {
         if let process, process.isRunning {
             guard latest.pid == process.processIdentifier else { return }
         } else {
-            guard AutomationHelperChannel.isAlive(latest.pid) else { return }
+            guard channel.helperHoldsLock, AutomationHelperChannel.isAlive(latest.pid) else { return }
         }
         status = latest
         onStatus?(latest)
@@ -77,8 +85,7 @@ package final class AutomationHelperClient {
         if helperPID != nil, status?.ownerPID == appPID, status?.build == build { return true }
         // One that outlived a previous app instance: take it over if it is
         // this build, replace it otherwise.
-        if let existing = channel.read(AutomationHelperStatus.self, from: channel.statusURL),
-           existing.pid != appPID, AutomationHelperChannel.isAlive(existing.pid) {
+        if let existing = channel.liveStatus(), existing.pid != appPID {
             if existing.build == build {
                 watch(existing.pid)
                 status = existing
@@ -96,8 +103,15 @@ package final class AutomationHelperClient {
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
-        // Nothing left over from an earlier run for the new helper to read.
-        try? FileManager.default.removeItem(at: channel.requestURL)
+        // Nothing of this app's left over from an earlier run for the new
+        // helper to read. Another app instance's request (an update runs two
+        // for a moment) is not this one's to delete.
+        if let pending = channel.read(AutomationHelperRequest.self, from: channel.requestURL),
+           pending.appPID != appPID, Date().timeIntervalSince(pending.sentAt) < AutomationHelperRequest.lifetime {
+            // leave it
+        } else {
+            try? FileManager.default.removeItem(at: channel.requestURL)
+        }
         do { try process.run() } catch {
             NSLog("BarShelf could not start its keyboard helper: %@", error.localizedDescription)
             return false
@@ -107,7 +121,10 @@ package final class AutomationHelperClient {
         watch(process.processIdentifier)
         // Its first status means it is listening; a request posted earlier
         // could be missed.
-        return wait(timeout: 5) { self.status?.pid == process.processIdentifier }
+        // A helper that exits at once (another one holds the lock) will
+        // never answer; do not sit out the timeout for it.
+        return wait(timeout: 5, until: { self.status?.pid == process.processIdentifier },
+                    giveUpWhen: { !process.isRunning })
     }
 
     /// Sends a request and waits for the helper's answer to it. Nil when the
@@ -115,8 +132,14 @@ package final class AutomationHelperClient {
     package func send(_ request: AutomationHelperRequest, timeout: TimeInterval = 5) -> AutomationHelperStatus? {
         do { try channel.write(request, to: channel.requestURL) } catch { return nil }
         channel.post(channel.requestName)
-        guard wait(timeout: timeout, until: { self.status?.reply?.id == request.id }) else { return nil }
-        return status
+        awaitingReply = true
+        let answered = wait(timeout: timeout, until: { self.status?.reply?.id == request.id })
+        awaitingReply = false
+        if respawnPending {
+            respawnPending = false
+            DispatchQueue.main.async { [weak self] in self?.respawnIfStillWanted() }
+        }
+        return answered ? status : nil
     }
 
     package func apply(source: String) -> AutomationHelperStatus? {
@@ -166,13 +189,6 @@ package final class AutomationHelperClient {
     private func helperExited(_ pid: Int32) {
         guard wanted else { return }
         status = nil
-        // Another app instance (an update's new build) has a helper of its
-        // own now: this one stands down instead of fighting for the keys.
-        if let other = channel.read(AutomationHelperStatus.self, from: channel.statusURL),
-           other.pid != pid, other.ownerPID != appPID, AutomationHelperChannel.isAlive(other.pid) {
-            wanted = false
-            return
-        }
         // Bring it back, but not in a loop: five tries a minute.
         respawns = respawns.filter { $0 > Date().addingTimeInterval(-60) }
         guard respawns.count < 5 else {
@@ -182,12 +198,32 @@ package final class AutomationHelperClient {
         }
         respawns.append(Date())
         NSLog("BarShelf keyboard helper (pid %d) exited; starting it again", pid)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
-            guard let self, self.wanted, self.helperPID == nil else { return }
-            if !self.spawn() {
-                self.wanted = false
-                self.onHelperLost?()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.respawnIfStillWanted() }
+    }
+
+    private func respawnIfStillWanted() {
+        guard wanted, helperPID == nil else { return }
+        // A request is in flight: restarting now would delete it and answer
+        // with the saved script instead. Wait for it to finish.
+        guard !awaitingReply else {
+            respawnPending = true
+            return
+        }
+        // Some helper is already running. If it answers to this app, watch
+        // it; if it is another instance's (an update's new build started
+        // its own), stand down instead of fighting for the keys.
+        if channel.helperHoldsLock {
+            if let other = channel.liveStatus(), other.ownerPID == appPID {
+                status = other
+                watch(other.pid)
+            } else {
+                wanted = false
             }
+            return
+        }
+        if !spawn() {
+            wanted = false
+            onHelperLost?()
         }
     }
 
@@ -195,10 +231,10 @@ package final class AutomationHelperClient {
     /// UI actions, which expect an answer before they return; the helper
     /// answers in milliseconds. The status file is read on every turn, so a
     /// missed notification cannot stall this.
-    private func wait(timeout: TimeInterval, until: () -> Bool) -> Bool {
+    private func wait(timeout: TimeInterval, until: () -> Bool, giveUpWhen: () -> Bool = { false }) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while !until() {
-            guard Date() < deadline else { return false }
+            guard Date() < deadline, !giveUpWhen() else { return until() }
             RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.02))
             refresh()
         }
