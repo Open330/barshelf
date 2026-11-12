@@ -33,17 +33,21 @@ final class AccessibilityAnnouncementTests: XCTestCase {
         toasts.show("Copied")
         toasts.show("Moved to Work")
         XCTAssertEqual(spy.messages, ["Copied", "Moved to Work"])
-        // Auto-clear must not speak again.
-        try await Task.sleep(for: .seconds(2))
+        // Auto-clear must not speak again. It fires after the toast's 1.8 s;
+        // a busy runner fires it later, so wait for it rather than a guess.
+        let deadline = ContinuousClock.now + .seconds(10)
+        while toasts.message != nil, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
         XCTAssertNil(toasts.message)
         XCTAssertEqual(spy.messages, ["Copied", "Moved to Work"])
     }
 
     /// A delay is a lower bound, not a deadline: a busy CI runner fires it
-    /// late. Wait until `count` messages arrive (or 2 s pass), then a little
+    /// late. Wait until `count` messages arrive (or 10 s pass), then a little
     /// longer so an extra, wrong announcement would still be caught.
     private func waitForMessages(_ spy: AnnouncementSpy, count: Int) async throws {
-        let deadline = ContinuousClock.now + .seconds(2)
+        let deadline = ContinuousClock.now + .seconds(10)
         while spy.messages.count < count, ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(20))
         }

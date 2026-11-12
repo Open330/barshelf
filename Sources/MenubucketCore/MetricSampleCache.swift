@@ -17,7 +17,14 @@ final class MetricSampleCache<Value>: @unchecked Sendable {
     /// Mounts can be widget-controlled; keep retained state bounded.
     static var keyLimit: Int { 16 }
 
-    init(window: TimeInterval = 0.25) { self.window = window }
+    private let clock: @Sendable () -> TimeInterval
+
+    /// `clock` is the sleep-aware monotonic clock; tests pass their own so a
+    /// window is proved without sleeping.
+    init(window: TimeInterval = 0.25, clock: @escaping @Sendable () -> TimeInterval = { SleepAwareClock.now() }) {
+        self.window = window
+        self.clock = clock
+    }
 
     func sample(key: String = "", now: TimeInterval? = nil, collect: () -> Value) -> Value {
         let keyLock = lockFor(key)
@@ -31,7 +38,7 @@ final class MetricSampleCache<Value>: @unchecked Sendable {
             }
             lock.unlock()
         }
-        let time = now ?? SleepAwareClock.now()
+        let time = now ?? clock()
         if let sample = cached(key), time >= sample.at, time - sample.at < window { return sample.value }
         // Collected holding only this key's lock.
         let value = collect()
@@ -40,7 +47,7 @@ final class MetricSampleCache<Value>: @unchecked Sendable {
         // A slow volume can take longer than the reuse window to respond.
         // Its freshly completed sample must not already be expired when the
         // next waiter acquires the key lock. Explicit test clocks stay fixed.
-        samples[key] = (value, now ?? SleepAwareClock.now())
+        samples[key] = (value, now ?? clock())
         lock.unlock()
         return value
     }

@@ -98,9 +98,13 @@ final class ExecServiceTests: XCTestCase {
             }
         }
         XCTAssertLessThan(Date().timeIntervalSince(cancelledAt), 2.5)
-        // Wait beyond both the SIGKILL grace period and the child's original
-        // write deadline, so the old implementation's leak is observable.
-        try await Task.sleep(nanoseconds: 4_200_000_000)
+        // Wait for the descendant to be gone rather than for its 4 s write: a
+        // dead process can never write, and a leaked one lives until it has
+        // (so the side-effect check below still catches it).
+        let goneDeadline = Date().addingTimeInterval(10)
+        while ExecService.startTime(of: descendant) == descendantStart, Date() < goneDeadline {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
         XCTAssertNotEqual(ExecService.startTime(of: descendant), descendantStart)
         XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("side-effect").path))
         XCTAssertEqual(ExecService.startTime(of: unrelated), unrelatedStart)
@@ -131,7 +135,7 @@ final class ExecServiceTests: XCTestCase {
         let sideEffect = directory.appendingPathComponent("side-effect")
         let task = Task {
             await ExecService.capture(
-                command: ["/bin/sh", "-c", "printf ready > ready; /bin/sleep 1; printf forbidden > side-effect"],
+                command: ["/bin/sh", "-c", "echo $$ > shell; printf ready > ready; /bin/sleep 1; printf forbidden > side-effect"],
                 discover: nil, timeoutMs: 5_000, workingDirectory: directory
             )
         }
@@ -141,6 +145,9 @@ final class ExecServiceTests: XCTestCase {
             try await Task.sleep(nanoseconds: 10_000_000)
         }
         XCTAssertTrue(FileManager.default.fileExists(atPath: ready.path), "process must launch before cancellation")
+        let shell = try XCTUnwrap(pid_t((try String(contentsOf: directory.appendingPathComponent("shell"), encoding: .utf8))
+            .trimmingCharacters(in: .whitespacesAndNewlines)))
+        let shellStart = ExecService.startTime(of: shell)
         let cancelledAt = Date()
         task.cancel()
         let result = await task.value
@@ -148,8 +155,13 @@ final class ExecServiceTests: XCTestCase {
             return XCTFail("Expected cancellation failure, got \(result)")
         }
         XCTAssertLessThan(Date().timeIntervalSince(cancelledAt), 2.5)
-        // Wait past the original command's write, including an inherited pipe.
-        try await Task.sleep(nanoseconds: 1_200_000_000)
+        // The shell writes the side effect after its 1 s sleep; wait until it
+        // is gone (it then never can) instead of past the write.
+        let goneDeadline = Date().addingTimeInterval(10)
+        while shellStart != nil, ExecService.startTime(of: shell) == shellStart, Date() < goneDeadline {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertNotEqual(ExecService.startTime(of: shell), shellStart, "the cancelled command's shell must be gone")
         XCTAssertFalse(FileManager.default.fileExists(atPath: sideEffect.path))
     }
 
