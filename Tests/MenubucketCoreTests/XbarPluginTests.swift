@@ -60,6 +60,25 @@ final class XbarPluginTests: XCTestCase {
         XCTAssertNil(XbarPlugin.action(for: line, context: .init(selfCommand: "./p.sh")))
     }
 
+    func testEscapedQuotesStayInsideTheValue() {
+        let line = XbarPlugin.parseLine(#"Go | bash=/bin/echo param1="a\" param2=INJECTED" param3='it\'s' param4="c:\\dir\n""#)
+        XCTAssertFalse(line.malformed)
+        XCTAssertEqual(line.params["param1"], #"a" param2=INJECTED"#)
+        XCTAssertNil(line.params["param2"])
+        XCTAssertEqual(line.params["param3"], "it's")
+        XCTAssertEqual(line.params["param4"], #"c:\dir\n"#, "an escaped backslash is one; other backslashes stay")
+        XCTAssertTrue(XbarPlugin.parseLine(#"x | param1="ends escaped\""#).malformed, "an escaped final quote leaves it open")
+        XCTAssertTrue(XbarPlugin.parseLine(#"x | param1="a"b"#).malformed, "a closing quote needs a boundary")
+    }
+
+    func testLongDepthPrefixIsCheap() {
+        let start = Date()
+        let line = XbarPlugin.parseLine(String(repeating: "--", count: 160_000) + "x")
+        XCTAssertLessThan(Date().timeIntervalSince(start), 0.5)
+        XCTAssertEqual(line.text, "x")
+        XCTAssertEqual(line.depth, XbarPlugin.maxDepth + 1)
+    }
+
     func testEmptyValuesBareWordsAndDuplicates() {
         let line = XbarPlugin.parseLine(#"x | color= stray color="green" param1="""#)
         XCTAssertEqual(line.params["color"], "green")
@@ -209,8 +228,12 @@ final class XbarPluginTests: XCTestCase {
         XCTAssertEqual(XbarPlugin.refreshInterval(fileName: "my.plugin.sh"), 60, "a dotted name is not an interval")
         XCTAssertNil(XbarPlugin.refreshInterval(fileName: "a.0s.sh"))
         XCTAssertNil(XbarPlugin.refreshInterval(fileName: "a.999d.sh"))
+        XCTAssertNil(XbarPlugin.refreshInterval(fileName: "a.-5m.sh"), "negative is refused, not defaulted")
+        XCTAssertEqual(XbarPlugin.refreshInterval(fileName: "a.+5m.sh"), 300)
         XCTAssertEqual(XbarPlugin.baseName(fileName: "battery.5m.sh"), "battery")
         XCTAssertEqual(XbarPlugin.baseName(fileName: "battery.sh"), "battery")
+        XCTAssertEqual(XbarPlugin.baseName(fileName: "my.weather.sh"), "my.weather")
+        XCTAssertEqual(XbarPlugin.baseName(fileName: "my.weather.10m.sh"), "my.weather")
     }
 
     func testMetadata() {
@@ -305,6 +328,20 @@ final class XbarPluginTests: XCTestCase {
         XCTAssertEqual(XbarPluginInstall.slug("Battery Level!"), "battery-level")
         XCTAssertEqual(XbarPluginInstall.slug("日本"), "plugin")
         XCTAssertEqual(XbarPluginInstall.slug("--a__b--"), "a-b")
+    }
+
+    func testDottedNamesDoNotCollide() throws {
+        let staging = tempDir.appendingPathComponent("staging", isDirectory: true)
+        let weather = try XbarPluginInstall.scaffold(pluginFile: try writePlugin("my.weather.sh", "#!/bin/sh\n"), into: staging)
+        let clock = try XbarPluginInstall.scaffold(pluginFile: try writePlugin("my.clock.sh", "#!/bin/sh\n"), into: staging)
+        XCTAssertEqual(weather.directory.lastPathComponent, "xbar.my-weather")
+        XCTAssertEqual(clock.directory.lastPathComponent, "xbar.my-clock")
+        let widgets = tempDir.appendingPathComponent("widgets", isDirectory: true)
+        let discovery = try WidgetDiscovery.discover(under: staging, subdirectory: nil)
+        for candidate in discovery.candidates {
+            _ = try HeadlessInstaller.install(InstallCandidate(candidate), into: widgets, hostVersion: nil)
+        }
+        XCTAssertEqual(Set(try FileManager.default.contentsOfDirectory(atPath: widgets.path)), ["xbar.my-weather", "xbar.my-clock"])
     }
 
     func testSessionFromAPluginFile() throws {

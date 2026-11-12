@@ -163,14 +163,16 @@ Plugin URLs are not installed directly; download the file first.
 
 **File name → interval**: the segment before the extension, `<n>ms|s|m|h|d`
 (`cpu.10s.sh` = 10 s, `a.500ms.sh` = 0.5 s, subject to BarShelf's own minimum
-cadence). No segment means every minute, as in xbar. Zero or over a year is
-refused.
+cadence). No interval segment (`my.weather.sh`) means every minute, as in xbar,
+and the whole stem names the widget (`xbar.my-weather`). Zero, negative or over
+a year is refused.
 
 **Format**: lines before the first `---` are titles; the first is the menu bar
 reading (its `sfimage` the icon, its `color` the tint), the rest appear at the
 top of the card. Lines after are the card. The text ends at the **first** `|`
 (a literal pipe cannot be in the text, as in xbar and SwiftBar); parameters are
-`key=value`, `key="a b"` or `key='a b'`, keys case-insensitive, the last of a
+`key=value`, `key="a b"` or `key='a b'` (inside quotes `\"`, `\'` and `\\`
+are literal; other backslashes stay), keys case-insensitive, the last of a
 repeated key wins. No shell reads them: `$HOME`, `$(…)` and backticks stay as
 written. A line with an unclosed quote shows its text and does nothing. Each
 leading `--` nests a line one level under the one above (shown as an inset

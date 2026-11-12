@@ -89,12 +89,16 @@ public enum XbarPlugin {
         if body.count >= 3, body.allSatisfy({ $0 == "-" }), (body.count - 3) % 2 == 0 {
             return Line(text: "", depth: (body.count - 3) / 2, isSeparator: true)
         }
+        // One pass over the prefix: copying the rest of the line per level
+        // made a line of 100k dashes cost seconds.
         var depth = 0
-        while body.hasPrefix("--") {
+        var start = body.startIndex
+        while body[start...].hasPrefix("--") {
             depth += 1
-            body = String(body.dropFirst(2))
+            start = body.index(start, offsetBy: 2)
         }
-        body = body.trimmingCharacters(in: .whitespaces)
+        depth = min(depth, maxDepth + 1)
+        body = body[start...].trimmingCharacters(in: .whitespaces)
         guard let paramPart else { return Line(text: body, depth: depth) }
         guard let params = tokenize(paramPart) else {
             return Line(text: body, depth: depth, malformed: true)
@@ -102,7 +106,10 @@ public enum XbarPlugin {
         return Line(text: body, params: params, depth: depth)
     }
 
-    /// `key=value key2='a b' key3="c | d"`. nil when a quote never closes.
+    /// `key=value key2='a b' key3="c | d"`. Inside quotes, a backslash
+    /// before the quote character or another backslash makes it literal
+    /// (`"say \"hi\""`); other backslashes are kept. nil when a quote
+    /// never closes or a closing quote is not followed by a space.
     /// No shell is involved: `$HOME`, `$(…)` and backticks stay literal.
     static func tokenize(_ input: Substring) -> [String: String]? {
         var params: [String: String] = [:]
@@ -126,15 +133,26 @@ public enum XbarPlugin {
                 index = input.index(after: index)
                 var closed = false
                 while index < input.endIndex {
-                    if input[index] == quote {
+                    let char = input[index]
+                    if char == "\\" {
+                        let next = input.index(after: index)
+                        if next < input.endIndex, input[next] == quote || input[next] == "\\" {
+                            value.append(input[next])
+                            index = input.index(after: next)
+                            continue
+                        }
+                    }
+                    if char == quote {
                         closed = true
                         index = input.index(after: index)
                         break
                     }
-                    value.append(input[index])
+                    value.append(char)
                     index = input.index(after: index)
                 }
                 guard closed else { return nil }
+                // `"a"b` is not two things glued together; it is a mistake.
+                if index < input.endIndex, !input[index].isWhitespace { return nil }
             } else {
                 while index < input.endIndex, !input[index].isWhitespace {
                     value.append(input[index])
@@ -425,31 +443,42 @@ public enum XbarPlugin {
 
     // MARK: - File name and header
 
+    /// The segment before the extension when it is an interval token
+    /// (`5m`, `-5m`, `500ms`); nil for a name like `my.weather.sh`.
+    static func intervalToken(fileName: String) -> (number: Double, scale: Double)? {
+        let parts = fileName.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count >= 3 else { return nil }
+        var segment = Substring(parts[parts.count - 2].lowercased())
+        let negative = segment.hasPrefix("-")
+        if negative || segment.hasPrefix("+") { segment = segment.dropFirst() }
+        let units: [(String, Double)] = [("ms", 0.001), ("s", 1), ("m", 60), ("h", 3600), ("d", 86400)]
+        for (suffix, scale) in units where segment.hasSuffix(suffix) {
+            let number = segment.dropLast(suffix.count)
+            guard !number.isEmpty, number.count <= 12, number.allSatisfy({ $0.isASCII && $0.isNumber }),
+                  let value = Double(number) else { continue }
+            return (negative ? -value : value, scale)
+        }
+        return nil
+    }
+
     /// The refresh interval in a plugin's file name, in seconds:
     /// `battery.5m.sh` → 300. Units `ms`, `s`, `m`, `h`, `d`. A name with no
     /// interval refreshes every minute, as in xbar. nil for an interval that
     /// is zero, negative or too large to mean anything (over a year).
     public static func refreshInterval(fileName: String) -> Double? {
-        let parts = fileName.split(separator: ".", omittingEmptySubsequences: false)
-        guard parts.count >= 3 else { return 60 }
-        let segment = parts[parts.count - 2].lowercased()
-        let units: [(String, Double)] = [("ms", 0.001), ("s", 1), ("m", 60), ("h", 3600), ("d", 86400)]
-        for (suffix, scale) in units where segment.hasSuffix(suffix) {
-            let number = segment.dropLast(suffix.count)
-            guard !number.isEmpty, number.allSatisfy(\.isNumber), let value = Double(number) else { continue }
-            let seconds = value * scale
-            guard seconds > 0, seconds <= 366 * 86400 else { return nil }
-            return seconds
-        }
-        return 60
+        guard let token = intervalToken(fileName: fileName) else { return 60 }
+        let seconds = token.number * token.scale
+        guard seconds > 0, seconds <= 366 * 86400 else { return nil }
+        return seconds
     }
 
-    /// The name without the interval and extension: `battery.5m.sh` → `battery`.
+    /// The name without the interval and extension: `battery.5m.sh` →
+    /// `battery`, `my.weather.sh` → `my.weather`.
     public static func baseName(fileName: String) -> String {
         let parts = fileName.split(separator: ".", omittingEmptySubsequences: false).map(String.init)
-        if parts.count >= 3 { return parts.dropLast(2).joined(separator: ".") }
-        if parts.count == 2 { return parts[0] }
-        return fileName
+        guard parts.count >= 2 else { return fileName }
+        let drop = intervalToken(fileName: fileName) == nil ? 1 : 2
+        return parts.dropLast(drop).joined(separator: ".")
     }
 
     /// `<xbar.title>…</xbar.title>`-style metadata from the plugin's text
