@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.site-monitor",
   "name": "Site Monitor",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "minHostVersion": "0.7.21",
   "icon": "antenna.radiowaves.left.and.right",
   "bucket": {
@@ -32,6 +32,7 @@
     "exec": [
       {
         "command": "/bin/sh",
+        "purpose": "Check whether a website answers, and how fast",
         "allowedArgs": [
           [
             "-c",
@@ -86,6 +87,7 @@
   },
   "localizations": {
     "ko": {
+      "Check whether a website answers, and how fast": "웹사이트가 응답하는지와 응답 속도 확인",
       "Site Monitor": "사이트 모니터",
       "URL to check": "확인할 URL",
       "Slow above (ms)": "느림 기준 (ms)",

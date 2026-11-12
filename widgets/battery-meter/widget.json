@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.battery-meter",
   "name": "Battery",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "minHostVersion": "0.7.21",
   "icon": "battery.100percent",
   "bucket": {
@@ -32,6 +32,7 @@
     "exec": [
       {
         "command": "/bin/sh",
+        "purpose": "Read the battery level and charging state",
         "allowedArgs": [
           [
             "-c",
@@ -65,6 +66,7 @@
   },
   "localizations": {
     "ko": {
+      "Read the battery level and charging state": "배터리 잔량과 충전 상태 읽기",
       "Battery": "배터리",
       "Notify when the battery runs low": "배터리가 부족하면 알림",
       "Low battery at or below (%)": "배터리 부족 기준 (% 이하)",

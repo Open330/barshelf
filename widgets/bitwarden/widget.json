@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.bitwarden",
   "name": "Bitwarden",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "minHostVersion": "0.7.30",
   "icon": "lock.shield.fill",
   "bucket": {
@@ -32,6 +32,7 @@
     "exec": [
       {
         "command": "/bin/sh",
+        "purpose": "Check that the Bitwarden CLI is installed and signed in",
         "allowedArgs": [
           [
             "-c",
@@ -71,6 +72,7 @@
   },
   "localizations": {
     "ko": {
+      "Check that the Bitwarden CLI is installed and signed in": "Bitwarden CLI 설치와 로그인 상태 확인",
       "Bitwarden": "Bitwarden 보관함",
       "Warn after days without sync": "동기화 없이 며칠 지나면 경고",
       "Notify when sync is overdue": "동기화가 밀리면 알림",

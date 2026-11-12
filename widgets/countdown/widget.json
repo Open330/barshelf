@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.countdown",
   "name": "Countdown",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "minHostVersion": "0.7.21",
   "icon": "calendar.badge.clock",
   "bucket": {
@@ -32,6 +32,7 @@
     "exec": [
       {
         "command": "/bin/date",
+        "purpose": "Read today’s date",
         "allowedArgs": [
           [
             "+{\"today\":\"%Y-%m-%dT00:00:00Z\"}"
@@ -82,6 +83,7 @@
   },
   "localizations": {
     "ko": {
+      "Read today’s date": "오늘 날짜 읽기",
       "Countdown": "디데이",
       "Event": "이벤트",
       "Date (YYYY-MM-DD)": "날짜 (YYYY-MM-DD)",

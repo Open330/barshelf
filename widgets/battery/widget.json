@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.battery",
   "name": "Battery",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "icon": "battery.100percent",
   "bucket": { "group": "System", "order": 10, "size": "M" },
 
@@ -16,6 +16,7 @@
     "exec": [
       {
         "command": "/usr/bin/pmset",
+        "purpose": "Read the battery level and charging state",
         "allowedArgs": [["-g", "batt"]],
         "maxOutputBytes": 8192,
         "sensitiveOutput": false
@@ -30,6 +31,7 @@
 
   "localizations": {
     "ko": {
+      "Read the battery level and charging state": "배터리 잔량과 충전 상태 읽기",
       "Battery": "배터리"
     }
   }

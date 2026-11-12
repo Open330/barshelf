@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.bluetooth-battery",
   "name": "Bluetooth Battery",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "minHostVersion": "0.7.21",
   "icon": "battery.75percent",
   "bucket": {
@@ -32,6 +32,7 @@
     "exec": [
       {
         "command": "/usr/bin/osascript",
+        "purpose": "Read the battery level of connected Bluetooth devices",
         "allowedArgs": [
           [
             "-l",
@@ -60,6 +61,7 @@
   },
   "localizations": {
     "ko": {
+      "Read the battery level of connected Bluetooth devices": "연결된 Bluetooth 기기의 배터리 잔량 읽기",
       "Bluetooth Battery": "블루투스 배터리",
       "Alert at or below (%)": "알림 기준 (% 이하)",
       "No Bluetooth batteries": "블루투스 배터리 없음",

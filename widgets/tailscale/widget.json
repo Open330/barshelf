@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.tailscale",
   "name": "Tailscale",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "minHostVersion": "0.7.21",
   "icon": "network",
   "bucket": {
@@ -32,6 +32,7 @@
     "exec": [
       {
         "command": "/usr/bin/osascript",
+        "purpose": "Read Tailscale’s connection status and devices",
         "allowedArgs": [
           [
             "-l",
@@ -64,6 +65,7 @@
   },
   "localizations": {
     "ko": {
+      "Read Tailscale’s connection status and devices": "Tailscale 연결 상태와 기기 목록 읽기",
       "Tailscale": "Tailscale 네트워크",
       "Show offline devices": "오프라인 기기도 보기",
       "Notify when Tailscale disconnects": "Tailscale 연결이 끊기면 알림",

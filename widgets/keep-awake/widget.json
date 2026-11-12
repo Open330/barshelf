@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.keep-awake",
   "name": "Keep Awake",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "minHostVersion": "0.7.17",
   "icon": "cup.and.saucer",
   "bucket": {
@@ -35,6 +35,7 @@
     "exec": [
       {
         "command": "/usr/bin/osascript",
+        "purpose": "Ask PowerDisplayGuard to keep the Mac awake for a while, or stop",
         "allowedArgs": [
           [
             "-l",
@@ -110,6 +111,7 @@
   },
   "localizations": {
     "ko": {
+      "Ask PowerDisplayGuard to keep the Mac awake for a while, or stop": "PowerDisplayGuard로 Mac을 잠시 깨워 두거나 해제하기",
       "Keep Awake": "깨어 있기",
       "Stay awake with the lid closed": "덮개를 닫아도 깨어 있기",
       "PowerDisplayGuard isn’t running, so nothing here can keep the Mac awake.": "PowerDisplayGuard가 실행 중이 아니라서 여기서는 Mac을 깨워 둘 수 없습니다.",

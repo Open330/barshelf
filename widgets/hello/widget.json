@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.hello",
   "name": "Hello",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "icon": "hand.wave",
   "bucket": { "group": "Everyday", "order": 10, "size": "S" },
 
@@ -16,10 +16,11 @@
   },
 
   "refresh": { "onOpen": true, "interval": 60, "staleAfterSec": 30 },
-  "permissions": { "exec": [{ "command": "./hello.sh", "allowedArgs": [[]] }] },
+  "permissions": { "exec": [{ "command": "./hello.sh", "purpose": "Show the time from the widget’s own script", "allowedArgs": [[]] }] },
 
   "localizations": {
     "ko": {
+      "Show the time from the widget’s own script": "위젯에 들어 있는 스크립트로 현재 시각 보여 주기",
       "Hello": "안녕하세요"
     }
   }
