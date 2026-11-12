@@ -55,7 +55,7 @@ ready-made ones in the gallery; there is nothing to write.
 - **🎨 Looks like your Mac**: built with Apple's own frameworks. Dark mode,
   your accent color, SF Symbols. Not a web page in a window.
 - **🔒 Asks before it runs**: a widget declares what it runs, reads and
-  reaches, and nothing runs until you allow it. A red dot on the menu bar icon
+  reaches, and one that needs access waits until you allow it. A red dot on the menu bar icon
   says when a widget is waiting for you; an update that only drops permissions
   keeps its approval, anything new asks again. Settings ▸ Privacy lists what
   installed widgets may use, and every decision is recorded.
@@ -144,7 +144,7 @@ See [setup, import scope, and scripting API](docs/AUTOMATION.md).
 
 Nothing in the gallery fits? Open **BarShelf ▸ Create** (⌘N), or ⋯ → **Add Widget…** →
 **Create Widget** in the gallery. Pick where the data comes from (a web
-address, a folder, text you type, or a command), how it looks (list · grid ·
+address that gives JSON, a folder, text you type, or a command), how it looks (list · grid ·
 table · one big number · meter · plain text) with a **live preview**, then
 name it. No code.
 

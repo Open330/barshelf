@@ -666,9 +666,10 @@
       <nav class="links" aria-label="Sections">
         <a href="#film"><span class="en">Film</span><span class="ko">필름</span></a>
         <a href="#features"><span class="en">Features</span><span class="ko">기능</span></a>
-        <a href="widgets/"><span class="en">Widgets</span><span class="ko">위젯</span></a>
+        <a href="#previews"><span class="en">Widgets</span><span class="ko">위젯</span></a>
         <a href="#showcase"><span class="en">Setups</span><span class="ko">구성</span></a>
         <a href="#builder"><span class="en">Make Your Own</span><span class="ko">직접 만들기</span></a>
+        <a href="#model"><span class="en">For Developers</span><span class="ko">개발자용</span></a>
         <a href="#install"><span class="en">Install</span><span class="ko">설치</span></a>
       </nav>
       <div class="nav-actions">
@@ -695,7 +696,7 @@
           <p class="wordmark">BarShelf</p>
           <h1><span class="en">One icon for your whole menu bar — and for everything that never had one.</span><span class="ko">메뉴바 전체를 아이콘 하나에. 메뉴바가 없던 도구까지.</span></h1>
           <p class="hero-copy en">Weather, calendar, battery, system stats, passwords, usage meters: tidy them behind one icon. Tools with no menu bar app of their own show up there too.</p>
-          <p class="hero-copy ko">날씨, 달력, 배터리, 시스템 상태, 비밀번호, 사용량을 아이콘 하나 뒤로 정리하세요. 메뉴바 앱이 없던 도구도 같은 자리에서 봅니다.</p>
+          <p class="hero-copy ko">날씨, 달력, 배터리, 시스템 상태, 비밀번호, 사용량을 아이콘 하나에 모으세요. 메뉴바 앱이 없던 도구도 같은 자리에서 봅니다.</p>
           <div class="hero-actions">
             <a class="btn primary" href="https://github.com/Open330/barshelf/releases/latest" rel="noopener" data-download>
               <span class="en">Download for macOS</span><span class="ko">macOS용 다운로드</span>
@@ -785,8 +786,8 @@
             <mark>05</mark>
             <h3 class="en">Asks before it runs</h3>
             <h3 class="ko">실행 전에 묻습니다</h3>
-            <p class="en">A widget declares what it runs, reads and reaches; nothing runs until you allow it, and BarShelf keeps a record of every decision and command. A red dot on the icon means one is waiting. An update that only drops permissions keeps your approval. No account, no analytics.</p>
-            <p class="ko">위젯은 실행할 명령, 읽을 경로, 접속할 곳을 선언하고, 허용하기 전에는 아무것도 실행하지 않습니다. 모든 결정과 실행은 기록으로 남습니다. 아이콘의 빨간 점은 기다리는 위젯이 있다는 뜻입니다. 권한을 줄이기만 한 업데이트는 승인을 유지합니다. 계정도, 분석 도구도 없습니다.</p>
+            <p class="en">A widget declares what it runs, reads and reaches, and one that needs access waits until you allow it. BarShelf keeps a record of every decision and command. A red dot on the icon means one is waiting. An update that only drops permissions keeps your approval. No account, no analytics.</p>
+            <p class="ko">위젯은 실행할 명령, 읽을 경로, 접속할 곳을 선언하고, 권한이 필요한 위젯은 허용한 뒤에 실행됩니다. 모든 결정과 실행은 기록으로 남습니다. 아이콘의 빨간 점은 기다리는 위젯이 있다는 뜻입니다. 권한을 줄이기만 한 업데이트는 승인을 유지합니다. 계정도, 분석 도구도 없습니다.</p>
           </article>
           <article class="feature">
             <mark>06</mark>
@@ -804,26 +805,19 @@
         <div class="reveal">
           <div class="label"><span class="en">The Widgets</span><span class="ko">위젯</span></div>
           <div class="section-head">
-            <h2 class="en">From clock to quota, in one popup.</h2>
+            <h2 class="en">From clock to CPU, in one popup.</h2>
             <h2 class="ko">시계부터 사용량까지, 팝업 하나에.</h2>
-            <p class="en">Time, weather, battery, recent files, how busy your Mac is, one-time codes: each is a card you can arrange into your own shelf.</p>
-            <p class="ko">시간, 날씨, 배터리, 최근 파일, Mac 사용량, 일회용 코드를 각각 카드로 두고 원하는 대로 선반에 배치하세요.</p>
+            <p class="en">Time, weather, battery, recent files, how busy your Mac is: each is a card you can arrange into your own shelf.</p>
+            <p class="ko">시간, 날씨, 배터리, 최근 파일, Mac 사용량을 각각 카드로 두고 원하는 대로 선반에 배치하세요.</p>
           </div>
         </div>
         <div class="tile-gallery reveal">
           <figure><a href="widgets/today/"><img src="shots/tile-today.png" width="736" height="264" loading="lazy" alt="Today widget — weekday, date and time, real render" /></a><figcaption>today</figcaption></figure>
-          <figure><a href="widgets/otpeek/"><img src="shots/tile-otp.png" width="736" height="266" loading="lazy" alt="OTP Codes widget with countdown rings, real render" /></a><figcaption>otpeek</figcaption></figure>
           <figure><a href="widgets/#weather"><img src="shots/tile-weather.png" width="736" height="316" loading="lazy" alt="Weather widget, real render" /></a><figcaption>weather</figcaption></figure>
-          <figure><a href="widgets/aas-usage/"><img src="shots/tile-aas.png" width="736" height="802" loading="lazy" alt="aas usage widget with LLM quota meters, real render" /></a><figcaption>aas usage</figcaption></figure>
-          <figure><a href="widgets/#system"><img src="shots/tile-system.png" width="736" height="766" loading="lazy" alt="System widget with CPU, memory, disk and the busiest apps, real render" /></a><figcaption>system</figcaption></figure>
           <figure><a href="widgets/#battery-meter"><img src="shots/tile-battery.png" width="736" height="300" loading="lazy" alt="Battery widget with charge meter, real render" /></a><figcaption>battery</figcaption></figure>
-          <figure><img src="shots/tile-k8s.png" width="736" height="246" loading="lazy" alt="Custom k8s pods list widget, real render" /><figcaption>your script here</figcaption></figure>
+          <figure><a href="widgets/#system"><img src="shots/tile-system.png" width="736" height="766" loading="lazy" alt="System widget with CPU, memory, disk and the busiest apps, real render" /></a><figcaption>system</figcaption></figure>
         </div>
         <p class="gallery-more reveal"><a class="btn light-line" href="widgets/"><span class="en">Browse every widget →</span><span class="ko">위젯 전체 보기 →</span></a></p>
-        <div class="pair-gallery reveal">
-          <figure><img src="shots/popover-light.png" width="832" height="1032" loading="lazy" alt="BarShelf popover in the light appearance, with OTP codes and aas usage widgets — real render" /><figcaption>light</figcaption></figure>
-          <figure><img src="shots/popover-dark.png" width="832" height="1032" loading="lazy" alt="BarShelf popover in the dark appearance, with OTP codes and aas usage widgets — real render" /><figcaption>dark</figcaption></figure>
-        </div>
       </div>
     </section>
 
@@ -859,7 +853,7 @@
               <b>02</b>
               <div>
                 <h3 class="en">Pair small glance widgets.</h3>
-                <h3 class="ko">작은 확인 위젯을 쌍으로 묶으세요.</h3>
+                <h3 class="ko">한눈에 보는 작은 위젯은 둘씩 두세요.</h3>
                 <p class="en">Battery, air quality, world clocks, and countdowns work best as small cards with one clear number.</p>
                 <p class="ko">배터리, 미세먼지, 세계 시계, 디데이는 숫자 하나가 분명한 작은 카드에 잘 맞습니다.</p>
               </div>
@@ -898,9 +892,9 @@
             <p class="ko">데이터를 가져올 곳과 보여 줄 모양을 고른 뒤 저장하세요. 만드는 동안 미리보기에 실제 위젯이 보입니다.</p>
           </div>
           <div class="steps">
-            <div class="step"><b>1</b><div><h3 class="en">Source</h3><h3 class="ko">가져올 곳</h3><p class="en">A web address, a folder, text you type, or a command you already use.</p><p class="ko">웹 주소, 폴더, 직접 입력한 텍스트, 이미 쓰는 명령에서 가져옵니다.</p></div></div>
+            <div class="step"><b>1</b><div><h3 class="en">Source</h3><h3 class="ko">가져올 곳</h3><p class="en">A web address that gives data (JSON), a folder, text you type, or a command you already use.</p><p class="ko">JSON 데이터를 주는 웹 주소, 폴더, 직접 입력한 텍스트, 이미 쓰는 명령에서 가져옵니다.</p></div></div>
             <div class="step"><b>2</b><div><h3 class="en">Display</h3><h3 class="ko">표시</h3><p class="en">A list, a grid, a table, one big number, a meter, or plain text.</p><p class="ko">목록, 격자, 표, 큰 숫자 하나, 미터, 텍스트 중에서 고릅니다.</p></div></div>
-            <div class="step"><b>3</b><div><h3 class="en">Save</h3><h3 class="ko">저장</h3><p class="en">It goes straight into your shelf, and you can change it any time.</p><p class="ko">바로 선반에 들어가며, 언제든 고칠 수 있습니다.</p></div></div>
+            <div class="step"><b>3</b><div><h3 class="en">Save</h3><h3 class="ko">저장</h3><p class="en">It goes straight into your shelf.</p><p class="ko">바로 선반에 들어갑니다.</p></div></div>
           </div>
         </div>
         <div class="builder-shot reveal">
@@ -937,6 +931,15 @@
             <p class="en">TypeScript widgets run out-of-process with host-mediated storage, secrets, timers, and exec.</p>
             <p class="ko">TypeScript 위젯은 별도 프로세스에서 실행되고, 저장소·비밀 값·타이머·명령 실행은 BarShelf를 거쳐 씁니다.</p>
           </article>
+        </div>
+        <div class="tile-gallery reveal">
+          <figure><a href="widgets/otpeek/"><img src="shots/tile-otp.png" width="736" height="266" loading="lazy" alt="OTP Codes widget with countdown rings, real render" /></a><figcaption>otpeek</figcaption></figure>
+          <figure><a href="widgets/aas-usage/"><img src="shots/tile-aas.png" width="736" height="802" loading="lazy" alt="aas usage widget with LLM quota meters, real render" /></a><figcaption>aas usage</figcaption></figure>
+          <figure><img src="shots/tile-k8s.png" width="736" height="246" loading="lazy" alt="Custom k8s pods list widget, real render" /><figcaption>your script here</figcaption></figure>
+        </div>
+        <div class="pair-gallery reveal">
+          <figure><img src="shots/popover-light.png" width="832" height="1032" loading="lazy" alt="BarShelf popover in the light appearance, with OTP codes and aas usage widgets — real render" /><figcaption>light</figcaption></figure>
+          <figure><img src="shots/popover-dark.png" width="832" height="1032" loading="lazy" alt="BarShelf popover in the dark appearance, with OTP codes and aas usage widgets — real render" /><figcaption>dark</figcaption></figure>
         </div>
       </div>
     </section>
