@@ -77,4 +77,14 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertFalse(decoded.popupHotkeyEnabled)
         XCTAssertEqual(decoded.popupHotkey, AppPreferences.defaultPopupHotkey)
     }
+
+    /// A wrong-typed value falls back on its own; the other preferences stay.
+    func testOneWrongTypedValueKeepsTheRest() throws {
+        let json = Data(#"{"launchAtLogin": "yes", "popupHotkey": "⇧⌘B", "pauseWhenClosed": true, "refreshMultiplier": "2"}"#.utf8)
+        let prefs = try JSONDecoder().decode(AppPreferences.self, from: json)
+        XCTAssertFalse(prefs.launchAtLogin)
+        XCTAssertEqual(prefs.popupHotkey, "⇧⌘B")
+        XCTAssertTrue(prefs.pauseWhenClosed)
+        XCTAssertEqual(prefs.refreshMultiplier, 1)
+    }
 }

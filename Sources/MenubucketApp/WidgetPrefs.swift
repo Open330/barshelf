@@ -13,6 +13,15 @@ struct BucketOverride: Codable, Equatable {
         self.order = order
         self.size = size
     }
+
+    private enum CodingKeys: String, CodingKey { case group, order, size }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        group = c.lenient(String.self, forKey: .group)
+        order = c.lenient(Double.self, forKey: .order)
+        size = c.lenient(String.self, forKey: .size)
+    }
 }
 
 /// User-scoped widget preferences: pinned widget ids and per-widget settings
@@ -59,6 +68,48 @@ final class WidgetPrefs: ObservableObject {
         /// Optional for backward compatibility with pre-menu-bar prefs files.
         var menuBarPlacements: [String: MenuBarPlacement]?
         var refreshIntervals: [String: Double]?
+
+        init(
+            pinned: [String], settings: [String: [String: JSONValue]], welcomePending: Bool?,
+            disabled: [String]?, bucketOverrides: [String: BucketOverride]?,
+            appearanceOverrides: [String: WidgetAppearance]?, groupOrder: [String: Double]?,
+            keptPages: [String]?, menuBarPlacements: [String: MenuBarPlacement]?,
+            refreshIntervals: [String: Double]?
+        ) {
+            self.pinned = pinned
+            self.settings = settings
+            self.welcomePending = welcomePending
+            self.disabled = disabled
+            self.bucketOverrides = bucketOverrides
+            self.appearanceOverrides = appearanceOverrides
+            self.groupOrder = groupOrder
+            self.keptPages = keptPages
+            self.menuBarPlacements = menuBarPlacements
+            self.refreshIntervals = refreshIntervals
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case pinned, settings, welcomePending, disabled, bucketOverrides
+            case appearanceOverrides, groupOrder, keptPages, menuBarPlacements, refreshIntervals
+        }
+
+        /// Field by field and entry by entry: a value this build cannot read
+        /// (one written by a newer build, say) costs that value, never the
+        /// user's pins, pages and settings with it.
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            pinned = c.lenientArray(String.self, forKey: .pinned) ?? []
+            settings = (c.lenientDictionary(JSONValue.self, forKey: .settings) ?? [:])
+                .compactMapValues(\.objectValue)
+            welcomePending = c.lenient(Bool.self, forKey: .welcomePending)
+            disabled = c.lenientArray(String.self, forKey: .disabled)
+            bucketOverrides = c.lenientDictionary(BucketOverride.self, forKey: .bucketOverrides)
+            appearanceOverrides = c.lenientDictionary(WidgetAppearance.self, forKey: .appearanceOverrides)
+            groupOrder = c.lenientDictionary(Double.self, forKey: .groupOrder)
+            keptPages = c.lenientArray(String.self, forKey: .keptPages)
+            menuBarPlacements = c.lenientDictionary(MenuBarPlacement.self, forKey: .menuBarPlacements)
+            refreshIntervals = c.lenientDictionary(Double.self, forKey: .refreshIntervals)
+        }
     }
 
     func setRefreshInterval(_ interval: Double?, for id: String) {
@@ -365,8 +416,9 @@ final class WidgetPrefs: ObservableObject {
     // MARK: - Persistence
 
     private func load() {
-        guard let data = try? Data(contentsOf: fileURL),
-              let persisted = try? JSONDecoder().decode(Persisted.self, from: data) else { return }
+        // A file that cannot be read at all is moved aside before the
+        // defaults below are ever saved over it.
+        guard let persisted = JSONFile.load(Persisted.self, from: fileURL) else { return }
         pinned = persisted.pinned
         settings = persisted.settings
         welcomePending = persisted.welcomePending ?? false
@@ -390,10 +442,6 @@ final class WidgetPrefs: ObservableObject {
             menuBarPlacements: menuBarPlacements.isEmpty ? nil : menuBarPlacements,
             refreshIntervals: refreshIntervals.isEmpty ? nil : refreshIntervals
         )
-        guard let data = try? JSONEncoder().encode(persisted) else { return }
-        try? FileManager.default.createDirectory(
-            at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true
-        )
-        try? data.write(to: fileURL, options: .atomic)
+        JSONFile.save(persisted, to: fileURL)
     }
 }

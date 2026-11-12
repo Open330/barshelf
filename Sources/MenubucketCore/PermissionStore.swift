@@ -67,6 +67,21 @@ public final class PermissionStore: @unchecked Sendable {
             self.decidedAt = decidedAt
             self.permissions = permissions
         }
+
+        private enum CodingKeys: String, CodingKey {
+            case hash, decision, decidedAt, permissions
+        }
+
+        /// Permissions written by a newer build may not decode here; the
+        /// decision stands on its hash, only narrowing is lost until the
+        /// next decision.
+        public init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            hash = try c.decode(String.self, forKey: .hash)
+            decision = try c.decode(String.self, forKey: .decision)
+            decidedAt = c.lenient(Date.self, forKey: .decidedAt) ?? Date(timeIntervalSince1970: 0)
+            permissions = c.lenient(Manifest.Permissions.self, forKey: .permissions)
+        }
     }
 
     private let fileURL: URL
@@ -75,12 +90,11 @@ public final class PermissionStore: @unchecked Sendable {
 
     public init(fileURL: URL) {
         self.fileURL = fileURL
-        if let data = try? Data(contentsOf: fileURL),
-           let decoded = try? Self.makeDecoder().decode([String: Record].self, from: data) {
-            records = decoded
-        } else {
-            records = [:]
-        }
+        // Record by record: one this build cannot read is dropped, not every
+        // approval the user ever gave.
+        records = JSONFile.load(
+            LenientDictionary<Record>.self, from: fileURL, decoder: Self.makeDecoder()
+        )?.entries ?? [:]
     }
 
     // MARK: - Hashing
@@ -225,17 +239,10 @@ public final class PermissionStore: @unchecked Sendable {
     }
 
     private func persistLocked() {
-        do {
-            try FileManager.default.createDirectory(
-                at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true
-            )
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
-            encoder.dateEncodingStrategy = .iso8601
-            try encoder.encode(records).write(to: fileURL, options: .atomic)
-        } catch {
-            NSLog("barshelf: failed to persist permission store: \(error)")
-        }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
+        encoder.dateEncodingStrategy = .iso8601
+        JSONFile.save(records, to: fileURL, encoder: encoder)
     }
 
     private static func makeDecoder() -> JSONDecoder {

@@ -16,6 +16,53 @@ final class WidgetPrefsTests: XCTestCase {
         try? FileManager.default.removeItem(at: fileURL.deletingLastPathComponent())
     }
 
+    /// A value this build cannot read costs that value only. Before, one
+    /// wrong-typed entry failed the whole file, the app started from
+    /// defaults and the next save wrote them over the user's pins and pages.
+    func testOneUnreadableValueKeepsEverythingElse() throws {
+        try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(#"""
+        {"pinned": ["a", 7, "b"],
+         "settings": {"a": {"city": "Seoul"}, "b": "not an object"},
+         "disabled": ["c"],
+         "bucketOverrides": {"a": {"group": "Work", "order": "first"}, "d": 12},
+         "keptPages": ["Work"],
+         "refreshIntervals": {"a": 60, "b": "often"},
+         "futureField": {"x": 1}}
+        """#.utf8).write(to: fileURL)
+
+        let prefs = WidgetPrefs(fileURL: fileURL)
+        XCTAssertTrue(prefs.isPinned("a"))
+        XCTAssertTrue(prefs.isPinned("b"))
+        XCTAssertEqual(prefs.settings(for: "a")["city"], .string("Seoul"))
+        XCTAssertTrue(prefs.isDisabled("c"))
+        XCTAssertEqual(prefs.override(for: "a"), BucketOverride(group: "Work"))
+        XCTAssertTrue(prefs.isKeptPage("Work"))
+        XCTAssertEqual(prefs.refreshIntervals, ["a": 60])
+    }
+
+    /// A file missing a field older builds always wrote still loads.
+    func testMissingRequiredFieldsStillLoad() throws {
+        try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(#"{"disabled": ["c"]}"#.utf8).write(to: fileURL)
+        XCTAssertTrue(WidgetPrefs(fileURL: fileURL).isDisabled("c"))
+    }
+
+    /// A file that is not readable at all is kept beside the new one.
+    func testUnreadableFileIsKeptWhenTheAppStartsFresh() throws {
+        let directory = fileURL.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try Data("{ truncated".utf8).write(to: fileURL)
+
+        let prefs = WidgetPrefs(fileURL: fileURL)
+        prefs.togglePin("new")
+
+        let names = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+        let aside = try XCTUnwrap(names.first { $0.hasPrefix("prefs.json.corrupt-") })
+        XCTAssertEqual(try String(contentsOf: directory.appendingPathComponent(aside), encoding: .utf8), "{ truncated")
+        XCTAssertTrue(WidgetPrefs(fileURL: fileURL).isPinned("new"))
+    }
+
     func testDisabledAndOverridesRoundTrip() {
         let prefs = WidgetPrefs(fileURL: fileURL)
         prefs.setDisabled("a", true)

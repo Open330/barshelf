@@ -176,6 +176,16 @@
         }
       }
     },
+    "%@ could not be read, so BarShelf started without it. The original file was kept beside it, with \"corrupt\" and the date in its name.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 파일을 읽을 수 없어 BarShelf가 이 파일 없이 시작했습니다. 원래 파일은 이름에 \"corrupt\"와 날짜를 붙여 같은 폴더에 남겨 두었습니다."
+          }
+        }
+      }
+    },
     "%@ couldn't refresh. %@": {
       "comment": "VoiceOver: a manual refresh failed; the error follows",
       "extractionState": "stale",
@@ -571,6 +581,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ 외 %lld개"
+          }
+        }
+      }
+    },
+    "%@: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@: %2$@"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: %@"
           }
         }
       }
@@ -2239,6 +2265,16 @@
         }
       }
     },
+    "BarShelf couldn't read some of your settings": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BarShelf가 일부 설정을 읽지 못했습니다"
+          }
+        }
+      }
+    },
     "BarShelf couldn’t find a widget to download at that address.": {
       "localizations": {
         "ko": {
@@ -3901,6 +3937,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "설정을 저장할 수 없음: %@"
+          }
+        }
+      }
+    },
+    "Couldn't save your settings": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "설정을 저장하지 못했습니다"
           }
         }
       }

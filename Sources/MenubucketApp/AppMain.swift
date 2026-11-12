@@ -17,6 +17,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // fields — e.g. Select All in the search field did nothing. Installing a
         // minimal Edit menu wires those selectors to the first responder.
         NSApp.mainMenu = Self.makeMainMenu()
+        // Before the stores load, so a settings file moved aside at launch
+        // is reported.
+        SettingsFileProblems.shared.start()
         statusItemController = StatusItemController()
         if let menu = NSApp.mainMenu { statusItemController?.installCommands(in: menu) }
         // First launch: the starter widgets were just seeded, so walk through

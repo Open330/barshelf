@@ -125,35 +125,21 @@ public struct AppPreferences: Codable, Equatable, Sendable {
     /// default (a blank status item would make the app unreachable).
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        menuBarSymbol = try container.decodeIfPresent(String.self, forKey: .menuBarSymbol)
+        menuBarSymbol = container.lenient(String.self, forKey: .menuBarSymbol)
             ?? Self.defaultMenuBarSymbol
-        refreshMultiplier = try container.decodeIfPresent(
-            Double.self, forKey: .refreshMultiplier
-        ) ?? 1
-        pauseWhenClosed = try container.decodeIfPresent(
-            Bool.self, forKey: .pauseWhenClosed
-        ) ?? false
-        launchAtLogin = try container.decodeIfPresent(
-            Bool.self, forKey: .launchAtLogin
-        ) ?? false
-        copySoundEnabled = try container.decodeIfPresent(
-            Bool.self, forKey: .copySoundEnabled
-        ) ?? false
-        popupHotkeyEnabled = try container.decodeIfPresent(
-            Bool.self, forKey: .popupHotkeyEnabled
-        ) ?? false
-        popupHotkey = try container.decodeIfPresent(String.self, forKey: .popupHotkey)
+        refreshMultiplier = container.lenient(Double.self, forKey: .refreshMultiplier) ?? 1
+        pauseWhenClosed = container.lenient(Bool.self, forKey: .pauseWhenClosed) ?? false
+        launchAtLogin = container.lenient(Bool.self, forKey: .launchAtLogin) ?? false
+        copySoundEnabled = container.lenient(Bool.self, forKey: .copySoundEnabled) ?? false
+        popupHotkeyEnabled = container.lenient(Bool.self, forKey: .popupHotkeyEnabled) ?? false
+        popupHotkey = container.lenient(String.self, forKey: .popupHotkey)
             ?? Self.defaultPopupHotkey
         // A malformed block must not cost the user every other preference.
         menuBarPresentation = (try? container.decodeIfPresent(
             MenuBarPresentation.self, forKey: .menuBarPresentation
         )) ?? nil
-        checkForUpdatesAutomatically = try container.decodeIfPresent(
-            Bool.self, forKey: .checkForUpdatesAutomatically
-        ) ?? true
-        skippedUpdateVersion = try container.decodeIfPresent(
-            String.self, forKey: .skippedUpdateVersion
-        )
+        checkForUpdatesAutomatically = container.lenient(Bool.self, forKey: .checkForUpdatesAutomatically) ?? true
+        skippedUpdateVersion = container.lenient(String.self, forKey: .skippedUpdateVersion)
         // An unknown value from a newer build falls back rather than failing
         // the whole file.
         popupHeight = (try? container.decodeIfPresent(PopupHeight.self, forKey: .popupHeight)) ?? .standard
@@ -166,21 +152,13 @@ public struct AppPreferences: Codable, Equatable, Sendable {
     // MARK: - File persistence
 
     public static func load(from fileURL: URL) -> AppPreferences {
-        guard let data = try? Data(contentsOf: fileURL),
-              let decoded = try? JSONDecoder().decode(AppPreferences.self, from: data)
-        else { return AppPreferences() }
-        return decoded
+        JSONFile.load(AppPreferences.self, from: fileURL) ?? AppPreferences()
     }
 
     /// Best-effort atomic write (creates the parent directory).
     public func save(to fileURL: URL) throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        let data = try encoder.encode(self)
-        try FileManager.default.createDirectory(
-            at: fileURL.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try data.write(to: fileURL, options: .atomic)
+        try JSONFile.write(self, to: fileURL, encoder: encoder)
     }
 }
