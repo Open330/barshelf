@@ -450,7 +450,7 @@ final class WidgetRuntime: ObservableObject {
             .sink { [weak self] _ in
                 self?.snapshotCache.flush()
                 self?.refreshStatsStore.flush()
-                self?.saveChartHistory()
+                self?.chartRecorder.save()
             }
             .store(in: &cancellables)
         desktopMirror.source = self
@@ -461,10 +461,12 @@ final class WidgetRuntime: ObservableObject {
         }
         seedStarterWidgets()
         refreshBundledWidgets()
-        if let url = Self.chartHistoryURL {
-            menuBarHistory = MenuBarChartHistoryStore.load(from: url)
+        chartRecorder.sensitiveWidgetIDs = { [weak self] in
+            guard let self else { return nil }
+            return Set(self.widgets.filter(\.isSensitive).map(\.id)).union(self.sensitiveRenderIDs)
         }
-        startChartHistorySaver()
+        chartRecorder.restore()
+        chartRecorder.updateSaver()
         loadWidgets()
         startHotReload()
         startMenuBarStalenessTicker()
@@ -686,7 +688,13 @@ final class WidgetRuntime: ObservableObject {
         setSnapshot(snapshot, for: widgetId)
         let sensitive = params.sensitive == true || widget.isSensitive
         let wasSensitive = sensitiveRenderIDs.contains(widgetId)
-        if sensitive { sensitiveRenderIDs.insert(widgetId) } else { sensitiveRenderIDs.remove(widgetId) }
+        if sensitive {
+            // Its chart history is on disk from before it turned sensitive;
+            // rewrite the file without it now, not at the next 30 s save.
+            if sensitiveRenderIDs.insert(widgetId).inserted { chartRecorder.save() }
+        } else {
+            sensitiveRenderIDs.remove(widgetId)
+        }
         if sensitive != wasSensitive { desktopMirror.publishIndex() }
         if sensitive {
             desktopMirror.withdraw(widgetID: widgetId)
@@ -1803,14 +1811,7 @@ final class WidgetRuntime: ObservableObject {
             // Only an item with its own place draws a chart; the strip is
             // text, and history there would only make it redraw.
             if presentation.effectiveChart != .none, separate {
-                // A new snapshot adds a point; a sync for any other reason
-                // (a settings change, the staleness tick) must not repeat it.
-                if chartPending.remove(widget.id) != nil, let sample = MenuBarPolicy.chartSample(applied) {
-                    menuBarHistory[widget.id] = MenuBarPolicy.recordingChart(
-                        menuBarHistory[widget.id], sample, at: SleepAwareClock.now()
-                    )
-                }
-                applied = MenuBarPolicy.applyingChart(applied, history: menuBarHistory[widget.id])
+                applied = chartRecorder.charting(applied)
                 charting.insert(widget.id)
             }
             candidates.append((applied, placement.order))
@@ -1822,10 +1823,9 @@ final class WidgetRuntime: ObservableObject {
         // A widget that has not rendered yet may take its chart from its
         // first render (`status.presentation`), so a history restored at
         // launch waits for that render before it can be judged unwanted.
-        menuBarHistory = menuBarHistory.filter { id, _ in
-            charting.contains(id) || (snapshots[id]?.updatedAt == nil && candidates.contains { $0.entry.widgetID == id })
+        chartRecorder.prune(charting: charting) { id in
+            snapshots[id]?.updatedAt == nil && candidates.contains { $0.entry.widgetID == id }
         }
-        chartPending.formIntersection(charting)
 
         // "Show only when" items are ordered and capped like any other, then
         // left out of what is drawn: they keep their place in the strip and
@@ -1854,7 +1854,7 @@ final class WidgetRuntime: ObservableObject {
         dormantMenuBarWidgetIDs = dormant
         menuBar.apply(owned.filter { !dormant.contains($0.widgetID) })
         startMenuBarStalenessTicker()
-        startChartHistorySaver()
+        chartRecorder.updateSaver()
         // Before the promoted-set check: a changed cadence re-arms timers even
         // when the set of promoted widgets is the same.
         scheduler.setWidgetIntervalOverrides(prefs.refreshIntervals)
@@ -1873,16 +1873,13 @@ final class WidgetRuntime: ObservableObject {
         }
     }
 
-    /// Recent readings of each charting item, oldest first.
     /// Recent menu bar readings for the trend in a menu bar item's card.
     let readingHistory = ReadingHistory()
-    private(set) var menuBarHistory: [String: MenuBarChartHistory] = [:]
-    /// Widgets with a snapshot the chart has not taken a point from yet.
-    private var chartPending: Set<String> = []
+    private let chartRecorder = MenuBarChartRecorder()
+    /// Recent readings of each charting item, oldest first.
+    var menuBarHistory: [String: MenuBarChartHistory] { chartRecorder.histories }
     /// Widgets whose last render asked to stay off disk.
     private var sensitiveRenderIDs: Set<String> = []
-    private var lastSavedChartHistory: [String: MenuBarChartHistory] = [:]
-    private var chartHistoryTimer: Timer?
 
     /// Every entry the menu bar owns, in order and capped: drawn now, or
     /// hidden by its "show only when" threshold.
@@ -3623,7 +3620,7 @@ final class WidgetRuntime: ObservableObject {
             // those into chart history repeated the previous reading.
             if previous?.updatedAt != snapshot.updatedAt || previous?.statusMetrics != snapshot.statusMetrics
                 || previous?.statusLabel != snapshot.statusLabel {
-                chartPending.insert(id)
+                chartRecorder.markPending(id)
             }
             menuBarUpdateBatch.request()
         }
@@ -3681,48 +3678,6 @@ final class WidgetRuntime: ObservableObject {
     }
 
     // MARK: - Render snapshot cache
-
-    /// Beside refresh-stats.json, outside the per-widget snapshot cache,
-    /// whose `<id>.json` names a widget id could collide with.
-    private static var chartHistoryURL: URL? {
-        applicationSupportDirectory.appendingPathComponent("menu-bar-charts.json")
-    }
-
-    /// Graphs pick up where they were after a relaunch — an in-app update
-    /// included — instead of starting empty. Saved on a timer as well as at
-    /// quit: an update starts the new build *before* the old one quits, and
-    /// `barshelf upgrade` stops the app with a signal that runs no quit
-    /// handlers, so a save at quit alone would never reach the next run.
-    /// Widgets whose output must not touch disk are left out.
-    func saveChartHistory() {
-        guard let url = Self.chartHistoryURL else { return }
-        let sensitive = Set(widgets.filter(\.isSensitive).map(\.id)).union(sensitiveRenderIDs)
-        let kept = menuBarHistory.filter { !sensitive.contains($0.key) }
-        guard kept != lastSavedChartHistory else { return }
-        do {
-            try MenuBarChartHistoryStore.save(kept, to: url)
-            lastSavedChartHistory = kept
-        } catch {
-            // Leave it dirty: transient I/O failures must retry at the next
-            // maintenance tick rather than being mistaken for a saved history.
-        }
-    }
-
-    private func startChartHistorySaver() {
-        guard !menuBarHistory.isEmpty else {
-            chartHistoryTimer?.invalidate()
-            chartHistoryTimer = nil
-            saveChartHistory()
-            return
-        }
-        guard chartHistoryTimer == nil else { return }
-        let timer = Timer(timeInterval: MenuBarChartHistoryStore.saveInterval, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.saveChartHistory() }
-        }
-        timer.tolerance = 5
-        RunLoop.main.add(timer, forMode: .common)
-        chartHistoryTimer = timer
-    }
 
     private func persistShareableSnapshot(widgetID: String) {
         guard let widget = widgets.first(where: { $0.id == widgetID }),
