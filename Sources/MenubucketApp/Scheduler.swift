@@ -55,6 +55,15 @@ final class Scheduler {
     /// the visibility and `runInBackground` gates exist to spare *hidden*
     /// widgets, which these are not.
     private var menuBarWidgetIDs: Set<String> = []
+    /// The screen is locked or the display is asleep: the menu bar is not on
+    /// screen, so nothing in it is.
+    private(set) var menuBarIsHidden = false
+    private var screenStateObservers: [(center: NotificationCenter, token: NSObjectProtocol)] = []
+    /// The promoted widgets that can actually be seen. While the bar is
+    /// hidden there are none, and a promoted widget is scheduled like any
+    /// other with the popup closed: a `runInBackground` one keeps its relaxed
+    /// cadence (so an alert still watches), the rest stop.
+    private var shownInMenuBar: Set<String> { menuBarIsHidden ? [] : menuBarWidgetIDs }
     /// Widgets with workflow alerts and `runInBackground`: off the visible
     /// page they keep the background cadence even while the popup is open,
     /// or an alert would stop watching whenever another page is showing.
@@ -107,6 +116,7 @@ final class Scheduler {
         if let activityAssertion {
             ProcessInfo.processInfo.endActivity(activityAssertion)
         }
+        for observer in screenStateObservers { observer.center.removeObserver(observer.token) }
         for timer in intervalTimers.values { timer.invalidate() }
         for timer in deadlineTimers.values { timer.invalidate() }
         for watcher in watchers.values { watcher.cancel() }
@@ -212,6 +222,42 @@ final class Scheduler {
         flushPromotedPendingEvents()
     }
 
+    /// The menu bar went out of sight (screen locked, display asleep) or
+    /// came back. Out of sight, the two-second readings nobody can read stop,
+    /// and App Nap is allowed again; back in sight, every promoted widget
+    /// refreshes at once so the bar is current when it is first looked at,
+    /// and its timers resume.
+    func setMenuBarHidden(_ hidden: Bool) {
+        guard hidden != menuBarIsHidden else { return }
+        menuBarIsHidden = hidden
+        updateActivityAssertion()
+        rebuildIntervalTimers()
+        guard !hidden else { return }
+        flushPromotedPendingEvents()
+        for id in menuBarWidgetIDs { fireAutomatic(id) }
+    }
+
+    /// Follows the screen: locked/unlocked and display asleep/awake. Called
+    /// once by the app; tests drive `setMenuBarHidden` themselves.
+    func observeScreenState(isHiddenNow: @escaping () -> Bool) {
+        guard screenStateObservers.isEmpty else { return }
+        let update: (Notification) -> Void = { [weak self] _ in
+            // The session dictionary lags the notification by a moment.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self?.setMenuBarHidden(isHiddenNow()) }
+        }
+        let distributed = DistributedNotificationCenter.default()
+        for name in ["com.apple.screenIsLocked", "com.apple.screenIsUnlocked"] {
+            screenStateObservers.append((distributed, distributed.addObserver(
+                forName: Notification.Name(name), object: nil, queue: .main, using: update)))
+        }
+        let workspace = NSWorkspace.shared.notificationCenter
+        for name in [NSWorkspace.screensDidSleepNotification, NSWorkspace.screensDidWakeNotification] {
+            screenStateObservers.append((workspace, workspace.addObserver(
+                forName: name, object: nil, queue: .main, using: update)))
+        }
+        setMenuBarHidden(isHiddenNow())
+    }
+
     /// Holds App Nap off while anything is drawn in the menu bar.
     ///
     /// An accessory app with no windows is exactly what App Nap is for, and it
@@ -225,7 +271,7 @@ final class Scheduler {
     /// app should nap like any other. `allowingIdleSystemSleep` because this
     /// is about not being throttled, not about keeping the Mac awake.
     private func updateActivityAssertion() {
-        let wanted = !menuBarWidgetIDs.isEmpty
+        let wanted = !shownInMenuBar.isEmpty
         if wanted, activityAssertion == nil {
             activityAssertion = ProcessInfo.processInfo.beginActivity(
                 options: [.userInitiatedAllowingIdleSystemSleep],
@@ -311,7 +357,7 @@ final class Scheduler {
         var desired: [TimeInterval: [String]] = [:]
         for widget in widgets {
             if widget.manifest.refresh?.popupOnly == true { continue }
-            let promoted = menuBarWidgetIDs.contains(widget.id)
+            let promoted = shownInMenuBar.contains(widget.id)
             let offPage = popupIsOpen && !promoted && !visibleWidgetIDs.contains(widget.id)
             if offPage, !monitoringWidgetIDs.contains(widget.id) { continue }
             let base = widgetIntervalOverrides[widget.id] ?? widget.manifest.refresh?.interval
@@ -428,7 +474,7 @@ final class Scheduler {
         // construction already skips these widgets, so this only guards the
         // invariant against a future caller.
         if widget.manifest.refresh?.popupOnly == true { return false }
-        if menuBarWidgetIDs.contains(widgetID) {
+        if shownInMenuBar.contains(widgetID) {
             // Promoted widgets are on screen in both popup states, and the
             // battery saver is about work nobody can see. Pausing one left a
             // menu bar reading frozen at whatever it happened to say.
@@ -453,7 +499,7 @@ final class Scheduler {
     /// Drains work deferred while a widget was hidden, once promotion makes it
     /// eligible again.
     private func flushPromotedPendingEvents() {
-        let ready = pendingAutomaticEvents.intersection(menuBarWidgetIDs)
+        let ready = pendingAutomaticEvents.intersection(shownInMenuBar)
         pendingAutomaticEvents.subtract(ready)
         for id in ready {
             fireAutomatic(id)

@@ -98,6 +98,9 @@ final class StatusItemController: NSObject {
         WidgetInstaller.shared.onAccessibilityRequest = {
             AutomationController.shared.requestAccessibility()
         }
+        // Menu bar readings stop while nobody can see the menu bar (screen
+        // locked, display asleep) and catch up the moment it is back.
+        runtime.scheduler.observeScreenState { MenuBarController.barIsHidden }
         AutomationController.shared.$inputSourceStatus
             .receive(on: RunLoop.main)
             .sink { [weak runtime] status in runtime?.attention.set(.automationNeedsAttention, status.needsAttention) }
