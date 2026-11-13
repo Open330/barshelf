@@ -72,6 +72,17 @@ struct GeneralSettingsPage: View {
 
             Section {
                 Toggle(isOn: Binding(
+                    get: { appPrefs.preferences.popupRemembersPage },
+                    set: { value in appPrefs.update { $0.popupRemembersPage = value } }
+                )) {
+                    Text("Reopen on the last page")
+                    Text("The popup opens where you left it, after a restart too. Off, it always opens on the first page.")
+                }
+                .accessibilityLabel("Reopen on the last page")
+            }
+
+            Section {
+                Toggle(isOn: Binding(
                     get: { appPrefs.preferences.launchAtLogin },
                     set: setLaunchAtLogin
                 )) {

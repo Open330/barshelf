@@ -11291,6 +11291,16 @@
         }
       }
     },
+    "Reopen on the last page": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "마지막 페이지에서 다시 열기"
+          }
+        }
+      }
+    },
     "Reopen with Touch ID for the next 8 hours": {
       "localizations": {
         "ko": {
@@ -14303,6 +14313,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "온라인 위젯 목록을 쓸 수 없어 BarShelf에 들어 있는 위젯을 보여 줍니다."
+          }
+        }
+      }
+    },
+    "The popup opens where you left it, after a restart too. Off, it always opens on the first page.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "팝업이 마지막으로 보던 페이지에서 열립니다. 재시작한 뒤에도 같습니다. 끄면 항상 첫 페이지에서 열립니다."
           }
         }
       }

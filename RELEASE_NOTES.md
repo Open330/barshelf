@@ -4,3 +4,4 @@
 
 ## Changes
 - Menu bar readings stop refreshing while nobody can see the menu bar (the screen is locked or the display is asleep) and catch up the moment it is back. A widget that watches in the background, for an alert, keeps watching at its background pace.
+- New in Settings ▸ General: "Reopen on the last page". On (the default), the popup opens on the page you left it on, and now does so after a restart too. Off, it always opens on the first page.

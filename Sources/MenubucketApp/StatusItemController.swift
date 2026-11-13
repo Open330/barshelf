@@ -145,6 +145,16 @@ final class StatusItemController: NSObject {
             self?.showWidgetMenu(for: widgetID, with: event, in: button)
         }
         configureCluster()
+        // Only a page the popup was actually on is worth remembering: the
+        // pager's index also moves while it is closed (pages removed).
+        pager.$index
+            .dropFirst()
+            .removeDuplicates()
+            .sink { [weak self] index in
+                guard let self, self.popup.isShown else { return }
+                self.savePopupPage(index: index)
+            }
+            .store(in: &cancellables)
         runtime.menuBar.$entries
             .receive(on: RunLoop.main)
             .sink { [weak self] entries in
@@ -228,7 +238,38 @@ final class StatusItemController: NSObject {
         if popup.isShown {
             popup.hide()
         } else {
+            applyStartPage()
             showPopup()
+        }
+    }
+
+    /// The page saved by the previous run; consumed by the first opening.
+    private var pageToRestore = UserDefaults.standard.string(forKey: PopupStartPage.defaultsKey)
+
+    /// A plain opening (the status item, the hotkey) starts on the last page
+    /// or the first, as Settings say. Openings that name their own page (a
+    /// Dock profile, revealing a widget) go through `showPopup` directly.
+    private func applyStartPage() {
+        let groups = runtime.pages.map(\.group)
+        let index = PopupStartPage.index(
+            remembers: appPrefs.preferences.popupRemembersPage,
+            restoring: pageToRestore, current: pager.index, groups: groups
+        )
+        pageToRestore = nil
+        pager.jump(to: index, pageCount: groups.count)
+    }
+
+    /// Keeps the last page for the next run, or forgets it when the
+    /// preference is off.
+    private func savePopupPage(index: Int) {
+        let name = PopupStartPage.nameToSave(
+            remembers: appPrefs.preferences.popupRemembersPage,
+            index: index, groups: runtime.pages.map(\.group)
+        )
+        if let name {
+            UserDefaults.standard.set(name, forKey: PopupStartPage.defaultsKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: PopupStartPage.defaultsKey)
         }
     }
 
