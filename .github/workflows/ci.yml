@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
   pull_request:
+  # The merge queue: main only takes a pull request after this workflow has
+  # passed on it merged with everything queued ahead of it. Two pull requests
+  # that were each green and red together (#260 with #264) cannot both land.
+  merge_group:
   workflow_dispatch:
 
 # A newer push to a pull request makes its older run moot, so that one is
@@ -223,7 +227,7 @@ jobs:
   package:
     name: Release packaging (unnotarized)
     needs: changes
-    if: github.event_name != 'pull_request' && needs.changes.outputs.code == 'true'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.changes.outputs.code == 'true'
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v5
