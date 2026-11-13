@@ -217,17 +217,23 @@ final class DesktopWidgetMirrorTests: XCTestCase {
         XCTAssertNil(shared("gone"))
     }
 
-    /// `publish` itself does not look at the disabled flag: a disabled widget
-    /// is kept out by the index it is no longer in.
-    func testPublishNeverWritesARenderOfADisabledWidgetOnceTheIndexIsOut() {
+    /// No index has been written here, so the publisher's own "not in the
+    /// index" guard is out of the way: the mirror itself must refuse.
+    func testPublishNeverWritesARenderOfADisabledWidget() {
         let (mirror, _) = makeMirror()
         source.widgets = [widget("plain"), widget("off")]
         source.disabled = ["off"]
-        mirror.publishIndex()
         mirror.publish(render("off"))
         mirror.publish(render("plain"))
         XCTAssertNil(shared("off"))
         XCTAssertNotNil(shared("plain"))
+    }
+
+    func testPublishNeverWritesARenderOfAWidgetWhoseManifestDeclinesTheDesktop() {
+        let (mirror, _) = makeMirror()
+        source.widgets = [widget("declines", desktop: .init(offer: false))]
+        mirror.publish(render("declines"))
+        XCTAssertNil(shared("declines"))
     }
 
     func testNothingIsPublishedWithoutARuntimeOrWithoutTheAppGroup() {

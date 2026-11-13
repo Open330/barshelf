@@ -66,11 +66,18 @@ final class DesktopWidgetMirror {
     /// not sensitive, by manifest or by what it last rendered.
     private func desktopWidgetCandidates() -> [LoadedWidget] {
         guard let source else { return [] }
-        return source.widgets.filter {
-            !$0.isSensitive && !source.hasSensitiveRender($0.id) && !source.isDisabled($0.id)
-                && $0.manifest.desktop?.offer != false
-                && source.permissionStatus(for: $0.manifest) == .approved
-        }
+        return source.widgets.filter { mayMirror($0, source: source) }
+    }
+
+    /// The one answer to "may this widget leave the app", for the index and
+    /// for each render. They used to differ: a render was not checked for a
+    /// switched-off widget or one whose manifest declines the desktop, and
+    /// relied on the publisher refusing ids that are not in the index, which
+    /// it cannot do before the first index has been written.
+    private func mayMirror(_ widget: LoadedWidget, source: DesktopWidgetMirrorSource) -> Bool {
+        !widget.isSensitive && !source.hasSensitiveRender(widget.id) && !source.isDisabled(widget.id)
+            && widget.manifest.desktop?.offer != false
+            && source.permissionStatus(for: widget.manifest) == .approved
     }
 
     func publishIndex() {
@@ -101,9 +108,8 @@ final class DesktopWidgetMirror {
     func publish(_ snapshot: WidgetSnapshot) {
         guard sharedShelf.isEnabled, snapshot.safeForSensitiveCache != true,
               let source,
-              !source.hasSensitiveRender(snapshot.widgetID),
               let widget = source.widgets.first(where: { $0.id == snapshot.widgetID }),
-              !widget.isSensitive, source.permissionStatus(for: widget.manifest) == .approved
+              mayMirror(widget, source: source)
         else { return }
         sharedShelf.publish(SharedShelf.Snapshot(
             widgetID: widget.id,
