@@ -3,6 +3,20 @@ import MenubucketCore
 @testable import MenubucketApp
 
 /// What the widget settings pane's menu bar preview builds for a draft.
+///
+/// The preview is built by `MenuBarPolicy.buildEntry`, as the menu bar is.
+/// Before that it was built by hand and disagreed with the bar in three
+/// ways; each expectation that changed with the switch says which:
+///
+/// - (a) own item: the pane had no text-icon exception, so an icon-only
+///   widget given an emoji was treated as an item of its own. On the bar an
+///   emoji is text and the widget shares the strip.
+/// - (b) style: the pane read the manifest's style as written; the bar reads
+///   it through `effectiveStatusItem`, so the style of a status item the
+///   author did not offer ("none") does not apply.
+/// - (c) fields never set: `separate`, `iconSymbol`, `profiles` and
+///   `profileMetrics` were left at their defaults; the bar sets them, and
+///   the cluster's chips are drawn from them.
 final class MenuBarPreviewEntryTests: XCTestCase {
     /// The fields of a preview that the menu bar and the pane's controls
     /// read, flat, so a change shows as a change to one line.
@@ -46,6 +60,7 @@ final class MenuBarPreviewEntryTests: XCTestCase {
         let entry = WidgetSettingsView.menuBarPreviewEntry(
             widget: widget, snapshot: snapshot, draft: draft, globalPresentation: global, history: history
         )
+        let layout = WidgetSettingsView.menuBarPreviewLayout(widget: widget, draft: draft)
         XCTAssertEqual(entry.widgetID, widget.id)
         XCTAssertEqual(entry.name, "Preview")
         return (Pinned(
@@ -56,8 +71,7 @@ final class MenuBarPreviewEntryTests: XCTestCase {
             profiles: entry.profiles, profileMetrics: entry.profileMetrics.map { $0.id ?? "" },
             chart: entry.presentation.effectiveChart, historyCount: entry.history.count,
             chartScale: entry.chartScale,
-            usesOwnItem: WidgetSettingsView.menuBarPreviewUsesOwnItem(widget: widget, draft: draft),
-            layoutStyle: WidgetSettingsView.menuBarPreviewStyle(widget: widget, draft: draft)
+            usesOwnItem: layout.separate, layoutStyle: layout.style
         ), entry)
     }
 
@@ -76,10 +90,12 @@ final class MenuBarPreviewEntryTests: XCTestCase {
     func testPlainLabelWidget() {
         let widget = widget(.init(mode: "text", label: "Temp"))
         let read = preview(widget, snapshot: WidgetSnapshot(widgetID: widget.id, statusLabel: " 71° "))
-        XCTAssertEqual(read.pinned, Pinned(prefix: "Temp", label: "71°"))
+        // (c) iconSymbol: was nil. The widget's own icon, which a text-only
+        // item does not show but its chip in the cluster does.
+        XCTAssertEqual(read.pinned, Pinned(iconSymbol: "star", prefix: "Temp", label: "71°"))
 
         // Never run: the preview stands in for the reading. Deliberate.
-        XCTAssertEqual(preview(widget).pinned, Pinned(prefix: "Temp", label: "42%"))
+        XCTAssertEqual(preview(widget).pinned, Pinned(iconSymbol: "star", prefix: "Temp", label: "42%"))
     }
 
     func testIconOnlyWidgetWithItsSymbol() {
@@ -90,12 +106,16 @@ final class MenuBarPreviewEntryTests: XCTestCase {
         )
         XCTAssertEqual(
             preview(widget, snapshot: snapshot, draft: .init(enabled: true, presentation: .init(chart: .line))).pinned,
-            Pinned(symbol: "cpu.fill", chart: .line, usesOwnItem: true)
+            // (c) iconSymbol was nil; separate was false though the pane
+            // itself said "its own item". The bar sets both.
+            Pinned(symbol: "cpu.fill", iconSymbol: "cpu.fill", separate: true, chart: .line, usesOwnItem: true)
         )
         // Given another SF Symbol: still an image, still its own item.
         XCTAssertEqual(
             preview(widget, snapshot: snapshot, draft: .init(enabled: true, icon: "memorychip")).pinned,
-            Pinned(symbol: "cpu.fill", iconOverride: "memorychip", usesOwnItem: true)
+            // (c) as above.
+            Pinned(symbol: "cpu.fill", iconSymbol: "cpu.fill", iconOverride: "memorychip",
+                   separate: true, usesOwnItem: true)
         )
     }
 
@@ -103,32 +123,45 @@ final class MenuBarPreviewEntryTests: XCTestCase {
         let widget = widget(.init(mode: "icon", icon: "cpu.fill"))
         XCTAssertEqual(
             preview(widget, draft: .init(enabled: true, icon: "🔥")).pinned,
-            Pinned(symbol: "cpu.fill", iconOverride: "🔥", usesOwnItem: true)
+            // (a) usesOwnItem: was true. An emoji is text, so on the bar the
+            // widget shares the strip; the pane now says so, and no longer
+            // describes a graph or clicks it would not get.
+            // (c) iconSymbol was nil.
+            Pinned(symbol: "cpu.fill", iconSymbol: "cpu.fill", iconOverride: "🔥", usesOwnItem: false)
         )
         XCTAssertEqual(
             preview(widget, draft: .init(enabled: true, separate: true, icon: "🔥")).pinned,
-            Pinned(symbol: "cpu.fill", iconOverride: "🔥", usesOwnItem: true)
+            // Split out by choice, as the bar allows. (c) iconSymbol was
+            // nil, separate was false.
+            Pinned(symbol: "cpu.fill", iconSymbol: "cpu.fill", iconOverride: "🔥", separate: true, usesOwnItem: true)
         )
     }
 
     func testWidgetWithMetricsAndProfiles() {
         let widget = widget(.init(mode: "dynamic", icon: "person.2", profiles: true))
+        // (c) iconSymbol was nil, profiles false and profileMetrics empty in
+        // all three below: the bar carries every profile's reading, so the
+        // cluster preview draws a chip for each as the cluster does.
         XCTAssertEqual(
             preview(widget, snapshot: accounts).pinned,
-            Pinned(symbol: "person.2", label: "42%", metrics: ["Work 10%", "Home 20%"])
+            Pinned(symbol: "person.2", iconSymbol: "person.2", label: "42%", metrics: ["Work 10%", "Home 20%"],
+                   profiles: true, profileMetrics: ["a", "b", "c"])
         )
         // On its own item with a chart: the example shape and the reading.
         let charted = MenuBarPlacement(enabled: true, separate: true, presentation: .init(chart: .line))
         XCTAssertEqual(
             preview(widget, snapshot: accounts, draft: charted).pinned,
-            Pinned(symbol: "person.2", label: "42%", metrics: ["Work 10%", "Home 20%"],
+            // (c) separate was false.
+            Pinned(symbol: "person.2", iconSymbol: "person.2", label: "42%", metrics: ["Work 10%", "Home 20%"],
+                   separate: true, profiles: true, profileMetrics: ["a", "b", "c"],
                    chart: .line, historyCount: WidgetSettingsView.exampleChart.count + 1, chartScale: 100,
                    usesOwnItem: true)
         )
         // Sharing the strip there is no chart to draw.
         XCTAssertEqual(
             preview(widget, snapshot: accounts, draft: .init(enabled: true, presentation: .init(chart: .line))).pinned,
-            Pinned(symbol: "person.2", label: "42%", metrics: ["Work 10%", "Home 20%"], chart: .line)
+            Pinned(symbol: "person.2", iconSymbol: "person.2", label: "42%", metrics: ["Work 10%", "Home 20%"],
+                   profiles: true, profileMetrics: ["a", "b", "c"], chart: .line)
         )
     }
 
@@ -139,11 +172,19 @@ final class MenuBarPreviewEntryTests: XCTestCase {
         let snapshot = WidgetSnapshot(widgetID: widget.id, statusLabel: "idle")
         XCTAssertEqual(
             preview(widget, snapshot: snapshot).pinned,
-            Pinned(style: .stacked, label: "idle", usesOwnItem: true, layoutStyle: .stacked)
+            // (b) style and layoutStyle: were .stacked, and usesOwnItem true
+            // because of it. The bar ignores the style of a status item that
+            // was not offered, draws the widget inline and lets it share.
+            // (c) iconSymbol was nil; it is the manifest's icon, not the
+            // unoffered status item's.
+            Pinned(iconSymbol: "star", style: .inline, label: "idle", usesOwnItem: false, layoutStyle: .inline)
         )
         XCTAssertEqual(
             preview(widget, snapshot: snapshot, draft: .init(enabled: true, style: .metrics)).pinned,
-            Pinned(style: .metrics, label: "idle", usesOwnItem: true, layoutStyle: .metrics)
+            // The user's own style still applies. (c) iconSymbol was nil,
+            // separate was false.
+            Pinned(iconSymbol: "star", style: .metrics, label: "idle", separate: true,
+                   usesOwnItem: true, layoutStyle: .metrics)
         )
     }
 
