@@ -254,6 +254,8 @@ final class WidgetRuntime: ObservableObject {
     }
     /// Feeds the macOS widget extension (R14).
     let sharedShelf: SharedShelfPublisher
+    /// The on-disk render cache; owns its throttle state.
+    private let snapshotCache = SnapshotDiskCache()
     /// Source of truth for renders. Deliberately *not* `@Published`: updates
     /// are routed to the affected widget's `WidgetCardModel` only (publish
     /// suppressed when the snapshot is unchanged, `Equatable`).
@@ -444,11 +446,16 @@ final class WidgetRuntime: ObservableObject {
         NotificationCenter.default
             .publisher(for: NSApplication.willTerminateNotification)
             .sink { [weak self] _ in
-                self?.flushPendingPersists()
+                self?.snapshotCache.flush()
                 self?.refreshStatsStore.flush()
                 self?.saveChartHistory()
             }
             .store(in: &cancellables)
+        // On the same throttle as the cache: a widget refreshing every
+        // two seconds must not rewrite the shared folder that often.
+        snapshotCache.onThrottledWrite = { [weak self] snapshot in
+            self?.publishToDesktopWidgets(snapshot)
+        }
         seedStarterWidgets()
         refreshBundledWidgets()
         if let url = Self.chartHistoryURL {
@@ -684,7 +691,7 @@ final class WidgetRuntime: ObservableObject {
         if sensitive != wasSensitive { publishDesktopWidgetIndex() }
         if sensitive {
             sharedShelf.withdraw(widgetID: widgetId)
-            cancelPendingPersist(widgetId)
+            snapshotCache.cancelPending(widgetId)
             if let cacheRoot = params.cacheRoot {
                 // Keep the live tree memory-only. Persist only the separate
                 // widget-supplied tree whose contract requires sensitive
@@ -694,7 +701,7 @@ final class WidgetRuntime: ObservableObject {
                 cached.safeForSensitiveCache = true
                 persistSnapshot(cached)
             } else {
-                Self.removeCachedSnapshot(widgetID: widgetId)
+                snapshotCache.removeFile(widgetID: widgetId)
             }
         } else {
             persistSnapshot(snapshot)
@@ -800,7 +807,7 @@ final class WidgetRuntime: ObservableObject {
         // A permission overlay replaces the shelf card, but Dock glances and
         // menu-bar values also observe this snapshot. Withdraw their last
         // reading immediately, including a cache restored during a rescan.
-        cancelPendingPersist(widget.id)
+        snapshotCache.cancelPending(widget.id)
         setSnapshot(WidgetSnapshot(widgetID: widget.id), for: widget.id)
         if overlayCards[widget.id] == nil {
             auditLog.record("permission.requested", widgetId: widget.id, detail: [
@@ -1098,23 +1105,23 @@ final class WidgetRuntime: ObservableObject {
             // have a pre-sensitive live tree written by a cache throttle that
             // was already holding it.
             if widget.isSensitive {
-                cancelPendingPersist(widget.id)
+                snapshotCache.cancelPending(widget.id)
             }
             if snapshots[widget.id] == nil {
                 if widget.isSensitive {
                     // A sensitive live tree is never restored. The only cache
                     // accepted here is an explicitly redacted fallback written
                     // through RenderParams.cacheRoot.
-                    if let cached = loadCachedSnapshot(widgetID: widget.id),
+                    if let cached = snapshotCache.load(widgetID: widget.id),
                        cached.safeForSensitiveCache == true {
                         setSnapshot(cached, for: widget.id)
                     } else {
-                        Self.removeCachedSnapshot(widgetID: widget.id)
+                        snapshotCache.removeFile(widgetID: widget.id)
                         setSnapshot(WidgetSnapshot(widgetID: widget.id), for: widget.id)
                     }
                 } else {
                     setSnapshot(
-                        loadCachedSnapshot(widgetID: widget.id)
+                        snapshotCache.load(widgetID: widget.id)
                             ?? WidgetSnapshot(widgetID: widget.id),
                         for: widget.id
                     )
@@ -1289,8 +1296,7 @@ final class WidgetRuntime: ObservableObject {
             throw error
         }
         removingWidgetIDs.remove(id)
-        cancelPendingPersist(id) // no queued write may re-create the cache
-        Self.removeCachedSnapshot(widgetID: id)
+        snapshotCache.forget(widgetID: id) // no queued write may re-create the cache
         // Decisions belong to the package, which other loaded copies still use.
         if !widgets.contains(where: { $0.id != id && $0.manifest.id == widget.manifest.id }) {
             permissionStore.reset(widgetId: widget.manifest.id)
@@ -3663,12 +3669,10 @@ final class WidgetRuntime: ObservableObject {
     private func removeWidgetState(notIn liveIDs: Set<String>) {
         readingHistory.retain(liveIDs)
         alertStates.retain(widgetIDs: liveIDs)
-        // A throttled cache write outlives the widget by up to
-        // `persistIntervalSec`; left alone it would re-create the cache file
+        // A throttled cache write outlives the widget by up to the cache's
+        // throttle interval; left alone it would re-create the cache file
         // of a widget removed by hot reload, and a reinstall would show it.
-        for id in Array(pendingPersists.keys) where !liveIDs.contains(id) {
-            cancelPendingPersist(id)
-        }
+        snapshotCache.cancelPending(notIn: liveIDs)
         snapshots = snapshots.filter { liveIDs.contains($0.key) }
         overlayCards = overlayCards.filter { liveIDs.contains($0.key) }
         cardModels = cardModels.filter { liveIDs.contains($0.key) }
@@ -3678,17 +3682,6 @@ final class WidgetRuntime: ObservableObject {
     }
 
     // MARK: - Render snapshot cache
-
-    /// Resolved once: `FileManager.urls(for:in:)` is not free, and it was being
-    /// asked on every snapshot write.
-    nonisolated private static let cacheDirectory: URL? = {
-        guard let appSupport = FileManager.default.urls(
-            for: .applicationSupportDirectory, in: .userDomainMask
-        ).first else { return nil }
-        return appSupport
-            .appendingPathComponent("barshelf", isDirectory: true)
-            .appendingPathComponent("cache", isDirectory: true)
-    }()
 
     /// Beside refresh-stats.json, outside the per-widget snapshot cache,
     /// whose `<id>.json` names a widget id could collide with.
@@ -3732,36 +3725,6 @@ final class WidgetRuntime: ObservableObject {
         chartHistoryTimer = timer
     }
 
-    nonisolated private static func cacheURL(for widgetID: String) -> URL? {
-        let sanitized = widgetID.map { character -> Character in
-            character.isLetter || character.isNumber || character == "." || character == "-"
-                ? character : "_"
-        }
-        return cacheDirectory?.appendingPathComponent(String(sanitized) + ".json")
-    }
-
-    /// Snapshot cache writes are throttled per widget and performed off the
-    /// main thread (R05 perf).
-    ///
-    /// The cache exists so a relaunched popup shows the last render at once;
-    /// a render half a minute old serves that just as well as one two seconds
-    /// old. It used to be a 0.5 s *debounce* — cancel and reschedule on every
-    /// snapshot — which for a widget refreshing every two seconds meant a
-    /// JSON encode, an atomic write and a rename on every single refresh:
-    /// ~11% of a promoted widget's CPU, profiled. A debounce is the wrong
-    /// shape for a periodic stream (it either fires every tick or, if the
-    /// period is shorter than the delay, never). This is a throttle: the first
-    /// unwritten change opens a window, and when it closes the *latest*
-    /// snapshot is written once. Quitting flushes whatever is still held.
-    private static let persistQueue = DispatchQueue(
-        label: "dev.barshelf.snapshot-cache", qos: .utility
-    )
-    static let persistIntervalSec: TimeInterval = 30
-    /// A scheduled write per widget (on the main queue), and the snapshot it
-    /// will write — replaced by every newer snapshot until it fires.
-    private var pendingPersists: [String: DispatchWorkItem] = [:]
-    private var unpersistedSnapshots: [String: WidgetSnapshot] = [:]
-
     private func persistShareableSnapshot(widgetID: String) {
         guard let widget = widgets.first(where: { $0.id == widgetID }),
               !widget.isSensitive, !sensitiveRenderIDs.contains(widgetID),
@@ -3775,27 +3738,11 @@ final class WidgetRuntime: ObservableObject {
         if sharedShelf.isAnswering(id) {
             // Someone pressed refresh on a desktop widget: this render goes
             // out now, and the cache is written with it.
-            cancelPendingPersist(id)
-            Self.persistQueue.async { Self.writeCachedSnapshot(snapshot) }
+            snapshotCache.writeNow(snapshot)
             publishToDesktopWidgets(snapshot)
             return
         }
-        unpersistedSnapshots[id] = snapshot
-        guard pendingPersists[id] == nil else { return }
-        let item = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            self.pendingPersists[id] = nil
-            guard let latest = self.unpersistedSnapshots.removeValue(forKey: id)
-            else { return }
-            Self.persistQueue.async { Self.writeCachedSnapshot(latest) }
-            // On the same throttle as the cache: a widget refreshing every
-            // two seconds must not rewrite the shared folder that often.
-            self.publishToDesktopWidgets(latest)
-        }
-        pendingPersists[id] = item
-        DispatchQueue.main.asyncAfter(
-            deadline: .now() + Self.persistIntervalSec, execute: item
-        )
+        snapshotCache.writeThrottled(snapshot)
     }
 
     // MARK: - Desktop widgets (R14)
@@ -3860,54 +3807,6 @@ final class WidgetRuntime: ObservableObject {
             preferredStyle: widget.manifest.desktop?.style
                 .flatMap(SharedShelf.Template.init(rawValue:))?.rawValue
         ))
-    }
-
-    /// Drops a scheduled write *and* the snapshot it held. The sensitive
-    /// path depends on the second half: a live tree that must stay in memory
-    /// can never be written by a throttle that fires after it arrived.
-    private func cancelPendingPersist(_ id: String) {
-        pendingPersists.removeValue(forKey: id)?.cancel()
-        unpersistedSnapshots.removeValue(forKey: id)
-    }
-
-    /// Writes every snapshot the throttle is still holding. Called on quit, so
-    /// a normal exit loses nothing to the longer window.
-    func flushPendingPersists() {
-        for item in pendingPersists.values { item.cancel() }
-        pendingPersists.removeAll()
-        let held = Array(unpersistedSnapshots.values)
-        unpersistedSnapshots.removeAll()
-        guard !held.isEmpty else { return }
-        for snapshot in held { publishToDesktopWidgets(snapshot) }
-        Self.persistQueue.sync {
-            for snapshot in held { Self.writeCachedSnapshot(snapshot) }
-        }
-    }
-
-    nonisolated private static func writeCachedSnapshot(_ snapshot: WidgetSnapshot) {
-        guard let directory = cacheDirectory,
-              let url = cacheURL(for: snapshot.widgetID)
-        else { return }
-        do {
-            try FileManager.default.createDirectory(
-                at: directory, withIntermediateDirectories: true
-            )
-            try snapshot.serialized().write(to: url, options: .atomic)
-        } catch {
-            NSLog("barshelf: failed to cache snapshot for \(snapshot.widgetID): \(error)")
-        }
-    }
-
-    private func loadCachedSnapshot(widgetID: String) -> WidgetSnapshot? {
-        guard let url = Self.cacheURL(for: widgetID),
-              let data = try? Data(contentsOf: url)
-        else { return nil }
-        return try? WidgetSnapshot.deserialize(data)
-    }
-
-    private static func removeCachedSnapshot(widgetID: String) {
-        guard let url = cacheURL(for: widgetID) else { return }
-        try? FileManager.default.removeItem(at: url)
     }
 }
 
