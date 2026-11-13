@@ -527,12 +527,23 @@ struct WidgetSettingsView: View {
     // MARK: - Menu bar section
 
     /// True when the widget can contribute text to the shared strip. An
-    /// icon-only widget always needs its own status item.
+    /// icon-only widget needs its own status item, unless the user gave it
+    /// an emoji, which is text.
     ///
     /// Resolved through the same rule the renderer uses, so this pane cannot
     /// promise a layout the menu bar will not produce.
-    private var canShareStrip: Bool {
-        MenuBarPolicy.effectiveStatusItem(widget.manifest.statusItem).showsLabel
+    private var canShareStrip: Bool { previewLayout.canShareStrip }
+
+    /// Where the draft puts the widget and how it is laid out, by the menu
+    /// bar's own rule.
+    private var previewLayout: MenuBarEntryLayout {
+        Self.menuBarPreviewLayout(widget: widget, draft: menuBarDraft)
+    }
+
+    static func menuBarPreviewLayout(widget: LoadedWidget, draft: MenuBarPlacement) -> MenuBarEntryLayout {
+        MenuBarPolicy.entryLayout(statusItem: widget.manifest.statusItem, placement: draft) {
+            NSImage(systemSymbolName: $0, accessibilityDescription: nil) != nil
+        }
     }
 
     /// The widget last rendered without any status text, so promoting it would
@@ -549,63 +560,55 @@ struct WidgetSettingsView: View {
     /// Built from the draft rather than from what is currently on the bar, so
     /// the preview moves as the controls do — including before Save.
     private var previewEntry: MenuBarEntry {
-        let statusItem = MenuBarPolicy.effectiveStatusItem(widget.manifest.statusItem)
-        let snapshot = runtime.snapshots[widget.id]
-        let entry = MenuBarEntry(
+        Self.menuBarPreviewEntry(
+            widget: widget, snapshot: runtime.snapshots[widget.id], draft: menuBarDraft,
+            globalPresentation: globalPresentation, history: runtime.menuBarHistory[widget.id]
+        )
+    }
+
+    /// `previewEntry` from explicit inputs, so a test can pin what it draws.
+    ///
+    /// The menu bar's own entry for the draft, but for what makes it a
+    /// preview: a stand-in for a reading that is not there yet, an example
+    /// chart, and neither the dimming of an old reading nor a tooltip.
+    static func menuBarPreviewEntry(
+        widget: LoadedWidget, snapshot: WidgetSnapshot?, draft menuBarDraft: MenuBarPlacement,
+        globalPresentation: MenuBarPresentation?, history own: MenuBarChartHistory?
+    ) -> MenuBarEntry {
+        // The preview intentionally goes through the production builder. A
+        // draft is still only local state, but it must answer the same
+        // questions as the status item will after Save.
+        let built = MenuBarPolicy.buildEntry(MenuBarEntryInputs(
             widgetID: widget.id,
             name: widget.displayName,
-            symbol: statusItem.showsIcon
-                ? MenuBarPolicy.resolvedIcon(
-                    user: nil, live: snapshot?.statusIcon,
-                    statusItem: statusItem.icon, manifest: widget.manifest.icon
-                )
-                : nil,
-            iconOverride: MenuBarPolicy.normalizedIcon(menuBarDraft.icon),
-            prefix: MenuBarPolicy.resolvedPrefix(
-                user: menuBarDraft.label,
-                live: snapshot?.statusPrefix,
-                manifest: statusItem.label
-            ),
-            style: effectiveStyle,
-            tint: MenuBarTint.named(snapshot?.statusTint),
+            manifestIcon: widget.manifest.icon,
+            statusItem: widget.manifest.statusItem,
+            placement: menuBarDraft,
+            globalPresentation: globalPresentation,
+            snapshot: snapshot,
+            isStale: false,
+            tooltip: nil,
             // A widget that has never run has nothing to show, so the preview
             // stands in rather than rendering an empty box.
-            label: statusItem.showsLabel
-                ? (MenuBarPolicy.normalizedLabel(snapshot?.statusLabel) ?? "42%") : nil,
-            // Same gate the runtime applies: an icon-only widget's readings
-            // never reach the bar, so the preview must not show them either.
-            metrics: statusItem.showsLabel ? (snapshot?.statusMetrics ?? []) : []
-        )
-        // The preview intentionally goes through the production resolver. A
-        // draft is still only local state, but it must answer the same
-        // presentation questions as the status item will after Save.
-        let presentation = MenuBarPolicy.resolvedPresentation(
-            user: menuBarDraft.presentation,
-            global: globalPresentation,
-            live: snapshot?.statusPresentation,
-            manifest: statusItem.presentation
-        )
-        var applied = MenuBarPolicy.applyingPresentation(presentation, to: entry)
+            placeholderLabel: "42%",
+            isSymbolName: { NSImage(systemSymbolName: $0, accessibilityDescription: nil) != nil }
+        ))
+        var applied = built.entry
         // Only what the bar will draw: an item of its own with a numeric
         // reading. Its own history when it has some; otherwise an example
         // shape, so choosing a chart shows what it looks like at once.
-        if presentation.effectiveChart != .none, usesOwnItem, let sample = MenuBarPolicy.chartSample(applied) {
-            let own = runtime.menuBarHistory[widget.id]
+        if built.wantsChart, let sample = MenuBarPolicy.chartSample(applied) {
             let history = own.map { $0.values.count >= 2 && $0.series == sample.key ? $0 : nil } ?? nil
             let scale = sample.scale ?? max(sample.value * 1.5, 1)
             applied = MenuBarPolicy.applyingChart(applied, history: history ?? MenuBarChartHistory(
                 series: sample.key, scale: sample.scale,
-                values: Self.exampleChart.map { $0 * scale } + [sample.value]
+                values: exampleChart.map { $0 * scale } + [sample.value]
             ))
         }
         return applied
     }
 
-    private var effectiveStyle: MenuBarStyle {
-        MenuBarPolicy.resolvedStyle(
-            user: menuBarDraft.style, manifest: widget.manifest.statusItem?.style
-        )
-    }
+    private var effectiveStyle: MenuBarStyle { previewLayout.style }
 
     /// Two rows cannot be drawn into the shared strip, so choosing the stacked
     /// layout takes the widget's own item whether or not the user picked that.
@@ -613,9 +616,7 @@ struct WidgetSettingsView: View {
         (effectiveStyle == .stacked || effectiveStyle == .metrics) && canShareStrip
     }
 
-    private var usesOwnItem: Bool {
-        !canShareStrip || stackedForcesOwnItem || menuBarDraft.separate
-    }
+    private var usesOwnItem: Bool { previewLayout.separate }
 
     /// The menu bar shows widgets as chips: what an item shares, its text
     /// and its graph do not apply; its icon, colour, alerts and click do.

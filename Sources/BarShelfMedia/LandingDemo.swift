@@ -295,29 +295,17 @@ final class LandingDemo {
         let entries = Self.clusterIDs.compactMap { id -> MenuBarEntry? in
             guard let widget = widget(id) else { return nil }
             let snapshot = runtime.snapshots[id]
-            let statusItem = MenuBarPolicy.effectiveStatusItem(widget.manifest.statusItem)
-            var entry = MenuBarEntry(
+            return MenuBarPolicy.buildEntry(MenuBarEntryInputs(
                 widgetID: id,
                 name: id == ID.memory ? "Memory" : widget.displayName,
-                symbol: statusItem.showsIcon
-                    ? MenuBarPolicy.resolvedIcon(user: nil, live: snapshot?.statusIcon,
-                                                 statusItem: statusItem.icon, manifest: widget.manifest.icon)
-                    : nil,
-                iconOverride: id == ID.memory ? "memorychip" : nil,
-                prefix: MenuBarPolicy.resolvedPrefix(user: nil, live: snapshot?.statusPrefix, manifest: statusItem.label),
-                tint: MenuBarTint.named(snapshot?.statusTint),
-                label: statusItem.showsLabel ? MenuBarPolicy.normalizedLabel(snapshot?.statusLabel) : nil,
-                metrics: statusItem.showsLabel ? MenuBarPolicy.normalizedMetrics(snapshot?.statusMetrics ?? []) : [],
-                tooltip: snapshot?.statusTooltip
-            )
-            entry.iconSymbol = MenuBarPolicy.resolvedIcon(
-                user: nil, live: snapshot?.statusIcon, statusItem: statusItem.icon, manifest: widget.manifest.icon
-            )
-            let presentation = MenuBarPolicy.resolvedPresentation(
-                user: nil, global: runtime.appPrefs.preferences.menuBarPresentation,
-                live: snapshot?.statusPresentation, manifest: statusItem.presentation
-            )
-            return MenuBarPolicy.applyingPresentation(presentation, to: entry)
+                manifestIcon: widget.manifest.icon,
+                statusItem: widget.manifest.statusItem,
+                placement: MenuBarPlacement(enabled: true, icon: id == ID.memory ? "memorychip" : nil),
+                globalPresentation: runtime.appPrefs.preferences.menuBarPresentation,
+                snapshot: snapshot,
+                tooltip: snapshot?.statusTooltip,
+                isSymbolName: { NSImage(systemSymbolName: $0, accessibilityDescription: nil) != nil }
+            )).entry
         }
         return MenuBarClusterPolicy.chips(from: entries) {
             NSImage(systemSymbolName: $0, accessibilityDescription: nil) != nil
