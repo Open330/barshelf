@@ -190,6 +190,60 @@ final class SchedulerVisibilityTests: XCTestCase {
         XCTAssertTrue(scheduler.activeIntervalWidgetIDs.isEmpty)
     }
 
+    /// With the screen locked or the display asleep nobody can read the menu
+    /// bar, so its two-second readings stop and the app may nap. Unlocking
+    /// brings them back, with one refresh at once so the bar is not stale
+    /// when it is first looked at.
+    func testPromotedWidgetsStopWhileTheMenuBarIsOutOfSight() {
+        let scheduler = Scheduler()
+        let promoted = widget("promoted", interval: 2)
+        scheduler.configure(widgets: [promoted])
+        scheduler.setVisibleWidgetIDs([])
+        scheduler.setMenuBarWidgetIDs([promoted.id])
+        var refreshed: [String] = []
+        scheduler.requestRefresh = { id, _ in refreshed.append(id) }
+
+        scheduler.setMenuBarHidden(true)
+        XCTAssertTrue(scheduler.activeIntervalWidgetIDs.isEmpty)
+        XCTAssertFalse(scheduler.holdsActivityAssertion)
+        XCTAssertTrue(refreshed.isEmpty)
+
+        scheduler.setMenuBarHidden(false)
+        XCTAssertEqual(scheduler.activeIntervalWidgetIDs, [promoted.id])
+        XCTAssertEqual(scheduler.intervalSeconds(for: promoted.id), 2)
+        XCTAssertTrue(scheduler.holdsActivityAssertion)
+        XCTAssertEqual(refreshed, [promoted.id], "current again the moment it can be seen")
+    }
+
+    /// A promoted widget that also watches in the background (an alert) is
+    /// not silenced by the lock: it drops to the background cadence.
+    func testABackgroundWidgetKeepsWatchingWhileTheMenuBarIsOutOfSight() {
+        let scheduler = Scheduler()
+        let monitor = widget("monitor", interval: 30, runInBackground: true)
+        scheduler.configure(widgets: [monitor])
+        scheduler.setVisibleWidgetIDs([])
+        scheduler.setMenuBarWidgetIDs([monitor.id])
+        XCTAssertEqual(scheduler.intervalSeconds(for: monitor.id), 30)
+
+        scheduler.setMenuBarHidden(true)
+        XCTAssertEqual(scheduler.activeIntervalWidgetIDs, [monitor.id])
+        XCTAssertEqual(scheduler.intervalSeconds(for: monitor.id), 120, "the relaxed background cadence")
+    }
+
+    /// Promoting a widget while the screen is locked (an install over SSH)
+    /// starts nothing until the bar is back.
+    func testPromotionWhileHiddenWaitsForTheBar() {
+        let scheduler = Scheduler()
+        let promoted = widget("promoted", interval: 2)
+        scheduler.configure(widgets: [promoted])
+        scheduler.setVisibleWidgetIDs([])
+        scheduler.setMenuBarHidden(true)
+        scheduler.setMenuBarWidgetIDs([promoted.id])
+        XCTAssertTrue(scheduler.activeIntervalWidgetIDs.isEmpty)
+        scheduler.setMenuBarHidden(false)
+        XCTAssertEqual(scheduler.activeIntervalWidgetIDs, [promoted.id])
+    }
+
     /// An accessory app with no windows is what App Nap is for, and it took
     /// this one: a two-second timer fired about once every eight seconds and
     /// the menu bar stopped moving. The assertion is held only while something
