@@ -1732,7 +1732,7 @@ final class WidgetRuntime: ObservableObject {
         MenuBarPolicy.isStale(updatedAt: updatedAt, interval: effectiveReadingInterval(for: widget), now: now)
     }
 
-    func syncMenuBar() {
+    func syncMenuBar(now: Date = Date()) {
         menuBarUpdateBatch.cancel()
         let previous = menuBarWidgetIDs
         var candidates: [(entry: MenuBarEntry, order: Double?)] = []
@@ -1793,7 +1793,7 @@ final class WidgetRuntime: ObservableObject {
                 metrics: statusItem.showsLabel
                     ? MenuBarPolicy.normalizedMetrics(snapshot?.statusMetrics ?? []) : [],
                 tooltip: snapshot?.error.map(Self.errorTooltip) ?? snapshot?.statusTooltip,
-                isStale: readingIsStale(widget, updatedAt: snapshot?.updatedAt),
+                isStale: readingIsStale(widget, updatedAt: snapshot?.updatedAt, now: now),
                 separate: separate,
                 presentation: presentation
             )
@@ -1831,7 +1831,6 @@ final class WidgetRuntime: ObservableObject {
         // left out of what is drawn: they keep their place in the strip and
         // their polling, so they notice when to come back.
         let owned = MenuBarPolicy.promoted(MenuBarPolicy.ordered(candidates))
-        let now = Date()
         var dormant = Set<String>()
         for entry in owned {
             switch MenuBarPolicy.meetsShowWhen(entry) {
