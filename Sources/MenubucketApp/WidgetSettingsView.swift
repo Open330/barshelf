@@ -549,8 +549,20 @@ struct WidgetSettingsView: View {
     /// Built from the draft rather than from what is currently on the bar, so
     /// the preview moves as the controls do — including before Save.
     private var previewEntry: MenuBarEntry {
+        Self.menuBarPreviewEntry(
+            widget: widget, snapshot: runtime.snapshots[widget.id], draft: menuBarDraft,
+            globalPresentation: globalPresentation, history: runtime.menuBarHistory[widget.id]
+        )
+    }
+
+    /// `previewEntry` from explicit inputs, so a test can pin what it draws.
+    static func menuBarPreviewEntry(
+        widget: LoadedWidget, snapshot: WidgetSnapshot?, draft menuBarDraft: MenuBarPlacement,
+        globalPresentation: MenuBarPresentation?, history own: MenuBarChartHistory?
+    ) -> MenuBarEntry {
         let statusItem = MenuBarPolicy.effectiveStatusItem(widget.manifest.statusItem)
-        let snapshot = runtime.snapshots[widget.id]
+        let effectiveStyle = menuBarPreviewStyle(widget: widget, draft: menuBarDraft)
+        let usesOwnItem = menuBarPreviewUsesOwnItem(widget: widget, draft: menuBarDraft)
         let entry = MenuBarEntry(
             widgetID: widget.id,
             name: widget.displayName,
@@ -590,20 +602,23 @@ struct WidgetSettingsView: View {
         // reading. Its own history when it has some; otherwise an example
         // shape, so choosing a chart shows what it looks like at once.
         if presentation.effectiveChart != .none, usesOwnItem, let sample = MenuBarPolicy.chartSample(applied) {
-            let own = runtime.menuBarHistory[widget.id]
             let history = own.map { $0.values.count >= 2 && $0.series == sample.key ? $0 : nil } ?? nil
             let scale = sample.scale ?? max(sample.value * 1.5, 1)
             applied = MenuBarPolicy.applyingChart(applied, history: history ?? MenuBarChartHistory(
                 series: sample.key, scale: sample.scale,
-                values: Self.exampleChart.map { $0 * scale } + [sample.value]
+                values: exampleChart.map { $0 * scale } + [sample.value]
             ))
         }
         return applied
     }
 
     private var effectiveStyle: MenuBarStyle {
+        Self.menuBarPreviewStyle(widget: widget, draft: menuBarDraft)
+    }
+
+    static func menuBarPreviewStyle(widget: LoadedWidget, draft: MenuBarPlacement) -> MenuBarStyle {
         MenuBarPolicy.resolvedStyle(
-            user: menuBarDraft.style, manifest: widget.manifest.statusItem?.style
+            user: draft.style, manifest: widget.manifest.statusItem?.style
         )
     }
 
@@ -614,7 +629,14 @@ struct WidgetSettingsView: View {
     }
 
     private var usesOwnItem: Bool {
-        !canShareStrip || stackedForcesOwnItem || menuBarDraft.separate
+        Self.menuBarPreviewUsesOwnItem(widget: widget, draft: menuBarDraft)
+    }
+
+    static func menuBarPreviewUsesOwnItem(widget: LoadedWidget, draft: MenuBarPlacement) -> Bool {
+        let canShareStrip = MenuBarPolicy.effectiveStatusItem(widget.manifest.statusItem).showsLabel
+        let style = menuBarPreviewStyle(widget: widget, draft: draft)
+        let stackedForcesOwnItem = (style == .stacked || style == .metrics) && canShareStrip
+        return !canShareStrip || stackedForcesOwnItem || draft.separate
     }
 
     /// The menu bar shows widgets as chips: what an item shares, its text

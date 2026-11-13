@@ -1746,71 +1746,22 @@ final class WidgetRuntime: ObservableObject {
             // Most widgets are not on the bar: the cheaper test first.
             guard placement.enabled,
                   permissionStore.status(for: widget.manifest) == .approved else { continue }
-            let statusItem = MenuBarPolicy.effectiveStatusItem(widget.manifest.statusItem)
             let snapshot = snapshots[widget.id]
-            // Only text can share the strip, so a widget that shows no label
-            // gets its own item — unless the user gave it an emoji, which is
-            // text and so can sit in the strip like any other.
-            let hasTextIcon = MenuBarPolicy.normalizedIcon(placement.icon)
-                .map { !$0.isEmpty && NSImage(systemSymbolName: $0, accessibilityDescription: nil) == nil }
-                ?? false
-            // Two rows cannot be drawn into a shared run of text, so the
-            // stacked style takes its own item the way an icon-only widget does.
-            let style = MenuBarPolicy.resolvedStyle(
-                user: placement.style, manifest: statusItem.style
-            )
-            let separate = placement.separate
-                || style == .stacked
-                || style == .metrics
-                || !(statusItem.showsLabel || hasTextIcon)
-            let presentation = MenuBarPolicy.resolvedPresentation(
-                user: placement.presentation,
-                global: appPrefs.preferences.menuBarPresentation,
-                live: snapshot?.statusPresentation,
-                manifest: statusItem.presentation
-            )
-            var entry = MenuBarEntry(
+            let built = MenuBarPolicy.buildEntry(MenuBarEntryInputs(
                 widgetID: widget.id,
                 name: widget.displayName,
-                symbol: statusItem.showsIcon
-                    ? MenuBarPolicy.resolvedIcon(
-                        user: nil,
-                        live: snapshot?.statusIcon,
-                        statusItem: statusItem.icon,
-                        manifest: widget.manifest.icon
-                    )
-                    : nil,
-                iconOverride: MenuBarPolicy.normalizedIcon(placement.icon),
-                prefix: MenuBarPolicy.resolvedPrefix(
-                    user: placement.label,
-                    live: snapshot?.statusPrefix,
-                    manifest: statusItem.label
-                ),
-                style: style,
-                tint: MenuBarTint.named(snapshot?.statusTint),
-                label: statusItem.showsLabel
-                    ? MenuBarPolicy.normalizedLabel(snapshot?.statusLabel) : nil,
-                metrics: statusItem.showsLabel
-                    ? MenuBarPolicy.normalizedMetrics(snapshot?.statusMetrics ?? []) : [],
-                tooltip: snapshot?.error.map(Self.errorTooltip) ?? snapshot?.statusTooltip,
+                manifestIcon: widget.manifest.icon,
+                statusItem: widget.manifest.statusItem,
+                placement: placement,
+                globalPresentation: appPrefs.preferences.menuBarPresentation,
+                snapshot: snapshot,
                 isStale: readingIsStale(widget, updatedAt: snapshot?.updatedAt, now: now),
-                separate: separate,
-                presentation: presentation
-            )
-            entry.iconSymbol = MenuBarPolicy.resolvedIcon(
-                user: nil, live: snapshot?.statusIcon, statusItem: statusItem.icon, manifest: widget.manifest.icon
-            )
-            entry.profiles = statusItem.profiles ?? false
-            if entry.profiles, statusItem.showsLabel {
-                entry.profileMetrics = MenuBarPolicy.normalizedMetrics(
-                    snapshot?.statusMetrics ?? [], limit: MenuBarClusterPolicy.maxChips
-                )
-            }
+                tooltip: snapshot?.error.map(Self.errorTooltip) ?? snapshot?.statusTooltip,
+                isSymbolName: { NSImage(systemSymbolName: $0, accessibilityDescription: nil) != nil }
+            ))
             if let interval = placement.interval { intervalOverrides[widget.id] = interval }
-            var applied = MenuBarPolicy.applyingPresentation(presentation, to: entry)
-            // Only an item with its own place draws a chart; the strip is
-            // text, and history there would only make it redraw.
-            if presentation.effectiveChart != .none, separate {
+            var applied = built.entry
+            if built.wantsChart {
                 applied = chartRecorder.charting(applied)
                 charting.insert(widget.id)
             }
