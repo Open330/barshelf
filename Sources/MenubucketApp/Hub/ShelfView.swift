@@ -182,7 +182,7 @@ struct ShelfView: View {
     private var board: some View {
         VStack(spacing: 0) {
             MenuBarHiddenBanner(padded: true) { id in runtime.widgets.first { $0.id == id }?.displayName }
-            if !desktopTipDismissed, runtime.sharedShelf.isEnabled {
+            if !desktopTipDismissed, runtime.desktopWidgetsEnabled {
                 StatusBanner(
                     tone: .info,
                     message: String(localized: "Put these widgets on your desktop too: right-click the desktop, choose Edit Widgets, and find BarShelf."),

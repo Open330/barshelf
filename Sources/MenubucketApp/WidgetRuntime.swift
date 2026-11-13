@@ -252,8 +252,10 @@ final class WidgetRuntime: ObservableObject {
             ToastCenter.shared.show(item.message, detail: item.detail, tone: item.tone, on: item.surface)
         }
     }
-    /// Feeds the macOS widget extension (R14).
-    let sharedShelf: SharedShelfPublisher
+    /// Feeds the macOS widget extension (R14); owns the publisher.
+    private let desktopMirror: DesktopWidgetMirror
+    /// Whether this build can put widgets on the desktop.
+    var desktopWidgetsEnabled: Bool { desktopMirror.isEnabled }
     /// The on-disk render cache; owns its throttle state.
     private let snapshotCache = SnapshotDiskCache()
     /// Source of truth for renders. Deliberately *not* `@Published`: updates
@@ -412,7 +414,7 @@ final class WidgetRuntime: ObservableObject {
             fileURL: Self.applicationSupportDirectory.appendingPathComponent("usage.json")
         )
         self.secretStore = secretStore
-        self.sharedShelf = sharedShelf ?? SharedShelfPublisher()
+        self.desktopMirror = DesktopWidgetMirror(sharedShelf: sharedShelf ?? SharedShelfPublisher())
         self.permissionStore = permissionStore ?? PermissionStore(
             fileURL: Self.applicationSupportDirectory.appendingPathComponent("permissions.json")
         )
@@ -451,10 +453,11 @@ final class WidgetRuntime: ObservableObject {
                 self?.saveChartHistory()
             }
             .store(in: &cancellables)
+        desktopMirror.source = self
         // On the same throttle as the cache: a widget refreshing every
         // two seconds must not rewrite the shared folder that often.
         snapshotCache.onThrottledWrite = { [weak self] snapshot in
-            self?.publishToDesktopWidgets(snapshot)
+            self?.desktopMirror.publish(snapshot)
         }
         seedStarterWidgets()
         refreshBundledWidgets()
@@ -466,13 +469,9 @@ final class WidgetRuntime: ObservableObject {
         startHotReload()
         startMenuBarStalenessTicker()
         // The refresh button on a desktop widget.
-        self.sharedShelf.onRefreshRequest = { [weak self] widgetID in
-            guard let self,
-                  let widget = self.desktopWidgetCandidates().first(where: { $0.id == widgetID })
-            else { return }
-            self.refresh(widget, manual: true)
+        desktopMirror.observeRefreshRequests { [weak self] widget in
+            self?.refresh(widget, manual: true)
         }
-        self.sharedShelf.observeRefreshRequests()
     }
 
     private func applyAppPreferences(_ preferences: AppPreferences) {
@@ -688,9 +687,9 @@ final class WidgetRuntime: ObservableObject {
         let sensitive = params.sensitive == true || widget.isSensitive
         let wasSensitive = sensitiveRenderIDs.contains(widgetId)
         if sensitive { sensitiveRenderIDs.insert(widgetId) } else { sensitiveRenderIDs.remove(widgetId) }
-        if sensitive != wasSensitive { publishDesktopWidgetIndex() }
+        if sensitive != wasSensitive { desktopMirror.publishIndex() }
         if sensitive {
-            sharedShelf.withdraw(widgetID: widgetId)
+            desktopMirror.withdraw(widgetID: widgetId)
             snapshotCache.cancelPending(widgetId)
             if let cacheRoot = params.cacheRoot {
                 // Keep the live tree memory-only. Persist only the separate
@@ -834,7 +833,7 @@ final class WidgetRuntime: ObservableObject {
         for copy in approvedCopies {
             setOverlay(nil, for: copy.id)
         }
-        publishDesktopWidgetIndex()
+        desktopMirror.publishIndex()
         // Revocation removes promoted items and can stop the staleness timer.
         // Approval must restore their placement without waiting for a render
         // or an unrelated menu-bar refresh.
@@ -862,10 +861,10 @@ final class WidgetRuntime: ObservableObject {
     func stopForPermissionChange(packageID: String, denied: Bool) {
         for widget in widgets where widget.manifest.id == packageID {
             stopWidgetExecution(widget.id)
-            sharedShelf.withdraw(widgetID: widget.id)
+            desktopMirror.withdraw(widgetID: widget.id)
             presentApprovalCard(for: widget, denied: denied)
         }
-        publishDesktopWidgetIndex()
+        desktopMirror.publishIndex()
         syncMenuBar()
         objectWillChange.send()
     }
@@ -1156,7 +1155,7 @@ final class WidgetRuntime: ObservableObject {
         // `configure` may have dropped dock widgets it did not know yet.
         dockWidgetIDs.formIntersection(seenIDs)
         scheduler.setMenuBarWidgetIDs(menuBarWidgetIDs.union(dockWidgetIDs))
-        publishDesktopWidgetIndex()
+        desktopMirror.publishIndex()
     }
 
     nonisolated static func discoverWidgets(in searchDirectories: [URL]) -> [LoadedWidget] {
@@ -1470,7 +1469,7 @@ final class WidgetRuntime: ObservableObject {
     func setWidgetDisabled(_ id: String, _ flag: Bool) {
         guard prefs.isDisabled(id) != flag else { return }
         prefs.setDisabled(id, flag)
-        publishDesktopWidgetIndex()
+        desktopMirror.publishIndex()
         if flag {
             stopWidgetExecution(id)
         }
@@ -3735,79 +3734,43 @@ final class WidgetRuntime: ObservableObject {
 
     private func persistSnapshot(_ snapshot: WidgetSnapshot) {
         let id = snapshot.widgetID
-        if sharedShelf.isAnswering(id) {
+        if desktopMirror.isAnswering(id) {
             // Someone pressed refresh on a desktop widget: this render goes
             // out now, and the cache is written with it.
             snapshotCache.writeNow(snapshot)
-            publishToDesktopWidgets(snapshot)
+            desktopMirror.publish(snapshot)
             return
         }
         snapshotCache.writeThrottled(snapshot)
     }
+}
 
-    // MARK: - Desktop widgets (R14)
+// MARK: - Desktop widgets (R14)
 
-    /// Widgets a desktop widget may mirror: everything switched on that is
-    /// not sensitive, by manifest or by what it last rendered.
-    private func desktopWidgetCandidates() -> [LoadedWidget] {
-        widgets.filter {
-            !$0.isSensitive && !sensitiveRenderIDs.contains($0.id) && !prefs.isDisabled($0.id)
-                && $0.manifest.desktop?.offer != false
-                && permissionStore.status(for: $0.manifest) == .approved
-        }
+/// The reads `DesktopWidgetMirror` is given; `widgets`, `snapshots` and
+/// `effectiveGroup(for:)` are the runtime's own.
+extension WidgetRuntime: DesktopWidgetMirrorSource {
+    func hasSensitiveRender(_ widgetID: String) -> Bool {
+        sensitiveRenderIDs.contains(widgetID)
     }
 
-    func publishDesktopWidgetIndex() {
-        guard sharedShelf.isEnabled else { return }
-        let candidates = desktopWidgetCandidates()
-        let changed = sharedShelf.publishIndex(candidates.map { widget in
-            SharedShelf.Entry(
-                id: widget.id,
-                name: widget.displayName,
-                icon: widget.manifest.icon,
-                accent: prefs.effectiveAppearance(for: widget.manifest, widgetID: widget.id).accent,
-                page: effectiveGroup(for: widget.id)
-            )
-        })
-        // A widget just offered (first launch, re-enabled) shows what BarShelf
-        // already has instead of waiting for its next refresh.
-        guard changed else { return }
-        for widget in candidates {
-            if let snapshot = snapshots[widget.id], snapshot.viewTree != nil {
-                publishToDesktopWidgets(snapshot)
-            }
-        }
+    func isDisabled(_ widgetID: String) -> Bool {
+        prefs.isDisabled(widgetID)
     }
 
-    /// Mirrors a render the cache has just kept, on the cache's 30-second
-    /// throttle. Only the cache path calls this, so sensitive renders
-    /// (memory-only) never get here; the checks below are the second lock.
-    private func publishToDesktopWidgets(_ snapshot: WidgetSnapshot) {
-        guard sharedShelf.isEnabled, snapshot.safeForSensitiveCache != true,
-              !sensitiveRenderIDs.contains(snapshot.widgetID),
-              let widget = widgets.first(where: { $0.id == snapshot.widgetID }),
-              !widget.isSensitive, permissionStore.status(for: widget.manifest) == .approved
-        else { return }
-        sharedShelf.publish(SharedShelf.Snapshot(
-            widgetID: widget.id,
-            name: widget.displayName,
-            icon: widget.manifest.icon,
-            accent: prefs.effectiveAppearance(for: widget.manifest, widgetID: widget.id).accent,
-            viewTree: snapshot.viewTree,
-            updatedAt: snapshot.updatedAt,
-            error: snapshot.error,
-            statusLabel: snapshot.statusLabel,
-            statusTint: snapshot.statusTint,
-            staleAfter: SharedShelf.staleAfter(
-                updatedAt: snapshot.updatedAt,
-                interval: (prefs.refreshIntervals[widget.id] ?? widget.manifest.refresh?.interval)
-                    .map { $0 * appPrefs.preferences.refreshMultiplier },
-                fallback: widget.manifest.refresh?.staleAfterSec ?? 3600
-            ),
-            preferredStyle: widget.manifest.desktop?.style
-                .flatMap(SharedShelf.Template.init(rawValue:))?.rawValue
-        ))
+    func permissionStatus(for manifest: Manifest) -> PermissionStore.Status {
+        permissionStore.status(for: manifest)
     }
+
+    func accent(for widget: LoadedWidget) -> String? {
+        prefs.effectiveAppearance(for: widget.manifest, widgetID: widget.id).accent
+    }
+
+    func refreshIntervalOverride(for widgetID: String) -> Double? {
+        prefs.refreshIntervals[widgetID]
+    }
+
+    var refreshMultiplier: Double { appPrefs.preferences.refreshMultiplier }
 }
 
 // MARK: - Host adapter context
