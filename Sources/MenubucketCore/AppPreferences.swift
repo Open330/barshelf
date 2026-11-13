@@ -19,6 +19,9 @@ public struct AppPreferences: Codable, Equatable, Sendable {
     public var launchAtLogin: Bool
     /// Optional audible confirmation after copying; visual feedback is always shown.
     public var copySoundEnabled: Bool
+    /// The popup opens on the page it was last on, across relaunches too.
+    /// Off: it always opens on its first page.
+    public var popupRemembersPage: Bool
     /// When true a global hotkey toggles the popup (R11). The hotkey itself is
     /// registered app-side; this model only persists the preference.
     public var popupHotkeyEnabled: Bool
@@ -84,7 +87,8 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         popupHeight: PopupHeight = .standard,
         menuBarLayout: MenuBarLayout = .items,
         menuBarPulse: Bool = true,
-        usageCountsEnabled: Bool = true
+        usageCountsEnabled: Bool = true,
+        popupRemembersPage: Bool = true
     ) {
         self.menuBarSymbol = menuBarSymbol
         self.refreshMultiplier = refreshMultiplier
@@ -100,6 +104,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         self.menuBarLayout = menuBarLayout
         self.menuBarPulse = menuBarPulse
         self.usageCountsEnabled = usageCountsEnabled
+        self.popupRemembersPage = popupRemembersPage
         normalize()
     }
 
@@ -146,6 +151,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         menuBarLayout = (try? container.decodeIfPresent(MenuBarLayout.self, forKey: .menuBarLayout)) ?? .items
         menuBarPulse = (try? container.decodeIfPresent(Bool.self, forKey: .menuBarPulse)) ?? true
         usageCountsEnabled = (try? container.decodeIfPresent(Bool.self, forKey: .usageCountsEnabled)) ?? true
+        popupRemembersPage = container.lenient(Bool.self, forKey: .popupRemembersPage) ?? true
         normalize()
     }
 
