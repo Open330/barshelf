@@ -162,4 +162,24 @@ final class SnapshotDiskCacheTests: XCTestCase {
         XCTAssertTrue(exists(cache, "dev.test.live"))
         XCTAssertFalse(exists(cache, "dev.test.removed"))
     }
+
+    /// A write that was already on its way when the widget was removed must
+    /// not put the file back.
+    func testForgettingAWidgetWinsOverAWriteAlreadyEnqueued() {
+        let cache = SnapshotDiskCache(directory: directory)
+        for round in 0..<50 {
+            cache.writeNow(snapshot("dev.gone", "render \(round)"))
+            cache.forget(widgetID: "dev.gone")
+            cache.waitForWrites()
+            XCTAssertFalse(exists(cache, "dev.gone"), "round \(round)")
+        }
+    }
+
+    /// Quitting right after an immediate write still gets it to disk.
+    func testFlushWaitsForWritesEvenWithNothingHeld() {
+        let cache = SnapshotDiskCache(directory: directory)
+        cache.writeNow(snapshot("dev.quit", "last"))
+        cache.flush()
+        XCTAssertTrue(exists(cache, "dev.quit"))
+    }
 }

@@ -118,9 +118,13 @@ final class SnapshotDiskCache {
         }
     }
 
+    /// On the write queue, behind every write already enqueued: a write that
+    /// was on its way when the widget went (an immediate one, or a window
+    /// that had just closed) would otherwise land after the removal and put
+    /// the file back.
     func removeFile(widgetID: String) {
         guard let url = fileURL(for: widgetID) else { return }
-        try? FileManager.default.removeItem(at: url)
+        Self.writeQueue.sync { try? FileManager.default.removeItem(at: url) }
     }
 
     /// A removed widget: no queued write may re-create the cache.
@@ -136,7 +140,12 @@ final class SnapshotDiskCache {
         pendingPersists.removeAll()
         let held = Array(unpersistedSnapshots.values)
         unpersistedSnapshots.removeAll()
-        guard !held.isEmpty else { return }
+        // Nothing held still leaves writes that were enqueued a moment ago;
+        // quitting waits for those too.
+        guard !held.isEmpty else {
+            waitForWrites()
+            return
+        }
         for snapshot in held { onThrottledWrite?(snapshot) }
         let directory = directory
         let targets = held.map { ($0, fileURL(for: $0.widgetID)) }
