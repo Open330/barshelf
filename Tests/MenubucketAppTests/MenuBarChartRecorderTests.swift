@@ -255,4 +255,39 @@ final class MenuBarChartRecorderTests: XCTestCase {
         second.updateSaver()
         XCTAssertFalse(second.isSaving)
     }
+
+    /// A history read back at launch and pruned away before anything new was
+    /// saved must not leave last run's file behind.
+    func testARestoredHistoryThatIsPrunedAwayRemovesItsFile() {
+        let first = recorder()
+        first.markPending("gone")
+        _ = first.charting(entry("gone", 10))
+        first.save()
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+
+        let second = recorder()
+        second.restore()
+        XCTAssertNotNil(second.histories["gone"])
+        second.prune(charting: []) { _ in false }
+        second.updateSaver()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+    }
+
+    /// A widget that turns sensitive after its points were saved: the next
+    /// save takes them off the disk.
+    func testAWidgetThatTurnsSensitiveLeavesTheFileAtTheNextSave() throws {
+        var sensitive: Set<String> = []
+        let recorder = MenuBarChartRecorder(fileURL: url)
+        recorder.sensitiveWidgetIDs = { sensitive }
+        for id in ["plain", "later"] {
+            recorder.markPending(id)
+            _ = recorder.charting(entry(id, 10))
+        }
+        recorder.save()
+        XCTAssertEqual(Set(MenuBarChartHistoryStore.load(from: url).keys), ["plain", "later"])
+
+        sensitive = ["later"]
+        recorder.save()
+        XCTAssertEqual(Set(MenuBarChartHistoryStore.load(from: url).keys), ["plain"])
+    }
 }

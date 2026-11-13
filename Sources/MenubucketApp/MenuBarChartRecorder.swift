@@ -43,6 +43,10 @@ final class MenuBarChartRecorder {
     /// Takes up what the last run saved, if it is recent enough to join onto.
     func restore() {
         histories = MenuBarChartHistoryStore.load(from: fileURL)
+        // What was read is what is on disk. Without this a restored history
+        // that is pruned away before the first save compared equal to
+        // "nothing saved yet", and the old file was left behind.
+        lastSaved = histories
     }
 
     /// The widget has a new reading its chart has not taken a point from.

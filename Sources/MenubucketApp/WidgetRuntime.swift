@@ -688,7 +688,13 @@ final class WidgetRuntime: ObservableObject {
         setSnapshot(snapshot, for: widgetId)
         let sensitive = params.sensitive == true || widget.isSensitive
         let wasSensitive = sensitiveRenderIDs.contains(widgetId)
-        if sensitive { sensitiveRenderIDs.insert(widgetId) } else { sensitiveRenderIDs.remove(widgetId) }
+        if sensitive {
+            // Its chart history is on disk from before it turned sensitive;
+            // rewrite the file without it now, not at the next 30 s save.
+            if sensitiveRenderIDs.insert(widgetId).inserted { chartRecorder.save() }
+        } else {
+            sensitiveRenderIDs.remove(widgetId)
+        }
         if sensitive != wasSensitive { desktopMirror.publishIndex() }
         if sensitive {
             desktopMirror.withdraw(widgetID: widgetId)
