@@ -1732,7 +1732,7 @@ final class WidgetRuntime: ObservableObject {
         MenuBarPolicy.isStale(updatedAt: updatedAt, interval: effectiveReadingInterval(for: widget), now: now)
     }
 
-    func syncMenuBar() {
+    func syncMenuBar(now: Date = Date()) {
         menuBarUpdateBatch.cancel()
         let previous = menuBarWidgetIDs
         var candidates: [(entry: MenuBarEntry, order: Double?)] = []
@@ -1793,7 +1793,7 @@ final class WidgetRuntime: ObservableObject {
                 metrics: statusItem.showsLabel
                     ? MenuBarPolicy.normalizedMetrics(snapshot?.statusMetrics ?? []) : [],
                 tooltip: snapshot?.error.map(Self.errorTooltip) ?? snapshot?.statusTooltip,
-                isStale: readingIsStale(widget, updatedAt: snapshot?.updatedAt),
+                isStale: readingIsStale(widget, updatedAt: snapshot?.updatedAt, now: now),
                 separate: separate,
                 presentation: presentation
             )
@@ -1831,25 +1831,7 @@ final class WidgetRuntime: ObservableObject {
         // left out of what is drawn: they keep their place in the strip and
         // their polling, so they notice when to come back.
         let owned = MenuBarPolicy.promoted(MenuBarPolicy.ordered(candidates))
-        let now = Date()
-        var dormant = Set<String>()
-        for entry in owned {
-            switch MenuBarPolicy.meetsShowWhen(entry) {
-            case nil:
-                // No limit, or no reading yet: nothing to hide, and nothing
-                // that should start the hold either.
-                continue
-            case true?:
-                showWhenMetAt[entry.widgetID] = now
-            case false?:
-                // Held a while after its last qualifying reading, so a
-                // reading hovering at the limit does not blink the item.
-                let held = showWhenMetAt[entry.widgetID]
-                    .map { now.timeIntervalSince($0) < Self.showWhenHold } ?? false
-                if !held { dormant.insert(entry.widgetID) }
-            }
-        }
-        showWhenMetAt = showWhenMetAt.filter { id, _ in owned.contains { $0.widgetID == id } }
+        let dormant = showWhenHold.dormant(among: owned, now: now)
         ownedMenuBarEntries = owned
         dormantMenuBarWidgetIDs = dormant
         menuBar.apply(owned.filter { !dormant.contains($0.widgetID) })
@@ -1886,10 +1868,9 @@ final class WidgetRuntime: ObservableObject {
     private(set) var ownedMenuBarEntries: [MenuBarEntry] = []
     /// The owned entries hidden for now by their "show only when" threshold.
     private(set) var dormantMenuBarWidgetIDs: Set<String> = []
-    /// When each "show only when" item last had a reading that qualified.
-    private var showWhenMetAt: [String: Date] = [:]
-    /// How long an item stays after its last qualifying reading.
-    static let showWhenHold: TimeInterval = 60
+    /// When each "show only when" item last qualified, and how long it
+    /// stays after that.
+    private var showWhenHold = MenuBarShowWhenHold()
 
     /// Every widget the menu bar owns: on it now, or waiting for a reading
     /// that brings it back. These are the ones that keep polling.
