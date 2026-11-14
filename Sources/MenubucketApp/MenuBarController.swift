@@ -133,6 +133,33 @@ final class MenuBarController {
     /// icon's tooltip leads with them and VoiceOver reads them.
     private var attentionReasons: [String] = []
 
+    /// The main item's tooltip and spoken text as last drawn, so a change in
+    /// the reasons alone can update them without redrawing.
+    private var mainBaseTooltip: String?
+    private var mainSpoken: String?
+
+    private func setMainText(tooltip base: String?, spoken: String?) {
+        mainBaseTooltip = base
+        mainSpoken = spoken
+        refreshMainText()
+    }
+
+    private func refreshMainText() {
+        guard let button = mainItem.button else { return }
+        // Over a cluster chip its own peek speaks; the reasons belong to the
+        // BarShelf mark, so they show only while no chip is focused.
+        let tooltip = layout == .cluster && clusterFocus != nil ? nil : mainTooltip(mainBaseTooltip)
+        if button.toolTip != tooltip { button.toolTip = tooltip }
+        // Only on a change: readings update every few seconds, and an
+        // unchanged label need not be posted again.
+        let label = mainAccessibilityLabel(mainSpoken)
+        if label != spokenLabel {
+            spokenLabel = label
+            button.setAccessibilityLabel(label)
+        }
+    }
+    private var spokenLabel: String?
+
     /// What VoiceOver says for the main item: its name, why it needs
     /// attention, then what it shows.
     private func mainAccessibilityLabel(_ spoken: String? = nil) -> String {
@@ -281,8 +308,15 @@ final class MenuBarController {
     func setAttention(_ needsAttention: Bool, reasons: [String] = []) {
         let detail = needsAttention && !reasons.isEmpty ? reasons : []
         guard attention != needsAttention || attentionReasons != detail else { return }
+        let dotChanged = attention != needsAttention
         attention = needsAttention
         attentionReasons = detail
+        guard dotChanged else {
+            // Only the words changed: the picture, the chips and any chip
+            // the pointer is on stay as they are.
+            refreshMainText()
+            return
+        }
         // Rebuild the mark with or without the dot on the next draw.
         appliedSymbol = nil
         appliedChips = nil
@@ -479,10 +513,7 @@ final class MenuBarController {
             let length = ceil(image.size.width) + Self.clusterItemInset * 2
             if abs(mainItem.length - length) > 0.5 { mainItem.length = length }
         }
-        let tooltip = mainTooltip(nil)
-        if button.toolTip != tooltip { button.toolTip = tooltip }
-        let spoken = chips.map(\.spoken).joined(separator: "; ")
-        button.setAccessibilityLabel(mainAccessibilityLabel(spoken))
+        setMainText(tooltip: nil, spoken: chips.map(\.spoken).joined(separator: "; "))
     }
 
     static func look(of appearance: NSAppearance) -> NSAppearance.Name? {
@@ -525,6 +556,7 @@ final class MenuBarController {
         // The user is looking now: the wave gives way.
         stopPulse(redraw: false)
         clusterFocus = focus
+        refreshMainText()
         let target = Self.clusterTargets(chips, focus: focus)
         focusAnimation?.invalidate()
         let start = clusterPositions.count == target.count ? clusterPositions : target
@@ -601,6 +633,8 @@ final class MenuBarController {
                 button, symbol: mainSymbol, fallback: AppPreferences.defaultMenuBarSymbol,
                 badged: attention
             )
+            // `configure` set a plain label; the next one is sent again.
+            spokenLabel = nil
             badgedLook = attention ? Self.look(of: button.effectiveAppearance) : nil
             appliedSymbol = mainSymbol
             // `configure` resets the image position, so the strip has to be
@@ -614,16 +648,14 @@ final class MenuBarController {
             mainItem.length = Self.iconOnlyLength
             button.attributedTitle = NSAttributedString(string: "")
             button.imagePosition = .imageOnly
-            button.toolTip = mainTooltip(nil)
-            button.setAccessibilityLabel(mainAccessibilityLabel())
+            setMainText(tooltip: nil, spoken: nil)
             return
         }
-        let tooltip = mainTooltip(MenuBarPolicy.tooltip(for: entries, active: String(localized: "Active"), inactive: String(localized: "Inactive")))
-        if button.toolTip != tooltip { button.toolTip = tooltip }
         let spoken = entries.map(MenuBarPolicy.accessibilityText).joined(separator: "; ")
-        if previous.map({ $0.map(MenuBarPolicy.accessibilityText).joined(separator: "; ") != spoken }) ?? true {
-            button.setAccessibilityLabel(mainAccessibilityLabel(spoken))
-        }
+        setMainText(
+            tooltip: MenuBarPolicy.tooltip(for: entries, active: String(localized: "Active"), inactive: String(localized: "Inactive")),
+            spoken: spoken
+        )
         // Raw numeric samples and spoken descriptions are not necessarily a
         // visible change after the user's precision/value settings apply.
         if let previous, previous.count == entries.count,
