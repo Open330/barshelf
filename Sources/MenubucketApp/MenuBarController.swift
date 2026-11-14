@@ -148,7 +148,8 @@ final class MenuBarController {
         guard let button = mainItem.button else { return }
         // Over a cluster chip its own peek speaks; the reasons belong to the
         // BarShelf mark, so they show only while no chip is focused.
-        let tooltip = layout == .cluster && clusterFocus != nil ? nil : mainTooltip(mainBaseTooltip)
+        let chipFocused = layout == .cluster && clusterFocus != nil && !(appliedChips?.isEmpty ?? true)
+        let tooltip = chipFocused ? nil : mainTooltip(mainBaseTooltip)
         if button.toolTip != tooltip { button.toolTip = tooltip }
         // Only on a change: readings update every few seconds, and an
         // unchanged label need not be posted again.
