@@ -151,6 +151,12 @@ public struct WorkflowDefinition: Codable, Equatable, Sendable {
         public var metrics: [MetricDef]?
         /// Presentation values may be templates for refresh-dependent choices.
         public var presentation: PresentationDef?
+        /// What is wrong, when something is, in a few words ("PowerDisplayGuard
+        /// isn't answering"). An empty result means nothing is. A widget that
+        /// reads fine but has a problem to report says it here, so BarShelf
+        /// counts it like a failed refresh: the dot on its icon, and the
+        /// reason where the dot is explained.
+        public var problem: String?
 
         public init(
             label: String? = nil,
@@ -159,8 +165,10 @@ public struct WorkflowDefinition: Codable, Equatable, Sendable {
             icon: String? = nil,
             tint: String? = nil,
             metrics: [MetricDef]? = nil,
-            presentation: PresentationDef? = nil
+            presentation: PresentationDef? = nil,
+            problem: String? = nil
         ) {
+            self.problem = problem
             self.label = label
             self.tooltip = tooltip
             self.prefix = prefix
@@ -346,6 +354,8 @@ public enum WorkflowEngine {
         /// Semantic colour for this refresh. See `StatusDef.tint`.
         public var statusTint: String?
         public var statusPresentation: MenuBarPresentation?
+        /// `status.problem`, when it has text.
+        public var statusProblem: String?
         /// Total items produced by every `forEach` expansion.
         public var expandedItemCount: Int
         /// True when zero items were expanded and the `empty` node was used.
@@ -461,6 +471,7 @@ public enum WorkflowEngine {
 
         var statusLabel: String?
         var statusTooltip: String?
+        var statusProblem: String?
         var statusPrefix: String?
         var statusIcon: String?
         var statusTint: String?
@@ -472,6 +483,11 @@ public enum WorkflowEngine {
             }
             if let tooltip = status.tooltip {
                 statusTooltip = try context.interpolate(tooltip).stringified
+            }
+            if let problem = status.problem {
+                let text = try context.interpolate(problem).stringified
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                statusProblem = text.isEmpty ? nil : text
             }
             if let prefix = status.prefix {
                 statusPrefix = try context.interpolate(prefix).stringified
@@ -610,6 +626,7 @@ public enum WorkflowEngine {
             usedEmpty: usedEmpty,
             writes: writes
         )
+        output.statusProblem = statusProblem
         output.alerts = alertSamples
         return output
     }

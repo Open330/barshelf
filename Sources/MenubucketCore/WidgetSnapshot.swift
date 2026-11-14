@@ -32,6 +32,8 @@ public struct WidgetSnapshot: Codable, Equatable {
     public var statusPresentation: MenuBarPresentation?
     /// Longer form for the menu-bar tooltip (`status.tooltip`).
     public var statusTooltip: String?
+    /// What the widget says is wrong (`status.problem`), though it refreshed.
+    public var statusProblem: String?
     /// True only for a widget-supplied, explicitly redacted fallback tree.
     /// Optional so caches written before this field existed still decode.
     public var safeForSensitiveCache: Bool?
@@ -41,6 +43,7 @@ public struct WidgetSnapshot: Codable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case widgetID, viewTree, updatedAt, error, safeForSensitiveCache
         case statusLabel, statusMetrics, statusTooltip, statusPrefix, statusIcon, statusTint, statusPresentation
+        case statusProblem
     }
 
     public init(

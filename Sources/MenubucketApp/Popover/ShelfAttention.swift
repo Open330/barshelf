@@ -23,6 +23,51 @@ final class ShelfAttention: ObservableObject {
     }
 
     @Published private(set) var reasons: Reasons = []
+
+    /// A widget that failed, or says something is wrong, and in what words:
+    /// what the dot on the icon is about, so it can say so.
+    struct Problem: Equatable, Identifiable {
+        let widgetID: String
+        let name: String
+        let message: String
+        var id: String { widgetID }
+    }
+
+    /// Enabled widgets with a problem, in shelf order.
+    @Published private(set) var problems: [Problem] = []
+
+    func setProblems(_ problems: [Problem]) {
+        guard problems != self.problems else { return }
+        self.problems = problems
+    }
+
+    /// Why the dot is on, one line per thing, for the icon's tooltip and
+    /// what VoiceOver says. Empty when nothing is waiting.
+    static func summary(reasons: Reasons, problems: [Problem], waitingCount: Int, limit: Int = 3) -> [String] {
+        var lines: [String] = []
+        if reasons.contains(.widgetError) {
+            for problem in problems.prefix(limit) {
+                lines.append("\(problem.name): \(problem.message)")
+            }
+            if problems.count > limit {
+                let more = problems.count - limit
+                lines.append(String(localized: "and \(more) more widgets with a problem", comment: "Menu bar icon tooltip"))
+            }
+        }
+        if reasons.contains(.approvalNeeded) {
+            lines.append(PermissionWaitingBanner.message(count: max(waitingCount, 1)))
+        }
+        if reasons.contains(.updateAvailable) {
+            lines.append(String(localized: "A new version of BarShelf is available", comment: "Menu bar icon tooltip"))
+        }
+        if reasons.contains(.dockNeedsAttention) {
+            lines.append(String(localized: "The Dock needs attention", comment: "Menu bar icon tooltip"))
+        }
+        if reasons.contains(.automationNeedsAttention) {
+            lines.append(String(localized: "Keyboard switching needs attention", comment: "Menu bar icon tooltip"))
+        }
+        return lines
+    }
     /// The enabled widgets waiting for Allow or Deny, in shelf order: the
     /// popup's "N widgets are waiting" banner counts them.
     @Published private(set) var waitingWidgetIDs: [String] = []

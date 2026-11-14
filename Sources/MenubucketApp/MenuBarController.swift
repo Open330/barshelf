@@ -129,6 +129,54 @@ final class MenuBarController {
     private var appliedSymbol: String?
     /// Whether the main item carries the attention dot.
     private var attention = false
+    /// Why the dot is on, one line each (`ShelfAttention.summary`): the
+    /// icon's tooltip leads with them and VoiceOver reads them.
+    private var attentionReasons: [String] = []
+
+    /// The main item's tooltip and spoken text as last drawn, so a change in
+    /// the reasons alone can update them without redrawing.
+    private var mainBaseTooltip: String?
+    private var mainSpoken: String?
+
+    private func setMainText(tooltip base: String?, spoken: String?) {
+        mainBaseTooltip = base
+        mainSpoken = spoken
+        refreshMainText()
+    }
+
+    private func refreshMainText() {
+        guard let button = mainItem.button else { return }
+        // Over a cluster chip its own peek speaks; the reasons belong to the
+        // BarShelf mark, so they show only while no chip is focused.
+        let chipFocused = layout == .cluster && clusterFocus != nil && !(appliedChips?.isEmpty ?? true)
+        let tooltip = chipFocused ? nil : mainTooltip(mainBaseTooltip)
+        if button.toolTip != tooltip { button.toolTip = tooltip }
+        // Only on a change: readings update every few seconds, and an
+        // unchanged label need not be posted again.
+        let label = mainAccessibilityLabel(mainSpoken)
+        if label != spokenLabel {
+            spokenLabel = label
+            button.setAccessibilityLabel(label)
+        }
+    }
+    private var spokenLabel: String?
+
+    /// What VoiceOver says for the main item: its name, why it needs
+    /// attention, then what it shows.
+    private func mainAccessibilityLabel(_ spoken: String? = nil) -> String {
+        var label = BarShelfStatusIcon.accessibilityLabel(badged: attention)
+        if attention, !attentionReasons.isEmpty {
+            label += ": " + attentionReasons.joined(separator: "; ")
+        }
+        guard let spoken, !spoken.isEmpty else { return label }
+        return "\(label), \(spoken)"
+    }
+
+    /// The main item's tooltip: the reasons for the dot first, then `base`.
+    private func mainTooltip(_ base: String?) -> String? {
+        guard attention, !attentionReasons.isEmpty else { return base }
+        return ([attentionReasons.joined(separator: "\n")] + [base].compactMap { $0 }).joined(separator: "\n\n")
+    }
     private var currentEntries: [MenuBarEntry] = []
     /// What each separate item last drew, keyed by widget id, and what the
     /// main item's strip last drew (nil until it is first drawn).
@@ -258,9 +306,18 @@ final class MenuBarController {
     }
 
     /// The attention dot on the main item (`ShelfAttention`).
-    func setAttention(_ needsAttention: Bool) {
-        guard attention != needsAttention else { return }
+    func setAttention(_ needsAttention: Bool, reasons: [String] = []) {
+        let detail = needsAttention && !reasons.isEmpty ? reasons : []
+        guard attention != needsAttention || attentionReasons != detail else { return }
+        let dotChanged = attention != needsAttention
         attention = needsAttention
+        attentionReasons = detail
+        guard dotChanged else {
+            // Only the words changed: the picture, the chips and any chip
+            // the pointer is on stay as they are.
+            refreshMainText()
+            return
+        }
         // Rebuild the mark with or without the dot on the next draw.
         appliedSymbol = nil
         appliedChips = nil
@@ -457,9 +514,7 @@ final class MenuBarController {
             let length = ceil(image.size.width) + Self.clusterItemInset * 2
             if abs(mainItem.length - length) > 0.5 { mainItem.length = length }
         }
-        if button.toolTip != nil { button.toolTip = nil }
-        let spoken = chips.map(\.spoken).joined(separator: "; ")
-        button.setAccessibilityLabel("\(BarShelfStatusIcon.accessibilityLabel(badged: attention)), \(spoken)")
+        setMainText(tooltip: nil, spoken: chips.map(\.spoken).joined(separator: "; "))
     }
 
     static func look(of appearance: NSAppearance) -> NSAppearance.Name? {
@@ -502,6 +557,7 @@ final class MenuBarController {
         // The user is looking now: the wave gives way.
         stopPulse(redraw: false)
         clusterFocus = focus
+        refreshMainText()
         let target = Self.clusterTargets(chips, focus: focus)
         focusAnimation?.invalidate()
         let start = clusterPositions.count == target.count ? clusterPositions : target
@@ -578,6 +634,8 @@ final class MenuBarController {
                 button, symbol: mainSymbol, fallback: AppPreferences.defaultMenuBarSymbol,
                 badged: attention
             )
+            // `configure` set a plain label; the next one is sent again.
+            spokenLabel = nil
             badgedLook = attention ? Self.look(of: button.effectiveAppearance) : nil
             appliedSymbol = mainSymbol
             // `configure` resets the image position, so the strip has to be
@@ -591,16 +649,14 @@ final class MenuBarController {
             mainItem.length = Self.iconOnlyLength
             button.attributedTitle = NSAttributedString(string: "")
             button.imagePosition = .imageOnly
-            button.toolTip = nil
-            button.setAccessibilityLabel(BarShelfStatusIcon.accessibilityLabel(badged: attention))
+            setMainText(tooltip: nil, spoken: nil)
             return
         }
-        let tooltip = MenuBarPolicy.tooltip(for: entries, active: String(localized: "Active"), inactive: String(localized: "Inactive"))
-        if button.toolTip != tooltip { button.toolTip = tooltip }
         let spoken = entries.map(MenuBarPolicy.accessibilityText).joined(separator: "; ")
-        if previous.map({ $0.map(MenuBarPolicy.accessibilityText).joined(separator: "; ") != spoken }) ?? true {
-            button.setAccessibilityLabel("\(BarShelfStatusIcon.accessibilityLabel(badged: attention)), \(spoken)")
-        }
+        setMainText(
+            tooltip: MenuBarPolicy.tooltip(for: entries, active: String(localized: "Active"), inactive: String(localized: "Inactive")),
+            spoken: spoken
+        )
         // Raw numeric samples and spoken descriptions are not necessarily a
         // visible change after the user's precision/value settings apply.
         if let previous, previous.count == entries.count,

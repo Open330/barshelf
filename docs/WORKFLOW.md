@@ -471,6 +471,12 @@ BarShelf에는 그 함수가 없어 워크플로 평가가 "unknown function" �
   Duplicate) 각 사본이 자기 설정과 자기 메뉴바 자리를 갖는다 — 하나는 CPU,
   하나는 메모리를 동시에 띄우는 방법이 이것이다.
 - `tooltip`은 마우스를 올렸을 때의 설명이다.
+- `problem`은 새로고침은 됐지만 알릴 문제가 있을 때 그 내용을 짧게 쓴다
+  (예: `"PowerDisplayGuard isn’t answering"`). 결과가 빈 문자열이면 문제가 없는
+  것이다. BarShelf는 이를 실패한 새로고침처럼 다룬다: 메뉴바 아이콘의 빨간 점이
+  켜지고, 아이콘 도움말과 팝업 맨 위 줄에 위젯 이름과 이 문장이 나온다. 식이
+  고른 문장은 `localizations`의 같은 문장으로 번역된다. 메뉴바 레이블에 `!` 같은
+  기호를 따로 그리지 마라 — 같은 문제를 두 번 알리게 된다.
 - 실제로 메뉴바에 나올지는 manifest의 `statusItem.mode`와 사용자의 위젯 설정이
   정한다. 자세한 규칙은 [`WIDGET-SPEC.md`의 `statusItem`](WIDGET-SPEC.md#statusitem).
 - 승격된 위젯은 팝업이 닫혀 있어도 자기 `refresh.interval`로 계속 돈다.

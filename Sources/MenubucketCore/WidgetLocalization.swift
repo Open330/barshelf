@@ -157,6 +157,7 @@ public struct WidgetLocalization: Equatable, Sendable {
             status.label = status.label.map(text)
             status.tooltip = status.tooltip.map(text)
             status.prefix = status.prefix.map(text)
+            status.problem = status.problem.map(text)
             status.metrics = status.metrics?.map { metric in
                 var metric = metric
                 metric.label = metric.label.map(text)

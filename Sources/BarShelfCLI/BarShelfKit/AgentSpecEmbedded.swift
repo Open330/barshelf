@@ -517,6 +517,13 @@ sharing) the BarShelf mark.
   tint the item is a template image, which follows a light or dark menu bar and
   inverts while held open; a tint trades both away for the colour. An unknown
   name loses the colour, not the value.
+- `status.problem` says what is wrong when the widget refreshed but has a
+  problem to report ("PowerDisplayGuard isn’t answering"); an empty result
+  means nothing is. BarShelf counts it like a failed refresh: the red dot on
+  its icon, with the widget's name and this text as the reason in the icon's
+  tooltip and the popup. A sentence an expression picks is translated from
+  `localizations`. Don't also draw a `!` in the label: that reports the same
+  problem twice.
 - `status.metrics` is a reusable two-reading form: each at-most-two entry has
   `label`, `value`, optional semantic `tint`, optional boolean `active`, and
   optional `accessibilityLabel`. Fields are templated like the view. Empty

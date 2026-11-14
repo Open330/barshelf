@@ -50,6 +50,7 @@ final class KeepAwakeWidgetTests: XCTestCase {
         let text: String
         let label: String?
         let icon: String?
+        var problem: String? = nil
     }
 
     /// The two files exactly as the widget's `fs.json` sources read them.
@@ -76,7 +77,7 @@ final class KeepAwakeWidgetTests: XCTestCase {
     private func render(lidClosed: Bool = false) throws -> Rendered {
         let output = try evaluate(lidClosed: lidClosed)
         let tree = String(decoding: try JSONEncoder().encode(output.viewTree), as: UTF8.self)
-        return Rendered(text: tree, label: output.statusLabel, icon: output.statusIcon)
+        return Rendered(text: tree, label: output.statusLabel, icon: output.statusIcon, problem: output.statusProblem)
     }
 
     /// `transforms.guard`, the object the view reads, pulled out of the
@@ -156,11 +157,19 @@ final class KeepAwakeWidgetTests: XCTestCase {
     func testAStaleOrMissingGuardIsAWarningNotAPhase() throws {
         var r = try render()
         XCTAssertTrue(r.text.contains("isn’t running"))
-        XCTAssertEqual(r.label, "!")
+        // No "!" of its own: the problem goes to BarShelf's red dot.
+        XCTAssertEqual(r.label, "")
+        XCTAssertEqual(r.problem, "PowerDisplayGuard isn’t running")
         try writeStatus(["onAC": true, "phase": "ac", "blockers": []], updatedSecondsAgo: 60)
         r = try render()
         XCTAssertTrue(r.text.contains("stopped answering"), r.text)
         XCTAssertEqual(r.icon, "exclamationmark.triangle")
+        XCTAssertEqual(r.problem, "PowerDisplayGuard isn’t answering")
+        // A status a few seconds older than the guard's own rhythm is fine.
+        try writeStatus(["onAC": true, "phase": "ac", "blockers": []], updatedSecondsAgo: 30)
+        r = try render()
+        XCTAssertNil(r.problem)
+        XCTAssertEqual(r.icon, "bolt.fill")
     }
 
     // MARK: - The guard's own samples

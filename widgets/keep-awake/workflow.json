@@ -32,7 +32,7 @@
     },
     "state": {
       "use": "assign",
-      "from": "if(or(not(sources.status.exists), and(sources.status.valid, eq(transforms.raw, null))), 'missing', if(or(not(sources.status.valid), ne(transforms.raw.version, 1)), 'invalid', if(or(eq(transforms.age, null), gt(transforms.age, 15)), 'stale', 'ok')))"
+      "from": "if(or(not(sources.status.exists), and(sources.status.valid, eq(transforms.raw, null))), 'missing', if(or(not(sources.status.valid), ne(transforms.raw.version, 1)), 'invalid', if(or(eq(transforms.age, null), gt(transforms.age, 45)), 'stale', 'ok')))"
     },
     "live": {
       "use": "assign",
@@ -87,7 +87,8 @@
         },
         "blockerCount": "${count(transforms.blockerList)}",
         "icon": "${if(ne(transforms.state, 'ok'), 'exclamationmark.triangle', switch(transforms.raw.phase, 'override', 'cup.and.saucer.fill', 'grace', 'timer', 'ac', 'bolt.fill', 'moon.zzz'))}",
-        "menuLabel": "${if(ne(transforms.state, 'ok'), '!', switch(transforms.raw.phase, 'override', transforms.remaining, 'grace', transforms.graceText, ''))}"
+        "menuLabel": "${if(ne(transforms.state, 'ok'), '', switch(transforms.raw.phase, 'override', transforms.remaining, 'grace', transforms.graceText, ''))}",
+        "problem": "${switch(transforms.state, 'missing', 'PowerDisplayGuard isn’t running', 'invalid', 'PowerDisplayGuard’s status couldn’t be read', 'stale', 'PowerDisplayGuard isn’t answering', '')}"
       }
     }
   },
@@ -494,6 +495,7 @@
   "status": {
     "label": "${transforms.guard.menuLabel}",
     "icon": "${transforms.guard.icon}",
-    "tooltip": "${if(eq(transforms.guard.phase, 'override'), concat('Awake until ', transforms.guard.untilText), if(eq(transforms.guard.state, 'ok'), 'Keep Awake', 'PowerDisplayGuard isn’t answering'))}"
+    "tooltip": "${if(eq(transforms.guard.phase, 'override'), concat('Awake until ', transforms.guard.untilText), if(eq(transforms.guard.state, 'ok'), 'Keep Awake', 'PowerDisplayGuard isn’t answering'))}",
+    "problem": "${transforms.guard.problem}"
   }
 }
