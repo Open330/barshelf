@@ -499,6 +499,10 @@
         "tooltip": {
           "$ref": "#/definitions/templateString"
         },
+        "problem": {
+          "type": "string",
+          "description": "Templated: what is wrong, in a few words, when the widget reads fine but has a problem to report. Empty means nothing is. BarShelf counts it like a failed refresh (the attention dot, with this text as its reason)."
+        },
         "prefix": {
           "type": "string",
           "description": "Templated text the menu bar draws before the value. Lets a widget whose metric the user picks say \"CPU\" or \"Mem\" as appropriate."

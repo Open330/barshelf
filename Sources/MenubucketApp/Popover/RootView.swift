@@ -72,6 +72,13 @@ struct RootView: View {
                             attention: runtime.attention,
                             currentPageIDs: Set(pages[index].widgets.map(\.id))
                         ) { onCommand(.reviewPermissions) }
+                        WidgetProblemBanner(
+                            attention: runtime.attention,
+                            currentPageIDs: Set(pages[index].widgets.map(\.id))
+                        ) { widgetID in
+                            guard let target = pages.firstIndex(where: { $0.widgets.contains { $0.id == widgetID } }) else { return }
+                            pager.jump(to: target, pageCount: pages.count)
+                        }
                         pinnedRow
                     }
                 }

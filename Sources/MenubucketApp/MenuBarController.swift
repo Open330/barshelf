@@ -129,6 +129,26 @@ final class MenuBarController {
     private var appliedSymbol: String?
     /// Whether the main item carries the attention dot.
     private var attention = false
+    /// Why the dot is on, one line each (`ShelfAttention.summary`): the
+    /// icon's tooltip leads with them and VoiceOver reads them.
+    private var attentionReasons: [String] = []
+
+    /// What VoiceOver says for the main item: its name, why it needs
+    /// attention, then what it shows.
+    private func mainAccessibilityLabel(_ spoken: String? = nil) -> String {
+        var label = BarShelfStatusIcon.accessibilityLabel(badged: attention)
+        if attention, !attentionReasons.isEmpty {
+            label += ": " + attentionReasons.joined(separator: "; ")
+        }
+        guard let spoken, !spoken.isEmpty else { return label }
+        return "\(label), \(spoken)"
+    }
+
+    /// The main item's tooltip: the reasons for the dot first, then `base`.
+    private func mainTooltip(_ base: String?) -> String? {
+        guard attention, !attentionReasons.isEmpty else { return base }
+        return ([attentionReasons.joined(separator: "\n")] + [base].compactMap { $0 }).joined(separator: "\n\n")
+    }
     private var currentEntries: [MenuBarEntry] = []
     /// What each separate item last drew, keyed by widget id, and what the
     /// main item's strip last drew (nil until it is first drawn).
@@ -258,9 +278,11 @@ final class MenuBarController {
     }
 
     /// The attention dot on the main item (`ShelfAttention`).
-    func setAttention(_ needsAttention: Bool) {
-        guard attention != needsAttention else { return }
+    func setAttention(_ needsAttention: Bool, reasons: [String] = []) {
+        let detail = needsAttention && !reasons.isEmpty ? reasons : []
+        guard attention != needsAttention || attentionReasons != detail else { return }
         attention = needsAttention
+        attentionReasons = detail
         // Rebuild the mark with or without the dot on the next draw.
         appliedSymbol = nil
         appliedChips = nil
@@ -457,9 +479,10 @@ final class MenuBarController {
             let length = ceil(image.size.width) + Self.clusterItemInset * 2
             if abs(mainItem.length - length) > 0.5 { mainItem.length = length }
         }
-        if button.toolTip != nil { button.toolTip = nil }
+        let tooltip = mainTooltip(nil)
+        if button.toolTip != tooltip { button.toolTip = tooltip }
         let spoken = chips.map(\.spoken).joined(separator: "; ")
-        button.setAccessibilityLabel("\(BarShelfStatusIcon.accessibilityLabel(badged: attention)), \(spoken)")
+        button.setAccessibilityLabel(mainAccessibilityLabel(spoken))
     }
 
     static func look(of appearance: NSAppearance) -> NSAppearance.Name? {
@@ -591,15 +614,15 @@ final class MenuBarController {
             mainItem.length = Self.iconOnlyLength
             button.attributedTitle = NSAttributedString(string: "")
             button.imagePosition = .imageOnly
-            button.toolTip = nil
-            button.setAccessibilityLabel(BarShelfStatusIcon.accessibilityLabel(badged: attention))
+            button.toolTip = mainTooltip(nil)
+            button.setAccessibilityLabel(mainAccessibilityLabel())
             return
         }
-        let tooltip = MenuBarPolicy.tooltip(for: entries, active: String(localized: "Active"), inactive: String(localized: "Inactive"))
+        let tooltip = mainTooltip(MenuBarPolicy.tooltip(for: entries, active: String(localized: "Active"), inactive: String(localized: "Inactive")))
         if button.toolTip != tooltip { button.toolTip = tooltip }
         let spoken = entries.map(MenuBarPolicy.accessibilityText).joined(separator: "; ")
         if previous.map({ $0.map(MenuBarPolicy.accessibilityText).joined(separator: "; ") != spoken }) ?? true {
-            button.setAccessibilityLabel("\(BarShelfStatusIcon.accessibilityLabel(badged: attention)), \(spoken)")
+            button.setAccessibilityLabel(mainAccessibilityLabel(spoken))
         }
         // Raw numeric samples and spoken descriptions are not necessarily a
         // visible change after the user's precision/value settings apply.

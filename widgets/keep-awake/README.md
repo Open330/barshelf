@@ -20,8 +20,10 @@ ignores "stay awake with the lid closed", and the widget shows that.
 ## In the menu bar
 
 Turn it on under BarShelf ▸ Menu Bar. The item shows the time left while a
-request is active, the countdown to sleep just after unplugging, and a warning
-when the guard stops answering (no status for more than 15 seconds). It
+request is active, and the countdown to sleep just after unplugging. When the
+guard is not running or stops answering (no status for more than 45 seconds;
+it writes one every few seconds), the item shows a warning sign and BarShelf
+puts its red dot on its own icon, with the reason in that icon's tooltip. It
 checks once a minute and whenever the popup opens; the guard rewrites its
 status every few seconds, so watching that folder would run the widget
 nonstop. Checking reads the two files directly, with no process started.

@@ -184,12 +184,18 @@ final class StatusItemController: NSObject {
         HotkeyRegistrationCoordinator.shared.register = { [weak self] combination in
             self?.replaceHotkey(with: combination) ?? false
         }
-        // The dot on the icon: a widget waiting for approval or failing.
-        runtime.attention.$reasons
-            .receive(on: RunLoop.main)
+        // The dot on the icon, and what it is about: a widget waiting for
+        // approval or failing, an update, the Dock, the keyboard extension.
+        let attention = runtime.attention
+        Publishers.CombineLatest3(attention.$reasons, attention.$problems, attention.$waitingWidgetIDs)
+            .map { reasons, problems, waiting in
+                ShelfAttention.summary(reasons: reasons, problems: problems, waitingCount: waiting.count)
+                    .withEmpty(when: reasons.isEmpty)
+            }
             .removeDuplicates()
-            .sink { [weak self] reasons in
-                self?.menuBar.setAttention(!reasons.isEmpty)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] lines in
+                self?.menuBar.setAttention(lines != nil, reasons: lines ?? [])
             }
             .store(in: &cancellables)
         applyStatusSymbol(appPrefs.preferences.menuBarSymbol)
@@ -981,4 +987,10 @@ final class StatusItemController: NSObject {
 
         return event
     }
+}
+
+private extension Array where Element == String {
+    /// Nil when there is nothing to report, so "no dot" and "a dot with no
+    /// words" stay different.
+    func withEmpty(when nothing: Bool) -> [String]? { nothing ? nil : self }
 }

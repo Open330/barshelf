@@ -18,7 +18,7 @@ ObjC.import('Foundation')
 ObjC.import('stdlib')
 
 const MAX_SECONDS = 12 * 3600
-const STALE_AFTER_SECONDS = 15
+const STALE_AFTER_SECONDS = 45
 
 function guardDirectory() {
   // KEEP_AWAKE_GUARD_DIR exists for tests only; BarShelf never sets it.
@@ -100,10 +100,14 @@ function status() {
     ageSeconds: null, remaining: '', untilText: '', graceText: '',
     untilMs: 0, fromMs: 0,
     lidClosedEffective: false, note: '', requestPending: false,
-    blockers: [], blockerCount: 0, icon: 'exclamationmark.triangle', menuLabel: '!'
+    blockers: [], blockerCount: 0, icon: 'exclamationmark.triangle', menuLabel: '',
+    problem: 'PowerDisplayGuard isn’t running'
   }
   if (!raw) return out
-  if (raw.__invalid || raw.version !== 1) { out.state = 'invalid'; return out }
+  if (raw.__invalid || raw.version !== 1) {
+    out.state = 'invalid'; out.problem = 'PowerDisplayGuard’s status couldn’t be read'
+    return out
+  }
   const updated = new Date(raw.updatedAt)
   out.ageSeconds = isNaN(updated) ? null : Math.round((now - updated) / 1000)
   out.phase = raw.phase || null
@@ -132,10 +136,12 @@ function status() {
   // A request the guard has not picked up yet (it echoes the id back).
   out.requestPending = !!(pending && pending.id && !(o && o.id === pending.id))
   if (out.ageSeconds === null || out.ageSeconds > STALE_AFTER_SECONDS) {
-    out.state = 'stale'; out.icon = 'exclamationmark.triangle'; out.menuLabel = '!'
+    out.state = 'stale'; out.icon = 'exclamationmark.triangle'; out.menuLabel = ''
+    out.problem = 'PowerDisplayGuard isn’t answering'
     return out
   }
   out.state = 'ok'
+  out.problem = ''
   switch (raw.phase) {
     case 'override': out.icon = 'cup.and.saucer.fill'; out.menuLabel = out.remaining; break
     case 'grace': out.icon = 'timer'; out.menuLabel = out.graceText; break

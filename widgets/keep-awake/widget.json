@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "dev.barshelf.keep-awake",
   "name": "Keep Awake",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "minHostVersion": "0.7.17",
   "icon": "cup.and.saucer",
   "bucket": {
@@ -117,6 +117,9 @@
       "PowerDisplayGuard isn’t running, so nothing here can keep the Mac awake.": "PowerDisplayGuard가 실행 중이 아니라서 여기서는 Mac을 깨워 둘 수 없습니다.",
       "PowerDisplayGuard stopped answering ${transforms.guard.ageSeconds} s ago. What shows below may be out of date.": "PowerDisplayGuard가 ${transforms.guard.ageSeconds}초 전부터 응답하지 않습니다. 아래 내용이 최신이 아닐 수 있습니다.",
       "PowerDisplayGuard’s status couldn’t be read.": "PowerDisplayGuard 상태를 읽을 수 없습니다.",
+      "PowerDisplayGuard isn’t running": "PowerDisplayGuard가 실행 중이 아닙니다",
+      "PowerDisplayGuard’s status couldn’t be read": "PowerDisplayGuard 상태를 읽을 수 없습니다",
+      "PowerDisplayGuard isn’t answering": "PowerDisplayGuard가 응답하지 않습니다",
       "Awake for ${transforms.guard.remaining}": "${transforms.guard.remaining} 동안 깨어 있음",
       "until ${transforms.guard.untilText}": "${transforms.guard.untilText}까지",
       "On battery: sleep in ${transforms.guard.graceText}": "배터리: ${transforms.guard.graceText} 뒤 잠자기",

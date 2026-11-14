@@ -2393,6 +2393,8 @@ final class WidgetRuntime: ObservableObject {
         var statusPresentation: MenuBarPresentation?
         /// Longer form for the menu-bar tooltip (`status.tooltip`).
         var statusTooltip: String?
+        /// What the widget says is wrong (`status.problem`).
+        var statusProblem: String?
     }
 
     nonisolated private func performRefresh(
@@ -2773,7 +2775,10 @@ final class WidgetRuntime: ObservableObject {
                 statusIcon: output.statusIcon,
                 statusTint: output.statusTint,
                 statusPresentation: output.statusPresentation,
-                statusTooltip: output.statusTooltip
+                statusTooltip: output.statusTooltip,
+                // An expression picks one of the widget's sentences; the
+                // sentence it picked is then translated like any other text.
+                statusProblem: output.statusProblem.map { widget.manifest.localization()?.text($0) ?? $0 }
             ))
         } catch {
             return .failure(error)
@@ -3215,6 +3220,7 @@ final class WidgetRuntime: ObservableObject {
             snapshot.statusTint = success.statusTint
             snapshot.statusPresentation = success.statusPresentation
             snapshot.statusTooltip = success.statusTooltip
+            snapshot.statusProblem = success.statusProblem
             if !widget.isSensitive {
                 persistSnapshot(snapshot) // sensitive renders stay memory-only
             }
@@ -3539,7 +3545,7 @@ final class WidgetRuntime: ObservableObject {
         guard !isStagedPreview || isWritingStage else { return }
         guard snapshots[id] != snapshot else { return }
         let previous = snapshots[id]
-        let errorChanged = previous?.error != snapshot.error
+        let errorChanged = previous?.error != snapshot.error || previous?.statusProblem != snapshot.statusProblem
         snapshots[id] = snapshot
         cardModels[id]?.snapshot = snapshot
         if errorChanged { updateAttention() }
@@ -3567,6 +3573,7 @@ final class WidgetRuntime: ObservableObject {
             || previous.statusPrefix != current.statusPrefix || previous.statusIcon != current.statusIcon
             || previous.statusTint != current.statusTint || previous.statusPresentation != current.statusPresentation
             || previous.statusTooltip != current.statusTooltip
+            || previous.statusProblem != current.statusProblem
     }
 
     /// Single write path for overlay cards (`nil` removes), same suppression.
@@ -3584,10 +3591,27 @@ final class WidgetRuntime: ObservableObject {
             widgetIDs: widgets.map(\.id),
             isDisabled: { prefs.isDisabled($0) },
             overlay: { overlayCards[$0] },
-            error: { snapshots[$0]?.error }
+            error: { snapshots[$0]?.error ?? snapshots[$0]?.statusProblem }
         )
         attention.set(.approvalNeeded, reasons.contains(.approvalNeeded))
         attention.set(.widgetError, reasons.contains(.widgetError))
+        attention.setProblems(widgets.compactMap { widget -> ShelfAttention.Problem? in
+            guard !prefs.isDisabled(widget.id) else { return nil }
+            let snapshot = snapshots[widget.id]
+            if case .disabled? = overlayCards[widget.id] {
+                return .init(widgetID: widget.id, name: widget.displayName,
+                             message: String(localized: "Stopped after it kept failing"))
+            }
+            guard overlayCards[widget.id] == nil else { return nil }
+            if let error = snapshot?.error {
+                return .init(widgetID: widget.id, name: widget.displayName,
+                             message: ErrorExplainer.explain(error).cause)
+            }
+            if let problem = snapshot?.statusProblem {
+                return .init(widgetID: widget.id, name: widget.displayName, message: problem)
+            }
+            return nil
+        })
         attention.setWaitingWidgetIDs(widgets.map(\.id).filter { id in
             !prefs.isDisabled(id) && overlayCards[id]?.needsApproval == true
         })

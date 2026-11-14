@@ -596,6 +596,7 @@
       }
     },
     "%@: %@": {
+      "comment": "Popup banner",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -607,6 +608,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "%1$@: %2$@"
+          }
+        }
+      }
+    },
+    "%@: %@ (and %lld more)": {
+      "comment": "Popup banner",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@: %2$@ (and %3$lld more)"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@: %2$@ (외 %3$lld개)"
           }
         }
       }
@@ -1110,6 +1128,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "선택한 종목의 현재 주가와 오늘의 등락을 보여 줍니다."
+          }
+        }
+      }
+    },
+    "A new version of BarShelf is available": {
+      "comment": "Menu bar icon tooltip",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BarShelf 새 버전이 있습니다"
           }
         }
       }
@@ -6129,6 +6158,16 @@
         }
       }
     },
+    "Go to %@": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 위젯으로 이동"
+          }
+        }
+      }
+    },
     "Go to a page": {
       "localizations": {
         "ko": {
@@ -7600,6 +7639,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "BarShelf의 키보드 단축키입니다."
+          }
+        }
+      }
+    },
+    "Keyboard switching needs attention": {
+      "comment": "Menu bar icon tooltip",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "키보드 입력 전환을 확인해야 합니다"
           }
         }
       }
@@ -12517,6 +12567,17 @@
         }
       }
     },
+    "Show": {
+      "comment": "Popup banner: go to the widget with a problem",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "보기"
+          }
+        }
+      }
+    },
     "Show %@": {
       "localizations": {
         "ko": {
@@ -13593,6 +13654,16 @@
         }
       }
     },
+    "Stopped after it kept failing": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "계속 실패해서 멈췄습니다"
+          }
+        }
+      }
+    },
     "Stopped for this session, but could not save disabled state: %@": {
       "localizations": {
         "ko": {
@@ -14075,6 +14146,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Bitwarden CLI(bw)가 설치되어 있지 않습니다."
+          }
+        }
+      }
+    },
+    "The Dock needs attention": {
+      "comment": "Menu bar icon tooltip",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dock을 확인해야 합니다"
           }
         }
       }
@@ -16874,6 +16956,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "허용됨"
+          }
+        }
+      }
+    },
+    "and %lld more widgets with a problem": {
+      "comment": "Menu bar icon tooltip",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "그 밖에 문제가 있는 위젯 %lld개"
           }
         }
       }

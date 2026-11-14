@@ -130,6 +130,28 @@ final class WidgetLocalizationTests: XCTestCase {
 
     private static let displayKeys = WidgetLocalization.textKeys.union(["tooltip", "prefix"])
 
+    /// The quoted sentences in every `problem` value of a workflow.
+    static func problemSentences(in value: JSONValue) -> [String] {
+        switch value {
+        case let .object(object):
+            return object.flatMap { key, item -> [String] in
+                if key == "problem", case let .string(text) = item { return quoted(text) }
+                return problemSentences(in: item)
+            }
+        case let .array(items):
+            return items.flatMap(problemSentences)
+        default:
+            return []
+        }
+    }
+
+    private static func quoted(_ text: String) -> [String] {
+        let regex = try! NSRegularExpression(pattern: "'([^']*)'")
+        return regex.matches(in: text, range: NSRange(text.startIndex..., in: text)).compactMap {
+            Range($0.range(at: 1), in: text).map { String(text[$0]) }
+        }.filter { !$0.isEmpty }
+    }
+
     private func json<Value: Encodable>(_ value: Value) throws -> JSONValue {
         try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(value))
     }
@@ -221,6 +243,11 @@ final class WidgetLocalizationTests: XCTestCase {
                 if let status = workflow.status { shown += displayStrings(try json(status)) }
                 shown += actionToasts(workflow.view) + (workflow.empty.map(actionToasts) ?? [])
                 for alert in (workflow.alerts ?? [:]).values { shown += [alert.title] + [alert.body].compactMap { $0 } }
+                // `status.problem` may pick one of several sentences in an
+                // expression; the host translates the sentence it picked.
+                let raw = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf:
+                    widgetsRoot.appendingPathComponent(name).appendingPathComponent("workflow.json")))
+                shown += Self.problemSentences(in: raw)
             }
             for (source, translated) in localization.table {
                 XCTAssertTrue(shown.contains(source), "\(name): \"\(source)\" is not text this widget shows")
