@@ -50,6 +50,8 @@ final class MenuBarSyncDriver {
     /// stopped refreshing (battery saver, a crash-looping script) would keep
     /// showing its last value at full contrast forever.
     private var ticker: AnyCancellable?
+    /// Set by `endTicking()`: no tick is started again.
+    private var tickingEnded = false
 
     /// `scheduleTicker` nil is the shipped timer (`stalenessTimer`).
     init(
@@ -97,7 +99,7 @@ final class MenuBarSyncDriver {
             stopTicker()
             return
         }
-        guard ticker == nil else { return }
+        guard ticker == nil, !tickingEnded else { return }
         ticker = scheduleTicker(stalenessInterval) { [weak self] in
             self?.onSyncNeeded()
         }
@@ -108,5 +110,12 @@ final class MenuBarSyncDriver {
     func stopTicker() {
         ticker?.cancel()
         ticker = nil
+    }
+
+    /// Stops the tick for good: later syncs do not start it again. For a
+    /// staged preview, whose readings must not be judged against the clock.
+    func endTicking() {
+        tickingEnded = true
+        stopTicker()
     }
 }

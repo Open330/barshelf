@@ -1747,6 +1747,8 @@ final class WidgetRuntime: ObservableObject {
     /// Every widget the menu bar owns: on it now, or waiting for a reading
     /// that brings it back. These are the ones that keep polling.
     var menuBarWidgetIDs: Set<String> { promoter.ownedWidgetIDs }
+    /// Whether owned entries are being re-evaluated for staleness on a tick.
+    var isMenuBarStalenessTicking: Bool { promoter.isStalenessTicking }
 
     /// Promotes or demotes a widget in the menu bar (settings UI / context
     /// menu). Passing `nil` clears the stored choice.
@@ -3426,7 +3428,7 @@ final class WidgetRuntime: ObservableObject {
         scheduler.configure(widgets: [])
         for watcher in hotReloadWatchers { watcher.cancel() }
         hotReloadWatchers = []
-        promoter.stopStalenessTicker()
+        promoter.endStalenessTicking()
         isWritingStage = true
         defer { isWritingStage = false }
         widgets = staged

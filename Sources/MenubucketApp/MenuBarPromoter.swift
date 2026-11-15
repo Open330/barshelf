@@ -181,10 +181,11 @@ final class MenuBarPromoter {
         syncDriver.updateTicker(hasOwnedEntries: !ownedEntries.isEmpty)
     }
 
-    /// Stops the staleness tick until the next sync or
-    /// `updateStalenessTicker()` that finds something owned.
-    func stopStalenessTicker() {
-        syncDriver.stopTicker()
+    /// Stops the staleness tick for good; no later sync starts it again.
+    /// A staged preview shows fixed readings, and a tick would come to dim
+    /// them as stale while the frames are recorded.
+    func endStalenessTicking() {
+        syncDriver.endTicking()
     }
 
     // MARK: - Sync
