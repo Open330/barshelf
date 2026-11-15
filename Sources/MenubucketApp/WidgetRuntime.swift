@@ -3,14 +3,6 @@ import Combine
 import Foundation
 import MenubucketCore
 
-private final class WeakWidgetRuntimeBox: @unchecked Sendable {
-    weak var value: WidgetRuntime?
-
-    init(_ value: WidgetRuntime) {
-        self.value = value
-    }
-}
-
 /// A discovered widget: manifest plus the directory it was loaded from.
 struct LoadedWidget: Identifiable {
     let manifest: Manifest
@@ -117,78 +109,6 @@ final class RefreshStatsModel: ObservableObject {
     fileprivate func apply(_ stats: [String: WidgetRefreshStats]) {
         guard self.stats != stats else { return }
         self.stats = stats
-    }
-}
-
-/// Generation-aware ownership for script refreshes. A widget may have only
-/// one active load, and late completion from an older process/package cannot
-/// release the newer generation that reused the same widget id.
-struct ScriptRefreshCoalescer {
-    private struct Entry {
-        let generation: String
-        var rendered = false
-    }
-
-    private var entries: [String: Entry] = [:]
-
-    mutating func begin(widgetID: String, generation: String) -> Bool {
-        guard entries[widgetID] == nil else { return false }
-        entries[widgetID] = Entry(generation: generation)
-        return true
-    }
-
-    mutating func markRendered(widgetID: String, generation: String) -> Bool {
-        guard var entry = entries[widgetID], entry.generation == generation else {
-            return false
-        }
-        entry.rendered = true
-        entries[widgetID] = entry
-        return true
-    }
-
-    /// Returns whether this generation rendered before it completed. Nil means
-    /// the completion is stale or does not belong to an active host refresh.
-    mutating func finish(widgetID: String, generation: String) -> Bool? {
-        guard let entry = entries[widgetID], entry.generation == generation else {
-            return nil
-        }
-        entries.removeValue(forKey: widgetID)
-        return entry.rendered
-    }
-
-    mutating func cancel(widgetID: String, generation: String? = nil) -> Bool {
-        guard let entry = entries[widgetID],
-              generation == nil || entry.generation == generation
-        else { return false }
-        entries.removeValue(forKey: widgetID)
-        return true
-    }
-
-    mutating func cancelAll() -> Set<String> {
-        let widgetIDs = Set(entries.keys)
-        entries.removeAll()
-        return widgetIDs
-    }
-}
-
-/// Thread-safe invalidation tokens for callbacks crossing from the script
-/// supervisor to the main actor.  A queued render from a process stopped by a
-/// disable must not be applied if the widget is enabled again before the main
-/// queue drains it.
-final class ScriptCallbackGate: @unchecked Sendable {
-    private let lock = NSLock()
-    private var epochs: [String: UInt] = [:]
-
-    func token(for widgetID: String) -> UInt {
-        lock.withLock { epochs[widgetID, default: 0] }
-    }
-
-    func invalidate(widgetID: String) {
-        lock.withLock { epochs[widgetID, default: 0] &+= 1 }
-    }
-
-    func accepts(widgetID: String, token: UInt) -> Bool {
-        lock.withLock { epochs[widgetID, default: 0] == token }
     }
 }
 
@@ -307,15 +227,14 @@ final class WidgetRuntime: ObservableObject {
     /// cancelled too instead of only having its result ignored.
     private var nativeRefreshTasks: [String: (token: NativeRefreshGate.Token, task: Task<Void, Never>)] = [:]
     private var runActionTasks: [String: [UUID: Task<Void, Never>]] = [:]
-    private var scriptRefreshes = ScriptRefreshCoalescer()
-    nonisolated private let scriptCallbackGate = ScriptCallbackGate()
+    /// The supervisor, the callback tokens, the loads in flight and the
+    /// timer policy; reports validated script events back
+    /// (`ScriptRuntimeBridgeHost`).
+    private let scriptBridge: ScriptRuntimeBridge
     /// Shutdowns started by Disable. Re-enable waits for this task so a late
     /// stop cannot terminate the newly launched process.
     private var scriptDisableStopTokens: [String: UInt] = [:]
     private var scriptReloadBarrier: Task<Void, Never>?
-    private var scriptTimerPolicyRevision: UInt = 0
-    private var scriptTimerPolicyInitialized = false
-    private var lastScriptTimerAllowedIDs: Set<String>?
     /// Selected-page widgets plus pinned widgets. Automatic refresh and
     /// permission-triggering work is lazy outside this set.
     private(set) var visibleWidgetIDs: Set<String> = []
@@ -370,7 +289,6 @@ final class WidgetRuntime: ObservableObject {
     }
     /// Widgets whose workflow alerts need refreshes off-page too (Scheduler).
     private var alertMonitoringIDs: Set<String> = []
-    private var scriptSupervisorStorage: RuntimeSupervisor?
     /// `host.secret.*` values, per widget instance. Removing a widget erases
     /// that instance's entries.
     private let secretStore: SecretStoring
@@ -422,12 +340,33 @@ final class WidgetRuntime: ObservableObject {
         self.permissionStore.onApprovalCarried = { widgetID, hash in
             carriedAudit.record("permission.narrowed", widgetId: widgetID, detail: ["hash": .string(hash)])
         }
-        self.scriptSupervisorStorage = scriptSupervisor
+        // The configuration is not made here: the bridge asks for it when
+        // it creates its supervisor, on first script-widget use.
+        let scriptStorage = storage
+        let scriptAudit = auditLog
+        let scriptPermissions = self.permissionStore
+        let scriptNotifications = notificationService
+        self.scriptBridge = ScriptRuntimeBridge(
+            supervisor: scriptSupervisor,
+            makeConfiguration: {
+                ScriptRuntimeBridge.denoConfiguration(
+                    stateDirectory: WidgetRuntime.applicationSupportDirectory
+                        .appendingPathComponent("runtime", isDirectory: true),
+                    storage: scriptStorage,
+                    secrets: secretStore,
+                    audit: scriptAudit,
+                    permissionStore: scriptPermissions,
+                    notificationService: scriptNotifications
+                )
+            }
+        )
         self.refreshStatsStore = refreshStatsStore ?? RefreshStatsStore(
             fileURL: Self.applicationSupportDirectory
                 .appendingPathComponent(RefreshStatsStore.defaultFileName)
         )
         self.refreshStats.apply(self.refreshStatsStore.all)
+        // Before anything below can sync the timer policy or refresh.
+        scriptBridge.host = self
         scheduler.requestRefresh = { [weak self] widgetID, manual in
             self?.refresh(widgetID: widgetID, manual: manual)
         }
@@ -563,228 +502,21 @@ final class WidgetRuntime: ObservableObject {
         }
     }
 
-    // MARK: - Script runtime supervisor
+    // MARK: - Script runtime
 
     nonisolated static var applicationSupportDirectory: URL { BarShelfDirectories.applicationSupport }
 
-    /// Created on first script-widget use (deno-based launch plans injected;
-    /// tests build their own supervisor with stub launch plans).
-    private var scriptSupervisor: RuntimeSupervisor {
-        if let existing = scriptSupervisorStorage { return existing }
-        let appSupport = Self.applicationSupportDirectory
-        let notificationService = self.notificationService
-        let permissionStore = self.permissionStore
-        let weakRuntime = WeakWidgetRuntimeBox(self)
-        let configuration = RuntimeSupervisorConfiguration(
-            makeLaunchPlan: { widget in
-                try DenoRuntime.makeLaunchPlan(
-                    widget: widget,
-                    stateDirectory: appSupport.appendingPathComponent("runtime", isDirectory: true)
-                )
-            },
-            storage: storage,
-            secrets: secretStore,
-            audit: auditLog,
-            widgetLogs: WidgetLogStore(),
-            locale: { WidgetLocalization.appLanguage },
-            appearance: {
-                UserDefaults.standard.string(forKey: "AppleInterfaceStyle") == "Dark"
-                    ? "dark"
-                    : "light"
-            },
-            isApproved: { permissionStore.status(for: $0) == .approved },
-            notifyAuthorized: { title, body, authorization in
-                try await notificationService.show(title: title, body: body, authorization: authorization)
-            }
-        )
-        let events = RuntimeSupervisorEvents(
-            onRender: { widgetId, params, revision in
-                let token = weakRuntime.value?.scriptCallbackGate.token(for: widgetId)
-                DispatchQueue.main.async {
-                    guard let token else { return }
-                    weakRuntime.value?.handleScriptRender(
-                        widgetId: widgetId,
-                        params: params,
-                        revision: revision,
-                        callbackToken: token
-                    )
-                }
-            },
-            onLoadComplete: { widgetId, generation, error in
-                let token = weakRuntime.value?.scriptCallbackGate.token(for: widgetId)
-                DispatchQueue.main.async {
-                    guard let token else { return }
-                    weakRuntime.value?.handleScriptLoadComplete(
-                        widgetId: widgetId,
-                        generation: generation,
-                        error: error,
-                        callbackToken: token
-                    )
-                }
-            },
-            onStateChange: { widgetId, state in
-                let token = weakRuntime.value?.scriptCallbackGate.token(for: widgetId)
-                DispatchQueue.main.async {
-                    guard let token else { return }
-                    weakRuntime.value?.handleScriptStateChange(
-                        widgetId: widgetId, state: state, callbackToken: token
-                    )
-                }
-            },
-            onWidgetLog: { widgetId, level, message in
-                if level == "error" {
-                    NSLog("barshelf[%@] %@: %@", widgetId, level, message)
-                }
-            }
-        )
-        let supervisor = RuntimeSupervisor(configuration: configuration, events: events)
-        scriptSupervisorStorage = supervisor
-        syncScriptTimerActivity(force: true)
-        return supervisor
+    // The supervisor, its events and the timer policy are
+    // `ScriptRuntimeBridge`'s; what an event does to a widget is in the
+    // `ScriptRuntimeBridgeHost` conformance at the end of this file.
+
+    private func syncScriptTimerActivity() {
+        scriptBridge.syncTimerActivity()
     }
 
-    private var allowedScriptTimerWidgetIDs: Set<String>? {
-        guard appPrefs.preferences.pauseWhenClosed else { return nil }
-        var allowed = menuBarWidgetIDs.union(dockWidgetIDs)
-        if scheduler.popupIsOpen { allowed.formUnion(visibleWidgetIDs) }
-        if let id = menuBarPopoverWidgetID { allowed.insert(id) }
-        return allowed.subtracting(prefs.disabled)
-    }
-
-    private func syncScriptTimerActivity(force: Bool = false) {
-        let allowed = allowedScriptTimerWidgetIDs
-        guard force || !scriptTimerPolicyInitialized || lastScriptTimerAllowedIDs != allowed else { return }
-        scriptTimerPolicyInitialized = true
-        lastScriptTimerAllowedIDs = allowed
-        scriptTimerPolicyRevision &+= 1
-        guard let supervisor = scriptSupervisorStorage else { return }
-        let revision = scriptTimerPolicyRevision
-        Task { await supervisor.setTimerActivity(allowing: allowed, revision: revision) }
-    }
-
-    private func handleScriptRender(
-        widgetId: String, params: RenderParams, revision: Int, callbackToken: UInt
-    ) {
-        guard scriptCallbackGate.accepts(widgetID: widgetId, token: callbackToken),
-              scriptDisableStopTokens[widgetId] == nil,
-              !prefs.isDisabled(widgetId),
-              let widget = widgets.first(where: { $0.id == widgetId }),
-              permissionStore.status(for: widget.manifest) == .approved else { return }
-        if let generation = params.loadGeneration {
-            guard scriptRefreshes.markRendered(widgetID: widgetId, generation: generation) else { return }
-        }
-        var snapshot = snapshots[widgetId] ?? WidgetSnapshot(widgetID: widgetId)
-        snapshot.isLoading = false
-        snapshot.viewTree = params.root
-        snapshot.updatedAt = Date()
-        snapshot.error = nil
-        snapshot.statusLabel = params.status?.label
-        snapshot.statusMetrics = params.status?.metrics
-        snapshot.statusPrefix = params.status?.prefix
-        snapshot.statusIcon = params.status?.icon
-        snapshot.statusTint = params.status?.tint
-        snapshot.statusPresentation = params.status?.presentation
-        snapshot.statusTooltip = params.status?.tooltip
-        snapshot.safeForSensitiveCache = false
-        setSnapshot(snapshot, for: widgetId)
-        let sensitive = params.sensitive == true || widget.isSensitive
-        let wasSensitive = sensitiveRenderIDs.contains(widgetId)
-        if sensitive {
-            // Its chart history is on disk from before it turned sensitive;
-            // rewrite the file without it now, not at the next 30 s save.
-            if sensitiveRenderIDs.insert(widgetId).inserted { promoter.saveCharts() }
-        } else {
-            sensitiveRenderIDs.remove(widgetId)
-        }
-        if sensitive != wasSensitive { desktopMirror.publishIndex() }
-        if sensitive {
-            desktopMirror.withdraw(widgetID: widgetId)
-            snapshotCache.cancelPending(widgetId)
-            if let cacheRoot = params.cacheRoot {
-                // Keep the live tree memory-only. Persist only the separate
-                // widget-supplied tree whose contract requires sensitive
-                // fields to be removed before host.render.
-                var cached = snapshot
-                cached.viewTree = cacheRoot
-                cached.safeForSensitiveCache = true
-                persistSnapshot(cached)
-            } else {
-                snapshotCache.removeFile(widgetID: widgetId)
-            }
-        } else {
-            persistSnapshot(snapshot)
-        }
-        scheduler.noteRefreshSucceeded(widgetID: widgetId, nextRefreshAtMs: params.nextRefreshAt)
-        recordRefreshSuccess(widgetID: widgetId)
-    }
-
-    private func handleScriptLoadComplete(
-        widgetId: String, generation: String, error: String?, callbackToken: UInt
-    ) {
-        guard scriptCallbackGate.accepts(widgetID: widgetId, token: callbackToken),
-              scriptDisableStopTokens[widgetId] == nil,
-              !prefs.isDisabled(widgetId) else { return }
-        guard let rendered = scriptRefreshes.finish(
-            widgetID: widgetId, generation: generation
-        ) else { return }
-        endInFlight(widgetId)
-        if let error {
-            updateSnapshot(widgetId) {
-                $0.isLoading = false
-                $0.error = error
-            }
-            persistShareableSnapshot(widgetID: widgetId)
-            scheduler.noteRefreshFailed(widgetID: widgetId)
-            recordRefreshFailure(widgetID: widgetId, error: error)
-            return
-        }
-        // A script may intentionally retain its last-good render. Completion
-        // still ends loading/backoff and records the successful no-change load.
-        if !rendered {
-            updateSnapshot(widgetId) { $0.isLoading = false; $0.error = nil }
-            persistShareableSnapshot(widgetID: widgetId)
-            scheduler.noteRefreshSucceeded(widgetID: widgetId, nextRefreshAtMs: nil)
-            recordRefreshSuccess(widgetID: widgetId)
-        }
-    }
-
-    private func handleScriptStateChange(
-        widgetId: String, state: ScriptWidgetState, callbackToken: UInt
-    ) {
-        guard scriptCallbackGate.accepts(widgetID: widgetId, token: callbackToken),
-              scriptDisableStopTokens[widgetId] == nil,
-              !prefs.isDisabled(widgetId) else { return }
-        switch state {
-        case .running:
-            break
-        case .stopped:
-            // A crash before the first render would otherwise spin forever.
-            if scriptRefreshes.cancel(widgetID: widgetId) {
-                updateSnapshot(widgetId) {
-                    $0.isLoading = false
-                    $0.error = "script exited unexpectedly"
-                }
-                persistShareableSnapshot(widgetID: widgetId)
-                endInFlight(widgetId)
-                scheduler.noteRefreshFailed(widgetID: widgetId)
-                recordRefreshFailure(
-                    widgetID: widgetId, error: "script exited unexpectedly"
-                )
-            }
-        case let .disabled(reason):
-            scriptDisabledReasonCache[widgetId] = reason
-            setOverlay(.disabled(reason: reason), for: widgetId)
-            updateSnapshot(widgetId) {
-                $0.isLoading = false
-                $0.error = "Widget disabled: \(reason)"
-            }
-            persistShareableSnapshot(widgetID: widgetId)
-            _ = scriptRefreshes.cancel(widgetID: widgetId)
-            endInFlight(widgetId)
-            scheduler.noteRefreshFailed(widgetID: widgetId)
-            recordRefreshFailure(widgetID: widgetId, error: "Widget disabled: \(reason)")
-        }
-    }
+    /// What the script supervisor is given to report through: the way a
+    /// script's render, completion or state change enters the runtime.
+    var scriptSupervisorEvents: RuntimeSupervisorEvents { scriptBridge.supervisorEvents }
 
     // MARK: - Permission approval
 
@@ -887,7 +619,7 @@ final class WidgetRuntime: ObservableObject {
         Task { @MainActor [weak self] in
             guard let self else { return }
             do {
-                try await self.scriptSupervisor.restart(widgetId: widgetID)
+                try await self.scriptBridge.supervisor.restart(widgetId: widgetID)
             } catch {
                 // Descriptor unknown (fresh app start) — fall back to a refresh.
                 self.refresh(widgetID: widgetID, manual: true)
@@ -912,7 +644,7 @@ final class WidgetRuntime: ObservableObject {
         Task { @MainActor [weak self] in
             guard let self else { return }
             do {
-                try await self.scriptSupervisor.sendAction(widgetId: widgetID, actionId: actionId)
+                try await self.scriptBridge.supervisor.sendAction(widgetId: widgetID, actionId: actionId)
             } catch {
                 NSLog("barshelf: event %@ for %@ failed: %@",
                       actionId, widgetID, String(describing: error))
@@ -1087,10 +819,10 @@ final class WidgetRuntime: ObservableObject {
         // A rescan replaces every script descriptor/process, even when the id
         // stays the same. Release only those script generations here; their
         // late SDK acknowledgements are ignored by generation matching.
-        let cancelledScriptIDs = scriptRefreshes.cancelAll()
+        let cancelledScriptIDs = scriptBridge.cancelAllRefreshes()
         for id in Set(previous.values.filter { $0.manifest.entry.kind == "script" }.map(\.id))
             .union(loaded.filter { $0.manifest.entry.kind == "script" }.map(\.id)) {
-            scriptCallbackGate.invalidate(widgetID: id)
+            scriptBridge.callbackGate.invalidate(widgetID: id)
         }
         inFlight.subtract(cancelledScriptIDs)
         for id in cancelledScriptIDs where seenIDs.contains(id) {
@@ -1152,7 +884,7 @@ final class WidgetRuntime: ObservableObject {
         // rescan can approve/start the replacement; retaining by id alone
         // would let old code continue under the previous descriptor.
         scriptDisabledReasonCache = scriptDisabledReasonCache.filter { seenIDs.contains($0.key) }
-        if let supervisor = scriptSupervisorStorage {
+        if let supervisor = scriptBridge.existingSupervisor {
             scriptReloadBarrier = Task { await supervisor.retain(widgetIds: []) }
         }
 
@@ -1292,7 +1024,7 @@ final class WidgetRuntime: ObservableObject {
             stopWidgetExecution(id)
             await nativeRefresh?.value
             for action in actions { await action.value }
-            await scriptSupervisorStorage?.stopAndWait(widgetId: id)
+            await scriptBridge.existingSupervisor?.stopAndWait(widgetId: id)
             // Purging before the files go means a failure leaves the widget
             // installed, not reported as removed with its data still on disk.
             try purgeInstanceData(id)
@@ -1518,18 +1250,18 @@ final class WidgetRuntime: ObservableObject {
         nativeRefreshTasks.removeValue(forKey: id)?.task.cancel()
         nativeRefreshes.cancel(id)
         updateSnapshot(id) { $0.isLoading = false }
-        scriptCallbackGate.invalidate(widgetID: id)
-        _ = scriptRefreshes.cancel(widgetID: id)
+        scriptBridge.callbackGate.invalidate(widgetID: id)
+        _ = scriptBridge.cancelRefresh(widgetID: id)
         inFlight.remove(id)
         refreshAgain.remove(id) // stopped: no follow-up run
-        guard let supervisor = scriptSupervisorStorage else { return }
-        let stopToken = scriptCallbackGate.token(for: id)
+        guard let supervisor = scriptBridge.existingSupervisor else { return }
+        let stopToken = scriptBridge.callbackGate.token(for: id)
         let stop = Task { await supervisor.stop(widgetId: id) }
         scriptDisableStopTokens[id] = stopToken
         Task { @MainActor [weak self] in
             await stop.value
             guard let self, self.scriptDisableStopTokens[id] == stopToken else { return }
-            self.scriptCallbackGate.invalidate(widgetID: id)
+            self.scriptBridge.callbackGate.invalidate(widgetID: id)
             self.scriptDisableStopTokens.removeValue(forKey: id)
             if !self.prefs.isDisabled(id),
                let widget = self.widgets.first(where: { $0.id == id }),
@@ -2243,15 +1975,15 @@ final class WidgetRuntime: ObservableObject {
     }
 
     /// Script widgets: ensure the resident process runs and (re)send
-    /// `widget.load`. Renders arrive asynchronously via `handleScriptRender`.
+    /// `widget.load`. Renders arrive asynchronously via `scriptDidRender`.
     private func refreshScript(_ widget: LoadedWidget, manual: Bool) {
         let id = widget.id
         let generation = UUID().uuidString
-        guard scriptRefreshes.begin(widgetID: id, generation: generation) else { return }
+        guard scriptBridge.beginRefresh(widgetID: id, generation: generation) else { return }
         inFlight.insert(id)
         markRefreshStarted(widgetID: id)
         updateSnapshot(id) { $0.isLoading = true }
-        let callbackGate = scriptCallbackGate
+        let callbackGate = scriptBridge.callbackGate
         let callbackToken = callbackGate.token(for: id)
         let authorization = ScriptRequestAuthorization(isApproved: {
             callbackGate.accepts(widgetID: id, token: callbackToken)
@@ -2270,8 +2002,8 @@ final class WidgetRuntime: ObservableObject {
             do {
                 await self.scriptReloadBarrier?.value
                 guard authorization.isValid else { return }
-                let supervisor = self.scriptSupervisor
-                await supervisor.setTimerActivity(allowing: self.allowedScriptTimerWidgetIDs, revision: self.scriptTimerPolicyRevision)
+                let supervisor = self.scriptBridge.supervisor
+                await self.scriptBridge.sendTimerActivity(to: supervisor)
                 guard authorization.isValid else { return }
                 try await supervisor.load(
                     descriptor,
@@ -2282,7 +2014,7 @@ final class WidgetRuntime: ObservableObject {
                     loadGeneration: generation
                 )
             } catch {
-                guard self.scriptRefreshes.cancel(
+                guard self.scriptBridge.cancelRefresh(
                     widgetID: id, generation: generation
                 ) else { return }
                 let message = (error as? LocalizedError)?.errorDescription
@@ -3311,7 +3043,7 @@ final class WidgetRuntime: ObservableObject {
 
         let thenRefresh = action.thenRefresh ?? false
         let actionID = UUID()
-        let callbackGate = scriptCallbackGate
+        let callbackGate = scriptBridge.callbackGate
         let callbackToken = callbackGate.token(for: widgetID)
         let task = Task { @MainActor [weak self] in
             guard let self else { return }
@@ -3643,6 +3375,138 @@ struct HostAdapterContext: AdapterContext, @unchecked Sendable {
         switch result {
         case let .success(data): return data
         case let .failure(error): throw error
+        }
+    }
+}
+
+// MARK: - Script runtime
+
+/// What `ScriptRuntimeBridge` asks and reports. An event that reaches the
+/// three `script…` methods already passed the callback token, the checks
+/// above them, and the generation of the load in flight.
+extension WidgetRuntime: ScriptRuntimeBridgeHost {
+    var scriptTimerPolicy: ScriptTimerPolicy {
+        ScriptTimerPolicy(
+            pauseWhenClosed: appPrefs.preferences.pauseWhenClosed,
+            menuBarWidgetIDs: menuBarWidgetIDs,
+            dockWidgetIDs: dockWidgetIDs,
+            shelfIsOpen: scheduler.popupIsOpen,
+            visibleWidgetIDs: visibleWidgetIDs,
+            menuBarPopoverWidgetID: menuBarPopoverWidgetID,
+            disabledWidgetIDs: prefs.disabled
+        )
+    }
+
+    func acceptsScriptEvents(for widgetID: String) -> Bool {
+        scriptDisableStopTokens[widgetID] == nil && !prefs.isDisabled(widgetID)
+    }
+
+    func scriptRenderTarget(for widgetID: String) -> LoadedWidget? {
+        guard acceptsScriptEvents(for: widgetID),
+              let widget = widgets.first(where: { $0.id == widgetID }),
+              permissionStore.status(for: widget.manifest) == .approved else { return nil }
+        return widget
+    }
+
+    func scriptDidRender(_ widget: LoadedWidget, params: RenderParams) {
+        let widgetId = widget.id
+        var snapshot = snapshots[widgetId] ?? WidgetSnapshot(widgetID: widgetId)
+        snapshot.isLoading = false
+        snapshot.viewTree = params.root
+        snapshot.updatedAt = Date()
+        snapshot.error = nil
+        snapshot.statusLabel = params.status?.label
+        snapshot.statusMetrics = params.status?.metrics
+        snapshot.statusPrefix = params.status?.prefix
+        snapshot.statusIcon = params.status?.icon
+        snapshot.statusTint = params.status?.tint
+        snapshot.statusPresentation = params.status?.presentation
+        snapshot.statusTooltip = params.status?.tooltip
+        snapshot.safeForSensitiveCache = false
+        setSnapshot(snapshot, for: widgetId)
+        let sensitive = params.sensitive == true || widget.isSensitive
+        let wasSensitive = sensitiveRenderIDs.contains(widgetId)
+        if sensitive {
+            // Its chart history is on disk from before it turned sensitive;
+            // rewrite the file without it now, not at the next 30 s save.
+            if sensitiveRenderIDs.insert(widgetId).inserted { promoter.saveCharts() }
+        } else {
+            sensitiveRenderIDs.remove(widgetId)
+        }
+        if sensitive != wasSensitive { desktopMirror.publishIndex() }
+        if sensitive {
+            desktopMirror.withdraw(widgetID: widgetId)
+            snapshotCache.cancelPending(widgetId)
+            if let cacheRoot = params.cacheRoot {
+                // Keep the live tree memory-only. Persist only the separate
+                // widget-supplied tree whose contract requires sensitive
+                // fields to be removed before host.render.
+                var cached = snapshot
+                cached.viewTree = cacheRoot
+                cached.safeForSensitiveCache = true
+                persistSnapshot(cached)
+            } else {
+                snapshotCache.removeFile(widgetID: widgetId)
+            }
+        } else {
+            persistSnapshot(snapshot)
+        }
+        scheduler.noteRefreshSucceeded(widgetID: widgetId, nextRefreshAtMs: params.nextRefreshAt)
+        recordRefreshSuccess(widgetID: widgetId)
+    }
+
+    func scriptLoadDidComplete(widgetID widgetId: String, rendered: Bool, error: String?) {
+        endInFlight(widgetId)
+        if let error {
+            updateSnapshot(widgetId) {
+                $0.isLoading = false
+                $0.error = error
+            }
+            persistShareableSnapshot(widgetID: widgetId)
+            scheduler.noteRefreshFailed(widgetID: widgetId)
+            recordRefreshFailure(widgetID: widgetId, error: error)
+            return
+        }
+        // A script may intentionally retain its last-good render. Completion
+        // still ends loading/backoff and records the successful no-change load.
+        if !rendered {
+            updateSnapshot(widgetId) { $0.isLoading = false; $0.error = nil }
+            persistShareableSnapshot(widgetID: widgetId)
+            scheduler.noteRefreshSucceeded(widgetID: widgetId, nextRefreshAtMs: nil)
+            recordRefreshSuccess(widgetID: widgetId)
+        }
+    }
+
+    func scriptStateDidChange(widgetID widgetId: String, state: ScriptWidgetState) {
+        switch state {
+        case .running:
+            break
+        case .stopped:
+            // A crash before the first render would otherwise spin forever.
+            if scriptBridge.cancelRefresh(widgetID: widgetId) {
+                updateSnapshot(widgetId) {
+                    $0.isLoading = false
+                    $0.error = "script exited unexpectedly"
+                }
+                persistShareableSnapshot(widgetID: widgetId)
+                endInFlight(widgetId)
+                scheduler.noteRefreshFailed(widgetID: widgetId)
+                recordRefreshFailure(
+                    widgetID: widgetId, error: "script exited unexpectedly"
+                )
+            }
+        case let .disabled(reason):
+            scriptDisabledReasonCache[widgetId] = reason
+            setOverlay(.disabled(reason: reason), for: widgetId)
+            updateSnapshot(widgetId) {
+                $0.isLoading = false
+                $0.error = "Widget disabled: \(reason)"
+            }
+            persistShareableSnapshot(widgetID: widgetId)
+            _ = scriptBridge.cancelRefresh(widgetID: widgetId)
+            endInFlight(widgetId)
+            scheduler.noteRefreshFailed(widgetID: widgetId)
+            recordRefreshFailure(widgetID: widgetId, error: "Widget disabled: \(reason)")
         }
     }
 }
