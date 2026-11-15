@@ -321,10 +321,6 @@ final class WidgetRuntime: ObservableObject {
     private(set) var visibleWidgetIDs: Set<String> = []
     private var refreshStartedAt: [String: Date] = [:]
     private var hotReloadWatchers: [DirectoryWatcher] = []
-    /// Re-evaluates menu-bar staleness on a slow tick. Without it a widget that
-    /// stopped refreshing (battery saver, a crash-looping script) would keep
-    /// showing its last value at full contrast forever.
-    private var menuBarStalenessTimer: Timer?
     /// `fs.directory` sources with `watch: true`, keyed by widget id.
     private var workflowWatchers: [String: DirectoryWatcher] = [:]
     /// The widget whose card is open in its own menu bar popover, if any.
@@ -438,6 +434,11 @@ final class WidgetRuntime: ObservableObject {
         scheduler.requestStaleRefresh = { [weak self] backgroundOnly in
             self?.refreshStaleWidgets(backgroundOnly: backgroundOnly)
         }
+        // Before the first sync: the batch and the staleness tick come back
+        // through `syncMenuBar`, where the scheduler follow-up lives.
+        promoter.onSyncNeeded = { [weak self] in
+            self?.syncMenuBar()
+        }
         applyAppPreferences(appPrefs.preferences)
         appPrefs.$preferences
             .receive(on: RunLoop.main)
@@ -469,7 +470,7 @@ final class WidgetRuntime: ObservableObject {
         promoter.restoreCharts()
         loadWidgets()
         startHotReload()
-        startMenuBarStalenessTicker()
+        promoter.updateStalenessTicker()
         // The refresh button on a desktop widget.
         desktopMirror.observeRefreshRequests { [weak self] widget in
             self?.refresh(widget, manual: true)
@@ -1677,36 +1678,6 @@ final class WidgetRuntime: ObservableObject {
 
     // MARK: - Menu bar promotion
 
-    /// How often promoted entries are re-evaluated for staleness.
-    private static let menuBarStalenessTickSec: TimeInterval = 15
-    private lazy var menuBarUpdateBatch = MenuBarUpdateBatch { [weak self] in
-        self?.syncMenuBar()
-    }
-
-    private func startMenuBarStalenessTicker() {
-        guard !ownedMenuBarEntries.isEmpty else {
-            menuBarStalenessTimer?.invalidate()
-            menuBarStalenessTimer = nil
-            return
-        }
-        guard menuBarStalenessTimer == nil else { return }
-        let timer = Timer.scheduledTimer(
-            withTimeInterval: Self.menuBarStalenessTickSec, repeats: true
-        ) { [weak self] _ in
-            MainActor.assumeIsolated {
-                guard let self else { return }
-                self.syncMenuBar()
-            }
-        }
-        timer.tolerance = Self.menuBarStalenessTickSec / 3
-        menuBarStalenessTimer = timer
-    }
-
-    /// Recomputes what the menu bar draws and tells the scheduler which
-    /// widgets must keep polling while the popup is closed.
-    ///
-    /// Newly promoted widgets are refreshed once so the strip fills in without
-    /// waiting a whole interval for the first tick.
     /// A failed refresh as the menu bar item's tooltip: what happened and
     /// what to do, the way the card says it, not the raw message.
     nonisolated static func errorTooltip(_ raw: String) -> String {
@@ -1732,10 +1703,17 @@ final class WidgetRuntime: ObservableObject {
         MenuBarPolicy.isStale(updatedAt: updatedAt, interval: effectiveReadingInterval(for: widget), now: now)
     }
 
+    /// Recomputes what the menu bar draws and tells the scheduler which
+    /// widgets must keep polling while the popup is closed.
+    ///
+    /// Newly promoted widgets are refreshed once so the strip fills in without
+    /// waiting a whole interval for the first tick.
+    ///
+    /// The one entry point: the promoter's batched sync and its staleness
+    /// tick come back through here too. The promoter drops a queued batch
+    /// before it recomputes and settles the staleness tick after.
     func syncMenuBar(now: Date = Date()) {
-        menuBarUpdateBatch.cancel()
         let result = promoter.sync(now: now)
-        startMenuBarStalenessTicker()
         // Before the promoted-set check: a changed cadence re-arms timers even
         // when the set of promoted widgets is the same.
         scheduler.setWidgetIntervalOverrides(prefs.refreshIntervals)
@@ -3448,8 +3426,7 @@ final class WidgetRuntime: ObservableObject {
         scheduler.configure(widgets: [])
         for watcher in hotReloadWatchers { watcher.cancel() }
         hotReloadWatchers = []
-        menuBarStalenessTimer?.invalidate()
-        menuBarStalenessTimer = nil
+        promoter.stopStalenessTicker()
         isWritingStage = true
         defer { isWritingStage = false }
         widgets = staged
@@ -3494,27 +3471,13 @@ final class WidgetRuntime: ObservableObject {
            let reading = ReadingHistory.reading(of: snapshot) {
             readingHistory.record(id, reading)
         }
-        if menuBarWidgetIDs.contains(id), Self.menuBarStateChanged(from: previous, to: snapshot) {
-            // Loading/error-only changes are not new measurements. Inserting
-            // those into chart history repeated the previous reading.
-            if previous?.updatedAt != snapshot.updatedAt || previous?.statusMetrics != snapshot.statusMetrics
-                || previous?.statusLabel != snapshot.statusLabel {
-                promoter.markPending(id)
-            }
-            menuBarUpdateBatch.request()
-        }
+        promoter.snapshotChanged(id: id, from: previous, to: snapshot)
     }
 
-    /// Card loading/layout changes do not affect a status item. Avoid rebuilding
-    /// every promoted entry (including symbol lookup and chart policy) for them.
+    /// Whether a snapshot change shows on the menu bar
+    /// (`MenuBarPromoter.snapshotAffectsMenuBar`).
     nonisolated static func menuBarStateChanged(from previous: WidgetSnapshot?, to current: WidgetSnapshot) -> Bool {
-        guard let previous else { return true }
-        return previous.updatedAt != current.updatedAt || previous.error != current.error
-            || previous.statusLabel != current.statusLabel || previous.statusMetrics != current.statusMetrics
-            || previous.statusPrefix != current.statusPrefix || previous.statusIcon != current.statusIcon
-            || previous.statusTint != current.statusTint || previous.statusPresentation != current.statusPresentation
-            || previous.statusTooltip != current.statusTooltip
-            || previous.statusProblem != current.statusProblem
+        MenuBarPromoter.snapshotAffectsMenuBar(from: previous, to: current)
     }
 
     /// Single write path for overlay cards (`nil` removes), same suppression.

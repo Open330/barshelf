@@ -69,11 +69,15 @@ final class MenuBarPromoter {
     /// When each "show only when" item last qualified, and how long it
     /// stays after that.
     private var showWhenHold: MenuBarShowWhenHold
+    /// When the menu bar is synced again without anyone asking: the batch
+    /// behind a burst of new readings, and the staleness tick.
+    private let syncDriver: MenuBarSyncDriver
 
     init(
         menuBar: MenuBarStatusStore = MenuBarStatusStore(),
         chartRecorder: MenuBarChartRecorder? = nil,
         showWhenHold: MenuBarShowWhenHold = MenuBarShowWhenHold(),
+        syncDriver: MenuBarSyncDriver? = nil,
         isSymbolName: @escaping (String) -> Bool = MenuBarPromoter.defaultIsSymbolName
     ) {
         self.menuBar = menuBar
@@ -82,6 +86,8 @@ final class MenuBarPromoter {
         let chartRecorder = if let chartRecorder { chartRecorder } else { MenuBarChartRecorder() }
         self.chartRecorder = chartRecorder
         self.showWhenHold = showWhenHold
+        // Not `??`, as above.
+        if let syncDriver { self.syncDriver = syncDriver } else { self.syncDriver = MenuBarSyncDriver() }
         self.isSymbolName = isSymbolName
         chartRecorder.sensitiveWidgetIDs = { [weak self] in
             self?.source?.sensitiveWidgetIDs
@@ -117,12 +123,81 @@ final class MenuBarPromoter {
         chartRecorder.save()
     }
 
+    // MARK: - When to sync
+
+    /// What a batched sync and the staleness tick call: the runtime's
+    /// `syncMenuBar`, which runs `sync(now:)` and then its own follow-up.
+    /// They never call `sync(now:)` directly, or that follow-up would be
+    /// skipped.
+    var onSyncNeeded: () -> Void {
+        get { syncDriver.onSyncNeeded }
+        set { syncDriver.onSyncNeeded = newValue }
+    }
+
+    /// Whether a batched sync is queued.
+    var hasPendingSync: Bool { syncDriver.hasPendingSync }
+    /// Whether the staleness tick is running.
+    var isStalenessTicking: Bool { syncDriver.isTicking }
+
+    /// Card loading/layout changes do not affect a status item. Avoid rebuilding
+    /// every promoted entry (including symbol lookup and chart policy) for them.
+    nonisolated static func snapshotAffectsMenuBar(
+        from previous: WidgetSnapshot?, to current: WidgetSnapshot
+    ) -> Bool {
+        guard let previous else { return true }
+        return previous.updatedAt != current.updatedAt || previous.error != current.error
+            || previous.statusLabel != current.statusLabel || previous.statusMetrics != current.statusMetrics
+            || previous.statusPrefix != current.statusPrefix || previous.statusIcon != current.statusIcon
+            || previous.statusTint != current.statusTint || previous.statusPresentation != current.statusPresentation
+            || previous.statusTooltip != current.statusTooltip
+            || previous.statusProblem != current.statusProblem
+    }
+
+    /// Whether a snapshot change is a new measurement, one a chart takes a
+    /// point from. Loading/error-only changes are not: inserting those into
+    /// chart history repeated the previous reading.
+    nonisolated static func snapshotIsNewMeasurement(
+        from previous: WidgetSnapshot?, to current: WidgetSnapshot
+    ) -> Bool {
+        previous?.updatedAt != current.updatedAt || previous?.statusMetrics != current.statusMetrics
+            || previous?.statusLabel != current.statusLabel
+    }
+
+    /// A widget's snapshot changed from `previous` to `current`. If the menu
+    /// bar owns the widget and the change shows there, a batched sync is
+    /// requested; a new measurement is first marked for its chart.
+    func snapshotChanged(id: String, from previous: WidgetSnapshot?, to current: WidgetSnapshot) {
+        guard ownedWidgetIDs.contains(id),
+              Self.snapshotAffectsMenuBar(from: previous, to: current) else { return }
+        if Self.snapshotIsNewMeasurement(from: previous, to: current) {
+            markPending(id)
+        }
+        syncDriver.requestSync()
+    }
+
+    /// Runs the staleness tick while the menu bar owns anything, and stops
+    /// it otherwise. Every sync ends with this.
+    func updateStalenessTicker() {
+        syncDriver.updateTicker(hasOwnedEntries: !ownedEntries.isEmpty)
+    }
+
+    /// Stops the staleness tick until the next sync or
+    /// `updateStalenessTicker()` that finds something owned.
+    func stopStalenessTicker() {
+        syncDriver.stopTicker()
+    }
+
     // MARK: - Sync
 
     /// Recomputes what the menu bar owns and draws, applies it to the
     /// store, and reports what the runtime has to follow up on.
+    ///
+    /// An immediate sync supersedes a queued batched one, so that is
+    /// dropped first; the staleness tick is settled last, against what is
+    /// owned now.
     @discardableResult
     func sync(now: Date) -> MenuBarSyncResult {
+        syncDriver.cancelPendingSync()
         let previous = ownedWidgetIDs
         let snapshots = source?.snapshots ?? [:]
         var candidates: [(entry: MenuBarEntry, order: Double?)] = []
@@ -177,6 +252,7 @@ final class MenuBarPromoter {
         dormantWidgetIDs = dormant
         menuBar.apply(owned.filter { !dormant.contains($0.widgetID) })
         chartRecorder.updateSaver()
+        updateStalenessTicker()
 
         let ownedIDs = ownedWidgetIDs
         return MenuBarSyncResult(

@@ -31,10 +31,20 @@ final class MenuBarStatusStore: ObservableObject {
 /// entries so formatting, chart policy and scheduler reconciliation also run
 /// once. A fixed window cannot be postponed forever by a busy producer.
 final class MenuBarUpdateBatch {
+    /// The window the shipped app batches over.
+    static let defaultDelay: DispatchTimeInterval = .milliseconds(30)
+
     private var pending: DispatchWorkItem?
+    private let delay: DispatchTimeInterval
     private let update: () -> Void
 
-    init(update: @escaping () -> Void) { self.update = update }
+    init(delay: DispatchTimeInterval = MenuBarUpdateBatch.defaultDelay, update: @escaping () -> Void) {
+        self.delay = delay
+        self.update = update
+    }
+
+    /// Whether an update is queued and has not run or been cancelled.
+    var isPending: Bool { pending != nil }
 
     func request() {
         guard pending == nil else { return }
@@ -44,7 +54,7 @@ final class MenuBarUpdateBatch {
             self.update()
         }
         pending = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(30), execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 
     /// An immediate settings/reload sync supersedes any queued sample sync.
