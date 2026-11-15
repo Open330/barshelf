@@ -288,7 +288,9 @@ final class WidgetRuntime: ObservableObject {
     var newWidgetPage: (name: String, until: Date)?
     /// Live menu-bar text for promoted widgets. Observed by the menu bar only,
     /// so a 2 s status refresh never invalidates the popup's view tree.
-    let menuBar = MenuBarStatusStore()
+    var menuBar: MenuBarStatusStore { promoter.menuBar }
+    /// What the menu bar owns and draws, and the charts behind it.
+    private let promoter = MenuBarPromoter()
 
     nonisolated private let execService = ExecService()
     let scheduler = Scheduler()
@@ -450,7 +452,7 @@ final class WidgetRuntime: ObservableObject {
             .sink { [weak self] _ in
                 self?.snapshotCache.flush()
                 self?.refreshStatsStore.flush()
-                self?.chartRecorder.save()
+                self?.promoter.saveCharts()
             }
             .store(in: &cancellables)
         desktopMirror.source = self
@@ -461,12 +463,10 @@ final class WidgetRuntime: ObservableObject {
         }
         seedStarterWidgets()
         refreshBundledWidgets()
-        chartRecorder.sensitiveWidgetIDs = { [weak self] in
-            guard let self else { return nil }
-            return Set(self.widgets.filter(\.isSensitive).map(\.id)).union(self.sensitiveRenderIDs)
-        }
-        chartRecorder.restore()
-        chartRecorder.updateSaver()
+        // Not before: the sync `applyAppPreferences` ran above had no source,
+        // so it saw no widgets and had nobody to ask what may be saved.
+        promoter.source = self
+        promoter.restoreCharts()
         loadWidgets()
         startHotReload()
         startMenuBarStalenessTicker()
@@ -691,7 +691,7 @@ final class WidgetRuntime: ObservableObject {
         if sensitive {
             // Its chart history is on disk from before it turned sensitive;
             // rewrite the file without it now, not at the next 30 s save.
-            if sensitiveRenderIDs.insert(widgetId).inserted { chartRecorder.save() }
+            if sensitiveRenderIDs.insert(widgetId).inserted { promoter.saveCharts() }
         } else {
             sensitiveRenderIDs.remove(widgetId)
         }
@@ -1734,69 +1734,16 @@ final class WidgetRuntime: ObservableObject {
 
     func syncMenuBar(now: Date = Date()) {
         menuBarUpdateBatch.cancel()
-        let previous = menuBarWidgetIDs
-        var candidates: [(entry: MenuBarEntry, order: Double?)] = []
-        var intervalOverrides: [String: Double] = [:]
-        var charting = Set<String>()
-
-        for widget in widgets where !prefs.isDisabled(widget.id) {
-            let placement = prefs.menuBarPlacement(
-                for: widget.manifest, widgetID: widget.id
-            )
-            // Most widgets are not on the bar: the cheaper test first.
-            guard placement.enabled,
-                  permissionStore.status(for: widget.manifest) == .approved else { continue }
-            let snapshot = snapshots[widget.id]
-            let built = MenuBarPolicy.buildEntry(MenuBarEntryInputs(
-                widgetID: widget.id,
-                name: widget.displayName,
-                manifestIcon: widget.manifest.icon,
-                statusItem: widget.manifest.statusItem,
-                placement: placement,
-                globalPresentation: appPrefs.preferences.menuBarPresentation,
-                snapshot: snapshot,
-                isStale: readingIsStale(widget, updatedAt: snapshot?.updatedAt, now: now),
-                tooltip: snapshot?.error.map(Self.errorTooltip) ?? snapshot?.statusTooltip,
-                isSymbolName: { NSImage(systemSymbolName: $0, accessibilityDescription: nil) != nil }
-            ))
-            if let interval = placement.interval { intervalOverrides[widget.id] = interval }
-            var applied = built.entry
-            if built.wantsChart {
-                applied = chartRecorder.charting(applied)
-                charting.insert(widget.id)
-            }
-            candidates.append((applied, placement.order))
-        }
-
-        // A chart turned off, an item taken out of the bar, a widget
-        // disabled or removed: its points go, so coming back starts afresh
-        // instead of joining an hour-old line onto a new one.
-        // A widget that has not rendered yet may take its chart from its
-        // first render (`status.presentation`), so a history restored at
-        // launch waits for that render before it can be judged unwanted.
-        chartRecorder.prune(charting: charting) { id in
-            snapshots[id]?.updatedAt == nil && candidates.contains { $0.entry.widgetID == id }
-        }
-
-        // "Show only when" items are ordered and capped like any other, then
-        // left out of what is drawn: they keep their place in the strip and
-        // their polling, so they notice when to come back.
-        let owned = MenuBarPolicy.promoted(MenuBarPolicy.ordered(candidates))
-        let dormant = showWhenHold.dormant(among: owned, now: now)
-        ownedMenuBarEntries = owned
-        dormantMenuBarWidgetIDs = dormant
-        menuBar.apply(owned.filter { !dormant.contains($0.widgetID) })
+        let result = promoter.sync(now: now)
         startMenuBarStalenessTicker()
-        chartRecorder.updateSaver()
         // Before the promoted-set check: a changed cadence re-arms timers even
         // when the set of promoted widgets is the same.
         scheduler.setWidgetIntervalOverrides(prefs.refreshIntervals)
-        scheduler.setIntervalOverrides(intervalOverrides)
+        scheduler.setIntervalOverrides(result.intervalOverrides)
         syncScriptTimerActivity()
-        let promoted = menuBarWidgetIDs
-        guard promoted != previous else { return }
-        scheduler.setMenuBarWidgetIDs(promoted.union(dockWidgetIDs))
-        for id in promoted.subtracting(previous) {
+        guard result.ownedSetChanged else { return }
+        scheduler.setMenuBarWidgetIDs(result.ownedWidgetIDs.union(dockWidgetIDs))
+        for id in result.newlyOwnedWidgetIDs {
             let widget = widgets.first { $0.id == id }
             let staleAfter = widget.flatMap { effectiveStaleAfter(for: $0) }
             let snapshot = snapshots[id] ?? WidgetSnapshot(widgetID: id)
@@ -1808,26 +1755,20 @@ final class WidgetRuntime: ObservableObject {
 
     /// Recent menu bar readings for the trend in a menu bar item's card.
     let readingHistory = ReadingHistory()
-    private let chartRecorder = MenuBarChartRecorder()
     /// Recent readings of each charting item, oldest first.
-    var menuBarHistory: [String: MenuBarChartHistory] { chartRecorder.histories }
+    var menuBarHistory: [String: MenuBarChartHistory] { promoter.chartHistories }
     /// Widgets whose last render asked to stay off disk.
     private var sensitiveRenderIDs: Set<String> = []
 
     /// Every entry the menu bar owns, in order and capped: drawn now, or
     /// hidden by its "show only when" threshold.
-    private(set) var ownedMenuBarEntries: [MenuBarEntry] = []
+    var ownedMenuBarEntries: [MenuBarEntry] { promoter.ownedEntries }
     /// The owned entries hidden for now by their "show only when" threshold.
-    private(set) var dormantMenuBarWidgetIDs: Set<String> = []
-    /// When each "show only when" item last qualified, and how long it
-    /// stays after that.
-    private var showWhenHold = MenuBarShowWhenHold()
+    var dormantMenuBarWidgetIDs: Set<String> { promoter.dormantWidgetIDs }
 
     /// Every widget the menu bar owns: on it now, or waiting for a reading
     /// that brings it back. These are the ones that keep polling.
-    var menuBarWidgetIDs: Set<String> {
-        Set(ownedMenuBarEntries.map(\.widgetID))
-    }
+    var menuBarWidgetIDs: Set<String> { promoter.ownedWidgetIDs }
 
     /// Promotes or demotes a widget in the menu bar (settings UI / context
     /// menu). Passing `nil` clears the stored choice.
@@ -3558,7 +3499,7 @@ final class WidgetRuntime: ObservableObject {
             // those into chart history repeated the previous reading.
             if previous?.updatedAt != snapshot.updatedAt || previous?.statusMetrics != snapshot.statusMetrics
                 || previous?.statusLabel != snapshot.statusLabel {
-                chartRecorder.markPending(id)
+                promoter.markPending(id)
             }
             menuBarUpdateBatch.request()
         }
@@ -3682,6 +3623,23 @@ extension WidgetRuntime: DesktopWidgetMirrorSource {
     }
 
     var refreshMultiplier: Double { appPrefs.preferences.refreshMultiplier }
+}
+
+// MARK: - Menu bar promotion
+
+/// The reads `MenuBarPromoter` is given; `widgets`, `snapshots`,
+/// `readingIsStale`, `isDisabled` and `permissionStatus(for:)` are the
+/// runtime's own.
+extension WidgetRuntime: MenuBarPromoterSource {
+    func menuBarPlacement(for widget: LoadedWidget) -> MenuBarPlacement {
+        prefs.menuBarPlacement(for: widget.manifest, widgetID: widget.id)
+    }
+
+    var globalMenuBarPresentation: MenuBarPresentation? { appPrefs.preferences.menuBarPresentation }
+
+    var sensitiveWidgetIDs: Set<String> {
+        Set(widgets.filter(\.isSensitive).map(\.id)).union(sensitiveRenderIDs)
+    }
 }
 
 // MARK: - Host adapter context
