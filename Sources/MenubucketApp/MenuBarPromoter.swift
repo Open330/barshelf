@@ -77,7 +77,9 @@ final class MenuBarPromoter {
         isSymbolName: @escaping (String) -> Bool = MenuBarPromoter.defaultIsSymbolName
     ) {
         self.menuBar = menuBar
-        let chartRecorder = chartRecorder ?? MenuBarChartRecorder()
+        // Not `??`: its right side is a nonisolated autoclosure, and the
+        // recorder's initializer is main-actor isolated.
+        let chartRecorder = if let chartRecorder { chartRecorder } else { MenuBarChartRecorder() }
         self.chartRecorder = chartRecorder
         self.showWhenHold = showWhenHold
         self.isSymbolName = isSymbolName
