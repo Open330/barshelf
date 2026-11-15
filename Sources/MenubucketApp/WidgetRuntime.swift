@@ -67,33 +67,6 @@ final class WidgetCardModel: ObservableObject {
     }
 }
 
-/// A state the host shows *instead of* a widget's own content until it is
-/// resolved. The runtime decides which one applies; `CardStateViews` draws it.
-enum CardOverlay: Equatable {
-    /// New or changed permissions waiting for the user's decision.
-    case approvalNeeded([PermissionRequest])
-    /// The user denied the current permission set; the widget does not run.
-    case denied([PermissionRequest])
-    /// A script widget kept crashing and was stopped.
-    case disabled(reason: String)
-
-    var needsApproval: Bool {
-        if case .approvalNeeded = self { return true }
-        return false
-    }
-}
-
-/// One capability a widget asks for, as the approval card lists it.
-struct PermissionRequest: Equatable, Hashable {
-    let symbol: String
-    let description: String
-    /// The exact command lines behind the words, for "Details".
-    var details: [String] = []
-    /// Something that blocks the widget outright rather than a permission
-    /// the user can grant.
-    var isWarning = false
-}
-
 /// Per-widget refresh statistics for the Monitoring pane.
 ///
 /// Its own small store for the same reason as `WidgetCardModel` and
@@ -184,8 +157,10 @@ final class WidgetRuntime: ObservableObject {
     private(set) var snapshots: [String: WidgetSnapshot] = [:]
     /// Host-generated cards rendered *instead of* the snapshot tree:
     /// permission approval prompts and crash-loop "Restart Widget" cards.
-    /// Same publish routing as `snapshots`.
-    private(set) var overlayCards: [String: CardOverlay] = [:]
+    /// Same publish routing as `snapshots`; a change comes back through
+    /// `CardOverlayStoreHost`.
+    private let cardOverlays = CardOverlayStore()
+    var overlayCards: [String: CardOverlay] { cardOverlays.overlays }
     private var cardModels: [String: WidgetCardModel] = [:]
     /// Pinned widgets + per-widget settings overrides (user preferences).
     let prefs = WidgetPrefs()
@@ -367,6 +342,8 @@ final class WidgetRuntime: ObservableObject {
         self.refreshStats.apply(self.refreshStatsStore.all)
         // Before anything below can sync the timer policy or refresh.
         scriptBridge.host = self
+        // Before `loadWidgets` settles the first permission cards.
+        cardOverlays.host = self
         scheduler.requestRefresh = { [weak self] widgetID, manual in
             self?.refresh(widgetID: widgetID, manual: manual)
         }
@@ -524,11 +501,8 @@ final class WidgetRuntime: ObservableObject {
     private func gatePermissions(for widget: LoadedWidget) -> Bool {
         switch permissionStore.status(for: widget.manifest) {
         case .approved:
-            // Clear a stale approval/denied card (but keep disabled cards).
-            if overlayCards[widget.id] != nil,
-               scriptDisabledReasonCache[widget.id] == nil {
-                setOverlay(nil, for: widget.id)
-            }
+            // Clears a stale approval/denied card (but keeps disabled cards).
+            cardOverlays.settlePermissionCard(for: widget, status: .approved)
             return true
         case .pending:
             presentApprovalCard(for: widget, denied: false)
@@ -539,23 +513,18 @@ final class WidgetRuntime: ObservableObject {
         }
     }
 
-    /// Tracks crash-loop disabled reasons so approval logic doesn't clear
-    /// restart cards.
-    private var scriptDisabledReasonCache: [String: String] = [:]
-
     private func presentApprovalCard(for widget: LoadedWidget, denied: Bool) {
         // A permission overlay replaces the shelf card, but Dock glances and
         // menu-bar values also observe this snapshot. Withdraw their last
         // reading immediately, including a cache restored during a rescan.
         snapshotCache.cancelPending(widget.id)
         setSnapshot(WidgetSnapshot(widgetID: widget.id), for: widget.id)
-        if overlayCards[widget.id] == nil {
+        let outcome = cardOverlays.settlePermissionCard(for: widget, status: denied ? .denied : .pending)
+        if outcome.isNewRequest {
             auditLog.record("permission.requested", widgetId: widget.id, detail: [
                 "hash": .string(PermissionStore.permissionsHash(of: widget.manifest)),
             ])
         }
-        let requests = Self.permissionRequests(for: widget)
-        setOverlay(denied ? .denied(requests) : .approvalNeeded(requests), for: widget.id)
     }
 
     func approvePermissions(widgetID: String) {
@@ -569,10 +538,10 @@ final class WidgetRuntime: ObservableObject {
             "hash": .string(PermissionStore.permissionsHash(of: widget.manifest)),
         ])
         let approvedCopies = widgets.filter {
-            $0.manifest.id == widget.manifest.id && scriptDisabledReasonCache[$0.id] == nil
+            $0.manifest.id == widget.manifest.id && !cardOverlays.isCrashLoopDisabled($0.id)
         }
         for copy in approvedCopies {
-            setOverlay(nil, for: copy.id)
+            cardOverlays.settlePermissionCard(for: copy, status: .approved)
         }
         desktopMirror.publishIndex()
         // Revocation removes promoted items and can stop the staleness timer.
@@ -613,8 +582,7 @@ final class WidgetRuntime: ObservableObject {
     /// "Restart Widget" after a crash-loop disable.
     func restartScriptWidget(widgetID: String) {
         guard !removingWidgetIDs.contains(widgetID) else { return }
-        setOverlay(nil, for: widgetID)
-        scriptDisabledReasonCache.removeValue(forKey: widgetID)
+        cardOverlays.clearForRestart(widgetID)
         updateSnapshot(widgetID) { $0.error = nil }
         Task { @MainActor [weak self] in
             guard let self else { return }
@@ -654,101 +622,19 @@ final class WidgetRuntime: ObservableObject {
 
     // MARK: - Host-generated card states
 
-    /// What a widget is asking to be allowed to do, one line per capability,
-    /// in words rather than raw commands. The approval card lists these.
-    ///
-    /// Every command is one row: what the commands do, each phrase once, with
-    /// the exact command lines behind "Details". Two rows saying the same
-    /// thing in different words read as two different permissions.
+    // The words on a permission card are `PermissionCardText`'s; these
+    // are the names views and tests know them by.
+
     nonisolated static func permissionRequests(for widget: LoadedWidget) -> [PermissionRequest] {
-        permissionRequests(for: widget.manifest)
+        PermissionCardText.requests(for: widget)
     }
 
     nonisolated static func permissionRequests(for manifest: Manifest, localization: WidgetLocalization?? = nil) -> [PermissionRequest] {
-        var rows: [PermissionRequest] = []
-        let permissions = manifest.permissions
-        let table = localization ?? manifest.localization()
-        let exec = ExecPermissionText.summary(for: manifest, localization: table)
-        if let exec {
-            rows.append(PermissionRequest(
-                symbol: "terminal",
-                description: exec.phrases.joined(separator: "\n"),
-                details: exec.commandLines
-            ))
-        } else if manifest.entry.kind == "exec" {
-            rows.append(PermissionRequest(
-                symbol: "exclamationmark.triangle.fill",
-                description: String(localized: "Blocked: this widget runs a command but does not say which"),
-                isWarning: true
-            ))
-        }
-        if permissions?.keychain == true {
-            rows.append(PermissionRequest(symbol: "key.fill", description: String(localized: "Read and save passwords in your Keychain")))
-        }
-        if permissions?.notifications == true {
-            rows.append(PermissionRequest(symbol: "bell.fill", description: String(localized: "Show notifications")))
-        }
-        if permissions?.quitApps == true {
-            rows.append(PermissionRequest(symbol: "xmark.app.fill", description: String(localized: "Quit apps you choose, asking each time")))
-        }
-        if let net = permissions?.network, !net.isEmpty {
-            let hosts = net.prefix(4).joined(separator: ", ")
-            let suffix = net.count > 4 ? ", …" : ""
-            rows.append(PermissionRequest(symbol: "network", description: String(localized: "Connect to \(hosts)\(suffix)")))
-        }
-        for path in permissions?.readPaths ?? [] {
-            rows.append(PermissionRequest(symbol: "folder.fill", description: String(localized: "Read files in \(path)")))
-        }
-        if permissions?.storage?.granted == true {
-            rows.append(PermissionRequest(symbol: "internaldrive.fill", description: String(localized: "Save a little data on this Mac", comment: "Permission: the widget keeps a small amount of its own data")))
-        }
-        // The widget's own variables and those a single command is handed.
-        var env = permissions?.env ?? []
-        for name in exec?.environment ?? [] where !env.contains(name) { env.append(name) }
-        if !env.isEmpty {
-            rows.append(PermissionRequest(
-                symbol: "leaf.fill",
-                description: String(localized: "Read settings from the environment: \(env.joined(separator: ", "))")
-            ))
-        }
-        if let vault = permissions?.vault {
-            rows.append(PermissionRequest(
-                symbol: "lock.shield.fill",
-                description: String(localized: "Unlock your Bitwarden vault when you ask; it locks after \(Int(vault.idleSeconds / 60)) minutes unused", comment: "Approval card: the vault permission, first of two rows")
-            ))
-            rows.append(PermissionRequest(
-                symbol: "doc.on.doc",
-                description: String(localized: "See item names and copy a username, password or code you pick", comment: "Approval card: the vault permission, second of two rows")
-            ))
-        }
-        if rows.isEmpty {
-            rows.append(PermissionRequest(symbol: "checkmark.seal.fill", description: String(localized: "No special permissions")))
-        }
-        return rows
+        PermissionCardText.requests(for: manifest, localization: localization)
     }
 
-    /// One line on what the widget is for, shown above what it asks for: the
-    /// widget.json `description` in the app's language, else the summary the
-    /// gallery gives BarShelf's own widgets. The first sentence only.
     @MainActor static func permissionPurpose(for widget: LoadedWidget) -> String? {
-        let key = widget.directory.path + "|" + widget.loadRevision
-        if let cached = purposeCache[key] { return cached.isEmpty ? nil : cached }
-        var text = widget.packageInfo.description?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if !text.isEmpty {
-            text = widget.manifest.localization()?.text(text) ?? text
-        } else {
-            text = GalleryEntryText.summary(forID: widget.manifest.id) ?? ""
-        }
-        text = firstSentence(text)
-        purposeCache[key] = text
-        return text.isEmpty ? nil : text
-    }
-
-    @MainActor private static var purposeCache: [String: String] = [:]
-
-    static func firstSentence(_ text: String) -> String {
-        guard let end = text.range(of: ". ") else { return text }
-        return String(text[..<end.lowerBound]) + "."
+        PermissionCardText.purpose(for: widget)
     }
 
     // MARK: - Discovery
@@ -883,7 +769,7 @@ final class WidgetRuntime: ObservableObject {
         // resident script processes and discard their descriptors before a
         // rescan can approve/start the replacement; retaining by id alone
         // would let old code continue under the previous descriptor.
-        scriptDisabledReasonCache = scriptDisabledReasonCache.filter { seenIDs.contains($0.key) }
+        cardOverlays.forgetCrashLoops(notIn: seenIDs)
         if let supervisor = scriptBridge.existingSupervisor {
             scriptReloadBarrier = Task { await supervisor.retain(widgetIds: []) }
         }
@@ -3164,7 +3050,7 @@ final class WidgetRuntime: ObservableObject {
         isWritingStage = true
         defer { isWritingStage = false }
         widgets = staged
-        for id in Array(overlayCards.keys) { setOverlay(nil, for: id) }
+        cardOverlays.clearAll()
         for render in renders { setSnapshot(render, for: render.widgetID) }
     }
 
@@ -3214,15 +3100,6 @@ final class WidgetRuntime: ObservableObject {
         MenuBarPromoter.snapshotAffectsMenuBar(from: previous, to: current)
     }
 
-    /// Single write path for overlay cards (`nil` removes), same suppression.
-    private func setOverlay(_ overlay: CardOverlay?, for id: String) {
-        guard !isStagedPreview || isWritingStage else { return }
-        guard overlayCards[id] != overlay else { return }
-        overlayCards[id] = overlay
-        cardModels[id]?.overlay = overlay
-        updateAttention()
-    }
-
     /// Recomputes the widget part of `attention` from the current state.
     private func updateAttention() {
         let reasons = ShelfAttention.widgetReasons(
@@ -3264,7 +3141,7 @@ final class WidgetRuntime: ObservableObject {
         // of a widget removed by hot reload, and a reinstall would show it.
         snapshotCache.cancelPending(notIn: liveIDs)
         snapshots = snapshots.filter { liveIDs.contains($0.key) }
-        overlayCards = overlayCards.filter { liveIDs.contains($0.key) }
+        cardOverlays.forgetCards(notIn: liveIDs)
         cardModels = cardModels.filter { liveIDs.contains($0.key) }
         updateAttention()
         inFlight.formIntersection(liveIDs)
@@ -3378,6 +3255,20 @@ struct HostAdapterContext: AdapterContext, @unchecked Sendable {
         case let .success(data): return data
         case let .failure(error): throw error
         }
+    }
+}
+
+// MARK: - Host-generated cards
+
+/// What `CardOverlayStore` asks and reports: the staged-preview gate in
+/// front of its write, and what a changed card sets off.
+extension WidgetRuntime: CardOverlayStoreHost {
+    /// A staged preview shows only what was staged.
+    var acceptsCardOverlayWrites: Bool { !isStagedPreview || isWritingStage }
+
+    func cardOverlayDidChange(widgetID id: String, to overlay: CardOverlay?) {
+        cardModels[id]?.overlay = overlay
+        updateAttention()
     }
 }
 
@@ -3498,8 +3389,7 @@ extension WidgetRuntime: ScriptRuntimeBridgeHost {
                 )
             }
         case let .disabled(reason):
-            scriptDisabledReasonCache[widgetId] = reason
-            setOverlay(.disabled(reason: reason), for: widgetId)
+            cardOverlays.showCrashLoopCard(reason: reason, for: widgetId)
             updateSnapshot(widgetId) {
                 $0.isLoading = false
                 $0.error = "Widget disabled: \(reason)"
