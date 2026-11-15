@@ -34,7 +34,6 @@ struct PermissionRequest: Equatable, Hashable {
 enum CardOverlayPolicy {
     /// - Parameters:
     ///   - status: The widget's permission status, as just read.
-    ///   - current: The card it shows now.
     ///   - crashLoopReason: Why its script was stopped after it kept
     ///     crashing, if it was and has not been restarted since.
     ///   - requests: What the widget asks for; only called for a card that
@@ -42,15 +41,16 @@ enum CardOverlayPolicy {
     /// - Returns: The card to show; nil is the widget's own content.
     static func card(
         for status: PermissionStore.Status,
-        current: CardOverlay?,
         crashLoopReason: String?,
         requests: () -> [PermissionRequest]
     ) -> CardOverlay? {
         switch status {
         case .approved:
             // A stale approval/denied card goes. A widget stopped after a
-            // crash loop keeps whatever it shows until it is restarted.
-            return crashLoopReason == nil ? nil : current
+            // crash loop shows "Restart Widget" until it is restarted:
+            // also when a permission card had replaced that one, or the
+            // approval card would stay up with nothing left to allow.
+            return crashLoopReason.map { .disabled(reason: $0) }
         case .pending:
             return .approvalNeeded(requests())
         case .denied:
@@ -96,7 +96,8 @@ final class CardOverlayStore {
     /// widget showing its own.
     private(set) var overlays: [String: CardOverlay] = [:]
     /// Why each crash-looping script widget was stopped. Kept apart from
-    /// the card so that approval does not clear a "Restart Widget" card.
+    /// the card: approval does not clear a "Restart Widget" card, and
+    /// brings back one a permission card had replaced.
     private var crashLoopReasons: [String: String] = [:]
     private let requests: (LoadedWidget) -> [PermissionRequest]
 
@@ -122,7 +123,6 @@ final class CardOverlayStore {
         let current = overlays[widget.id]
         let card = CardOverlayPolicy.card(
             for: status,
-            current: current,
             crashLoopReason: crashLoopReasons[widget.id],
             requests: { requests(widget) }
         )

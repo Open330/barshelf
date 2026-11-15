@@ -537,12 +537,13 @@ final class WidgetRuntime: ObservableObject {
         auditLog.record("permission.approved", widgetId: widgetID, detail: [
             "hash": .string(PermissionStore.permissionsHash(of: widget.manifest)),
         ])
-        let approvedCopies = widgets.filter {
-            $0.manifest.id == widget.manifest.id && !cardOverlays.isCrashLoopDisabled($0.id)
-        }
-        for copy in approvedCopies {
+        let copies = widgets.filter { $0.manifest.id == widget.manifest.id }
+        // A copy stopped after a crash loop gets its "Restart Widget" card
+        // back and is not refreshed.
+        for copy in copies {
             cardOverlays.settlePermissionCard(for: copy, status: .approved)
         }
+        let approvedCopies = copies.filter { !cardOverlays.isCrashLoopDisabled($0.id) }
         desktopMirror.publishIndex()
         // Revocation removes promoted items and can stop the staleness timer.
         // Approval must restore their placement without waiting for a render

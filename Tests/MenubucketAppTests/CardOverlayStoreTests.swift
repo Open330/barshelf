@@ -23,12 +23,8 @@ private final class StubHost: CardOverlayStoreHost {
 private let asked = [PermissionRequest(symbol: "key.fill", description: "asked")]
 
 final class CardOverlayPolicyTests: XCTestCase {
-    private func card(
-        _ status: PermissionStore.Status, current: CardOverlay? = nil, crashLoopReason: String? = nil
-    ) -> CardOverlay? {
-        CardOverlayPolicy.card(
-            for: status, current: current, crashLoopReason: crashLoopReason, requests: { asked }
-        )
+    private func card(_ status: PermissionStore.Status, crashLoopReason: String? = nil) -> CardOverlay? {
+        CardOverlayPolicy.card(for: status, crashLoopReason: crashLoopReason, requests: { asked })
     }
 
     func testAPendingWidgetAsksAndADeniedOneSaysSo() {
@@ -36,32 +32,26 @@ final class CardOverlayPolicyTests: XCTestCase {
         XCTAssertEqual(card(.denied), .denied(asked))
     }
 
-    func testAnUnapprovedWidgetShowsItsPermissionCardWhateverItShowedBefore() {
-        for current in [CardOverlay.approvalNeeded([]), .denied([]), .disabled(reason: "crashed")] {
-            XCTAssertEqual(card(.pending, current: current, crashLoopReason: "crashed"), .approvalNeeded(asked))
-            XCTAssertEqual(card(.denied, current: current, crashLoopReason: "crashed"), .denied(asked))
-        }
+    func testAnUnapprovedWidgetShowsItsPermissionCardEvenWhenStoppedAfterACrashLoop() {
+        XCTAssertEqual(card(.pending, crashLoopReason: "crashed"), .approvalNeeded(asked))
+        XCTAssertEqual(card(.denied, crashLoopReason: "crashed"), .denied(asked))
     }
 
     func testAnApprovedWidgetShowsItsOwnContent() {
         XCTAssertNil(card(.approved))
-        XCTAssertNil(card(.approved, current: .approvalNeeded(asked)))
-        XCTAssertNil(card(.approved, current: .denied(asked)))
     }
 
-    func testApprovalLeavesTheCardOfAWidgetStoppedAfterACrashLoop() {
-        let restart = CardOverlay.disabled(reason: "crashed")
-        XCTAssertEqual(card(.approved, current: restart, crashLoopReason: "crashed"), restart)
-        XCTAssertNil(card(.approved, current: nil, crashLoopReason: "crashed"))
+    func testAnApprovedWidgetStoppedAfterACrashLoopShowsTheRestartCard() {
+        XCTAssertEqual(card(.approved, crashLoopReason: "crashed"), .disabled(reason: "crashed"))
     }
 
     func testTheRequestsAreOnlyWorkedOutForACardThatListsThem() {
         var calls = 0
         let requests: () -> [PermissionRequest] = { calls += 1; return asked }
-        _ = CardOverlayPolicy.card(for: .approved, current: .denied(asked), crashLoopReason: nil, requests: requests)
-        _ = CardOverlayPolicy.card(for: .approved, current: nil, crashLoopReason: "crashed", requests: requests)
+        _ = CardOverlayPolicy.card(for: .approved, crashLoopReason: nil, requests: requests)
+        _ = CardOverlayPolicy.card(for: .approved, crashLoopReason: "crashed", requests: requests)
         XCTAssertEqual(calls, 0)
-        _ = CardOverlayPolicy.card(for: .pending, current: nil, crashLoopReason: nil, requests: requests)
+        _ = CardOverlayPolicy.card(for: .pending, crashLoopReason: nil, requests: requests)
         XCTAssertEqual(calls, 1)
     }
 }
@@ -188,6 +178,21 @@ final class CardOverlayStoreTests: XCTestCase {
         let approved = store.settlePermissionCard(for: widget("a"), status: .approved)
         XCTAssertEqual(approved.card, .disabled(reason: "crashed 3 times"))
         XCTAssertEqual(host.changes.count, 1)
+    }
+
+    /// Revoked and allowed again while stopped: the approval card used to
+    /// stay up, with nothing left to allow and no way to restart.
+    func testApprovalBringsBackTheRestartCardAPermissionCardReplaced() {
+        store.showCrashLoopCard(reason: "crashed", for: "a")
+        let asking = store.settlePermissionCard(for: widget("a"), status: .pending)
+        XCTAssertEqual(asking, PermissionCardOutcome(card: .approvalNeeded(requests("a")), isNewRequest: false))
+
+        let approved = store.settlePermissionCard(for: widget("a"), status: .approved)
+        XCTAssertEqual(approved.card, .disabled(reason: "crashed"))
+        XCTAssertEqual(host.changes.last, .init(widgetID: "a", overlay: .disabled(reason: "crashed")))
+
+        store.clearForRestart("a")
+        XCTAssertNil(store.settlePermissionCard(for: widget("a"), status: .approved).card)
     }
 
     func testRestartTakesTheCardDownAndForgetsTheCrashLoop() {
@@ -334,5 +339,65 @@ final class CardOverlayStoreRuntimeTests: XCTestCase {
         runtime.denyPermissions(widgetID: fixture.id)
         XCTAssertTrue(runtime.overlayCards.isEmpty, "a staged preview shows only what was staged")
         XCTAssertNil(model.overlay)
+    }
+
+    /// A script widget stopped after a crash loop, then revoked and allowed
+    /// again: the approval card used to stay up for good.
+    func testAllowingAStoppedScriptWidgetAgainShowsItsRestartCard() async throws {
+        guard let home = ProcessInfo.processInfo.environment["CFFIXED_USER_HOME"],
+              home.contains("barshelf-quality-home-"),
+              WidgetRuntime.applicationSupportDirectory.resolvingSymlinksInPath().path.hasPrefix(
+                URL(fileURLWithPath: home).resolvingSymlinksInPath().path + "/") else {
+            throw XCTSkip("run with CFFIXED_USER_HOME set to a disposable barshelf-quality-home-* directory")
+        }
+        _ = NSApplication.shared
+        let root = WidgetRuntime.applicationSupportDirectory
+        let tag = UUID().uuidString.lowercased()
+        let id = "dev.test.cardoverlay.script.\(tag)"
+        let widgetDirectory = root.appendingPathComponent("widgets/cardoverlay-script-\(tag)")
+        let permissionsFile = root.appendingPathComponent("cardoverlay-permissions-\(tag).json")
+        let appPrefsFile = root.appendingPathComponent("cardoverlay-app-prefs-\(tag).json")
+        let storageDirectory = root.appendingPathComponent("cardoverlay-storage-\(tag)")
+        let manifest = Manifest(schemaVersion: 1, id: id, name: "Stopped",
+                                entry: .init(kind: "script", runtime: "deno-ts@1", main: "index.ts"),
+                                permissions: .init(storage: .init()))
+        try FileManager.default.createDirectory(at: widgetDirectory, withIntermediateDirectories: true)
+        try JSONEncoder().encode(manifest).write(to: widgetDirectory.appendingPathComponent("widget.json"))
+        try Data().write(to: widgetDirectory.appendingPathComponent("index.ts"))
+        let permissions = PermissionStore(fileURL: permissionsFile)
+        permissions.approve(manifest)
+        // Cannot launch anything.
+        let supervisor = RuntimeSupervisor(configuration: RuntimeSupervisorConfiguration(
+            makeLaunchPlan: { _ in throw CocoaError(.fileNoSuchFile) },
+            storage: StorageService(directory: storageDirectory),
+            secrets: InMemorySecretStore(),
+            isApproved: { permissions.status(for: $0) == .approved }
+        ), events: RuntimeSupervisorEvents())
+        let runtime = WidgetRuntime(appPrefs: AppPrefs(fileURL: appPrefsFile),
+                                    permissionStore: permissions, scriptSupervisor: supervisor)
+        let widget = try XCTUnwrap(runtime.widgets.first { $0.id == id })
+        let model = runtime.cardModel(for: id)
+        let restart = CardOverlay.disabled(reason: "crashed 3 times")
+
+        runtime.scriptSupervisorEvents.onStateChange(id, .disabled(reason: "crashed 3 times"))
+        // The event hops to the main queue, first in, first out.
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            DispatchQueue.main.async { continuation.resume() }
+        }
+        XCTAssertEqual(model.overlay, restart)
+
+        runtime.revokePermissions(widgetID: id)
+        XCTAssertEqual(model.overlay, .approvalNeeded(WidgetRuntime.permissionRequests(for: widget)))
+
+        runtime.approvePermissions(widgetID: id)
+        XCTAssertEqual(model.overlay, restart)
+        XCTAssertEqual(runtime.overlayCards[id], restart)
+        XCTAssertFalse(runtime.attention.waitingWidgetIDs.contains(id))
+
+        await supervisor.stopAll()
+        for file in [widgetDirectory, permissionsFile, appPrefsFile, storageDirectory,
+                     root.appendingPathComponent("cache/\(id).json")] {
+            try? FileManager.default.removeItem(at: file)
+        }
     }
 }
