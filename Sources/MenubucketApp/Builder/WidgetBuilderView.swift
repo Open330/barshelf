@@ -145,6 +145,7 @@ struct WidgetBuilderView: View {
                 commandTemplatePicker
                 Text("Command").font(.caption).foregroundStyle(.secondary)
                 TextField("e.g. gh run list --json name,status", text: $model.commandText)
+                    .accessibilityLabel(Text("Command"))
                     .textFieldStyle(.roundedBorder)
                     .font(.callout.monospaced())
                 HStack {
@@ -180,6 +181,7 @@ struct WidgetBuilderView: View {
             case .shellScript:
                 Text("Shell script").font(.caption).foregroundStyle(.secondary)
                 TextEditor(text: $model.scriptText)
+                    .accessibilityLabel(Text("Shell script"))
                     .font(.callout.monospaced())
                     .frame(height: 120)
                     .clipShape(RoundedRectangle(cornerRadius: Radius.control))
@@ -206,6 +208,7 @@ struct WidgetBuilderView: View {
             case .httpJSON:
                 Text("HTTPS JSON endpoint").font(.caption).foregroundStyle(.secondary)
                 TextField("https://api.example.com/status.json", text: $model.httpURL)
+                    .accessibilityLabel(Text("HTTPS JSON endpoint"))
                     .textFieldStyle(.roundedBorder)
                     .font(.callout.monospaced())
                 headerEditor
@@ -227,6 +230,7 @@ struct WidgetBuilderView: View {
                     get: { model.pastedJSONText },
                     set: { model.setPastedJSON($0) }
                 ))
+                .accessibilityLabel(Text("JSON"))
                 .font(.callout.monospaced())
                 .frame(height: 132)
                 .clipShape(RoundedRectangle(cornerRadius: Radius.control))
@@ -245,6 +249,7 @@ struct WidgetBuilderView: View {
                 Text("Folder").font(.caption).foregroundStyle(.secondary)
                 HStack {
                     TextField("~/Downloads", text: $model.folderPath)
+                        .accessibilityLabel(Text("Folder"))
                         .textFieldStyle(.roundedBorder)
                     Button("Choose…") { chooseFolder() }
                 }
@@ -253,6 +258,7 @@ struct WidgetBuilderView: View {
             case .staticText:
                 Text("Text").font(.caption).foregroundStyle(.secondary)
                 TextEditor(text: $model.staticContent)
+                    .accessibilityLabel(Text("Text"))
                     .font(.callout)
                     .frame(height: 100)
                     .clipShape(RoundedRectangle(cornerRadius: Radius.control))
@@ -278,10 +284,12 @@ struct WidgetBuilderView: View {
                         get: { model.httpHeaders[index].key },
                         set: { model.httpHeaders[index].key = $0 }
                     )).textFieldStyle(.roundedBorder).frame(width: 130)
+                        .accessibilityLabel(Text("Header"))
                     TextField("Value", text: Binding(
                         get: { model.httpHeaders[index].value },
                         set: { model.httpHeaders[index].value = $0 }
                     )).textFieldStyle(.roundedBorder)
+                        .accessibilityLabel(Text("Value"))
                     Button { model.httpHeaders.remove(at: index) } label: {
                         Image(systemName: "minus.circle")
                     }
@@ -575,6 +583,7 @@ struct WidgetBuilderView: View {
             if model.detectedFields.isEmpty {
                 TextField("Field path, e.g. name", text: selection)
                     .textFieldStyle(.roundedBorder)
+                    .accessibilityLabel(Text(title))
             } else {
                 Picker(title, selection: selection) {
                     if !model.detectedFields.contains(selection.wrappedValue),
@@ -586,6 +595,7 @@ struct WidgetBuilderView: View {
                 .labelsHidden()
                 TextField("Or type a custom field path", text: selection)
                     .textFieldStyle(.roundedBorder)
+                    .accessibilityLabel(Text(title))
             }
         }
     }
