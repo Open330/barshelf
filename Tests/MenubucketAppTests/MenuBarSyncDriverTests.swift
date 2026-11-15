@@ -252,16 +252,20 @@ final class MenuBarSyncDriverTests: XCTestCase {
         XCTAssertTrue(promoter.isStalenessTicking, "owned, though not drawn")
     }
 
-    func testAStoppedTickStaysStoppedUntilTheNextSync() {
+    /// A staged preview ends the tick, and the syncs its own snapshots
+    /// queue right afterwards used to start it again.
+    func testAnEndedTickIsNotStartedAgainByALaterSync() {
         let promoter = makePromoter()
         add("w")
         promoter.sync(now: t0)
 
-        promoter.stopStalenessTicker()
+        promoter.endStalenessTicking()
         XCTAssertFalse(promoter.isStalenessTicking)
 
         promoter.sync(now: t0.addingTimeInterval(1))
-        XCTAssertTrue(promoter.isStalenessTicking)
+        XCTAssertFalse(promoter.isStalenessTicking)
+        promoter.updateStalenessTicker()
+        XCTAssertFalse(promoter.isStalenessTicking)
     }
 
     func testTheTickAndTheBatchGoThroughTheRuntimeNotStraightToASync() {
@@ -459,5 +463,8 @@ final class MenuBarSyncDriverRuntimeTests: XCTestCase {
         }
         await fulfillment(of: [synced], timeout: 10)
         watching.cancel()
+        // That sync ran with the widget on the bar, which used to start the
+        // tick the staged preview had just stopped.
+        XCTAssertFalse(made.isMenuBarStalenessTicking, "a staged preview is not re-judged against the clock")
     }
 }
