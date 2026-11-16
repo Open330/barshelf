@@ -9,7 +9,7 @@ import Foundation
 ///   (env PATH plus `/opt/homebrew/bin:/usr/local/bin:~/.cargo/bin` fallbacks).
 /// - `timeoutMs` enforced (SIGTERM, escalating to SIGKILL after 2s).
 /// - stdout capped at 1 MB; stderr drained on a separate pipe (capped at 64 KB).
-public final class ExecService {
+public final class ExecService: Sendable {
     private static let posixUTF8Locales: [String] =
         ((try? FileManager.default.contentsOfDirectory(atPath: "/usr/share/locale")) ?? [])
             .filter { $0.hasSuffix(".UTF-8") }.sorted()
