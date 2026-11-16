@@ -265,8 +265,10 @@ final class WidgetRuntime: ObservableObject {
     /// `host.secret.*` values, per widget instance. Removing a widget erases
     /// that instance's entries.
     private let secretStore: SecretStoring
-    /// Widgets `removeWidget` is waiting to stop and purge.
-    private var removingWidgetIDs: Set<String> = []
+    /// Removes and duplicates installed widgets; owns which ones are in
+    /// the middle of being removed, and reaches their running work through
+    /// `WidgetLibraryHost`.
+    private let library: WidgetLibrary
 
     /// Per-widget persistent KV store, shared by the script runtime
     /// (`host.storage.*`) and workflow persistence (`storage.*` reads +
@@ -334,6 +336,9 @@ final class WidgetRuntime: ObservableObject {
             }
         )
         self.workflows = WorkflowRefresher(execService: execService, storage: storage, auditLog: auditLog)
+        self.library = WidgetLibrary(
+            secretStore: secretStore, storage: storage, prefs: prefs, permissionStore: self.permissionStore
+        )
         self.refreshStatsStore = refreshStatsStore ?? RefreshStatsStore(
             fileURL: Self.applicationSupportDirectory
                 .appendingPathComponent(RefreshStatsStore.defaultFileName)
@@ -345,6 +350,8 @@ final class WidgetRuntime: ObservableObject {
         cardOverlays.host = self
         // Before the first workflow refresh: without a host it is cancelled.
         workflows.host = self
+        // Before anything can ask to remove or duplicate a widget.
+        library.host = self
         scheduler.requestRefresh = { [weak self] widgetID, manual in
             self?.refresh(widgetID: widgetID, manual: manual)
         }
@@ -583,7 +590,7 @@ final class WidgetRuntime: ObservableObject {
 
     /// "Restart Widget" after a crash-loop disable.
     func restartScriptWidget(widgetID: String) {
-        guard !removingWidgetIDs.contains(widgetID) else { return }
+        guard !library.isRemoving(widgetID) else { return }
         cardOverlays.clearForRestart(widgetID)
         updateSnapshot(widgetID) { $0.error = nil }
         Task { @MainActor [weak self] in
@@ -851,190 +858,31 @@ final class WidgetRuntime: ObservableObject {
         applicationSupportDirectory.appendingPathComponent("widgets", isDirectory: true)
     }
 
-    /// True only for a proper subdirectory of the user widgets root. Resolving
-    /// `..` first refuses path-traversal ids and dev-checkout (`./widgets/`)
-    /// widgets, so `removeWidget` can never delete outside that root.
+    /// True only for a proper subdirectory of the user widgets root, the
+    /// only place `removeWidget` may delete (`WidgetLibrary.isRemovable`).
     nonisolated static func isRemovableWidgetDirectory(_ directory: URL) -> Bool {
-        let root = userWidgetsRoot.standardizedFileURL.path
-        let target = directory.standardizedFileURL.path
-        return target != root && target.hasPrefix(root + "/")
+        WidgetLibrary.isRemovable(directory, under: userWidgetsRoot)
     }
 
-    /// Stops the widget, waits for its running work, then deletes its storage,
-    /// secrets and directory and scrubs every per-widget trace (cached
-    /// snapshot, permissions, prefs), then rescans — which drops the
-    /// in-memory snapshot, card model, refresh stats, and scheduler timers.
-    /// Throws (deleting nothing) for unknown ids or directories outside the
-    /// user widgets root; throws with the widget still installed when its
-    /// data cannot be erased.
-    ///
-    /// On the main actor: this class is not isolated, so an `async` method
-    /// runs on the cooperative pool from its first line, and everything
-    /// here (the task tables, the refresh gate, the preferences, the rescan
-    /// that assigns `widgets` and re-arms the scheduler's timers) is state
-    /// the main thread is using at the same time.
+    /// Stops the widget, waits for its running work, then deletes its
+    /// storage, secrets and directory and every per-widget trace, then
+    /// rescans (`WidgetLibrary.remove`). Throws (deleting nothing) for
+    /// unknown ids or directories outside the user widgets root; throws with
+    /// the widget still installed when its data cannot be erased.
     @MainActor
     func removeWidget(id: String) async throws {
-        guard let widget = widgets.first(where: { $0.id == id }) else {
-            throw RuntimeError.widgetNotFound(id)
-        }
-        guard Self.isRemovableWidgetDirectory(widget.directory) else {
-            throw RuntimeError.notRemovable(
-                String(localized: "This widget came with BarShelf or was added from another folder, so it can’t be removed here. Turn it off instead.")
-            )
-        }
-        if id == widget.manifest.id {
-            let aliasPrefix = widget.manifest.id + "--"
-            let hasInstances = (try? FileManager.default.contentsOfDirectory(
-                at: Self.userWidgetsRoot,
-                includingPropertiesForKeys: nil,
-                options: [.skipsHiddenFiles]
-            ))?.contains { $0.lastPathComponent.hasPrefix(aliasPrefix) } ?? false
-            if hasInstances {
-                throw RuntimeError.notRemovable(
-                    String(localized: "Remove the copies of “\(widget.manifest.name)” first, then remove the original.")
-                )
-            }
-        }
-        // Refresh, restart and duplicate stay off this widget until it is
-        // gone or the removal failed.
-        guard removingWidgetIDs.insert(id).inserted else {
-            throw RuntimeError.notRemovable(
-                String(localized: "\"\(widget.manifest.name)\" is already being removed.")
-            )
-        }
-        do {
-            // Wait for everything that could write the widget's storage or a
-            // secret: its native refresh (and the command it runs), then the
-            // script and its host commands. Only then is the purge final.
-            let nativeRefresh = nativeRefreshTasks[id]?.task
-            let actions = Array(runActionTasks[id]?.values ?? [:].values)
-            stopWidgetExecution(id)
-            await nativeRefresh?.value
-            for action in actions { await action.value }
-            await scriptBridge.existingSupervisor?.stopAndWait(widgetId: id)
-            // Purging before the files go means a failure leaves the widget
-            // installed, not reported as removed with its data still on disk.
-            try purgeInstanceData(id)
-            try FileManager.default.removeItem(at: widget.directory)
-        } catch {
-            removingWidgetIDs.remove(id)
-            storage.retain(widgetID: id)
-            refresh(widgetID: id, manual: true) // resume what the stop halted
-            throw error
-        }
-        removingWidgetIDs.remove(id)
-        snapshotCache.forget(widgetID: id) // no queued write may re-create the cache
-        // Decisions belong to the package, which other loaded copies still use.
-        if !widgets.contains(where: { $0.id != id && $0.manifest.id == widget.manifest.id }) {
-            permissionStore.reset(widgetId: widget.manifest.id)
-        }
-        prefs.removeAllState(for: id)
-        loadWidgets()
-    }
-
-    /// Storage and secrets of exactly this instance; another instance of the
-    /// same package keeps its own.
-    /// Secrets first: the Keychain is what can refuse (locked, or no user
-    /// interaction allowed), and failing there must leave the widget's
-    /// storage intact, as the removal error promises.
-    private func purgeInstanceData(_ id: String) throws {
-        try secretStore.removeAll(widgetId: id)
-        try storage.removeAll(widgetId: id)
-        workflows.forgetAlerts(widgetID: id)
+        try await library.remove(id: id)
     }
 
     /// Creates a second independently configurable instance of an installed
-    /// widget. A symlink keeps aliases on the canonical package so registry
-    /// updates automatically update every instance instead of copying stale
-    /// script and manifest files.
+    /// widget (`WidgetLibrary.duplicate`); returns its id.
     @discardableResult
     func duplicateWidget(id: String, label: String) throws -> String {
-        guard let widget = widgets.first(where: { $0.id == id }) else {
-            throw RuntimeError.widgetNotFound(id)
-        }
-        guard !removingWidgetIDs.contains(id), !removingWidgetIDs.contains(widget.manifest.id) else {
-            throw RuntimeError.notRemovable(
-                String(localized: "\"\(widget.manifest.name)\" is being removed.")
-            )
-        }
-        guard WidgetDiscovery.isValidWidgetID(widget.manifest.id) else {
-            throw RuntimeError.invalidInstanceName(
-                String(localized: "This widget can’t be duplicated because its widget ID isn’t valid. The widget’s author needs to fix it.")
-            )
-        }
-        let normalized = Self.normalizedInstanceLabel(label)
-        guard !normalized.isEmpty else {
-            throw RuntimeError.invalidInstanceName(
-                String(localized: "Give the copy a name with at least one letter or number.")
-            )
-        }
-
-        guard Self.isRemovableWidgetDirectory(widget.directory),
-              let installed = HeadlessInstaller.installedPackages(
-                in: Self.userWidgetsRoot
-              )[widget.manifest.id] else {
-            throw RuntimeError.notRemovable(
-                String(localized: "Install “\(widget.manifest.name)” before making a copy of it.")
-            )
-        }
-        let canonical = installed.directory
-
-        let instanceID = widget.manifest.id + "--" + normalized
-        let destination = Self.userWidgetsRoot.appendingPathComponent(instanceID)
-        guard !FileManager.default.fileExists(atPath: destination.path) else {
-            throw RuntimeError.invalidInstanceName(
-                String(localized: "There’s already a copy named “\(normalized)”. Choose another name.")
-            )
-        }
-        do {
-            try FileManager.default.createSymbolicLink(
-                at: destination, withDestinationURL: canonical
-            )
-        } catch {
-            throw RuntimeError.invalidInstanceName(
-                String(localized: "Couldn’t make the copy “\(normalized)”. \(error.localizedDescription)")
-            )
-        }
-
-        for (key, value) in prefs.settings(for: id) {
-            prefs.setSetting(widgetID: instanceID, key: key, value: value)
-        }
-        if let appearance = prefs.appearanceOverride(for: id) {
-            prefs.setAppearanceOverride(appearance, for: instanceID)
-        }
-        prefs.setRefreshInterval(prefs.refreshIntervals[id], for: instanceID)
-        if let placement = prefs.override(for: id) {
-            prefs.setOverride(
-                group: placement.group,
-                order: placement.order,
-                size: placement.size,
-                for: instanceID
-            )
-        }
-        if prefs.isPinned(id) {
-            prefs.togglePin(instanceID)
-        }
-        loadWidgets()
-        return instanceID
+        try library.duplicate(id: id, label: label)
     }
 
     nonisolated static func normalizedInstanceLabel(_ label: String) -> String {
-        let lowered = label.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        var result = ""
-        var previousWasSeparator = false
-        for scalar in lowered.unicodeScalars {
-            let allowed = CharacterSet.alphanumerics.contains(scalar)
-                || scalar == "." || scalar == "_" || scalar == "-"
-            if allowed {
-                result.unicodeScalars.append(scalar)
-                previousWasSeparator = false
-            } else if !previousWasSeparator, !result.isEmpty {
-                result.append("-")
-                previousWasSeparator = true
-            }
-        }
-        return result.trimmingCharacters(in: CharacterSet(charactersIn: "-._"))
+        WidgetLibrary.normalizedInstanceLabel(label)
     }
 
     /// Moves a widget to a bucket by writing an override, then republishes
@@ -1720,7 +1568,7 @@ final class WidgetRuntime: ObservableObject {
         let id = widget.id
         guard !prefs.isDisabled(id) else { return } // disabled widgets never run
         guard scriptDisableStopTokens[id] == nil else { return }
-        guard !removingWidgetIDs.contains(id) else { return }
+        guard !library.isRemoving(id) else { return }
         if manual { RemoteImageService.shared.retryFailedImages() }
         guard !inFlight.contains(id) else {
             // In-flight coalescing; a manual request runs once more afterwards.
@@ -2508,7 +2356,7 @@ final class WidgetRuntime: ObservableObject {
         action: NodeAction, widgetID: String, title: String? = nil, surface: ToastSurface = .popup
     ) -> Task<Void, Never>? {
         guard let widget = widgets.first(where: { $0.id == widgetID }) else { return nil }
-        guard !prefs.isDisabled(widgetID), !removingWidgetIDs.contains(widgetID) else { return nil }
+        guard !prefs.isDisabled(widgetID), !library.isRemoving(widgetID) else { return nil }
         guard gatePermissions(for: widget) else { return nil }
         guard let command = action.command, !command.isEmpty else {
             NSLog("barshelf: run action from %@ has no command", widgetID)
@@ -2551,7 +2399,7 @@ final class WidgetRuntime: ObservableObject {
                 if self.runActionTasks[widgetID]?.isEmpty == true { self.runActionTasks.removeValue(forKey: widgetID) }
             }
             guard !Task.isCancelled, callbackGate.accepts(widgetID: widgetID, token: callbackToken),
-                  !self.prefs.isDisabled(widgetID), !self.removingWidgetIDs.contains(widgetID),
+                  !self.prefs.isDisabled(widgetID), !self.library.isRemoving(widgetID),
                   self.permissionStore.status(for: widget.manifest) == .approved else { return }
             let result = await Self.dispatchRunActionExec(
                 execService: self.execService,
@@ -2898,6 +2746,37 @@ extension WidgetRuntime: WorkflowRefresherHost {
 
     func deliverWorkflowAlert(_ alert: WorkflowEngine.AlertSample, for widget: LoadedWidget) {
         deliverAlert(alert, for: widget)
+    }
+}
+
+// MARK: - Widget management
+
+/// What `WidgetLibrary` asks and reports while it removes or duplicates a
+/// widget; `widgets` is the runtime's own.
+extension WidgetRuntime: WidgetLibraryHost {
+    func stopWidgetAndWaitForItsWork(_ id: String) async {
+        let nativeRefresh = nativeRefreshTasks[id]?.task
+        let actions = Array(runActionTasks[id]?.values ?? [:].values)
+        stopWidgetExecution(id)
+        await nativeRefresh?.value
+        for action in actions { await action.value }
+        await scriptBridge.existingSupervisor?.stopAndWait(widgetId: id)
+    }
+
+    func forgetWorkflowAlerts(widgetID: String) {
+        workflows.forgetAlerts(widgetID: widgetID)
+    }
+
+    func resumeWidget(_ widgetID: String) {
+        refresh(widgetID: widgetID, manual: true)
+    }
+
+    func forgetCachedSnapshot(widgetID: String) {
+        snapshotCache.forget(widgetID: widgetID)
+    }
+
+    func reloadWidgets() {
+        loadWidgets()
     }
 }
 
