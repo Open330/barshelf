@@ -658,8 +658,8 @@ final class MenuBarController {
         }
     }
 
-    static let focusDuration: TimeInterval = 0.16
-    static let foldDuration: TimeInterval = 0.26
+    nonisolated static let focusDuration: TimeInterval = 0.16
+    nonisolated static let foldDuration: TimeInterval = 0.26
 
     /// A chip's rect in the main button's coordinates, where it will rest
     /// in the current focus layout: for anchoring its card and peek.

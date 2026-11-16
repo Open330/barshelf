@@ -24,13 +24,13 @@ final class ThumbnailService: @unchecked Sendable {
     static let generationTimeout: TimeInterval = 15
     static let failureRetryDelay: TimeInterval = 15
     static let maximumFailureEntries = 512
-    typealias Generator = (String, CGFloat, @escaping (NSImage?) -> Void) -> (() -> Void)
+    typealias Generator = (String, CGFloat, @escaping @Sendable (NSImage?) -> Void) -> (() -> Void)
 
     private let cache = NSCache<NSString, NSImage>()
     private let diskDirectory: URL
     private let queue = DispatchQueue(label: "dev.barshelf.thumbnails", qos: .userInitiated)
     private let lock = NSLock()
-    private var inFlight: [String: [(NSImage?) -> Void]] = [:]
+    private var inFlight: [String: [@MainActor @Sendable (NSImage?) -> Void]] = [:]
     private var pendingRequests: [(key: String, path: String, pointSize: CGFloat)] = []
     private var activeGenerations = 0
     private var generationStartScheduled = false
@@ -83,7 +83,7 @@ final class ThumbnailService: @unchecked Sendable {
         path: String,
         modifiedAt: Double?,
         pointSize: CGFloat,
-        completion: @escaping (NSImage?) -> Void
+        completion: @escaping @MainActor @Sendable (NSImage?) -> Void
     ) -> NSImage? {
         let boundedPointSize = Self.boundedPointSize(pointSize)
         let key = Self.cacheKey(path: path, modifiedAt: modifiedAt, pointSize: boundedPointSize)
@@ -239,7 +239,7 @@ final class ThumbnailService: @unchecked Sendable {
         schedulePendingGenerations()
     }
 
-    private static func generate(path: String, pointSize: CGFloat, completion: @escaping (NSImage?) -> Void) -> (() -> Void) {
+    private static func generate(path: String, pointSize: CGFloat, completion: @escaping @Sendable (NSImage?) -> Void) -> (() -> Void) {
         let boundedPointSize = Self.boundedPointSize(pointSize)
         let request = QLThumbnailGenerator.Request(
             fileAt: URL(fileURLWithPath: path),
