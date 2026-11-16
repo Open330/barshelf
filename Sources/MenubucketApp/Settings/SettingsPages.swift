@@ -742,6 +742,8 @@ struct PrivacySettingsPage: View {
                     }
                         .buttonStyle(.glass(.plain))
                         .controlSize(.small)
+                        // One per row: the name says which widget it stops.
+                        .accessibilityLabel(Text("Revoke \(widget.displayName)"))
                         .help("Stop this widget until you allow it again")
                     // The check in the success colour; multicolour drew it
                     // in the accent (blue).
