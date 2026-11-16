@@ -439,6 +439,7 @@ final class DockStoreTests: XCTestCase {
 
     // MARK: URL
 
+    @MainActor
     func testDockDeepLinkRoutesToHook() {
         let installer = WidgetInstaller()
         var received: [[URLQueryItem]] = []
@@ -452,6 +453,7 @@ final class DockStoreTests: XCTestCase {
 
     /// `barshelf accessibility` opens this link; it must never fall through
     /// to the installer.
+    @MainActor
     func testAccessibilityDeepLinkRoutesToHook() {
         let installer = WidgetInstaller()
         var opened = 0

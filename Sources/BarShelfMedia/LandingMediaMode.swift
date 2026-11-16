@@ -537,6 +537,7 @@ struct LandingMenuBar {
 /// The cluster's motion, replayed the way `MenuBarController.setClusterFocus`
 /// animates it: each change of focus glides positions, pill, lead and the
 /// icon's fade from wherever they are over `focusDuration`, eased out.
+@MainActor
 struct LandingCluster {
     struct State {
         var focus: Int?
