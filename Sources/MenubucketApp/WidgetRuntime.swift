@@ -2066,16 +2066,27 @@ final class WidgetRuntime: ObservableObject {
         manifest.refresh?.triggers?.contains(.url) ?? false
     }
 
+    /// Ends a native refresh started under `token`: its outcome is applied
+    /// only when it still counts.
     private func finishRefresh(
         widget: LoadedWidget,
         outcome: Result<RefreshSuccess, Error>,
         startedAt: Date,
         token: NativeRefreshGate.Token
     ) {
-        let id = widget.id
+        guard resolveNativeRefresh(widget.id, token: token) else { return }
+        applyRefreshOutcome(widget: widget, outcome: outcome, startedAt: startedAt)
+    }
+
+    /// Releases what the refresh started under `token` held; true when its
+    /// result still counts. One that was stopped or replaced meanwhile is
+    /// dropped; one whose widget was reloaded with a new configuration is
+    /// dropped and run again.
+    private func resolveNativeRefresh(_ id: String, token: NativeRefreshGate.Token) -> Bool {
         if nativeRefreshTasks[id]?.token == token { nativeRefreshTasks.removeValue(forKey: id) }
         switch nativeRefreshes.finish(id, token: token) {
-        case .superseded: return
+        case .superseded:
+            return false
         case .staleConfiguration:
             endInFlight(id)
             refreshLedger.forgetStart(widgetID: id)
@@ -2083,10 +2094,21 @@ final class WidgetRuntime: ObservableObject {
                 updateSnapshot(id) { $0.isLoading = false }
                 refresh(current, manual: false)
             }
-            return
-        case .current: break
+            return false
+        case .current:
+            endInFlight(id)
+            return true
         }
-        endInFlight(id)
+    }
+
+    /// What a finished refresh that still counts does to its widget: the
+    /// snapshot, the scheduler, the ledger and the cache.
+    private func applyRefreshOutcome(
+        widget: LoadedWidget,
+        outcome: Result<RefreshSuccess, Error>,
+        startedAt: Date
+    ) {
+        let id = widget.id
         // Stopped by a permission change or Disable, not failed: nothing
         // to publish and no backoff.
         if case let .failure(error) = outcome, error is CancellationError {
