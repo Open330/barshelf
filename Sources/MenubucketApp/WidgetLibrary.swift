@@ -79,6 +79,24 @@ final class WidgetLibrary {
         return target != root && target.hasPrefix(root + "/")
     }
 
+    /// Every folder directly under `root` that discovery would load as
+    /// `instanceID`: discovery loads the first and hides the rest (a
+    /// hand-copied package folder, say). A `<package id>--<label>` copy is
+    /// its own instance and never matches another id; a folder whose
+    /// `widget.json` cannot be read matches nothing.
+    nonisolated static func folders(holding instanceID: String, in root: URL) -> [URL] {
+        let children = (try? FileManager.default.contentsOfDirectory(
+            at: root, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+        )) ?? []
+        return children.filter { child in
+            guard let data = try? Data(contentsOf: child.appendingPathComponent(WidgetDiscovery.manifestFileName)),
+                  let manifest = try? Manifest.decode(from: data) else { return false }
+            return WidgetRuntime.instanceID(
+                manifestID: manifest.id, directoryName: child.lastPathComponent
+            ) == instanceID
+        }
+    }
+
     /// The part of an instance id after `<package id>--`: lowercased, runs of
     /// anything but letters, digits, `.`, `_` and `-` collapsed to one `-`,
     /// and no separator at either end. Empty when nothing usable is left.
@@ -110,7 +128,8 @@ final class WidgetLibrary {
     // MARK: - Remove
 
     /// Stops the widget, waits for its running work, then deletes its storage,
-    /// secrets and directory and scrubs every per-widget trace (cached
+    /// secrets and directory — with any other folder under the root holding
+    /// the same widget, so it cannot reappear — and scrubs every per-widget trace (cached
     /// snapshot, permissions, prefs), then rescans — which drops the
     /// in-memory snapshot, card model, refresh stats, and scheduler timers.
     /// Throws (deleting nothing) for unknown ids or directories outside the
@@ -152,6 +171,12 @@ final class WidgetLibrary {
             // Purging before the files go means a failure leaves the widget
             // installed, not reported as removed with its data still on disk.
             try purgeInstanceData(id, host: host)
+            // A folder hidden behind the loaded one would take this id over
+            // on the rescan, with the settings and decision just erased.
+            for hidden in Self.folders(holding: id, in: root)
+            where hidden.lastPathComponent != widget.directory.lastPathComponent {
+                try FileManager.default.removeItem(at: hidden)
+            }
             try FileManager.default.removeItem(at: widget.directory)
         } catch {
             removingWidgetIDs.remove(id)
