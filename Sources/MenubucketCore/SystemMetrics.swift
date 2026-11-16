@@ -32,6 +32,12 @@ public enum SystemMetrics {
         /// What a source that names no `metrics` may sample: everything but
         /// the opt-in groups.
         public static let implicit: Set<Metric> = Set(allCases).subtracting([.processes])
+
+        /// The names of `metrics` in declaration order, comma-separated: the
+        /// one list error messages quote, so none goes stale.
+        public static func names(of metrics: Set<Metric>) -> String {
+            allCases.filter(metrics.contains).map(\.rawValue).joined(separator: ", ")
+        }
     }
 
     /// Parses the `metrics` source parameter. `nil` means the source named no

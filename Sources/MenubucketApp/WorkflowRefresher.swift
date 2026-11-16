@@ -346,7 +346,7 @@ final class WorkflowRefresher {
         if let requested, requested.isEmpty {
             throw WidgetRuntime.RuntimeError.invalidWorkflow(
                 "system source \"metrics\" lists no known group"
-                    + " (cpu, memory, disk, network, sensors, processes)"
+                    + " (\(SystemMetrics.Metric.names(of: Set(SystemMetrics.Metric.allCases))))"
             )
         }
         let (authorized, denied) = SystemMetrics.authorized(
@@ -365,9 +365,17 @@ final class WorkflowRefresher {
             )
         }
         guard !allowed.isEmpty else {
+            // Reached only by a source that names no `metrics`, which reads
+            // the implicit groups: `processes` is not one of them, so a
+            // widget that declared just that is told what is missing.
+            if SystemMetrics.granted(widget.manifest.permissions?.system).contains(.processes) {
+                throw WidgetRuntime.RuntimeError.invalidWorkflow(
+                    "system source reads \"processes\" only when \"metrics\" names it"
+                )
+            }
             throw WidgetRuntime.RuntimeError.invalidWorkflow(
                 "system source needs permissions.system to declare at least one"
-                    + " group (cpu, memory, disk, network, sensors)"
+                    + " group (\(SystemMetrics.Metric.names(of: SystemMetrics.Metric.implicit)))"
             )
         }
         let detail = params.objectValue?["detail"]?.boolValue == true

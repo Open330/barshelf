@@ -298,6 +298,38 @@ final class WorkflowRefresherTests: XCTestCase {
         XCTAssertEqual(auditEvents(), ["system.blocked"])
     }
 
+    /// The two messages that list groups say which ones would have worked:
+    /// every group for an explicit `metrics`, the implicit ones otherwise.
+    func testASystemSourceThatCanReadNothingSaysWhichGroupsItCouldHave() async throws {
+        let unknown = try await refresh(try widget(permissions: #"{"system":["cpu"]}"#), """
+        {"schemaVersion":1,"sources":{"s":{"use":"system","with":{"metrics":["gpu"]}}},
+         "view":{"type":"text","text":"x"}}
+        """)
+        XCTAssertEqual(
+            failureMessage(unknown),
+            "system source \"metrics\" lists no known group (cpu, memory, disk, network, sensors, processes)"
+        )
+        let undeclared = try await refresh(try widget(), """
+        {"schemaVersion":1,"sources":{"s":{"use":"system"}},"view":{"type":"text","text":"x"}}
+        """)
+        XCTAssertEqual(
+            failureMessage(undeclared),
+            "system source needs permissions.system to declare at least one group (cpu, memory, disk, network, sensors)"
+        )
+    }
+
+    /// `processes` is declared but never sampled implicitly; "declare at
+    /// least one group" was the wrong thing to say to a widget that did.
+    func testASystemSourceGrantedOnlyProcessesIsToldToNameIt() async throws {
+        let outcome = try await refresh(try widget(permissions: #"{"system":["processes"]}"#), """
+        {"schemaVersion":1,"sources":{"s":{"use":"system"}},"view":{"type":"text","text":"x"}}
+        """)
+        XCTAssertEqual(
+            failureMessage(outcome),
+            "system source reads \"processes\" only when \"metrics\" names it"
+        )
+    }
+
     func testAVaultSourceWithoutTheVaultPermissionFails() async throws {
         let outcome = try await refresh(try widget(), """
         {"schemaVersion":1,"sources":{"v":{"use":"vault.items"}},"view":{"type":"text","text":"x"}}
