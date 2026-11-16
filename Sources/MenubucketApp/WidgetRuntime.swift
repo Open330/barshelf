@@ -200,8 +200,10 @@ final class WidgetRuntime: ObservableObject {
     /// permission-triggering work is lazy outside this set.
     private(set) var visibleWidgetIDs: Set<String> = []
     private var hotReloadWatchers: [DirectoryWatcher] = []
-    /// `fs.directory` sources with `watch: true`, keyed by widget id.
-    private var workflowWatchers: [String: DirectoryWatcher] = [:]
+    /// The `fs.directory` sources with `watch: true`; owns their watches,
+    /// and asks whether a change refreshes through
+    /// `WorkflowWatchRegistryHost`.
+    private let workflowWatches = WorkflowWatchRegistry()
     /// The widget whose card is open in its own menu bar popover, if any.
     /// Set by the status item controller; a widget shown this way is visible
     /// even though the shelf is closed.
@@ -332,6 +334,8 @@ final class WidgetRuntime: ObservableObject {
         cardOverlays.host = self
         // Before the first workflow refresh: without a host it is cancelled.
         workflows.host = self
+        // Before a workflow can list a watched directory.
+        workflowWatches.host = self
         // Before the first exec refresh, for the same reason.
         execRefresher.host = self
         // Before a card can run an action: without a host none runs.
@@ -2062,29 +2066,6 @@ final class WidgetRuntime: ObservableObject {
         manifest.refresh?.triggers?.contains(.url) ?? false
     }
 
-    private func registerWorkflowWatch(
-        widgetID: String,
-        directory: FileSource.AuthorizedDirectory
-    ) {
-        // Re-arm from every successful listing so the watcher retains the
-        // exact descriptor-authorized object, not a subsequently reopened path.
-        workflowWatchers[widgetID]?.cancel()
-        do {
-            workflowWatchers[widgetID] = try DirectoryWatcher(
-                directory: directory,
-                debounce: Scheduler.watchDebounceSec
-            ) { [weak self] in
-                guard let self,
-                      self.scheduler.popupIsOpen,
-                      self.visibleWidgetIDs.contains(widgetID)
-                else { return }
-                self.refresh(widgetID: widgetID, manual: false)
-            }
-        } catch {
-            NSLog("barshelf: workflow watch unavailable for \(directory.path): \(error)")
-        }
-    }
-
     private func finishRefresh(
         widget: LoadedWidget,
         outcome: Result<RefreshSuccess, Error>,
@@ -2530,11 +2511,24 @@ extension WidgetRuntime: WorkflowRefresherHost {
     }
 
     func watchWorkflowDirectory(_ directory: FileSource.AuthorizedDirectory, widgetID: String) {
-        registerWorkflowWatch(widgetID: widgetID, directory: directory)
+        workflowWatches.watch(directory, widgetID: widgetID)
     }
 
     func deliverWorkflowAlert(_ alert: WorkflowEngine.AlertSample, for widget: LoadedWidget) {
         deliverAlert(alert, for: widget)
+    }
+}
+
+// MARK: - Workflow directory watches
+
+/// What `WorkflowWatchRegistry` asks when a watched directory changes.
+extension WidgetRuntime: WorkflowWatchRegistryHost {
+    func workflowWatchMayRefresh(widgetID: String) -> Bool {
+        scheduler.popupIsOpen && visibleWidgetIDs.contains(widgetID)
+    }
+
+    func refreshForWorkflowWatch(widgetID: String) {
+        refresh(widgetID: widgetID, manual: false)
     }
 }
 
