@@ -67,24 +67,6 @@ final class WidgetCardModel: ObservableObject {
     }
 }
 
-/// Per-widget refresh statistics for the Monitoring pane.
-///
-/// Its own small store for the same reason as `WidgetCardModel` and
-/// `MenuBarStatusStore`: stats change on *every* refresh, and while they were
-/// a `@Published` property of `WidgetRuntime` each change fired the runtime's
-/// `objectWillChange`. `RootView` observes the runtime and lives for the whole
-/// session inside the popover's hosting controller, so a closed shelf
-/// recomputed its pages and re-evaluated its body one and a half times a
-/// second — for numbers only the Monitoring pane shows.
-final class RefreshStatsModel: ObservableObject {
-    @Published fileprivate(set) var stats: [String: WidgetRefreshStats] = [:]
-
-    fileprivate func apply(_ stats: [String: WidgetRefreshStats]) {
-        guard self.stats != stats else { return }
-        self.stats = stats
-    }
-}
-
 /// Loads manifests, delegates trigger scheduling to `Scheduler`, and publishes
 /// per-widget snapshots.
 ///
@@ -166,7 +148,7 @@ final class WidgetRuntime: ObservableObject {
     let prefs = WidgetPrefs()
     let appPrefs: AppPrefs
     /// Observed by the Monitoring pane only — see `RefreshStatsModel`.
-    let refreshStats = RefreshStatsModel()
+    var refreshStats: RefreshStatsModel { refreshLedger.model }
     /// Local-only counts of what gets opened and pressed (Settings ▸ Privacy).
     let usageStore: UsageStore
     /// Widgets already counted as seen since the shelf last opened, so a page
@@ -189,7 +171,9 @@ final class WidgetRuntime: ObservableObject {
 
     nonisolated private let execService = ExecService()
     let scheduler = Scheduler()
-    private let refreshStatsStore: RefreshStatsStore
+    /// When each refresh started and how it ended; owns the stats store and
+    /// the model behind `refreshStats`.
+    private let refreshLedger: RefreshLedger
     private var cancellables: Set<AnyCancellable> = []
     private var inFlight: Set<String> = []
     /// Manual refreshes that arrived while that widget was already refreshing.
@@ -215,7 +199,6 @@ final class WidgetRuntime: ObservableObject {
     /// Selected-page widgets plus pinned widgets. Automatic refresh and
     /// permission-triggering work is lazy outside this set.
     private(set) var visibleWidgetIDs: Set<String> = []
-    private var refreshStartedAt: [String: Date] = [:]
     private var hotReloadWatchers: [DirectoryWatcher] = []
     /// `fs.directory` sources with `watch: true`, keyed by widget id.
     private var workflowWatchers: [String: DirectoryWatcher] = [:]
@@ -342,11 +325,7 @@ final class WidgetRuntime: ObservableObject {
         self.library = WidgetLibrary(
             secretStore: secretStore, storage: storage, prefs: prefs, permissionStore: self.permissionStore
         )
-        self.refreshStatsStore = refreshStatsStore ?? RefreshStatsStore(
-            fileURL: Self.applicationSupportDirectory
-                .appendingPathComponent(RefreshStatsStore.defaultFileName)
-        )
-        self.refreshStats.apply(self.refreshStatsStore.all)
+        self.refreshLedger = RefreshLedger(store: refreshStatsStore)
         // Before anything below can sync the timer policy or refresh.
         scriptBridge.host = self
         // Before `loadWidgets` settles the first permission cards.
@@ -383,7 +362,7 @@ final class WidgetRuntime: ObservableObject {
             .publisher(for: NSApplication.willTerminateNotification)
             .sink { [weak self] _ in
                 self?.snapshotCache.flush()
-                self?.refreshStatsStore.flush()
+                self?.refreshLedger.flush()
                 self?.promoter.saveCharts()
             }
             .store(in: &cancellables)
@@ -736,8 +715,7 @@ final class WidgetRuntime: ObservableObject {
         }
         // Remove per-widget state of widgets that disappeared (hot reload).
         removeWidgetState(notIn: seenIDs)
-        refreshStatsStore.retain(widgetIDs: seenIDs)
-        publishRefreshStats()
+        refreshLedger.retain(widgetIDs: seenIDs)
 
         for widget in loaded {
             // A widget that is sensitive now — including one that just became
@@ -2079,7 +2057,7 @@ final class WidgetRuntime: ObservableObject {
         case .superseded: return
         case .staleConfiguration:
             endInFlight(id)
-            refreshStartedAt.removeValue(forKey: id)
+            refreshLedger.forgetStart(widgetID: id)
             if let current = widgets.first(where: { $0.id == id }), !prefs.isDisabled(id) {
                 updateSnapshot(id) { $0.isLoading = false }
                 refresh(current, manual: false)
@@ -2091,7 +2069,7 @@ final class WidgetRuntime: ObservableObject {
         // Stopped by a permission change or Disable, not failed: nothing
         // to publish and no backoff.
         if case let .failure(error) = outcome, error is CancellationError {
-            refreshStartedAt.removeValue(forKey: id)
+            refreshLedger.forgetStart(widgetID: id)
             updateSnapshot(id) { $0.isLoading = false }
             return
         }
@@ -2145,11 +2123,12 @@ final class WidgetRuntime: ObservableObject {
         }
     }
 
+    // The books are `RefreshLedger`'s; these names stay for the places
+    // that already call them.
+
     @discardableResult
     private func markRefreshStarted(widgetID: String) -> Date {
-        let date = Date()
-        refreshStartedAt[widgetID] = date
-        return date
+        refreshLedger.markStarted(widgetID: widgetID)
     }
 
     private func recordRefreshSuccess(
@@ -2157,14 +2136,7 @@ final class WidgetRuntime: ObservableObject {
         startedAt: Date? = nil,
         completedAt: Date = Date()
     ) {
-        let start = startedAt ?? refreshStartedAt[widgetID]
-        refreshStartedAt.removeValue(forKey: widgetID)
-        refreshStatsStore.recordSuccess(
-            widgetID: widgetID,
-            durationMs: start.map { completedAt.timeIntervalSince($0) * 1000 },
-            at: completedAt
-        )
-        publishRefreshStats()
+        refreshLedger.recordSuccess(widgetID: widgetID, startedAt: startedAt, completedAt: completedAt)
     }
 
     private func recordRefreshFailure(
@@ -2173,19 +2145,9 @@ final class WidgetRuntime: ObservableObject {
         startedAt: Date? = nil,
         completedAt: Date = Date()
     ) {
-        let start = startedAt ?? refreshStartedAt[widgetID]
-        refreshStartedAt.removeValue(forKey: widgetID)
-        refreshStatsStore.recordFailure(
-            widgetID: widgetID,
-            error: error,
-            durationMs: start.map { completedAt.timeIntervalSince($0) * 1000 },
-            at: completedAt
+        refreshLedger.recordFailure(
+            widgetID: widgetID, error: error, startedAt: startedAt, completedAt: completedAt
         )
-        publishRefreshStats()
-    }
-
-    private func publishRefreshStats() {
-        refreshStats.apply(refreshStatsStore.all)
     }
 
     /// Human-readable error; appends Keychain setup guidance when a
@@ -2391,7 +2353,7 @@ final class WidgetRuntime: ObservableObject {
         cardModels = cardModels.filter { liveIDs.contains($0.key) }
         updateAttention()
         inFlight.formIntersection(liveIDs)
-        refreshStartedAt = refreshStartedAt.filter { liveIDs.contains($0.key) }
+        refreshLedger.forgetStarts(notIn: liveIDs)
     }
 
     // MARK: - Render snapshot cache
