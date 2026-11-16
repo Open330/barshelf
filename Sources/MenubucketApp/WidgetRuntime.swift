@@ -657,6 +657,26 @@ final class WidgetRuntime: ObservableObject {
         return directories
     }
 
+    /// When each widget's entry file was last written, as of the last
+    /// rescan: how a rescan tells that the code behind an unchanged manifest
+    /// changed.
+    private var entryFileStamps: [String: Date] = [:]
+
+    /// The modification date of the file a workflow or script widget runs;
+    /// nil for a kind with no entry file, or when it cannot be read.
+    nonisolated static func entryFileStamp(for widget: LoadedWidget) -> Date? {
+        let defaultName: String
+        switch widget.manifest.entry.kind {
+        case "workflow": defaultName = "workflow.json"
+        case "script": defaultName = "index.ts"
+        default: return nil
+        }
+        guard let url = try? WidgetEntryResolver.resolve(
+            directory: widget.directory, main: widget.manifest.entry.main, defaultName: defaultName
+        ) else { return nil }
+        return (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+    }
+
     func loadWidgets() {
         let loaded = Self.discoverWidgets(in: Self.widgetSearchDirectories)
         let seenIDs = Set(loaded.map(\.id))
@@ -672,8 +692,19 @@ final class WidgetRuntime: ObservableObject {
         runActions.cancel(widgetsNotIn: seenIDs, orIn: changedIDs)
         nativeRefreshes.reload(keeping: seenIDs, changed: changedIDs)
         // A changed manifest is not the one that failed: its next automatic
-        // refresh does not wait out the old one's backoff.
-        scheduler.resetBackoff(widgetIDs: changedIDs)
+        // refresh does not wait out the old one's backoff. Neither is a
+        // changed entry file (workflow.json, index.ts), which the manifest
+        // comparison cannot see. Only that file: a widget that writes data
+        // into its own folder must not clear its backoff by doing so.
+        var entryChangedIDs: Set<String> = []
+        var stamps: [String: Date] = [:]
+        for widget in loaded {
+            guard let stamp = Self.entryFileStamp(for: widget) else { continue }
+            stamps[widget.id] = stamp
+            if let before = entryFileStamps[widget.id], before != stamp { entryChangedIDs.insert(widget.id) }
+        }
+        entryFileStamps = stamps
+        scheduler.resetBackoff(widgetIDs: changedIDs.union(entryChangedIDs))
         // Changed code or a removed widget: no alert raised under the old one
         // may still go out, and monitoring is re-learned on the next refresh.
         // Every workflow widget counts as changed here: its workflow.json can

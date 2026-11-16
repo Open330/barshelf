@@ -100,6 +100,43 @@ final class RefusedRefreshBackoffTests: XCTestCase {
                       "a changed manifest is not held to the old one's backoff", file: file, line: line)
     }
 
+    /// A workflow widget's behaviour is its `workflow.json`; fixing only
+    /// that file used to leave automatic refresh held back for up to five
+    /// minutes, because the rescan compared manifests alone.
+    func testAFixedEntryFileIsNotHeldToTheOldOnesBackoff() throws {
+        let root = try disposableRoot()
+        let id = "dev.test.entry-backoff-\(UUID().uuidString.prefix(8).lowercased())"
+        let directory = root.appendingPathComponent("widgets/\(id)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let manifest = Manifest(schemaVersion: 1, id: id, name: "Entry", entry: .init(kind: "workflow"))
+        try JSONEncoder().encode(manifest).write(to: directory.appendingPathComponent("widget.json"))
+        let entry = directory.appendingPathComponent("workflow.json")
+        try Data("{".utf8).write(to: entry)
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date(timeIntervalSince1970: 1_700_000_000)], ofItemAtPath: entry.path)
+
+        let prefsFile = root.appendingPathComponent("prefs-\(id).json")
+        defer { try? FileManager.default.removeItem(at: prefsFile) }
+        let runtime = WidgetRuntime(appPrefs: AppPrefs(fileURL: prefsFile))
+        runtime.loadWidgets()
+        runtime.scheduler.noteRefreshFailed(widgetID: id)
+        XCTAssertFalse(runtime.scheduler.allowsAutomaticRefresh(widgetID: id))
+
+        // Another file in the folder changing is not the code changing.
+        try Data("x".utf8).write(to: directory.appendingPathComponent("data.json"))
+        runtime.loadWidgets()
+        XCTAssertFalse(runtime.scheduler.allowsAutomaticRefresh(widgetID: id),
+                       "a widget writing into its own folder keeps its backoff")
+
+        try Data("{}".utf8).write(to: entry)
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date(timeIntervalSince1970: 1_700_000_100)], ofItemAtPath: entry.path)
+        runtime.loadWidgets()
+        XCTAssertTrue(runtime.scheduler.allowsAutomaticRefresh(widgetID: id),
+                      "a rewritten workflow.json is not held to the old one's backoff")
+    }
+
     private func disposableRoot() throws -> URL {
         guard let home = ProcessInfo.processInfo.environment["CFFIXED_USER_HOME"],
               home.contains("barshelf-quality-home-"),
