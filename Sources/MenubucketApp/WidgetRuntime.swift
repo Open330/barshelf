@@ -53,20 +53,6 @@ struct WidgetPage: Identifiable {
     var id: String { group }
 }
 
-/// Per-widget observable state: only the card whose snapshot/overlay changed
-/// re-renders (R05 perf) — `WidgetRuntime.objectWillChange` no longer fires on
-/// snapshot updates, so one widget refreshing does not invalidate the whole
-/// popup view tree.
-final class WidgetCardModel: ObservableObject {
-    @Published fileprivate(set) var snapshot: WidgetSnapshot
-    @Published fileprivate(set) var overlay: CardOverlay?
-
-    fileprivate init(snapshot: WidgetSnapshot, overlay: CardOverlay?) {
-        self.snapshot = snapshot
-        self.overlay = overlay
-    }
-}
-
 /// Loads manifests, delegates trigger scheduling to `Scheduler`, and publishes
 /// per-widget snapshots.
 ///
@@ -133,17 +119,19 @@ final class WidgetRuntime: ObservableObject {
     var desktopWidgetsEnabled: Bool { desktopMirror.isEnabled }
     /// The on-disk render cache; owns its throttle state.
     private let snapshotCache = SnapshotDiskCache()
+    /// The renders and the card models the popup observes; a change comes
+    /// back through `SnapshotStoreHost`.
+    private let snapshotStore = SnapshotStore()
     /// Source of truth for renders. Deliberately *not* `@Published`: updates
     /// are routed to the affected widget's `WidgetCardModel` only (publish
     /// suppressed when the snapshot is unchanged, `Equatable`).
-    private(set) var snapshots: [String: WidgetSnapshot] = [:]
+    var snapshots: [String: WidgetSnapshot] { snapshotStore.snapshots }
     /// Host-generated cards rendered *instead of* the snapshot tree:
     /// permission approval prompts and crash-loop "Restart Widget" cards.
     /// Same publish routing as `snapshots`; a change comes back through
     /// `CardOverlayStoreHost`.
     private let cardOverlays = CardOverlayStore()
     var overlayCards: [String: CardOverlay] { cardOverlays.overlays }
-    private var cardModels: [String: WidgetCardModel] = [:]
     /// Pinned widgets + per-widget settings overrides (user preferences).
     let prefs = WidgetPrefs()
     let appPrefs: AppPrefs
@@ -175,16 +163,11 @@ final class WidgetRuntime: ObservableObject {
     /// the model behind `refreshStats`.
     private let refreshLedger: RefreshLedger
     private var cancellables: Set<AnyCancellable> = []
-    private var inFlight: Set<String> = []
-    /// Manual refreshes that arrived while that widget was already refreshing.
-    /// They used to be dropped, so a change that lands mid-refresh (a vault
-    /// unlocking, a button's action) showed only on the next timer or open.
-    private var refreshAgain: Set<String> = []
-    private var nativeRefreshes = NativeRefreshGate()
-    /// The task behind each in-flight exec/workflow refresh. Revoke, Deny,
-    /// Disable and reload cancel it, so the process it is waiting on is
-    /// cancelled too instead of only having its result ignored.
-    private var nativeRefreshTasks: [String: (token: NativeRefreshGate.Token, task: Task<Void, Never>)] = [:]
+    /// Which refresh is running for each widget and whether its result
+    /// still counts; owns the in-flight set, the waiting manual requests,
+    /// the native refreshes' gate and their tasks, and asks about the
+    /// widget through `NativeRefreshCoordinatorHost`.
+    private let refreshCoordinator = NativeRefreshCoordinator()
     /// Runs a card's `run` action; owns the tasks of the actions still
     /// running, and asks about the widget through `RunActionExecutorHost`.
     private let runActions: RunActionExecutor
@@ -200,8 +183,10 @@ final class WidgetRuntime: ObservableObject {
     /// permission-triggering work is lazy outside this set.
     private(set) var visibleWidgetIDs: Set<String> = []
     private var hotReloadWatchers: [DirectoryWatcher] = []
-    /// `fs.directory` sources with `watch: true`, keyed by widget id.
-    private var workflowWatchers: [String: DirectoryWatcher] = [:]
+    /// The `fs.directory` sources with `watch: true`; owns their watches,
+    /// and asks whether a change refreshes through
+    /// `WorkflowWatchRegistryHost`.
+    private let workflowWatches = WorkflowWatchRegistry()
     /// The widget whose card is open in its own menu bar popover, if any.
     /// Set by the status item controller; a widget shown this way is visible
     /// even though the shelf is closed.
@@ -328,10 +313,16 @@ final class WidgetRuntime: ObservableObject {
         self.refreshLedger = RefreshLedger(store: refreshStatsStore)
         // Before anything below can sync the timer policy or refresh.
         scriptBridge.host = self
+        // Before the first snapshot is written, or it would go unreported.
+        snapshotStore.host = self
         // Before `loadWidgets` settles the first permission cards.
         cardOverlays.host = self
+        // Before the first refresh: without a host none may continue.
+        refreshCoordinator.host = self
         // Before the first workflow refresh: without a host it is cancelled.
         workflows.host = self
+        // Before a workflow can list a watched directory.
+        workflowWatches.host = self
         // Before the first exec refresh, for the same reason.
         execRefresher.host = self
         // Before a card can run an action: without a host none runs.
@@ -685,12 +676,8 @@ final class WidgetRuntime: ObservableObject {
             guard let before = previous[widget.id] else { return true }
             return before.manifest != widget.manifest || before.directory != widget.directory
         }.map(\.id))
-        for (id, entry) in nativeRefreshTasks where !seenIDs.contains(id) || changedIDs.contains(id) {
-            entry.task.cancel()
-            nativeRefreshTasks.removeValue(forKey: id)
-        }
+        refreshCoordinator.reload(keeping: seenIDs, changed: changedIDs)
         runActions.cancel(widgetsNotIn: seenIDs, orIn: changedIDs)
-        nativeRefreshes.reload(keeping: seenIDs, changed: changedIDs)
         // A changed manifest is not the one that failed: its next automatic
         // refresh does not wait out the old one's backoff. Neither is a
         // changed entry file (workflow.json, index.ts), which the manifest
@@ -705,6 +692,9 @@ final class WidgetRuntime: ObservableObject {
         }
         entryFileStamps = stamps
         scheduler.resetBackoff(widgetIDs: changedIDs.union(entryChangedIDs))
+        // Changed code may no longer watch that folder; the next listing
+        // that still asks for it watches again.
+        workflowWatches.cancel(widgetIDs: changedIDs.union(entryChangedIDs))
         // Changed code or a removed widget: no alert raised under the old one
         // may still go out, and monitoring is re-learned on the next refresh.
         // Every workflow widget counts as changed here: its workflow.json can
@@ -737,7 +727,7 @@ final class WidgetRuntime: ObservableObject {
             .union(loaded.filter { $0.manifest.entry.kind == "script" }.map(\.id)) {
             scriptBridge.callbackGate.invalidate(widgetID: id)
         }
-        inFlight.subtract(cancelledScriptIDs)
+        refreshCoordinator.releaseInFlight(cancelledScriptIDs, live: seenIDs)
         for id in cancelledScriptIDs where seenIDs.contains(id) {
             updateSnapshot(id) { $0.isLoading = false }
         }
@@ -1000,13 +990,13 @@ final class WidgetRuntime: ObservableObject {
         // A stopped widget does not monitor; its next refresh re-learns it.
         if alertMonitoringIDs.remove(id) != nil { scheduler.setMonitoringWidgetIDs(alertMonitoringIDs) }
         runActions.cancel(widgetID: id)
-        nativeRefreshTasks.removeValue(forKey: id)?.task.cancel()
-        nativeRefreshes.cancel(id)
+        // A stopped widget watches nothing; its next refresh watches again.
+        workflowWatches.cancel(widgetIDs: [id])
+        refreshCoordinator.cancel(id)
         updateSnapshot(id) { $0.isLoading = false }
         scriptBridge.callbackGate.invalidate(widgetID: id)
         _ = scriptBridge.cancelRefresh(widgetID: id)
-        inFlight.remove(id)
-        refreshAgain.remove(id) // stopped: no follow-up run
+        refreshCoordinator.endWithoutRerun(id)
         guard let supervisor = scriptBridge.existingSupervisor else { return }
         let stopToken = scriptBridge.callbackGate.token(for: id)
         let stop = Task { await supervisor.stop(widgetId: id) }
@@ -1485,11 +1475,10 @@ final class WidgetRuntime: ObservableObject {
         }
     }
 
-    /// Ends a refresh; runs the one manual request that waited for it, if any.
+    /// Ends a refresh; runs the one manual request that waited for it, if
+    /// any (`NativeRefreshCoordinator.endInFlight`).
     private func endInFlight(_ id: String) {
-        inFlight.remove(id)
-        guard refreshAgain.remove(id) != nil else { return }
-        DispatchQueue.main.async { [weak self] in self?.refresh(widgetID: id, manual: true) }
+        refreshCoordinator.endInFlight(id)
     }
 
     func refresh(widgetID: String, manual: Bool = true) {
@@ -1587,11 +1576,8 @@ final class WidgetRuntime: ObservableObject {
         guard scriptDisableStopTokens[id] == nil else { return }
         guard !library.isRemoving(id) else { return }
         if manual { RemoteImageService.shared.retryFailedImages() }
-        guard !inFlight.contains(id) else {
-            // In-flight coalescing; a manual request runs once more afterwards.
-            if manual { refreshAgain.insert(id) }
-            return
-        }
+        // In-flight coalescing; a manual request runs once more afterwards.
+        guard !refreshCoordinator.joinsRunningRefresh(id, manual: manual) else { return }
         if !manual, !scheduler.allowsAutomaticRefresh(widgetID: id) {
             return // exponential backoff window — automatic triggers suppressed
         }
@@ -1638,8 +1624,7 @@ final class WidgetRuntime: ObservableObject {
         }
 
         let startedAt = markRefreshStarted(widgetID: id)
-        let token = nativeRefreshes.begin(id)
-        inFlight.insert(id)
+        let token = refreshCoordinator.begin(id)
         updateSnapshot(id) { $0.isLoading = true }
 
         let task = Task { @MainActor [weak self] in
@@ -1650,24 +1635,14 @@ final class WidgetRuntime: ObservableObject {
                 startedAt: startedAt, token: token
             )
         }
-        nativeRefreshTasks[id] = (token, task)
+        refreshCoordinator.track(task, for: id, token: token)
     }
 
     /// Whether a native refresh started under `token` may launch its next
-    /// command or perform its next side effect. The refresh task starts on a
-    /// later main-actor turn and suspends between sources, so a Revoke, Deny,
-    /// Disable or reload can land before the first launch or between two.
-    ///
-    /// Refreshes run off the main actor; the gate, the preferences and the
-    /// permission store are main-actor state. Reading them from the refresh's
-    /// own thread raced with the main thread changing them (a crash in
-    /// `Dictionary` lookup under `NativeRefreshGate.isCurrent`), so the
-    /// refreshers ask for this on the main actor.
+    /// command or perform its next side effect
+    /// (`NativeRefreshCoordinator.mayContinue`).
     private func nativeRefreshMayContinue(_ widget: LoadedWidget, token: NativeRefreshGate.Token) -> Bool {
-        !Task.isCancelled
-            && nativeRefreshes.isCurrent(widget.id, token: token)
-            && !prefs.isDisabled(widget.id)
-            && permissionStore.status(for: widget.manifest) == .approved
+        refreshCoordinator.mayContinue(widget, token: token)
     }
 
     /// Shows one fired workflow alert. The authorization is re-read after
@@ -1723,7 +1698,7 @@ final class WidgetRuntime: ObservableObject {
         let id = widget.id
         let generation = UUID().uuidString
         guard scriptBridge.beginRefresh(widgetID: id, generation: generation) else { return }
-        inFlight.insert(id)
+        refreshCoordinator.markInFlight(id)
         markRefreshStarted(widgetID: id)
         updateSnapshot(id) { $0.isLoading = true }
         let callbackGate = scriptBridge.callbackGate
@@ -1868,8 +1843,7 @@ final class WidgetRuntime: ObservableObject {
         ])
 
         let startedAt = markRefreshStarted(widgetID: id)
-        let token = nativeRefreshes.begin(id)
-        inFlight.insert(id)
+        let token = refreshCoordinator.begin(id)
         updateSnapshot(id) { $0.isLoading = true }
 
         let task = Task { @MainActor [weak self] in
@@ -1879,10 +1853,10 @@ final class WidgetRuntime: ObservableObject {
                 settings: settings, widgetContext: widgetContext, token: token
             )
             // Before `finishRefresh`, whose catch-up reads this.
-            if self.nativeRefreshes.isCurrent(id, token: token), let reads = outcome.readsWidgetVisibility {
+            if self.refreshCoordinator.isCurrent(id, token: token), let reads = outcome.readsWidgetVisibility {
                 self.recordVisibilityUse(widgetID: id, reads: reads, visible: visible)
             }
-            if self.nativeRefreshes.isCurrent(id, token: token), let hasAlerts = outcome.hasAlerts {
+            if self.refreshCoordinator.isCurrent(id, token: token), let hasAlerts = outcome.hasAlerts {
                 self.noteAlertMonitoring(widget, hasAlerts: hasAlerts)
             }
             self.finishRefresh(
@@ -1890,7 +1864,7 @@ final class WidgetRuntime: ObservableObject {
                 startedAt: startedAt, token: token
             )
         }
-        nativeRefreshTasks[id] = (token, task)
+        refreshCoordinator.track(task, for: id, token: token)
     }
 
     /// Main actor only — see `refreshWidgetsAwaitingVisibility`.
@@ -2062,50 +2036,26 @@ final class WidgetRuntime: ObservableObject {
         manifest.refresh?.triggers?.contains(.url) ?? false
     }
 
-    private func registerWorkflowWatch(
-        widgetID: String,
-        directory: FileSource.AuthorizedDirectory
-    ) {
-        // Re-arm from every successful listing so the watcher retains the
-        // exact descriptor-authorized object, not a subsequently reopened path.
-        workflowWatchers[widgetID]?.cancel()
-        do {
-            workflowWatchers[widgetID] = try DirectoryWatcher(
-                directory: directory,
-                debounce: Scheduler.watchDebounceSec
-            ) { [weak self] in
-                guard let self,
-                      self.scheduler.popupIsOpen,
-                      self.visibleWidgetIDs.contains(widgetID)
-                else { return }
-                self.refresh(widgetID: widgetID, manual: false)
-            }
-        } catch {
-            NSLog("barshelf: workflow watch unavailable for \(directory.path): \(error)")
-        }
-    }
-
+    /// Ends a native refresh started under `token`: its outcome is applied
+    /// only when it still counts.
     private func finishRefresh(
         widget: LoadedWidget,
         outcome: Result<RefreshSuccess, Error>,
         startedAt: Date,
         token: NativeRefreshGate.Token
     ) {
+        guard refreshCoordinator.finish(widget.id, token: token) else { return }
+        applyRefreshOutcome(widget: widget, outcome: outcome, startedAt: startedAt)
+    }
+
+    /// What a finished refresh that still counts does to its widget: the
+    /// snapshot, the scheduler, the ledger and the cache.
+    private func applyRefreshOutcome(
+        widget: LoadedWidget,
+        outcome: Result<RefreshSuccess, Error>,
+        startedAt: Date
+    ) {
         let id = widget.id
-        if nativeRefreshTasks[id]?.token == token { nativeRefreshTasks.removeValue(forKey: id) }
-        switch nativeRefreshes.finish(id, token: token) {
-        case .superseded: return
-        case .staleConfiguration:
-            endInFlight(id)
-            refreshLedger.forgetStart(widgetID: id)
-            if let current = widgets.first(where: { $0.id == id }), !prefs.isDisabled(id) {
-                updateSnapshot(id) { $0.isLoading = false }
-                refresh(current, manual: false)
-            }
-            return
-        case .current: break
-        }
-        endInFlight(id)
         // Stopped by a permission change or Disable, not failed: nothing
         // to publish and no backoff.
         if case let .failure(error) = outcome, error is CancellationError {
@@ -2271,10 +2221,10 @@ final class WidgetRuntime: ObservableObject {
         }
     }
 
+    /// The snapshots are `SnapshotStore`'s; this name and `setSnapshot`
+    /// stay for the places that already call them.
     private func updateSnapshot(_ id: String, mutate: (inout WidgetSnapshot) -> Void) {
-        var snapshot = snapshots[id] ?? WidgetSnapshot(widgetID: id)
-        mutate(&snapshot)
-        setSnapshot(snapshot, for: id)
+        snapshotStore.update(id, mutate: mutate)
     }
 
     // MARK: - Staged preview (landing-page media)
@@ -2312,34 +2262,17 @@ final class WidgetRuntime: ObservableObject {
 
     // MARK: - Per-widget publish routing (R05 perf)
 
-    /// The card model the popup UI observes for this widget. Created lazily so
-    /// closed-popup refreshes don't allocate view models.
+    /// The card model the popup UI observes for this widget
+    /// (`SnapshotStore.cardModel`).
     func cardModel(for widgetID: String) -> WidgetCardModel {
-        if let existing = cardModels[widgetID] { return existing }
-        let model = WidgetCardModel(
-            snapshot: snapshots[widgetID] ?? WidgetSnapshot(widgetID: widgetID),
-            overlay: overlayCards[widgetID]
-        )
-        cardModels[widgetID] = model
-        return model
+        snapshotStore.cardModel(for: widgetID, overlay: overlayCards[widgetID])
     }
 
-    /// Single write path for snapshots: no-op (publish suppressed) when the
-    /// snapshot is unchanged; otherwise only the affected card model publishes.
+    /// Single write path for snapshots (`SnapshotStore.set`); what a change
+    /// sets off is in the `SnapshotStoreHost` conformance at the end of
+    /// this file.
     private func setSnapshot(_ snapshot: WidgetSnapshot, for id: String) {
-        // A staged preview shows only what was staged.
-        guard !isStagedPreview || isWritingStage else { return }
-        guard snapshots[id] != snapshot else { return }
-        let previous = snapshots[id]
-        let errorChanged = previous?.error != snapshot.error || previous?.statusProblem != snapshot.statusProblem
-        snapshots[id] = snapshot
-        cardModels[id]?.snapshot = snapshot
-        if errorChanged { updateAttention() }
-        if menuBarWidgetIDs.contains(id), previous?.updatedAt != snapshot.updatedAt,
-           let reading = ReadingHistory.reading(of: snapshot) {
-            readingHistory.record(id, reading)
-        }
-        promoter.snapshotChanged(id: id, from: previous, to: snapshot)
+        snapshotStore.set(snapshot, for: id)
     }
 
     /// Whether a snapshot change shows on the menu bar
@@ -2388,11 +2321,11 @@ final class WidgetRuntime: ObservableObject {
         // throttle interval; left alone it would re-create the cache file
         // of a widget removed by hot reload, and a reinstall would show it.
         snapshotCache.cancelPending(notIn: liveIDs)
-        snapshots = snapshots.filter { liveIDs.contains($0.key) }
+        workflowWatches.retain(widgetIDs: liveIDs)
+        snapshotStore.forget(notIn: liveIDs)
         cardOverlays.forgetCards(notIn: liveIDs)
-        cardModels = cardModels.filter { liveIDs.contains($0.key) }
         updateAttention()
-        inFlight.formIntersection(liveIDs)
+        refreshCoordinator.forgetInFlight(notIn: liveIDs)
         refreshLedger.forgetStarts(notIn: liveIDs)
     }
 
@@ -2515,8 +2448,54 @@ extension WidgetRuntime: CardOverlayStoreHost {
     var acceptsCardOverlayWrites: Bool { !isStagedPreview || isWritingStage }
 
     func cardOverlayDidChange(widgetID id: String, to overlay: CardOverlay?) {
-        cardModels[id]?.overlay = overlay
+        snapshotStore.setOverlay(overlay, for: id)
         updateAttention()
+    }
+}
+
+// MARK: - Snapshots
+
+/// What `SnapshotStore` asks and reports: the staged-preview gate in front
+/// of its write, and what a changed snapshot sets off.
+extension WidgetRuntime: SnapshotStoreHost {
+    /// A staged preview shows only what was staged.
+    var acceptsSnapshotWrites: Bool { !isStagedPreview || isWritingStage }
+
+    func snapshotDidChange(widgetID id: String, from previous: WidgetSnapshot?, to snapshot: WidgetSnapshot) {
+        let errorChanged = previous?.error != snapshot.error || previous?.statusProblem != snapshot.statusProblem
+        if errorChanged { updateAttention() }
+        if menuBarWidgetIDs.contains(id), previous?.updatedAt != snapshot.updatedAt,
+           let reading = ReadingHistory.reading(of: snapshot) {
+            readingHistory.record(id, reading)
+        }
+        promoter.snapshotChanged(id: id, from: previous, to: snapshot)
+    }
+}
+
+// MARK: - Refresh coordination
+
+/// What `NativeRefreshCoordinator` asks about a widget and sets off when a
+/// refresh ends; `isDisabled` and `permissionStatus(for:)` are the runtime's
+/// own.
+extension WidgetRuntime: NativeRefreshCoordinatorHost {
+    func loadedWidget(_ widgetID: String) -> LoadedWidget? {
+        widgets.first(where: { $0.id == widgetID })
+    }
+
+    func forgetRefreshStart(widgetID: String) {
+        refreshLedger.forgetStart(widgetID: widgetID)
+    }
+
+    func refreshStoppedLoading(widgetID: String) {
+        updateSnapshot(widgetID) { $0.isLoading = false }
+    }
+
+    func rerunRefresh(_ widget: LoadedWidget) {
+        refresh(widget, manual: false)
+    }
+
+    func refreshAgain(widgetID: String) {
+        refresh(widgetID: widgetID, manual: true)
     }
 }
 
@@ -2530,11 +2509,24 @@ extension WidgetRuntime: WorkflowRefresherHost {
     }
 
     func watchWorkflowDirectory(_ directory: FileSource.AuthorizedDirectory, widgetID: String) {
-        registerWorkflowWatch(widgetID: widgetID, directory: directory)
+        workflowWatches.watch(directory, widgetID: widgetID)
     }
 
     func deliverWorkflowAlert(_ alert: WorkflowEngine.AlertSample, for widget: LoadedWidget) {
         deliverAlert(alert, for: widget)
+    }
+}
+
+// MARK: - Workflow directory watches
+
+/// What `WorkflowWatchRegistry` asks when a watched directory changes.
+extension WidgetRuntime: WorkflowWatchRegistryHost {
+    func workflowWatchMayRefresh(widgetID: String) -> Bool {
+        scheduler.popupIsOpen && visibleWidgetIDs.contains(widgetID)
+    }
+
+    func refreshForWorkflowWatch(widgetID: String) {
+        refresh(widgetID: widgetID, manual: false)
     }
 }
 
@@ -2587,7 +2579,7 @@ extension WidgetRuntime: RunActionExecutorHost {
 /// widget; `widgets` is the runtime's own.
 extension WidgetRuntime: WidgetLibraryHost {
     func stopWidgetAndWaitForItsWork(_ id: String) async {
-        let nativeRefresh = nativeRefreshTasks[id]?.task
+        let nativeRefresh = refreshCoordinator.task(for: id)
         let actions = runActions.tasks(for: id)
         stopWidgetExecution(id)
         await nativeRefresh?.value
