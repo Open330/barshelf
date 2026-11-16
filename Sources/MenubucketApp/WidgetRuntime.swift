@@ -259,7 +259,7 @@ final class WidgetRuntime: ObservableObject {
     private static let hotReloadDebounceSec: TimeInterval = 0.4
 
     init(
-        appPrefs: AppPrefs = .shared,
+        appPrefs givenAppPrefs: AppPrefs? = nil,
         refreshStatsStore: RefreshStatsStore? = nil,
         permissionStore: PermissionStore? = nil,
         scriptSupervisor: RuntimeSupervisor? = nil,
@@ -267,6 +267,10 @@ final class WidgetRuntime: ObservableObject {
         sharedShelf: SharedShelfPublisher? = nil,
         usageStore: UsageStore? = nil
     ) {
+        // nil is the app's own: a default argument is evaluated outside the
+        // main actor, where `AppPrefs.shared` cannot be named.
+        let appPrefs: AppPrefs
+        if let givenAppPrefs { appPrefs = givenAppPrefs } else { appPrefs = AppPrefs.shared }
         self.appPrefs = appPrefs
         self.usageStore = usageStore ?? UsageStore(
             fileURL: Self.applicationSupportDirectory.appendingPathComponent("usage.json")

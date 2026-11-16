@@ -2,6 +2,7 @@ import Foundation
 import MenubucketCore
 
 /// A live watch on one directory; `cancel` ends it for good.
+@MainActor
 protocol WorkflowWatch: AnyObject {
     func cancel()
 }

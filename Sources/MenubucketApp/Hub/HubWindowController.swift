@@ -221,7 +221,7 @@ final class HubWindowController: NSObject, NSWindowDelegate {
 final class AppSettingsWindowController {
     static let shared = AppSettingsWindowController()
 
-    func show(runtime: WidgetRuntime, appPrefs: AppPrefs = .shared) {
+    func show(runtime: WidgetRuntime, appPrefs: AppPrefs? = nil) {
         _ = appPrefs
         HubWindowController.shared.show(runtime: runtime, tab: .settings)
     }
