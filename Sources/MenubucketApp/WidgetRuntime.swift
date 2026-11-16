@@ -53,20 +53,6 @@ struct WidgetPage: Identifiable {
     var id: String { group }
 }
 
-/// Per-widget observable state: only the card whose snapshot/overlay changed
-/// re-renders (R05 perf) — `WidgetRuntime.objectWillChange` no longer fires on
-/// snapshot updates, so one widget refreshing does not invalidate the whole
-/// popup view tree.
-final class WidgetCardModel: ObservableObject {
-    @Published fileprivate(set) var snapshot: WidgetSnapshot
-    @Published fileprivate(set) var overlay: CardOverlay?
-
-    fileprivate init(snapshot: WidgetSnapshot, overlay: CardOverlay?) {
-        self.snapshot = snapshot
-        self.overlay = overlay
-    }
-}
-
 /// Loads manifests, delegates trigger scheduling to `Scheduler`, and publishes
 /// per-widget snapshots.
 ///
@@ -133,17 +119,19 @@ final class WidgetRuntime: ObservableObject {
     var desktopWidgetsEnabled: Bool { desktopMirror.isEnabled }
     /// The on-disk render cache; owns its throttle state.
     private let snapshotCache = SnapshotDiskCache()
+    /// The renders and the card models the popup observes; a change comes
+    /// back through `SnapshotStoreHost`.
+    private let snapshotStore = SnapshotStore()
     /// Source of truth for renders. Deliberately *not* `@Published`: updates
     /// are routed to the affected widget's `WidgetCardModel` only (publish
     /// suppressed when the snapshot is unchanged, `Equatable`).
-    private(set) var snapshots: [String: WidgetSnapshot] = [:]
+    var snapshots: [String: WidgetSnapshot] { snapshotStore.snapshots }
     /// Host-generated cards rendered *instead of* the snapshot tree:
     /// permission approval prompts and crash-loop "Restart Widget" cards.
     /// Same publish routing as `snapshots`; a change comes back through
     /// `CardOverlayStoreHost`.
     private let cardOverlays = CardOverlayStore()
     var overlayCards: [String: CardOverlay] { cardOverlays.overlays }
-    private var cardModels: [String: WidgetCardModel] = [:]
     /// Pinned widgets + per-widget settings overrides (user preferences).
     let prefs = WidgetPrefs()
     let appPrefs: AppPrefs
@@ -325,6 +313,8 @@ final class WidgetRuntime: ObservableObject {
         self.refreshLedger = RefreshLedger(store: refreshStatsStore)
         // Before anything below can sync the timer policy or refresh.
         scriptBridge.host = self
+        // Before the first snapshot is written, or it would go unreported.
+        snapshotStore.host = self
         // Before `loadWidgets` settles the first permission cards.
         cardOverlays.host = self
         // Before the first refresh: without a host none may continue.
@@ -2226,10 +2216,10 @@ final class WidgetRuntime: ObservableObject {
         }
     }
 
+    /// The snapshots are `SnapshotStore`'s; this name and `setSnapshot`
+    /// stay for the places that already call them.
     private func updateSnapshot(_ id: String, mutate: (inout WidgetSnapshot) -> Void) {
-        var snapshot = snapshots[id] ?? WidgetSnapshot(widgetID: id)
-        mutate(&snapshot)
-        setSnapshot(snapshot, for: id)
+        snapshotStore.update(id, mutate: mutate)
     }
 
     // MARK: - Staged preview (landing-page media)
@@ -2267,34 +2257,17 @@ final class WidgetRuntime: ObservableObject {
 
     // MARK: - Per-widget publish routing (R05 perf)
 
-    /// The card model the popup UI observes for this widget. Created lazily so
-    /// closed-popup refreshes don't allocate view models.
+    /// The card model the popup UI observes for this widget
+    /// (`SnapshotStore.cardModel`).
     func cardModel(for widgetID: String) -> WidgetCardModel {
-        if let existing = cardModels[widgetID] { return existing }
-        let model = WidgetCardModel(
-            snapshot: snapshots[widgetID] ?? WidgetSnapshot(widgetID: widgetID),
-            overlay: overlayCards[widgetID]
-        )
-        cardModels[widgetID] = model
-        return model
+        snapshotStore.cardModel(for: widgetID, overlay: overlayCards[widgetID])
     }
 
-    /// Single write path for snapshots: no-op (publish suppressed) when the
-    /// snapshot is unchanged; otherwise only the affected card model publishes.
+    /// Single write path for snapshots (`SnapshotStore.set`); what a change
+    /// sets off is in the `SnapshotStoreHost` conformance at the end of
+    /// this file.
     private func setSnapshot(_ snapshot: WidgetSnapshot, for id: String) {
-        // A staged preview shows only what was staged.
-        guard !isStagedPreview || isWritingStage else { return }
-        guard snapshots[id] != snapshot else { return }
-        let previous = snapshots[id]
-        let errorChanged = previous?.error != snapshot.error || previous?.statusProblem != snapshot.statusProblem
-        snapshots[id] = snapshot
-        cardModels[id]?.snapshot = snapshot
-        if errorChanged { updateAttention() }
-        if menuBarWidgetIDs.contains(id), previous?.updatedAt != snapshot.updatedAt,
-           let reading = ReadingHistory.reading(of: snapshot) {
-            readingHistory.record(id, reading)
-        }
-        promoter.snapshotChanged(id: id, from: previous, to: snapshot)
+        snapshotStore.set(snapshot, for: id)
     }
 
     /// Whether a snapshot change shows on the menu bar
@@ -2343,9 +2316,8 @@ final class WidgetRuntime: ObservableObject {
         // throttle interval; left alone it would re-create the cache file
         // of a widget removed by hot reload, and a reinstall would show it.
         snapshotCache.cancelPending(notIn: liveIDs)
-        snapshots = snapshots.filter { liveIDs.contains($0.key) }
+        snapshotStore.forget(notIn: liveIDs)
         cardOverlays.forgetCards(notIn: liveIDs)
-        cardModels = cardModels.filter { liveIDs.contains($0.key) }
         updateAttention()
         refreshCoordinator.forgetInFlight(notIn: liveIDs)
         refreshLedger.forgetStarts(notIn: liveIDs)
@@ -2470,8 +2442,27 @@ extension WidgetRuntime: CardOverlayStoreHost {
     var acceptsCardOverlayWrites: Bool { !isStagedPreview || isWritingStage }
 
     func cardOverlayDidChange(widgetID id: String, to overlay: CardOverlay?) {
-        cardModels[id]?.overlay = overlay
+        snapshotStore.setOverlay(overlay, for: id)
         updateAttention()
+    }
+}
+
+// MARK: - Snapshots
+
+/// What `SnapshotStore` asks and reports: the staged-preview gate in front
+/// of its write, and what a changed snapshot sets off.
+extension WidgetRuntime: SnapshotStoreHost {
+    /// A staged preview shows only what was staged.
+    var acceptsSnapshotWrites: Bool { !isStagedPreview || isWritingStage }
+
+    func snapshotDidChange(widgetID id: String, from previous: WidgetSnapshot?, to snapshot: WidgetSnapshot) {
+        let errorChanged = previous?.error != snapshot.error || previous?.statusProblem != snapshot.statusProblem
+        if errorChanged { updateAttention() }
+        if menuBarWidgetIDs.contains(id), previous?.updatedAt != snapshot.updatedAt,
+           let reading = ReadingHistory.reading(of: snapshot) {
+            readingHistory.record(id, reading)
+        }
+        promoter.snapshotChanged(id: id, from: previous, to: snapshot)
     }
 }
 
