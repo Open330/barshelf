@@ -5,6 +5,7 @@ import AppKit
 /// Expiry is checked on use; no polling timer or filesystem watcher is needed.
 /// Ten minutes: icons and names rarely change, and reloading every icon in
 /// the dock each minute was most of the dock's work at rest.
+@MainActor
 package final class DockFilePresentationCache {
     package struct Presentation {
         package let name: String

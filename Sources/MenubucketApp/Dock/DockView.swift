@@ -1019,7 +1019,7 @@ enum DockDrop {
 
     /// Loads every file URL among the providers, then calls back on main.
     @discardableResult
-    static func loadFileURLs(_ providers: [NSItemProvider], completion: @escaping ([URL]) -> Void) -> Bool {
+    static func loadFileURLs(_ providers: [NSItemProvider], completion: @escaping @MainActor @Sendable ([URL]) -> Void) -> Bool {
         let fileProviders = providers.filter { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }
         guard !fileProviders.isEmpty else { return false }
         let group = DispatchGroup()
@@ -1039,7 +1039,10 @@ enum DockDrop {
             }
         }
         group.notify(queue: .main) {
-            completion(urls.withLock { $0 }.sorted { $0.0 < $1.0 }.map(\.1))
+            let loaded = urls.withLock { $0 }.sorted { $0.0 < $1.0 }.map(\.1)
+            // `assumeIsolated` holds because the group notifies on the main
+            // queue.
+            MainActor.assumeIsolated { completion(loaded) }
         }
         return true
     }

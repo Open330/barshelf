@@ -4,6 +4,7 @@ import XCTest
 @testable import MenubucketApp
 @testable import BarShelfDock
 
+@MainActor
 final class RefreshOverheadTests: XCTestCase {
     @MainActor
     func testMenuBarBatchCalculatesOnceFromLatestSamplesAndAllowsTheNextBatch() async {

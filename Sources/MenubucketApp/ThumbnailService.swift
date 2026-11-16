@@ -72,6 +72,7 @@ final class ThumbnailService: @unchecked Sendable {
         }
     }
 
+    @MainActor
     func icon(forPath path: String) -> NSImage {
         DockActions.fileIcon(at: path)
     }
