@@ -123,7 +123,7 @@ final class WorkflowRefresher {
     // MARK: - Refresh
 
     /// The refresh may go on only while the host says so; see
-    /// `WidgetRuntime.checkNativeRefresh` for why this asks the main actor.
+    /// `WidgetRuntime.nativeRefreshMayContinue` for why this asks the main actor.
     nonisolated private func checkMayContinue(_ widget: LoadedWidget, token: NativeRefreshGate.Token) async throws {
         let mayContinue = await MainActor.run {
             self.host?.workflowRefreshMayContinue(widget, token: token) ?? false
