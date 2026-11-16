@@ -7,6 +7,7 @@ import XCTest
 /// The BarShelf Dock's store (R15): it is the only thing that hides, shows,
 /// and rewrites the Apple Dock, so those transitions are pinned down here
 /// against a fake `com.apple.dock`.
+@MainActor
 final class DockStoreTests: XCTestCase {
     private final class FakeDefaults: AppleDockDefaults {
         var values: [String: Any] = [:]
@@ -439,7 +440,6 @@ final class DockStoreTests: XCTestCase {
 
     // MARK: URL
 
-    @MainActor
     func testDockDeepLinkRoutesToHook() {
         let installer = WidgetInstaller()
         var received: [[URLQueryItem]] = []
@@ -453,7 +453,6 @@ final class DockStoreTests: XCTestCase {
 
     /// `barshelf accessibility` opens this link; it must never fall through
     /// to the installer.
-    @MainActor
     func testAccessibilityDeepLinkRoutesToHook() {
         let installer = WidgetInstaller()
         var opened = 0

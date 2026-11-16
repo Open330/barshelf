@@ -5,6 +5,7 @@ import XCTest
 
 /// The popover's rules that do not need a window: attention, pins, height,
 /// freshness, and the native approval card's contents.
+@MainActor
 final class PopoverShelfTests: XCTestCase {
     func testOpeningAReadingUsesFreshContentAndRefreshesMissingOrStaleContent() {
         let now = Date(timeIntervalSince1970: 1_000)

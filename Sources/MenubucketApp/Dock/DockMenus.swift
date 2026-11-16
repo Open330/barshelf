@@ -116,6 +116,7 @@ enum DockMenuPresenter {
 /// Which menu a right-click opens: the tile under the pointer, else the
 /// bar's. The dock opens its menus itself (`DockHostingView`) rather than
 /// through SwiftUI's context menu.
+@MainActor
 final class DockMenuRouter {
     static let shared = DockMenuRouter()
 

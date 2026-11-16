@@ -1975,7 +1975,7 @@ extension MenuBarStyle {
 
 /// A stable object to register undo actions against; SwiftUI views are
 /// values and cannot be one.
-private final class UndoAnchor {
+private final class UndoAnchor: Sendable {
     static let shared = UndoAnchor()
 }
 

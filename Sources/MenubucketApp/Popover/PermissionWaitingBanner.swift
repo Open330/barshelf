@@ -39,7 +39,7 @@ struct PermissionWaitingBanner: View {
         }
     }
 
-    static func message(count: Int) -> String {
+    nonisolated static func message(count: Int) -> String {
         count == 1
             ? String(localized: "A widget is waiting for your permission", comment: "Popup banner")
             : String(localized: "\(count) widgets are waiting for your permission", comment: "Popup banner")

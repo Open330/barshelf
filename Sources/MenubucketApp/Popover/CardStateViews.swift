@@ -508,6 +508,7 @@ struct CrashDisabledView: View {
 // MARK: - Freshness
 
 /// "Updated 5 min ago" for the card header.
+@MainActor
 enum CardFreshness {
     static func label(updatedAt: Date, now: Date) -> String {
         let elapsed = now.timeIntervalSince(updatedAt)

@@ -232,7 +232,7 @@ final class DockPanelController {
         guard let toast else { return false }
         return toast.surface == .dock && toast.action != nil
     }
-    private var mouseMonitors: [Any] = []
+    private var mouseMonitors: [EventMonitor] = []
     private var restingSize: CGSize = .zero
     private var isHovering = false
     private var measurePending = false
@@ -286,7 +286,7 @@ final class DockPanelController {
         // A Dock toast with a button (Remove's Undo) floats above the bar,
         // outside the hover zone: the dock stays out until it is gone, then
         // auto-hide picks up from wherever the pointer is.
-        MainActor.assumeIsolated { ToastCenter.shared.$current }
+        ToastCenter.shared.$current
             .map { Self.holdsDockRevealed($0) }
             .removeDuplicates()
             .receive(on: RunLoop.main)
@@ -407,11 +407,8 @@ final class DockPanelController {
         runtime.setDockWidgetIDs([])
     }
 
-    deinit {
-        // A deinit is not on the main actor, so it cannot call
-        // `removeMouseMonitors()`; this is that method's body.
-        mouseMonitors.forEach(NSEvent.removeMonitor)
-    }
+    // No deinit: a deinit is not on the main actor. The mouse monitors
+    // remove themselves when released (`EventMonitor`).
 
     /// The panel's scroll hook. Nil from the hosting view means it handled
     /// the event (a profile switch), which must not be delivered again.
@@ -639,7 +636,7 @@ final class DockPanelController {
         if limits.maxBarLength != length { limits.maxBarLength = length }
     }
 
-    private func placePanel(animated: Bool, completion: (() -> Void)? = nil) {
+    private func placePanel(animated: Bool, completion: (@MainActor @Sendable () -> Void)? = nil) {
         updateMaxBarLength()
         guard let frame = targetFrame() else { return }
         if animated {
@@ -648,7 +645,9 @@ final class DockPanelController {
                 context.timingFunction = CAMediaTimingFunction(name: .easeOut)
                 panel.animator().setFrame(frame, display: true)
             } completionHandler: {
-                completion?()
+                // `assumeIsolated` holds because AppKit runs an animation
+                // group's completion handler on the main thread.
+                MainActor.assumeIsolated { completion?() }
             }
         } else {
             panel.setFrame(frame, display: true)
@@ -670,19 +669,18 @@ final class DockPanelController {
     private func installMouseMonitorsIfNeeded() {
         guard mouseMonitors.isEmpty else { return }
         let handler: (NSEvent) -> Void = { [weak self] _ in self?.mouseMoved() }
-        if let global = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged], handler: handler) {
+        if let global = EventMonitor(NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged], handler: handler)) {
             mouseMonitors.append(global)
         }
-        if let local = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged], handler: { event in
+        if let local = EventMonitor(NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged], handler: { event in
             handler(event)
             return event
-        }) {
+        })) {
             mouseMonitors.append(local)
         }
     }
 
     private func removeMouseMonitors() {
-        mouseMonitors.forEach(NSEvent.removeMonitor)
         mouseMonitors.removeAll()
     }
 
