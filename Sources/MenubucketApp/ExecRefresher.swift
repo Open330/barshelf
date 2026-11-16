@@ -47,7 +47,7 @@ protocol ExecRefresherHost: AnyObject {
 final class ExecRefresher {
     /// A builtin adapter for `output = "data"` sources (M1 contract: async,
     /// context-carrying, may return a deadline + status text).
-    typealias Adapter = (Data, AdapterContext) async throws -> AdapterResult
+    typealias Adapter = @Sendable (Data, AdapterContext) async throws -> AdapterResult
     /// Launches the source command and returns its stdout.
     typealias Launch = @Sendable (
         _ widget: LoadedWidget, _ source: Manifest.Source,
@@ -69,8 +69,8 @@ final class ExecRefresher {
     nonisolated private let launch: Launch?
 
     nonisolated static let builtinAdapters: [String: Adapter] = [
-        AasUsageAdapter.name: AasUsageAdapter.adapt,
-        OtpeekAdapter.name: OtpeekAdapter.adapt,
+        AasUsageAdapter.name: { try await AasUsageAdapter.adapt($0, context: $1) },
+        OtpeekAdapter.name: { try await OtpeekAdapter.adapt($0, context: $1) },
     ]
 
     /// - Parameters:
