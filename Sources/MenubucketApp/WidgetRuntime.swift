@@ -235,6 +235,10 @@ final class WidgetRuntime: ObservableObject {
     /// `workflow.json` files and what each alert last saw, and asks for
     /// main-actor state through `WorkflowRefresherHost`.
     private let workflows: WorkflowRefresher
+    /// Runs an exec widget's command off the main actor and renders its
+    /// output; owns the adapter registry, and asks for main-actor state
+    /// through `ExecRefresherHost`.
+    private let execRefresher: ExecRefresher
 
     // MARK: Script runtime + permission enforcement (M2)
 
@@ -277,13 +281,6 @@ final class WidgetRuntime: ObservableObject {
         directory: WidgetRuntime.applicationSupportDirectory
             .appendingPathComponent("storage", isDirectory: true)
     )
-
-    /// Builtin adapter registry for `output = "data"` sources (M1 contract:
-    /// async, context-carrying, may return a deadline + status text).
-    nonisolated private let adapters: [String: (Data, AdapterContext) async throws -> AdapterResult] = [
-        AasUsageAdapter.name: AasUsageAdapter.adapt,
-        OtpeekAdapter.name: OtpeekAdapter.adapt,
-    ]
 
     nonisolated static let defaultTimeoutMs = 25_000
     /// This build's version, read once: the check on every refresh must not
@@ -336,6 +333,7 @@ final class WidgetRuntime: ObservableObject {
             }
         )
         self.workflows = WorkflowRefresher(execService: execService, storage: storage, auditLog: auditLog)
+        self.execRefresher = ExecRefresher(execService: execService, auditLog: auditLog)
         self.library = WidgetLibrary(
             secretStore: secretStore, storage: storage, prefs: prefs, permissionStore: self.permissionStore
         )
@@ -350,6 +348,8 @@ final class WidgetRuntime: ObservableObject {
         cardOverlays.host = self
         // Before the first workflow refresh: without a host it is cancelled.
         workflows.host = self
+        // Before the first exec refresh, for the same reason.
+        execRefresher.host = self
         // Before anything can ask to remove or duplicate a widget.
         library.host = self
         scheduler.requestRefresh = { [weak self] widgetID, manual in
@@ -1603,28 +1603,14 @@ final class WidgetRuntime: ObservableObject {
             refreshWorkflow(widget)
             return
         }
-        guard let source = widget.manifest.source,
-              let command = source.command, !command.isEmpty
-        else {
-            let message = "manifest has no source.command"
-            updateSnapshot(id) { $0.error = message }
-            recordRefreshFailure(widgetID: id, error: message, startedAt: Date())
-            return
-        }
-        // Runtime allowlist enforcement is fail-closed: missing/empty exec
-        // permissions authorize nothing.
-        guard let permission = ExecAllowlist.match(
-            command: command, permissions: widget.manifest.permissions?.exec
-        ) else {
-            auditLog.record("exec.blocked", widgetId: id, detail: [
-                "command": .string(command.joined(separator: " ")),
-                "reason": .string("source.command not in permissions.exec allowlist"),
-            ])
-            let message = "source.command is not covered by permissions.exec allowlist"
-            updateSnapshot(id) {
-                $0.error = message
-            }
-            recordRefreshFailure(widgetID: id, error: message, startedAt: Date())
+        // No command, or one `permissions.exec` does not cover: nothing runs.
+        let plan: ExecRefreshPlan
+        switch execRefresher.plan(for: widget) {
+        case let .success(planned):
+            plan = planned
+        case let .failure(refusal):
+            updateSnapshot(id) { $0.error = refusal.message }
+            recordRefreshFailure(widgetID: id, error: refusal.message, startedAt: Date())
             return
         }
 
@@ -1635,11 +1621,11 @@ final class WidgetRuntime: ObservableObject {
 
         let task = Task { @MainActor [weak self] in
             guard let self else { return }
-            let outcome = await self.performRefresh(
-                widget: widget, source: source, command: command,
-                permission: permission, token: token
+            let outcome = await self.execRefresher.refresh(widget: widget, plan: plan, token: token)
+            self.finishRefresh(
+                widget: widget, outcome: outcome.map { Self.refreshSuccess($0) },
+                startedAt: startedAt, token: token
             )
-            self.finishRefresh(widget: widget, outcome: outcome, startedAt: startedAt, token: token)
         }
         nativeRefreshTasks[id] = (token, task)
     }
@@ -1648,6 +1634,12 @@ final class WidgetRuntime: ObservableObject {
     /// command or perform its next side effect. The refresh task starts on a
     /// later main-actor turn and suspends between sources, so a Revoke, Deny,
     /// Disable or reload can land before the first launch or between two.
+    ///
+    /// Refreshes run off the main actor; the gate, the preferences and the
+    /// permission store are main-actor state. Reading them from the refresh's
+    /// own thread raced with the main thread changing them (a crash in
+    /// `Dictionary` lookup under `NativeRefreshGate.isCurrent`), so the
+    /// refreshers ask for this on the main actor.
     private func nativeRefreshMayContinue(_ widget: LoadedWidget, token: NativeRefreshGate.Token) -> Bool {
         !Task.isCancelled
             && nativeRefreshes.isCurrent(widget.id, token: token)
@@ -1700,16 +1692,6 @@ final class WidgetRuntime: ObservableObject {
         // (a disabled widget), and must get them back when they return. It
         // ignores an unchanged set.
         scheduler.setMonitoringWidgetIDs(alertMonitoringIDs)
-    }
-
-    /// Refreshes run off the main actor; the gate, the preferences and the
-    /// permission store are main-actor state. Reading them from the refresh's
-    /// own thread raced with the main thread changing them (a crash in
-    /// `Dictionary` lookup under `NativeRefreshGate.isCurrent`), so the check
-    /// goes to the main actor.
-    nonisolated private func checkNativeRefresh(_ widget: LoadedWidget, token: NativeRefreshGate.Token) async throws {
-        let mayContinue = await MainActor.run { self.nativeRefreshMayContinue(widget, token: token) }
-        guard mayContinue else { throw CancellationError() }
     }
 
     /// Script widgets: ensure the resident process runs and (re)send
@@ -1801,86 +1783,20 @@ final class WidgetRuntime: ObservableObject {
         )
     }
 
-    nonisolated private func performRefresh(
-        widget: LoadedWidget,
-        source: Manifest.Source,
-        command: [String],
-        permission: Manifest.ExecPermission,
-        token: NativeRefreshGate.Token
-    ) async -> Result<RefreshSuccess, Error> {
-        // Off the main actor here; see `checkNativeRefresh`.
-        guard await MainActor.run(body: { self.nativeRefreshMayContinue(widget, token: token) }) else {
-            return .failure(CancellationError())
-        }
-        auditLog.record("exec.run", widgetId: widget.id, detail: [
-            "command": .string(
-                permission.sensitiveOutput == true
-                    ? (command.first ?? "") : command.joined(separator: " ")
-            ),
-            "trigger": .string("refresh"),
-        ])
-        let execResult = await Self.dispatchDirectExec(
-            execService: execService,
-            widget: widget,
-            source: source,
-            command: command,
-            permission: permission
+    /// An exec command's render as the same.
+    nonisolated private static func refreshSuccess(_ render: ExecRender) -> RefreshSuccess {
+        RefreshSuccess(
+            viewTree: render.viewTree,
+            nextRefreshAtMs: render.nextRefreshAtMs,
+            statusLabel: render.statusLabel,
+            statusIcon: render.statusIcon,
+            statusTint: render.statusTint
         )
-
-        switch execResult {
-        case let .failure(error):
-            return .failure(error)
-        case let .success(data):
-            do {
-                // An adapter may run more commands of its own.
-                try await checkNativeRefresh(widget, token: token)
-                if source.output == "data" {
-                    guard let adapterName = source.adapter else {
-                        throw RuntimeError.missingAdapter("source.output is \"data\" but no adapter is set")
-                    }
-                    guard let adapter = adapters[adapterName] else {
-                        throw RuntimeError.missingAdapter("unknown adapter \"\(adapterName)\"")
-                    }
-                    // The preferences are main-actor state and this runs
-                    // off it; see `checkNativeRefresh`.
-                    let adapterSettings = await MainActor.run {
-                        self.prefs.effectiveSettings(for: widget.manifest, widgetID: widget.id).objectValue ?? [:]
-                    }
-                    let context = HostAdapterContext(
-                        widget: widget,
-                        execService: execService,
-                        defaultTimeoutMs: source.timeoutMs ?? Self.defaultTimeoutMs,
-                        settings: adapterSettings
-                    )
-                    let result = try await adapter(data, context)
-                    return .success(RefreshSuccess(
-                        viewTree: result.viewTree,
-                        nextRefreshAtMs: result.nextRefreshAtMs,
-                        statusLabel: result.statusText
-                    ))
-                }
-                if source.output == "xbar" {
-                    let rendered = XbarPlugin.render(
-                        XbarPlugin.parse(String(decoding: data, as: UTF8.self)),
-                        context: Self.xbarContext(widget: widget, source: source)
-                    )
-                    return .success(RefreshSuccess(
-                        viewTree: rendered.tree,
-                        statusLabel: rendered.statusLabel,
-                        statusIcon: rendered.statusIcon,
-                        statusTint: rendered.statusTint
-                    ))
-                }
-                let tree = try JSONDecoder().decode(UINode.self, from: data)
-                return .success(RefreshSuccess(viewTree: tree))
-            } catch {
-                return .failure(error)
-            }
-        }
     }
 
-    /// Direct-source launch seam. Keeping environment selection inside the
-    /// dispatch used by production makes its command scope executable in tests.
+    // Running an exec widget's command lives in `ExecRefresher`; this name
+    // stays for the places that already call it.
+
     nonisolated static func dispatchDirectExec(
         execService: ExecService,
         widget: LoadedWidget,
@@ -1888,37 +1804,10 @@ final class WidgetRuntime: ObservableObject {
         command: [String],
         permission: Manifest.ExecPermission
     ) async -> Result<Data, ExecService.ExecError> {
-        await execService.run(
-            command: command,
-            discover: source.discover,
-            timeoutMs: source.timeoutMs ?? Self.defaultTimeoutMs,
-            workingDirectory: widget.directory,
-            extraEnvironment: pluginEnvironment(
-                for: widget.manifest,
-                secretEnvironment(for: widget.manifest, permission: permission)
-            ),
-            stdoutLimit: permission.maxOutputBytes ?? ExecService.maxStdoutBytes
+        await ExecRefresher.dispatchDirectExec(
+            execService: execService, widget: widget, source: source,
+            command: command, permission: permission
         )
-    }
-
-    /// An xbar/SwiftBar plugin also gets BarShelf's appearance markers, on
-    /// its refresh and on the actions it runs (`XbarPlugin.environment`).
-    nonisolated static func pluginEnvironment(for manifest: Manifest, _ base: [String: String]?) -> [String: String]? {
-        guard manifest.source?.output == "xbar" else { return base }
-        return (base ?? [:]).merging(XbarPlugin.environment(darkMode: systemIsDark)) { current, _ in current }
-    }
-
-    nonisolated static var systemIsDark: Bool {
-        UserDefaults.standard.string(forKey: "AppleInterfaceStyle") == "Dark"
-    }
-
-    /// How a plugin's `bash=` lines are read: the declared command, and the
-    /// file it names, so the plugin calling itself through `$0` matches.
-    nonisolated static func xbarContext(widget: LoadedWidget, source: Manifest.Source) -> XbarPlugin.Context {
-        let command = source.command?.first ?? ""
-        let file = command.hasPrefix("/") ? URL(fileURLWithPath: command)
-            : command.isEmpty ? nil : widget.directory.appendingPathComponent(command)
-        return XbarPlugin.Context(selfCommand: command, pluginFile: file, darkMode: systemIsDark)
     }
 
     // MARK: - Workflow refresh (entry.kind == "workflow")
@@ -2301,7 +2190,7 @@ final class WidgetRuntime: ObservableObject {
         if widget.manifest.permissions?.keychain == true,
            base.lowercased().contains("password"),
            !base.contains("security add-generic-password") {
-            let declaredEnv = declaredEnvironmentVariables(for: widget.manifest)
+            let declaredEnv = ExecRefresher.declaredEnvironmentVariables(for: widget.manifest)
             let accounts = declaredEnv
                 .filter { $0.hasSuffix("_PASSWORD") }
                 .map(KeychainStore.account(forEnvironmentVariable:))
@@ -2315,36 +2204,18 @@ final class WidgetRuntime: ObservableObject {
 
     // MARK: - Secret / environment injection
 
-    static func declaredEnvironmentVariables(for manifest: Manifest) -> [String] {
-        var names: [String] = manifest.permissions?.env ?? []
-        for permission in manifest.permissions?.exec ?? [] {
-            names.append(contentsOf: permission.env ?? [])
-        }
-        var seen: Set<String> = []
-        return names.filter { seen.insert($0).inserted }
-    }
-
-    /// Builds the only widget-specific environment values an exec may receive:
-    /// explicitly declared host variables, with an optional Keychain fallback.
+    /// What an exec may see of the environment is `ExecRefresher`'s; this
+    /// name stays for the places that already call it.
     nonisolated static func secretEnvironment(
         for manifest: Manifest,
         permission: Manifest.ExecPermission,
         hostEnvironment: [String: String] = ProcessInfo.processInfo.environment,
         readSecret: (String) -> String? = { KeychainStore.readPassword(account: $0) }
     ) -> [String: String]? {
-        var extra: [String: String] = [:]
-        let declaredNames = (manifest.permissions?.env ?? []) + (permission.env ?? [])
-        for name in Set(declaredNames) {
-            if let value = hostEnvironment[name] {
-                extra[name] = value
-            } else if manifest.permissions?.keychain == true {
-                let account = KeychainStore.account(forEnvironmentVariable: name)
-                if let value = readSecret(account) {
-                    extra[name] = value
-                }
-            }
-        }
-        return extra.isEmpty ? nil : extra
+        ExecRefresher.secretEnvironment(
+            for: manifest, permission: permission,
+            hostEnvironment: hostEnvironment, readSecret: readSecret
+        )
     }
 
     // MARK: - Declarative `run` action
@@ -2456,7 +2327,7 @@ final class WidgetRuntime: ObservableObject {
             discover: discover,
             timeoutMs: source?.timeoutMs ?? Self.defaultTimeoutMs,
             workingDirectory: widget.directory,
-            extraEnvironment: pluginEnvironment(
+            extraEnvironment: ExecRefresher.pluginEnvironment(
                 for: widget.manifest,
                 secretEnvironment(for: widget.manifest, permission: permission)
             ),
@@ -2746,6 +2617,19 @@ extension WidgetRuntime: WorkflowRefresherHost {
 
     func deliverWorkflowAlert(_ alert: WorkflowEngine.AlertSample, for widget: LoadedWidget) {
         deliverAlert(alert, for: widget)
+    }
+}
+
+// MARK: - Exec refresh
+
+/// What an exec refresh running off the main actor asks for.
+extension WidgetRuntime: ExecRefresherHost {
+    func execRefreshMayContinue(_ widget: LoadedWidget, token: NativeRefreshGate.Token) -> Bool {
+        nativeRefreshMayContinue(widget, token: token)
+    }
+
+    func adapterSettings(for widget: LoadedWidget) -> [String: JSONValue] {
+        prefs.effectiveSettings(for: widget.manifest, widgetID: widget.id).objectValue ?? [:]
     }
 }
 
