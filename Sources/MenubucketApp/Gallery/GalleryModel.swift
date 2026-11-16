@@ -683,7 +683,7 @@ final class GalleryModel: ObservableObject {
         loadTask?.cancel()
         requirementTask?.cancel()
         installedStateTask?.cancel()
-        installedWatcher?.cancel()
+        // The watcher cancels itself when released.
     }
 
     /// Resolves `requires` PATH status for every entry off the main thread

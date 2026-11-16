@@ -57,7 +57,7 @@ final class MenuBarClusterController: NSObject {
     private var cardWidgetID: String?
     /// The chip whose card is open.
     private var activeIndex: Int?
-    private var keyMonitor: Any?
+    private var keyMonitor: EventMonitor?
     /// The chip a click landed on, so the card hangs off that chip even when
     /// a widget has more than one (profiles).
     private var pressedIndex: Int?
@@ -66,7 +66,7 @@ final class MenuBarClusterController: NSObject {
     /// mouse-up of the same click, which must not open the card again.
     /// Escape or any other close leaves this nil.
     private var closingClick: (widgetID: String, at: Date)?
-    private var observers: [(NotificationCenter, NSObjectProtocol)] = []
+    private var observers: [NotificationObservation] = []
 
     static let peekDelay: TimeInterval = 0.25
     static let closingClickWindow: TimeInterval = 0.6
@@ -81,10 +81,10 @@ final class MenuBarClusterController: NSObject {
         // A Space switch or a display change leaves a peek or card pointing
         // at nothing.
         let workspace = NSWorkspace.shared.notificationCenter
-        observers.append((workspace, workspace.addObserver(
+        observers.append(NotificationObservation(workspace.addObserver(
             forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main
-        ) { [weak self] _ in MainActor.assumeIsolated { self?.dismiss() } }))
-        observers.append((NotificationCenter.default, NotificationCenter.default.addObserver(
+        ) { [weak self] _ in MainActor.assumeIsolated { self?.dismiss() } }, in: workspace))
+        observers.append(NotificationObservation(NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated {
@@ -96,13 +96,8 @@ final class MenuBarClusterController: NSObject {
         }))
     }
 
-    deinit {
-        // A deinit is not on the main actor, so it cannot call
-        // `removeKeyMonitor()`; this is that method's body.
-        if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
-        pointerWatcher?.stop()
-        for (center, observer) in observers { center.removeObserver(observer) }
-    }
+    // No deinit: a deinit is not on the main actor. The key monitor, the
+    // pointer watcher and the observers each undo themselves when released.
 
     // MARK: - State from the menu bar
 
@@ -458,7 +453,7 @@ final class MenuBarClusterController: NSObject {
 
     private func installKeyMonitor() {
         removeKeyMonitor()
-        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
+        keyMonitor = EventMonitor(NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
             guard let self, let card = self.card, card.isShown,
                   PopupEventRouting.belongsToPopup(eventWindow: event.window, popupWindow: card.eventWindow),
                   event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty,
@@ -475,11 +470,10 @@ final class MenuBarClusterController: NSObject {
             self.menuBar.setClusterFocus(target, animated: true)
             self.showCard(at: target)
             return nil
-        }
+        })
     }
 
     private func removeKeyMonitor() {
-        if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
         keyMonitor = nil
     }
 

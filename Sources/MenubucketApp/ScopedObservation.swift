@@ -30,3 +30,30 @@ final class NotificationObservation {
 
     deinit { center.removeObserver(token) }
 }
+
+/// A scheduled timer that is invalidated when its owner lets go of it (see
+/// `EventMonitor`). The owner schedules it on the main run loop and releases
+/// it there.
+final class ScopedTimer {
+    let timer: Timer
+
+    init(_ timer: Timer) {
+        self.timer = timer
+    }
+
+    func invalidate() { timer.invalidate() }
+
+    deinit { timer.invalidate() }
+}
+
+/// A `ProcessInfo` activity that ends when its owner lets go of it (see
+/// `EventMonitor`).
+final class ScopedActivity {
+    private let token: NSObjectProtocol
+
+    init(options: ProcessInfo.ActivityOptions, reason: String) {
+        token = ProcessInfo.processInfo.beginActivity(options: options, reason: reason)
+    }
+
+    deinit { ProcessInfo.processInfo.endActivity(token) }
+}

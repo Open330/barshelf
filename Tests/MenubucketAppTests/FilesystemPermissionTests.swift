@@ -2,6 +2,7 @@ import XCTest
 @testable import MenubucketApp
 import MenubucketCore
 
+@MainActor
 final class FilesystemPermissionTests: XCTestCase {
     func testDecodedReadGrantBindsWorkflowWatchAcrossSymlinkSubstitution() throws {
         let base = FileManager.default.temporaryDirectory

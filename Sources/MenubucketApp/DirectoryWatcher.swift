@@ -5,22 +5,47 @@ import MenubucketCore
 /// FSEvents watcher (file-stack `DirectoryWatcher` pattern), extended for
 /// multiple paths and a trailing debounce (default 250 ms). The handler is
 /// always invoked on the main queue.
+@MainActor
 final class DirectoryWatcher {
     enum WatcherError: Error {
         case failedToCreateStream
         case failedToStartStream
     }
 
-    private var stream: FSEventStreamRef?
-    private var descriptorSource: DispatchSourceFileSystemObject?
     private let eventHandler: () -> Void
     private let debounceInterval: TimeInterval
-    private var pendingWork: DispatchWorkItem?
     private var cancelled = false
     private let fsQueue = DispatchQueue(label: "dev.barshelf.directorywatcher")
+    private let resources = Resources()
 
-    private class WeakBox {
-        weak var watcher: DirectoryWatcher?
+    /// What has to be undone: the stream or the descriptor source, and a
+    /// debounced callback still waiting. A main-actor `deinit` cannot reach
+    /// these itself; this is released with the watcher and undoes them at
+    /// the same moment, as `cancel()` does earlier.
+    private final class Resources {
+        var stream: FSEventStreamRef?
+        var descriptorSource: DispatchSourceFileSystemObject?
+        var pendingWork: DispatchWorkItem?
+
+        func tearDown() {
+            pendingWork?.cancel()
+            pendingWork = nil
+            descriptorSource?.cancel()
+            descriptorSource = nil
+            guard let stream else { return }
+            FSEventStreamStop(stream)
+            FSEventStreamInvalidate(stream)
+            FSEventStreamRelease(stream)
+            self.stream = nil
+        }
+
+        deinit { tearDown() }
+    }
+
+    /// Handed to FSEvents, whose callback runs on `fsQueue` and only carries
+    /// it to the main queue.
+    private final class WeakBox: Sendable {
+        weak let watcher: DirectoryWatcher?
         init(_ watcher: DirectoryWatcher) {
             self.watcher = watcher
         }
@@ -68,7 +93,7 @@ final class DirectoryWatcher {
             throw WatcherError.failedToCreateStream
         }
 
-        self.stream = stream
+        resources.stream = stream
         FSEventStreamSetDispatchQueue(stream, fsQueue)
         if !FSEventStreamStart(stream) {
             cancel()
@@ -94,43 +119,31 @@ final class DirectoryWatcher {
             queue: fsQueue
         )
         source.setEventHandler { [weak self] in
-            DispatchQueue.main.async {
+            DispatchQueue.main.async { [weak self] in
                 self?.fireDebounced()
             }
         }
         source.setCancelHandler {
             close(descriptor)
         }
-        descriptorSource = source
+        resources.descriptorSource = source
         source.resume()
     }
 
     /// Coalesces bursts of FSEvents into a single trailing-edge callback.
     func fireDebounced() {
         guard !cancelled else { return }
-        pendingWork?.cancel()
+        resources.pendingWork?.cancel()
         let work = DispatchWorkItem { [weak self] in
             guard let self, !self.cancelled else { return }
             self.eventHandler()
         }
-        pendingWork = work
+        resources.pendingWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + debounceInterval, execute: work)
     }
 
     func cancel() {
         cancelled = true
-        pendingWork?.cancel()
-        pendingWork = nil
-        descriptorSource?.cancel()
-        descriptorSource = nil
-        guard let stream = stream else { return }
-        FSEventStreamStop(stream)
-        FSEventStreamInvalidate(stream)
-        FSEventStreamRelease(stream)
-        self.stream = nil
-    }
-
-    deinit {
-        cancel()
+        resources.tearDown()
     }
 }
