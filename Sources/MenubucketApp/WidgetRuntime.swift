@@ -692,6 +692,9 @@ final class WidgetRuntime: ObservableObject {
         }
         entryFileStamps = stamps
         scheduler.resetBackoff(widgetIDs: changedIDs.union(entryChangedIDs))
+        // Changed code may no longer watch that folder; the next listing
+        // that still asks for it watches again.
+        workflowWatches.cancel(widgetIDs: changedIDs.union(entryChangedIDs))
         // Changed code or a removed widget: no alert raised under the old one
         // may still go out, and monitoring is re-learned on the next refresh.
         // Every workflow widget counts as changed here: its workflow.json can
@@ -724,7 +727,7 @@ final class WidgetRuntime: ObservableObject {
             .union(loaded.filter { $0.manifest.entry.kind == "script" }.map(\.id)) {
             scriptBridge.callbackGate.invalidate(widgetID: id)
         }
-        refreshCoordinator.forgetInFlight(cancelledScriptIDs)
+        refreshCoordinator.releaseInFlight(cancelledScriptIDs, live: seenIDs)
         for id in cancelledScriptIDs where seenIDs.contains(id) {
             updateSnapshot(id) { $0.isLoading = false }
         }
@@ -987,6 +990,8 @@ final class WidgetRuntime: ObservableObject {
         // A stopped widget does not monitor; its next refresh re-learns it.
         if alertMonitoringIDs.remove(id) != nil { scheduler.setMonitoringWidgetIDs(alertMonitoringIDs) }
         runActions.cancel(widgetID: id)
+        // A stopped widget watches nothing; its next refresh watches again.
+        workflowWatches.cancel(widgetIDs: [id])
         refreshCoordinator.cancel(id)
         updateSnapshot(id) { $0.isLoading = false }
         scriptBridge.callbackGate.invalidate(widgetID: id)
@@ -2316,6 +2321,7 @@ final class WidgetRuntime: ObservableObject {
         // throttle interval; left alone it would re-create the cache file
         // of a widget removed by hot reload, and a reinstall would show it.
         snapshotCache.cancelPending(notIn: liveIDs)
+        workflowWatches.retain(widgetIDs: liveIDs)
         snapshotStore.forget(notIn: liveIDs)
         cardOverlays.forgetCards(notIn: liveIDs)
         updateAttention()

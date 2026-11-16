@@ -76,4 +76,17 @@ final class WorkflowWatchRegistry {
             NSLog("barshelf: workflow watch unavailable for \(directory.path): \(error)")
         }
     }
+
+    /// Stops watching for these widgets (stopped, or their code changed).
+    /// A watch left running kept its descriptor and dispatch source open
+    /// until the widget's next listing replaced it, which for a removed or
+    /// disabled widget never came.
+    func cancel(widgetIDs: Set<String>) {
+        for id in widgetIDs { watches.removeValue(forKey: id)?.cancel() }
+    }
+
+    /// Stops watching for every widget that is gone.
+    func retain(widgetIDs liveIDs: Set<String>) {
+        cancel(widgetIDs: Set(watches.keys).subtracting(liveIDs))
+    }
 }

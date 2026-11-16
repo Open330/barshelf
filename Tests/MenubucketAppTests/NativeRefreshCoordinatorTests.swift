@@ -154,19 +154,43 @@ final class NativeRefreshCoordinatorTests: XCTestCase {
         XCTAssertTrue(deferred.isEmpty)
     }
 
-    func testForgettingReleasedRefreshesKeepsTheirWaitingRequests() {
+    /// A rescan cancelled the script load a manual request waited for. The
+    /// request used to stay behind and fire after some later refresh.
+    func testAReleasedRefreshRunsItsWaitingRequestWhenTheWidgetIsStillThere() {
         coordinator.markInFlight("w")
         coordinator.markInFlight("other")
         XCTAssertTrue(coordinator.joinsRunningRefresh("w", manual: true))
-        coordinator.forgetInFlight(["w"])
+        coordinator.releaseInFlight(["w"], live: ["w", "other"])
         XCTAssertFalse(coordinator.isInFlight("w"))
         XCTAssertTrue(coordinator.isInFlight("other"))
-        XCTAssertTrue(deferred.isEmpty)
+        XCTAssertEqual(deferred.count, 1, "the request runs now: what it waited for will never end")
 
-        // The request is still waiting: it runs after the widget's next end.
+        // And only once: nothing is left to fire after the next refresh.
         coordinator.markInFlight("w")
         coordinator.endInFlight("w")
         XCTAssertEqual(deferred.count, 1)
+    }
+
+    func testAReleasedRefreshOfAWidgetThatIsGoneDropsItsWaitingRequest() {
+        coordinator.markInFlight("w")
+        XCTAssertTrue(coordinator.joinsRunningRefresh("w", manual: true))
+        coordinator.releaseInFlight(["w"], live: [])
+        XCTAssertFalse(coordinator.isInFlight("w"))
+        XCTAssertTrue(deferred.isEmpty)
+
+        // A widget installed later under the same id does not inherit it.
+        coordinator.markInFlight("w")
+        coordinator.endInFlight("w")
+        XCTAssertTrue(deferred.isEmpty)
+    }
+
+    func testForgettingWidgetsThatAreGoneDropsTheirWaitingRequests() {
+        coordinator.markInFlight("w")
+        XCTAssertTrue(coordinator.joinsRunningRefresh("w", manual: true))
+        coordinator.forgetInFlight(notIn: [])
+        coordinator.markInFlight("w")
+        coordinator.endInFlight("w")
+        XCTAssertTrue(deferred.isEmpty, "a request for a removed widget does not outlive it")
     }
 
     func testForgettingWidgetsThatAreGoneKeepsTheOthersInFlight() {

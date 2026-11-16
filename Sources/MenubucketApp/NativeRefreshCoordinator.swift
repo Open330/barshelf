@@ -98,14 +98,21 @@ final class NativeRefreshCoordinator {
     }
 
     /// These widgets' refreshes were released elsewhere (script loads
-    /// cancelled by a rescan). Requests that waited for them stay.
-    func forgetInFlight(_ widgetIDs: Set<String>) {
-        inFlight.subtract(widgetIDs)
+    /// cancelled by a rescan). A manual request that waited for one runs
+    /// now when the widget is still there — what it waited for will never
+    /// end — and is dropped with a widget that is gone. Left behind, it
+    /// fired as an extra refresh after some later, unrelated one.
+    func releaseInFlight(_ widgetIDs: Set<String>, live liveIDs: Set<String>) {
+        for id in widgetIDs {
+            if liveIDs.contains(id) { endInFlight(id) } else { endWithoutRerun(id) }
+        }
     }
 
-    /// Forgets the refreshes of widgets that are gone.
+    /// Forgets the refreshes of widgets that are gone, and the manual
+    /// requests that waited for them.
     func forgetInFlight(notIn liveIDs: Set<String>) {
         inFlight.formIntersection(liveIDs)
+        refreshAgain.formIntersection(liveIDs)
     }
 
     // MARK: - A native refresh

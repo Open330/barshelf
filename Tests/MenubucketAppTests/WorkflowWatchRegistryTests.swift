@@ -120,6 +120,31 @@ final class WorkflowWatchRegistryTests: XCTestCase {
         XCTAssertEqual(host.refreshed, ["w"])
     }
 
+    /// A watch used to stay open until the widget's next listing replaced
+    /// it, which never came for a widget that was stopped or removed.
+    func testCancellingStopsThoseWidgetsWatchesOnce() throws {
+        registry.watch(try directory("a"), widgetID: "w")
+        registry.watch(try directory("b"), widgetID: "other")
+        registry.cancel(widgetIDs: ["w", "never-watched"])
+        XCTAssertEqual(made[0].cancels, 1)
+        XCTAssertEqual(made[1].cancels, 0)
+
+        // Nothing is left to cancel a second time, and watching again works.
+        registry.cancel(widgetIDs: ["w"])
+        XCTAssertEqual(made[0].cancels, 1)
+        registry.watch(try directory("a"), widgetID: "w")
+        XCTAssertEqual(made.count, 3)
+        XCTAssertEqual(made[0].cancels, 1)
+    }
+
+    func testRetainingStopsTheWatchesOfWidgetsThatAreGone() throws {
+        registry.watch(try directory("a"), widgetID: "gone")
+        registry.watch(try directory("b"), widgetID: "live")
+        registry.retain(widgetIDs: ["live"])
+        XCTAssertEqual(made[0].cancels, 1)
+        XCTAssertEqual(made[1].cancels, 0)
+    }
+
     func testEachWidgetHasItsOwnWatch() throws {
         registry.watch(try directory("a"), widgetID: "one")
         registry.watch(try directory("b"), widgetID: "two")
