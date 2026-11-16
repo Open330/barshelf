@@ -1,6 +1,7 @@
 import BarShelfDock
 import AppKit
 import MenubucketCore
+import os
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -58,7 +59,7 @@ struct DockView: View {
     @FocusState private var focusedTileID: String?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    static let dragPrefix = "barshelf-dock-item:"
+    nonisolated static let dragPrefix = "barshelf-dock-item:"
 
     private var config: DockConfiguration { store.configuration }
     private var edge: DockConfiguration.Edge { config.edge }
@@ -1018,12 +1019,12 @@ enum DockDrop {
 
     /// Loads every file URL among the providers, then calls back on main.
     @discardableResult
-    static func loadFileURLs(_ providers: [NSItemProvider], completion: @escaping ([URL]) -> Void) -> Bool {
+    static func loadFileURLs(_ providers: [NSItemProvider], completion: @escaping @MainActor @Sendable ([URL]) -> Void) -> Bool {
         let fileProviders = providers.filter { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }
         guard !fileProviders.isEmpty else { return false }
         let group = DispatchGroup()
-        let lock = NSLock()
-        var urls: [(Int, URL)] = []
+        // The providers answer on their own queues.
+        let urls = OSAllocatedUnfairLock(initialState: [(Int, URL)]())
         for (index, provider) in fileProviders.enumerated() {
             group.enter()
             provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { value, _ in
@@ -1034,13 +1035,14 @@ enum DockDrop {
                     value as? URL
                 }
                 guard let url else { return }
-                lock.lock()
-                urls.append((index, url))
-                lock.unlock()
+                urls.withLock { $0.append((index, url)) }
             }
         }
         group.notify(queue: .main) {
-            completion(urls.sorted { $0.0 < $1.0 }.map(\.1))
+            let loaded = urls.withLock { $0 }.sorted { $0.0 < $1.0 }.map(\.1)
+            // `assumeIsolated` holds because the group notifies on the main
+            // queue.
+            MainActor.assumeIsolated { completion(loaded) }
         }
         return true
     }
@@ -1150,6 +1152,6 @@ struct EquatableTile<Content: View>: View, Equatable {
 
     var body: some View { content() }
 
-    static func == (lhs: Self, rhs: Self) -> Bool { lhs.key == rhs.key }
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool { lhs.key == rhs.key }
 }
 

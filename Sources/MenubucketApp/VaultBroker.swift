@@ -466,16 +466,16 @@ final class VaultBroker {
     var audit: (_ event: String, _ widgetID: String, _ detail: [String: JSONValue]) -> Void = { _, _, _ in }
     var toast: (String) -> Void = { message in ToastCenter.shared.show(message) }
     /// The host-owned password prompt; nil means cancelled. Swappable in tests.
-    var promptForPassword: (_ title: String, _ message: String, _ offerTouchID: Bool, _ touchIDDefault: Bool) -> PasswordAnswer?
+    var promptForPassword: @MainActor (_ title: String, _ message: String, _ offerTouchID: Bool, _ touchIDDefault: Bool) -> PasswordAnswer?
         = VaultBroker.securePrompt
     /// The host-owned sign-in prompt (server, email, master password); nil
     /// means cancelled. Swappable in tests.
-    var promptForSignIn: (_ message: String, _ server: String?, _ email: String?,
+    var promptForSignIn: @MainActor (_ message: String, _ server: String?, _ email: String?,
                           _ offerTouchID: Bool, _ touchIDDefault: Bool) -> SignInAnswer? = VaultBroker.signInPrompt
     /// The host-owned two-step code prompt; `emailSent` once a code went out.
-    var promptForTwoFactor: (_ emailSent: Bool) -> TwoFactorAnswer? = VaultBroker.twoFactorPrompt
+    var promptForTwoFactor: @MainActor (_ emailSent: Bool) -> TwoFactorAnswer? = VaultBroker.twoFactorPrompt
     /// The host-owned API-key prompt (client_id, client_secret).
-    var promptForAPIKey: () -> (id: String, secret: String)? = VaultBroker.apiKeyPrompt
+    var promptForAPIKey: @MainActor () -> (id: String, secret: String)? = VaultBroker.apiKeyPrompt
     /// Remembers the Touch ID checkbox per provider; a private suite in tests.
     var defaults: UserDefaults = .standard
     /// Where copied fields go; a private pasteboard in tests.
@@ -495,7 +495,7 @@ final class VaultBroker {
         guard observers.isEmpty else { return }
         let distributed = DistributedNotificationCenter.default()
         let workspace = NSWorkspace.shared.notificationCenter
-        func observe(_ center: NotificationCenter, _ name: Notification.Name, _ body: @escaping @MainActor () -> Void) {
+        func observe(_ center: NotificationCenter, _ name: Notification.Name, _ body: @escaping @MainActor @Sendable () -> Void) {
             observers.append((center, center.addObserver(forName: name, object: nil, queue: .main) { _ in
                 MainActor.assumeIsolated { body() }
             }))
@@ -855,7 +855,7 @@ final class VaultBroker {
     }
 
     /// The host-owned confirmation before signing out; swappable in tests.
-    var confirmSignOut: () -> Bool = VaultBroker.signOutPrompt
+    var confirmSignOut: @MainActor () -> Bool = VaultBroker.signOutPrompt
 
     /// Signs BarShelf's own profile out once the user confirms: the session
     /// and any sealed copy end hard (bw is locked), then the provider signs

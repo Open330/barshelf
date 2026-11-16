@@ -10,13 +10,37 @@ import AppKit
 /// instead: slowly while the pointer is somewhere that does not matter, and
 /// at `pollInterval` while `isHot` says it does (on or near the menu bar).
 /// It used to read it 30 times a second all day.
+@MainActor
 final class PointerWatcher {
     private let onMove: () -> Void
     private let isHot: (NSPoint) -> Bool
-    private var tap: CFMachPort?
-    private var source: CFRunLoopSource?
-    private var timer: Timer?
+    private var tap: EventTap?
+    private var timer: ScopedTimer?
     private var lastPoint: NSPoint?
+
+    /// The event tap and its source on the main run loop, switched off and
+    /// taken out when the watcher lets go of it. A main-actor `deinit`
+    /// cannot reach these itself; releasing this does the same thing at the
+    /// same moment.
+    private final class EventTap {
+        private let port: CFMachPort
+        private let source: CFRunLoopSource
+
+        init(_ port: CFMachPort) {
+            self.port = port
+            let source: CFRunLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, port, 0)
+            self.source = source
+            CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+            CGEvent.tapEnable(tap: port, enable: true)
+        }
+
+        func enable() { CGEvent.tapEnable(tap: port, enable: true) }
+
+        deinit {
+            CGEvent.tapEnable(tap: port, enable: false)
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
+        }
+    }
 
     /// The fallback's rate while hot: smooth enough to follow a pointer
     /// along the chips.
@@ -33,18 +57,14 @@ final class PointerWatcher {
     }
 
     /// Whether the fallback timer runs, and at which interval (tests).
-    var pollingInterval: TimeInterval? { timer?.timeInterval }
+    var pollingInterval: TimeInterval? { timer?.timer.timeInterval }
 
     static func interval(hot: Bool) -> TimeInterval { hot ? pollInterval : idlePollInterval }
 
-    deinit { stop() }
+    // No deinit: the tap and the timer undo themselves when released.
 
     func stop() {
-        if let tap { CGEvent.tapEnable(tap: tap, enable: false) }
-        if let source { CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes) }
         tap = nil
-        source = nil
-        timer?.invalidate()
         timer = nil
     }
 
@@ -52,23 +72,21 @@ final class PointerWatcher {
         let mask = CGEventMask(1 << CGEventType.mouseMoved.rawValue)
             | CGEventMask(1 << CGEventType.leftMouseDragged.rawValue)
         let refcon = Unmanaged.passUnretained(self).toOpaque()
-        guard let tap = CGEvent.tapCreate(
+        guard let port = CGEvent.tapCreate(
             tap: .cgSessionEventTap, place: .tailAppendEventTap, options: .listenOnly,
             eventsOfInterest: mask,
             callback: { _, type, event, refcon in
                 if let refcon {
                     let watcher = Unmanaged<PointerWatcher>.fromOpaque(refcon).takeUnretainedValue()
-                    watcher.handle(type)
+                    // `assumeIsolated` holds because the tap's source is on
+                    // the main run loop, so this runs on the main thread.
+                    MainActor.assumeIsolated { watcher.handle(type) }
                 }
                 return Unmanaged.passUnretained(event)
             },
             userInfo: refcon
         ) else { return false }
-        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
-        CGEvent.tapEnable(tap: tap, enable: true)
-        self.tap = tap
-        self.source = source
+        tap = EventTap(port)
         return true
     }
 
@@ -76,19 +94,21 @@ final class PointerWatcher {
         switch type {
         case .tapDisabledByTimeout, .tapDisabledByUserInput:
             // The system turns a slow tap off; turn it back on.
-            if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
+            tap?.enable()
         default:
             onMove()
         }
     }
 
     private func installTimer(interval: TimeInterval) {
+        // `assumeIsolated` holds because the timer is added to the main run
+        // loop, so it fires on the main thread.
         let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
-            self?.poll()
+            MainActor.assumeIsolated { self?.poll() }
         }
         timer.tolerance = interval / 2
         RunLoop.main.add(timer, forMode: .common)
-        self.timer = timer
+        self.timer = ScopedTimer(timer)
     }
 
     private func poll() {
@@ -100,7 +120,7 @@ final class PointerWatcher {
         // `onMove` may have stopped the watcher.
         guard let timer else { return }
         let wanted = Self.interval(hot: isHot(point))
-        if timer.timeInterval != wanted {
+        if timer.timer.timeInterval != wanted {
             timer.invalidate()
             installTimer(interval: wanted)
         }

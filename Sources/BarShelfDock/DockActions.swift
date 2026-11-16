@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 
 /// Apps with a Dock presence that are running now, in launch order. Feeds the
 /// running dots and the section of apps that are open but not in the profile.
+@MainActor
 package final class RunningApps: ObservableObject {
     /// One per app: the dock and the actions that launch from it share it.
     package static let shared = RunningApps()
@@ -29,7 +30,15 @@ package final class RunningApps: ObservableObject {
     /// Longest a bounce lasts if an app never reports that it launched.
     package static let launchTimeout: TimeInterval = 15
 
-    private var observers: [NSObjectProtocol] = []
+    private var observers: [WorkspaceObservation] = []
+
+    /// A workspace notification observer, removed when released: a deinit
+    /// is not on the main actor and cannot reach the tokens itself.
+    private final class WorkspaceObservation {
+        private let token: NSObjectProtocol
+        init(_ token: NSObjectProtocol) { self.token = token }
+        deinit { NSWorkspace.shared.notificationCenter.removeObserver(token) }
+    }
 
     package init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -42,42 +51,43 @@ package final class RunningApps: ObservableObject {
             NSWorkspace.didHideApplicationNotification,
             NSWorkspace.didUnhideApplicationNotification,
         ] {
-            observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
-                if name == NSWorkspace.didLaunchApplicationNotification,
-                   let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
-                   let url = app.bundleURL {
-                    DockActions.forgetFilePresentation(at: url.path)
-                }
-                if name == NSWorkspace.didLaunchApplicationNotification,
-                   let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
-                   let url = app.bundleURL, self?.launching.contains(Self.key(url.path)) == true {
-                    // Only when it was bouncing: removing from a published
-                    // set republishes it, and redraws the dock, either way.
-                    self?.launching.remove(Self.key(url.path))
-                }
-                // Switching apps happens all day and changes only which app
-                // is in front; listing every running app for it was a
-                // visible share of the app's idle work. The list itself
-                // changes when an app starts or quits.
-                switch name {
-                case NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification:
-                    self?.reload()
-                default:
-                    // An app that turns into a regular one (a menu bar app
-                    // opening a window) comes forward without launching.
-                    if let self, self.listChanged() {
-                        self.reload()
-                    } else {
-                        self?.updateFrontmost()
+            observers.append(WorkspaceObservation(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
+                // The launched app's path, read here: the notification
+                // itself does not go into the main-actor block.
+                let launchedPath: String? = name == NSWorkspace.didLaunchApplicationNotification
+                    ? (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.bundleURL?.path
+                    : nil
+                // `assumeIsolated` holds because the observer is delivered
+                // on the main queue.
+                MainActor.assumeIsolated {
+                    if let launchedPath {
+                        DockActions.forgetFilePresentation(at: launchedPath)
+                    }
+                    if let launchedPath, self?.launching.contains(Self.key(launchedPath)) == true {
+                        // Only when it was bouncing: removing from a published
+                        // set republishes it, and redraws the dock, either way.
+                        self?.launching.remove(Self.key(launchedPath))
+                    }
+                    // Switching apps happens all day and changes only which app
+                    // is in front; listing every running app for it was a
+                    // visible share of the app's idle work. The list itself
+                    // changes when an app starts or quits.
+                    switch name {
+                    case NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification:
+                        self?.reload()
+                    default:
+                        // An app that turns into a regular one (a menu bar app
+                        // opening a window) comes forward without launching.
+                        if let self, self.listChanged() {
+                            self.reload()
+                        } else {
+                            self?.updateFrontmost()
+                        }
                     }
                 }
-            })
+            }))
         }
         reload()
-    }
-
-    deinit {
-        observers.forEach(NSWorkspace.shared.notificationCenter.removeObserver)
     }
 
     private var hasLooked = false
@@ -166,12 +176,13 @@ package final class RunningApps: ObservableObject {
     }
 
     /// Paths compare without a trailing slash or `..` noise.
-    package static func key(_ path: String) -> String {
+    package nonisolated static func key(_ path: String) -> String {
         URL(fileURLWithPath: path).standardizedFileURL.path
     }
 }
 
 /// What clicking, dropping on, and right-clicking a dock tile does.
+@MainActor
 package enum DockActions {
     // Icons and names, once per path for a minute (so an updated app's icon
     // shows up), at most 256 paths. The dock's body runs on every hover
@@ -266,7 +277,7 @@ package enum DockActions {
     }
 
     /// The user's Shortcuts by name, for the "Add Shortcut" picker.
-    package static func listShortcuts(completion: @escaping ([String]) -> Void) {
+    package static func listShortcuts(completion: @escaping @MainActor @Sendable ([String]) -> Void) {
         DispatchQueue.global(qos: .userInitiated).async {
             let process = Process()
             let pipe = Pipe()
@@ -284,7 +295,8 @@ package enum DockActions {
                     .filter { !$0.isEmpty }
                     .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
             }
-            DispatchQueue.main.async { completion(names) }
+            let found = names
+            DispatchQueue.main.async { completion(found) }
         }
     }
 
@@ -335,6 +347,7 @@ package enum DockActions {
 }
 
 /// Target and lazy filler for folder menus; subfolders fill when opened.
+@MainActor
 package final class FolderMenuTarget: NSObject, NSMenuDelegate {
     package static let shared = FolderMenuTarget()
     /// Enough to find something in Downloads without a menu taller than the

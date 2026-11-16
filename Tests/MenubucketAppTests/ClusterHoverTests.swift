@@ -39,6 +39,7 @@ final class ClusterHoverTests: XCTestCase {
     }
 }
 
+@MainActor
 final class ClusterPixelsTests: XCTestCase {
     private func chips(cpu: String = "23%", alert: Bool = false, stale: Bool = false) -> [ClusterChip] {
         [

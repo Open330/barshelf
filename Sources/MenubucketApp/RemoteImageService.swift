@@ -31,7 +31,7 @@ final class RemoteImageService: @unchecked Sendable {
     private let sessionConfiguration: URLSessionConfiguration
     private let maximumConcurrentDownloads: Int
     private let downloadTimeout: TimeInterval
-    private var inFlight: [String: [(NSImage?) -> Void]] = [:]
+    private var inFlight: [String: [@MainActor @Sendable (NSImage?) -> Void]] = [:]
     private var pendingKeys: [String] = []
     private var activeDownloads = 0
     private var loadStartScheduled = false
@@ -128,7 +128,7 @@ final class RemoteImageService: @unchecked Sendable {
         queue.async { [weak self] in self?.pruneDiskCache() }
     }
 
-    @discardableResult func image(forURL urlString: String, completion: @escaping (NSImage?) -> Void)
+    @discardableResult func image(forURL urlString: String, completion: @escaping @MainActor @Sendable (NSImage?) -> Void)
         -> NSImage?
     {
         let key = urlString

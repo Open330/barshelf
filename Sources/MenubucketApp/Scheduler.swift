@@ -25,6 +25,7 @@ import MenubucketCore
 /// Policy math lives in `MenubucketCore.SchedulePolicy` / `BackoffState`
 /// (unit-tested); this class only arms timers and routes callbacks. All entry
 /// points run on the main queue.
+@MainActor
 final class Scheduler {
     /// Refresh request sink (`WidgetRuntime.refresh(widgetID:manual:)`).
     var requestRefresh: ((_ widgetID: String, _ manual: Bool) -> Void)?
@@ -38,16 +39,16 @@ final class Scheduler {
     /// the popup is open is restricted to this set.
     private var visibleWidgetIDs: Set<String> = []
     private var backoff: [String: BackoffState] = [:]
-    private var intervalTimers: [TimeInterval: Timer] = [:]
+    private var intervalTimers: [TimeInterval: ScopedTimer] = [:]
     private var intervalMembers: [TimeInterval: [String]] = [:]
-    private var deadlineTimers: [String: Timer] = [:]
+    private var deadlineTimers: [String: ScopedTimer] = [:]
     /// Pending adapter deadlines (epoch ms), survives popup close.
     private var deadlines: [String: Double] = [:]
     private var watchers: [String: DirectoryWatcher] = [:]
     /// Automatic work deferred while its widget is offscreen (or while the
     /// popup is closed and the widget is not background-capable).
     private var pendingAutomaticEvents: Set<String> = []
-    private var wakeObserver: NSObjectProtocol?
+    private var wakeObserver: NotificationObservation?
     private var refreshMultiplier: Double = 1
     private var pauseWhenClosed = false
     /// Widgets drawn in the menu bar. Their value is on screen whether or not
@@ -58,7 +59,7 @@ final class Scheduler {
     /// The screen is locked or the display is asleep: the menu bar is not on
     /// screen, so nothing in it is.
     private(set) var menuBarIsHidden = false
-    private var screenStateObservers: [(center: NotificationCenter, token: NSObjectProtocol)] = []
+    private var screenStateObservers: [NotificationObservation] = []
     /// The promoted widgets that can actually be seen. While the bar is
     /// hidden there are none, and a promoted widget is scheduled like any
     /// other with the popup closed: a `runInBackground` one keeps its relaxed
@@ -74,7 +75,7 @@ final class Scheduler {
     var holdsActivityAssertion: Bool { activityAssertion != nil }
 
     /// Non-nil while a widget is in the menu bar; see `updateActivityAssertion`.
-    private var activityAssertion: NSObjectProtocol?
+    private var activityAssertion: ScopedActivity?
 
     // MARK: R12 event triggers (`refresh.triggers`)
 
@@ -91,37 +92,31 @@ final class Scheduler {
     static let watchDebounceSec: TimeInterval = 0.25
 
     init() {
-        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+        let workspace = NSWorkspace.shared.notificationCenter
+        // `assumeIsolated` holds because the observer is delivered on the
+        // main queue.
+        wakeObserver = NotificationObservation(workspace.addObserver(
             forName: NSWorkspace.didWakeNotification,
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            guard let self else { return }
-            if self.pauseWhenClosed, !self.popupIsOpen { return }
-            // While closed, only runInBackground widgets refresh (invariant 3);
-            // everything else is picked up by onOpen staleness.
-            self.requestStaleRefresh?(!self.popupIsOpen)
-            // `wake`-trigger widgets refresh explicitly (spacing-gated) even
-            // when they carry no interval / staleness config.
-            for id in self.wakeTriggerIDs {
-                self.fireTrigger(id, minSpacing: SchedulePolicy.triggerMinSpacingSec)
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                if self.pauseWhenClosed, !self.popupIsOpen { return }
+                // While closed, only runInBackground widgets refresh (invariant 3);
+                // everything else is picked up by onOpen staleness.
+                self.requestStaleRefresh?(!self.popupIsOpen)
+                // `wake`-trigger widgets refresh explicitly (spacing-gated) even
+                // when they carry no interval / staleness config.
+                for id in self.wakeTriggerIDs {
+                    self.fireTrigger(id, minSpacing: SchedulePolicy.triggerMinSpacingSec)
+                }
             }
-        }
+        }, in: workspace)
     }
 
-    deinit {
-        if let wakeObserver {
-            NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
-        }
-        if let activityAssertion {
-            ProcessInfo.processInfo.endActivity(activityAssertion)
-        }
-        for observer in screenStateObservers { observer.center.removeObserver(observer.token) }
-        for timer in intervalTimers.values { timer.invalidate() }
-        for timer in deadlineTimers.values { timer.invalidate() }
-        for watcher in watchers.values { watcher.cancel() }
-        for watcher in triggerWatchers.values { watcher.cancel() }
-    }
+    // No deinit: the observers, the activity, the timers and the watchers
+    // each undo themselves when the scheduler releases them.
 
     // MARK: - Configuration (widget set changed)
 
@@ -239,21 +234,21 @@ final class Scheduler {
 
     /// Follows the screen: locked/unlocked and display asleep/awake. Called
     /// once by the app; tests drive `setMenuBarHidden` themselves.
-    func observeScreenState(isHiddenNow: @escaping () -> Bool) {
+    func observeScreenState(isHiddenNow: @escaping @MainActor @Sendable () -> Bool) {
         guard screenStateObservers.isEmpty else { return }
-        let update: (Notification) -> Void = { [weak self] _ in
+        let update: @Sendable (Notification) -> Void = { [weak self] _ in
             // The session dictionary lags the notification by a moment.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self?.setMenuBarHidden(isHiddenNow()) }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.setMenuBarHidden(isHiddenNow()) }
         }
         let distributed = DistributedNotificationCenter.default()
         for name in ["com.apple.screenIsLocked", "com.apple.screenIsUnlocked"] {
-            screenStateObservers.append((distributed, distributed.addObserver(
-                forName: Notification.Name(name), object: nil, queue: .main, using: update)))
+            screenStateObservers.append(NotificationObservation(distributed.addObserver(
+                forName: Notification.Name(name), object: nil, queue: .main, using: update), in: distributed))
         }
         let workspace = NSWorkspace.shared.notificationCenter
         for name in [NSWorkspace.screensDidSleepNotification, NSWorkspace.screensDidWakeNotification] {
-            screenStateObservers.append((workspace, workspace.addObserver(
-                forName: name, object: nil, queue: .main, using: update)))
+            screenStateObservers.append(NotificationObservation(workspace.addObserver(
+                forName: name, object: nil, queue: .main, using: update), in: workspace))
         }
         setMenuBarHidden(isHiddenNow())
     }
@@ -273,12 +268,11 @@ final class Scheduler {
     private func updateActivityAssertion() {
         let wanted = !shownInMenuBar.isEmpty
         if wanted, activityAssertion == nil {
-            activityAssertion = ProcessInfo.processInfo.beginActivity(
+            activityAssertion = ScopedActivity(
                 options: [.userInitiatedAllowingIdleSystemSleep],
                 reason: "Showing live widget values in the menu bar"
             )
-        } else if !wanted, let assertion = activityAssertion {
-            ProcessInfo.processInfo.endActivity(assertion)
+        } else if !wanted, activityAssertion != nil {
             activityAssertion = nil
         }
     }
@@ -299,7 +293,7 @@ final class Scheduler {
     func intervalTimerIdentity(for widgetID: String) -> ObjectIdentifier? {
         guard let interval = intervalMembers.first(where: { $0.value.contains(widgetID) })?.key,
               let timer = intervalTimers[interval] else { return nil }
-        return ObjectIdentifier(timer)
+        return ObjectIdentifier(timer.timer)
     }
 
     // MARK: - Popup lifecycle
@@ -354,7 +348,7 @@ final class Scheduler {
     func nextIntervalFire(widgetID: String) -> Date? {
         guard let interval = intervalMembers.first(where: { $0.value.contains(widgetID) })?.key
         else { return nil }
-        return intervalTimers[interval]?.fireDate
+        return intervalTimers[interval]?.timer.fireDate
     }
 
     // MARK: - Interval trigger
@@ -389,13 +383,18 @@ final class Scheduler {
             // One timer per cadence, retained across visibility/configuration
             // changes that do not alter that cadence. Members are read at fire
             // time so replaced widgets never leave stale callbacks behind.
+            // `assumeIsolated` holds because the timer is scheduled on the
+            // main run loop (the scheduler is main-actor), so it fires on
+            // the main thread.
             let timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-                guard let self else { return }
-                for id in self.intervalMembers[interval] ?? [] { self.fireAutomatic(id) }
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    for id in self.intervalMembers[interval] ?? [] { self.fireAutomatic(id) }
+                }
             }
             timer.fireDate = Self.alignedFireDate(interval: interval)
             timer.tolerance = interval * 0.1
-            intervalTimers[interval] = timer
+            intervalTimers[interval] = ScopedTimer(timer)
         }
     }
 
@@ -426,13 +425,16 @@ final class Scheduler {
 
         let fireDate = Date(timeIntervalSince1970: deadlineMs / 1000)
         let delay = max(fireDate.timeIntervalSinceNow, 0.05)
+        // `assumeIsolated`: scheduled on the main run loop, as above.
         let timer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
-            guard let self else { return }
-            self.deadlineTimers.removeValue(forKey: widgetID)
-            self.deadlines.removeValue(forKey: widgetID) // exactly once
-            self.fireAutomatic(widgetID)
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.deadlineTimers.removeValue(forKey: widgetID)
+                self.deadlines.removeValue(forKey: widgetID) // exactly once
+                self.fireAutomatic(widgetID)
+            }
         }
-        deadlineTimers[widgetID] = timer
+        deadlineTimers[widgetID] = ScopedTimer(timer)
     }
 
     // MARK: - Watch trigger (FSEvents)

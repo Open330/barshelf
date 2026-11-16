@@ -31,8 +31,10 @@ final class DesktopWidgetMirror {
     /// The runtime. Weak: the runtime owns the mirror.
     weak var source: DesktopWidgetMirrorSource?
 
-    init(sharedShelf: SharedShelfPublisher = SharedShelfPublisher()) {
-        self.sharedShelf = sharedShelf
+    /// nil makes the app's own publisher (a default argument is evaluated
+    /// outside the main actor, where the publisher cannot be made).
+    init(sharedShelf: SharedShelfPublisher? = nil) {
+        self.sharedShelf = sharedShelf ?? SharedShelfPublisher()
     }
 
     /// Whether this build can feed desktop widgets at all (App Group

@@ -70,7 +70,7 @@ enum CardDrag {
     }
 
     /// Reads the dragged widget id and hands it over on the main queue.
-    static func receive(_ providers: [NSItemProvider], perform: @escaping (String) -> Void) -> Bool {
+    static func receive(_ providers: [NSItemProvider], perform: @escaping @MainActor @Sendable (String) -> Void) -> Bool {
         guard let provider = providers.first else { return false }
         provider.loadObject(ofClass: NSString.self) { object, _ in
             guard let id = object as? String else { return }

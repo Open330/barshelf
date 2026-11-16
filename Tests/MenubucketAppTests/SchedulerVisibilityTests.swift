@@ -2,6 +2,7 @@ import XCTest
 import MenubucketCore
 @testable import MenubucketApp
 
+@MainActor
 final class SchedulerVisibilityTests: XCTestCase {
     func testShelfIntervalOverrideRespectsVisibilityEnergyFloorAndPromotionPrecedence() throws {
         let scheduler = Scheduler()

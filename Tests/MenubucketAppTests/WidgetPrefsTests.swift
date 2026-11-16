@@ -3,6 +3,7 @@ import XCTest
 import MenubucketCore
 @testable import BarShelfBuilder
 
+@MainActor
 final class WidgetPrefsTests: XCTestCase {
     private var fileURL: URL!
 

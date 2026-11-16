@@ -13,7 +13,9 @@ struct ActionContext {
 }
 
 private struct ActionContextKey: EnvironmentKey {
-    static let defaultValue = ActionContext()
+    /// Made on request: the context holds a closure, so it is not a value
+    /// to keep in shared storage.
+    static var defaultValue: ActionContext { ActionContext() }
 }
 
 extension EnvironmentValues {

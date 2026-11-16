@@ -48,7 +48,10 @@ enum UpdateChecker {
     /// Updates…" into "Update to BarShelf X…" — nothing jumps in front of
     /// whatever the user was doing. Choosing that item, or Check for
     /// Updates, asks with the full dialog.
-    static func check(explicit: Bool, prefs: AppPrefs = .shared) {
+    static func check(explicit: Bool, prefs given: AppPrefs? = nil) {
+        // nil is the app's own (see `WidgetRuntime.init`).
+        let prefs: AppPrefs
+        if let given { prefs = given } else { prefs = AppPrefs.shared }
         if !explicit, !prefs.preferences.checkForUpdatesAutomatically { return }
         let status = UpdateStatus.shared
         status.isChecking = true
@@ -191,7 +194,9 @@ enum UpdateChecker {
         )
     }
 
-    static func skipVersion(_ version: String, prefs: AppPrefs = .shared) {
+    static func skipVersion(_ version: String, prefs given: AppPrefs? = nil) {
+        let prefs: AppPrefs
+        if let given { prefs = given } else { prefs = AppPrefs.shared }
         prefs.update { $0.skippedUpdateVersion = version }
         UpdateStatus.shared.available = nil
         HubWindowController.shared.runtime?.attention.set(.updateAvailable, false)

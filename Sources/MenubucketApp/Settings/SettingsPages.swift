@@ -84,7 +84,7 @@ struct GeneralSettingsPage: View {
             Section {
                 Toggle(isOn: Binding(
                     get: { appPrefs.preferences.launchAtLogin },
-                    set: setLaunchAtLogin
+                    set: { setLaunchAtLogin($0) }
                 )) {
                     Text("Open at login")
                     Text("Start BarShelf when you sign in to your Mac.")

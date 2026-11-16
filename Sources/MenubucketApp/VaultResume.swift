@@ -92,6 +92,13 @@ struct SecureEnclaveSealer: VaultKeySealer {
         context.touchIDAuthenticationAllowableReuseDuration = 0
         defer { context.invalidate() }
         do {
+            // The one strict-concurrency diagnostic the app keeps (CI allows
+            // exactly this one): cancelling has to invalidate the context
+            // the prompt is running on, at once, from the cancelling thread,
+            // and `LAContext` is not `Sendable`. `invalidate()` is what
+            // LocalAuthentication provides for ending an evaluation from
+            // elsewhere; saying so to the compiler would take an unchecked
+            // conformance, and going through an actor would delay the cancel.
             try await withTaskCancellationHandler {
                 _ = try await context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason)
             } onCancel: {

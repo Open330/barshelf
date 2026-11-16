@@ -2,6 +2,7 @@ import XCTest
 @testable import MenubucketApp
 @testable import MenubucketCore
 
+@MainActor
 final class AppPrefsTests: XCTestCase {
     private var fileURL: URL!
 

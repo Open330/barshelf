@@ -162,8 +162,10 @@ jobs:
           swift build --target MenubucketCore -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
           swift build --target BarShelfKit -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
 
-      # Not clean yet (2026-11-12: Builder 1, Automation 17, Dock 13), so
-      # counted, not enforced; move a target up once it reaches zero.
+      # Not clean yet (2026-11-16: Automation 23; Builder is at zero, and
+      # Dock is at zero on Swift 6.4 but stays here until a run on this
+      # toolchain says so), so counted, not enforced; move a target up once
+      # it reaches zero.
       # Dependencies first, so each target's own files are compiled in its
       # own step and counted there (a cached module reports nothing).
       - name: Other library targets (report only)
@@ -188,6 +190,44 @@ jobs:
             echo "| ${target} | ${count} |" >> "$GITHUB_STEP_SUMMARY"
             [ "$count" -eq 0 ] || echo "::warning::${target} has ${count} strict-concurrency diagnostics"
           done
+
+      # The app's own files, enforced: any diagnostic located in
+      # Sources/MenubucketApp fails the run. Not with `-warnings-as-errors`,
+      # which applies to every module the build compiles: the app depends on
+      # BarShelfAutomation, which is not clean yet, so that build would stop
+      # there. The build runs without the flag and the step counts.
+      #
+      # One diagnostic is allowed, by file and wording (not by line):
+      # VaultResume shares an LAContext between a Touch ID prompt and its
+      # cancellation handler, and LAContext is not Sendable (see the comment
+      # there). Anything else in that file still fails.
+      #
+      # After the report-only step: built first, it would compile those
+      # targets as its dependencies and leave them nothing to report.
+      - name: MenubucketApp (own files, enforced)
+        run: |
+          log="${RUNNER_TEMP}/strict-MenubucketApp.log"
+          if ! swift build --target MenubucketApp -Xswiftc -strict-concurrency=complete >"$log" 2>&1; then
+            tail -80 "$log"
+            echo "::error::MenubucketApp did not build with strict concurrency"
+            exit 1
+          fi
+          # Colour codes out, then one line per diagnostic location.
+          sed $'s/\x1b\\[[0-9;]*m//g' "$log" \
+            | grep -oE "Sources/MenubucketApp/[^ :]+\.swift:[0-9]+:[0-9]+: (warning|error): .*" \
+            | sort -u > "${log}.found" || true
+          # The one known case: the Touch ID prompt's LAContext, shared with
+          # its cancel handler. Compilers word it differently (6.4 reports
+          # the sent closure; 6.3 the captured LAContext and its import).
+          allowed='^Sources/MenubucketApp/VaultResume\.swift:[0-9]+:[0-9]+: warning: (sending value of non-Sendable type .* risks causing data races|capture of .context. with non-Sendable type .LAContext. in a .@Sendable. closure|add .@preconcurrency. to suppress .Sendable.-related warnings from module .LocalAuthentication.)'
+          grep -vE "$allowed" "${log}.found" > "${log}.new" || true
+          count=$(wc -l < "${log}.new" | tr -d ' ')
+          echo "MenubucketApp: ${count} (plus $(grep -cE "$allowed" "${log}.found" || true) allowed)"
+          cat "${log}.new"
+          if [ "$count" -ne 0 ]; then
+            echo "::error::MenubucketApp has ${count} new strict-concurrency diagnostics in its own files"
+            exit 1
+          fi
 
       # The desktop widget extension is the one Xcode-built part of the app;
       # building it here keeps a Swift-only change from breaking it unseen.

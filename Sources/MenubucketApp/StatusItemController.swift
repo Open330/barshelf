@@ -31,13 +31,13 @@ final class StatusItemController: NSObject {
     /// observers would redraw a hidden view on every app switch.
     private var dockPanel: DockPanelController?
     private var dockHotkeys: DockHotkeys!
-    private var keyboardMonitor: Any?
-    private var scrollMonitor: Any?
+    private var keyboardMonitor: EventMonitor?
+    private var scrollMonitor: EventMonitor?
     private var cancellables: Set<AnyCancellable> = []
 
     /// Carbon global hotkey (toggles the popup; no accessibility permission).
-    private var hotKeyRef: EventHotKeyRef?
-    private var hotKeyEventHandler: EventHandlerRef?
+    private var hotKeyRef: HotKeyRegistration?
+    private var hotKeyEventHandler: HotKeyHandlerInstallation?
     private var registeredHotkey: HotkeyGrammar.Combination?
 
     /// Two-finger swipe tracking (scroll-wheel phases).
@@ -205,18 +205,12 @@ final class StatusItemController: NSObject {
     /// The runtime, for the app menu built in `AppCommands`.
     var shelfRuntime: WidgetRuntime { runtime }
 
-    deinit {
-        // A deinit is not on the main actor, so it cannot call
-        // `removeKeyboardMonitor()`, `removeScrollMonitor()` and
-        // `unregisterHotkey()`; these are their bodies.
-        if let monitor = keyboardMonitor { NSEvent.removeMonitor(monitor) }
-        if let monitor = scrollMonitor { NSEvent.removeMonitor(monitor) }
-        if let ref = hotKeyRef { UnregisterEventHotKey(ref) }
-        HotkeyRegistrationCoordinator.shared.register = nil
-        if let handler = hotKeyEventHandler {
-            RemoveEventHandler(handler)
-        }
-    }
+    // No deinit: a deinit is not on the main actor, so it cannot reach the
+    // monitors or the Carbon references. Each is held by an object that
+    // undoes it when released (`EventMonitor`, `HotKeyRegistration`,
+    // `HotKeyHandlerInstallation`), which happens as the controller goes.
+    // The coordinator's `register` hook holds the controller weakly and
+    // answers false once it is gone, which is what a missing hook means.
 
     // MARK: - Status item events
 
@@ -772,17 +766,14 @@ final class StatusItemController: NSObject {
             GetApplicationEventTarget(), 0, &newRef
         )
         guard status == noErr, let newRef else { return false }
-        if let oldRef = hotKeyRef { UnregisterEventHotKey(oldRef) }
-        hotKeyRef = newRef
+        // Replacing the registration releases, and so unregisters, the old one.
+        hotKeyRef = HotKeyRegistration(newRef)
         registeredHotkey = combo
         return true
     }
 
     private func unregisterHotkey() {
-        if let ref = hotKeyRef {
-            UnregisterEventHotKey(ref)
-            hotKeyRef = nil
-        }
+        hotKeyRef = nil
     }
 
     /// Installs the single application-wide `kEventHotKeyPressed` handler once;
@@ -794,6 +785,7 @@ final class StatusItemController: NSObject {
             eventKind: UInt32(kEventHotKeyPressed)
         )
         let selfPtr = Unmanaged.passUnretained(self).toOpaque()
+        var installed: EventHandlerRef?
         InstallEventHandler(
             GetApplicationEventTarget(),
             { _, event, userData -> OSStatus in
@@ -810,8 +802,9 @@ final class StatusItemController: NSObject {
                 DispatchQueue.main.async { controller.hotkeyPressed() }
                 return noErr
             },
-            1, &eventType, selfPtr, &hotKeyEventHandler
+            1, &eventType, selfPtr, &installed
         )
+        hotKeyEventHandler = installed.map(HotKeyHandlerInstallation.init)
     }
 
     fileprivate func hotkeyPressed() {
@@ -822,7 +815,7 @@ final class StatusItemController: NSObject {
 
     private func installKeyboardMonitor() {
         removeKeyboardMonitor()
-        keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
+        keyboardMonitor = EventMonitor(NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
             guard let self, self.popup.isShown,
                   PopupEventRouting.belongsToPopup(
                     eventWindow: event.window, popupWindow: self.popup.eventWindow
@@ -860,7 +853,7 @@ final class StatusItemController: NSObject {
             }
 
             return event
-        }
+        })
     }
 
     /// Caps Lock, numeric-pad and function bits often accompany ordinary
@@ -880,10 +873,7 @@ final class StatusItemController: NSObject {
     }
 
     private func removeKeyboardMonitor() {
-        if let monitor = keyboardMonitor {
-            NSEvent.removeMonitor(monitor)
-            keyboardMonitor = nil
-        }
+        keyboardMonitor = nil
     }
 
     // MARK: - Trackpad swipe (popup-scoped): two-finger horizontal → pager
@@ -894,7 +884,7 @@ final class StatusItemController: NSObject {
     /// Legacy mouse-wheel events (no phases) always pass through.
     private func installScrollMonitor() {
         removeScrollMonitor()
-        scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: [.scrollWheel]) { [weak self] event in
+        scrollMonitor = EventMonitor(NSEvent.addLocalMonitorForEvents(matching: [.scrollWheel]) { [weak self] event in
             guard let self, self.popup.isShown,
                   PopupEventRouting.belongsToPopup(
                     eventWindow: event.window, popupWindow: self.popup.eventWindow
@@ -907,14 +897,11 @@ final class StatusItemController: NSObject {
                 return event
             }
             return self.handleScrollEvent(event)
-        }
+        })
     }
 
     private func removeScrollMonitor() {
-        if let monitor = scrollMonitor {
-            NSEvent.removeMonitor(monitor)
-            scrollMonitor = nil
-        }
+        scrollMonitor = nil
     }
 
     private func handleScrollEvent(_ event: NSEvent) -> NSEvent? {
@@ -993,4 +980,22 @@ private extension Array where Element == String {
     /// Nil when there is nothing to report, so "no dot" and "a dot with no
     /// words" stay different.
     func withEmpty(when nothing: Bool) -> [String]? { nothing ? nil : self }
+}
+
+/// A registered Carbon hot key, unregistered when released.
+private final class HotKeyRegistration {
+    private let ref: EventHotKeyRef
+
+    init(_ ref: EventHotKeyRef) { self.ref = ref }
+
+    deinit { UnregisterEventHotKey(ref) }
+}
+
+/// The installed Carbon hot-key event handler, removed when released.
+private final class HotKeyHandlerInstallation {
+    private let ref: EventHandlerRef
+
+    init(_ ref: EventHandlerRef) { self.ref = ref }
+
+    deinit { RemoveEventHandler(ref) }
 }

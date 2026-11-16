@@ -6,7 +6,7 @@ import Foundation
 /// cleared by a failure — failures only set `error` (rendered as a banner over
 /// the cached tree). The snapshot (minus transient `isLoading`) serializes to
 /// JSON for the on-disk render cache.
-public struct WidgetSnapshot: Codable, Equatable {
+public struct WidgetSnapshot: Codable, Equatable, Sendable {
     public var widgetID: String
     /// Last successful view tree ("UI never blanks").
     public var viewTree: UINode?

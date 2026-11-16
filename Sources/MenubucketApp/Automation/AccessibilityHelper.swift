@@ -12,6 +12,7 @@ import SwiftUI
 /// Opened from Automation settings, by `barshelf://accessibility`, or by
 /// `barshelf accessibility` — so another Mac can be brought to this point
 /// remotely, leaving only the drag.
+@MainActor
 final class AccessibilityHelper: ObservableObject {
     static let shared = AccessibilityHelper()
 
@@ -54,8 +55,10 @@ final class AccessibilityHelper: ObservableObject {
         timer?.invalidate()
         // macOS sends no notice when the switch flips; a cheap check each
         // second while the panel is up is how anyone finds out.
+        // `assumeIsolated` holds because the timer is scheduled on the main
+        // run loop (this method is main-actor), so it fires on the main thread.
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            self?.check()
+            MainActor.assumeIsolated { self?.check() }
         }
         check()
     }
@@ -90,9 +93,13 @@ final class AccessibilityHelper: ObservableObject {
         let hosting = NSHostingView(rootView: AccessibilityHelperView(helper: self))
         panel.contentView = hosting
         panel.setContentSize(hosting.fittingSize)
+        // `assumeIsolated` holds because the observer is delivered on the
+        // main queue.
         NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: panel, queue: .main) { [weak self] _ in
-            self?.timer?.invalidate()
-            self?.timer = nil
+            MainActor.assumeIsolated {
+                self?.timer?.invalidate()
+                self?.timer = nil
+            }
         }
         return panel
     }

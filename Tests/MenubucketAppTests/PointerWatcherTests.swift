@@ -1,6 +1,7 @@
 import XCTest
 @testable import MenubucketApp
 
+@MainActor
 final class PointerWatcherTests: XCTestCase {
     /// Without the event tap the pointer is read by a timer: fast only
     /// where the cluster follows it, a few times a second elsewhere.

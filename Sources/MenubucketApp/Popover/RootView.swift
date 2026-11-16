@@ -37,7 +37,7 @@ struct RootView: View {
     /// The page dot a dragged card is hovering over.
     @State private var dropTargetPageID: String?
 
-    static let defaultSize = CGSize(width: 360, height: 480)
+    nonisolated static let defaultSize = CGSize(width: 360, height: 480)
     /// Short enough for a single small card; tall enough that the empty
     /// state and the search overlay still fit.
     static let minimumHeight: CGFloat = 240

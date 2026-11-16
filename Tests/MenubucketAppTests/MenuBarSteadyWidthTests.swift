@@ -6,6 +6,7 @@ import XCTest
 
 /// The promise behind the default width mode, checked with the real
 /// renderers: a reading that gains a digit does not move the bar.
+@MainActor
 final class MenuBarSteadyWidthTests: XCTestCase {
     private func entry(
         _ value: String, style: MenuBarStyle = .stacked,

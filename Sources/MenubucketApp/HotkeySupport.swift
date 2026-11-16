@@ -18,6 +18,7 @@ enum HotkeyPreferencePolicy {
 /// Bridge between Settings and the Carbon-owning status item. Settings only
 /// changes persisted state after this bridge confirms registration, so a
 /// checked toggle always represents an active shortcut.
+@MainActor
 final class HotkeyRegistrationCoordinator: ObservableObject {
     static let shared = HotkeyRegistrationCoordinator()
 

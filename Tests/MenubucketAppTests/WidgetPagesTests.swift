@@ -5,6 +5,7 @@ import MenubucketCore
 /// Exercises the pure page layout used by `WidgetRuntime.pages`: bucket
 /// overrides win over the manifest, disabled widgets vanish, empty groups
 /// disappear, and both members and pages keep a stable order.
+@MainActor
 final class WidgetPagesTests: XCTestCase {
     func testInitialPageMaterializationIsBoundedAndVisitedPagesSurviveFarJumps() {
         let ids = (0..<20).map { "page-\($0)" }

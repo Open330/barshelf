@@ -5,6 +5,7 @@ import XCTest
 
 /// The folded cluster with a chip in trouble. Set CLUSTER_RENDER_DIR to keep
 /// the images for a look.
+@MainActor
 final class ClusterAlertDotTests: XCTestCase {
     private let chips = [
         ClusterChip(widgetID: "a", name: "CPU", symbol: "cpu", initial: "C", value: "23%"),
@@ -61,6 +62,7 @@ final class ClusterAlertDotTests: XCTestCase {
 
 /// A lone chip in focus stays inside the item: the BarShelf icon keeps its
 /// place, so there is no room for a pill.
+@MainActor
 final class LoneChipTests: XCTestCase {
     func testALoneChipInFocusDrawsNothingPastTheItem() throws {
         let chip = ClusterChip(widgetID: "a", name: "Keep Awake", symbol: "cup.and.saucer.fill", initial: "K", value: "1:42:00")

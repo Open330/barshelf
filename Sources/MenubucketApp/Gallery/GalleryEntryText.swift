@@ -41,10 +41,10 @@ enum GalleryEntryText {
         return official.summary()
     }
 
-    private struct OfficialPack {
+    private struct OfficialPack: Sendable {
         let name: String
-        let title: () -> String
-        let summary: () -> String
+        let title: @Sendable () -> String
+        let summary: @Sendable () -> String
     }
 
     private static let officialPacks: [String: OfficialPack] = [

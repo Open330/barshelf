@@ -437,6 +437,8 @@ final class GlyphCache: @unchecked Sendable {
         let scales: [CGFloat]
     }
 
+    /// Main actor: the key includes the attached displays' densities.
+    @MainActor
     func glyph(_ name: String, pointSize: CGFloat) -> NSImage? {
         let quarterPoints = Int((pointSize * 4).rounded())
         let size = CGFloat(quarterPoints) / 4

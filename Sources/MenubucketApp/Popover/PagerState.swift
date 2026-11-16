@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 /// Pager selection, shared with StatusItemController so keyboard events
 /// (←/→, ⌘1..9) and trackpad swipes captured at the AppKit layer can drive
 /// the SwiftUI pager.
+@MainActor
 final class PagerState: ObservableObject {
     @Published var index: Int = 0
     /// Shared with the AppKit event monitor so page-navigation shortcuts do

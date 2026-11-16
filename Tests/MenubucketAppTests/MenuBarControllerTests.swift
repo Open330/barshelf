@@ -3,6 +3,7 @@ import XCTest
 import MenubucketCore
 @testable import MenubucketApp
 
+@MainActor
 final class MenuBarControllerTests: XCTestCase {
     private func entry(
         _ id: String,
@@ -131,6 +132,7 @@ final class MenuBarControllerTests: XCTestCase {
 /// A tooltip that moves while the drawn reading does not must not redraw the
 /// item — the System widget's tooltip names CPU, memory and disk, so without
 /// this the RAM item repainted every time CPU changed.
+@MainActor
 final class MenuBarRedrawDecisionTests: XCTestCase {
     private func entry(label: String, tooltip: String, stale: Bool = false) -> MenuBarEntry {
         MenuBarEntry(

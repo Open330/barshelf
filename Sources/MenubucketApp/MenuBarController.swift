@@ -66,6 +66,37 @@ final class MenuBarUpdateBatch {
     deinit { pending?.cancel() }
 }
 
+/// Key-value observation of a view's `effectiveAppearance`, reporting the
+/// look (light, dark, …) each time AppKit says it changed.
+///
+/// A Swift key path cannot name a main-actor property from the observation's
+/// `@Sendable` callback, so this observes by name and reads the new value out
+/// of the change dictionary. The callback runs wherever the change was made;
+/// it is handed only the look's name, which is safe to carry anywhere.
+final class AppearanceObservation: NSObject {
+    private static let keyPath = "effectiveAppearance"
+    private let view: NSView
+    private let onChange: @Sendable (NSAppearance.Name?) -> Void
+
+    @MainActor
+    init(of view: NSView, onChange: @escaping @Sendable (NSAppearance.Name?) -> Void) {
+        self.view = view
+        self.onChange = onChange
+        super.init()
+        view.addObserver(self, forKeyPath: Self.keyPath, options: [.new], context: nil)
+    }
+
+    deinit { view.removeObserver(self, forKeyPath: Self.keyPath) }
+
+    override func observeValue(
+        forKeyPath keyPath: String?, of object: Any?,
+        change: [NSKeyValueChangeKey: Any]?, context: UnsafeMutableRawPointer?
+    ) {
+        guard keyPath == Self.keyPath, let appearance = change?[.newKey] as? NSAppearance else { return }
+        onChange(MenuBarController.look(of: appearance))
+    }
+}
+
 /// Owns every menu-bar status item: the main BarShelf item, whose title is the
 /// shared live strip, and one extra item per widget the user split out.
 ///
@@ -75,6 +106,7 @@ final class MenuBarUpdateBatch {
 /// Like `Scheduler`, every entry point runs on the main queue; the owning
 /// `StatusItemController` is constructed in `applicationDidFinishLaunching`
 /// and the entry subscription is delivered on `RunLoop.main`.
+@MainActor
 final class MenuBarController {
     /// Width of the main item when it shows the mark alone.
     static let iconOnlyLength: CGFloat = 28
@@ -121,7 +153,7 @@ final class MenuBarController {
     private var pulseGrowth = CGFloat(ClusterPulse.growth)
     private var pulseAnimation: Timer?
     private var pulseWork: DispatchWorkItem?
-    private var appearanceObservation: NSKeyValueObservation?
+    private var appearanceObservation: AppearanceObservation?
     /// Light or dark, as the cluster was last drawn.
     private var drawnLook: NSAppearance.Name?
     /// The look the badged plain mark was last drawn for.
@@ -260,23 +292,24 @@ final class MenuBarController {
         // again when the bar turns light or dark. Only then: the button
         // reports its appearance again whenever its image is set, and
         // redrawing on every report never stops.
-        appearanceObservation = mainItem.button?.observe(\.effectiveAppearance) { [weak self] button, _ in
-            let look = Self.look(of: button.effectiveAppearance)
-            DispatchQueue.main.async {
-                // The plain mark with its red attention dot is in colour
-                // too (`BarShelfStatusIcon.badgedImage`): drawn again the
-                // same way, once per change of look.
-                if let self, self.attention, self.appliedChips?.isEmpty ?? true, look != self.badgedLook {
-                    self.badgedLook = look
-                    self.appliedSymbol = nil
-                    self.redraw()
-                    return
+        appearanceObservation = mainItem.button.map { button in
+            AppearanceObservation(of: button) { [weak self] look in
+                DispatchQueue.main.async { [weak self] in
+                    // The plain mark with its red attention dot is in colour
+                    // too (`BarShelfStatusIcon.badgedImage`): drawn again the
+                    // same way, once per change of look.
+                    if let self, self.attention, self.appliedChips?.isEmpty ?? true, look != self.badgedLook {
+                        self.badgedLook = look
+                        self.appliedSymbol = nil
+                        self.redraw()
+                        return
+                    }
+                    guard let self, self.layout == .cluster, look != self.drawnLook,
+                          let chips = self.appliedChips, !chips.isEmpty, let button = self.mainItem.button
+                    else { return }
+                    // The chips stay as they are, focus included.
+                    self.drawCluster(chips, on: button)
                 }
-                guard let self, self.layout == .cluster, look != self.drawnLook,
-                      let chips = self.appliedChips, !chips.isEmpty, let button = self.mainItem.button
-                else { return }
-                // The chips stay as they are, focus included.
-                self.drawCluster(chips, on: button)
             }
         }
     }
@@ -440,22 +473,30 @@ final class MenuBarController {
         let ids = chips.map(\.id)
         pulseAnimation?.invalidate()
         let began = Date()
+        // `assumeIsolated` holds because the timer is scheduled on the main
+        // run loop (this method is main-actor), so it fires on the main thread.
+        // The timer itself stays outside (it is not Sendable): the frame
+        // says whether it was the last one.
         pulseAnimation = Timer.scheduledTimer(withTimeInterval: 1.0 / 60, repeats: true) { [weak self] timer in
-            guard let self, let chips = self.appliedChips, chips.map(\.id) == ids,
-                  self.clusterFocus == nil, let button = self.mainItem.button else {
-                timer.invalidate(); return
+            let finished = MainActor.assumeIsolated { () -> Bool in
+                guard let self, let chips = self.appliedChips, chips.map(\.id) == ids,
+                      self.clusterFocus == nil, let button = self.mainItem.button else {
+                    return true
+                }
+                let elapsed = Date().timeIntervalSince(began)
+                self.pulseLifts = ids.indices.map { index in
+                    if reduced { return changed.contains(ids[index]) ? CGFloat(ClusterPulse.lift(index: 0, elapsed: elapsed)) : 0 }
+                    return CGFloat(ClusterPulse.lift(index: index, elapsed: elapsed))
+                }
+                let last = elapsed >= duration
+                if last {
+                    self.pulseAnimation = nil
+                    self.pulseLifts = []
+                }
+                self.drawCluster(chips, on: button)
+                return last
             }
-            let elapsed = Date().timeIntervalSince(began)
-            self.pulseLifts = ids.indices.map { index in
-                if reduced { return changed.contains(ids[index]) ? CGFloat(ClusterPulse.lift(index: 0, elapsed: elapsed)) : 0 }
-                return CGFloat(ClusterPulse.lift(index: index, elapsed: elapsed))
-            }
-            if elapsed >= duration {
-                timer.invalidate()
-                self.pulseAnimation = nil
-                self.pulseLifts = []
-            }
-            self.drawCluster(chips, on: button)
+            if finished { timer.invalidate() }
         }
     }
 
@@ -527,7 +568,7 @@ final class MenuBarController {
         setMainText(tooltip: nil, spoken: chips.map(\.spoken).joined(separator: "; "))
     }
 
-    static func look(of appearance: NSAppearance) -> NSAppearance.Name? {
+    nonisolated static func look(of appearance: NSAppearance) -> NSAppearance.Name? {
         appearance.bestMatch(from: [.aqua, .darkAqua, .accessibilityHighContrastAqua, .accessibilityHighContrastDarkAqua])
     }
 
@@ -594,24 +635,31 @@ final class MenuBarController {
             return
         }
         let began = Date()
+        // `assumeIsolated` holds because the timer is scheduled on the main
+        // run loop (this method is main-actor), so it fires on the main thread.
+        // The timer itself stays outside (it is not Sendable): the frame
+        // says whether it was the last one.
         focusAnimation = Timer.scheduledTimer(withTimeInterval: 1.0 / 60, repeats: true) { [weak self] timer in
-            guard let self, let chips = self.appliedChips, let button = self.mainItem.button else {
-                timer.invalidate(); return
+            let finished = MainActor.assumeIsolated { () -> Bool in
+                guard let self, let chips = self.appliedChips, let button = self.mainItem.button else {
+                    return true
+                }
+                let t = min(Date().timeIntervalSince(began) / duration, 1)
+                // Ease out: quick to start, gentle to land.
+                let eased = CGFloat(1 - pow(1 - t, 3))
+                self.clusterPositions = zip(start, target).map { $0 + ($1 - $0) * eased }
+                self.clusterMarkAlpha = markStart + (markTarget - markStart) * eased
+                self.clusterPill = pillStart + (pillTarget - pillStart) * eased
+                self.clusterLead = (leadStart + (leadTarget - leadStart) * eased).rounded()
+                self.drawCluster(chips, on: button)
+                return t >= 1
             }
-            let t = min(Date().timeIntervalSince(began) / duration, 1)
-            // Ease out: quick to start, gentle to land.
-            let eased = CGFloat(1 - pow(1 - t, 3))
-            self.clusterPositions = zip(start, target).map { $0 + ($1 - $0) * eased }
-            self.clusterMarkAlpha = markStart + (markTarget - markStart) * eased
-            self.clusterPill = pillStart + (pillTarget - pillStart) * eased
-            self.clusterLead = (leadStart + (leadTarget - leadStart) * eased).rounded()
-            if t >= 1 { timer.invalidate() }
-            self.drawCluster(chips, on: button)
+            if finished { timer.invalidate() }
         }
     }
 
-    static let focusDuration: TimeInterval = 0.16
-    static let foldDuration: TimeInterval = 0.26
+    nonisolated static let focusDuration: TimeInterval = 0.16
+    nonisolated static let foldDuration: TimeInterval = 0.26
 
     /// A chip's rect in the main button's coordinates, where it will rest
     /// in the current focus layout: for anchoring its card and peek.

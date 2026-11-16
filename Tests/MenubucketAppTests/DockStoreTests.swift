@@ -7,6 +7,7 @@ import XCTest
 /// The BarShelf Dock's store (R15): it is the only thing that hides, shows,
 /// and rewrites the Apple Dock, so those transitions are pinned down here
 /// against a fake `com.apple.dock`.
+@MainActor
 final class DockStoreTests: XCTestCase {
     private final class FakeDefaults: AppleDockDefaults {
         var values: [String: Any] = [:]

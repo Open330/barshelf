@@ -3,6 +3,7 @@ import XCTest
 @testable import MenubucketApp
 @testable import BarShelfAutomation
 
+@MainActor
 final class HotkeySupportTests: XCTestCase {
     func testParserAcceptsAliasesAndReturnsCanonicalShortcut() throws {
         let result = try XCTUnwrap(HotkeyGrammar.parse(" Command + alt + B ").get())

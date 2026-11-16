@@ -5,14 +5,15 @@ import MenubucketCore
 /// The BarShelf Dock's settings and profiles (R15), and the one place that
 /// changes the Apple Dock: hiding it for `replace`, putting it back, and
 /// rewriting its layout when a profile carries one.
+@MainActor
 package final class DockStore: ObservableObject {
     package static let shared = DockStore()
 
-    package static var defaultFileURL: URL {
+    package nonisolated static var defaultFileURL: URL {
         BarShelfDirectories.applicationSupport.appendingPathComponent("dock.json")
     }
 
-    package static var backupDirectory: URL {
+    package nonisolated static var backupDirectory: URL {
         BarShelfDirectories.applicationSupport.appendingPathComponent("dock-backups", isDirectory: true)
     }
 

@@ -5,6 +5,7 @@ import SwiftUI
 ///
 /// M0 uses `NSPopover` (`PopoverSurface`); M1 may swap in a non-activating
 /// `NSPanel` implementation behind the same protocol (spec D5).
+@MainActor
 protocol PopupSurface: AnyObject {
     var isShown: Bool { get }
     /// The window that owns popup-scoped input. Local event monitors receive
@@ -29,11 +30,12 @@ enum PopupEventRouting {
 }
 
 /// NSPopover-backed popup surface (behavior `.transient`).
+@MainActor
 final class PopoverSurface: NSObject, PopupSurface, NSPopoverDelegate {
     private let popover = NSPopover()
     private let closesOnEscape: Bool
     private let makeContent: () -> NSViewController
-    private var escapeMonitor: Any?
+    private var escapeMonitor: EventMonitor?
 
     var onShow: (() -> Void)?
     var onHide: (() -> Void)?
@@ -66,21 +68,20 @@ final class PopoverSurface: NSObject, PopupSurface, NSPopoverDelegate {
         popover.animates = false
         popover.contentSize = contentSize
         popover.delegate = self
-        dismissObserver = NotificationCenter.default.addObserver(
+        // `assumeIsolated` holds because the observer is delivered on the
+        // main queue.
+        dismissObserver = NotificationObservation(NotificationCenter.default.addObserver(
             forName: Self.dismissAll, object: nil, queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.hide() }
-        }
-    }
-
-    deinit {
-        if let dismissObserver { NotificationCenter.default.removeObserver(dismissObserver) }
+        })
     }
 
     /// Closes every menu bar popup, before a modal prompt that a popup
     /// would otherwise sit on top of (popups float above modal panels).
     static let dismissAll = Notification.Name("dev.barshelf.popups.dismissAll")
-    private var dismissObserver: NSObjectProtocol?
+    /// Removed when the surface goes away.
+    private var dismissObserver: NotificationObservation?
 
     var isShown: Bool {
         popover.isShown
@@ -111,21 +112,18 @@ final class PopoverSurface: NSObject, PopupSurface, NSPopoverDelegate {
 
     private func installEscapeMonitor() {
         removeEscapeMonitor()
-        escapeMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
+        escapeMonitor = EventMonitor(NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
             guard let self, event.keyCode == 53,
                   event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty,
                   PopupEventRouting.belongsToPopup(eventWindow: event.window, popupWindow: self.eventWindow)
             else { return event }
             self.hide()
             return nil
-        }
+        })
     }
 
     private func removeEscapeMonitor() {
-        if let escapeMonitor {
-            NSEvent.removeMonitor(escapeMonitor)
-            self.escapeMonitor = nil
-        }
+        escapeMonitor = nil
     }
 
     func hide() {

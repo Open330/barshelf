@@ -4,6 +4,7 @@ import Combine
 /// View-owned state for asynchronous images. All entry points run on the main
 /// queue, matching the image services' completion contract. A SwiftUI view is
 /// a value: comparing a captured URL to itself cannot reject an old callback.
+@MainActor
 final class WidgetImageLoader: ObservableObject {
     @Published private(set) var image: NSImage?
     private var identity: String?
@@ -16,7 +17,7 @@ final class WidgetImageLoader: ObservableObject {
 
     func load(
         identity: String,
-        request: (@escaping (NSImage?) -> Void) -> NSImage?
+        request: (@escaping @MainActor @Sendable (NSImage?) -> Void) -> NSImage?
     ) {
         if self.identity == identity, isLoading || image != nil { return }
         generation &+= 1
@@ -24,7 +25,7 @@ final class WidgetImageLoader: ObservableObject {
         self.identity = identity
         image = nil
         isLoading = true
-        let completion: (NSImage?) -> Void = { [weak self] image in
+        let completion: @MainActor @Sendable (NSImage?) -> Void = { [weak self] image in
             guard let self, self.generation == expectedGeneration else { return }
             self.isLoading = false
             self.image = image

@@ -6,6 +6,7 @@ import MenubucketCore
 /// The `http` workflow source is gated by the `network` permission: the
 /// manifest must declare it (checked in Core) and the fetched host must fall
 /// inside the declared allowlist (`WidgetRuntime.networkHostAllowed`).
+@MainActor
 final class NetworkPermissionGateTests: XCTestCase {
     private func manifest(network: [String]?) -> Manifest {
         Manifest(
