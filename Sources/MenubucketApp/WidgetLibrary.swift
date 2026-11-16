@@ -50,13 +50,24 @@ final class WidgetLibrary {
     ///   - prefs: Per-widget preferences: erased on removal, copied to a
     ///     new instance.
     ///   - permissionStore: The packages' permission decisions.
+    /// What happens to a folder hidden behind the widget being removed.
+    private let discardHiddenFolder: (URL) throws -> Void
+
     init(
         root: URL? = nil,
         secretStore: SecretStoring,
         storage: StorageService,
         prefs: WidgetPrefs,
-        permissionStore: PermissionStore
+        permissionStore: PermissionStore,
+        discardHiddenFolder: ((URL) throws -> Void)? = nil
     ) {
+        if let discardHiddenFolder {
+            self.discardHiddenFolder = discardHiddenFolder
+        } else {
+            // To the Trash, not deleted: the user never saw this folder, and
+            // a hand-made copy may hold edits the loaded one did not.
+            self.discardHiddenFolder = { try FileManager.default.trashItem(at: $0, resultingItemURL: nil) }
+        }
         if let root {
             self.root = root
         } else {
@@ -175,7 +186,7 @@ final class WidgetLibrary {
             // on the rescan, with the settings and decision just erased.
             for hidden in Self.folders(holding: id, in: root)
             where hidden.lastPathComponent != widget.directory.lastPathComponent {
-                try FileManager.default.removeItem(at: hidden)
+                try discardHiddenFolder(hidden)
             }
             try FileManager.default.removeItem(at: widget.directory)
         } catch {

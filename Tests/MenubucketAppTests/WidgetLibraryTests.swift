@@ -97,9 +97,17 @@ final class WidgetLibraryTests: XCTestCase {
         try? FileManager.default.removeItem(at: sandbox)
     }
 
+    /// Names of the hidden folders the library discarded, in order.
+    private var discarded: [String] = []
+
     private func makeLibrary(secrets: SecretStoring) -> WidgetLibrary {
         let library = WidgetLibrary(
-            root: root, secretStore: secrets, storage: storage, prefs: prefs, permissionStore: permissions
+            root: root, secretStore: secrets, storage: storage, prefs: prefs, permissionStore: permissions,
+            // The shipped default is the Trash; tests stay out of the real one.
+            discardHiddenFolder: { [unowned self] in
+                self.discarded.append($0.lastPathComponent)
+                try FileManager.default.removeItem(at: $0)
+            }
         )
         library.host = host
         return library
@@ -244,6 +252,8 @@ final class WidgetLibraryTests: XCTestCase {
         )
         XCTAssertFalse(exists(root.appendingPathComponent(id)))
         XCTAssertFalse(exists(root.appendingPathComponent(id + " copy")))
+        XCTAssertEqual(discarded, [id + " copy"],
+                       "only the hidden folder goes through the discard path; the loaded one is deleted")
         XCTAssertTrue(exists(root.appendingPathComponent("dev.test.other")))
     }
 
