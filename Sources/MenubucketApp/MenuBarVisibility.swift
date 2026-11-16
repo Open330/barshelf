@@ -9,6 +9,7 @@ import Combine
 /// item is "there" to AppKit and gone for the person — and BarShelf has no
 /// Dock icon, so a hidden main item leaves a new user with no way in. This
 /// notices, so the BarShelf window can say so.
+@MainActor
 final class MenuBarVisibility: ObservableObject {
     static let shared = MenuBarVisibility()
 
@@ -31,7 +32,7 @@ final class MenuBarVisibility: ObservableObject {
     /// macOS 26 parks items it has no room for at the notch's edge, stacked
     /// on one another and mostly under it (seen: three at x 927–998 against
     /// a notch spanning 751–959), so any overlap with the notch counts.
-    static func isVisible(itemFrame: NSRect, screens: [ScreenArea]) -> Bool {
+    nonisolated static func isVisible(itemFrame: NSRect, screens: [ScreenArea]) -> Bool {
         guard itemFrame.width > 0 else { return false }
         let center = NSPoint(x: itemFrame.midX, y: itemFrame.midY)
         guard let screen = screens.first(where: { $0.frame.contains(center) }) else {
@@ -57,7 +58,7 @@ final class MenuBarVisibility: ObservableObject {
 
     /// The notch areas in global coordinates, whether AppKit reports them so
     /// or relative to their screen (a notched display that is not the main one).
-    static func global(_ area: NSRect, on screen: NSRect) -> NSRect {
+    nonisolated static func global(_ area: NSRect, on screen: NSRect) -> NSRect {
         screen.contains(NSPoint(x: area.midX, y: area.midY))
             ? area : area.offsetBy(dx: screen.minX, dy: screen.minY)
     }

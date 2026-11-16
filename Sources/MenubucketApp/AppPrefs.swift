@@ -5,6 +5,7 @@ import MenubucketCore
 /// App-wide preferences stored under Application Support. Kept separate from
 /// per-widget `WidgetPrefs` so global scheduling/status-item settings can be
 /// observed by the app shell.
+@MainActor
 final class AppPrefs: ObservableObject {
     static let shared = AppPrefs()
 
@@ -20,7 +21,9 @@ final class AppPrefs: ObservableObject {
 
     private let fileURL: URL
 
-    init(fileURL: URL = AppPrefs.defaultFileURL) {
+    /// nil reads the app's own file (`defaultFileURL`).
+    init(fileURL: URL? = nil) {
+        let fileURL = fileURL ?? AppPrefs.defaultFileURL
         self.fileURL = fileURL
         self.preferences = AppPreferences.load(from: fileURL)
     }

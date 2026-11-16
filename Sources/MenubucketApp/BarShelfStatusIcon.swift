@@ -20,6 +20,7 @@ enum BarShelfStatusIcon {
     /// `badged` adds the attention dot: something in BarShelf (a widget
     /// awaiting approval or failing) wants the user. The spoken name says so
     /// too, so the dot is not the only signal.
+    @MainActor
     static func configure(
         _ button: NSStatusBarButton,
         symbol: String,

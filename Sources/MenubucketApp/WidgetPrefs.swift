@@ -26,6 +26,7 @@ struct BucketOverride: Codable, Equatable {
 
 /// User-scoped widget preferences: pinned widget ids and per-widget settings
 /// overrides. Persisted as one JSON file in Application Support.
+@MainActor
 final class WidgetPrefs: ObservableObject {
     @Published private(set) var pinned: [String] = []
     @Published private(set) var settings: [String: [String: JSONValue]] = [:]
