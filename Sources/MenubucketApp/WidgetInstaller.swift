@@ -86,7 +86,7 @@ enum WidgetInstallFlow {
     /// means the length is unknown (caller shows an indeterminate spinner).
     static func prepare(
         input: String,
-        progress: @escaping (Int64, Int64) -> Void
+        progress: @escaping @Sendable (Int64, Int64) -> Void
     ) async throws -> Prepared {
         let source: WidgetInstallSource
         do {
@@ -139,7 +139,7 @@ enum WidgetInstallFlow {
     /// cancellation. Enforces the same size cap as the headless pipeline.
     static func download(
         from url: URL,
-        progress: @escaping (Int64, Int64) -> Void
+        progress: @escaping @Sendable (Int64, Int64) -> Void
     ) async throws -> Data {
         guard url.scheme?.lowercased() == "https" else {
             throw WidgetInstallFlowError.notHTTP(url)
@@ -390,6 +390,7 @@ enum WidgetInstallFlowError: Error, LocalizedError {
 /// picked up by WidgetRuntime hot reload; `onInstalled` additionally asks the
 /// runtime to rescan for the first-install case where the watch directory did
 /// not exist at launch.
+@MainActor
 final class WidgetInstaller {
     static let shared = WidgetInstaller()
 
@@ -780,10 +781,11 @@ final class WidgetInstaller {
 /// Small non-modal floating panel shown during a URL install's download.
 /// Determinate when the server reports Content-Length, indeterminate
 /// otherwise; the Cancel button aborts the in-flight download.
-/// All access happens on the main thread (creation, updates dispatched to
-/// main, cancel from the button); `@unchecked Sendable` lets the progress
-/// callback capture it across the download's concurrency domain.
-final class DownloadProgressPanel: NSObject, @unchecked Sendable {
+/// Main-actor isolated (creation, updates dispatched to main, cancel from
+/// the button), which is also what lets the progress callback capture it
+/// across the download's concurrency domain.
+@MainActor
+final class DownloadProgressPanel: NSObject {
     /// Invoked on the main thread when the user presses Cancel.
     var onCancel: (() -> Void)?
 
