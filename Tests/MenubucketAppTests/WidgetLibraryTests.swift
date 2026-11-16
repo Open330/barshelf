@@ -97,9 +97,17 @@ final class WidgetLibraryTests: XCTestCase {
         try? FileManager.default.removeItem(at: sandbox)
     }
 
+    /// Names of the hidden folders the library discarded, in order.
+    private var discarded: [String] = []
+
     private func makeLibrary(secrets: SecretStoring) -> WidgetLibrary {
         let library = WidgetLibrary(
-            root: root, secretStore: secrets, storage: storage, prefs: prefs, permissionStore: permissions
+            root: root, secretStore: secrets, storage: storage, prefs: prefs, permissionStore: permissions,
+            // The shipped default is the Trash; tests stay out of the real one.
+            discardHiddenFolder: { [unowned self] in
+                self.discarded.append($0.lastPathComponent)
+                try FileManager.default.removeItem(at: $0)
+            }
         )
         library.host = host
         return library
@@ -219,6 +227,96 @@ final class WidgetLibraryTests: XCTestCase {
         XCTAssertEqual(try secrets.get(widgetId: widget.id, key: "token"), widget.id)
         XCTAssertEqual(storage.get(widgetId: widget.id, key: "notes"), .string(widget.id))
         XCTAssertEqual(permissions.status(for: widget.manifest), .approved)
+    }
+
+    /// A hand-copied folder with the same `widget.json` id sits hidden behind
+    /// the loaded one. Removing the widget must not let it take the id over
+    /// with the settings and the permission decision already erased.
+    func testRemovingAlsoRemovesAHiddenFolderHoldingTheSameWidget() async throws {
+        let id = "dev.test.twice"
+        try install(id, folder: id + " copy")
+        host.widgets.removeAll()
+        try install(id)
+        try install("dev.test.other")
+        host.widgets = WidgetRuntime.discoverWidgets(in: [root])
+        XCTAssertEqual(host.widgets.map(\.id), ["dev.test.other", id], "the second folder is hidden")
+        let widget = try XCTUnwrap(host.widgets.first { $0.id == id })
+        prefs.setSetting(widgetID: id, key: "city", value: .string("Seoul"))
+        permissions.approve(widget.manifest)
+
+        try await library.remove(id: id)
+
+        XCTAssertEqual(
+            WidgetRuntime.discoverWidgets(in: [root]).map(\.id), ["dev.test.other"],
+            "the removed widget must not come back from the hidden folder"
+        )
+        XCTAssertFalse(exists(root.appendingPathComponent(id)))
+        XCTAssertFalse(exists(root.appendingPathComponent(id + " copy")))
+        XCTAssertEqual(discarded, [id + " copy"],
+                       "only the hidden folder goes through the discard path; the loaded one is deleted")
+        XCTAssertTrue(exists(root.appendingPathComponent("dev.test.other")))
+    }
+
+    func testAHiddenFolderIsRemovedWhicheverOfTheTwoWasLoaded() async throws {
+        let id = "dev.test.twice"
+        try install(id, folder: "a-copy")
+        try install(id)
+        host.widgets = WidgetRuntime.discoverWidgets(in: [root])
+        XCTAssertEqual(host.widgets.map(\.directory.lastPathComponent), ["a-copy"])
+
+        try await library.remove(id: id)
+
+        XCTAssertTrue(WidgetRuntime.discoverWidgets(in: [root]).isEmpty)
+    }
+
+    func testAHiddenLinkIsRemovedWithoutTouchingWhatItPointsAt() async throws {
+        let id = "dev.test.linked"
+        let elsewhere = sandbox.appendingPathComponent("elsewhere", isDirectory: true)
+        let outside = try install(id, in: elsewhere)
+        host.widgets.removeAll()
+        try install(id)
+        try FileManager.default.createSymbolicLink(
+            at: root.appendingPathComponent("zz-link"), withDestinationURL: outside.directory
+        )
+
+        try await library.remove(id: id)
+
+        XCTAssertTrue(WidgetRuntime.discoverWidgets(in: [root]).isEmpty)
+        XCTAssertTrue(exists(outside.directory.appendingPathComponent("widget.json")))
+    }
+
+    func testRemovingKeepsOtherWidgetsAndFoldersThatAreNotThatWidget() async throws {
+        let widget = try install("dev.test.gone")
+        try install("dev.test.gone.too")
+        let unreadable = root.appendingPathComponent("dev.test.gone-notes", isDirectory: true)
+        try FileManager.default.createDirectory(at: unreadable, withIntermediateDirectories: true)
+        try Data("not json".utf8).write(to: unreadable.appendingPathComponent("widget.json"))
+        let devRoot = sandbox.appendingPathComponent("dev", isDirectory: true)
+        try install("dev.test.gone", in: devRoot, folder: "checkout")
+        host.widgets = [widget]
+
+        try await library.remove(id: widget.id)
+
+        XCTAssertFalse(exists(widget.directory))
+        XCTAssertTrue(exists(root.appendingPathComponent("dev.test.gone.too")))
+        XCTAssertTrue(exists(unreadable))
+        XCTAssertTrue(exists(devRoot.appendingPathComponent("checkout")), "only the library's root is ever deleted in")
+    }
+
+    func testAFailedPurgeKeepsTheHiddenFolderToo() async throws {
+        library = makeLibrary(secrets: FailingSecretStore())
+        let id = "dev.test.twice"
+        let widget = try install(id)
+        try install(id, folder: "zz-copy")
+        host.widgets = [widget]
+
+        do {
+            try await library.remove(id: id)
+            XCTFail("expected an error")
+        } catch {}
+
+        XCTAssertTrue(exists(widget.directory))
+        XCTAssertTrue(exists(root.appendingPathComponent("zz-copy")))
     }
 
     func testAnUnknownWidgetIsNotFoundAndNothingIsAsked() async {
