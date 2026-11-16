@@ -261,8 +261,11 @@ struct WidgetCardView: View {
                 nextRefresh: hint == nil && snapshot.updatedAt == nil
                     ? runtime.scheduler.nextIntervalFire(widgetID: widget.id) : nil,
                 // The header's controls already offer Refresh (and the menu
-                // bar card's header always does).
-                onRefresh: usesHeaderControls || placement == .menuBar ? nil : retry
+                // bar card's header always does). A closure, not `retry`
+                // itself: `-strict-concurrency=complete` cannot type-check
+                // `nil` against the main-actor method reference here and
+                // stops with "failed to produce diagnostic".
+                onRefresh: usesHeaderControls || placement == .menuBar ? nil : { retry() }
             )
         }
     }
