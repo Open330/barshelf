@@ -15,15 +15,18 @@ import WidgetKit
 /// builds): touching a group container without it would make macOS ask the
 /// user for access to "data from other apps".
 ///
-/// Used from the main thread only, like the runtime that owns it.
+/// Used from the main thread only, like the runtime that owns it. The
+/// thumbnail export is the exception: it is `nonisolated` and runs off the
+/// main actor, as it always has.
+@MainActor
 final class SharedShelfPublisher {
     /// macOS budgets widget reloads (roughly 40–70 a day). Changes inside the
     /// window are folded into one reload at its end.
-    static let minimumReloadInterval: TimeInterval = 15 * 60
+    nonisolated static let minimumReloadInterval: TimeInterval = 15 * 60
 
     private let container: URL?
     private let reloadTimelines: () -> Void
-    private let scheduleRefreshTimeout: (@escaping () -> Void) -> Void
+    private let scheduleRefreshTimeout: (@escaping @MainActor @Sendable () -> Void) -> Void
     private var lastReload: Date?
     private var pendingReload: DispatchWorkItem?
     private var lastIndex: SharedShelf.Index?
@@ -45,7 +48,7 @@ final class SharedShelfPublisher {
 
     /// Asks how many BarShelf desktop widgets are placed; answers on the
     /// main thread, nil when it could not tell.
-    typealias PlacementProbe = (@escaping (Int?) -> Void) -> Void
+    typealias PlacementProbe = (@escaping @MainActor @Sendable (Int?) -> Void) -> Void
 
     /// How often the placement is asked again. A widget placed in between
     /// shows its reading at the latest this long after.
@@ -75,8 +78,8 @@ final class SharedShelfPublisher {
 
     init(container: URL? = SharedShelfPublisher.entitledContainer(),
          reload: @escaping () -> Void = { WidgetCenter.shared.reloadTimelines(ofKind: SharedShelf.widgetKind) },
-         scheduleRefreshTimeout: @escaping (@escaping () -> Void) -> Void = { work in
-             DispatchQueue.main.asyncAfter(deadline: .now() + SharedShelf.refreshRequestLifetime, execute: work)
+         scheduleRefreshTimeout: @escaping (@escaping @MainActor @Sendable () -> Void) -> Void = { work in
+             DispatchQueue.main.asyncAfter(deadline: .now() + SharedShelf.refreshRequestLifetime) { work() }
          },
          placementProbe: PlacementProbe? = SharedShelfPublisher.defaultPlacementProbe()) {
         self.container = container
@@ -87,7 +90,7 @@ final class SharedShelfPublisher {
 
     /// WidgetKit's list of placed widgets, in the app only (a test bundle has
     /// no widgets to ask about).
-    static func defaultPlacementProbe() -> PlacementProbe? {
+    nonisolated static func defaultPlacementProbe() -> PlacementProbe? {
         guard Bundle.main.bundleURL.pathExtension == "app" else { return nil }
         return { answer in
             WidgetCenter.shared.getCurrentConfigurations { result in
@@ -157,7 +160,7 @@ final class SharedShelfPublisher {
 
     /// The snapshot as it would be written, without the times that change on
     /// every refresh.
-    static func content(of snapshot: SharedShelf.Snapshot) -> Data? {
+    nonisolated static func content(of snapshot: SharedShelf.Snapshot) -> Data? {
         var timeless = snapshot
         timeless.updatedAt = nil
         timeless.staleAfter = nil
@@ -350,11 +353,11 @@ final class SharedShelfPublisher {
     // MARK: - Thumbnails
 
     /// Most thumbnails exported per widget: a large widget shows twelve.
-    static let maximumThumbnails = 12
-    static let thumbnailSize = CGSize(width: 128, height: 128)
+    nonisolated static let maximumThumbnails = 12
+    nonisolated static let thumbnailSize = CGSize(width: 128, height: 128)
 
     /// Files the snapshot's items show, in order, at most `maximumThumbnails`.
-    static func imagePaths(in snapshot: SharedShelf.Snapshot) -> [String] {
+    nonisolated static func imagePaths(in snapshot: SharedShelf.Snapshot) -> [String] {
         var seen: Set<String> = []
         return snapshot.parts.compactMap(\.summary?.imagePath)
             .filter { seen.insert($0).inserted }
@@ -364,7 +367,7 @@ final class SharedShelfPublisher {
     /// The snapshot as it goes into the shared folder: thumbnails named by
     /// their exported file, and no local file paths, actions, or drag
     /// payloads anywhere in it.
-    static func sharing(_ snapshot: SharedShelf.Snapshot, thumbnails: [String: String]) -> SharedShelf.Snapshot {
+    nonisolated static func sharing(_ snapshot: SharedShelf.Snapshot, thumbnails: [String: String]) -> SharedShelf.Snapshot {
         var shared = snapshot
         shared.viewTree = shared.viewTree.map(SharedShelf.scrubbed)
         for index in shared.parts.indices {
@@ -385,7 +388,7 @@ final class SharedShelfPublisher {
     /// A file with no picture yet gets its icon, named `-icon.png`, and is
     /// tried again after `iconRetryInterval` — so a picture that becomes
     /// available later replaces the icon instead of the icon sticking.
-    static func exportThumbnails(_ paths: [String], into folder: URL, now: Date = Date()) async -> [String: String] {
+    nonisolated static func exportThumbnails(_ paths: [String], into folder: URL, now: Date = Date()) async -> [String: String] {
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         var names: [String: String] = [:]
         for path in paths {
@@ -426,14 +429,14 @@ final class SharedShelfPublisher {
     }
 
     /// How long an icon stands in before the picture is tried again.
-    static let iconRetryInterval: TimeInterval = 10 * 60
+    nonisolated static let iconRetryInterval: TimeInterval = 10 * 60
     /// Largest cloud-only image read to make a picture of it.
-    static let maximumDownloadBytes = 25 * 1024 * 1024
+    nonisolated static let maximumDownloadBytes = 25 * 1024 * 1024
 
     /// The file's picture: Quick Look's thumbnail, or — for an image kept
     /// only in the cloud (OneDrive, iCloud), which Quick Look cannot preview
     /// — one read from the image itself, which makes the provider download it.
-    private static func pictureThumbnail(of url: URL) async -> Data? {
+    nonisolated private static func pictureThumbnail(of url: URL) async -> Data? {
         let request = QLThumbnailGenerator.Request(
             fileAt: url, size: thumbnailSize, scale: 2, representationTypes: .thumbnail
         )
@@ -464,12 +467,12 @@ final class SharedShelfPublisher {
         return pngData(icon)
     }
 
-    private static func pngData(_ image: NSImage) -> Data? {
+    nonisolated private static func pngData(_ image: NSImage) -> Data? {
         guard let tiff = image.tiffRepresentation else { return nil }
         return NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:])
     }
 
-    private static func write(_ data: Data, to url: URL) -> Bool {
+    nonisolated private static func write(_ data: Data, to url: URL) -> Bool {
         (try? data.write(to: url, options: .atomic)) != nil
     }
 
@@ -512,14 +515,14 @@ final class SharedShelfPublisher {
 
     /// How long to wait before the next reload: none if the last was long
     /// enough ago, otherwise until the window closes.
-    static func reloadDelay(lastReload: Date?, now: Date) -> TimeInterval {
+    nonisolated static func reloadDelay(lastReload: Date?, now: Date) -> TimeInterval {
         guard let lastReload else { return 0 }
         return max(0, minimumReloadInterval - now.timeIntervalSince(lastReload))
     }
 
     /// The group container, when this copy of BarShelf is signed with the
     /// App Group entitlement; nil otherwise.
-    static func entitledContainer() -> URL? {
+    nonisolated static func entitledContainer() -> URL? {
         guard let task = SecTaskCreateFromSelf(nil),
               let value = SecTaskCopyValueForEntitlement(
                 task, "com.apple.security.application-groups" as CFString, nil

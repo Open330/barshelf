@@ -2,6 +2,7 @@ import XCTest
 import MenubucketCore
 @testable import MenubucketApp
 
+@MainActor
 final class SharedShelfPublisherTests: XCTestCase {
     @MainActor
     func testAnOldTimeoutCannotClearANewerRefreshRequest() throws {
