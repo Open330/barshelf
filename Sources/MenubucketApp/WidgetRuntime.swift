@@ -67,24 +67,6 @@ final class WidgetCardModel: ObservableObject {
     }
 }
 
-/// Per-widget refresh statistics for the Monitoring pane.
-///
-/// Its own small store for the same reason as `WidgetCardModel` and
-/// `MenuBarStatusStore`: stats change on *every* refresh, and while they were
-/// a `@Published` property of `WidgetRuntime` each change fired the runtime's
-/// `objectWillChange`. `RootView` observes the runtime and lives for the whole
-/// session inside the popover's hosting controller, so a closed shelf
-/// recomputed its pages and re-evaluated its body one and a half times a
-/// second — for numbers only the Monitoring pane shows.
-final class RefreshStatsModel: ObservableObject {
-    @Published fileprivate(set) var stats: [String: WidgetRefreshStats] = [:]
-
-    fileprivate func apply(_ stats: [String: WidgetRefreshStats]) {
-        guard self.stats != stats else { return }
-        self.stats = stats
-    }
-}
-
 /// Loads manifests, delegates trigger scheduling to `Scheduler`, and publishes
 /// per-widget snapshots.
 ///
@@ -166,7 +148,7 @@ final class WidgetRuntime: ObservableObject {
     let prefs = WidgetPrefs()
     let appPrefs: AppPrefs
     /// Observed by the Monitoring pane only — see `RefreshStatsModel`.
-    let refreshStats = RefreshStatsModel()
+    var refreshStats: RefreshStatsModel { refreshLedger.model }
     /// Local-only counts of what gets opened and pressed (Settings ▸ Privacy).
     let usageStore: UsageStore
     /// Widgets already counted as seen since the shelf last opened, so a page
@@ -189,7 +171,9 @@ final class WidgetRuntime: ObservableObject {
 
     nonisolated private let execService = ExecService()
     let scheduler = Scheduler()
-    private let refreshStatsStore: RefreshStatsStore
+    /// When each refresh started and how it ended; owns the stats store and
+    /// the model behind `refreshStats`.
+    private let refreshLedger: RefreshLedger
     private var cancellables: Set<AnyCancellable> = []
     private var inFlight: Set<String> = []
     /// Manual refreshes that arrived while that widget was already refreshing.
@@ -201,7 +185,9 @@ final class WidgetRuntime: ObservableObject {
     /// Disable and reload cancel it, so the process it is waiting on is
     /// cancelled too instead of only having its result ignored.
     private var nativeRefreshTasks: [String: (token: NativeRefreshGate.Token, task: Task<Void, Never>)] = [:]
-    private var runActionTasks: [String: [UUID: Task<Void, Never>]] = [:]
+    /// Runs a card's `run` action; owns the tasks of the actions still
+    /// running, and asks about the widget through `RunActionExecutorHost`.
+    private let runActions: RunActionExecutor
     /// The supervisor, the callback tokens, the loads in flight and the
     /// timer policy; reports validated script events back
     /// (`ScriptRuntimeBridgeHost`).
@@ -213,7 +199,6 @@ final class WidgetRuntime: ObservableObject {
     /// Selected-page widgets plus pinned widgets. Automatic refresh and
     /// permission-triggering work is lazy outside this set.
     private(set) var visibleWidgetIDs: Set<String> = []
-    private var refreshStartedAt: [String: Date] = [:]
     private var hotReloadWatchers: [DirectoryWatcher] = []
     /// `fs.directory` sources with `watch: true`, keyed by widget id.
     private var workflowWatchers: [String: DirectoryWatcher] = [:]
@@ -334,14 +319,13 @@ final class WidgetRuntime: ObservableObject {
         )
         self.workflows = WorkflowRefresher(execService: execService, storage: storage, auditLog: auditLog)
         self.execRefresher = ExecRefresher(execService: execService, auditLog: auditLog)
+        self.runActions = RunActionExecutor(
+            execService: execService, auditLog: auditLog, callbackGate: scriptBridge.callbackGate
+        )
         self.library = WidgetLibrary(
             secretStore: secretStore, storage: storage, prefs: prefs, permissionStore: self.permissionStore
         )
-        self.refreshStatsStore = refreshStatsStore ?? RefreshStatsStore(
-            fileURL: Self.applicationSupportDirectory
-                .appendingPathComponent(RefreshStatsStore.defaultFileName)
-        )
-        self.refreshStats.apply(self.refreshStatsStore.all)
+        self.refreshLedger = RefreshLedger(store: refreshStatsStore)
         // Before anything below can sync the timer policy or refresh.
         scriptBridge.host = self
         // Before `loadWidgets` settles the first permission cards.
@@ -350,6 +334,8 @@ final class WidgetRuntime: ObservableObject {
         workflows.host = self
         // Before the first exec refresh, for the same reason.
         execRefresher.host = self
+        // Before a card can run an action: without a host none runs.
+        runActions.host = self
         // Before anything can ask to remove or duplicate a widget.
         library.host = self
         scheduler.requestRefresh = { [weak self] widgetID, manual in
@@ -376,7 +362,7 @@ final class WidgetRuntime: ObservableObject {
             .publisher(for: NSApplication.willTerminateNotification)
             .sink { [weak self] _ in
                 self?.snapshotCache.flush()
-                self?.refreshStatsStore.flush()
+                self?.refreshLedger.flush()
                 self?.promoter.saveCharts()
             }
             .store(in: &cancellables)
@@ -683,9 +669,7 @@ final class WidgetRuntime: ObservableObject {
             entry.task.cancel()
             nativeRefreshTasks.removeValue(forKey: id)
         }
-        for id in Array(runActionTasks.keys) where !seenIDs.contains(id) || changedIDs.contains(id) {
-            for task in runActionTasks.removeValue(forKey: id)?.values ?? [:].values { task.cancel() }
-        }
+        runActions.cancel(widgetsNotIn: seenIDs, orIn: changedIDs)
         nativeRefreshes.reload(keeping: seenIDs, changed: changedIDs)
         // Changed code or a removed widget: no alert raised under the old one
         // may still go out, and monitoring is re-learned on the next refresh.
@@ -731,8 +715,7 @@ final class WidgetRuntime: ObservableObject {
         }
         // Remove per-widget state of widgets that disappeared (hot reload).
         removeWidgetState(notIn: seenIDs)
-        refreshStatsStore.retain(widgetIDs: seenIDs)
-        publishRefreshStats()
+        refreshLedger.retain(widgetIDs: seenIDs)
 
         for widget in loaded {
             // A widget that is sensitive now — including one that just became
@@ -982,7 +965,7 @@ final class WidgetRuntime: ObservableObject {
         endVaultSession(id, permission: widgets.first(where: { $0.id == id })?.manifest.permissions?.vault)
         // A stopped widget does not monitor; its next refresh re-learns it.
         if alertMonitoringIDs.remove(id) != nil { scheduler.setMonitoringWidgetIDs(alertMonitoringIDs) }
-        for task in runActionTasks.removeValue(forKey: id)?.values ?? [:].values { task.cancel() }
+        runActions.cancel(widgetID: id)
         nativeRefreshTasks.removeValue(forKey: id)?.task.cancel()
         nativeRefreshes.cancel(id)
         updateSnapshot(id) { $0.isLoading = false }
@@ -2074,7 +2057,7 @@ final class WidgetRuntime: ObservableObject {
         case .superseded: return
         case .staleConfiguration:
             endInFlight(id)
-            refreshStartedAt.removeValue(forKey: id)
+            refreshLedger.forgetStart(widgetID: id)
             if let current = widgets.first(where: { $0.id == id }), !prefs.isDisabled(id) {
                 updateSnapshot(id) { $0.isLoading = false }
                 refresh(current, manual: false)
@@ -2086,7 +2069,7 @@ final class WidgetRuntime: ObservableObject {
         // Stopped by a permission change or Disable, not failed: nothing
         // to publish and no backoff.
         if case let .failure(error) = outcome, error is CancellationError {
-            refreshStartedAt.removeValue(forKey: id)
+            refreshLedger.forgetStart(widgetID: id)
             updateSnapshot(id) { $0.isLoading = false }
             return
         }
@@ -2140,11 +2123,12 @@ final class WidgetRuntime: ObservableObject {
         }
     }
 
+    // The books are `RefreshLedger`'s; these names stay for the places
+    // that already call them.
+
     @discardableResult
     private func markRefreshStarted(widgetID: String) -> Date {
-        let date = Date()
-        refreshStartedAt[widgetID] = date
-        return date
+        refreshLedger.markStarted(widgetID: widgetID)
     }
 
     private func recordRefreshSuccess(
@@ -2152,14 +2136,7 @@ final class WidgetRuntime: ObservableObject {
         startedAt: Date? = nil,
         completedAt: Date = Date()
     ) {
-        let start = startedAt ?? refreshStartedAt[widgetID]
-        refreshStartedAt.removeValue(forKey: widgetID)
-        refreshStatsStore.recordSuccess(
-            widgetID: widgetID,
-            durationMs: start.map { completedAt.timeIntervalSince($0) * 1000 },
-            at: completedAt
-        )
-        publishRefreshStats()
+        refreshLedger.recordSuccess(widgetID: widgetID, startedAt: startedAt, completedAt: completedAt)
     }
 
     private func recordRefreshFailure(
@@ -2168,19 +2145,9 @@ final class WidgetRuntime: ObservableObject {
         startedAt: Date? = nil,
         completedAt: Date = Date()
     ) {
-        let start = startedAt ?? refreshStartedAt[widgetID]
-        refreshStartedAt.removeValue(forKey: widgetID)
-        refreshStatsStore.recordFailure(
-            widgetID: widgetID,
-            error: error,
-            durationMs: start.map { completedAt.timeIntervalSince($0) * 1000 },
-            at: completedAt
+        refreshLedger.recordFailure(
+            widgetID: widgetID, error: error, startedAt: startedAt, completedAt: completedAt
         )
-        publishRefreshStats()
-    }
-
-    private func publishRefreshStats() {
-        refreshStats.apply(refreshStatsStore.all)
     }
 
     /// Human-readable error; appends Keychain setup guidance when a
@@ -2220,118 +2187,29 @@ final class WidgetRuntime: ObservableObject {
 
     // MARK: - Declarative `run` action
 
-    /// Executes a `run` action's command iff it matches the widget's
-    /// `permissions.exec` allowlist; mismatches are blocked and logged.
+    /// Runs a card's `run` action (`RunActionExecutor`); nil when it was
+    /// turned away.
     @discardableResult
     func performRun(
         action: NodeAction, widgetID: String, title: String? = nil, surface: ToastSurface = .popup
     ) -> Task<Void, Never>? {
-        guard let widget = widgets.first(where: { $0.id == widgetID }) else { return nil }
-        guard !prefs.isDisabled(widgetID), !library.isRemoving(widgetID) else { return nil }
-        guard gatePermissions(for: widget) else { return nil }
-        guard let command = action.command, !command.isEmpty else {
-            NSLog("barshelf: run action from %@ has no command", widgetID)
-            return nil
-        }
-        guard let permission = ExecAllowlist.match(
-            command: command, permissions: widget.manifest.permissions?.exec
-        ) else {
-            NSLog(
-                "barshelf: BLOCKED run action from %@ — not in permissions.exec allowlist: %@",
-                widgetID, command.joined(separator: " ")
-            )
-            auditLog.record("exec.blocked", widgetId: widgetID, detail: [
-                "command": .string(command.joined(separator: " ")),
-                "reason": .string("run action not in permissions.exec allowlist"),
-            ])
-            feedback(RuntimeFeedback(
-                message: Self.actionFailureTitle(title),
-                detail: String(localized: "This widget isn’t allowed to run that command. Check for a widget update."),
-                tone: .failure, surface: surface
-            ))
-            return nil
-        }
-        auditLog.record("exec.run", widgetId: widgetID, detail: [
-            "command": .string(
-                permission.sensitiveOutput == true
-                    ? (command.first ?? "") : command.joined(separator: " ")
-            ),
-            "trigger": .string("run-action"),
-        ])
-
-        let thenRefresh = action.thenRefresh ?? false
-        let actionID = UUID()
-        let callbackGate = scriptBridge.callbackGate
-        let callbackToken = callbackGate.token(for: widgetID)
-        let task = Task { @MainActor [weak self] in
-            guard let self else { return }
-            defer {
-                self.runActionTasks[widgetID]?.removeValue(forKey: actionID)
-                if self.runActionTasks[widgetID]?.isEmpty == true { self.runActionTasks.removeValue(forKey: widgetID) }
-            }
-            guard !Task.isCancelled, callbackGate.accepts(widgetID: widgetID, token: callbackToken),
-                  !self.prefs.isDisabled(widgetID), !self.library.isRemoving(widgetID),
-                  self.permissionStore.status(for: widget.manifest) == .approved else { return }
-            let result = await Self.dispatchRunActionExec(
-                execService: self.execService,
-                widget: widget,
-                command: command,
-                permission: permission
-            )
-            guard !Task.isCancelled, callbackGate.accepts(widgetID: widgetID, token: callbackToken),
-                  self.permissionStore.status(for: widget.manifest) == .approved else { return }
-            switch result {
-            case .success:
-                if thenRefresh {
-                    self.refresh(widgetID: widgetID, manual: true)
-                }
-            case let .failure(error):
-                // An action has its own channel: a toast where the button
-                // was. The card's reading is still as good as it was, so the
-                // snapshot keeps it — no "Cached — refresh failed" badge for
-                // something that was not a refresh.
-                let raw = error.localizedDescription
-                NSLog("barshelf: run action from %@ failed: %@", widgetID, raw)
-                let explanation = ErrorExplainer.explain(raw, context: .action)
-                self.feedback(RuntimeFeedback(
-                    message: Self.actionFailureTitle(title),
-                    detail: "\(explanation.cause) \(explanation.fix)",
-                    tone: .failure, surface: surface
-                ))
-            }
-        }
-        runActionTasks[widgetID, default: [:]][actionID] = task
-        return task
+        runActions.perform(action: action, widgetID: widgetID, title: title, surface: surface)
     }
 
-    /// "Couldn't Restart", or a plain "That didn't work" for a button with
-    /// no words (an icon, a whole row).
+    /// The wording and the launch are `RunActionExecutor`'s; these names
+    /// stay for the places that already call them.
     nonisolated static func actionFailureTitle(_ title: String?) -> String {
-        let trimmed = title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !trimmed.isEmpty else { return String(localized: "That didn’t work") }
-        return String(localized: "Couldn’t \(trimmed)", comment: "Toast: a widget's button failed; the argument is the button's title.")
+        RunActionExecutor.actionFailureTitle(title)
     }
 
-    /// Declarative run-action launch seam, also used by the production action
-    /// task so tests can observe the exact child environment it supplies.
     nonisolated static func dispatchRunActionExec(
         execService: ExecService,
         widget: LoadedWidget,
         command: [String],
         permission: Manifest.ExecPermission
     ) async -> Result<Data, ExecService.ExecError> {
-        let source = widget.manifest.source
-        let discover = (command.first == source?.command?.first) ? source?.discover : nil
-        return await execService.run(
-            command: command,
-            discover: discover,
-            timeoutMs: source?.timeoutMs ?? Self.defaultTimeoutMs,
-            workingDirectory: widget.directory,
-            extraEnvironment: ExecRefresher.pluginEnvironment(
-                for: widget.manifest,
-                secretEnvironment(for: widget.manifest, permission: permission)
-            ),
-            stdoutLimit: permission.maxOutputBytes ?? ExecService.maxStdoutBytes
+        await RunActionExecutor.dispatchRunActionExec(
+            execService: execService, widget: widget, command: command, permission: permission
         )
     }
 
@@ -2475,7 +2353,7 @@ final class WidgetRuntime: ObservableObject {
         cardModels = cardModels.filter { liveIDs.contains($0.key) }
         updateAttention()
         inFlight.formIntersection(liveIDs)
-        refreshStartedAt = refreshStartedAt.filter { liveIDs.contains($0.key) }
+        refreshLedger.forgetStarts(notIn: liveIDs)
     }
 
     // MARK: - Render snapshot cache
@@ -2633,6 +2511,36 @@ extension WidgetRuntime: ExecRefresherHost {
     }
 }
 
+// MARK: - Run actions
+
+/// What `RunActionExecutor` asks about a widget, and where an action's
+/// result goes.
+extension WidgetRuntime: RunActionExecutorHost {
+    func runActionWidget(_ widgetID: String) -> LoadedWidget? {
+        widgets.first(where: { $0.id == widgetID })
+    }
+
+    func runActionMayStart(widgetID: String) -> Bool {
+        !prefs.isDisabled(widgetID) && !library.isRemoving(widgetID)
+    }
+
+    func gateRunActionPermissions(for widget: LoadedWidget) -> Bool {
+        gatePermissions(for: widget)
+    }
+
+    func runActionIsApproved(_ widget: LoadedWidget) -> Bool {
+        permissionStore.status(for: widget.manifest) == .approved
+    }
+
+    func reportRunActionFeedback(_ feedback: RuntimeFeedback) {
+        self.feedback(feedback)
+    }
+
+    func refreshAfterRunAction(widgetID: String) {
+        refresh(widgetID: widgetID, manual: true)
+    }
+}
+
 // MARK: - Widget management
 
 /// What `WidgetLibrary` asks and reports while it removes or duplicates a
@@ -2640,7 +2548,7 @@ extension WidgetRuntime: ExecRefresherHost {
 extension WidgetRuntime: WidgetLibraryHost {
     func stopWidgetAndWaitForItsWork(_ id: String) async {
         let nativeRefresh = nativeRefreshTasks[id]?.task
-        let actions = Array(runActionTasks[id]?.values ?? [:].values)
+        let actions = runActions.tasks(for: id)
         stopWidgetExecution(id)
         await nativeRefresh?.value
         for action in actions { await action.value }
