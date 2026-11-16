@@ -338,6 +338,12 @@ final class Scheduler {
         backoff[widgetID, default: BackoffState()].recordFailure()
     }
 
+    /// Forgets the failures of widgets whose manifest changed: what failed
+    /// was the previous manifest.
+    func resetBackoff(widgetIDs: Set<String>) {
+        for id in widgetIDs { backoff.removeValue(forKey: id) }
+    }
+
     /// Gate for automatic triggers (interval/deadline/watch/wake/onOpen).
     func allowsAutomaticRefresh(widgetID: String, now: Date = Date()) -> Bool {
         backoff[widgetID]?.allowsAutomaticRefresh(now: now) ?? true

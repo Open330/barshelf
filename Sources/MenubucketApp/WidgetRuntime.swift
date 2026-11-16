@@ -671,6 +671,9 @@ final class WidgetRuntime: ObservableObject {
         }
         runActions.cancel(widgetsNotIn: seenIDs, orIn: changedIDs)
         nativeRefreshes.reload(keeping: seenIDs, changed: changedIDs)
+        // A changed manifest is not the one that failed: its next automatic
+        // refresh does not wait out the old one's backoff.
+        scheduler.resetBackoff(widgetIDs: changedIDs)
         // Changed code or a removed widget: no alert raised under the old one
         // may still go out, and monitoring is re-learned on the next refresh.
         // Every workflow widget counts as changed here: its workflow.json can
@@ -1575,6 +1578,9 @@ final class WidgetRuntime: ObservableObject {
             updateSnapshot(id) {
                 $0.error = message
             }
+            // Nothing ran, but nothing will until the manifest changes:
+            // back off like any failure, or every timer tick lands here.
+            scheduler.noteRefreshFailed(widgetID: id)
             recordRefreshFailure(widgetID: id, error: message, startedAt: Date())
             return
         }
@@ -1593,6 +1599,9 @@ final class WidgetRuntime: ObservableObject {
             plan = planned
         case let .failure(refusal):
             updateSnapshot(id) { $0.error = refusal.message }
+            // Same as above: a refused command is refused again on the next
+            // tick (and audited again), so automatic triggers back off.
+            scheduler.noteRefreshFailed(widgetID: id)
             recordRefreshFailure(widgetID: id, error: refusal.message, startedAt: Date())
             return
         }
