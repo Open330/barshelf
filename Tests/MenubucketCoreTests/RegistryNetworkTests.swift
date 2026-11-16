@@ -2,21 +2,57 @@ import XCTest
 @testable import MenubucketCore
 
 private final class RegistryNetworkProtocol: URLProtocol {
-    nonisolated(unsafe) static var body = Data()
-    nonisolated(unsafe) static var contentLength: Int?
-    nonisolated(unsafe) static var keepOpen = false
-    nonisolated(unsafe) static var stopped: XCTestExpectation?
+    /// What the next request answers with. The URL loading system calls the
+    /// protocol on its own threads while the test sets this up and tears it
+    /// down on another, so every read and write goes through the lock: a
+    /// late `stopLoading` used to race `tearDown` clearing `stopped`
+    /// (reported by the weekly thread sanitizer run).
+    private struct Stub {
+        var body = Data()
+        var contentLength: Int?
+        var keepOpen = false
+        var stopped: XCTestExpectation?
+    }
+
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var stub = Stub()
+
+    private static func withStub<T>(_ body: (inout Stub) -> T) -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return body(&stub)
+    }
+
+    static var body: Data {
+        get { withStub { $0.body } }
+        set { withStub { $0.body = newValue } }
+    }
+    static var contentLength: Int? {
+        get { withStub { $0.contentLength } }
+        set { withStub { $0.contentLength = newValue } }
+    }
+    static var keepOpen: Bool {
+        get { withStub { $0.keepOpen } }
+        set { withStub { $0.keepOpen = newValue } }
+    }
+    static var stopped: XCTestExpectation? {
+        get { withStub { $0.stopped } }
+        set { withStub { $0.stopped = newValue } }
+    }
+    static func reset() { withStub { $0 = Stub() } }
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
-        let headers = Self.contentLength.map { ["Content-Length": String($0)] } ?? [:]
+        let (body, contentLength, keepOpen) = Self.withStub { ($0.body, $0.contentLength, $0.keepOpen) }
+        let headers = contentLength.map { ["Content-Length": String($0)] } ?? [:]
         let response = HTTPURLResponse(url: request.url!, statusCode: 200,
                                        httpVersion: "HTTP/1.1", headerFields: headers)!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        if !Self.body.isEmpty { client?.urlProtocol(self, didLoad: Self.body) }
-        if !Self.keepOpen { client?.urlProtocolDidFinishLoading(self) }
+        if !body.isEmpty { client?.urlProtocol(self, didLoad: body) }
+        if !keepOpen { client?.urlProtocolDidFinishLoading(self) }
     }
+    // Fulfilled outside the lock: the expectation has its own.
     override func stopLoading() { Self.stopped?.fulfill() }
 }
 
@@ -28,10 +64,7 @@ final class RegistryNetworkTests: XCTestCase {
     }
 
     override func tearDown() {
-        RegistryNetworkProtocol.body = Data()
-        RegistryNetworkProtocol.contentLength = nil
-        RegistryNetworkProtocol.keepOpen = false
-        RegistryNetworkProtocol.stopped = nil
+        RegistryNetworkProtocol.reset()
         super.tearDown()
     }
 
