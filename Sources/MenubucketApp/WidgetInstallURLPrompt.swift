@@ -2,6 +2,7 @@ import AppKit
 import MenubucketCore
 
 /// Keeps invalid input in the dialog so it can be corrected before download.
+@MainActor
 final class WidgetInstallURLPrompt: NSObject, NSTextFieldDelegate {
     let alert = NSAlert()
     let field = NSTextField(frame: NSRect(x: 0, y: 56, width: 340, height: 24))
@@ -45,7 +46,7 @@ final class WidgetInstallURLPrompt: NSObject, NSTextFieldDelegate {
         field.setAccessibilityHelp(validationLabel.stringValue)
     }
 
-    static func validationMessage(for input: String) -> String? {
+    nonisolated static func validationMessage(for input: String) -> String? {
         if input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return String(localized: "Enter a widget URL to continue.")
         }

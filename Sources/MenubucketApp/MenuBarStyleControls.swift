@@ -12,12 +12,13 @@ import SwiftUI
 ///
 /// `inherited` is nil for the app-wide style: there every choice is stored,
 /// because "Steady for all items" has to beat a widget that asks for Fit.
+@MainActor
 struct MenuBarStyleControls {
     var shown: MenuBarPresentation
     var inherited: MenuBarPresentation?
     /// nil where the controls are not for one item (the app-wide defaults).
     var usesOwnItem: Bool?
-    var change: ((inout MenuBarPresentation) -> Void) -> Void
+    var change: @MainActor ((inout MenuBarPresentation) -> Void) -> Void
 
     /// `value`, or nil when it is what the layer below already gives.
     private func keep<T: Equatable>(_ value: T, _ below: (MenuBarPresentation) -> T) -> T? {
