@@ -231,8 +231,10 @@ final class WidgetRuntime: ObservableObject {
     /// and the value it saw. Only these need re-running when a card appears.
     private var visibilityAwareWidgetIDs: Set<String> = []
     private var lastRefreshVisibility: [String: Bool] = [:]
-    /// Decoded `workflow.json` files, reused while unchanged on disk.
-    nonisolated private let workflowDefinitions = WorkflowDefinitionCache()
+    /// Runs a workflow refresh off the main actor; owns the decoded
+    /// `workflow.json` files and what each alert last saw, and asks for
+    /// main-actor state through `WorkflowRefresherHost`.
+    private let workflows: WorkflowRefresher
 
     // MARK: Script runtime + permission enforcement (M2)
 
@@ -241,10 +243,6 @@ final class WidgetRuntime: ObservableObject {
     private let notificationService = NotificationService()
     /// Widgets whose next workflow refresh the user asked for.
     private var userRequestedRefreshIDs: Set<String> = []
-    /// What each workflow alert last saw, and when it last fired.
-    nonisolated private let alertStates = AlertStateStore(
-        fileURL: WidgetRuntime.applicationSupportDirectory.appendingPathComponent("alert-state.json")
-    )
     let alertGate = AlertDeliveryGate()
     /// Unlocked password-vault sessions, in memory only (`VaultBroker`).
     lazy var vaultBroker: VaultBroker = MainActor.assumeIsolated {
@@ -285,7 +283,7 @@ final class WidgetRuntime: ObservableObject {
         OtpeekAdapter.name: OtpeekAdapter.adapt,
     ]
 
-    nonisolated private static let defaultTimeoutMs = 25_000
+    nonisolated static let defaultTimeoutMs = 25_000
     /// This build's version, read once: the check on every refresh must not
     /// re-read the bundle's Info.plist.
     nonisolated static let hostVersion = AppVersionInfo.current.version
@@ -335,6 +333,7 @@ final class WidgetRuntime: ObservableObject {
                 )
             }
         )
+        self.workflows = WorkflowRefresher(execService: execService, storage: storage, auditLog: auditLog)
         self.refreshStatsStore = refreshStatsStore ?? RefreshStatsStore(
             fileURL: Self.applicationSupportDirectory
                 .appendingPathComponent(RefreshStatsStore.defaultFileName)
@@ -344,6 +343,8 @@ final class WidgetRuntime: ObservableObject {
         scriptBridge.host = self
         // Before `loadWidgets` settles the first permission cards.
         cardOverlays.host = self
+        // Before the first workflow refresh: without a host it is cancelled.
+        workflows.host = self
         scheduler.requestRefresh = { [weak self] widgetID, manual in
             self?.refresh(widgetID: widgetID, manual: manual)
         }
@@ -701,7 +702,7 @@ final class WidgetRuntime: ObservableObject {
         let workflowURLs = Set(loaded.filter { $0.manifest.entry.kind == "workflow" }.compactMap {
             try? WidgetEntryResolver.resolve(directory: $0.directory, main: $0.manifest.entry.main, defaultName: "workflow.json")
         })
-        workflowDefinitions.retain(fileURLs: workflowURLs)
+        workflows.retainDefinitions(fileURLs: workflowURLs)
 
         // A rescan replaces every script descriptor/process, even when the id
         // stays the same. Release only those script generations here; their
@@ -940,7 +941,7 @@ final class WidgetRuntime: ObservableObject {
     private func purgeInstanceData(_ id: String) throws {
         try secretStore.removeAll(widgetId: id)
         try storage.removeAll(widgetId: id)
-        alertStates.forget(widgetID: id)
+        workflows.forgetAlerts(widgetID: id)
     }
 
     /// Creates a second independently configurable instance of an installed
@@ -1937,6 +1938,21 @@ final class WidgetRuntime: ObservableObject {
         var statusProblem: String?
     }
 
+    /// A workflow's render as the refresh result every native kind ends in.
+    nonisolated private static func refreshSuccess(_ render: WorkflowRender) -> RefreshSuccess {
+        RefreshSuccess(
+            viewTree: render.viewTree,
+            statusLabel: render.statusLabel,
+            statusMetrics: render.statusMetrics,
+            statusPrefix: render.statusPrefix,
+            statusIcon: render.statusIcon,
+            statusTint: render.statusTint,
+            statusPresentation: render.statusPresentation,
+            statusTooltip: render.statusTooltip,
+            statusProblem: render.statusProblem
+        )
+    }
+
     nonisolated private func performRefresh(
         widget: LoadedWidget,
         source: Manifest.Source,
@@ -2098,7 +2114,7 @@ final class WidgetRuntime: ObservableObject {
 
         let task = Task { @MainActor [weak self] in
             guard let self else { return }
-            let outcome = await self.performWorkflowRefresh(
+            let outcome = await self.workflows.refresh(
                 widget: widget, workflowURL: workflowURL,
                 settings: settings, widgetContext: widgetContext, token: token
             )
@@ -2109,18 +2125,12 @@ final class WidgetRuntime: ObservableObject {
             if self.nativeRefreshes.isCurrent(id, token: token), let hasAlerts = outcome.hasAlerts {
                 self.noteAlertMonitoring(widget, hasAlerts: hasAlerts)
             }
-            self.finishRefresh(widget: widget, outcome: outcome.result, startedAt: startedAt, token: token)
+            self.finishRefresh(
+                widget: widget, outcome: outcome.result.map { Self.refreshSuccess($0) },
+                startedAt: startedAt, token: token
+            )
         }
         nativeRefreshTasks[id] = (token, task)
-    }
-
-    /// What one workflow refresh produced, plus whether the workflow reads
-    /// `widget.visible` (nil when it never got as far as decoding).
-    private struct WorkflowRefreshOutcome {
-        var result: Result<RefreshSuccess, Error>
-        var readsWidgetVisibility: Bool?
-        /// Whether the workflow declares alerts (nil when it never decoded).
-        var hasAlerts: Bool?
     }
 
     /// Main actor only — see `refreshWidgetsAwaitingVisibility`.
@@ -2134,380 +2144,17 @@ final class WidgetRuntime: ObservableObject {
         }
     }
 
-    nonisolated private func performWorkflowRefresh(
-        widget: LoadedWidget,
-        workflowURL: URL,
-        settings: JSONValue,
-        widgetContext: JSONValue,
-        token: NativeRefreshGate.Token
-    ) async -> WorkflowRefreshOutcome {
-        let cached: WorkflowDefinitionCache.Entry
-        do {
-            cached = try workflowDefinitions.load(workflowURL)
-        } catch {
-            return WorkflowRefreshOutcome(result: .failure(error), readsWidgetVisibility: nil)
-        }
-        // Display text only, from the cached decode; widgets without a table
-        // for the app's language use the cached tree as is.
-        let definition = widget.manifest.localization()?.workflow(cached.definition) ?? cached.definition
-        let result = await evaluateWorkflow(
-            widget: widget, definition: definition,
-            settings: settings, widgetContext: widgetContext, token: token
-        )
-        return WorkflowRefreshOutcome(
-            result: result, readsWidgetVisibility: cached.readsWidgetVisibility,
-            hasAlerts: !(cached.definition.alerts ?? [:]).isEmpty
-        )
-    }
+    // The workflow sources' own helpers live in `WorkflowRefresher`; these
+    // names stay for the places that already call them.
 
-    nonisolated private func evaluateWorkflow(
-        widget: LoadedWidget,
-        definition: WorkflowDefinition,
-        settings: JSONValue,
-        widgetContext: JSONValue,
-        token: NativeRefreshGate.Token
-    ) async -> Result<RefreshSuccess, Error> {
-        do {
-            // Storage is opt-in: only widgets that declare `permissions.storage`
-            // (as `true` or an object) can read `storage.*` or commit a `store`
-            // block. An explicit `false` declines.
-            let storageAllowed = widget.manifest.permissions?.storage?.granted == true
-            let storageSnapshot: JSONValue = storageAllowed
-                ? .object(storage.snapshot(widgetId: widget.id))
-                : .object([:])
-            let params = try WorkflowEngine.resolvedSourceParams(
-                definition, settings: settings, storage: storageSnapshot, widget: widgetContext
-            )
-
-            var sourceValues: [String: JSONValue] = [:]
-            var sourceErrors: [String: JSONValue] = [:]
-            for (sourceID, source) in definition.sources {
-                // Each source runs after the previous one's suspension.
-                try await checkNativeRefresh(widget, token: token)
-                let value = params[sourceID] ?? .object([:])
-                do {
-                switch source.use {
-                case "fs.directory":
-                    let fsParams = try FileSource.Params(from: value)
-                    let listing: FileSource.AuthorizedListing
-                    do {
-                        // Reads the preferences; see `checkNativeRefresh`.
-                        let readPaths = await MainActor.run { self.effectiveReadPaths(for: widget) }
-                        listing = try await Task.detached(priority: .userInitiated) {
-                            try FileSource.list(fsParams, authorizedBy: readPaths)
-                        }.value
-                    } catch FileSource.FileSourceError.unauthorizedPath(_) {
-                        auditLog.record("file.blocked", widgetId: widget.id, detail: [
-                            "path": .string(fsParams.path),
-                            "reason": .string("path not in permissions.readPaths or a picked folder"),
-                        ])
-                        throw RuntimeError.invalidWorkflow(
-                            "file source path is not covered by permissions.readPaths"
-                        )
-                    }
-                    sourceValues[sourceID] = listing.value
-                    try await checkNativeRefresh(widget, token: token)
-                    if fsParams.watch {
-                        // The watcher table is shared by every widget's
-                        // refresh, and two can finish at once.
-                        let directory = listing.directory
-                        await MainActor.run { self.registerWorkflowWatch(widgetID: widget.id, directory: directory) }
-                    }
-                case "fs.json":
-                    let jsonParams = try FileSource.JSONFileParams(from: value)
-                    let readPaths = await MainActor.run { self.effectiveReadPaths(for: widget) }
-                    do {
-                        sourceValues[sourceID] = try await Task.detached(priority: .userInitiated) {
-                            try FileSource.readJSON(jsonParams, authorizedBy: readPaths)
-                        }.value
-                    } catch let error as FileSource.FileSourceError {
-                        let reason: String
-                        switch error {
-                        case .unauthorizedPath: reason = "path not in permissions.readPaths or a picked folder"
-                        case .notARegularFile: reason = "not a regular file"
-                        case .tooLarge: reason = "over maxBytes"
-                        default: throw error
-                        }
-                        auditLog.record("file.blocked", widgetId: widget.id, detail: [
-                            "path": .string(jsonParams.path), "reason": .string(reason),
-                        ])
-                        throw error
-                    }
-                    try await checkNativeRefresh(widget, token: token)
-                case "exec":
-                    sourceValues[sourceID] = try await runWorkflowExecSource(
-                        widget: widget, params: value
-                    )
-                case "http":
-                    sourceValues[sourceID] = try await runWorkflowHTTPSource(
-                        widget: widget, params: value
-                    )
-                case "system":
-                    sourceValues[sourceID] = try await runWorkflowSystemSource(
-                        widget: widget, params: value
-                    )
-                case "value":
-                    sourceValues[sourceID] = value
-                case "vault.items":
-                    // Metadata and opaque handles from the host's own
-                    // provider; never a secret, never a session.
-                    guard let vault = widget.manifest.permissions?.vault else {
-                        throw RuntimeError.invalidWorkflow("vault.items needs permissions.vault")
-                    }
-                    let broker = await MainActor.run { self.vaultBroker }
-                    sourceValues[sourceID] = await broker.itemsSource(widgetID: widget.id, permission: vault)
-                default:
-                    throw RuntimeError.invalidWorkflow(
-                        "unknown source use \"\(source.use)\" (v1: exec, fs.directory, fs.json, http, system, value, vault.items)"
-                    )
-                }
-                } catch {
-                    // An optional source's own failure becomes data the view
-                    // can branch on; everything else still fails the refresh.
-                    guard source.optional == true,
-                          let failure = WorkflowSourceFailure.classify(error) else { throw error }
-                    sourceValues[sourceID] = .null
-                    sourceErrors[sourceID] = failure.value
-                }
-            }
-
-            try await checkNativeRefresh(widget, token: token)
-            let output = try WorkflowEngine.evaluate(
-                definition, sources: sourceValues, settings: settings,
-                storage: storageSnapshot, widget: widgetContext, errors: sourceErrors
-            )
-
-            // Alerts: decided against host-held state after a refresh that is
-            // still current, delivered only to a widget that declared
-            // notifications and is still allowed when macOS answers.
-            alertStates.reconcile(widgetID: widget.id, alertIDs: Set(output.alerts.map(\.id)))
-            if !output.alerts.isEmpty, widget.manifest.permissions?.notifications == true {
-                try await checkNativeRefresh(widget, token: token)
-                let firing = alertStates.record(
-                    widgetID: widget.id, samples: output.alerts, nowMs: Date().timeIntervalSince1970 * 1000
-                )
-                await MainActor.run { for alert in firing { self.deliverAlert(alert, for: widget) } }
-            }
-
-            // Commit the store block after a successful eval. Failures here are
-            // non-fatal (e.g. quota) — the view already rendered; log and move on.
-            if storageAllowed {
-                for write in output.writes {
-                    do {
-                        try storage.set(
-                            widgetId: widget.id,
-                            key: write.key,
-                            value: write.value,
-                            ttlMs: write.ttlMs
-                        )
-                    } catch {
-                        NSLog("barshelf[%@] store %@ failed: %@",
-                              widget.id, write.key, String(describing: error))
-                    }
-                }
-            }
-
-            return .success(RefreshSuccess(
-                viewTree: output.viewTree,
-                statusLabel: output.statusLabel,
-                statusMetrics: output.statusMetrics,
-                statusPrefix: output.statusPrefix,
-                statusIcon: output.statusIcon,
-                statusTint: output.statusTint,
-                statusPresentation: output.statusPresentation,
-                statusTooltip: output.statusTooltip,
-                // An expression picks one of the widget's sentences; the
-                // sentence it picked is then translated like any other text.
-                statusProblem: output.statusProblem.map { widget.manifest.localization()?.text($0) ?? $0 }
-            ))
-        } catch {
-            return .failure(error)
-        }
-    }
-
-    /// `system` workflow source — native CPU / memory / disk / sensor
-    /// telemetry.
-    ///
-    /// No subprocess and no file access, but still permission-gated: each
-    /// metric group must appear in `permissions.system`, and an undeclared
-    /// group fails the refresh instead of being silently dropped, so a widget
-    /// never renders a view whose data it was not allowed to read.
-    nonisolated private func runWorkflowSystemSource(
-        widget: LoadedWidget,
-        params: JSONValue
-    ) async throws -> JSONValue {
-        let requested = SystemMetrics.requestedMetrics(from: params.objectValue?["metrics"])
-        if let requested, requested.isEmpty {
-            throw RuntimeError.invalidWorkflow(
-                "system source \"metrics\" lists no known group"
-                    + " (cpu, memory, disk, network, sensors, processes)"
-            )
-        }
-        let (authorized, denied) = SystemMetrics.authorized(
-            requested, declared: widget.manifest.permissions?.system
-        )
-        var allowed = authorized
-        guard denied.isEmpty else {
-            let names = denied.map(\.rawValue).sorted()
-            auditLog.record("system.blocked", widgetId: widget.id, detail: [
-                "metrics": .string(names.joined(separator: ", ")),
-                "reason": .string("not declared in permissions.system"),
-            ])
-            throw RuntimeError.invalidWorkflow(
-                "system source metrics \(names.joined(separator: ", "))"
-                    + " are not covered by permissions.system"
-            )
-        }
-        guard !allowed.isEmpty else {
-            throw RuntimeError.invalidWorkflow(
-                "system source needs permissions.system to declare at least one"
-                    + " group (cpu, memory, disk, network, sensors)"
-            )
-        }
-        let detail = params.objectValue?["detail"]?.boolValue == true
-        let mountPoint = params.objectValue?["mount"]?.stringValue ?? "/"
-        let networkInterface = params.objectValue?["interface"]?.stringValue
-        let sensorGroups = Self.sensorGroups(from: params.objectValue?["sensors"])
-        let sensorKeys = Self.sensorKeys(from: params.objectValue?["sensors"])
-        let diskIO = params.objectValue?["io"]?.boolValue == true
-        let processCount = ProcessMetrics.count(from: params.objectValue?["processes"])
-        // `processes: {when: false}` skips the group for this sample — a
-        // menu bar widget asks for it only while its card is on screen
-        // (`"when": "${widget.visible}"`), not on every refresh.
-        let skipsProcesses = allowed.contains(.processes)
-            && params.objectValue?["processes"]?.objectValue?["when"]?.boolValue == false
-        if skipsProcesses { allowed.remove(.processes) }
-        // Running apps name the `processes` rows; read only when that group
-        // is sampled.
-        let apps = allowed.contains(.processes) ? await Self.runningAppIdentities() : nil
-        // Sampling blocks on Mach/IOKit calls (and, on a cold CPU sampler, a
-        // short baseline window), so it stays off the main thread.
-        let sample = await Task.detached(priority: .userInitiated) {
-            SystemMetrics.sample(
-                metrics: allowed,
-                detail: detail,
-                sensorGroups: sensorGroups,
-                sensorKeys: sensorKeys,
-                diskIO: diskIO,
-                mountPoint: mountPoint,
-                networkInterface: networkInterface,
-                processCount: processCount,
-                apps: apps
-            )
-        }.value
-        // A skipped group is an empty list, not a missing one, so a view's
-        // `forEach` over it renders nothing instead of failing.
-        guard skipsProcesses, case var .object(fields) = sample else { return sample }
-        fields["processes"] = .array([])
-        return .object(fields)
-    }
-
-    /// Regular (Dock) apps by pid: what a `processes` row calls an app.
-    @MainActor
-    static func runningAppIdentities() -> [Int32: ProcessMetrics.AppIdentity] {
-        var apps: [Int32: ProcessMetrics.AppIdentity] = [:]
-        for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular {
-            apps[app.processIdentifier] = ProcessMetrics.AppIdentity(
-                name: app.localizedName ?? app.bundleIdentifier ?? "pid \(app.processIdentifier)",
-                bundleID: app.bundleIdentifier
-            )
-        }
-        return apps
-    }
-
-    /// `"sensors"` on a system source: which sensor readings the widget
-    /// actually shows, so the sampler can skip the IOKit round trips behind
-    /// the rest. Accepts one name or a list of them; `nil` (absent, `"all"`,
-    /// or anything unrecognized) reads every sensor, because a narrowing hint
-    /// the host does not understand must never blank a reading.
-    ///
-    ///     "with": { "metrics": ["sensors"], "sensors": "cpu" }
     nonisolated static func sensorGroups(from value: JSONValue?) -> Set<SensorSampler.SensorGroup>? {
-        switch value {
-        case let .string(name):
-            return SensorSampler.groups(forReading: name)
-        case let .array(items):
-            var union: Set<SensorSampler.SensorGroup> = []
-            for item in items {
-                guard let name = item.stringValue,
-                      let groups = SensorSampler.groups(forReading: name)
-                else { return nil }
-                union.formUnion(groups)
-            }
-            return union
-        default:
-            return nil
-        }
+        WorkflowRefresher.sensorGroups(from: value)
     }
 
-    /// The specific sensors a `"sensors"` value names as `key:<KEY>`, in
-    /// order, at most 8 — each is its own read.
-    ///
-    ///     "sensors": ["cpu", "key:TC0P"]
     nonisolated static func sensorKeys(from value: JSONValue?) -> [String] {
-        let names: [String]
-        switch value {
-        case let .string(name): names = [name]
-        case let .array(items): names = items.compactMap(\.stringValue)
-        default: return []
-        }
-        var seen = Set<String>()
-        return Array(names.compactMap(SensorSampler.pickedKey).filter { seen.insert($0).inserted }.prefix(8))
+        WorkflowRefresher.sensorKeys(from: value)
     }
 
-    /// `exec` workflow source — same allowlist/audit semantics as an exec
-    /// widget's `source.command`.
-    nonisolated private func runWorkflowExecSource(
-        widget: LoadedWidget,
-        params: JSONValue
-    ) async throws -> JSONValue {
-        guard case let .array(rawCommand)? = params.objectValue?["command"] else {
-            throw RuntimeError.invalidWorkflow("exec source needs \"command\": [String]")
-        }
-        let command = rawCommand.compactMap(\.stringValue)
-        guard !command.isEmpty else {
-            throw RuntimeError.invalidWorkflow("exec source command is empty")
-        }
-        let permission = ExecAllowlist.match(
-            command: command, permissions: widget.manifest.permissions?.exec
-        )
-        guard let permission else {
-            auditLog.record("exec.blocked", widgetId: widget.id, detail: [
-                "command": .string(command.joined(separator: " ")),
-                "reason": .string("workflow exec source not in permissions.exec allowlist"),
-            ])
-            throw RuntimeError.invalidWorkflow(
-                "exec source is not covered by permissions.exec allowlist"
-            )
-        }
-        auditLog.record("exec.run", widgetId: widget.id, detail: [
-            "command": .string(
-                permission.sensitiveOutput == true
-                    ? (command.first ?? "") : command.joined(separator: " ")
-            ),
-            "trigger": .string("workflow"),
-        ])
-
-        let discover = params.objectValue?["discover"]?.arrayValue?.compactMap(\.stringValue)
-        let timeoutMs = params.objectValue?["timeoutMs"]?.numberValue.map(Int.init)
-        let data = try await Self.dispatchWorkflowExec(
-            execService: execService,
-            widget: widget,
-            command: command,
-            discover: discover,
-            timeoutMs: timeoutMs ?? Self.defaultTimeoutMs,
-            permission: permission
-        ).get()
-
-        if params.objectValue?["parse"]?.stringValue == "text" {
-            return .string(String(data: data, encoding: .utf8) ?? "")
-        }
-        // Default: JSON (the DSL transforms/templates need structured data).
-        return try JSONValue.parse(data)
-    }
-
-    /// Workflow-source launch seam; the caller's matched permission is the
-    /// sole command-level environment authority.
     nonisolated static func dispatchWorkflowExec(
         execService: ExecService,
         widget: LoadedWidget,
@@ -2516,50 +2163,13 @@ final class WidgetRuntime: ObservableObject {
         timeoutMs: Int,
         permission: Manifest.ExecPermission
     ) async -> Result<Data, ExecService.ExecError> {
-        await execService.run(
-            command: command,
-            discover: discover,
-            timeoutMs: timeoutMs,
-            workingDirectory: widget.directory,
-            extraEnvironment: secretEnvironment(
-                for: widget.manifest, permission: permission
-            ),
-            stdoutLimit: permission.maxOutputBytes ?? ExecService.maxStdoutBytes
+        await WorkflowRefresher.dispatchWorkflowExec(
+            execService: execService, widget: widget, command: command,
+            discover: discover, timeoutMs: timeoutMs, permission: permission
         )
     }
 
-    /// `http` workflow source — gated behind the `network` manifest
-    /// permission (declared + user-approved) and restricted to the declared
-    /// host allowlist. The fetch itself (https-only, GET, 20 s / 5 MB caps,
-    /// no redirect downgrade) lives in `MenubucketCore.HttpSource`.
-    nonisolated private func runWorkflowHTTPSource(
-        widget: LoadedWidget,
-        params: JSONValue
-    ) async throws -> JSONValue {
-        guard PermissionStore.manifestDeclares(.network, in: widget.manifest) else {
-            auditLog.record("network.blocked", widgetId: widget.id, detail: [
-                "reason": .string("http source without permissions.network"),
-            ])
-            throw RuntimeError.invalidWorkflow(
-                "http source requires the \"network\" permission in the manifest"
-            )
-        }
-        let httpParams = try HttpSource.Params(from: params)
-        guard Self.networkHostAllowed(url: httpParams.url, manifest: widget.manifest) else {
-            auditLog.record("network.blocked", widgetId: widget.id, detail: [
-                "url": .string(httpParams.url),
-                "reason": .string("host not in permissions.network allowlist"),
-            ])
-            throw RuntimeError.invalidWorkflow(
-                "http source host is not covered by the permissions.network allowlist"
-            )
-        }
-        auditLog.record("network.fetch", widgetId: widget.id, detail: [
-            "url": .string(httpParams.url),
-            "trigger": .string("workflow"),
-        ])
-        return try await HttpSource.fetch(httpParams)
-    }
+    // MARK: - Permission allowlists
 
     /// True when `url`'s host matches an entry in `permissions.network`.
     /// Entries may be a bare host (`api.github.com`), a leading-dot wildcard
@@ -3136,7 +2746,7 @@ final class WidgetRuntime: ObservableObject {
     /// Drops per-widget state for removed widget ids (hot reload cleanup).
     private func removeWidgetState(notIn liveIDs: Set<String>) {
         readingHistory.retain(liveIDs)
-        alertStates.retain(widgetIDs: liveIDs)
+        workflows.retainAlerts(widgetIDs: liveIDs)
         // A throttled cache write outlives the widget by up to the cache's
         // throttle interval; left alone it would re-create the cache file
         // of a widget removed by hot reload, and a reinstall would show it.
@@ -3270,6 +2880,24 @@ extension WidgetRuntime: CardOverlayStoreHost {
     func cardOverlayDidChange(widgetID id: String, to overlay: CardOverlay?) {
         cardModels[id]?.overlay = overlay
         updateAttention()
+    }
+}
+
+// MARK: - Workflow refresh
+
+/// What a workflow refresh running off the main actor asks for and hands
+/// back; `effectiveReadPaths(for:)` and `vaultBroker` are the runtime's own.
+extension WidgetRuntime: WorkflowRefresherHost {
+    func workflowRefreshMayContinue(_ widget: LoadedWidget, token: NativeRefreshGate.Token) -> Bool {
+        nativeRefreshMayContinue(widget, token: token)
+    }
+
+    func watchWorkflowDirectory(_ directory: FileSource.AuthorizedDirectory, widgetID: String) {
+        registerWorkflowWatch(widgetID: widgetID, directory: directory)
+    }
+
+    func deliverWorkflowAlert(_ alert: WorkflowEngine.AlertSample, for widget: LoadedWidget) {
+        deliverAlert(alert, for: widget)
     }
 }
 
