@@ -277,10 +277,13 @@ public final class UsageStore: @unchecked Sendable {
         self.calendar = calendar
         self.writeDelay = writeDelay
         self.now = now
-        self.log = Self.load(from: fileURL)
+        // The writer's load: a file that is there but cannot be read is moved
+        // aside first, so `flush()` never replaces it with a fresh log.
+        self.log = JSONFile.load(UsageLog.self, from: fileURL) ?? UsageLog()
     }
 
-    /// The file's contents; an unreadable or missing file is an empty log.
+    /// The file's contents, for a reader that never writes (the CLI); an
+    /// unreadable or missing file is an empty log, and is left where it is.
     public static func load(from fileURL: URL) -> UsageLog {
         guard let data = try? Data(contentsOf: fileURL),
               let log = try? JSONDecoder().decode(UsageLog.self, from: data)
@@ -335,10 +338,7 @@ public final class UsageStore: @unchecked Sendable {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.sortedKeys]
             let data = try encoder.encode(log)
-            try FileManager.default.createDirectory(
-                at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true
-            )
-            try data.write(to: fileURL, options: .atomic)
+            try JSONFile.write(data, to: fileURL)
         } catch {
             NSLog("barshelf: usage counts write failed: \(error)")
         }

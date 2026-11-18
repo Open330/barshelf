@@ -62,6 +62,27 @@ final class WorkflowAlertTests: XCTestCase {
         XCTAssertNil(AlertStateStore(fileURL: url).state(widgetID: "w", alertID: "a"))
     }
 
+    /// State this build cannot decode is set aside, not saved over.
+    func testStoreSetsAnUndecodableFileAsideBeforeWriting() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("alerts-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appendingPathComponent("alerts.json")
+        let corrupt = Data(#"{"w-a": {"revision": "r1", "active": "#.utf8)
+        try corrupt.write(to: url)
+
+        let store = AlertStateStore(fileURL: url)
+        XCTAssertNil(store.state(widgetID: "w", alertID: "a"))
+        XCTAssertTrue(store.record(widgetID: "w", samples: [sample(false, cooldownSec: 0)], nowMs: 0).isEmpty)
+
+        let aside = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+            .filter { $0.lastPathComponent.hasPrefix("alerts.json.corrupt-") }
+        XCTAssertEqual(aside.count, 1)
+        XCTAssertEqual(try Data(contentsOf: XCTUnwrap(aside.first)), corrupt)
+        XCTAssertEqual(AlertStateStore(fileURL: url).state(widgetID: "w", alertID: "a"),
+                       AlertTracker.State(revision: "r1", active: false))
+    }
+
     /// Alerts a workflow no longer declares are dropped, so a re-added id
     /// starts over instead of reusing an old edge.
     func testReconcileDropsUndeclaredAlerts() throws {
