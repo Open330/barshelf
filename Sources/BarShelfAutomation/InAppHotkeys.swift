@@ -7,6 +7,7 @@ import Foundation
 ///
 /// The user's Automation script wins: while it runs, the dock leaves its keys
 /// alone and shows them as taken.
+@MainActor
 package final class InAppHotkeys {
     package static let shared = InAppHotkeys()
 
@@ -21,7 +22,13 @@ package final class InAppHotkeys {
     }
 
     package private(set) var automation: Set<Key> = []
-    private var observers: [UUID: () -> Void] = [:]
+    /// Held by whoever observes; the handler stops being called once this
+    /// is released. A token rather than a "remove" call, because the usual
+    /// place to remove an observer is a deinit, which is not on the main
+    /// actor and so cannot call back into this object.
+    package final class Observation {}
+
+    private var observers: [(token: () -> Observation?, handler: () -> Void)] = []
 
     /// Automation is about to register these (or, with none, has stopped).
     /// Observers run synchronously, so a key the dock held is free by the
@@ -29,17 +36,14 @@ package final class InAppHotkeys {
     package func setAutomationKeys(_ keys: Set<Key>) {
         guard keys != automation else { return }
         automation = keys
-        observers.values.forEach { $0() }
+        observers.removeAll { $0.token() == nil }
+        observers.forEach { $0.handler() }
     }
 
-    @discardableResult
-    package func observe(_ handler: @escaping () -> Void) -> UUID {
-        let id = UUID()
-        observers[id] = handler
-        return id
-    }
-
-    package func removeObserver(_ id: UUID) {
-        observers.removeValue(forKey: id)
+    /// Calls `handler` on each change for as long as the result is kept.
+    package func observe(_ handler: @escaping () -> Void) -> Observation {
+        let observation = Observation()
+        observers.append((token: { [weak observation] in observation }, handler: handler))
+        return observation
     }
 }

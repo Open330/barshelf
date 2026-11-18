@@ -2,7 +2,7 @@ import CoreGraphics
 import Foundation
 
 /// Native, bounded key-to-key rules. No JavaScript runs on the event tap.
-package struct AutomationKeyRemap: Equatable {
+package struct AutomationKeyRemap: Equatable, Sendable {
     package let from: Int64
     package let to: Int64
     package let mandatory: UInt64
@@ -79,7 +79,7 @@ package struct AutomationKeyRemap: Equatable {
     }
 }
 
-package struct AutomationKeyRemapState {
+package struct AutomationKeyRemapState: Sendable {
     package var held: [AutomationRemapState.Key: AutomationKeyRemap] = [:]
 
     package mutating func target(code: Int64, keyboard: Int64, down: Bool, flags: UInt64,

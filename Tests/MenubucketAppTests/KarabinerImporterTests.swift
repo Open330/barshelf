@@ -3,6 +3,7 @@ import XCTest
 @testable import MenubucketApp
 @testable import BarShelfAutomation
 
+@MainActor
 final class KarabinerImporterTests: XCTestCase {
     private let fnRule = #"""
     {"description":"Fn navigation","manipulators":[

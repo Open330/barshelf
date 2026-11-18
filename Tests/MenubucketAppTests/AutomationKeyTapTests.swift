@@ -1,4 +1,5 @@
 import CoreGraphics
+import os
 import XCTest
 @testable import BarShelfAutomation
 
@@ -68,6 +69,19 @@ final class AutomationKeyTapTests: XCTestCase {
             for _ in 0..<500 { tap.releaseHeldKeys() }
         }
         XCTAssertEqual(group.wait(timeout: .now() + 20), .success)
+    }
+
+    /// A tap dropped without `remove()` (its engine went away) must not leave
+    /// a remapped key down: nothing else knows which keys it was holding.
+    func testATapReleasedWhileHoldingAKeySendsItsKeyUp() throws {
+        let released = OSAllocatedUnfairLock(initialState: [Int64]())
+        var tap: AutomationKeyTap? = AutomationKeyTap(
+            remap: .init(keyboardTypes: [91], keys: [34: 126]), keyRemaps: [],
+            postKeyUp: { code in released.withLock { $0.append(code) } })
+        tap?.apply(type: .keyDown, to: try key(34, down: true, flags: .maskSecondaryFn))
+        XCTAssertEqual(released.withLock { $0 }, [], "still held")
+        tap = nil
+        XCTAssertEqual(released.withLock { $0 }, [126])
     }
 
     func testRemovingATapThatWasNeverInstalledIsHarmless() {

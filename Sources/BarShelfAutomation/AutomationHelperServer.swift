@@ -5,6 +5,7 @@ import notify
 
 /// The helper's side of the channel: runs the extension through an ordinary
 /// in-process `AutomationController` and answers the app's requests.
+@MainActor
 package final class AutomationHelperServer {
     private let controller: AutomationController
     private let channel: AutomationHelperChannel
@@ -172,6 +173,7 @@ package enum AutomationHelperProcess {
 
     /// The helper carries the app's name, so a quit meant for BarShelf can
     /// land here. Pass it on and go.
+    @MainActor
     private final class Delegate: NSObject, NSApplicationDelegate {
         private let channel: AutomationHelperChannel
         private let controller: AutomationController
@@ -213,6 +215,7 @@ package enum AutomationHelperProcess {
     /// already running again, or when there is no app left to open. And it
     /// does not outlive the app for long: a helper nobody can reach from any
     /// window would hold the keyboard with no way to turn it off.
+    @MainActor
     private final class OwnerSupervisor {
         private let server: AutomationHelperServer
         private var source: DispatchSourceProcess?
@@ -230,7 +233,7 @@ package enum AutomationHelperProcess {
             self.server = server
             powerObserver = NSWorkspace.shared.notificationCenter.addObserver(
                 forName: NSWorkspace.willPowerOffNotification, object: nil, queue: .main
-            ) { [weak self] _ in self?.sessionEnding = true }
+            ) { [weak self] _ in MainActor.assumeIsolated { self?.sessionEnding = true } }
         }
 
         var ownerIsAlive: Bool { AutomationHelperChannel.isAlive(server.ownerPID) }

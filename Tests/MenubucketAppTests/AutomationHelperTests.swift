@@ -3,6 +3,7 @@ import XCTest
 
 /// The app/helper channel, with both ends in this process: a real request
 /// file, status file and Darwin notifications under names of their own.
+@MainActor
 final class AutomationHelperTests: XCTestCase {
     private final class StubEngine: AutomationRunning {
         var report: ((String) -> Void)?
@@ -48,8 +49,10 @@ final class AutomationHelperTests: XCTestCase {
         try? FileManager.default.removeItem(at: directory)
     }
 
-    private func makeServer(engine: StubEngine = StubEngine(), owner: Int32 = 4242)
+    private func makeServer(engine given: StubEngine? = nil, owner: Int32 = 4242)
         -> (AutomationHelperServer, AutomationController) {
+        let engine: StubEngine
+        if let given { engine = given } else { engine = StubEngine() }
         let controller = AutomationController(
             fileURL: directory.appendingPathComponent("automation.json"),
             makeEngine: { _ in engine }, isTrusted: { true }, hammerspoonRunning: { false })

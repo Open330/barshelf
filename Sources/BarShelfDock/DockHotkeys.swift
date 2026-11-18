@@ -39,15 +39,15 @@ package final class DockHotkeys {
         didSet { DockHotkeyStatus.shared.heldByAutomation = heldByAutomation }
     }
     private var cancellable: AnyCancellable?
-    private var automationObserver: AutomationObservation?
+    private var automationObserver: InAppHotkeys.Observation?
 
     package init(store: DockStore) {
         self.store = store
         // Automation claiming or releasing keys: register again around them.
-        automationObserver = AutomationObservation(InAppHotkeys.shared.observe { [weak self] in
+        automationObserver = InAppHotkeys.shared.observe { [weak self] in
             guard let self else { return }
             self.register(count: self.desiredCount)
-        })
+        }
         cancellable = store.$configuration
             .map { $0.profileHotkeysEnabled ? min($0.profiles.count, DockConfiguration.hotkeyProfileLimit) : 0 }
             .removeDuplicates()
@@ -73,13 +73,6 @@ package final class DockHotkeys {
         private let ref: EventHandlerRef
         init(_ ref: EventHandlerRef) { self.ref = ref }
         deinit { RemoveEventHandler(ref) }
-    }
-
-    /// The Automation-keys observer, removed when released.
-    private final class AutomationObservation {
-        private let id: UUID
-        init(_ id: UUID) { self.id = id }
-        deinit { InAppHotkeys.shared.removeObserver(id) }
     }
 
     /// Shown in settings beside each profile: "⌃⌥1".

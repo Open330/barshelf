@@ -6,6 +6,7 @@ import MenubucketCore
 /// One user-owned automation extension, independent of widget permissions.
 /// Source + enabled intent are saved atomically; runtime replacement rolls back
 /// on registration or persistence errors. Import alone never requests TCC.
+@MainActor
 package final class AutomationController: ObservableObject {
     package static let shared = AutomationController()
     package struct Configuration: Codable {
@@ -43,14 +44,21 @@ package final class AutomationController: ObservableObject {
     /// The shortcuts the running extension registered.
     package var activeBindings: [HotkeyGrammar.Combination] { runningBindings }
 
+    /// `makeEngine` defaults to the real engine. Nil rather than a default
+    /// closure: a default argument is evaluated off the main actor, where an
+    /// engine cannot be made.
     package init(fileURL: URL = AutomationController.defaultFileURL,
-         makeEngine: @escaping (AutomationScript) -> AutomationRunning = { AutomationEngine(script: $0) },
+         makeEngine: ((AutomationScript) -> AutomationRunning)? = nil,
          isTrusted: @escaping () -> Bool = { AXIsProcessTrusted() },
          hammerspoonRunning: @escaping () -> Bool = {
              NSWorkspace.shared.runningApplications.contains { $0.bundleIdentifier == "org.hammerspoon.Hammerspoon" }
          }) {
         self.fileURL = fileURL
-        self.makeEngine = makeEngine
+        if let makeEngine {
+            self.makeEngine = makeEngine
+        } else {
+            self.makeEngine = { AutomationEngine(script: $0) }
+        }
         self.isTrusted = isTrusted
         self.hammerspoonRunning = hammerspoonRunning
         guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
@@ -308,7 +316,7 @@ package final class AutomationController: ObservableObject {
     package var presentAccessibilityHelper: (_ onTrusted: @escaping () -> Void) -> Void = { _ in }
 
     /// `~/Library/Application Support/barshelf/automation.json`
-    package static var defaultFileURL: URL {
+    package nonisolated static var defaultFileURL: URL {
         BarShelfDirectories.applicationSupport.appendingPathComponent("automation.json")
     }
 

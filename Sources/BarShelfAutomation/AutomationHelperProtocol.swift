@@ -9,7 +9,7 @@ import notify
 /// instance, so nothing here depends on a pipe or a connection that dies with
 /// either side: a request file and a status file in the app support folder,
 /// and Darwin notifications that say "look again".
-package struct AutomationHelperChannel {
+package struct AutomationHelperChannel: Sendable {
     package let directory: URL
     /// Prefix of the Darwin notification names; tests use their own.
     package let prefix: String

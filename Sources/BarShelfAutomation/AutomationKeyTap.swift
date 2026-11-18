@@ -1,6 +1,13 @@
 import ApplicationServices
+// CFMachPort, CFRunLoopSource and CFRunLoop carry no concurrency annotations.
+// This file hands them from the thread that installs the tap to the tap's own
+// thread and back, which is how they are meant to be used (stopping a run
+// loop from another thread is `CFRunLoopStop`'s purpose), so the import says
+// the module predates the annotations rather than each use arguing it.
+@preconcurrency import CoreFoundation
 import CoreGraphics
 import Foundation
+import os
 
 /// The keyboard event tap, on a thread of its own.
 ///
@@ -9,26 +16,33 @@ import Foundation
 /// pass) delayed typing, and a long enough stall made macOS switch the tap
 /// off. Here nothing but the remap decision shares the thread.
 ///
-/// The remap tables are fixed when the tap is made. The held-key state is the
-/// only thing two threads touch (the tap thread, and whoever asks to release
-/// keys), so it sits behind a lock.
-package final class AutomationKeyTap {
+/// The remap tables are fixed when the tap is made. Two threads touch the
+/// rest (the tap thread, and whoever installs, removes or asks to release
+/// keys), so the held keys and the tap's handles each sit behind a lock, and
+/// nothing else in the object can change.
+package final class AutomationKeyTap: Sendable {
+    private struct Held: Sendable {
+        var remap = AutomationRemapState()
+        var keyRemap = AutomationKeyRemapState()
+    }
+
+    private struct Handles: Sendable {
+        var port: CFMachPort?
+        var source: CFRunLoopSource?
+        var runLoop: CFRunLoop?
+        var finished: DispatchSemaphore?
+    }
+
     private let remap: AutomationScript.Remap?
     private let keyRemaps: [AutomationKeyRemap]
-    private let postKeyUp: (Int64) -> Void
-
-    private let lock = NSLock()
-    private var remapState = AutomationRemapState()
-    private var keyRemapState = AutomationKeyRemapState()
-    private var port: CFMachPort?
-    private var source: CFRunLoopSource?
-    private var runLoop: CFRunLoop?
-    private var finished: DispatchSemaphore?
+    private let postKeyUp: @Sendable (Int64) -> Void
+    private let held = OSAllocatedUnfairLock(initialState: Held())
+    private let handles = OSAllocatedUnfairLock(initialState: Handles())
 
     /// `postKeyUp` sends a key-up into the session; tests replace it so they
     /// never type into the Mac they run on.
     package init(remap: AutomationScript.Remap?, keyRemaps: [AutomationKeyRemap],
-                 postKeyUp: @escaping (Int64) -> Void = { code in
+                 postKeyUp: @escaping @Sendable (Int64) -> Void = { code in
                      CGEvent(keyboardEventSource: nil, virtualKey: CGKeyCode(code), keyDown: false)?
                          .post(tap: .cghidEventTap)
                  }) {
@@ -37,7 +51,12 @@ package final class AutomationKeyTap {
         self.postKeyUp = postKeyUp
     }
 
-    deinit { remove() }
+    // Dropped without `remove()`: close the tap and let go of its keys, or a
+    // remapped key would stay down with nothing left to release it.
+    deinit {
+        remove()
+        releaseHeldKeys()
+    }
 
     /// Creates the tap and starts its thread. Returns once the thread's run
     /// loop is serving it.
@@ -68,7 +87,7 @@ package final class AutomationKeyTap {
         let thread = Thread { [weak self] in
             let current = CFRunLoopGetCurrent()
             CFRunLoopAddSource(current, newSource, .commonModes)
-            self?.lock.withLock { self?.runLoop = current }
+            self?.handles.withLock { $0.runLoop = current }
             ready.signal()
             // Runs until `remove()` stops it; the source keeps it alive.
             CFRunLoopRun()
@@ -76,10 +95,10 @@ package final class AutomationKeyTap {
         }
         thread.name = "dev.barshelf.automation.keytap"
         thread.qualityOfService = .userInteractive
-        lock.withLock {
-            port = newPort
-            source = newSource
-            finished = done
+        handles.withLock {
+            $0.port = newPort
+            $0.source = newSource
+            $0.finished = done
         }
         thread.start()
         ready.wait()
@@ -88,11 +107,11 @@ package final class AutomationKeyTap {
 
     /// Stops the thread and closes the tap. Safe to call twice.
     package func remove() {
-        let (oldPort, oldSource, oldRunLoop, done) = lock.withLock {
-            () -> (CFMachPort?, CFRunLoopSource?, CFRunLoop?, DispatchSemaphore?) in
-            defer { port = nil; source = nil; runLoop = nil; finished = nil }
-            return (port, source, runLoop, finished)
+        let old = handles.withLock { current -> Handles in
+            defer { current = Handles() }
+            return current
         }
+        let (oldPort, oldSource, oldRunLoop, done) = (old.port, old.source, old.runLoop, old.finished)
         if let oldPort, CFMachPortIsValid(oldPort) { CGEvent.tapEnable(tap: oldPort, enable: false) }
         if let oldRunLoop {
             if let oldSource { CFRunLoopRemoveSource(oldRunLoop, oldSource, .commonModes) }
@@ -106,26 +125,24 @@ package final class AutomationKeyTap {
     }
 
     package var isValid: Bool {
-        lock.withLock {
-            port.map { CFMachPortIsValid($0) } == true && source.map { CFRunLoopSourceIsValid($0) } == true
+        handles.withLock {
+            $0.port.map { CFMachPortIsValid($0) } == true && $0.source.map { CFRunLoopSourceIsValid($0) } == true
         }
     }
 
     package var isEnabled: Bool {
-        lock.withLock { port }.map { CGEvent.tapIsEnabled(tap: $0) } == true
+        handles.withLock { $0.port }.map { CGEvent.tapIsEnabled(tap: $0) } == true
     }
 
     package func enable() {
-        if let port = lock.withLock({ port }) { CGEvent.tapEnable(tap: port, enable: true) }
+        if let port = handles.withLock({ $0.port }) { CGEvent.tapEnable(tap: port, enable: true) }
     }
 
     /// Sends key-up for every remapped key still held and forgets them.
     package func releaseHeldKeys() {
-        let codes = lock.withLock { () -> Set<Int64> in
-            let held = Set(Array(remapState.held.values) + keyRemapState.held.values.map(\.to))
-            remapState = AutomationRemapState()
-            keyRemapState = AutomationKeyRemapState()
-            return held
+        let codes = held.withLock { state -> Set<Int64> in
+            defer { state = Held() }
+            return Set(Array(state.remap.held.values) + state.keyRemap.held.values.map(\.to))
         }
         codes.forEach(postKeyUp)
     }
@@ -134,10 +151,12 @@ package final class AutomationKeyTap {
     /// JavaScript runs here.
     package func apply(type: CGEventType, to event: CGEvent) {
         if !keyRemaps.isEmpty, type == .keyDown || type == .keyUp {
-            let rule = lock.withLock {
-                keyRemapState.target(code: event.getIntegerValueField(.keyboardEventKeycode),
-                    keyboard: event.getIntegerValueField(.keyboardEventKeyboardType), down: type == .keyDown,
-                    flags: event.flags.rawValue, rules: keyRemaps)
+            let code = event.getIntegerValueField(.keyboardEventKeycode)
+            let keyboard = event.getIntegerValueField(.keyboardEventKeyboardType)
+            let flags = event.flags.rawValue
+            let rule = held.withLock { [keyRemaps] in
+                $0.keyRemap.target(code: code, keyboard: keyboard, down: type == .keyDown,
+                    flags: flags, rules: keyRemaps)
             }
             if let rule {
                 event.setIntegerValueField(.keyboardEventKeycode, value: rule.to)
@@ -149,14 +168,16 @@ package final class AutomationKeyTap {
         guard let remap else { return }
         if type == .flagsChanged {
             let fnDown = event.flags.contains(.maskSecondaryFn)
-            lock.withLock { remapState.fnDown = fnDown }
+            held.withLock { $0.remap.fnDown = fnDown }
             return
         }
         guard type == .keyDown || type == .keyUp else { return }
-        let target = lock.withLock {
-            remapState.target(code: event.getIntegerValueField(.keyboardEventKeycode),
-                keyboard: event.getIntegerValueField(.keyboardEventKeyboardType), down: type == .keyDown,
-                fn: event.flags.contains(.maskSecondaryFn), configuration: remap)
+        let code = event.getIntegerValueField(.keyboardEventKeycode)
+        let keyboard = event.getIntegerValueField(.keyboardEventKeyboardType)
+        let fn = event.flags.contains(.maskSecondaryFn)
+        let target = held.withLock {
+            $0.remap.target(code: code, keyboard: keyboard, down: type == .keyDown,
+                fn: fn, configuration: remap)
         }
         if let target {
             event.setIntegerValueField(.keyboardEventKeycode, value: target)

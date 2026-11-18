@@ -5,8 +5,8 @@ import JavaScriptCore
 
 /// Tracks the original physical key until key-up, even if Fn is released first.
 /// Only native code runs in the event tap; JavaScript never blocks keyboard input.
-package struct AutomationRemapState {
-    package struct Key: Hashable { let code: Int64; let keyboard: Int64 }
+package struct AutomationRemapState: Sendable {
+    package struct Key: Hashable, Sendable { let code: Int64; let keyboard: Int64 }
     package var held: [Key: Int64] = [:]
     package var fnDown = false
 
@@ -22,6 +22,7 @@ package struct AutomationRemapState {
     }
 }
 
+@MainActor
 package protocol AutomationRunning: AnyObject {
     var report: ((String) -> Void)? { get set }
     var permissionLost: (() -> Void)? { get set }
@@ -49,15 +50,16 @@ package enum AutomationTapRecovery {
     }
 }
 
+@MainActor
 package final class AutomationEngine: AutomationRunning {
     package static let signature: OSType = 0x4253_4155 // BSAU; distinct from popup shortcut
     package let script: AutomationScript
     private let windows = AutomationWindows()
-    private var hotkeys: [EventHotKeyRef] = []
-    private var handler: EventHandlerRef?
+    private var hotkeys: [Registration] = []
+    private var handler: HandlerInstallation?
     private var keyTap: AutomationKeyTap?
-    private var watchdog: Timer?
-    private var wakeObserver: NSObjectProtocol?
+    private var watchdog: Watchdog?
+    private var wakeObserver: WakeObservation?
     private var generation = 0
     private var active = false
     package var report: ((String) -> Void)?
@@ -113,11 +115,16 @@ package final class AutomationEngine: AutomationRunning {
             active = true
             // A healthy tap must retain held-key state across polling. Reset
             // only after missed events (disabled tap or wake), or on shutdown.
-            watchdog = Timer(timeInterval: 30, repeats: true) { [weak self] _ in self?.recoverTap() }
-            RunLoop.main.add(watchdog!, forMode: .common)
-            wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            // Both run on the main thread: a timer on the main run loop, and
+            // an observer that asked for the main queue.
+            let timer = Timer(timeInterval: 30, repeats: true) { [weak self] _ in
+                MainActor.assumeIsolated { self?.recoverTap() }
+            }
+            RunLoop.main.add(timer, forMode: .common)
+            watchdog = Watchdog(timer)
+            wakeObserver = WakeObservation(NSWorkspace.shared.notificationCenter.addObserver(
                 forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
-            ) { [weak self] _ in self?.recoverTap(resetKeys: true) }
+            ) { [weak self] _ in MainActor.assumeIsolated { self?.recoverTap(resetKeys: true) } })
         } catch {
             stop()
             throw error
@@ -128,39 +135,75 @@ package final class AutomationEngine: AutomationRunning {
         inputSourceMonitorStorage?.stop()
         active = false
         generation += 1
-        watchdog?.invalidate()
         watchdog = nil
-        if let wakeObserver { NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver) }
         wakeObserver = nil
         removeTap()
         releaseHeldKeys()
-        for key in hotkeys { UnregisterEventHotKey(key) }
         hotkeys.removeAll()
         InAppHotkeys.shared.setAutomationKeys([])
-        if let handler { RemoveEventHandler(handler) }
         handler = nil
     }
 
-    deinit { stop() }
+    // No deinit: a deinit is not on the main actor, so it cannot call
+    // `stop()`. The timer, the wake observer, the registered keys, the event
+    // handler and the key tap are each held by an object that undoes it when
+    // released, which happens as this goes: an engine dropped without
+    // `stop()` leaves nothing registered that points back at it. (The keys
+    // it took from other BarShelf features are not handed back then; the
+    // controller always stops an engine before letting go of it.)
+
+    /// A registered Carbon hot key, unregistered when released.
+    private final class Registration {
+        private let ref: EventHotKeyRef
+        init(_ ref: EventHotKeyRef) { self.ref = ref }
+        deinit { UnregisterEventHotKey(ref) }
+    }
+
+    /// The installed Carbon event handler, removed when released.
+    private final class HandlerInstallation {
+        private let ref: EventHandlerRef
+        init(_ ref: EventHandlerRef) { self.ref = ref }
+        deinit { RemoveEventHandler(ref) }
+    }
+
+    /// The tap watchdog, invalidated when released.
+    private final class Watchdog {
+        private let timer: Timer
+        init(_ timer: Timer) { self.timer = timer }
+        deinit { timer.invalidate() }
+    }
+
+    /// The wake observer, removed when released.
+    private final class WakeObservation {
+        private let token: NSObjectProtocol
+        init(_ token: NSObjectProtocol) { self.token = token }
+        deinit { NSWorkspace.shared.notificationCenter.removeObserver(token) }
+    }
 
     private func registerHotkeys() throws {
         var type = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+        var installed: EventHandlerRef?
         let status = InstallEventHandler(GetApplicationEventTarget(), { _, event, pointer in
             guard let pointer, let event else { return OSStatus(eventNotHandledErr) }
             var id = EventHotKeyID()
             guard GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID),
                                     nil, MemoryLayout<EventHotKeyID>.size, nil, &id) == noErr,
                   id.signature == AutomationEngine.signature else { return OSStatus(eventNotHandledErr) }
-            let engine = Unmanaged<AutomationEngine>.fromOpaque(pointer).takeUnretainedValue()
-            let generation = engine.generation
             let index = Int(id.id) - 1
-            DispatchQueue.main.async { [weak engine] in
-                guard let engine, engine.active, engine.generation == generation else { return }
-                guard AXIsProcessTrusted() else { engine.permissionLost?(); return }
-                engine.script.invoke(index)
+            // Carbon delivers the application target's events on the main
+            // thread.
+            MainActor.assumeIsolated {
+                let engine = Unmanaged<AutomationEngine>.fromOpaque(pointer).takeUnretainedValue()
+                let generation = engine.generation
+                DispatchQueue.main.async { [weak engine] in
+                    guard let engine, engine.active, engine.generation == generation else { return }
+                    guard AXIsProcessTrusted() else { engine.permissionLost?(); return }
+                    engine.script.invoke(index)
+                }
             }
             return noErr
-        }, 1, &type, Unmanaged.passUnretained(self).toOpaque(), &handler)
+        }, 1, &type, Unmanaged.passUnretained(self).toOpaque(), &installed)
+        if let installed { handler = HandlerInstallation(installed) }
         guard status == noErr else { throw AutomationFailure(String(localized: "Cannot install shortcut event handler (\(status)).")) }
         for (index, binding) in script.bindings.enumerated() {
             var reference: EventHotKeyRef?
@@ -171,7 +214,7 @@ package final class AutomationEngine: AutomationRunning {
             guard result == noErr, let reference else {
                 throw AutomationFailure(String(localized: "Cannot register \(combo.canonicalText). Quit Hammerspoon or change the conflicting shortcut, then try again (\(result))."))
             }
-            hotkeys.append(reference)
+            hotkeys.append(Registration(reference))
         }
     }
 

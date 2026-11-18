@@ -222,5 +222,5 @@ package final class AutomationWindows {
 }
 
 private extension Array {
-    package subscript(safe index: Int) -> Element? { indices.contains(index) ? self[index] : nil }
+    subscript(safe index: Int) -> Element? { indices.contains(index) ? self[index] : nil }
 }
