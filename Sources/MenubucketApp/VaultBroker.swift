@@ -548,10 +548,15 @@ final class VaultBroker {
 
     /// Reopens with Touch ID when a sealed copy exists and Touch ID is
     /// available, unless `usePassword`; otherwise asks for the master password.
-    func unlock(widgetID: String, permission: Manifest.VaultPermission, widgetName: String, usePassword: Bool = false) {
+    ///
+    /// Returns the task that follows the attempt it started (nil when it
+    /// started none), so a test can await the outcome instead of sleeping.
+    @discardableResult
+    func unlock(widgetID: String, permission: Manifest.VaultPermission, widgetName: String,
+                usePassword: Bool = false) -> Task<Void, Never>? {
         let provider = permission.provider
         sweep()
-        guard !blocked, sessions[provider] == nil, pendingUnlocks[provider] == nil, !signingOut.contains(provider) else { return }
+        guard !blocked, sessions[provider] == nil, pendingUnlocks[provider] == nil, !signingOut.contains(provider) else { return nil }
         let biometry = sealer.biometry
         if resumes[provider] != nil, biometry == .invalid {
             // Locked out or every finger removed: the sealed copy is void.
@@ -559,12 +564,10 @@ final class VaultBroker {
             toast(String(localized: "Touch ID can no longer reopen the vault. Unlock with the master password."))
         }
         if !usePassword, let resume = resumes[provider], biometry == .available {
-            reopen(resume, widgetID: widgetID, permission: permission, widgetName: widgetName)
-            return
+            return reopen(resume, widgetID: widgetID, permission: permission, widgetName: widgetName)
         }
         if account(provider) == .signedOut {
-            signIn(widgetID: widgetID, permission: permission, widgetName: widgetName)
-            return
+            return signIn(widgetID: widgetID, permission: permission, widgetName: widgetName)
         }
         let generation = UUID()
         generations[provider] = generation
@@ -580,7 +583,7 @@ final class VaultBroker {
         // The prompt is modal: anything may have happened while it was open.
         guard pendingUnlocks[provider] == generation, !blocked, let answer, !answer.password.isEmpty else {
             if pendingUnlocks[provider] == generation { pendingUnlocks[provider] = nil }
-            return
+            return nil
         }
         if offerTouchID { defaults.set(answer.touchID, forKey: rememberKey) }
         let wantsResume = offerTouchID && answer.touchID
@@ -591,7 +594,7 @@ final class VaultBroker {
         let work = enqueue(provider, generation: generation) { try await vault.unlock(password: password) }
         // The card shows Unlocking… while bw derives the key.
         onChange?()
-        Task { @MainActor [weak self] in
+        return Task { @MainActor [weak self] in
             do {
                 let key = try await work.value
                 guard let self else { return }
@@ -655,10 +658,12 @@ final class VaultBroker {
 
     /// Signs BarShelf's own profile in (once), which also unlocks it. The
     /// server and email are suggested from the user's own CLI profile; a
-    /// two-step code is asked for when the account needs one.
-    func signIn(widgetID: String, permission: Manifest.VaultPermission, widgetName: String) {
+    /// two-step code is asked for when the account needs one. Returns the
+    /// task that runs the attempt, like `unlock`.
+    @discardableResult
+    func signIn(widgetID: String, permission: Manifest.VaultPermission, widgetName: String) -> Task<Void, Never>? {
         let provider = permission.provider
-        guard !blocked, sessions[provider] == nil, pendingUnlocks[provider] == nil, !signingOut.contains(provider) else { return }
+        guard !blocked, sessions[provider] == nil, pendingUnlocks[provider] == nil, !signingOut.contains(provider) else { return nil }
         let generation = UUID()
         generations[provider] = generation
         pendingUnlocks[provider] = generation
@@ -670,7 +675,7 @@ final class VaultBroker {
             message += "\n\n" + String(localized: "With Touch ID on, the Bitwarden CLI stays unlocked for up to 8 hours so Touch ID can reopen it here; Lock ends that at once.")
         }
         let defaults = self.defaults
-        Task { @MainActor [weak self] in
+        return Task { @MainActor [weak self] in
             let suggestion = await vault.suggestedAccount()
             guard let self else { return }
             @MainActor func stillPending() -> Bool { self.pendingUnlocks[provider] == generation && !self.blocked }
@@ -753,7 +758,8 @@ final class VaultBroker {
 
     /// Touch ID, then the Secure Enclave opens the sealed key. Tracked like
     /// provider work: ending the session cancels the prompt.
-    private func reopen(_ resume: Resume, widgetID: String, permission: Manifest.VaultPermission, widgetName: String) {
+    private func reopen(_ resume: Resume, widgetID: String, permission: Manifest.VaultPermission,
+                        widgetName: String) -> Task<Void, Never> {
         let provider = permission.provider
         let generation = UUID()
         generations[provider] = generation
@@ -767,7 +773,7 @@ final class VaultBroker {
         let id = UUID()
         operations[provider, default: [:]][id] = { work.cancel() }
         onChange?()
-        Task { @MainActor [weak self] in
+        return Task { @MainActor [weak self] in
             let outcome = await work.value
             guard let self else { return }
             self.operations[provider]?[id] = nil

@@ -12,10 +12,36 @@ final class VaultBrokerTests: XCTestCase {
         var itemsDelayNs: UInt64 = 0
         var locked: [String?] = []
         var calls: [String] = []
+        /// Every call in arrival order, also the ones `calls` leaves out
+        /// (value, sync, status).
+        var seen: [String] = []
+        private var watchers: [(([String]) -> Bool, XCTestExpectation)] = []
+        private func record(_ call: String, listed: Bool = true) {
+            let due: [XCTestExpectation] = lock.withLock {
+                seen.append(call)
+                if listed { calls.append(call) }
+                let due = watchers.filter { $0.0(seen) }.map(\.1)
+                watchers.removeAll { $0.0(seen) }
+                return due
+            }
+            due.forEach { $0.fulfill() }
+        }
+        /// Fulfilled by the provider itself, the moment `seen` satisfies
+        /// `condition` (at once if it already does).
+        func arrival(_ description: String, when condition: @escaping ([String]) -> Bool) -> XCTestExpectation {
+            let expectation = XCTestExpectation(description: description)
+            let already = lock.withLock { () -> Bool in
+                if condition(seen) { return true }
+                watchers.append((condition, expectation))
+                return false
+            }
+            if already { expectation.fulfill() }
+            return expectation
+        }
         /// Runs once on the main actor just before an unlock returns.
         var beforeUnlockReturns: (@MainActor () -> Void)?
         func unlock(password: String) async throws -> String {
-            lock.withLock { calls.append("unlock") }
+            record("unlock")
             if lock.withLock({ signedOutOnUnlock }) { throw VaultError.signedOut }
             if unlockDelayNs > 0 { try await Task.sleep(nanoseconds: unlockDelayNs) }
             if let hook = lock.withLock({ () -> (@MainActor () -> Void)? in
@@ -28,16 +54,17 @@ final class VaultBrokerTests: XCTestCase {
             return "session-key-abcdefghijklmnop"
         }
         func items(session: String) async throws -> [VaultItem] {
-            lock.withLock { calls.append("items") }
+            record("items")
             if itemsDelayNs > 0 {
                 do { try await Task.sleep(nanoseconds: itemsDelayNs) } catch {
-                    lock.withLock { calls.append("items-cancelled") }
+                    record("items-cancelled")
                     throw error
                 }
             }
             return [VaultItem(id: "item-1", name: "GitHub", username: "june", host: "github.com", hasTOTP: true)]
         }
         func value(of field: VaultField, itemID: String, session: String) async throws -> String {
+            record("value", listed: false)
             if valueDelayNs > 0 { try await Task.sleep(nanoseconds: valueDelayNs) }
             return "\(field.rawValue)-of-\(itemID) "
         }
@@ -47,14 +74,18 @@ final class VaultBrokerTests: XCTestCase {
         var signInResults: [Result<String, VaultError>] = []
         var signedOutOnUnlock = false
         func status() async -> VaultStatus {
-            VaultStatus(account: lock.withLock { accountState }, lastSync: "2026-11-11T00:00:00.000Z", server: "https://vault.example")
+            record("status", listed: false)
+            return VaultStatus(account: lock.withLock { accountState }, lastSync: "2026-11-11T00:00:00.000Z", server: "https://vault.example")
         }
         var syncs = 0
-        func sync(session: String) async throws { lock.withLock { syncs += 1 } }
+        func sync(session: String) async throws {
+            lock.withLock { syncs += 1 }
+            record("sync", listed: false)
+        }
         func suggestedAccount() async -> (server: String?, email: String?) { ("https://vault.example", "me@example.com") }
         func signIn(_ request: VaultSignIn) async throws -> String {
+            record("signIn")
             let result: Result<String, VaultError> = lock.withLock {
-                calls.append("signIn")
                 signIns.append(request)
                 return signInResults.isEmpty ? .success("signed-in-session-key-abcdefgh") : signInResults.removeFirst()
             }
@@ -62,8 +93,14 @@ final class VaultBrokerTests: XCTestCase {
             lock.withLock { accountState = .signedIn }
             return key
         }
-        func lock(session: String?) async { lock.withLock { locked.append(session); calls.append("lock") } }
-        func signOut() async throws { lock.withLock { calls.append("signOut"); accountState = .signedOut } }
+        func lock(session: String?) async {
+            lock.withLock { locked.append(session) }
+            record("lock")
+        }
+        func signOut() async throws {
+            lock.withLock { accountState = .signedOut }
+            record("signOut")
+        }
     }
 
     /// Seals by keeping the secret with its AAD; opening returns what the
@@ -121,6 +158,28 @@ final class VaultBrokerTests: XCTestCase {
 
     private func calls(_ provider: FakeProvider) -> [String] { provider.lock.withLock { provider.calls } }
 
+    /// Returns when the provider has been asked for `call` `times` times in
+    /// all: the fake signals it, nothing is polled or slept.
+    private func arrives(_ provider: FakeProvider, _ call: String, times: Int = 1) async {
+        let arrived = provider.arrival("\(call) ×\(times) at the provider") { seen in
+            seen.filter { $0 == call }.count >= times
+        }
+        await fulfillment(of: [arrived], timeout: 10)
+    }
+
+    /// Starts a listing and returns once it has queued its provider call:
+    /// the listing runs on the main actor without suspending up to there, so
+    /// this (main actor) code cannot resume before it.
+    private func queuedListing(_ broker: VaultBroker, widget: String = "w") async -> Task<JSONValue, Never> {
+        let (begun, signal) = AsyncStream<Void>.makeStream()
+        let listing = Task { @MainActor [permission] in
+            signal.finish()
+            return await broker.itemsSource(widgetID: widget, permission: permission)
+        }
+        for await _ in begun {}
+        return listing
+    }
+
     /// onChange also fires when unlocking starts; wait for the session itself.
     private func waitUntilUnlocked(_ broker: VaultBroker, _ description: String) -> XCTestExpectation {
         let changed = expectation(description: description)
@@ -142,7 +201,8 @@ final class VaultBrokerTests: XCTestCase {
     }
 
     func testUnlockListsMetadataAndCopiesExactBytesByHandle() async throws {
-        let broker = makeBroker(FakeProvider())
+        let provider = FakeProvider()
+        let broker = makeBroker(provider)
         try await unlocked(broker)
         XCTAssertTrue(broker.isUnlocked(permission))
         let source = await broker.itemsSource(widgetID: "w", permission: permission)
@@ -154,8 +214,14 @@ final class VaultBrokerTests: XCTestCase {
         try await waitUntil("the copy") { broker.pasteboard.string(forType: .string) != nil }
         XCTAssertEqual(broker.pasteboard.string(forType: .string), "password-of-item-1 ", "trailing space kept")
         XCTAssertNotNil(broker.pasteboard.data(forType: VaultBroker.concealedType), "marked concealed")
+        var refusals: [String] = []
+        broker.toast = { refusals.append($0) }
         broker.copy(widgetID: "other", permission: permission, handle: try XCTUnwrap(row["handle"]?.stringValue), field: .username)
-        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertEqual(refusals, [VaultError.locked.message], "refused at once, before anything is queued")
+        // Provider calls are serial: this listing answers after anything the
+        // refused copy could have queued.
+        _ = await broker.itemsSource(widgetID: "w", permission: permission)
+        XCTAssertEqual(provider.lock.withLock { provider.seen.filter { $0 == "value" }.count }, 1, "only the first copy reached the provider")
         XCTAssertEqual(broker.pasteboard.string(forType: .string), "password-of-item-1 ", "a handle belongs to the widget it was given to")
     }
 
@@ -191,8 +257,8 @@ final class VaultBrokerTests: XCTestCase {
         // The late session arrives after 300 ms and is locked again.
         try await waitUntil("the late session to be locked") { calls(provider).contains("lock") }
         XCTAssertFalse(broker.isUnlocked(permission))
-        broker.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden")
-        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertNil(broker.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden"),
+                     "refused at once: no attempt was started")
         XCTAssertFalse(broker.isUnlocked(permission), "no unlock while the screen is locked")
         broker.setBlocked()
         try await unlocked(broker)
@@ -208,7 +274,9 @@ final class VaultBrokerTests: XCTestCase {
         let item = try await firstHandle(broker)
         broker.copy(widgetID: "w", permission: permission, handle: item, field: .password)
         clock += 11 * 60
-        try await Task.sleep(nanoseconds: 600_000_000)
+        // The late answer finds the session expired, ends it and publishes
+        // nothing, in one step; the provider lock that end queues is the signal.
+        await arrives(provider, "lock")
         XCTAssertNil(broker.pasteboard.string(forType: .string))
     }
 
@@ -269,13 +337,16 @@ final class VaultBrokerTests: XCTestCase {
         let broker = makeBroker(provider)
         try await unlocked(broker)
         let item = try await firstHandle(broker)
-        provider.valueDelayNs = 300_000_000
+        // Longer than the test may take; the lock cancels it at once.
+        provider.valueDelayNs = 5_000_000_000
         broker.copy(widgetID: "w", permission: permission, handle: item, field: .password)
-        let listing = Task { await broker.itemsSource(widgetID: "w", permission: permission) }
-        try await Task.sleep(nanoseconds: 50_000_000)
+        let listing = await queuedListing(broker)
+        await arrives(provider, "value")
         broker.lock(permission)
         _ = await listing.value
-        try await Task.sleep(nanoseconds: 400_000_000)
+        // The lock runs behind the cancelled copy and listing: once it
+        // arrived, neither can still reach the provider.
+        await arrives(provider, "lock")
         XCTAssertEqual(provider.lock.withLock { provider.calls }, ["unlock", "items", "lock"])
         XCTAssertNil(broker.pasteboard.string(forType: .string))
     }
@@ -284,10 +355,11 @@ final class VaultBrokerTests: XCTestCase {
     /// provider: bw may already have unlocked.
     func testCancelledPendingUnlockStillLocksTheProvider() async throws {
         let provider = FakeProvider()
-        provider.unlockDelayNs = 300_000_000
+        // Longer than the test may take; ending the attempt cancels it at once.
+        provider.unlockDelayNs = 5_000_000_000
         let broker = makeBroker(provider)
         broker.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden")
-        try await waitUntil("the unlock to reach the provider") { calls(provider).contains("unlock") }
+        await arrives(provider, "unlock")
         broker.lockAll()
         try await waitUntil("the provider lock") { calls(provider).contains("lock") }
         XCTAssertFalse(broker.isUnlocked(permission))
@@ -310,7 +382,9 @@ final class VaultBrokerTests: XCTestCase {
         }
         broker.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden")
         await fulfillment(of: [relocked], timeout: 10)
-        try await Task.sleep(nanoseconds: 100_000_000)
+        // The accepted unlock queues a sync; a lock from the old unlock's
+        // cleanup would have been queued, and so run, before it.
+        await arrives(provider, "sync")
         XCTAssertEqual(provider.lock.withLock { provider.calls }, ["unlock", "lock", "unlock"])
         XCTAssertTrue(broker.isUnlocked(permission))
     }
@@ -371,7 +445,8 @@ final class VaultBrokerTests: XCTestCase {
     /// A descendant holding the output pipe cannot keep a run alive past
     /// its timeout, and cancelling the caller stops the run quickly.
     func testRunnerTimeoutAndCancelReachDescendants() async throws {
-        let url = try helper("/bin/sleep 30 &\n/bin/sleep 30\n")
+        let url = try helper("/bin/sleep 30 &\n: > \"$0.started\"\n/bin/sleep 30\n")
+        let marker = url.path + ".started"
         let provider = BitwardenCLIProvider(executableOverride: url, timeout: 1)
         let started = Date()
         do {
@@ -383,8 +458,10 @@ final class VaultBrokerTests: XCTestCase {
         XCTAssertLessThan(Date().timeIntervalSince(started), 5)
 
         let slow = BitwardenCLIProvider(executableOverride: url, timeout: 30)
+        try FileManager.default.removeItem(atPath: marker)
         let run = Task { try await slow.items(session: "s") }
-        try await Task.sleep(nanoseconds: 200_000_000)
+        // A child process can only say it runs through the file system.
+        try await waitUntil("the helper and its descendant to run") { FileManager.default.fileExists(atPath: marker) }
         let cancelledAt = Date()
         run.cancel()
         do {
@@ -426,8 +503,10 @@ final class VaultBrokerTests: XCTestCase {
         clock += 11 * 60
         XCTAssertFalse(broker.isUnlocked(permission), "idle ends it")
         await reopened(broker)
-        try await Task.sleep(nanoseconds: 50_000_000)
-        XCTAssertEqual(provider.lock.withLock { provider.calls }, ["unlock", "items"], "no bw lock, one password unlock")
+        // Provider calls are serial: a bw lock queued by either soft end
+        // would run before this listing answers.
+        _ = await broker.itemsSource(widgetID: "w", permission: permission)
+        XCTAssertEqual(provider.lock.withLock { provider.calls }, ["unlock", "items", "items"], "no bw lock, one password unlock")
         XCTAssertEqual(sealer.lock.withLock { sealer.opened }, 2)
     }
 
@@ -440,8 +519,8 @@ final class VaultBrokerTests: XCTestCase {
         broker.setBlocked(screenLocked: true)
         broker.setBlocked()
         broker.lock(permission)
-        try await Task.sleep(nanoseconds: 50_000_000)
         XCTAssertFalse(broker.isResumable(permission))
+        await arrives(provider, "lock")
         XCTAssertEqual(provider.lock.withLock { provider.locked }, [nil], "locked with only the sealed copy left")
 
         try await unlockedWithTouchID(broker)
@@ -449,7 +528,7 @@ final class VaultBrokerTests: XCTestCase {
         clock += 8 * 3600
         broker.setBlocked()
         XCTAssertFalse(broker.isResumable(permission), "8 hours after the password, asleep or not")
-        try await Task.sleep(nanoseconds: 50_000_000)
+        await arrives(provider, "lock", times: 2)
         XCTAssertEqual(provider.lock.withLock { provider.locked.count }, 2)
     }
 
@@ -460,7 +539,7 @@ final class VaultBrokerTests: XCTestCase {
         try await unlocked(broker)
         XCTAssertFalse(broker.isResumable(permission))
         broker.setBlocked(screenLocked: true)
-        try await Task.sleep(nanoseconds: 50_000_000)
+        await arrives(provider, "lock")
         XCTAssertEqual(provider.lock.withLock { provider.calls }, ["unlock", "lock"])
     }
 
@@ -478,15 +557,13 @@ final class VaultBrokerTests: XCTestCase {
         broker.setBlocked()
 
         sealer.outcome = .cancelled
-        broker.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden")
-        try await Task.sleep(nanoseconds: 50_000_000)
+        try await XCTUnwrap(broker.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden")).value
         XCTAssertFalse(broker.isUnlocked(permission))
         XCTAssertTrue(broker.isResumable(permission))
         XCTAssertEqual(prompts, 1, "cancel opens no password prompt")
 
         sealer.outcome = .fallback
-        broker.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden")
-        try await Task.sleep(nanoseconds: 100_000_000)
+        await reopened(broker)
         XCTAssertEqual(prompts, 2, "Use Password asks for it")
         XCTAssertTrue(broker.isUnlocked(permission))
         XCTAssertTrue(broker.isResumable(permission), "a new copy for the new session key")
@@ -494,9 +571,9 @@ final class VaultBrokerTests: XCTestCase {
         broker.setBlocked(screenLocked: true)
         broker.setBlocked()
         sealer.outcome = .invalid
-        broker.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden")
-        try await Task.sleep(nanoseconds: 50_000_000)
+        try await XCTUnwrap(broker.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden")).value
         XCTAssertFalse(broker.isResumable(permission), "enrollment changed: hard lock")
+        await arrives(provider, "lock")
         XCTAssertEqual(provider.lock.withLock { provider.locked }, [nil])
     }
 
@@ -509,9 +586,10 @@ final class VaultBrokerTests: XCTestCase {
         broker.setBlocked(screenLocked: true)
         broker.setBlocked()
         sealer.openDelayNs = 300_000_000
-        broker.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden")
+        let attempt = try XCTUnwrap(broker.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden"))
         broker.setBlocked(screenLocked: true)
-        try await Task.sleep(nanoseconds: 400_000_000)
+        // The attempt has run to its end, with the screen still locked.
+        await attempt.value
         broker.setBlocked()
         XCTAssertFalse(broker.isUnlocked(permission))
         XCTAssertTrue(broker.isResumable(permission))
@@ -594,8 +672,9 @@ final class VaultBrokerTests: XCTestCase {
         broker.setBlocked(screenLocked: true)
         broker.setBlocked()
         sealer.state = .invalid
-        broker.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden")
-        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertNil(broker.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden"),
+                     "the cancelled password prompt starts no attempt")
+        await arrives(provider, "lock")
         XCTAssertFalse(broker.isResumable(permission))
         XCTAssertEqual(prompts, 2, "then the password prompt (cancelled here)")
         XCTAssertEqual(sealer.lock.withLock { sealer.opened }, 0)
@@ -648,9 +727,10 @@ final class VaultBrokerTests: XCTestCase {
         try await unlocked(broker)
         XCTAssertTrue(broker.isResumable(permission))
 
-        broker.confirmSignOut = { false }
+        var confirmations = 0
+        broker.confirmSignOut = { confirmations += 1; return false }
         broker.signOut(widgetID: "w", permission: permission)
-        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertEqual(confirmations, 1, "asked, and refused at once: nothing is queued")
         XCTAssertTrue(broker.isUnlocked(permission), "cancelling the confirmation changes nothing")
         XCTAssertFalse(provider.lock.withLock { provider.calls }.contains("signOut"))
 
@@ -667,6 +747,8 @@ final class VaultBrokerTests: XCTestCase {
         XCTAssertFalse(broker.isUnlocked(permission))
         XCTAssertFalse(broker.isResumable(permission), "the sealed copy goes too")
         XCTAssertEqual(provider.lock.withLock { provider.calls }.suffix(2), ["lock", "signOut"])
+        XCTAssertEqual(provider.lock.withLock { provider.calls }.filter { $0 == "signOut" }.count, 1,
+                       "the cancelled sign-out never reached the provider")
         let locked = await broker.itemsSource(widgetID: "w", permission: permission)
         XCTAssertEqual(locked.objectValue?["account"], .string("signedOut"))
 
@@ -682,7 +764,12 @@ final class VaultBrokerTests: XCTestCase {
         let provider = FakeProvider()
         let broker = makeBroker(provider)
         try await unlocked(broker)
-        try await Task.sleep(nanoseconds: 100_000_000)
+        // The sync is followed by a status read; a second sync would have
+        // been queued, and so run, before that.
+        let synced = provider.arrival("a sync, then the status read") { seen in
+            seen.firstIndex(of: "sync").map { seen[$0...].contains("status") } ?? false
+        }
+        await fulfillment(of: [synced], timeout: 10)
         XCTAssertEqual(provider.lock.withLock { provider.syncs }, 1)
     }
 
@@ -839,14 +926,13 @@ final class VaultBrokerTests: XCTestCase {
 
     func testCancelledOrWrongPasswordStaysLocked() async throws {
         let cancelled = makeBroker(FakeProvider(), password: nil)
-        cancelled.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden")
-        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertNil(cancelled.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden"),
+                     "a cancelled prompt starts no attempt")
         XCTAssertFalse(cancelled.isUnlocked(permission))
         let wrong = makeBroker(FakeProvider(), password: "wrong")
         var messages: [String] = []
         wrong.toast = { messages.append($0) }
-        wrong.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden")
-        try await Task.sleep(nanoseconds: 100_000_000)
+        try await XCTUnwrap(wrong.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden")).value
         XCTAssertFalse(wrong.isUnlocked(permission))
         XCTAssertEqual(messages, [VaultError.unlockFailed.message])
     }
@@ -871,8 +957,10 @@ final class VaultBrokerTests: XCTestCase {
             }
         }
         broker.unlock(widgetID: "w", permission: permission, widgetName: "Bitwarden")
+        // Fulfilled by the listing that saw the session, after it recorded
+        // its state and was audited: nothing below is still on its way.
         await fulfillment(of: [done], timeout: 10)
-        try await Task.sleep(nanoseconds: 50_000_000)
+        broker.onChange = nil
         XCTAssertEqual(states.first, "unlocking")
         XCTAssertTrue(states.contains("unlocked"))
         XCTAssertEqual(events.map(\.0).prefix(2), ["vault.unlocked", "vault.listed"])
