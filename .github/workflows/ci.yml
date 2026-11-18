@@ -10,6 +10,10 @@ on:
   merge_group:
   workflow_dispatch:
 
+# The token these jobs get can read the repository and nothing else.
+permissions:
+  contents: read
+
 # A newer push to a pull request makes its older run moot, so that one is
 # cancelled. Runs on main are not: each merge commit keeps its own run, so a
 # commit that gets tagged always has a finished result. Cancelling them too

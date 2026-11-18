@@ -1,0 +1,15 @@
+# The workflows' actions are the only dependencies here that something else
+# publishes (the Swift package has none). One grouped pull request a week,
+# so a new major of checkout/setup-xcode/setup-deno is a visible change
+# rather than something a floating tag did.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "ci"

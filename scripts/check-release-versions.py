@@ -15,8 +15,8 @@ It replaced a Homebrew cask that lived in this repo and served the same purpose.
 That cask turned out to be a second copy of one in Open330/homebrew-tap, and the
 two drifted three releases apart — a user who installed from the tap was told by
 the app to run `brew upgrade`, and brew told them they were already current. The
-tap is the only cask now; `.github/workflows/tap-bump.yml` keeps it in step with
-the release, and `scripts/verify-release.sh` fails if it ever falls behind again.
+tap is the only cask now; its own `sync-upstream` workflow (in
+Open330/homebrew-tap) keeps it in step with the release, and `scripts/verify-release.sh` fails if it ever falls behind again.
 
 Run directly, or via CI. Exits non-zero with the offending file:line.
 """

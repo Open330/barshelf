@@ -25,6 +25,10 @@ on:
         default: true
         type: boolean
 
+# The token these jobs get can read the repository (and its releases) and nothing else.
+permissions:
+  contents: read
+
 jobs:
   verify:
     name: Verify published assets
