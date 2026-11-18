@@ -3042,6 +3042,16 @@
         }
       }
     },
+    "Check that it still exists in the Shortcuts app.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "단축어 앱에 아직 있는지 확인하세요."
+          }
+        }
+      }
+    },
     "Check that the link points to a widget’s folder or repository.": {
       "localizations": {
         "ko": {
@@ -3983,6 +3993,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "위젯을 제거할 수 없음"
+          }
+        }
+      }
+    },
+    "Couldn't run the Shortcut “%@”": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” 단축어를 실행하지 못했습니다"
           }
         }
       }
@@ -14106,6 +14126,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Apple Dock이 같은 가장자리에 있습니다. BarShelf Dock은 그 바로 위에 놓입니다. 위치를 바꾸거나 자동 숨기기를 켜면 겹치지 않습니다."
+          }
+        }
+      }
+    },
+    "The Apple Dock’s layout couldn’t be backed up first, so it was left as it is. Check that BarShelf can write to its Application Support folder, then switch again.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Dock 레이아웃을 먼저 백업하지 못해 그대로 두었습니다. BarShelf가 Application Support 폴더에 쓸 수 있는지 확인한 뒤 다시 전환하세요."
           }
         }
       }
