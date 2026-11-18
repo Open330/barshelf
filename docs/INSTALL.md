@@ -97,7 +97,7 @@ load formula ... from untrusted tap`이 나오면 안내대로
 > 이 저장소에도 cask 사본이 있었지만 삭제했다. 탭의 사본과 갈라져 0.1.3에 멈춰
 > 있었고, 그 결과 탭으로 설치한 사람은 앱에게 "brew로 올려라"라는 말을 듣고
 > brew에게 "이미 최신이다"라는 답을 들었다 — 업데이트 경로가 아예 없었다. 이제
-> 탭이 유일한 사본이고, 릴리스가 `.github/workflows/tap-bump.yml`로 갱신하며
+> 탭이 유일한 사본이고, 탭 저장소(Open330/homebrew-tap)의 `sync-upstream` 워크플로가 릴리스에 맞춰 갱신하며
 > `scripts/verify-release.sh`가 뒤처지면 실패한다.
 
 ## 업데이트

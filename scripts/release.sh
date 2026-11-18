@@ -81,6 +81,16 @@ if [[ "${NOTARIZE}" == "1" ]]; then
     exit 1
   fi
   RELEASE_DIR=${RELEASE_DIR:-"${DIST_DIR}/release"}
+
+  # A UI string missing from the catalog ships untranslated, and no test
+  # sees it (the catalog tests cover the keys already in it). Checked here,
+  # before anything is signed, rather than left to a step in RELEASING.md.
+  # SKIP_STRINGS_CHECK=1 is for rebuilding a tag whose catalog was already
+  # checked.
+  if [[ "${SKIP_STRINGS_CHECK:-0}" != "1" ]]; then
+    echo "Checking the string catalog against the sources…"
+    bash "${PROJECT_ROOT}/scripts/sync-strings.sh" --check
+  fi
 elif [[ "${ALLOW_UNNOTARIZED}" == "1" ]]; then
   echo "warning: creating a local-only unnotarized package" >&2
   SIGN_IDENTITY=${SIGN_IDENTITY:--}
@@ -245,7 +255,8 @@ fi
 # This used to be a Homebrew cask kept in this repo, which turned out to be a
 # second copy of one that also lives in Open330/homebrew-tap — and the two
 # drifted three releases apart. The tap is the only cask now, and
-# .github/workflows/tap-bump.yml bumps it from the published assets.
+# its own sync-upstream workflow (Open330/homebrew-tap) bumps it from the
+# published assets.
 RELEASED="${PROJECT_ROOT}/RELEASED_VERSION"
 if [[ "${NOTARIZE}" == "1" ]]; then
   echo "${VERSION}" > "${RELEASED}"

@@ -90,7 +90,9 @@ CI가 `main`에 머지될 때마다 이 경로(릴리스 구성 빌드와 위젯
 2. `RELEASE_NOTES.md`를 이번 버전 내용으로 작성한다. 이 파일은 항상 **다음
    릴리스**를 서술하며, GitHub 릴리스 본문에 그대로 붙여 넣는다.
 3. `bash scripts/sync-strings.sh --check`로 `Localization/Localizable.xcstrings`가
-   소스의 UI 문자열과 맞는지 확인한다. 어긋나면 `bash scripts/sync-strings.sh`로
+   소스의 UI 문자열과 맞는지 확인한다. (`release.sh`도 서명 전에 같은 검사를
+   돌려, 어긋나면 멈춘다. 태그를 만들기 전에 여기서 먼저 확인해야 다시 태그하지
+   않는다.) 어긋나면 `bash scripts/sync-strings.sh`로
    갱신해 커밋한다. 여기서 빠진 문자열은 번역되지 않은 채 나간다. AppKit 쪽
    문자열(`NSMenuItem`, `NSAlert`, 창 제목)과 `String` 변수로 넘기는 표시
    문자열은 `String(localized:)`로 감싸야 카탈로그에 잡힌다. 새로 생긴 문자열은
