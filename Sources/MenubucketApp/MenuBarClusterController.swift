@@ -116,19 +116,30 @@ final class MenuBarClusterController: NSObject {
         let previous = self.chips
         self.chips = chips
         updateAccessibility()
-        if let cardWidgetID, !chips.contains(where: { $0.widgetID == cardWidgetID }) {
+        let fate = Self.cardFate(card: cardWidgetID, previous: previous.map(\.id), chips: chips)
+        if fate == .close {
             card?.hide()
             return
         }
         guard previous.map(\.id) != chips.map(\.id) else { return }
         // Chips came or went: keep the card on its widget's chip.
         hidePeek()
-        if let cardWidgetID, let button = statusItem?.button,
-           let index = chips.firstIndex(where: { $0.widgetID == cardWidgetID }) {
+        if case .move(let index) = fate, let button = statusItem?.button {
             activeIndex = index
             menuBar.setClusterFocus(index, animated: false)
             card?.reposition(to: menuBar.clusterChipRect(index, in: button))
         }
+    }
+
+    /// What becomes of the open card when the chips change.
+    enum CardFate: Equatable { case close, stay, move(to: Int) }
+
+    /// The card closes with its widget's last chip, stays put while the
+    /// same chips are there, and otherwise follows its widget's chip.
+    static func cardFate(card widgetID: String?, previous: [String], chips: [ClusterChip]) -> CardFate {
+        guard let widgetID else { return .stay }
+        guard let index = chips.firstIndex(where: { $0.widgetID == widgetID }) else { return .close }
+        return previous == chips.map(\.id) ? .stay : .move(to: index)
     }
 
     /// Everything closed: the shelf is opening, or the layout changed.
@@ -172,12 +183,19 @@ final class MenuBarClusterController: NSObject {
               let screen = NSScreen.screens.first(where: { NSMouseInRect(point, $0.frame, false) })
         else { return nil }
         let frame = window.convertToScreen(button.convert(button.bounds, to: nil))
-        let fromRight = home.frame.maxX - frame.minX
-        let bar = max(screen.frame.maxY - screen.visibleFrame.maxY, NSStatusBar.system.thickness)
-        return NSRect(
-            x: screen.frame.maxX - fromRight, y: screen.frame.maxY - bar,
-            width: frame.width, height: bar
+        return Self.itemFrame(
+            standIn: frame, home: home.frame, screen: screen.frame,
+            visibleMaxY: screen.visibleFrame.maxY, thickness: NSStatusBar.system.thickness
         )
+    }
+
+    /// The stand-in's frame on `home`, carried to `screen`'s menu bar.
+    static func itemFrame(
+        standIn frame: NSRect, home: NSRect, screen: NSRect, visibleMaxY: CGFloat, thickness: CGFloat
+    ) -> NSRect {
+        let fromRight = home.maxX - frame.minX
+        let bar = max(screen.maxY - visibleMaxY, thickness)
+        return NSRect(x: screen.maxX - fromRight, y: screen.maxY - bar, width: frame.width, height: bar)
     }
 
     /// Where the pointer is along the button, or nil when it is off the item.
@@ -295,14 +313,22 @@ final class MenuBarClusterController: NSObject {
 
     private func isNearMenuBar(_ point: NSPoint) -> Bool {
         let bands = menuBarBands ?? NSScreen.screens.map { screen in
-            // Generous: a menu bar that is hidden now may be a tall one
-            // (a notched display) when it shows.
-            let bar = max(screen.frame.maxY - screen.visibleFrame.maxY, NSStatusBar.system.thickness, 40)
-            let height = bar + ClusterHoverPolicy.slackBelow + 2
-            return NSRect(x: screen.frame.minX, y: screen.frame.maxY - height, width: screen.frame.width, height: height + 1)
+            Self.menuBarBand(
+                screen: screen.frame, visibleMaxY: screen.visibleFrame.maxY,
+                thickness: NSStatusBar.system.thickness
+            )
         }
         menuBarBands = bands
         return bands.contains { $0.contains(point) }
+    }
+
+    /// A screen's menu bar with the margin below it.
+    static func menuBarBand(screen: NSRect, visibleMaxY: CGFloat, thickness: CGFloat) -> NSRect {
+        // Generous: a menu bar that is hidden now may be a tall one
+        // (a notched display) when it shows.
+        let bar = max(screen.maxY - visibleMaxY, thickness, 40)
+        let height = bar + ClusterHoverPolicy.slackBelow + 2
+        return NSRect(x: screen.minX, y: screen.maxY - height, width: screen.width, height: height + 1)
     }
 
     /// A left click on the status item. False for the BarShelf icon, which
@@ -315,18 +341,32 @@ final class MenuBarClusterController: NSObject {
         let id = chips[index].widgetID
         let closing = closingClick
         closingClick = nil
-        if let closing, closing.widgetID == id,
-           Date().timeIntervalSince(closing.at) < Self.closingClickWindow {
-            // This click's mouse-down just closed the card: leave it closed.
-            return true
-        }
-        if cardWidgetID == id, card?.isShown == true {
+        switch Self.chipClick(
+            on: id, closing: closing, shownCard: card?.isShown == true ? cardWidgetID : nil, now: Date()
+        ) {
+        case .swallow:
+            break
+        case .closeCard:
             card?.hide()
-            return true
+        case .open:
+            pressedIndex = index
+            onChipClick?(id)
         }
-        pressedIndex = index
-        onChipClick?(id)
         return true
+    }
+
+    /// What a click on a chip does.
+    enum ChipClick: Equatable { case swallow, closeCard, open }
+
+    static func chipClick(
+        on id: String, closing: (widgetID: String, at: Date)?, shownCard: String?, now: Date
+    ) -> ChipClick {
+        if let closing, closing.widgetID == id,
+           now.timeIntervalSince(closing.at) < closingClickWindow {
+            // This click's mouse-down just closed the card: leave it closed.
+            return .swallow
+        }
+        return shownCard == id ? .closeCard : .open
     }
 
     /// A right click on the status item: the chip's menu, or false for the
@@ -366,15 +406,23 @@ final class MenuBarClusterController: NSObject {
         let rect = NSRect(x: item.minX + chipRect.minX, y: item.minY, width: chipRect.width, height: item.height)
         // The view carries its own margin for the shadow; tuck it up so the
         // card itself sits `peekGap` below the bar.
-        var origin = NSPoint(x: rect.midX - size.width / 2, y: rect.minY - Self.peekGap - size.height + Spacing.s)
-        if let screen = NSScreen.screens.first(where: { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }) ?? window.screen {
-            origin.x = min(max(origin.x, screen.frame.minX), screen.frame.maxX - size.width)
-        }
+        let screen = NSScreen.screens.first(where: { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }) ?? window.screen
+        let origin = Self.peekOrigin(under: rect, size: size, screen: screen?.frame)
         let panel = peek ?? ClusterPeekPanel()
         panel.contentView = hosting
         panel.setFrame(NSRect(origin: origin, size: size), display: true)
         panel.orderFrontRegardless()
         peek = panel
+    }
+
+    /// The peek's origin: centred under `rect` (a chip, on screen), kept on
+    /// `screen`.
+    static func peekOrigin(under rect: NSRect, size: NSSize, screen: NSRect?) -> NSPoint {
+        var origin = NSPoint(x: rect.midX - size.width / 2, y: rect.minY - peekGap - size.height + Spacing.s)
+        if let screen {
+            origin.x = min(max(origin.x, screen.minX), screen.maxX - size.width)
+        }
+        return origin
     }
 
     private func hidePeek() {
@@ -391,11 +439,18 @@ final class MenuBarClusterController: NSObject {
 
     /// Opens (or moves) the card for a widget, hung off its chip.
     func openCard(widgetID: String) {
-        let pressed = pressedIndex.flatMap { chips.indices.contains($0) && chips[$0].widgetID == widgetID ? $0 : nil }
+        let pressed = pressedIndex
         pressedIndex = nil
-        guard let index = pressed ?? chips.firstIndex(where: { $0.widgetID == widgetID }) else { return }
+        guard let index = Self.cardIndex(for: widgetID, pressed: pressed, in: chips) else { return }
         menuBar.setClusterFocus(index, animated: false)
         showCard(at: index)
+    }
+
+    /// The chip a widget's card hangs off: the one just pressed if it is
+    /// still that widget's, or the widget's first.
+    static func cardIndex(for widgetID: String, pressed: Int?, in chips: [ClusterChip]) -> Int? {
+        let pressed = pressed.flatMap { chips.indices.contains($0) && chips[$0].widgetID == widgetID ? $0 : nil }
+        return pressed ?? chips.firstIndex(where: { $0.widgetID == widgetID })
     }
 
     private func showCard(at index: Int) {
@@ -459,18 +514,31 @@ final class MenuBarClusterController: NSObject {
                   event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty,
                   let active = self.activeIndex
             else { return event }
-            let step: Int
-            switch Int(event.keyCode) {
-            case 123: step = -1
-            case 124: step = 1
-            default: return event
+            switch Self.arrowKey(Int(event.keyCode), active: active, count: self.chips.count) {
+            case .other:
+                return event
+            case .edge:
+                NSSound.beep()
+            case .move(let target):
+                self.menuBar.setClusterFocus(target, animated: true)
+                self.showCard(at: target)
             }
-            let target = active + step
-            guard self.chips.indices.contains(target) else { NSSound.beep(); return nil }
-            self.menuBar.setClusterFocus(target, animated: true)
-            self.showCard(at: target)
             return nil
         })
+    }
+
+    /// What a key does with a card open on chip `active` of `count`.
+    enum ArrowKey: Equatable { case other, edge, move(to: Int) }
+
+    static func arrowKey(_ keyCode: Int, active: Int, count: Int) -> ArrowKey {
+        let step: Int
+        switch keyCode {
+        case 123: step = -1
+        case 124: step = 1
+        default: return .other
+        }
+        let target = active + step
+        return (0..<count).contains(target) ? .move(to: target) : .edge
     }
 
     private func removeKeyMonitor() {
