@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// Replaces the installed `barshelf` / `bsf` binaries with the ones from a
 /// release tarball, or refuses to.
@@ -176,8 +177,18 @@ public enum CommandLineToolInstaller {
         process.standardOutput = output
         process.standardError = errors
         guard (try? process.run()) != nil else { return (-1, "", "tar could not be started") }
+        // Both pipes are drained at once: read one after the other, a tar
+        // that fills the second while the first is still open never exits.
+        let errorHandle = errors.fileHandleForReading
+        let errorData = OSAllocatedUnfairLock(initialState: Data())
+        let drained = DispatchGroup()
+        DispatchQueue.global(qos: .userInitiated).async(group: drained) {
+            let data = errorHandle.readDataToEndOfFile()
+            errorData.withLock { $0 = data }
+        }
         let out = output.fileHandleForReading.readDataToEndOfFile()
-        let err = errors.fileHandleForReading.readDataToEndOfFile()
+        drained.wait()
+        let err = errorData.withLock { $0 }
         process.waitUntilExit()
         return (
             process.terminationStatus,
