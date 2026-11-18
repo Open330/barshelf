@@ -203,6 +203,52 @@ final class AppleDockTests: XCTestCase {
         XCTAssertEqual(files.count, AppleDock.backupLimit)
     }
 
+    func testApplyLeavesTheDockAloneWhenItsBackupCannotBeWritten() throws {
+        // A backup directory under a regular file can never be created.
+        let blocker = FileManager.default.temporaryDirectory.appendingPathComponent("dock-blocker-\(UUID().uuidString)")
+        try Data("not a directory".utf8).write(to: blocker)
+        defer { try? FileManager.default.removeItem(at: blocker) }
+        let defaults = FakeDefaults()
+        var restarts = 0
+        let dock = AppleDock(defaults: defaults, backupDirectory: blocker.appendingPathComponent("dock-backups")) {
+            restarts += 1
+        }
+        defaults.values[AppleDock.appsKey] = [tile("/Applications/Music.app", guid: 1)]
+        let layout = AppleDockLayout(
+            appTiles: [tile("/Applications/Mail.app", guid: 2)], otherTiles: [], capturedAt: Date()
+        )
+
+        XCTAssertThrowsError(try dock.applyChecked(layout)) { error in
+            XCTAssertEqual(error as? AppleDockError, .layoutBackupFailed)
+        }
+        XCTAssertFalse(dock.apply(layout))
+        XCTAssertEqual(AppleDockTiles.labels(of: defaults.values[AppleDock.appsKey] as! [Any]), ["Music"])
+        XCTAssertNil(defaults.values[AppleDock.othersKey])
+        XCTAssertEqual(restarts, 0)
+    }
+
+    func testApplyWritesTheBackupThenAppliesTheLayout() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("dock-backups-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let defaults = FakeDefaults()
+        var restarts = 0
+        let dock = AppleDock(defaults: defaults, backupDirectory: dir) { restarts += 1 }
+        defaults.values[AppleDock.appsKey] = [tile("/Applications/Music.app", guid: 1)]
+        let layout = AppleDockLayout(
+            appTiles: [tile("/Applications/Mail.app", guid: 2)], otherTiles: [], capturedAt: Date()
+        )
+
+        XCTAssertTrue(try dock.applyChecked(layout))
+        XCTAssertEqual(AppleDockTiles.labels(of: defaults.values[AppleDock.appsKey] as! [Any]), ["Mail"])
+        XCTAssertEqual(restarts, 1)
+        let files = try FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)
+        XCTAssertEqual(files.count, 1)
+        let saved = try XCTUnwrap(
+            PropertyListSerialization.propertyList(from: Data(contentsOf: files[0]), format: nil) as? [String: Any]
+        )
+        XCTAssertEqual(AppleDockTiles.labels(of: saved[AppleDock.appsKey] as? [Any] ?? []), ["Music"])
+    }
+
     func testHideAndRestorePutBackWhatWasThere() {
         let defaults = FakeDefaults()
         var restarts = 0

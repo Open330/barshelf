@@ -269,6 +269,29 @@ final class DockStoreTests: XCTestCase {
         XCTAssertEqual(AppleDockTiles.labels(of: defaults.values[AppleDock.appsKey] as! [Any]), ["Mail"])
     }
 
+    func testSwitchingSaysSoWhenTheAppleDockLayoutCouldNotBeBackedUp() throws {
+        let blocker = FileManager.default.temporaryDirectory.appendingPathComponent("dock-blocker-\(UUID().uuidString)")
+        try Data("not a directory".utf8).write(to: blocker)
+        defer { try? FileManager.default.removeItem(at: blocker) }
+        defaults.values[AppleDock.appsKey] = [AppleDockTiles.appTile(path: "/Applications/Mail.app")]
+        let store = DockStore(
+            fileURL: fileURL,
+            appleDock: AppleDock(defaults: defaults, backupDirectory: blocker.appendingPathComponent("dock-backups")) {
+                [weak self] in self?.restarts += 1
+            }
+        )
+        let work = store.addProfile(named: "Work")
+        store.captureAppleDock(into: work)
+        store.update { $0.appleDockLayouts = true }
+        defaults.values[AppleDock.appsKey] = [AppleDockTiles.appTile(path: "/Applications/Music.app")]
+
+        store.activate(profileID: work)
+        XCTAssertEqual(store.configuration.activeProfileID, work, "the BarShelf Dock still switches")
+        XCTAssertEqual(AppleDockTiles.labels(of: defaults.values[AppleDock.appsKey] as! [Any]), ["Music"])
+        XCTAssertEqual(restarts, 0)
+        XCTAssertEqual(store.lastError, DockStore.message(for: AppleDockError.layoutBackupFailed))
+    }
+
     func testActivateByNameNumberAndOffset() {
         let store = makeStore()
         let work = store.addProfile(named: "Work")

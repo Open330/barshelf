@@ -150,11 +150,13 @@ public extension AppleDockDefaults {
 public enum AppleDockError: Error, LocalizedError {
     case preferenceWriteFailed
     case rollbackFailed
+    case layoutBackupFailed
 
     public var errorDescription: String? {
         switch self {
         case .preferenceWriteFailed: return "Couldn't save the Apple Dock's settings."
         case .rollbackFailed: return "Couldn't restore the Apple Dock's settings; the recovery backup was kept."
+        case .layoutBackupFailed: return "Couldn't save a backup of the Apple Dock's layout, so the layout was left unchanged."
         }
     }
 }
@@ -221,9 +223,17 @@ public final class AppleDock {
     }
 
     /// Puts `layout` into the Apple Dock. Returns false, without restarting
-    /// the Dock, when it is already showing that layout.
+    /// the Dock, when it is already showing that layout, or when the layout
+    /// it would replace could not be backed up first.
     @discardableResult
     public func apply(_ layout: AppleDockLayout) -> Bool {
+        (try? applyChecked(layout)) ?? false
+    }
+
+    /// `apply`, saying why nothing changed when the backup could not be
+    /// written: a rewrite with no backup has nothing to be undone from.
+    @discardableResult
+    public func applyChecked(_ layout: AppleDockLayout) throws -> Bool {
         let current = currentLayout()
         let newApps = layout.appTiles
         let newOthers = layout.otherTiles
@@ -234,7 +244,7 @@ public final class AppleDock {
            AppleDockTiles.signature(of: current.otherTiles) == AppleDockTiles.signature(of: newOthers) {
             return false
         }
-        writeBackup(current)
+        guard writeBackup(current) else { throw AppleDockError.layoutBackupFailed }
         defaults.set(newApps, forKey: Self.appsKey)
         defaults.set(newOthers, forKey: Self.othersKey)
         defaults.synchronize()
@@ -243,11 +253,12 @@ public final class AppleDock {
     }
 
     /// Keeps the layout about to be replaced, newest last, at most
-    /// `backupLimit` files.
-    private func writeBackup(_ layout: AppleDockLayout) {
-        guard let backupDirectory else { return }
+    /// `backupLimit` files. False when a backup was wanted and not written;
+    /// with no backup directory there is nothing to write, which is not a
+    /// failure.
+    private func writeBackup(_ layout: AppleDockLayout) -> Bool {
+        guard let backupDirectory else { return true }
         let fm = FileManager.default
-        try? fm.createDirectory(at: backupDirectory, withIntermediateDirectories: true)
         let tiles: [String: Any] = [
             Self.appsKey: layout.appTiles,
             Self.othersKey: layout.otherTiles,
@@ -257,8 +268,13 @@ public final class AppleDock {
         // millisecond from overwriting each other.
         let suffix = UUID().uuidString.prefix(8)
         let file = backupDirectory.appendingPathComponent("apple-dock-\(stamp)-\(suffix).plist")
-        if let data = try? PropertyListSerialization.data(fromPropertyList: tiles, format: .xml, options: 0) {
-            try? data.write(to: file, options: .atomic)
+        do {
+            try fm.createDirectory(at: backupDirectory, withIntermediateDirectories: true)
+            let data = try PropertyListSerialization.data(fromPropertyList: tiles, format: .xml, options: 0)
+            try data.write(to: file, options: .atomic)
+        } catch {
+            NSLog("barshelf: could not back up the Apple Dock layout to \(file.path), leaving the Dock as it is: \(error)")
+            return false
         }
         let existing = ((try? fm.contentsOfDirectory(at: backupDirectory, includingPropertiesForKeys: nil)) ?? [])
             .filter { $0.lastPathComponent.hasPrefix("apple-dock-") && $0.pathExtension == "plist" }
@@ -266,6 +282,7 @@ public final class AppleDock {
         for old in existing.dropLast(Self.backupLimit) {
             try? fm.removeItem(at: old)
         }
+        return true
     }
 
     // MARK: Visibility
