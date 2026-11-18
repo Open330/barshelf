@@ -6,6 +6,7 @@ import XCTest
 @testable import MenubucketApp
 @testable import BarShelfAutomation
 
+@MainActor
 final class AutomationTests: XCTestCase {
     func testTapRecoveryReplacesMissingPortButKeepsHealthyHeldKeys() throws {
         var enabled = false
@@ -533,6 +534,22 @@ final class AutomationTests: XCTestCase {
         script.invoke(0)
         XCTAssertEqual(messages.count, 1)
         XCTAssertTrue(messages[0].contains("custom recovery failed"))
+    }
+
+    /// Observers of the Automation keys are dropped by releasing what
+    /// `observe` returned; there is no call to make from a deinit.
+    func testInAppHotkeysStopsCallingAnObserverWhoseTokenWasReleased() {
+        let hotkeys = InAppHotkeys()
+        var calls = 0
+        var observation: InAppHotkeys.Observation? = hotkeys.observe { calls += 1 }
+        hotkeys.setAutomationKeys([.init(keyCode: 18, modifiers: 0)])
+        XCTAssertEqual(calls, 1)
+        hotkeys.setAutomationKeys([.init(keyCode: 18, modifiers: 0)])
+        XCTAssertEqual(calls, 1, "unchanged keys are not announced")
+        observation = nil
+        hotkeys.setAutomationKeys([])
+        XCTAssertEqual(calls, 1, "a released observer is not called")
+        XCTAssertNil(observation)
     }
 
     func testUnusedAutomationEngineDeallocatesWithoutCreatingAnInputMonitor() throws {

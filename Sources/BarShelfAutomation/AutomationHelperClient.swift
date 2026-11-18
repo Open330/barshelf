@@ -3,6 +3,7 @@ import notify
 
 /// The app's side of the channel: starts the helper (or adopts one that
 /// outlived a previous app), sends it requests and relays its status.
+@MainActor
 package final class AutomationHelperClient {
     private let executable: URL
     private let channel: AutomationHelperChannel

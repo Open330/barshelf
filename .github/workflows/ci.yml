@@ -156,54 +156,21 @@ jobs:
         with:
           xcode-version: "26.6.0"
 
-      # Clean today; a new diagnostic fails the run.
-      - name: MenubucketCore and BarShelfKit
+      # Clean; a new diagnostic fails the run. Dependencies first, so each
+      # target's own files are compiled (and can fail) in its own line.
+      - name: Library targets
         run: |
-          swift build --target MenubucketCore -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
-          swift build --target BarShelfKit -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
-
-      # Not clean yet (2026-11-16: Automation 23; Builder is at zero, and
-      # Dock is at zero on Swift 6.4 but stays here until a run on this
-      # toolchain says so), so counted, not enforced; move a target up once
-      # it reaches zero.
-      # Dependencies first, so each target's own files are compiled in its
-      # own step and counted there (a cached module reports nothing).
-      - name: Other library targets (report only)
-        run: |
-          {
-            echo "### Strict concurrency outside Core and BarShelfKit"
-            echo
-            echo "| Target | Diagnostics in its own files |"
-            echo "| --- | --- |"
-          } >> "$GITHUB_STEP_SUMMARY"
-          for target in BarShelfBuilder BarShelfAutomation BarShelfDock; do
-            log="${RUNNER_TEMP}/strict-${target}.log"
-            swift build --target "$target" -Xswiftc -strict-concurrency=complete >"$log" 2>&1 \
-              || echo "::warning::${target} did not build with strict concurrency"
-            # Colour codes out, then one line per diagnostic location.
-            sed $'s/\x1b\\[[0-9;]*m//g' "$log" \
-              | grep -oE "Sources/${target}/[^ :]+\.swift:[0-9]+:[0-9]+: (warning|error): .*" \
-              | sort -u > "${log}.found" || true
-            count=$(wc -l < "${log}.found" | tr -d ' ')
-            echo "${target}: ${count}"
-            head -40 "${log}.found"
-            echo "| ${target} | ${count} |" >> "$GITHUB_STEP_SUMMARY"
-            [ "$count" -eq 0 ] || echo "::warning::${target} has ${count} strict-concurrency diagnostics"
+          for target in MenubucketCore BarShelfKit BarShelfBuilder BarShelfAutomation BarShelfDock; do
+            swift build --target "$target" -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
           done
 
       # The app's own files, enforced: any diagnostic located in
       # Sources/MenubucketApp fails the run. Not with `-warnings-as-errors`,
-      # which applies to every module the build compiles: the app depends on
-      # BarShelfAutomation, which is not clean yet, so that build would stop
-      # there. The build runs without the flag and the step counts.
-      #
-      # One diagnostic is allowed, by file and wording (not by line):
-      # VaultResume shares an LAContext between a Touch ID prompt and its
-      # cancellation handler, and LAContext is not Sendable (see the comment
-      # there). Anything else in that file still fails.
-      #
-      # After the report-only step: built first, it would compile those
-      # targets as its dependencies and leave them nothing to report.
+      # because one diagnostic is allowed, by file and wording (not by
+      # line): VaultResume shares an LAContext between a Touch ID prompt and
+      # its cancellation handler, and LAContext is not Sendable (see the
+      # comment there). Anything else in that file still fails. So the build
+      # runs without the flag and the step counts.
       - name: MenubucketApp (own files, enforced)
         run: |
           log="${RUNNER_TEMP}/strict-MenubucketApp.log"

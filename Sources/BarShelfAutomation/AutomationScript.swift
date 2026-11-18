@@ -14,7 +14,7 @@ package final class AutomationScript {
         package let combination: HotkeyGrammar.Combination
         package let callback: JSValue
     }
-    package struct Remap: Equatable {
+    package struct Remap: Equatable, Sendable {
         package let keyboardTypes: Set<Int64>
         package let keys: [Int64: Int64]
     }
