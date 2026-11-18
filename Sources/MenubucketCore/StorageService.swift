@@ -6,6 +6,8 @@ import Foundation
 /// - Quota: 1 MB serialized per widget → `-32004 QuotaExceeded`.
 /// - Optional TTL per entry; expired entries read as missing and are pruned
 ///   on the next write.
+/// - A namespace file that cannot be read is kept beside it as
+///   `<id>.json.corrupt-<stamp>` and the widget starts empty (`JSONFile`).
 public final class StorageService: @unchecked Sendable {
     public static let quotaBytes = 1_048_576
 
@@ -157,14 +159,10 @@ public final class StorageService: @unchecked Sendable {
 
     private func loadLocked(widgetId: String) -> Namespace {
         if let cached = cache[widgetId] { return cached }
-        let url = fileURL(widgetId: widgetId)
-        guard let data = try? Data(contentsOf: url),
-              let namespace = try? JSONDecoder().decode(Namespace.self, from: data)
-        else {
-            let empty = Namespace()
-            cacheLocked(empty, widgetId: widgetId)
-            return empty
-        }
+        // No file is an empty namespace. A file that is there but cannot be
+        // read is moved aside by `JSONFile` (or, failing that, protected from
+        // `persistLocked`), so the empty namespace is never saved over it.
+        let namespace = JSONFile.load(Namespace.self, from: fileURL(widgetId: widgetId)) ?? Namespace()
         cacheLocked(namespace, widgetId: widgetId)
         return namespace
     }
@@ -190,8 +188,7 @@ public final class StorageService: @unchecked Sendable {
         guard !purgedWidgetIDs.contains(widgetId) else {
             throw JsonRpcError.internalError("storage for \(widgetId) was removed with the widget")
         }
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        try data.write(to: fileURL(widgetId: widgetId), options: .atomic)
+        try JSONFile.write(data, to: fileURL(widgetId: widgetId))
         cacheLocked(namespace, widgetId: widgetId)
     }
 

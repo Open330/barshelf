@@ -61,12 +61,9 @@ public final class AlertStateStore: @unchecked Sendable {
 
     public init(fileURL: URL) {
         self.fileURL = fileURL
-        if let data = try? Data(contentsOf: fileURL),
-           let decoded = try? JSONDecoder().decode([String: AlertTracker.State].self, from: data) {
-            states = decoded
-        } else {
-            states = [:]
-        }
+        // A file that is there but cannot be read is moved aside, so the
+        // next change is not saved over it.
+        states = JSONFile.load([String: AlertTracker.State].self, from: fileURL) ?? [:]
     }
 
     public static func key(widgetID: String, alertID: String) -> String { "\(widgetID)\u{1F}\(alertID)" }
@@ -136,10 +133,9 @@ public final class AlertStateStore: @unchecked Sendable {
 
     private func persistLocked() {
         do {
-            try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.sortedKeys]
-            try encoder.encode(states).write(to: fileURL, options: .atomic)
+            try JSONFile.write(states, to: fileURL, encoder: encoder)
         } catch {
             NSLog("barshelf: failed to persist alert state: \(error)")
         }

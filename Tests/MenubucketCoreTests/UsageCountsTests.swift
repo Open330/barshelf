@@ -139,6 +139,33 @@ final class UsageCountsTests: XCTestCase {
         XCTAssertEqual(log.days["2026-11-12"]?.widgets["a"]?.views, 2)
     }
 
+    /// The store that writes must not flush a fresh log over a file it could
+    /// not decode: the file is set aside first.
+    func testStoreSetsAnUndecodableFileAsideBeforeWriting() throws {
+        let url = tempDir.appendingPathComponent("usage.json")
+        let corrupt = Data(#"{"days":{"2026-11-01":{"popupOpens":41"#.utf8)
+        try corrupt.write(to: url)
+        let today = date("2026-11-12")
+        let store = UsageStore(fileURL: url, calendar: calendar, writeDelay: 3600, now: { today })
+        XCTAssertEqual(store.snapshot(), UsageLog())
+        store.record(.popupOpen)
+        store.flush()
+
+        let aside = try FileManager.default.contentsOfDirectory(at: tempDir, includingPropertiesForKeys: nil)
+            .filter { $0.lastPathComponent.hasPrefix("usage.json.corrupt-") }
+        XCTAssertEqual(aside.count, 1)
+        XCTAssertEqual(try Data(contentsOf: XCTUnwrap(aside.first)), corrupt)
+        XCTAssertEqual(UsageStore.load(from: url).days["2026-11-12"]?.popupOpens, 1)
+    }
+
+    /// The CLI only reads: it leaves a file it cannot decode where it is.
+    func testReadOnlyLoadLeavesAnUndecodableFileInPlace() throws {
+        let url = tempDir.appendingPathComponent("usage.json")
+        try Data("not json".utf8).write(to: url)
+        XCTAssertEqual(UsageStore.load(from: url), UsageLog())
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: tempDir.path), ["usage.json"])
+    }
+
     func testSummaryJSONCarriesTheFlags() throws {
         var log = UsageLog()
         log.record(.view, widgetID: "a", day: "2026-11-12")
