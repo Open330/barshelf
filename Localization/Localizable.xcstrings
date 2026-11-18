@@ -11676,6 +11676,16 @@
         }
       }
     },
+    "Revoke %@": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 권한 취소"
+          }
+        }
+      }
+    },
     "Right": {
       "localizations": {
         "ko": {
