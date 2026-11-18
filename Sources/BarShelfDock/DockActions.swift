@@ -182,6 +182,28 @@ package final class RunningApps: ObservableObject {
 }
 
 /// What clicking, dropping on, and right-clicking a dock tile does.
+/// How one run of the `shortcuts` tool ended.
+package struct ShortcutRun: Equatable, Sendable {
+    /// The status of a run that never started.
+    package static let notStarted: Int32 = -1
+
+    package var status: Int32
+    /// What the tool wrote to standard error.
+    package var errors: String
+
+    package init(status: Int32, errors: String) {
+        self.status = status
+        self.errors = errors
+    }
+}
+
+/// A Shortcut tile that did not run: which one, and what the tool said.
+package struct ShortcutFailure: Equatable, Sendable {
+    package let name: String
+    package let status: Int32
+    package let detail: String?
+}
+
 @MainActor
 package enum DockActions {
     // Icons and names, once per path for a minute (so an updated app's icon
@@ -263,17 +285,54 @@ package enum DockActions {
 
     // MARK: Shortcuts
 
-    /// Runs a Shortcut through the `shortcuts` tool, off the main thread.
-    package static func runShortcut(named name: String) {
+    /// Told when a Shortcut tile's run failed, on the main actor. The app
+    /// sets it once to say so where the click happened; BarShelfDock has no
+    /// views of its own.
+    package static var onShortcutFailure: (@MainActor @Sendable (ShortcutFailure) -> Void)?
+
+    /// Runs a Shortcut through the `shortcuts` tool, off the main thread. A
+    /// run that could not start or exited non-zero (a renamed or deleted
+    /// Shortcut) is logged and handed to `onFailure`, or to
+    /// `onShortcutFailure` when none is given.
+    package static func runShortcut(
+        named name: String,
+        launch: @escaping @Sendable (String) -> ShortcutRun = { DockActions.launchShortcut(named: $0) },
+        onFailure: (@MainActor @Sendable (ShortcutFailure) -> Void)? = nil
+    ) {
+        let report = onFailure ?? onShortcutFailure
         DispatchQueue.global(qos: .userInitiated).async {
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/shortcuts")
-            process.arguments = ["run", name]
-            process.standardOutput = FileHandle.nullDevice
-            process.standardError = FileHandle.nullDevice
-            try? process.run()
-            process.waitUntilExit()
+            guard let failure = shortcutFailure(named: name, run: launch(name)) else { return }
+            NSLog("barshelf: shortcut \"\(name)\" failed (status \(failure.status)): \(failure.detail ?? "no output")")
+            guard let report else { return }
+            DispatchQueue.main.async { report(failure) }
         }
+    }
+
+    /// What a finished run means: nil when it succeeded.
+    package nonisolated static func shortcutFailure(named name: String, run: ShortcutRun) -> ShortcutFailure? {
+        guard run.status != 0 else { return nil }
+        let errors = run.errors.trimmingCharacters(in: .whitespacesAndNewlines)
+        return ShortcutFailure(name: name, status: run.status, detail: errors.isEmpty ? nil : errors)
+    }
+
+    /// `shortcuts run <name>`, waited for. Blocks; call off the main thread.
+    package nonisolated static func launchShortcut(named name: String) -> ShortcutRun {
+        let process = Process()
+        let errors = Pipe()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/shortcuts")
+        process.arguments = ["run", name]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = errors
+        do {
+            try process.run()
+        } catch {
+            return ShortcutRun(status: ShortcutRun.notStarted, errors: error.localizedDescription)
+        }
+        // Read to the end before waiting: a tool that fills the pipe would
+        // otherwise never exit.
+        let data = errors.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        return ShortcutRun(status: process.terminationStatus, errors: String(decoding: data, as: UTF8.self))
     }
 
     /// The user's Shortcuts by name, for the "Add Shortcut" picker.

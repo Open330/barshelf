@@ -1,6 +1,7 @@
 import XCTest
 @testable import BarShelfKit
 import MenubucketCore
+import os
 
 /// R06 Track A — `barshelf new` → `validate` → `pack` → `validate(.mbw)` roundtrip
 /// for all three scaffold kinds, in a temporary directory.
@@ -218,6 +219,50 @@ final class BarShelfRoundtripTests: XCTestCase {
             XCTAssertTrue(error.localizedDescription.contains("-o ../widget.mbw"))
         }
         XCTAssertEqual(try packageFiles(widget), before)
+    }
+
+    /// A zip that writes more than a pipe holds (about 64 KB) used to block
+    /// forever: `pack` waited for it to exit before reading what it wrote.
+    func testAChattyFailingZipToolIsReportedInsteadOfHanging() throws {
+        let widget = workDir.appendingPathComponent("chatty-source")
+        try WidgetScaffold.create(name: "chatty-source", kind: .script, at: widget)
+        let output = workDir.appendingPathComponent("chatty.mbw")
+        let tool = workDir.appendingPathComponent("chatty-zip.sh")
+        try """
+        #!/bin/sh
+        i=0
+        while [ $i -lt 4000 ]; do
+          echo "zip warning: line $i of far more output than one pipe buffer can hold" >&2
+          i=$((i + 1))
+        done
+        exit 3
+        """.write(to: tool, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tool.path)
+
+        var operations = WidgetPacker.Operations()
+        operations.zip = { archive, files, staging in
+            try WidgetPacker.runZip(tool: tool.path, archive: archive, files: files, workingDirectory: staging)
+        }
+        let packing = operations
+        let failure = OSAllocatedUnfairLock<WidgetPacker.PackError?>(initialState: nil)
+        let finished = expectation(description: "pack returned")
+        DispatchQueue.global().async {
+            do {
+                _ = try WidgetPacker.pack(directory: widget, output: output, operations: packing)
+            } catch {
+                failure.withLock { $0 = error as? WidgetPacker.PackError }
+            }
+            finished.fulfill()
+        }
+        wait(for: [finished], timeout: 30)
+
+        guard case let .zipFailed(status, text)? = failure.withLock({ $0 }) else {
+            return XCTFail("expected the zip failure, got \(String(describing: failure.withLock { $0 }))")
+        }
+        XCTAssertEqual(status, 3)
+        XCTAssertGreaterThan(text.utf8.count, 200_000)
+        XCTAssertTrue(text.hasSuffix("line 3999 of far more output than one pipe buffer can hold"))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: output.path))
     }
 
     func testZipAndCommitFailuresPreservePreviousArchiveAndCleanTemporaryFiles() throws {

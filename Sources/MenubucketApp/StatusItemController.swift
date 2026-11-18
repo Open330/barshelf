@@ -110,6 +110,16 @@ final class StatusItemController: NSObject {
             .receive(on: RunLoop.main)
             .sink { [weak runtime] error in runtime?.attention.set(.dockNeedsAttention, error != nil) }
             .store(in: &cancellables)
+        // A Shortcut tile that did nothing says so in the Dock it was clicked in.
+        DockActions.onShortcutFailure = { failure in
+            ToastCenter.shared.show(
+                String(localized: "Couldn't run the Shortcut “\(failure.name)”"),
+                detail: failure.detail.map { String($0.prefix(200)) }
+                    ?? String(localized: "Check that it still exists in the Shortcuts app."),
+                tone: .failure,
+                on: .dock
+            )
+        }
         dockStore.onProfileActivated = { [weak self] profile in
             self?.showPopupPage(named: profile.popupPage)
         }

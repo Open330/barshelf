@@ -179,7 +179,7 @@ package final class DockStore: ObservableObject {
             update { $0.activeProfileID = profileID }
         }
         if configuration.appleDockLayouts, let layout = profile.appleDock {
-            appleDock.apply(layout)
+            applyToAppleDock(layout)
         }
         onProfileActivated?(profile)
         announce(profile)
@@ -244,7 +244,15 @@ package final class DockStore: ObservableObject {
     /// Puts a profile's saved layout into the Apple Dock now.
     package func applyAppleDockLayout(of profileID: String) {
         guard let layout = configuration.profiles.first(where: { $0.id == profileID })?.appleDock else { return }
-        appleDock.apply(layout)
+        applyToAppleDock(layout)
+    }
+
+    /// A layout the Apple Dock did not take is said so, not passed over: the
+    /// Dock is left alone when its current layout could not be backed up.
+    private func applyToAppleDock(_ layout: AppleDockLayout) {
+        do {
+            try appleDock.applyChecked(layout)
+        } catch { lastError = Self.message(for: error) }
     }
 
     /// The Apple Dock's apps, folders, and files as BarShelf Dock items.
@@ -342,6 +350,8 @@ package final class DockStore: ObservableObject {
             return String(localized: "macOS couldn’t confirm the Apple Dock settings change. Try Restore Apple Dock again.")
         case .rollbackFailed:
             return String(localized: "The Apple Dock’s settings couldn’t be put back. BarShelf kept a copy of them; choose Restore Apple Dock to try again.")
+        case .layoutBackupFailed:
+            return String(localized: "The Apple Dock’s layout couldn’t be backed up first, so it was left as it is. Check that BarShelf can write to its Application Support folder, then switch again.")
         case nil:
             let detail = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             return String(localized: "Couldn't save dock settings: \(detail)")

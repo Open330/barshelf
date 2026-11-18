@@ -249,12 +249,18 @@ public enum WidgetPacker {
     private static func runZip(
         archive: URL, files: [String], workingDirectory: URL
     ) throws {
-        guard FileManager.default.isExecutableFile(atPath: zipToolPath) else {
-            throw PackError.zipToolMissing(zipToolPath)
+        try runZip(tool: zipToolPath, archive: archive, files: files, workingDirectory: workingDirectory)
+    }
+
+    static func runZip(
+        tool: String, archive: URL, files: [String], workingDirectory: URL
+    ) throws {
+        guard FileManager.default.isExecutableFile(atPath: tool) else {
+            throw PackError.zipToolMissing(tool)
         }
 
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: zipToolPath)
+        process.executableURL = URL(fileURLWithPath: tool)
         // -X: no extra file attributes; -q: quiet. Explicit file list keeps
         // entry names clean (no "./" prefixes) for SafeZipExtractor.
         process.arguments = ["-X", "-q", archive.path, "--"] + files
@@ -264,10 +270,12 @@ public enum WidgetPacker {
         process.standardOutput = pipe
         process.standardError = pipe
         try process.run()
+        // Read to the end before waiting: once the tool has written more than
+        // the pipe holds it blocks until someone reads, and would never exit.
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
 
         guard process.terminationStatus == 0 else {
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
             throw PackError.zipFailed(
                 status: process.terminationStatus,
                 output: String(data: data, encoding: .utf8)?
