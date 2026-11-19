@@ -22,14 +22,32 @@ extension MenuBarController {
         /// The clear ring that separates a chip from the one it covers.
         static let cutout: CGFloat = 1.5
         static let badge: CGFloat = 6
-        static let glyphSize: CGFloat = 8.5
-        /// The box a symbol is fitted into, inside the disc.
-        static let glyphBox: CGFloat = 9.5
+        /// How large a symbol is drawn, measured on the drawing itself and
+        /// not on its font size: its longer side is at most `glyphSize`,
+        /// and all of it lies within a circle `glyphCircle` across at the
+        /// disc's centre, so a square symbol (a chip) and a long one (a
+        /// battery) carry the same weight and none crowds the rim.
+        /// A symbol's image is mostly margin, and uneven margin: asked for
+        /// at "8.5 pt" and centred as an image, a symbol was about 8.6 pt
+        /// of drawing in an 18 pt disc, up to half a point off centre.
+        static let glyphSize: CGFloat = 13
+        static let glyphCircle: CGFloat = 15.5
+        /// The initial drawn when a chip has no symbol.
+        static let initialSize: CGFloat = 12
         /// The arc's track, barely there.
         static let trackAlpha: CGFloat = 0.12
         static let staleAlpha = CGFloat(Fill.staleOpacity)
-        /// How much lighter the disc's top is than its colour.
-        static let sheenAlpha: CGFloat = 0.22
+        /// How much lighter the disc's top is than its colour. Slight: a
+        /// strong sheen made the discs look like candy beside the bar's
+        /// flat items.
+        static let sheenAlpha: CGFloat = 0.10
+        /// A disc is its widget's colour, calmer: the accent colours are
+        /// made for small strokes and tints, and a row of solid discs in
+        /// them outshouted everything else in the menu bar. Saturation and
+        /// brightness come down together, so the colour gets deeper rather
+        /// than chalky and the white glyph reads better, not worse.
+        static let faceSaturation: CGFloat = 0.76
+        static let faceBrightness: CGFloat = 0.80
         /// The disc's fine inner edge, which keeps a dark colour from
         /// melting into a dark menu bar.
         static let rimAlpha: CGFloat = 0.18
@@ -62,9 +80,21 @@ extension MenuBarController {
         let steps = MenuBarClusterPolicy.toneSteps(keys: keys)
         var colors: [String: NSColor] = [:]
         for (index, chip) in chips.enumerated() {
-            colors[chip.id] = toned(bases[index], step: steps[index])
+            colors[chip.id] = chipFace(toned(bases[index], step: steps[index]))
         }
         return colors
+    }
+
+    /// The colour a disc is filled with, from the colour its widget chose:
+    /// the same hue, less saturated and less bright (`ChipMetrics`).
+    static func chipFace(_ color: NSColor) -> NSColor {
+        guard let rgb = color.usingColorSpace(.sRGB) else { return color }
+        var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 0
+        rgb.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
+        return NSColor(
+            hue: hue, saturation: saturation * ChipMetrics.faceSaturation,
+            brightness: brightness * ChipMetrics.faceBrightness, alpha: alpha
+        )
     }
 
     /// Hue degrees per tone step, and the order steps alternate in: the
@@ -391,18 +421,20 @@ extension MenuBarController {
 
     private static func drawGlyph(_ chip: ClusterChip, at center: NSPoint, alpha: CGFloat, scale: CGFloat = 1) {
         let ink = NSColor.white.withAlphaComponent(alpha)
-        if let name = chip.symbol, let glyph = GlyphCache.shared.glyph(name, pointSize: ChipMetrics.glyphSize * scale) {
-            // Wide symbols (a battery) are fitted into the core's box.
-            let box = ChipMetrics.glyphBox * scale
-            let fit = min(box / glyph.size.width, box / glyph.size.height, 1)
-            let size = NSSize(width: glyph.size.width * fit, height: glyph.size.height * fit)
+        if let name = chip.symbol, let glyph = GlyphCache.shared.glyph(name, side: ChipMetrics.glyphSize * scale) {
+            // The image is the drawing alone, so its middle is the
+            // drawing's middle.
+            let size = glyph.size
+            // The cluster is drawn in a flipped image; without
+            // `respectFlipped` a symbol comes out upside down (a down
+            // arrow pointing up, a cup spilling).
             glyph.draw(
                 in: NSRect(x: center.x - size.width / 2, y: center.y - size.height / 2, width: size.width, height: size.height),
-                from: .zero, operation: .sourceOver, fraction: alpha
+                from: .zero, operation: .sourceOver, fraction: alpha, respectFlipped: true, hints: nil
             )
             return
         }
-        let pointSize = ChipMetrics.glyphSize * scale
+        let pointSize = ChipMetrics.initialSize * scale
         let font = NSFont.systemFont(ofSize: pointSize, weight: .heavy)
         let rounded = font.fontDescriptor.withDesign(.rounded).flatMap { NSFont(descriptor: $0, size: pointSize) } ?? font
         let text = NSAttributedString(string: chip.initial, attributes: [.font: rounded, .foregroundColor: ink])
@@ -422,14 +454,25 @@ private extension Array {
 /// sixty times a second. The glyph is drawn white at full strength, and a
 /// stale chip's fade is applied when it is drawn. Sizes are rounded to a
 /// quarter point, so the wave's growing chips reuse a few dozen images.
+///
+/// A glyph is the symbol's drawing with its image's margins cut away,
+/// scaled to a size measured on the drawing (`ChipMetrics.glyphSize`), so
+/// whoever draws it centres the drawing by centring the image.
 final class GlyphCache: @unchecked Sendable {
     static let shared = GlyphCache()
     /// Off draws every glyph afresh, as before (tests compare the two).
     var isEnabled = true
+    /// The display densities glyphs are cached for, in place of the
+    /// attached displays': a test's result must not depend on the screen
+    /// of the Mac it runs on.
+    var scalesForTesting: [CGFloat]?
     static let limit = 96
 
     private let lock = NSLock()
     private var images: [Key: NSImage] = [:]
+    /// Where each symbol's drawing sits in its image, as fractions of the
+    /// image (origin bottom-left), with the drawing's size at `inkPointSize`.
+    private var inks: [String: Ink] = [:]
 
     private struct Key: Hashable {
         let name: String
@@ -437,13 +480,21 @@ final class GlyphCache: @unchecked Sendable {
         let scales: [CGFloat]
     }
 
+    struct Ink: Equatable {
+        /// Fractions of the symbol image.
+        var frame: CGRect
+        /// The drawing's size in points when the symbol is `inkPointSize`.
+        var size: CGSize
+    }
+
     /// Main actor: the key includes the attached displays' densities.
+    /// `side` is the longer side of the drawing, in points.
     @MainActor
-    func glyph(_ name: String, pointSize: CGFloat) -> NSImage? {
-        let quarterPoints = Int((pointSize * 4).rounded())
+    func glyph(_ name: String, side: CGFloat) -> NSImage? {
+        let quarterPoints = Int((side * 4).rounded())
         let size = CGFloat(quarterPoints) / 4
-        guard isEnabled else { return Self.draw(name, pointSize: pointSize) }
-        let scales = MenuBarController.screenScales()
+        guard isEnabled else { return draw(name, side: side) }
+        let scales = scalesForTesting ?? MenuBarController.screenScales()
         let key = Key(name: name, quarterPoints: quarterPoints, scales: scales)
         lock.lock()
         if let image = images[key] {
@@ -451,7 +502,7 @@ final class GlyphCache: @unchecked Sendable {
             return image
         }
         lock.unlock()
-        guard let drawn = Self.draw(name, pointSize: size) else { return nil }
+        guard let drawn = draw(name, side: size) else { return nil }
         let image = MenuBarController.rasterized(drawn, scales: scales)
         lock.lock()
         if images.count >= Self.limit { images.removeAll(keepingCapacity: true) }
@@ -466,14 +517,96 @@ final class GlyphCache: @unchecked Sendable {
         return images.count
     }
 
-    private static func draw(_ name: String, pointSize: CGFloat) -> NSImage? {
-        guard let symbol = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
-            .withSymbolConfiguration(.init(pointSize: pointSize, weight: .bold)) else { return nil }
-        return NSImage(size: symbol.size, flipped: false) { bounds in
-            symbol.draw(in: bounds)
+    /// The symbol's drawing, white, in an image just large enough for it:
+    /// the longer side `side` at most, and within a circle in proportion
+    /// (`ChipMetrics.glyphCircle`).
+    private func draw(_ name: String, side: CGFloat) -> NSImage? {
+        guard side > 0, let ink = ink(of: name) else { return nil }
+        let circle = side * MenuBarController.ChipMetrics.glyphCircle / MenuBarController.ChipMetrics.glyphSize
+        let longer = max(ink.size.width, ink.size.height)
+        let diagonal = hypot(ink.size.width, ink.size.height)
+        let factor = min(side / longer, circle / diagonal)
+        // The measured symbol itself, drawn smaller: a symbol asked for
+        // at a small size comes in an image rounded to whole points, and
+        // the drawing would no longer be where it was measured.
+        guard let symbol = Self.symbol(name, pointSize: Self.inkPointSize) else { return nil }
+        let scaled = NSSize(width: symbol.size.width * factor, height: symbol.size.height * factor)
+        let frame = NSRect(
+            x: ink.frame.minX * scaled.width, y: ink.frame.minY * scaled.height,
+            width: ink.frame.width * scaled.width, height: ink.frame.height * scaled.height
+        )
+        // An even number of points, the drawing in the middle: centred on
+        // a chip (whose middle is on a whole point) the image then starts
+        // on a whole point, which is a pixel on any display. An odd size
+        // starts half a point in, and on a 1x display a cached bitmap was
+        // resampled half a pixel aside and blurred.
+        let size = NSSize(width: 2 * ceil(frame.width / 2), height: 2 * ceil(frame.height / 2))
+        let origin = NSPoint(
+            x: (size.width - frame.width) / 2 - frame.minX, y: (size.height - frame.height) / 2 - frame.minY
+        )
+        return NSImage(size: size, flipped: false) { bounds in
+            symbol.draw(in: NSRect(origin: origin, size: scaled))
             NSColor.white.set()
             bounds.fill(using: .sourceAtop)
             return true
         }
+    }
+
+    /// The size symbols are measured at: large, so the measure is fine.
+    static let inkPointSize: CGFloat = 48
+
+    private static func symbol(_ name: String, pointSize: CGFloat) -> NSImage? {
+        NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: pointSize, weight: .bold))
+    }
+
+    /// Where `name`'s drawing is inside its image, found by drawing it once.
+    func ink(of name: String) -> Ink? {
+        lock.lock()
+        if let known = inks[name] {
+            lock.unlock()
+            return known
+        }
+        lock.unlock()
+        guard let measured = Self.measure(name) else { return nil }
+        lock.lock()
+        inks[name] = measured
+        lock.unlock()
+        return measured
+    }
+
+    private static func measure(_ name: String) -> Ink? {
+        guard let symbol = symbol(name, pointSize: inkPointSize) else { return nil }
+        let size = symbol.size
+        let scale: CGFloat = 2
+        let wide = Int(ceil(size.width * scale)), high = Int(ceil(size.height * scale))
+        guard wide > 0, high > 0, let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: wide, pixelsHigh: high,
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: wide * 4, bitsPerPixel: 32
+        ) else { return nil }
+        rep.size = NSSize(width: CGFloat(wide) / scale, height: CGFloat(high) / scale)
+        guard let context = NSGraphicsContext(bitmapImageRep: rep), let data = rep.bitmapData else { return nil }
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        symbol.draw(in: NSRect(origin: .zero, size: size))
+        NSGraphicsContext.restoreGraphicsState()
+        // Rows run top to bottom in the bitmap. A pixel counts once it is
+        // more than faintly covered, so a hairline of antialiasing does
+        // not move the middle.
+        var minX = wide, maxX = -1, minRow = high, maxRow = -1
+        for row in 0..<high {
+            for column in 0..<wide where data[(row * wide + column) * 4 + 3] > 40 {
+                minX = min(minX, column); maxX = max(maxX, column)
+                minRow = min(minRow, row); maxRow = max(maxRow, row)
+            }
+        }
+        guard maxX >= minX, maxRow >= minRow else { return nil }
+        let w = CGFloat(wide), h = CGFloat(high)
+        let frame = CGRect(
+            x: CGFloat(minX) / w, y: CGFloat(high - 1 - maxRow) / h,
+            width: CGFloat(maxX - minX + 1) / w, height: CGFloat(maxRow - minRow + 1) / h
+        )
+        return Ink(frame: frame, size: CGSize(width: frame.width * rep.size.width, height: frame.height * rep.size.height))
     }
 }

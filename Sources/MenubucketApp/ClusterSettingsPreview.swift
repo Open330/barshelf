@@ -55,7 +55,7 @@ struct ClusterSettingsPreview: View {
         let colors = MenuBarController.clusterColors(chips, base: { id in
             chips.first { $0.widgetID == id }.map(color) ?? .controlAccentColor
         })
-        let draw: (ClusterChip) -> NSColor = { colors[$0.id] ?? color($0) }
+        let draw: (ClusterChip) -> NSColor = { colors[$0.id] ?? MenuBarController.chipFace(color($0)) }
         let pill = MenuBarController.pillWidth(chips)
         let mark = BarShelfStatusIcon.image(
             for: markSymbol ?? AppPreferences.defaultMenuBarSymbol, fallback: AppPreferences.defaultMenuBarSymbol

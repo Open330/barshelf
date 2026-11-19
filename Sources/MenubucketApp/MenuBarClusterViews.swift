@@ -14,6 +14,7 @@ struct ClusterChipFace: View {
         static let arc = face + 2 * (MenuBarController.ChipMetrics.ringGap + ring / 2)
         static let badge = MenuBarController.ChipMetrics.badge
         static let glyph = MenuBarController.ChipMetrics.glyphSize
+        static let initial = MenuBarController.ChipMetrics.initialSize
         static let nearScale: CGFloat = 1.03
         static let hoverScale: CGFloat = 1.08
         static let activeDisc: CGFloat = 26
@@ -74,16 +75,13 @@ struct ClusterChipFace: View {
     }
 
     @ViewBuilder private var glyph: some View {
-        if let symbol = chip.symbol {
-            Image(systemName: symbol)
-                .resizable()
-                .scaledToFit()
-                .fontWeight(.bold)
-                .foregroundStyle(.white)
-                .frame(width: MenuBarController.ChipMetrics.glyphBox, height: MenuBarController.ChipMetrics.glyphBox)
+        if let symbol = chip.symbol, let image = GlyphCache.shared.glyph(symbol, side: Metrics.glyph) {
+            // The menu bar's own glyph: the drawing alone, at the same
+            // size, so it sits in the middle here as it does there.
+            Image(nsImage: image)
         } else {
             Text(chip.initial)
-                .font(.system(size: Metrics.glyph, weight: .heavy, design: .rounded))
+                .font(.system(size: Metrics.initial, weight: .heavy, design: .rounded))
                 .foregroundStyle(.white)
         }
     }

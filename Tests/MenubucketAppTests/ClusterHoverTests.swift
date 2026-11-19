@@ -115,6 +115,10 @@ final class ClusterPixelsTests: XCTestCase {
                 badged: false, color: { _ in .systemPurple }, appearance: NSAppearance(named: .darkAqua)!, height: 24
             ), scales: [2])
         }
+        // The cluster is rendered for a 2x display, so the glyphs are
+        // cached for one too, whatever screen this Mac has.
+        GlyphCache.shared.scalesForTesting = [2]
+        defer { GlyphCache.shared.scalesForTesting = nil }
         GlyphCache.shared.isEnabled = false
         let fresh = render()
         GlyphCache.shared.isEnabled = true
