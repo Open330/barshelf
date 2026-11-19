@@ -462,6 +462,10 @@ final class GlyphCache: @unchecked Sendable {
     static let shared = GlyphCache()
     /// Off draws every glyph afresh, as before (tests compare the two).
     var isEnabled = true
+    /// The display densities glyphs are cached for, in place of the
+    /// attached displays': a test's result must not depend on the screen
+    /// of the Mac it runs on.
+    var scalesForTesting: [CGFloat]?
     static let limit = 96
 
     private let lock = NSLock()
@@ -490,7 +494,7 @@ final class GlyphCache: @unchecked Sendable {
         let quarterPoints = Int((side * 4).rounded())
         let size = CGFloat(quarterPoints) / 4
         guard isEnabled else { return draw(name, side: side) }
-        let scales = MenuBarController.screenScales()
+        let scales = scalesForTesting ?? MenuBarController.screenScales()
         let key = Key(name: name, quarterPoints: quarterPoints, scales: scales)
         lock.lock()
         if let image = images[key] {
@@ -531,10 +535,12 @@ final class GlyphCache: @unchecked Sendable {
             x: ink.frame.minX * scaled.width, y: ink.frame.minY * scaled.height,
             width: ink.frame.width * scaled.width, height: ink.frame.height * scaled.height
         )
-        // Whole points, the drawing in the middle: centred on a chip (whose
-        // middle is on a pixel boundary) the image then starts on a pixel,
-        // so a cached bitmap is not resampled half a pixel aside.
-        let size = NSSize(width: ceil(frame.width), height: ceil(frame.height))
+        // An even number of points, the drawing in the middle: centred on
+        // a chip (whose middle is on a whole point) the image then starts
+        // on a whole point, which is a pixel on any display. An odd size
+        // starts half a point in, and on a 1x display a cached bitmap was
+        // resampled half a pixel aside and blurred.
+        let size = NSSize(width: 2 * ceil(frame.width / 2), height: 2 * ceil(frame.height / 2))
         let origin = NSPoint(
             x: (size.width - frame.width) / 2 - frame.minX, y: (size.height - frame.height) / 2 - frame.minY
         )

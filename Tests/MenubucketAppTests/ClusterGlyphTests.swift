@@ -28,10 +28,11 @@ final class ClusterGlyphTests: XCTestCase {
         var midY: Double { Double(minY + maxY + 1) / 2 / Double(ClusterGlyphTests.scale) }
     }
 
-    /// One chip, drawn eight times life size. Rows run top to bottom.
-    private func render(_ symbol: String) throws -> NSBitmapImageRep {
+    /// One chip, drawn eight times life size (or at `scale`). Rows run top
+    /// to bottom.
+    private func render(_ symbol: String, scale: Int = ClusterGlyphTests.scale) throws -> NSBitmapImageRep {
         let rep = try XCTUnwrap(NSBitmapImageRep(
-            bitmapDataPlanes: nil, pixelsWide: Self.cell * Self.scale, pixelsHigh: Self.height * Self.scale,
+            bitmapDataPlanes: nil, pixelsWide: Self.cell * scale, pixelsHigh: Self.height * scale,
             bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
             colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
         ))
@@ -114,6 +115,8 @@ final class ClusterGlyphTests: XCTestCase {
     /// The cluster is a flipped image. A down arrow's head (its widest
     /// rows) is in its lower half, and a cup's saucer is at the bottom.
     func testSymbolsAreTheRightWayUp() throws {
+        GlyphCache.shared.scalesForTesting = [2]
+        defer { GlyphCache.shared.scalesForTesting = nil }
         for cached in [false, true] {
             GlyphCache.shared.isEnabled = cached
             defer { GlyphCache.shared.isEnabled = true }
@@ -127,16 +130,53 @@ final class ClusterGlyphTests: XCTestCase {
         }
     }
 
-    /// A cached glyph is the same drawing as a fresh one, in the same place.
+    /// Where the symbol's weight is, in points: the mean position of what
+    /// is lighter than the disc, each pixel counted by how much lighter.
+    /// No threshold, so a faint stroke on a 1x display still counts.
+    private func weight(_ rep: NSBitmapImageRep, scale: Int) -> (x: Double, y: Double, total: Double) {
+        var sumX = 0.0, sumY = 0.0, total = 0.0
+        for y in 0..<rep.pixelsHigh {
+            for x in 0..<rep.pixelsWide {
+                guard let color = rep.colorAt(x: x, y: y) else { continue }
+                let light = max(0, Double(color.redComponent) - 0.25)
+                sumX += light * (Double(x) + 0.5)
+                sumY += light * (Double(y) + 0.5)
+                total += light
+            }
+        }
+        guard total > 0 else { return (0, 0, 0) }
+        return (sumX / total / Double(scale), sumY / total / Double(scale), total / Double(scale * scale))
+    }
+
+    /// A cached glyph is the same drawing as a fresh one, in the same
+    /// place, on a Retina display and on a 1x one: each drawn at that
+    /// display's own density and compared there. (The cache is keyed by
+    /// the display's density; the test names it, so the result is the same
+    /// on a Mac with either kind of screen.)
     func testACachedGlyphSitsWhereAFreshOneDoes() throws {
-        for symbol in ["thermometer.medium", "memorychip", "bolt.fill"] {
-            let fresh = try withFreshGlyphs { measure(try render(symbol)).ink }
-            let cached = measure(try render(symbol)).ink
-            // Half a pixel of a 2x bitmap, drawn eight times life size.
-            XCTAssertEqual(cached.midX, fresh.midX, accuracy: 0.3, symbol)
-            XCTAssertEqual(cached.midY, fresh.midY, accuracy: 0.3, symbol)
-            XCTAssertEqual(cached.width, fresh.width, accuracy: 1, symbol)
-            XCTAssertEqual(cached.height, fresh.height, accuracy: 1, symbol)
+        defer { GlyphCache.shared.scalesForTesting = nil }
+        for density in [2, 1] {
+            GlyphCache.shared.scalesForTesting = [CGFloat(density)]
+            for symbol in ["thermometer.medium", "memorychip", "bolt.fill", "battery.75percent", "arrow.down"] {
+                let fresh = try withFreshGlyphs { weight(try render(symbol, scale: density), scale: density) }
+                let cached = weight(try render(symbol, scale: density), scale: density)
+                XCTAssertGreaterThan(fresh.total, 5, "\(symbol) drew nothing")
+                XCTAssertEqual(cached.x, fresh.x, accuracy: 0.1, "\(symbol) at \(density)x moved sideways")
+                XCTAssertEqual(cached.y, fresh.y, accuracy: 0.1, "\(symbol) at \(density)x moved up or down")
+                XCTAssertEqual(cached.total, fresh.total, accuracy: fresh.total * 0.05, "\(symbol) at \(density)x is fainter or bolder")
+            }
+        }
+    }
+
+    /// A glyph's image is an even number of points each way, so centred
+    /// on a chip it starts on a whole point: a pixel on any display.
+    func testAGlyphsImageStartsOnAPixelOnAnyDisplay() throws {
+        GlyphCache.shared.scalesForTesting = [1, 2]
+        defer { GlyphCache.shared.scalesForTesting = nil }
+        for symbol in Self.symbols {
+            let size = try XCTUnwrap(GlyphCache.shared.glyph(symbol, side: MenuBarController.ChipMetrics.glyphSize)).size
+            XCTAssertEqual(size.width.truncatingRemainder(dividingBy: 2), 0, "\(symbol) \(size)")
+            XCTAssertEqual(size.height.truncatingRemainder(dividingBy: 2), 0, "\(symbol) \(size)")
         }
     }
 }
