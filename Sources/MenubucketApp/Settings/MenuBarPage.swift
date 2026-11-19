@@ -161,11 +161,11 @@ struct MenuBarPage: View {
                 "Spacing",
                 caption: look.spacing == .apart
                     ? "Chips sit side by side, each one whole."
-                    : "Chips overlap to save room. A covered chip shows a smaller icon in the part still in view.",
+                    : "Chips overlap to save room, each one over the next.",
                 selection: chipBinding(\.spacing)
             ) {
-                Text("Apart", comment: "Chip spacing: side by side").tag(ChipAppearance.Spacing.apart)
                 Text("Stacked", comment: "Chip spacing: overlapping").tag(ChipAppearance.Spacing.stacked)
+                Text("Apart", comment: "Chip spacing: side by side").tag(ChipAppearance.Spacing.apart)
             }
         } header: {
             Text("Chips")

@@ -13,11 +13,11 @@ final class MenuBarClusterTests: XCTestCase {
         XCTAssertEqual(ClusterGeometry(count: 0, spacing: .stacked).itemWidth, ClusterGeometry.markWidth)
     }
 
-    /// Apart (the default), the discs do not overlap: a disc and a 2 pt gap
-    /// from one to the next.
+    /// Apart, the discs do not overlap: a disc and a 2 pt gap from one to
+    /// the next. Stacked is the default.
     func testFoldedApartEveryDiscIsWhole() {
-        let geometry = ClusterGeometry(count: 5)
-        XCTAssertEqual(geometry, ClusterGeometry(count: 5, spacing: .apart))
+        let geometry = ClusterGeometry(count: 5, spacing: .apart)
+        XCTAssertEqual(ClusterGeometry(count: 5), ClusterGeometry(count: 5, spacing: .stacked))
         XCTAssertEqual(geometry.collapsedStep, ClusterGeometry.disc + 2)
         XCTAssertEqual(geometry.collapsedStep, 20)
         XCTAssertEqual(geometry.collapsedX(3), 60)

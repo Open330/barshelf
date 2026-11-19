@@ -49,7 +49,7 @@ public struct ChipAppearance: Codable, Equatable, Sendable {
 
     public init(
         style: Style = .solid, tone: Tone = .balanced, glyphSet: GlyphSet = .simple,
-        glyphSize: GlyphSize = .medium, spacing: Spacing = .apart
+        glyphSize: GlyphSize = .medium, spacing: Spacing = .stacked
     ) {
         self.style = style
         self.tone = tone

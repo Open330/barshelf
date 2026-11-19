@@ -49,13 +49,6 @@ extension MenuBarController {
         /// A glyph may sit this far from its drawing's bounding-box middle,
         /// towards where its weight is (`GlyphCache`).
         static let opticalLimit: CGFloat = 1
-        /// Stacked, the glyph of a covered chip keeps this much clear of
-        /// the edges of the part in view.
-        static let coverMargin: CGFloat = 1.5
-        /// How quickly a chip the update wave lifts over its neighbour
-        /// takes the neighbour's place on top: the glyphs glide between
-        /// "covered" and "whole" over a quarter of the lift, not in a jump.
-        static let coverBlend: CGFloat = 4
         /// The arc's track, barely there.
         static let trackAlpha: CGFloat = 0.12
         static let staleAlpha = CGFloat(Fill.staleOpacity)
@@ -297,9 +290,7 @@ extension MenuBarController {
     ) -> NSImage {
         let geometry = ClusterGeometry(count: chips.count, spacing: look.spacing)
         let dark = isDark(appearance)
-        // A glyph moved aside (below) still starts on a pixel of the
-        // coarsest display.
-        let pixel = 1 / max((GlyphCache.shared.scalesForTesting ?? screenScales()).min() ?? 1, 1)
+
         let size = NSSize(width: ceil(lead + geometry.itemWidth), height: height)
         let image = NSImage(size: size, flipped: true) { _ in
             appearance.performAsCurrentDrawingAppearance {
@@ -328,44 +319,10 @@ extension MenuBarController {
                 func pillLeft(_ index: Int) -> CGFloat {
                     (positions?[cluster: index] ?? CGFloat(geometry.collapsedX(index))) + CGFloat(ClusterGeometry.slotInset)
                 }
-                // The drawn shape's edges: a disc, or the focused pill.
-                func leading(_ index: Int) -> CGFloat {
-                    index == focused && focusedIsPill ? pillLeft(index) : center(index).x - m.face * scale(index) / 2
-                }
-                func trailing(_ index: Int) -> CGFloat {
-                    index == focused && focusedIsPill
-                        ? pillLeft(index) + max(pillSpan, m.face * m.focusScale)
-                        : center(index).x + m.face * scale(index) / 2
-                }
-                // How far `over` is on top of its neighbour `under`, 0...1.
-                // At rest the earlier chip is on top; the focused chip is on
-                // top of both neighbours, and so is a chip the wave lifts
-                // higher than them (`coverBlend`).
-                func cover(_ over: Int, _ under: Int) -> CGFloat {
-                    if under == focused { return 0 }
-                    if over == focused { return 1 }
-                    let ahead = min(max((lift(over) - lift(under)) * m.coverBlend, -1), 1)
-                    return over < under ? 1 + min(ahead, 0) : max(ahead, 0)
-                }
-                // Where a chip's glyph goes: the middle of the part of the
-                // chip in view, smaller if that part is narrower than the
-                // glyph. Stacked, a glyph in the middle of its disc was cut
-                // in half by the chip over it. Taken from where the chips
-                // are drawn now, so it glides as they fold and fan.
-                func glyphPlace(_ index: Int) -> GlyphPlace {
-                    let middle = center(index).x, size = scale(index)
-                    var low = middle - m.face * size / 2, high = middle + m.face * size / 2
-                    if index > 0 {
-                        low += cover(index - 1, index) * max(0, trailing(index - 1) + m.cutout - low)
-                    }
-                    if index < chips.count - 1 {
-                        high -= cover(index + 1, index) * max(0, high - (leading(index + 1) - m.cutout))
-                    }
-                    let free = max(high - low, 0)
-                    guard free < m.face * size - 0.01 else { return GlyphPlace(x: middle, factor: 1) }
-                    let x = ((low + high) / 2 / pixel).rounded() * pixel
-                    return GlyphPlace(x: x, factor: min(1, max(0, free - m.coverMargin) / (look.glyphCircle * size)))
-                }
+                // A chip's glyph is always at the middle of its disc, at
+                // full size. Stacked, the chip on top covers part of the one
+                // beneath, glyph included, as a stack of avatars does:
+                // moving the glyph into the part in view put it off centre.
                 // Folded, each chip lies over the one to its right, as a
                 // stack of avatars does, so a chip's top-trailing corner —
                 // where its alert dot goes — is over the chip beneath and in
@@ -376,7 +333,7 @@ extension MenuBarController {
                 for index in order {
                     drawChip(
                         chips[index], at: center(index), color: color(chips[index]), context: context,
-                        scale: scale(index), glow: lift(index), look: look, dark: dark, glyph: glyphPlace(index)
+                        scale: scale(index), glow: lift(index), look: look, dark: dark
                     )
                     // With its chip, so a chip drawn later covers it as it
                     // covers the chip, and it grows with the chip.
@@ -453,17 +410,9 @@ extension MenuBarController {
         tinted.draw(in: fitted, from: .zero, operation: .sourceOver, fraction: alpha, respectFlipped: true, hints: nil)
     }
 
-    /// Where a chip's glyph is drawn when not at its disc's centre at full
-    /// size: `x` is its middle, `factor` how much smaller it is.
-    struct GlyphPlace: Equatable {
-        var x: CGFloat
-        var factor: CGFloat
-    }
-
     static func drawChip(
         _ chip: ClusterChip, at center: NSPoint, color: NSColor, context: NSGraphicsContext,
-        scale: CGFloat = 1, glow: CGFloat = 0, look: ChipAppearance = ChipAppearance(), dark: Bool = true,
-        glyph place: GlyphPlace? = nil
+        scale: CGFloat = 1, glow: CGFloat = 0, look: ChipAppearance = ChipAppearance(), dark: Bool = true
     ) {
         let m = ChipMetrics.self
         let face = m.face * scale
@@ -485,10 +434,10 @@ extension MenuBarController {
         let disc = circle(face)
         Self.paint(disc, rim: circle(face - m.rimWidth), in: disc.bounds, with: paint)
 
-        let size = scale * (place?.factor ?? 1)
+        let size = scale
         guard size > 0 else { return }
         drawGlyph(
-            chip, at: NSPoint(x: place?.x ?? center.x, y: center.y), alpha: alpha, scale: size,
+            chip, at: center, alpha: alpha, scale: size,
             look: look, ink: paint, context: context
         )
     }
@@ -698,8 +647,7 @@ final class GlyphCache: @unchecked Sendable {
     }
 
     /// Main actor: the key includes the attached displays' densities.
-    /// `scale` is the chip's (a chip in focus or in the wave is larger, a
-    /// covered one's glyph smaller).
+    /// `scale` is the chip's (a chip in focus or in the wave is larger).
     @MainActor
     func glyph(_ name: String, look: ChipAppearance = ChipAppearance(), scale: CGFloat = 1) -> NSImage? {
         guard let source = source(name, set: look.glyphSet) else { return nil }

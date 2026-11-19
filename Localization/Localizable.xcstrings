@@ -3325,12 +3325,12 @@
         }
       }
     },
-    "Chips overlap to save room. A covered chip shows a smaller icon in the part still in view.": {
+    "Chips overlap to save room, each one over the next.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "칩을 겹쳐 자리를 아낍니다. 가려진 칩은 보이는 부분에 아이콘을 작게 표시합니다."
+            "value": "자리를 아끼도록 칩을 앞에서부터 차례로 겹쳐 놓습니다."
           }
         }
       }
