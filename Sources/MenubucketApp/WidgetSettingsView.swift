@@ -655,7 +655,8 @@ struct WidgetSettingsView: View {
                                 chips: chips,
                                 color: { runtime.chipColor(for: $0.widgetID) ?? .controlAccentColor },
                                 markSymbol: appPrefs.preferences.menuBarSymbol,
-                                focusIndex: focus
+                                focusIndex: focus,
+                                look: appPrefs.preferences.menuBarChips
                             )
                         }
                     } else {

@@ -188,6 +188,7 @@ final class StatusItemController: NSObject {
                 self?.applyStatusSymbol(preferences.menuBarSymbol)
                 self?.applyMenuBarLayout(preferences.menuBarLayout)
                 self?.menuBar.pulseEnabled = preferences.menuBarPulse
+                self?.menuBar.chipLook = preferences.menuBarChips
                 self?.updateHotkey(preferences)
             }
             .store(in: &cancellables)

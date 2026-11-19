@@ -362,6 +362,7 @@ The package splits into:
 ## License
 
 MIT © Jiun Bae — see [LICENSE](LICENSE).
+Work by others that BarShelf includes is listed in [docs/THIRD-PARTY-NOTICES.md](docs/THIRD-PARTY-NOTICES.md).
 
 <div align="center">
 <sub>Built with <a href="https://claude.com/claude-code">Claude Code</a></sub>

@@ -23,6 +23,8 @@ struct ClusterSettingsPreview: View {
     var markSymbol: String?
     /// The chip shown pointed at.
     var focusIndex = 0
+    /// How the chips look.
+    var look = ChipAppearance()
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -52,22 +54,22 @@ struct ClusterSettingsPreview: View {
 
     private func image(focus: Int?) -> NSImage {
         let appearance = NSAppearance(named: colorScheme == .dark ? .darkAqua : .aqua) ?? NSAppearance.currentDrawing()
-        let colors = MenuBarController.clusterColors(chips, base: { id in
+        let colors = MenuBarController.clusterColors(chips, look: look, base: { id in
             chips.first { $0.widgetID == id }.map(color) ?? .controlAccentColor
         })
-        let draw: (ClusterChip) -> NSColor = { colors[$0.id] ?? MenuBarController.chipFace(color($0)) }
+        let draw: (ClusterChip) -> NSColor = { colors[$0.id] ?? MenuBarController.chipFace(color($0), tone: look.tone) }
         let pill = MenuBarController.pillWidth(chips)
         let mark = BarShelfStatusIcon.image(
             for: markSymbol ?? AppPreferences.defaultMenuBarSymbol, fallback: AppPreferences.defaultMenuBarSymbol
         )
-        let geometry = ClusterGeometry(count: chips.count)
-        let positions = MenuBarController.clusterTargets(chips, focus: focus)
-        let lead = focus == nil ? 0 : MenuBarController.clusterLead(for: chips)
+        let geometry = ClusterGeometry(count: chips.count, spacing: look.spacing)
+        let positions = MenuBarController.clusterTargets(chips, focus: focus, look: look)
+        let lead = focus == nil ? 0 : MenuBarController.clusterLead(for: chips, look: look)
         return MenuBarController.clusterImage(
             chips, positions: positions, focus: focus, pill: focus == nil ? CGFloat(ClusterGeometry.disc) : pill,
             lead: lead,
             markAlpha: markSymbol == nil || geometry.hidesMark(focus: focus) ? 0 : 1,
-            mark: mark, badged: false, color: draw, appearance: appearance,
+            mark: mark, badged: false, color: draw, look: look, appearance: appearance,
             height: NSStatusBar.system.thickness
         )
     }

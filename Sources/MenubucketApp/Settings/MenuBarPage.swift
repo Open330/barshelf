@@ -28,6 +28,7 @@ struct MenuBarPage: View {
         SettingsPage(.menuBar, stats: stats) {
             MenuBarHiddenBanner { id in runtime.widgets.first { $0.id == id }?.displayName }
             layoutSection
+            if isCluster { chipsSection }
             itemsSection
             if !isCluster {
                 styleSection
@@ -81,19 +82,10 @@ struct MenuBarPage: View {
             .pickerStyle(.radioGroup)
             .accessibilityLabel("Show widgets as")
             // Both layouts show what the bar draws now, so switching between
-            // them shows the difference rather than describing it.
-            LabeledContent("Preview") {
-                if isCluster {
-                    if chips.isEmpty {
-                        Text("Nothing in the menu bar yet").foregroundStyle(.secondary)
-                    } else {
-                        ClusterSettingsPreview(
-                            chips: chips,
-                            color: { runtime.chipColor(for: $0.widgetID) ?? .controlAccentColor },
-                            markSymbol: appPrefs.preferences.menuBarSymbol
-                        )
-                    }
-                } else {
+            // them shows the difference rather than describing it. The
+            // cluster's is with the choices that change it (`chipsSection`).
+            if !isCluster {
+                LabeledContent("Preview") {
                     MenuBarItemsPreview(
                         entries: store.entries.filter { !$0.isEmpty },
                         markSymbol: appPrefs.preferences.menuBarSymbol
@@ -108,6 +100,113 @@ struct MenuBarPage: View {
                     Text("Wave when a widget changes")
                     Text("The chips come forward one by one when a reading turns to a warning, switches on or off, or changes its icon. At most once every three minutes; never for a number that just ticks.")
                 }
+            }
+        }
+    }
+
+    // MARK: - Chips
+
+    /// How the chips look, under the cluster as the bar draws it now: every
+    /// choice shows there at once. Values of a look, so segmented controls
+    /// (`Components.swift`, choices), with a line under the ones that need
+    /// saying.
+    private var chipsSection: some View {
+        let look = appPrefs.preferences.menuBarChips
+        return Section {
+            LabeledContent("Preview") {
+                if chips.isEmpty {
+                    Text("Nothing in the menu bar yet").foregroundStyle(.secondary)
+                } else {
+                    ClusterSettingsPreview(
+                        chips: chips,
+                        color: { runtime.chipColor(for: $0.widgetID) ?? .controlAccentColor },
+                        markSymbol: appPrefs.preferences.menuBarSymbol,
+                        look: look
+                    )
+                }
+            }
+            chipChoice("Style", caption: styleCaption(look.style), selection: chipBinding(\.style)) {
+                Text("Solid", comment: "Chip style: a disc filled with the widget's colour").tag(ChipAppearance.Style.solid)
+                Text("Soft", comment: "Chip style: a light wash of the widget's colour").tag(ChipAppearance.Style.soft)
+                Text("Mono", comment: "Chip style: no colour, the menu bar's text colour").tag(ChipAppearance.Style.mono)
+            }
+            chipChoice(
+                "Colour strength",
+                caption: look.style == .mono
+                    ? "Mono chips have no colour, so this changes nothing."
+                    : "Every chip gets the same lightness and strength, whichever colour its widget has.",
+                selection: chipBinding(\.tone)
+            ) {
+                Text("Vivid", comment: "Chip colour strength").tag(ChipAppearance.Tone.vivid)
+                Text("Balanced", comment: "Chip colour strength").tag(ChipAppearance.Tone.balanced)
+                Text("Muted", comment: "Chip colour strength").tag(ChipAppearance.Tone.muted)
+            }
+            .disabled(look.style == .mono)
+            chipChoice(
+                "Icons",
+                caption: look.glyphSet == .simple
+                    ? "Plain filled icons for common readings such as CPU, memory, and battery. Other chips keep their SF Symbol."
+                    : "Every chip shows an SF Symbol.",
+                selection: chipBinding(\.glyphSet)
+            ) {
+                Text("Simple", comment: "Chip icons: BarShelf's plain filled icons").tag(ChipAppearance.GlyphSet.simple)
+                Text("SF Symbols").tag(ChipAppearance.GlyphSet.symbols)
+            }
+            chipChoice("Icon size", caption: nil, selection: chipBinding(\.glyphSize)) {
+                Text("Small").tag(ChipAppearance.GlyphSize.small)
+                Text("Medium").tag(ChipAppearance.GlyphSize.medium)
+                Text("Large").tag(ChipAppearance.GlyphSize.large)
+            }
+            chipChoice(
+                "Spacing",
+                caption: look.spacing == .apart
+                    ? "Chips sit side by side, each one whole."
+                    : "Chips overlap to save room. A covered chip shows a smaller icon in the part still in view.",
+                selection: chipBinding(\.spacing)
+            ) {
+                Text("Apart", comment: "Chip spacing: side by side").tag(ChipAppearance.Spacing.apart)
+                Text("Stacked", comment: "Chip spacing: overlapping").tag(ChipAppearance.Spacing.stacked)
+            }
+        } header: {
+            Text("Chips")
+                .settingsSectionTitle()
+        }
+    }
+
+    private func styleCaption(_ style: ChipAppearance.Style) -> LocalizedStringKey {
+        switch style {
+        case .solid: return "A disc in the widget's colour, with a white icon."
+        case .soft: return "A light wash of the widget's colour, with the icon in that colour."
+        case .mono: return "No colour: chips take the menu bar's text colour, like the items around them."
+        }
+    }
+
+    private func chipBinding<Value>(_ keyPath: WritableKeyPath<ChipAppearance, Value>) -> Binding<Value> {
+        Binding(
+            get: { appPrefs.preferences.menuBarChips[keyPath: keyPath] },
+            set: { value in appPrefs.update { $0.menuBarChips[keyPath: keyPath] = value } }
+        )
+    }
+
+    /// One look's values as a segmented control, with what the chosen one
+    /// does underneath: under the row, not under the label, where the
+    /// control would squeeze it into a narrow column.
+    private func chipChoice<Value: Hashable, Options: View>(
+        _ title: LocalizedStringKey, caption: LocalizedStringKey?, selection: Binding<Value>,
+        @ViewBuilder options: () -> Options
+    ) -> some View {
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            Picker(selection: selection) {
+                options()
+            } label: {
+                Text(title)
+            }
+            .pickerStyle(.segmented)
+            if let caption {
+                Text(caption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
