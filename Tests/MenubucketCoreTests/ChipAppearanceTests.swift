@@ -8,7 +8,7 @@ final class ChipAppearanceTests: XCTestCase {
         XCTAssertEqual(look.tone, .balanced)
         XCTAssertEqual(look.glyphSet, .simple)
         XCTAssertEqual(look.glyphSize, .medium)
-        XCTAssertEqual(look.spacing, .apart)
+        XCTAssertEqual(look.spacing, .stacked)
         XCTAssertEqual(AppPreferences().menuBarChips, look)
         XCTAssertEqual(ChipAppearance.Style.allCases.map(\.rawValue), ["solid", "soft", "mono"])
         XCTAssertEqual(ChipAppearance.Tone.allCases.map(\.rawValue), ["vivid", "balanced", "muted"])
@@ -39,7 +39,7 @@ final class ChipAppearanceTests: XCTestCase {
         {"menuBarLayout":"cluster","menuBarChips":{"style":"neon","tone":"muted","glyphSet":"emoji",
          "glyphSize":"large","spacing":7}}
         """#)
-        XCTAssertEqual(mixed.menuBarChips, ChipAppearance(style: .solid, tone: .muted, glyphSet: .simple, glyphSize: .large, spacing: .apart))
+        XCTAssertEqual(mixed.menuBarChips, ChipAppearance(style: .solid, tone: .muted, glyphSet: .simple, glyphSize: .large, spacing: .stacked))
         XCTAssertEqual(mixed.menuBarLayout, .cluster)
         let partial = try preferences(#"{"menuBarChips":{"spacing":"stacked"}}"#)
         XCTAssertEqual(partial.menuBarChips, ChipAppearance(spacing: .stacked))
@@ -62,7 +62,7 @@ final class ChipAppearanceTests: XCTestCase {
         }
         let json = String(decoding: try JSONEncoder().encode(ChipAppearance(style: .soft)), as: UTF8.self)
         XCTAssertTrue(json.contains(#""style":"soft""#), json)
-        XCTAssertTrue(json.contains(#""spacing":"apart""#), json)
+        XCTAssertTrue(json.contains(#""spacing":"stacked""#), json)
     }
 
     func testFileRoundTrip() throws {

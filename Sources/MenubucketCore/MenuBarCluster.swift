@@ -284,7 +284,7 @@ public struct ClusterGeometry: Equatable, Sendable {
     /// The BarShelf icon's square.
     public static let markWidth: Double = 22
 
-    public init(count: Int, spacing: ChipAppearance.Spacing = .apart) {
+    public init(count: Int, spacing: ChipAppearance.Spacing = ChipAppearance().spacing) {
         self.count = max(count, 0)
         self.collapsedStep = Self.foldedStep(for: spacing)
     }

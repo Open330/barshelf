@@ -140,76 +140,65 @@ final class ChipAppearanceTests: XCTestCase {
         print(String(format: "CHIP-CENTRING apart: worst optical offset x %.3f pt, y %.3f pt; worst box offset x %.3f pt", worstX, worstY, worstBox))
     }
 
-    /// Stacked, a chip lies over the one to its right. The covered chip's
-    /// glyph is whole, inside the part of the chip in view and in the
-    /// middle of it; the chip on top is as it is alone.
-    func testStackedACoveredGlyphIsWholeInTheMiddleOfWhatShows() throws {
+    /// Stacked, a chip lies over the one to its right, glyph and all. The
+    /// covered chip's glyph stays where it is on a chip alone, in the
+    /// middle of its disc at full size: what shows of it is exactly that
+    /// part of the glyph, not a smaller glyph moved into the part in view.
+    func testStackedACoveredGlyphStaysInTheMiddleOfItsDisc() throws {
         let m = MenuBarController.ChipMetrics.self
-        var worst = 0.0
+        let face = Double(m.face)
         for set in ChipAppearance.GlyphSet.allCases {
             let look = ChipAppearance(glyphSet: set, spacing: .stacked)
             let geometry = ClusterGeometry(count: 3, spacing: .stacked)
             XCTAssertLessThan(geometry.collapsedStep, ClusterGeometry.disc, "the discs overlap")
             for trio in Self.trios {
                 let rep = try render(chips(trio), look: look)
-                let face = Double(m.face)
-                // The chip on top.
+                // The chip on top is as it is alone.
                 let top = ink(rep, from: center(0, geometry) - face / 2, to: center(0, geometry) + face / 2)
-                let alone = ink(try render(chips([trio[0]]), look: look), from: 0, to: ClusterGeometry.slot)
-                XCTAssertEqual(top.width, alone.width, accuracy: 0.3, "\(trio[0]) on top changed")
-                XCTAssertEqual(top.height, alone.height, accuracy: 0.3, "\(trio[0]) on top changed")
+                let first = ink(try render(chips([trio[0]]), look: look), from: 0, to: ClusterGeometry.slot)
+                XCTAssertEqual(top.width, first.width, accuracy: 0.3, "\(trio[0]) on top changed")
                 XCTAssertEqual(top.midX, center(0, geometry), accuracy: 0.3, "\(trio[0]) on top moved")
                 for index in 1..<trio.count {
                     let symbol = trio[index]
                     let middle = center(index, geometry)
-                    let neighbourEdge = center(index - 1, geometry) + face / 2
-                    let visibleLeft = max(middle - face / 2, neighbourEdge + Double(m.cutout))
-                    let visibleRight = middle + face / 2
-                    XCTAssertEqual(visibleRight - visibleLeft, 11.5, accuracy: 0.01)
-                    // Nothing of a glyph at the neighbour's edge or in the
-                    // cutout: the neighbour's own glyph ends well before.
-                    let hidden = ink(rep, from: neighbourEdge - 1, to: visibleLeft)
-                    XCTAssertEqual(hidden.count, 0, "\(symbol) (\(set)) shows under the chip over it")
-                    let shown = ink(rep, from: visibleLeft, to: visibleRight)
-                    XCTAssertGreaterThan(shown.count, 0, "\(symbol) drew nothing")
-                    XCTAssertGreaterThan(shown.left, visibleLeft + 0.2, "\(symbol) (\(set)) touches the cutout")
-                    XCTAssertLessThan(shown.right, visibleRight - 0.2, "\(symbol) (\(set)) touches the rim")
-                    XCTAssertEqual(shown.midX, (visibleLeft + visibleRight) / 2, accuracy: 0.4, "\(symbol) (\(set)) is not in the middle of what shows")
-                    XCTAssertEqual(shown.midY, Double(Self.height) / 2, accuracy: 0.4, symbol)
-                    worst = max(worst, abs(shown.midX - (visibleLeft + visibleRight) / 2))
-                    // Whole: the shape it has alone, only smaller.
-                    let whole = ink(try render(chips([symbol]), look: look), from: 0, to: ClusterGeometry.slot)
-                    XCTAssertEqual(shown.width / shown.height, whole.width / whole.height, accuracy: 0.12, "\(symbol) (\(set)) is cut")
-                    XCTAssertLessThan(shown.width, whole.width, "\(symbol) is drawn smaller to fit")
-                    XCTAssertGreaterThan(max(shown.width, shown.height), 5, "\(symbol) is still a glyph")
+                    // In view: from the chip on top and its cutout to this
+                    // chip's own edge.
+                    let visibleLeft = center(index - 1, geometry) + face / 2 + Double(m.cutout)
+                    let aloneRep = try render(chips([symbol]), look: look)
+                    let aloneMiddle = ClusterGeometry.slot / 2
+                    // The same slice of the glyph, on the chip alone. Half a
+                    // point in, so the cutout's soft edge is not compared.
+                    let from = visibleLeft - middle + 0.5
+                    let shown = ink(rep, from: middle + from, to: middle + face / 2)
+                    let slice = ink(aloneRep, from: aloneMiddle + from, to: aloneMiddle + face / 2)
+                    XCTAssertGreaterThan(slice.count, 0, "\(symbol) has nothing in view to compare")
+                    XCTAssertEqual(shown.right - middle, slice.right - aloneMiddle, accuracy: 0.15, "\(symbol) (\(set)) moved sideways")
+                    XCTAssertEqual(shown.left - middle, slice.left - aloneMiddle, accuracy: 0.15, "\(symbol) (\(set)) moved sideways")
+                    XCTAssertEqual(shown.height, slice.height, accuracy: 0.15, "\(symbol) (\(set)) changed size")
+                    XCTAssertEqual(Double(shown.minY), Double(slice.minY), accuracy: 1, "\(symbol) (\(set)) moved up or down")
+                    XCTAssertEqual(Double(shown.count), Double(slice.count), accuracy: Double(slice.count) * 0.03 + 8, "\(symbol) (\(set)) is not the same drawing")
                 }
             }
         }
-        print(String(format: "CHIP-CENTRING stacked: worst offset in the visible part %.3f pt", worst))
     }
 
-    /// A covered chip's glyph follows the chips as they fan out: halfway
-    /// uncovered it is larger than folded and smaller than whole, and whole
-    /// once nothing covers it.
-    func testACoveredGlyphGrowsAsItsChipIsUncovered() throws {
+    /// Fanning out only uncovers a glyph: it does not move or grow.
+    func testACoveredGlyphDoesNotMoveAsItsChipIsUncovered() throws {
         let look = ChipAppearance(spacing: .stacked)
         let pair = chips(["cpu", "cpu"])
-        func second(gap: CGFloat) throws -> Ink {
+        let alone = ink(try render(chips(["cpu"]), look: look), from: 0, to: ClusterGeometry.slot)
+        for gap in [CGFloat(13), 15, 17, 19, 21] {
             let rep = try bitmap(MenuBarController.clusterImage(
                 pair, positions: [0, gap], mark: NSImage(size: NSSize(width: 1, height: 1)), badged: false,
                 color: { _ in Self.disc }, look: look, appearance: try XCTUnwrap(NSAppearance(named: .darkAqua)),
                 height: CGFloat(Self.height)
             ))
-            // From where chip 0 (on top, ending at 22) and its cutout end.
-            return ink(rep, from: max(Double(gap) + 4 - 0.5, 23.5), to: Double(gap) + 22.5)
+            let middle = Double(gap) + ClusterGeometry.slot / 2
+            // Chip 0 (on top) ends at 22; its cutout at 23.5.
+            let second = ink(rep, from: max(middle - 9, 24), to: middle + 9)
+            XCTAssertEqual(second.right - middle, alone.right - ClusterGeometry.slot / 2, accuracy: 0.15, "gap \(gap)")
+            XCTAssertEqual(second.height, alone.height, accuracy: 0.15, "gap \(gap)")
         }
-        let widths = try [13, 15, 17, 19, 21].map { try second(gap: $0).width }
-        XCTAssertEqual(widths, widths.sorted(), "the glyph only grows: \(widths)")
-        XCTAssertLessThan(widths[0], widths[2])
-        XCTAssertLessThan(widths[2], widths[4])
-        let alone = ink(try render(chips(["cpu"]), look: look), from: 0, to: ClusterGeometry.slot)
-        XCTAssertEqual(widths[4], alone.width, accuracy: 0.3, "uncovered, it is whole")
-        XCTAssertEqual(try second(gap: 21).midX, 21 + 13, accuracy: 0.3, "and back in the middle of its disc")
     }
 
     /// The chip in focus is on top of both neighbours: its glyph is whole.
@@ -570,7 +559,7 @@ final class ChipAppearanceTests: XCTestCase {
         XCTAssertNotEqual(pixels(ChipAppearance()), pixels(ChipAppearance(style: .soft)))
         XCTAssertNotEqual(pixels(ChipAppearance()), pixels(ChipAppearance(glyphSet: .symbols)))
         XCTAssertNotEqual(pixels(ChipAppearance()), pixels(ChipAppearance(glyphSize: .large)))
-        XCTAssertNotEqual(pixels(ChipAppearance()), pixels(ChipAppearance(spacing: .stacked)))
+        XCTAssertNotEqual(pixels(ChipAppearance()), pixels(ChipAppearance(spacing: .apart)))
     }
 
     /// Where the chips rest follows the spacing, folded and with one in
@@ -579,7 +568,7 @@ final class ChipAppearanceTests: XCTestCase {
         let chips = Self.styleChips
         XCTAssertEqual(MenuBarController.clusterTargets(chips, focus: nil, look: ChipAppearance(spacing: .apart)), [0, 20, 40])
         XCTAssertEqual(MenuBarController.clusterTargets(chips, focus: nil, look: ChipAppearance(spacing: .stacked)), [0, 13, 26])
-        XCTAssertEqual(MenuBarController.clusterTargets(chips, focus: nil), [0, 20, 40], "apart unless told")
+        XCTAssertEqual(MenuBarController.clusterTargets(chips, focus: nil), [0, 13, 26], "stacked unless told")
         for spacing in ChipAppearance.Spacing.allCases {
             let look = ChipAppearance(spacing: spacing)
             let geometry = ClusterGeometry(count: chips.count, spacing: spacing)
