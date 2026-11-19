@@ -523,7 +523,7 @@ final class MenuBarController {
     /// A chip's face colour as the cluster draws it, for its peek.
     func clusterColor(for chip: ClusterChip) -> NSColor {
         let chips = appliedChips ?? [chip]
-        return Self.clusterColors(chips, base: baseChipColor)[chip.id] ?? baseChipColor(chip.widgetID)
+        return Self.clusterColors(chips, base: baseChipColor)[chip.id] ?? Self.chipFace(baseChipColor(chip.widgetID))
     }
 
     private func baseChipColor(_ widgetID: String) -> NSColor {

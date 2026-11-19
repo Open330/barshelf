@@ -22,14 +22,25 @@ extension MenuBarController {
         /// The clear ring that separates a chip from the one it covers.
         static let cutout: CGFloat = 1.5
         static let badge: CGFloat = 6
-        static let glyphSize: CGFloat = 8.5
+        /// The glyph takes most of the disc: at 8.5 pt it was under half
+        /// of an 18 pt disc and hard to tell apart at a glance.
+        static let glyphSize: CGFloat = 10.5
         /// The box a symbol is fitted into, inside the disc.
-        static let glyphBox: CGFloat = 9.5
+        static let glyphBox: CGFloat = 11.5
         /// The arc's track, barely there.
         static let trackAlpha: CGFloat = 0.12
         static let staleAlpha = CGFloat(Fill.staleOpacity)
-        /// How much lighter the disc's top is than its colour.
-        static let sheenAlpha: CGFloat = 0.22
+        /// How much lighter the disc's top is than its colour. Slight: a
+        /// strong sheen made the discs look like candy beside the bar's
+        /// flat items.
+        static let sheenAlpha: CGFloat = 0.10
+        /// A disc is its widget's colour, calmer: the accent colours are
+        /// made for small strokes and tints, and a row of solid discs in
+        /// them outshouted everything else in the menu bar. Saturation and
+        /// brightness come down together, so the colour gets deeper rather
+        /// than chalky and the white glyph reads better, not worse.
+        static let faceSaturation: CGFloat = 0.76
+        static let faceBrightness: CGFloat = 0.80
         /// The disc's fine inner edge, which keeps a dark colour from
         /// melting into a dark menu bar.
         static let rimAlpha: CGFloat = 0.18
@@ -62,9 +73,21 @@ extension MenuBarController {
         let steps = MenuBarClusterPolicy.toneSteps(keys: keys)
         var colors: [String: NSColor] = [:]
         for (index, chip) in chips.enumerated() {
-            colors[chip.id] = toned(bases[index], step: steps[index])
+            colors[chip.id] = chipFace(toned(bases[index], step: steps[index]))
         }
         return colors
+    }
+
+    /// The colour a disc is filled with, from the colour its widget chose:
+    /// the same hue, less saturated and less bright (`ChipMetrics`).
+    static func chipFace(_ color: NSColor) -> NSColor {
+        guard let rgb = color.usingColorSpace(.sRGB) else { return color }
+        var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 0
+        rgb.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
+        return NSColor(
+            hue: hue, saturation: saturation * ChipMetrics.faceSaturation,
+            brightness: brightness * ChipMetrics.faceBrightness, alpha: alpha
+        )
     }
 
     /// Hue degrees per tone step, and the order steps alternate in: the

@@ -171,11 +171,12 @@ final class MenuBarRedrawDecisionTests: XCTestCase {
         ]
         let colors = MenuBarController.clusterColors(chips) { $0 == "cpu" ? .systemBlue : orange }
         // The first of a colour keeps it; another colour is left alone.
-        XCTAssertEqual(colors["sensors"]?.usingColorSpace(.sRGB), orange.usingColorSpace(.sRGB))
-        XCTAssertEqual(colors["cpu"]?.usingColorSpace(.sRGB), NSColor.systemBlue.usingColorSpace(.sRGB))
+        // (As a disc's face: the chosen colour, calmer.)
+        XCTAssertEqual(colors["sensors"]?.usingColorSpace(.sRGB), MenuBarController.chipFace(orange).usingColorSpace(.sRGB))
+        XCTAssertEqual(colors["cpu"]?.usingColorSpace(.sRGB), MenuBarController.chipFace(.systemBlue).usingColorSpace(.sRGB))
         // The second turns, and is no lighter than the first (white glyph).
         let turned = try XCTUnwrap(colors["awake"]?.usingColorSpace(.sRGB))
-        XCTAssertNotEqual(turned, orange.usingColorSpace(.sRGB))
+        XCTAssertNotEqual(turned, MenuBarController.chipFace(orange).usingColorSpace(.sRGB))
         XCTAssertLessThanOrEqual(
             MenuBarController.luminance(turned),
             MenuBarController.luminance(orange) + MenuBarController.toneLuminanceSlack + 0.01
@@ -233,4 +234,31 @@ final class MenuBarRedrawDecisionTests: XCTestCase {
         let toned = MenuBarController.toned(grey, step: 1).usingColorSpace(.sRGB)!
         XCTAssertNotEqual(toned.redComponent, 0.5, accuracy: 0.05)
     }
+
+    /// A disc is filled with a calmer version of the colour its widget
+    /// chose: the same hue, less saturated and darker, never lighter (the
+    /// glyph on it is white).
+    func testAChipsFaceIsItsWidgetsColourCalmer() throws {
+        func hsb(_ color: NSColor) -> (h: CGFloat, s: CGFloat, b: CGFloat) {
+            var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+            color.usingColorSpace(.sRGB)!.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
+            return (h, s, b)
+        }
+        for base in [NSColor.systemPurple, .systemOrange, .systemBlue, .systemGreen, .systemPink, .systemYellow] {
+            let chosen = hsb(base), face = hsb(MenuBarController.chipFace(base))
+            XCTAssertEqual(face.h, chosen.h, accuracy: 0.01, "the hue is the widget's")
+            XCTAssertLessThan(face.s, chosen.s)
+            XCTAssertLessThan(face.b, chosen.b)
+            XCTAssertLessThan(
+                MenuBarController.luminance(MenuBarController.chipFace(base)), MenuBarController.luminance(base)
+            )
+        }
+        // Grey has no hue to keep; it only gets darker.
+        let grey = hsb(MenuBarController.chipFace(.systemGray))
+        XCTAssertLessThan(grey.b, hsb(.systemGray).b)
+        // The glyph is over half the disc.
+        XCTAssertGreaterThan(MenuBarController.ChipMetrics.glyphSize, MenuBarController.ChipMetrics.face / 2)
+        XCTAssertLessThan(MenuBarController.ChipMetrics.glyphBox, MenuBarController.ChipMetrics.face - 4, "and clear of the rim")
+    }
 }
+
