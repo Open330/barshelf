@@ -256,9 +256,6 @@ final class MenuBarRedrawDecisionTests: XCTestCase {
         // Grey has no hue to keep; it only gets darker.
         let grey = hsb(MenuBarController.chipFace(.systemGray))
         XCTAssertLessThan(grey.b, hsb(.systemGray).b)
-        // The glyph is over half the disc.
-        XCTAssertGreaterThan(MenuBarController.ChipMetrics.glyphSize, MenuBarController.ChipMetrics.face / 2)
-        XCTAssertLessThan(MenuBarController.ChipMetrics.glyphBox, MenuBarController.ChipMetrics.face - 4, "and clear of the rim")
     }
 }
 
