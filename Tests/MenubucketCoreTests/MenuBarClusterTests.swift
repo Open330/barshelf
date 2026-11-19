@@ -5,11 +5,43 @@ final class MenuBarClusterTests: XCTestCase {
     // MARK: - Geometry
 
     func testFoldedStackOverlapsAndLeavesRoomForTheIcon() {
+        let geometry = ClusterGeometry(count: 5, spacing: .stacked)
+        XCTAssertEqual(geometry.collapsedStep, 13)
+        XCTAssertEqual(geometry.collapsedWidth, 4 * 13 + 26)
+        XCTAssertEqual(geometry.itemWidth, 78 + 4 + 22)
+        XCTAssertEqual(geometry.collapsedMarkX, 82)
+        XCTAssertEqual(ClusterGeometry(count: 0, spacing: .stacked).itemWidth, ClusterGeometry.markWidth)
+    }
+
+    /// Apart (the default), the discs do not overlap: a disc and a 2 pt gap
+    /// from one to the next.
+    func testFoldedApartEveryDiscIsWhole() {
         let geometry = ClusterGeometry(count: 5)
-        XCTAssertEqual(geometry.collapsedWidth, 4 * 11 + 26)
-        XCTAssertEqual(geometry.itemWidth, 70 + 4 + 22)
-        XCTAssertEqual(geometry.collapsedMarkX, 74)
+        XCTAssertEqual(geometry, ClusterGeometry(count: 5, spacing: .apart))
+        XCTAssertEqual(geometry.collapsedStep, ClusterGeometry.disc + 2)
+        XCTAssertEqual(geometry.collapsedStep, 20)
+        XCTAssertEqual(geometry.collapsedX(3), 60)
+        XCTAssertEqual(geometry.collapsedWidth, 4 * 20 + 26)
+        XCTAssertEqual(geometry.itemWidth, 106 + 4 + 22)
+        XCTAssertEqual(geometry.collapsedMarkX, 110)
+        XCTAssertEqual(geometry.focusShift, 1)
+        XCTAssertEqual(ClusterGeometry(count: 5, spacing: .stacked).focusShift, 8)
         XCTAssertEqual(ClusterGeometry(count: 0).itemWidth, ClusterGeometry.markWidth)
+        // Each disc is its own chip, and the gap belongs to the next one.
+        XCTAssertEqual(geometry.collapsedIndex(at: 4), 0)
+        XCTAssertEqual(geometry.collapsedIndex(at: 21.9), 0)
+        XCTAssertEqual(geometry.collapsedIndex(at: 24), 1)
+        XCTAssertEqual(geometry.collapsedIndex(at: 41.9), 1)
+        XCTAssertEqual(geometry.collapsedIndex(at: 105), 4)
+        XCTAssertNil(geometry.collapsedIndex(at: 106))
+        XCTAssertEqual(geometry.pillIndex(at: 19.9, focus: nil, pill: 18), 0)
+        XCTAssertEqual(geometry.pillIndex(at: 20, focus: nil, pill: 18), 1)
+        XCTAssertEqual(geometry.pillIndex(at: 85, focus: nil, pill: 18), 4)
+        XCTAssertNil(geometry.pillIndex(at: 106, focus: nil, pill: 18))
+        let stacked = ClusterGeometry(count: 5, spacing: .stacked)
+        XCTAssertEqual(stacked.pillIndex(at: 12.9, focus: nil, pill: 18), 0)
+        XCTAssertEqual(stacked.pillIndex(at: 13, focus: nil, pill: 18), 1)
+        XCTAssertNil(stacked.pillIndex(at: 78, focus: nil, pill: 18))
     }
 
     func testTheHoveredChipStaysPutWhenTheFanOpens() {
@@ -30,14 +62,14 @@ final class MenuBarClusterTests: XCTestCase {
     }
 
     func testFoldedHitTestPicksTheChipOnTop() {
-        let geometry = ClusterGeometry(count: 3)
+        let geometry = ClusterGeometry(count: 3, spacing: .stacked)
         XCTAssertEqual(geometry.collapsedIndex(at: 5), 0)
         // 12 is inside chip 0 and chip 1: chip 0 lies over chip 1.
         XCTAssertEqual(geometry.collapsedIndex(at: 12), 0)
         // Past chip 0's disc (4...22) it is chip 1 coming out from under it.
         XCTAssertEqual(geometry.collapsedIndex(at: 24), 1)
-        XCTAssertEqual(geometry.collapsedIndex(at: 47), 2)
-        XCTAssertNil(geometry.collapsedIndex(at: 48))
+        XCTAssertEqual(geometry.collapsedIndex(at: 51), 2)
+        XCTAssertNil(geometry.collapsedIndex(at: 52))
         XCTAssertNil(geometry.collapsedIndex(at: -1))
         XCTAssertTrue(geometry.isOnMark(collapsedX: geometry.collapsedMarkX + 5))
         XCTAssertFalse(geometry.isOnMark(collapsedX: 20))
@@ -170,9 +202,13 @@ final class MenuBarClusterProfileTests: XCTestCase {
 }
 
 final class MenuBarClusterFocusTests: XCTestCase {
+    /// Every rule here holds for both spacings.
+    private func geometries(_ count: Int) -> [ClusterGeometry] {
+        ChipAppearance.Spacing.allCases.map { ClusterGeometry(count: count, spacing: $0) }
+    }
+
     func testFocusOpensAGapOnEachSideOfTheFocusedChip() {
-        for count in 2...MenuBarClusterPolicy.maxChips {
-            let g = ClusterGeometry(count: count)
+        for count in 2...MenuBarClusterPolicy.maxChips { for g in geometries(count) {
             XCTAssertFalse(g.hidesMark(focus: nil))
             for focus in 0..<count {
                 XCTAssertTrue(g.hidesMark(focus: focus))
@@ -181,17 +217,16 @@ final class MenuBarClusterFocusTests: XCTestCase {
                     // The two gaps beside the focused chip open; the rest
                     // stay folded.
                     let opens = index == focus || index == focus + 1
-                    XCTAssertEqual(gap, opens ? ClusterGeometry.revealStep : ClusterGeometry.collapsedStep, accuracy: 0.0001)
+                    XCTAssertEqual(gap, opens ? ClusterGeometry.revealStep : g.collapsedStep, accuracy: 0.0001)
                 }
                 XCTAssertLessThanOrEqual(g.focusedX(count - 1, focus: focus) + ClusterGeometry.slot, g.itemWidth, "stays inside the item")
             }
-        }
+        } }
         XCTAssertFalse(ClusterGeometry(count: 1).hidesMark(focus: 0), "a lone chip keeps the icon")
     }
 
     func testFocusStaysPutUnderAStillPointer() {
-        for count in 2...MenuBarClusterPolicy.maxChips {
-            let g = ClusterGeometry(count: count)
+        for count in 2...MenuBarClusterPolicy.maxChips { for g in geometries(count) {
             var x = 0.0
             while x < g.collapsedWidth {
                 // Folded, the pointer picks a chip; laid out for it, the
@@ -201,7 +236,7 @@ final class MenuBarClusterFocusTests: XCTestCase {
                 }
                 x += 0.5
             }
-        }
+        } }
     }
 
     func testTheIconStaysClickableWhileFolded() {
@@ -228,8 +263,7 @@ final class MenuBarClusterFocusTests: XCTestCase {
     }
 
     func testAPillPushesItsNeighboursAndStaysUnderAStillPointer() {
-        for count in 2...MenuBarClusterPolicy.maxChips {
-            let g = ClusterGeometry(count: count)
+        for count in 2...MenuBarClusterPolicy.maxChips { for g in geometries(count) {
             for pill in [18.0, 40, 64, 101] {
                 let pills = Array(repeating: pill, count: count)
                 let lead = g.hoverLead(pills: pills)
@@ -255,7 +289,7 @@ final class MenuBarClusterFocusTests: XCTestCase {
                     x += 0.5
                 }
             }
-        }
+        } }
     }
 
     func testEveryChipIsReachableAlongPills() {
@@ -291,8 +325,7 @@ final class MenuBarClusterFocusTests: XCTestCase {
     }
 
     func testTheChipBesideAPillIsTheOneSelectedWhereItIsDrawn() {
-        for count in 2...MenuBarClusterPolicy.maxChips {
-            let g = ClusterGeometry(count: count)
+        for count in 2...MenuBarClusterPolicy.maxChips { for g in geometries(count) {
             for pill in [18.0, 54, 90] {
                 for focus in 1..<count {
                     let xs = g.pillLayout(focus: focus, pill: pill)
@@ -304,6 +337,6 @@ final class MenuBarClusterFocusTests: XCTestCase {
                     XCTAssertEqual(g.pillIndex(at: x, focus: focus, pill: pill), focus - 1, "count \(count) pill \(pill) focus \(focus)")
                 }
             }
-        }
+        } }
     }
 }

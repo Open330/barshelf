@@ -48,6 +48,8 @@ public struct AppPreferences: Codable, Equatable, Sendable {
     /// In the cluster, a wave through the chips when one's state changes
     /// (`ClusterPulse`).
     public var menuBarPulse: Bool
+    /// How the cluster's chips look (`ChipAppearance`).
+    public var menuBarChips: ChipAppearance
     /// Count, on this Mac only, how often the shelf opens and each widget is
     /// seen or used (`UsageStore`). Nothing is ever sent anywhere.
     public var usageCountsEnabled: Bool
@@ -87,6 +89,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         popupHeight: PopupHeight = .standard,
         menuBarLayout: MenuBarLayout = .items,
         menuBarPulse: Bool = true,
+        menuBarChips: ChipAppearance = ChipAppearance(),
         usageCountsEnabled: Bool = true,
         popupRemembersPage: Bool = true
     ) {
@@ -103,6 +106,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         self.popupHeight = popupHeight
         self.menuBarLayout = menuBarLayout
         self.menuBarPulse = menuBarPulse
+        self.menuBarChips = menuBarChips
         self.usageCountsEnabled = usageCountsEnabled
         self.popupRemembersPage = popupRemembersPage
         normalize()
@@ -150,6 +154,8 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         popupHeight = (try? container.decodeIfPresent(PopupHeight.self, forKey: .popupHeight)) ?? .standard
         menuBarLayout = (try? container.decodeIfPresent(MenuBarLayout.self, forKey: .menuBarLayout)) ?? .items
         menuBarPulse = (try? container.decodeIfPresent(Bool.self, forKey: .menuBarPulse)) ?? true
+        // Lenient inside too; a block that is not an object is the defaults.
+        menuBarChips = (try? container.decodeIfPresent(ChipAppearance.self, forKey: .menuBarChips)) ?? ChipAppearance()
         usageCountsEnabled = (try? container.decodeIfPresent(Bool.self, forKey: .usageCountsEnabled)) ?? true
         popupRemembersPage = container.lenient(Bool.self, forKey: .popupRemembersPage) ?? true
         normalize()
