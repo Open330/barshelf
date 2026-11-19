@@ -8567,7 +8567,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "모노"
+            "value": "단색"
           }
         }
       }
@@ -8577,7 +8577,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "모노 칩에는 색상이 없어 이 설정이 적용되지 않습니다."
+            "value": "단색 칩에는 색상이 없어 이 설정이 적용되지 않습니다."
           }
         }
       }
@@ -13634,7 +13634,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "소프트"
+            "value": "은은하게"
           }
         }
       }
@@ -13645,7 +13645,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "솔리드"
+            "value": "채움"
           }
         }
       }
