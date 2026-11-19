@@ -1072,6 +1072,16 @@
         }
       }
     },
+    "A disc in the widget's colour, with a white icon.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯 색상으로 채운 원에 흰색 아이콘을 표시합니다."
+          }
+        }
+      }
+    },
     "A dock for apps, folders, and widgets, with profiles to switch between.": {
       "localizations": {
         "ko": {
@@ -1118,6 +1128,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "초 단위 시간과 날짜를 보여 주는 큰 디지털 시계입니다."
+          }
+        }
+      }
+    },
+    "A light wash of the widget's colour, with the icon in that colour.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯 색상을 옅게 깔고 아이콘을 그 색상으로 표시합니다."
           }
         }
       }
@@ -1931,6 +1951,17 @@
         }
       }
     },
+    "Apart": {
+      "comment": "Chip spacing: side by side",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "나란히"
+          }
+        }
+      }
+    },
     "App": {
       "comment": "Menu bar icon choice",
       "localizations": {
@@ -2190,6 +2221,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "상위 폴더로 돌아가기"
+          }
+        }
+      }
+    },
+    "Balanced": {
+      "comment": "Chip colour strength",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "균형"
           }
         }
       }
@@ -3263,12 +3305,42 @@
         }
       }
     },
+    "Chips": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "칩"
+          }
+        }
+      }
+    },
     "Chips appear left to right in this order. At most %lld widgets are shown; colours come from each widget's accent.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
             "value": "칩은 이 순서대로 왼쪽부터 나타납니다. 위젯은 최대 %lld개까지 표시되며, 색은 각 위젯의 강조 색상을 따릅니다."
+          }
+        }
+      }
+    },
+    "Chips overlap to save room. A covered chip shows a smaller icon in the part still in view.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "칩을 겹쳐 자리를 아낍니다. 가려진 칩은 보이는 부분에 아이콘을 작게 표시합니다."
+          }
+        }
+      }
+    },
+    "Chips sit side by side, each one whole.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "칩을 겹치지 않고 나란히 놓습니다."
           }
         }
       }
@@ -3563,6 +3635,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "색상"
+          }
+        }
+      }
+    },
+    "Colour strength": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "색상 강도"
           }
         }
       }
@@ -5460,6 +5542,26 @@
         }
       }
     },
+    "Every chip gets the same lightness and strength, whichever colour its widget has.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위젯 색상이 무엇이든 모든 칩의 밝기와 강도를 같게 맞춥니다."
+          }
+        }
+      }
+    },
+    "Every chip shows an SF Symbol.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "모든 칩에 SF Symbols 아이콘을 표시합니다."
+          }
+        }
+      }
+    },
     "Every count on this Mac is removed. Counting starts again from now unless you turn it off.": {
       "localizations": {
         "ko": {
@@ -6627,7 +6729,6 @@
       }
     },
     "Icon size": {
-      "extractionState": "stale",
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -6653,6 +6754,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "아이콘, 로그인, 사운드입니다."
+          }
+        }
+      }
+    },
+    "Icons": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "아이콘"
           }
         }
       }
@@ -8450,6 +8561,27 @@
         }
       }
     },
+    "Mono": {
+      "comment": "Chip style: no colour, the menu bar's text colour",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "단색"
+          }
+        }
+      }
+    },
+    "Mono chips have no colour, so this changes nothing.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "단색 칩에는 색상이 없어 이 설정이 적용되지 않습니다."
+          }
+        }
+      }
+    },
     "Monochrome": {
       "localizations": {
         "ko": {
@@ -8830,6 +8962,17 @@
         }
       }
     },
+    "Muted": {
+      "comment": "Chip colour strength",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "차분하게"
+          }
+        }
+      }
+    },
     "Name": {
       "localizations": {
         "ko": {
@@ -9030,6 +9173,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "단축어가 없습니다"
+          }
+        }
+      }
+    },
+    "No colour: chips take the menu bar's text colour, like the items around them.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "색상 없이, 주변 항목처럼 메뉴 막대의 글자 색상으로 표시합니다."
           }
         }
       }
@@ -10265,6 +10418,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "기본"
+          }
+        }
+      }
+    },
+    "Plain filled icons for common readings such as CPU, memory, and battery. Other chips keep their SF Symbol.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CPU, 메모리, 배터리 같은 흔한 값에는 단순하게 채운 아이콘을 씁니다. 나머지 칩은 SF Symbols 아이콘을 그대로 씁니다."
           }
         }
       }
@@ -11972,6 +12135,16 @@
         }
       }
     },
+    "SF Symbols": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SF Symbols"
+          }
+        }
+      }
+    },
     "Same size as the Apple Dock": {
       "localizations": {
         "ko": {
@@ -13326,6 +13499,17 @@
         }
       }
     },
+    "Simple": {
+      "comment": "Chip icons: BarShelf's plain filled icons",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "단순"
+          }
+        }
+      }
+    },
     "Since %@, %lld days with use": {
       "comment": "Privacy usage: the period covered and how many days had any use",
       "localizations": {
@@ -13444,6 +13628,28 @@
         }
       }
     },
+    "Soft": {
+      "comment": "Chip style: a light wash of the widget's colour",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "은은하게"
+          }
+        }
+      }
+    },
+    "Solid": {
+      "comment": "Chip style: a disc filled with the widget's colour",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "채움"
+          }
+        }
+      }
+    },
     "Some details of the online widget list couldn’t be loaded.": {
       "localizations": {
         "ko": {
@@ -13538,6 +13744,16 @@
         }
       }
     },
+    "Spacing": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "간격"
+          }
+        }
+      }
+    },
     "Sparkles": {
       "comment": "Menu bar icon choice",
       "localizations": {
@@ -13556,6 +13772,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "스택"
+          }
+        }
+      }
+    },
+    "Stacked": {
+      "comment": "Chip spacing: overlapping",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "겹쳐서"
           }
         }
       }
@@ -16185,6 +16412,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "시작하기 가이드 보기"
+          }
+        }
+      }
+    },
+    "Vivid": {
+      "comment": "Chip colour strength",
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "선명하게"
           }
         }
       }

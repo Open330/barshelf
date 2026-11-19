@@ -31,11 +31,14 @@ struct ClusterPixels: Equatable {
     var mark: String
     var badged: Bool
     var look: NSAppearance.Name?
+    /// The chips' style, colours' strength, glyphs and spacing.
+    var chipLook: ChipAppearance
     var height: CGFloat
     var scales: [CGFloat]
 
     init(
-        chips: [ClusterChip], focus: Int?, color: (ClusterChip) -> NSColor, appearance: NSAppearance,
+        chips: [ClusterChip], focus: Int?, color: (ClusterChip) -> NSColor,
+        chipLook: ChipAppearance = ChipAppearance(), appearance: NSAppearance,
         positions: [CGFloat], pill: CGFloat, lead: CGFloat, markAlpha: CGFloat, lifts: [CGFloat],
         growth: CGFloat, mark: String, badged: Bool, height: CGFloat, scales: [CGFloat]
     ) {
@@ -61,6 +64,7 @@ struct ClusterPixels: Equatable {
         self.mark = mark
         self.badged = badged
         self.look = MenuBarController.look(of: appearance)
+        self.chipLook = chipLook
         self.height = height
         self.scales = scales
     }

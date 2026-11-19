@@ -257,17 +257,26 @@ public enum MenuBarClusterPolicy {
 
 /// Where each chip sits, folded and fanned out.
 ///
-/// x is measured from the left edge of the stack. Folded, chips overlap and
-/// the later one is drawn on top; fanned out, they sit side by side. The
+/// x is measured from the left edge of the stack. Folded, chips sit a
+/// hair apart or overlap (`ChipAppearance.Spacing`), the earlier one drawn
+/// on top; fanned out, they sit side by side. The
 /// chip under the pointer when the fan opens stays where it was, so the
 /// pointer is still on it afterwards: the strip opens around it.
 public struct ClusterGeometry: Equatable, Sendable {
     public var count: Int
+    /// Folded, centre to centre: a disc and a hair of gap apart, or
+    /// overlapping so each chip shows this much of itself past the next.
+    public var collapsedStep: Double
 
     /// A chip's square, including the ring around its face.
     public static let slot: Double = 26
-    /// Folded: each chip shows this much of itself past the next.
-    public static let collapsedStep: Double = 11
+    /// The folded step for each spacing.
+    public static func foldedStep(for spacing: ChipAppearance.Spacing) -> Double {
+        switch spacing {
+        case .apart: return disc + 2
+        case .stacked: return 13
+        }
+    }
     /// Fanned out: centre to centre.
     public static let expandedStep: Double = 28
     /// Between the last chip and the BarShelf icon.
@@ -275,20 +284,23 @@ public struct ClusterGeometry: Equatable, Sendable {
     /// The BarShelf icon's square.
     public static let markWidth: Double = 22
 
-    public init(count: Int) { self.count = max(count, 0) }
+    public init(count: Int, spacing: ChipAppearance.Spacing = .apart) {
+        self.count = max(count, 0)
+        self.collapsedStep = Self.foldedStep(for: spacing)
+    }
 
     public func collapsedX(_ index: Int) -> Double {
-        Double(index) * Self.collapsedStep
+        Double(index) * collapsedStep
     }
 
     /// Fanned out around `anchor`, which keeps its folded position.
     public func expandedX(_ index: Int, anchor: Int) -> Double {
-        Double(index) * Self.expandedStep + Double(clampedAnchor(anchor)) * (Self.collapsedStep - Self.expandedStep)
+        Double(index) * Self.expandedStep + Double(clampedAnchor(anchor)) * (collapsedStep - Self.expandedStep)
     }
 
     /// The stack alone, folded.
     public var collapsedWidth: Double {
-        count == 0 ? 0 : Double(count - 1) * Self.collapsedStep + Self.slot
+        count == 0 ? 0 : Double(count - 1) * collapsedStep + Self.slot
     }
 
     /// The status item: the folded stack, then the BarShelf icon.
@@ -345,7 +357,7 @@ public struct ClusterGeometry: Equatable, Sendable {
     }
 
     /// How far the focused chip steps away from the one before it.
-    public static var focusShift: Double { revealStep - collapsedStep }
+    public var focusShift: Double { Self.revealStep - collapsedStep }
     /// A chip's disc, inside its slot.
     public static let disc: Double = 18
     /// The slot's empty edge either side of a disc or pill.
@@ -373,7 +385,7 @@ public struct ClusterGeometry: Equatable, Sendable {
             } else if index == focus {
                 x += width + Self.revealStep - Self.disc
             } else {
-                x += Self.collapsedStep
+                x += collapsedStep
             }
         }
         let end = focus == count - 1 ? xs[focus] + width + 2 * Self.slotInset : xs[count - 1] + Self.slot

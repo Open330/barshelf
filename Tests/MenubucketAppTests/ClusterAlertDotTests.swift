@@ -15,12 +15,16 @@ final class ClusterAlertDotTests: XCTestCase {
     ]
     private let palette: [String: NSColor] = ["a": .systemPurple, "b": .systemPink, "c": .systemOrange, "d": .systemTeal]
 
+    /// Stacked: the dot must show although the chips overlap.
+    private let look = ChipAppearance(spacing: .stacked)
+
     private func render(focus: Int? = nil, pill: CGFloat? = nil, appearance: NSAppearance.Name) -> NSImage {
         MenuBarController.clusterImage(
             chips, focus: focus, pill: pill,
             mark: NSImage(systemSymbolName: "square.grid.2x2", accessibilityDescription: nil)!,
             badged: false,
             color: { self.palette[$0.widgetID] ?? .systemBlue },
+            look: look,
             appearance: NSAppearance(named: appearance)!,
             height: 24
         )
@@ -33,7 +37,8 @@ final class ClusterAlertDotTests: XCTestCase {
         let rep = try XCTUnwrap(NSBitmapImageRep(data: try XCTUnwrap(image.tiffRepresentation)))
         let scale = CGFloat(rep.pixelsWide) / image.size.width
         // Chip 1 centre (folded), then its top-trailing dot.
-        let center = CGFloat(ClusterGeometry.collapsedStep) + CGFloat(ClusterGeometry.slot) / 2
+        let center = CGFloat(ClusterGeometry(count: chips.count, spacing: look.spacing).collapsedStep)
+            + CGFloat(ClusterGeometry.slot) / 2
         let m = MenuBarController.ChipMetrics.self
         // Folded, the chip lies over the next one, so its top-trailing dot
         // is in view.

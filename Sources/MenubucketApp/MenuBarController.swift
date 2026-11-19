@@ -124,6 +124,11 @@ final class MenuBarController {
     private(set) var layout: MenuBarLayout = .items
     /// A widget's colour for its chip face; nil uses the accent colour.
     var chipColor: ((String) -> NSColor?)?
+    /// How the chips look (`AppPreferences.menuBarChips`). A change folds
+    /// the cluster and lays it out again: the spacing is part of it.
+    var chipLook = ChipAppearance() {
+        didSet { if chipLook != oldValue { invalidateChips() } }
+    }
     /// The chips the cluster last drew, for the controller that handles
     /// hover and clicks on them. Empty outside cluster layout.
     var onChipsChanged: (([ClusterChip]) -> Void)?
@@ -418,7 +423,7 @@ final class MenuBarController {
             pulseGate.reset(settling: chips)
             clusterFocus = nil
             focusAnimation?.invalidate()
-            clusterPositions = Self.clusterTargets(chips, focus: nil)
+            clusterPositions = Self.clusterTargets(chips, focus: nil, look: chipLook)
             clusterMarkAlpha = 1
             clusterPill = CGFloat(ClusterGeometry.disc)
             clusterLead = 0
@@ -523,7 +528,8 @@ final class MenuBarController {
     /// A chip's face colour as the cluster draws it, for its peek.
     func clusterColor(for chip: ClusterChip) -> NSColor {
         let chips = appliedChips ?? [chip]
-        return Self.clusterColors(chips, base: baseChipColor)[chip.id] ?? Self.chipFace(baseChipColor(chip.widgetID))
+        return Self.clusterColors(chips, look: chipLook, base: baseChipColor)[chip.id]
+            ?? Self.chipFace(baseChipColor(chip.widgetID), tone: chipLook.tone)
     }
 
     private func baseChipColor(_ widgetID: String) -> NSColor {
@@ -536,11 +542,12 @@ final class MenuBarController {
         appliedStrip = nil
         let appearance = button.effectiveAppearance
         drawnLook = Self.look(of: appearance)
-        let colors = Self.clusterColors(chips, base: baseChipColor)
+        let look = chipLook
+        let colors = Self.clusterColors(chips, look: look, base: baseChipColor)
         let color: (ClusterChip) -> NSColor = { chip in colors[chip.id] ?? .controlAccentColor }
         let height = NSStatusBar.system.thickness
         let pixels = ClusterPixels(
-            chips: chips, focus: clusterFocus, color: color, appearance: appearance,
+            chips: chips, focus: clusterFocus, color: color, chipLook: look, appearance: appearance,
             positions: clusterPositions, pill: clusterPill, lead: clusterLead, markAlpha: clusterMarkAlpha,
             lifts: pulseLifts, growth: pulseGrowth, mark: mainSymbol, badged: attention, height: height,
             scales: Self.screenScales()
@@ -553,7 +560,7 @@ final class MenuBarController {
             let image = Self.rasterized(Self.clusterImage(
                 chips, positions: clusterPositions, focus: clusterFocus, pill: clusterPill, lead: clusterLead,
                 markAlpha: clusterMarkAlpha, lifts: pulseLifts, growth: pulseGrowth, mark: mark, badged: attention,
-                color: color, appearance: appearance, height: height
+                color: color, look: look, appearance: appearance, height: height
             ), scales: pixels.scales)
             button.image = image
             drawnImage = image
@@ -573,14 +580,18 @@ final class MenuBarController {
     }
 
     /// Where each chip rests with `focus` drawn as its pill.
-    static func clusterTargets(_ chips: [ClusterChip], focus: Int?) -> [CGFloat] {
+    static func clusterTargets(
+        _ chips: [ClusterChip], focus: Int?, look: ChipAppearance = ChipAppearance()
+    ) -> [CGFloat] {
         let pill = focus == nil ? CGFloat(ClusterGeometry.disc) : pillWidth(chips)
-        return ClusterGeometry(count: chips.count).pillLayout(focus: focus, pill: Double(pill)).map { CGFloat($0) }
+        return ClusterGeometry(count: chips.count, spacing: look.spacing)
+            .pillLayout(focus: focus, pill: Double(pill)).map { CGFloat($0) }
     }
 
     /// The room on the item's left that the widest pill needs.
-    static func clusterLead(for chips: [ClusterChip]) -> CGFloat {
-        CGFloat(ClusterGeometry(count: chips.count).hoverLead(pills: chips.map { _ in Double(pillWidth(chips)) }))
+    static func clusterLead(for chips: [ClusterChip], look: ChipAppearance = ChipAppearance()) -> CGFloat {
+        CGFloat(ClusterGeometry(count: chips.count, spacing: look.spacing)
+            .hoverLead(pills: chips.map { _ in Double(pillWidth(chips)) }))
     }
 
     /// The chip under a point in the main button, in the layout as it
@@ -589,7 +600,8 @@ final class MenuBarController {
         guard let chips = appliedChips, !chips.isEmpty else { return nil }
         let stackX = Double(x - clusterOrigin(in: button))
         let pill = clusterFocus == nil ? CGFloat(ClusterGeometry.disc) : Self.pillWidth(chips)
-        return ClusterGeometry(count: chips.count).pillIndex(at: stackX, focus: clusterFocus, pill: Double(pill))
+        return ClusterGeometry(count: chips.count, spacing: chipLook.spacing)
+            .pillIndex(at: stackX, focus: clusterFocus, pill: Double(pill))
     }
 
     /// Uncovers one chip in place (nil folds them all again), gliding there
@@ -609,7 +621,7 @@ final class MenuBarController {
         stopPulse(redraw: false)
         clusterFocus = focus
         refreshMainText()
-        let target = Self.clusterTargets(chips, focus: focus)
+        let target = Self.clusterTargets(chips, focus: focus, look: chipLook)
         focusAnimation?.invalidate()
         let start = clusterPositions.count == target.count ? clusterPositions : target
         let markStart = clusterMarkAlpha
@@ -622,7 +634,7 @@ final class MenuBarController {
         // its place on screen whatever the lead (the item grows to the
         // left), so only the items beside it slide.
         let leadStart = clusterLead
-        let leadTarget = focus == nil ? 0 : Self.clusterLead(for: chips)
+        let leadTarget = focus == nil ? 0 : Self.clusterLead(for: chips, look: chipLook)
         // Folding takes a little longer than opening: quick to answer the
         // pointer, unhurried to put things away. Reduce Motion: no glide.
         let duration = focus == nil ? Self.foldDuration : Self.focusDuration
@@ -665,7 +677,7 @@ final class MenuBarController {
     /// in the current focus layout: for anchoring its card and peek.
     func clusterChipRect(_ index: Int, in button: NSStatusBarButton) -> NSRect {
         let chips = appliedChips ?? []
-        let x = Self.clusterTargets(chips, focus: clusterFocus)[cluster: index] ?? 0
+        let x = Self.clusterTargets(chips, focus: clusterFocus, look: chipLook)[cluster: index] ?? 0
         // A lone chip grows as a disc, not a pill (`ClusterGeometry.hidesMark`).
         let grows = index == clusterFocus && ClusterGeometry(count: chips.count).hidesMark(focus: clusterFocus)
         let pill = grows ? Self.pillWidth(chips) : 0

@@ -396,7 +396,7 @@ final class MenuBarClusterController: NSObject {
         else { return }
         let chip = chips[index]
         let hosting = NSHostingView(rootView: ClusterPeekView(
-            chip: chip, color: Color(nsColor: menuBar.clusterColor(for: chip))
+            chip: chip, color: Color(nsColor: menuBar.clusterColor(for: chip)), look: menuBar.chipLook
         ))
         let size = hosting.fittingSize
         // Under the chip on the menu bar the pointer is on.
@@ -552,11 +552,11 @@ final class MenuBarClusterController: NSObject {
     private func updateAccessibility() {
         guard isEnabled, let button = statusItem?.button else { return }
         let origin = menuBar.clusterOrigin(in: button)
-        let geometry = ClusterGeometry(count: chips.count)
+        let geometry = ClusterGeometry(count: chips.count, spacing: menuBar.chipLook.spacing)
         let elements: [ClusterChipElement] = chips.enumerated().map { index, chip in
             let rect = NSRect(
                 x: origin + CGFloat(geometry.collapsedX(index)), y: 0,
-                width: CGFloat(ClusterGeometry.collapsedStep), height: button.bounds.height
+                width: CGFloat(geometry.collapsedStep), height: button.bounds.height
             )
             let element = ClusterChipElement(widgetID: chip.widgetID, label: chip.spoken, frameInParent: rect, parent: button)
             element.onPress = { [weak self] id in

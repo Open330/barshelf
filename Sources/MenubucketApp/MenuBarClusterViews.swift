@@ -3,7 +3,8 @@ import SwiftUI
 
 /// One chip: the share ring, the coloured core with the widget's symbol or
 /// initial, and a red dot when its reading needs a look. The same drawing
-/// as the folded stack in the menu bar (`MenuBarController.drawChip`).
+/// as the folded stack in the menu bar (`MenuBarController.drawChip`), in
+/// the same style, colour and glyphs (`look`).
 struct ClusterChipFace: View {
     enum Emphasis { case rest, near, hovered, active }
 
@@ -13,8 +14,6 @@ struct ClusterChipFace: View {
         /// The share arc's diameter: around the disc, a gap away.
         static let arc = face + 2 * (MenuBarController.ChipMetrics.ringGap + ring / 2)
         static let badge = MenuBarController.ChipMetrics.badge
-        static let glyph = MenuBarController.ChipMetrics.glyphSize
-        static let initial = MenuBarController.ChipMetrics.initialSize
         static let nearScale: CGFloat = 1.03
         static let hoverScale: CGFloat = 1.08
         static let activeDisc: CGFloat = 26
@@ -26,6 +25,14 @@ struct ClusterChipFace: View {
     /// The share arc around the disc, for the chip in focus. The folded
     /// stack in the menu bar never draws it.
     var showsRing = true
+    var look = ChipAppearance()
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    /// The menu bar's paint for this style, on this surface's light or dark.
+    private var paint: MenuBarController.ChipPaint {
+        MenuBarController.chipPaint(NSColor(color), look: look, dark: colorScheme == .dark)
+    }
 
     var body: some View {
         ZStack {
@@ -49,18 +56,17 @@ struct ClusterChipFace: View {
                         .frame(width: Metrics.arc, height: Metrics.arc)
                 }
             }
+            let paint = paint
             Circle()
-                .fill(color)
-                .overlay(Circle().fill(LinearGradient(
-                    colors: [.white.opacity(MenuBarController.ChipMetrics.sheenAlpha), .clear],
+                .fill(LinearGradient(
+                    colors: [Color(nsColor: paint.top), Color(nsColor: paint.fill)],
                     startPoint: .top, endPoint: .bottom
-                )))
+                ))
                 .overlay(Circle().strokeBorder(
-                    .white.opacity(MenuBarController.ChipMetrics.rimAlpha),
-                    lineWidth: MenuBarController.ChipMetrics.rimWidth
+                    Color(nsColor: paint.rim), lineWidth: MenuBarController.ChipMetrics.rimWidth
                 ))
                 .frame(width: Metrics.face, height: Metrics.face)
-            glyph
+            glyph(paint)
             if chip.alert {
                 Circle()
                     .fill(StatusTone.critical.color)
@@ -74,15 +80,20 @@ struct ClusterChipFace: View {
         .accessibilityLabel(chip.spoken)
     }
 
-    @ViewBuilder private var glyph: some View {
-        if let symbol = chip.symbol, let image = GlyphCache.shared.glyph(symbol, side: Metrics.glyph) {
+    @ViewBuilder private func glyph(_ paint: MenuBarController.ChipPaint) -> some View {
+        if let symbol = chip.symbol, let image = GlyphCache.shared.glyph(symbol, look: look) {
             // The menu bar's own glyph: the drawing alone, at the same
-            // size, so it sits in the middle here as it does there.
-            Image(nsImage: image)
+            // size, so it sits in the middle here as it does there. It is
+            // white; a style with its own ink uses it as a mask.
+            if let ink = paint.ink {
+                Image(nsImage: image).renderingMode(.template).foregroundStyle(Color(nsColor: ink))
+            } else {
+                Image(nsImage: image)
+            }
         } else {
             Text(chip.initial)
-                .font(.system(size: Metrics.initial, weight: .heavy, design: .rounded))
-                .foregroundStyle(.white)
+                .font(.system(size: look.initialPointSize, weight: .heavy, design: .rounded))
+                .foregroundStyle(Color(nsColor: paint.text))
         }
     }
 
@@ -104,10 +115,11 @@ struct ClusterChipFace: View {
 struct ClusterPeekView: View {
     let chip: ClusterChip
     let color: Color
+    var look = ChipAppearance()
 
     var body: some View {
         HStack(spacing: Spacing.xs) {
-            ClusterChipFace(chip: chip, color: color, emphasis: .hovered)
+            ClusterChipFace(chip: chip, color: color, emphasis: .hovered, look: look)
             VStack(alignment: .leading, spacing: Spacing.hair / 2) {
                 Text(chip.name)
                     .font(.caption.weight(.semibold))

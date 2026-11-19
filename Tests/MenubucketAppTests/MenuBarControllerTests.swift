@@ -235,27 +235,21 @@ final class MenuBarRedrawDecisionTests: XCTestCase {
         XCTAssertNotEqual(toned.redComponent, 0.5, accuracy: 0.05)
     }
 
-    /// A disc is filled with a calmer version of the colour its widget
-    /// chose: the same hue, less saturated and darker, never lighter (the
-    /// glyph on it is white).
-    func testAChipsFaceIsItsWidgetsColourCalmer() throws {
-        func hsb(_ color: NSColor) -> (h: CGFloat, s: CGFloat, b: CGFloat) {
-            var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-            color.usingColorSpace(.sRGB)!.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
-            return (h, s, b)
-        }
+    /// A disc is filled with its widget's colour brought to the tone's
+    /// lightness and strength (`ChipColor`; `ChipColorTests` has the
+    /// numbers): the hue is the widget's, and grey stays grey.
+    func testAChipsFaceIsItsWidgetsColourInTheTone() throws {
         for base in [NSColor.systemPurple, .systemOrange, .systemBlue, .systemGreen, .systemPink, .systemYellow] {
-            let chosen = hsb(base), face = hsb(MenuBarController.chipFace(base))
-            XCTAssertEqual(face.h, chosen.h, accuracy: 0.01, "the hue is the widget's")
-            XCTAssertLessThan(face.s, chosen.s)
-            XCTAssertLessThan(face.b, chosen.b)
-            XCTAssertLessThan(
-                MenuBarController.luminance(MenuBarController.chipFace(base)), MenuBarController.luminance(base)
-            )
+            let chosen = ChipColor.oklch(try XCTUnwrap(ChipColor.rgb(base)))
+            let face = ChipColor.oklch(try XCTUnwrap(ChipColor.rgb(MenuBarController.chipFace(base))))
+            let gap = abs(face.h - chosen.h)
+            XCTAssertLessThan(min(gap, 2 * .pi - gap), 0.04, "the hue is the widget's")
+            XCTAssertEqual(face.l, ChipColor.face(.balanced).l, accuracy: 0.01)
+            XCTAssertLessThanOrEqual(face.c, ChipColor.face(.balanced).c + 0.005)
         }
-        // Grey has no hue to keep; it only gets darker.
-        let grey = hsb(MenuBarController.chipFace(.systemGray))
-        XCTAssertLessThan(grey.b, hsb(.systemGray).b)
+        let grey = ChipColor.oklch(try XCTUnwrap(ChipColor.rgb(MenuBarController.chipFace(.systemGray))))
+        XCTAssertLessThan(grey.c, ChipColor.greyChroma)
+        XCTAssertEqual(grey.l, ChipColor.face(.balanced).l, accuracy: 0.01)
     }
 }
 

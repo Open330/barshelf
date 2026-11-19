@@ -17,6 +17,11 @@ final class ClusterGlyphTests: XCTestCase {
     /// The disc is drawn in a blue no symbol has, so the two tell apart.
     private static let disc = NSColor(red: 0.1, green: 0.1, blue: 0.6, alpha: 1)
 
+    /// SF Symbols: these tests are about how a symbol's own drawing lands.
+    /// `ChipAppearanceTests` measures the simple glyphs, the sizes and the
+    /// spacings.
+    private static let look = ChipAppearance(glyphSet: .symbols)
+
     private struct Box {
         var minX = Int.max, minY = Int.max, maxX = -1, maxY = -1
         mutating func add(_ x: Int, _ y: Int) {
@@ -40,7 +45,7 @@ final class ClusterGlyphTests: XCTestCase {
         let chip = ClusterChip(widgetID: symbol, name: symbol, symbol: symbol, initial: "X")
         let image = MenuBarController.clusterImage(
             [chip], mark: NSImage(size: NSSize(width: 1, height: 1)), badged: false,
-            color: { _ in Self.disc }, appearance: try XCTUnwrap(NSAppearance(named: .darkAqua)), height: CGFloat(Self.height)
+            color: { _ in Self.disc }, look: Self.look, appearance: try XCTUnwrap(NSAppearance(named: .darkAqua)), height: CGFloat(Self.height)
         )
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
@@ -82,16 +87,44 @@ final class ClusterGlyphTests: XCTestCase {
     ]
 
     /// Square, tall and wide symbols alike: the drawing's middle is the
-    /// disc's middle.
+    /// disc's middle. The middle is the optical one: halfway between the
+    /// middle of the drawing's box and its centre of mass, so the box of a
+    /// lopsided symbol (a thermometer, a cup) sits a little off, at most a
+    /// point (`ChipMetrics.opticalLimit`); a symmetric one's is dead centre.
     func testASymbolsDrawingIsInTheMiddleOfItsDisc() throws {
         try withFreshGlyphs {
             for symbol in Self.symbols {
-                let (ink, disc, _) = measure(try render(symbol))
+                let rep = try render(symbol)
+                let (ink, disc, _) = measure(rep)
+                let mass = inkWeight(rep)
                 XCTAssertEqual(disc.width, Double(MenuBarController.ChipMetrics.face), accuracy: 0.3, symbol)
-                XCTAssertEqual(ink.midX, disc.midX, accuracy: 0.25, "\(symbol) is off centre sideways")
-                XCTAssertEqual(ink.midY, disc.midY, accuracy: 0.25, "\(symbol) is off centre up or down")
+                XCTAssertEqual((ink.midX + mass.x) / 2, disc.midX, accuracy: 0.3, "\(symbol) is off centre sideways")
+                XCTAssertEqual((ink.midY + mass.y) / 2, disc.midY, accuracy: 0.3, "\(symbol) is off centre up or down")
+                XCTAssertEqual(ink.midX, disc.midX, accuracy: 1.1, "\(symbol)'s box is too far off sideways")
+                XCTAssertEqual(ink.midY, disc.midY, accuracy: 1.1, "\(symbol)'s box is too far off up or down")
+            }
+            for symbol in ["cpu", "memorychip", "network"] {
+                let (ink, disc, _) = measure(try render(symbol))
+                XCTAssertEqual(ink.midX, disc.midX, accuracy: 0.25, "\(symbol) is symmetric")
+                XCTAssertEqual(ink.midY, disc.midY, accuracy: 0.25, "\(symbol) is symmetric")
             }
         }
+    }
+
+    /// The centre of mass of the symbol's own pixels (the white ones), in
+    /// points.
+    private func inkWeight(_ rep: NSBitmapImageRep) -> (x: Double, y: Double) {
+        var sumX = 0.0, sumY = 0.0, total = 0.0
+        for y in 0..<rep.pixelsHigh {
+            for x in 0..<rep.pixelsWide {
+                guard let color = rep.colorAt(x: x, y: y), color.redComponent > 0.55, color.greenComponent > 0.55 else { continue }
+                let light = Double(color.redComponent)
+                sumX += light * (Double(x) + 0.5)
+                sumY += light * (Double(y) + 0.5)
+                total += light
+            }
+        }
+        return (sumX / total / Double(Self.scale), sumY / total / Double(Self.scale))
     }
 
     /// The size is the drawing's, not the font's: every symbol's longer
@@ -174,7 +207,7 @@ final class ClusterGlyphTests: XCTestCase {
         GlyphCache.shared.scalesForTesting = [1, 2]
         defer { GlyphCache.shared.scalesForTesting = nil }
         for symbol in Self.symbols {
-            let size = try XCTUnwrap(GlyphCache.shared.glyph(symbol, side: MenuBarController.ChipMetrics.glyphSize)).size
+            let size = try XCTUnwrap(GlyphCache.shared.glyph(symbol, look: Self.look)).size
             XCTAssertEqual(size.width.truncatingRemainder(dividingBy: 2), 0, "\(symbol) \(size)")
             XCTAssertEqual(size.height.truncatingRemainder(dividingBy: 2), 0, "\(symbol) \(size)")
         }
