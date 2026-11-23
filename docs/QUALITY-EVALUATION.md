@@ -68,7 +68,7 @@ verified" and establish a fresh baseline.
 | --- | --- | --- |
 | No crash | `/bin/ls ~/Library/Logs/DiagnosticReports \| grep barshelf-app`, then the report's `app_version` | no report from the installed version on either Mac |
 | No hang | the same folder: `.hang` and `.spin` reports for `barshelf-app` | none from the installed version |
-| Idle CPU | `scripts/profile-idle.sh 300` with the popup closed, the screen unlocked and nobody using the Mac. Record the **Total** CPU percentage. The Time Profiler trace covers the app | at most 1.0%, and at most 0.3 percentage points above a comparable previous release on the same Mac |
+| Idle CPU | `scripts/profile-idle.sh 300` with the popup closed, the screen unlocked and nobody using the Mac. Record the **Total** CPU percentage. The trace covers the app. This CPU reading includes Instruments attach, recording and detach overhead. Compare it with readings taken using the same procedure | at most 1.0%, and at most 0.3 percentage points above a comparable previous release on the same Mac |
 | CPU over the week | From the two snapshots, compute `100 × Δtotal_cpu_seconds / Δapp.elapsed_seconds` | the rate is recorded. Investigate a rate more than 50% above the comparable previous release before the next release |
 | Memory | Divide the day-7 `total_phys_footprint_bytes` by the day-1 total | the ratio is at most 1.5 |
 | Keyboard extension kept | Fn-arrow mappings and window shortcuts used every day, including after sleep and after a new login; `log show --last 7d --predicate 'process == "barshelf-app" AND eventMessage CONTAINS "automation stopped"'` | they keep working, and every logged stop has a known cause (for example, Accessibility was turned off) |
