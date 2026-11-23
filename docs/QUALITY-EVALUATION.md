@@ -22,39 +22,55 @@ can only pass once the release is published.
 | Changes are in | before tagging | `git merge-base --is-ancestor <commit> v<version>` for every change the release notes claim | each one is an ancestor |
 | Strings | before tagging | `bash scripts/sync-strings.sh --check`, and the catalog's new keys | the check passes and every new string has Korean |
 | Screens | before tagging, for a release that changes UI | `scripts/screenshot-hub.sh <dir> --live`, looked at in en/ko × light/dark | no clipped, overlapping or untranslated text |
-| Update path | before the release leaves pre-release | the [update rehearsal](RELEASING.md#업데이트-리허설) from the previous signed release | Install and Relaunch replaces and relaunches the app |
+| Update path | before the release leaves pre-release | the signed upgrade check in [Hands-on release checks](#3-hands-on-release-checks) | the candidate replaces and relaunches the app with existing data and settings intact |
 | Artifacts | after publishing | `bash scripts/verify-release.sh v<version>` | passes: checksums, bundle version, clean tree, signature, notarization, Gatekeeper, the updater's Developer ID requirement, Homebrew tap |
 | Versions in docs | after the version bookkeeping (steps 11–12) | `python3 scripts/check-release-versions.py` | passes |
 
 ### 2. A week on both Macs
 
 The release runs for seven days of ordinary use on **june-mba** and
-**jiun-mbp** (the only Macs it is installed on). Record the installed
-`CFBundleShortVersionString` and `BarShelfSourceCommit` first, so every reading
-belongs to one build. Read-only commands only; none of these touches the screen
-or the keyboard.
+**jiun-mbp** (the only Macs it is installed on). The measurement commands can
+run without touching the screen or keyboard.
 
 Since 0.7.35 BarShelf is two processes while the keyboard extension is on: the
 app, and a helper that is the same executable started as
-`barshelf-app automation-helper`. `pgrep -f 'MacOS/barshelf-app$'` finds the
-app alone and `pgrep -f 'barshelf-app automation-helper'` the helper;
-`scripts/profile-idle.sh` reports both. The CPU and memory limits below are
-for the two together.
+`barshelf-app automation-helper`. Take a read-only snapshot on day 1 (at least
+an hour after launch) and again on day 7. Keep the full output from each Mac.
 
-CPU and memory readings belong to one process. Write down its PID and start
-time (`ps -o pid=,lstart= -p $(pgrep -f 'MacOS/barshelf-app$')`) with every reading. A
-process that restarted between two readings, for an update, a login or a
-crash, gives no comparison for that interval: mark it "not verified" and start
-a new interval. Do the login checks after the day-7 readings so they don't
-cut the week short.
+```bash
+python3 scripts/quality-snapshot.py
+```
+
+The snapshot reports the bundle's installed version and source commit, sample
+time in UTC, and each process's PID, start time, elapsed seconds, cumulative
+CPU seconds and physical footprint in bytes. The totals sum those CPU and
+footprint counters across the two processes. `helper: null` means no helper
+was found. If a running process's footprint is unavailable, the combined
+footprint is also `null`.
+
+Confirm the running app belongs to the installed build before starting.
+Within each interval require the same build, keyboard extension setting,
+and PID and start time for each expected process at both readings. An app-only
+interval is valid if the build has no helper or the extension was off
+throughout. Mark the comparison "not verified" and restart the interval if
+either process restarts, the expected helper is missing, or the process set
+changes. A missing footprint makes the memory check "not verified." Do the
+login and upgrade checks outside the measurement interval.
+
+Compare releases on the same Mac with the same extension setting and
+measurement procedure. Record the macOS build and any material changes in
+widget configuration or use. Keep lifetime CPU averages, RSS readings and
+old readings that omitted a running helper as historical context. If the
+previous release lacks comparable readings, record the comparison as "not
+verified" and establish a fresh baseline.
 
 | Check | How to observe | Passes when |
 | --- | --- | --- |
 | No crash | `/bin/ls ~/Library/Logs/DiagnosticReports \| grep barshelf-app`, then the report's `app_version` | no report from the installed version on either Mac |
 | No hang | the same folder: `.hang` and `.spin` reports for `barshelf-app` | none from the installed version |
-| Idle CPU | `scripts/profile-idle.sh 300` with the popup closed and nobody using the Mac (screen unlocked) | at most 1.0%, and at most 0.3 points above the previous release on the same Mac |
-| CPU over the week | `ps -o etime=,cputime= -p $(pgrep -f 'MacOS/barshelf-app$')` on day 1 and day 7, same process; the rate is the change in CPU time over the change in elapsed time | recorded; a rate more than half above the previous release's, measured the same way, is investigated before the next release. A lifetime total alone is context, not a weekly figure |
-| Memory | `footprint $(pgrep -f 'MacOS/barshelf-app$')` (phys_footprint) on day 1, at least an hour after launch, and on day 7, same process | day 7 is at most 1.5× day 1 |
+| Idle CPU | `scripts/profile-idle.sh 300` with the popup closed, the screen unlocked and nobody using the Mac. Record the **Total** CPU percentage. The trace covers the app. This CPU reading includes Instruments attach, recording and detach overhead. Compare it with readings taken using the same procedure | at most 1.0%, and at most 0.3 percentage points above a comparable previous release on the same Mac |
+| CPU over the week | From the two snapshots, compute `100 × Δtotal_cpu_seconds / Δapp.elapsed_seconds` | the rate is recorded. Investigate a rate more than 50% above the comparable previous release before the next release |
+| Memory | Divide the day-7 `total_phys_footprint_bytes` by the day-1 total | the ratio is at most 1.5 |
 | Keyboard extension kept | Fn-arrow mappings and window shortcuts used every day, including after sleep and after a new login; `log show --last 7d --predicate 'process == "barshelf-app" AND eventMessage CONTAINS "automation stopped"'` | they keep working, and every logged stop has a known cause (for example, Accessibility was turned off) |
 | Menu bar item kept | the BarShelf icon after sleep, a display change and a login; the BarShelf window's hidden-item warning | the icon is visible and the warning is not shown |
 
@@ -69,11 +85,29 @@ extension stops), the fix ships at once under the exception in
 [RELEASING.md](RELEASING.md); anything else goes into the next weekly
 release.
 
-### 3. Recording
+### 3. Hands-on release checks
+
+Run these on a signed candidate in the named environment. Use a test profile
+with disposable widget data for checks that change settings or install an
+update. Record each check separately, including unavailable environments.
+
+| Check | Setup and action | Passing observation and evidence to record |
+| --- | --- | --- |
+| macOS 14 | Launch the signed candidate on Apple Silicon running macOS 14. Open the menu bar shelf and settings, and refresh a built-in widget | Record the macOS point release and build. The icon and views appear, and the widget shows a refreshed reading |
+| VoiceOver | With VoiceOver running, use the keyboard to open the shelf, search, select a result, reach settings and encounter a recoverable error. Try a Korean search with the Korean input method | Record the spoken names, roles, values and selection/error announcements. Focus reaches each control, announcements are intelligible and occur once, and composition produces the intended search |
+| Physical keyboard | On a physical keyboard with automation enabled, try Fn+I/J/K/L with English and Korean input, key repeat, Shift selection and releasing Fn before the letter. Retest after disable/re-enable, wake and a fresh login | Record keyboard model, input sources and results for each action. Movement, repeat and selection work, the early Fn release leaves no stuck key, and the active indicator agrees with the observed behavior |
+| Multiple displays | Use two attached displays and enough Dock items to overflow. Switch Dock profiles, move focus and scroll through the tiles and Trash, disconnect and reconnect the secondary display, then disable the BarShelf Dock | Record display arrangement, Dock placement and the result after reconnect. All tiles remain reachable, the Dock is placed on an available display and the Apple Dock returns |
+| Signed WidgetKit | Install the signed app and its bundled extension. Add a desktop widget, select a specific widget and part, use its Refresh control, then revoke access to or remove the source | Record the candidate build, selected part and refresh timestamp or timeout message. The installed extension renders the selected part, refresh advances its timestamp and withdrawn content disappears |
+| Signed upgrade | Follow the [update rehearsal](RELEASING.md#업데이트-리허설) from the previous signed release. Before upgrading, note a configured widget, a setting and their values. Use **Install and Relaunch**, then reopen the shelf and check the saved values | Record both versions and commits, the updater result and the before/after values. The candidate relaunches from the installed path and can use the existing widget and settings |
+
+### 4. Recording
 
 Add a dated entry under [Observed releases](#observed-releases): Mac, version
 and commit, each reading with its command, and "not verified" for anything not
-run. Numbers are measurements; where a judgement was needed, say whose.
+run. For hands-on checks, use one row per check and include the tester, macOS
+version/build, relevant hardware or input setup, exact action, observed
+result, and pass/fail/not verified. Include the reason when a check could
+not run and link to any saved snapshot, log or capture.
 
 ## Observed releases
 

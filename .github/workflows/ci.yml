@@ -226,11 +226,12 @@ jobs:
       - name: Build widget pages
         run: python3 scripts/build-widget-pages.py "$(mktemp -d)"
 
-      - name: Validate JSON schemas
-        run: |
-          for f in schema/*.json registry/index.json; do
-            python3 -c "import json,sys; json.load(open('$f')); print('ok', '$f')"
-          done
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: "2.9.7"
+
+      - name: Validate public JSON schemas against bundled fixtures
+        run: deno test --no-lock --allow-read schema/validation_test.ts
 
   # The release build, unsigned and unnotarized, on every merge: `-c release`
   # and build_app.sh (which also builds the widget extension into the app)

@@ -10,7 +10,7 @@ struct AutomationSettingsView: View {
     private var hasUnsavedChanges: Bool { controller.draft != nil }
     @State private var displays: [AutomationWindows.Display] = []
 
-    init(controller: AutomationController = .shared) {
+    init(controller: AutomationController) {
         self.controller = controller
     }
 
