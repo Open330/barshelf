@@ -20,35 +20,55 @@ set -euo pipefail
 SECONDS_TO_RECORD=${1:-60}
 SYMBOLS=${2:-}
 APP_BIN=/Applications/BarShelf.app/Contents/MacOS/barshelf-app
-# Two processes share the name since 0.7.35: the app, and the keyboard
-# helper (`barshelf-app automation-helper …`). The profile is the app's; the
-# helper's CPU over the same window is reported beside it.
-PID=$(pgrep -f 'Contents/MacOS/barshelf-app$' | head -n 1 || true)
-[[ -n "${PID}" ]] || { echo "BarShelf is not running" >&2; exit 1; }
-HELPER_PID=$(pgrep -f 'barshelf-app automation-helper' | head -n 1 || true)
+SNAPSHOT="$(dirname "${BASH_SOURCE[0]}")/quality-snapshot.py"
 
 WORK=$(mktemp -d)
 trap '[[ -n "${KEEP_TRACE:-}" && -e "${WORK}/idle.trace" ]] && rm -rf "${KEEP_TRACE}" && mv "${WORK}/idle.trace" "${KEEP_TRACE}"; rm -rf "${WORK}"' EXIT
 
-cpu_seconds() { /bin/ps -o cputime= -p "${1:-${PID}}" | awk -F'[:.]' '{ print $1 * 60 + $2 + $3 / 100 }'; }
-
-helper_before=$([[ -n "${HELPER_PID}" ]] && cpu_seconds "${HELPER_PID}" || echo 0)
-before=$(cpu_seconds)
+python3 "${SNAPSHOT}" --cpu-only > "${WORK}/before.json"
+PID=$(python3 -c 'import json, sys; print(json.load(sys.stdin)["app"]["pid"])' < "${WORK}/before.json")
+# Time Profiler attaches to the app. The snapshots count the helper as well.
 xcrun xctrace record --template "Time Profiler" --attach "${PID}" \
   --time-limit "${SECONDS_TO_RECORD}s" --output "${WORK}/idle.trace" --no-prompt >/dev/null
-after=$(cpu_seconds)
-helper_after=$([[ -n "${HELPER_PID}" ]] && cpu_seconds "${HELPER_PID}" 2>/dev/null || echo "${helper_before}")
-echo "BarShelf $(defaults read /Applications/BarShelf.app/Contents/Info CFBundleShortVersionString) (pid ${PID})"
-awk -v a="${before}" -v b="${after}" -v s="${SECONDS_TO_RECORD}" \
-  'BEGIN { printf "CPU over %ss: %.2f%% (%.0f ms)\n", s, (b - a) / s * 100, (b - a) * 1000 }'
-echo "Footprint: $(/usr/bin/footprint "${PID}" 2>/dev/null | awk '/phys_footprint:/ { print $2, $3; exit }')"
-if [[ -n "${HELPER_PID}" ]]; then
-  awk -v a="${helper_before}" -v b="${helper_after}" -v s="${SECONDS_TO_RECORD}" -v p="${HELPER_PID}" \
-    'BEGIN { printf "Keyboard helper (pid %s) CPU over %ss: %.2f%% (%.0f ms)\n", p, s, (b - a) / s * 100, (b - a) * 1000 }'
-  echo "Keyboard helper footprint: $(/usr/bin/footprint "${HELPER_PID}" 2>/dev/null | awk '/phys_footprint:/ { print $2, $3; exit }')"
-else
-  echo "Keyboard helper: not running (the extension is off)"
-fi
+python3 "${SNAPSHOT}" > "${WORK}/after.json"
+
+python3 - "${WORK}/before.json" "${WORK}/after.json" <<'PROFILE_PY'
+import json, sys
+
+with open(sys.argv[1]) as snapshot:
+    before = json.load(snapshot)
+with open(sys.argv[2]) as snapshot:
+    after = json.load(snapshot)
+
+def identity(snapshot):
+    return [
+        (process["pid"], process["started_at_utc"]) if process else None
+        for process in (snapshot["app"], snapshot["helper"])
+    ]
+
+if identity(before) != identity(after) or any(
+    before[key] != after[key] for key in ("version", "source_commit")
+):
+    sys.exit("BarShelf build or process identities changed during profiling. Retake the measurement.")
+elapsed = after["app"]["elapsed_seconds"] - before["app"]["elapsed_seconds"]
+if elapsed <= 0:
+    sys.exit("No elapsed time between snapshots. Retake the measurement.")
+
+def report(label, start, end, footprint):
+    cpu = end - start
+    memory = f"{footprint:,} bytes" if footprint is not None else "unavailable"
+    print(f"{label}: {cpu / elapsed * 100:.2f}% CPU over {elapsed}s ({cpu * 1000:.0f} ms), footprint {memory}")
+
+print(f'BarShelf {after["version"]} ({after["source_commit"]}), sampled at {after["sampled_at_utc"]}')
+for role in ("app", "helper"):
+    process = after[role]
+    if process is None:
+        print("Helper: absent at both readings")
+    else:
+        label = f'{role.capitalize()} (PID {process["pid"]}, started {process["started_at_utc"]} UTC)'
+        report(label, before[role]["cpu_seconds"], process["cpu_seconds"], process["phys_footprint_bytes"])
+report("Total", before["total_cpu_seconds"], after["total_cpu_seconds"], after["total_phys_footprint_bytes"])
+PROFILE_PY
 
 xcrun xctrace export --input "${WORK}/idle.trace" \
   --xpath '/trace-toc/run/data/table[@schema="time-profile"]' > "${WORK}/profile.xml"
