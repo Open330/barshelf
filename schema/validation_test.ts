@@ -134,6 +134,37 @@ Deno.test("JSON Schemas preserve constraints on storage, workflow sources, and l
   }), "list transform with array options accepted");
 });
 
+Deno.test("Workflow list transform options match the runtime", async () => {
+  const ajv = await validator();
+  const workflow = ajv.getSchema("https://barshelf.jiun.dev/schema/workflow-0.1.json")!;
+  const flow = { schemaVersion: 1, sources: {}, view: { type: "text", text: "Ready" } };
+  const from = "$.sources.items";
+  const accepts = (transform: Record<string, unknown>) =>
+    workflow({ ...flow, transforms: { rows: { from, ...transform } } });
+
+  for (const transform of [
+    { use: "sort", with: { by: "name", direction: "${settings.direction}" } },
+    { use: "filter", with: { field: "name", notEquals: null } },
+    { use: "limit", with: { count: "${settings.limit}" } },
+    { use: "limit", with: "${settings.listOptions}" },
+  ]) {
+    assert(accepts(transform), ajv.errorsText(workflow.errors));
+  }
+
+  for (const transform of [
+    { use: "limit", count: 1 },
+    { use: "filter", where: "item > 1" },
+    { use: "sort", by: "name", direction: "descending" },
+    { use: "limit", count: 1, with: { count: 2 } },
+    { use: "limit", with: { count: "1" } },
+    { use: "filter", with: { feld: "name", equals: "A" } },
+    { use: "filter", with: { field: "name" } },
+    { use: "sort", with: { by: "name", direction: "backwards" } },
+  ]) {
+    assert(!accepts(transform), `accepted ${JSON.stringify(transform)}`);
+  }
+});
+
 Deno.test("JSON Schemas accept sparkline, progress segments, quitApp and the processes group", async () => {
   const ajv = await validator();
   const node = ajv.getSchema("https://barshelf.jiun.dev/schema/uinode-0.1.json")!;

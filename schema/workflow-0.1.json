@@ -292,46 +292,93 @@
         "with": {
           "description": "Options for list transforms, or any JSON value to expand for a template transform."
         },
-        "where": {
-          "description": "Boolean expression for filter transforms. Expressions use the same limited DSL as interpolation.",
-          "type": "string"
-        },
-        "by": {
-          "description": "Sort key path or expression.",
-          "type": "string"
-        },
-        "direction": {
-          "type": "string",
-          "enum": [
-            "ascending",
-            "descending"
-          ]
-        },
-        "count": {
-          "$ref": "#/definitions/templateInteger"
-        }
+        "where": false,
+        "by": false,
+        "direction": false,
+        "count": false
       },
       "allOf": [
         {
           "if": {
+            "properties": { "use": { "enum": ["assign", "filter", "sort", "limit"] } }
+          },
+          "then": { "required": ["from"] }
+        },
+        {
+          "if": { "properties": { "use": { "const": "assign" } } },
+          "then": { "properties": { "with": { "type": "object" } } }
+        },
+        {
+          "if": { "properties": { "use": { "const": "filter" } } },
+          "then": {
+            "required": ["with"],
             "properties": {
-              "use": {
-                "enum": [
-                  "assign",
-                  "filter",
-                  "sort",
-                  "limit"
+              "with": {
+                "anyOf": [
+                  { "$ref": "#/definitions/wholeExpression" },
+                  {
+                    "type": "object",
+                    "required": ["field"],
+                    "anyOf": [{ "required": ["equals"] }, { "required": ["notEquals"] }],
+                    "properties": {
+                      "field": { "type": "string" },
+                      "equals": {},
+                      "notEquals": {}
+                    }
+                  }
                 ]
               }
-            },
-            "required": [
-              "use"
-            ]
-          },
+            }
+          }
+        },
+        {
+          "if": { "properties": { "use": { "const": "sort" } } },
           "then": {
-            "required": ["from"],
+            "required": ["with"],
             "properties": {
-              "with": { "type": "object" }
+              "with": {
+                "anyOf": [
+                  { "$ref": "#/definitions/wholeExpression" },
+                  {
+                    "type": "object",
+                    "required": ["by"],
+                    "properties": {
+                      "by": { "type": "string" },
+                      "direction": {
+                        "anyOf": [
+                          { "enum": ["ascending", "descending"] },
+                          { "$ref": "#/definitions/wholeExpression" }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "use": { "const": "limit" } } },
+          "then": {
+            "required": ["with"],
+            "properties": {
+              "with": {
+                "anyOf": [
+                  { "$ref": "#/definitions/wholeExpression" },
+                  {
+                    "type": "object",
+                    "required": ["count"],
+                    "properties": {
+                      "count": {
+                        "anyOf": [
+                          { "type": "integer", "minimum": 1 },
+                          { "$ref": "#/definitions/wholeExpression" }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
             }
           }
         }
@@ -627,6 +674,10 @@
       "description": "String literal, optionally containing ${...} interpolation.",
       "type": "string"
     },
+    "wholeExpression": {
+      "type": "string",
+      "pattern": "^\\$\\{[^}]+\\}$"
+    },
     "templateInteger": {
       "oneOf": [
         {
@@ -687,7 +738,7 @@
               "description": "Rows to return, 1-10. Default 5. A whole template expression may supply the count.",
               "oneOf": [
                 { "type": "integer", "minimum": 1, "maximum": 10 },
-                { "type": "string", "pattern": "^\\$\\{[^}]+\\}$" }
+                { "$ref": "#/definitions/wholeExpression" }
               ]
             }
           },

@@ -330,9 +330,9 @@ SMC 온도가 없는 Mac에서는 HID 센서 이름). 접두사는 정확히 소
 | --- | --- | --- |
 | `assign` | `from` | 입력 경로의 값을 그대로 바인딩한다. |
 | `template` | `with` | 보간한 `with`를 그대로 결과로 쓴다. 표현식으로 객체를 만들거나 `forEach`로 목록을 다른 모양으로 바꿀 때 쓴다(`assign`은 값 하나만 넘긴다). **BarShelf 0.7.17+** |
-| `filter` | `from` | 입력 목록을 조건식으로 거른다. 조건식은 제한된 expression DSL만 사용한다. |
-| `sort` | `from` | 입력 목록을 지정한 key/direction으로 정렬한다. |
-| `limit` | `from` | 입력 목록의 앞쪽 N개만 유지한다. |
+| `filter` | `from`, `with.field`, `with.equals` 또는 `with.notEquals` | 입력 목록에서 지정한 필드 값이 비교값과 같거나 다른 항목을 고른다. |
+| `sort` | `from`, `with.by` | 지정한 필드로 정렬한다. `with.direction`의 기본값은 `ascending`이고 `descending`으로 내림차순을 선택한다. |
+| `limit` | `from`, `with.count` | 입력 목록의 앞쪽 N개만 유지한다. 개수는 양의 정수나 정수로 평가되는 식이다. |
 
 R04 v1의 기준 변환은 `assign`이다.
 
