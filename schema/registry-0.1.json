@@ -186,7 +186,8 @@
               "memory",
               "disk",
               "sensors",
-              "network"
+              "network",
+              "processes"
             ]
           }
         }

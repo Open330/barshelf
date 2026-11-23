@@ -7,7 +7,6 @@
   "required": [
     "schemaVersion",
     "sources",
-    "transforms",
     "view"
   ],
   "properties": {
@@ -25,7 +24,7 @@
       }
     },
     "transforms": {
-      "description": "Named pure transforms. v1 supports assign, filter, sort, and limit.",
+      "description": "Optional named pure transforms. v1 supports assign, template, filter, sort, and limit.",
       "type": "object",
       "additionalProperties": {
         "$ref": "#/definitions/transform"
@@ -61,8 +60,7 @@
     "source": {
       "type": "object",
       "required": [
-        "use",
-        "with"
+        "use"
       ],
       "properties": {
         "use": {
@@ -73,7 +71,8 @@
             "fs.json",
             "http",
             "system",
-            "value"
+            "value",
+            "vault.items"
           ]
         },
         "with": {
@@ -86,6 +85,14 @@
         }
       },
       "allOf": [
+        {
+          "if": {
+            "properties": { "use": { "const": "vault.items" } }
+          },
+          "else": {
+            "required": ["with"]
+          }
+        },
         {
           "if": {
             "properties": {
@@ -276,8 +283,7 @@
           "$ref": "#/definitions/jsonPath"
         },
         "with": {
-          "type": "object",
-          "additionalProperties": true
+          "description": "Options for list transforms, or any JSON value to expand for a template transform."
         },
         "where": {
           "description": "Boolean expression for filter transforms. Expressions use the same limited DSL as interpolation.",
@@ -316,9 +322,10 @@
             ]
           },
           "then": {
-            "required": [
-              "from"
-            ]
+            "required": ["from"],
+            "properties": {
+              "with": { "type": "object" }
+            }
           }
         }
       ],
@@ -670,10 +677,11 @@
           "type": "object",
           "properties": {
             "count": {
-              "description": "Rows to return, 1-10. Default 5.",
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 10
+              "description": "Rows to return, 1-10. Default 5. A whole template expression may supply the count.",
+              "oneOf": [
+                { "type": "integer", "minimum": 1, "maximum": 10 },
+                { "type": "string", "pattern": "^\\$\\{[^}]+\\}$" }
+              ]
             }
           },
           "additionalProperties": true

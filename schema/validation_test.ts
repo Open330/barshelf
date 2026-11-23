@@ -28,35 +28,44 @@ async function validator(): Promise<AjvLike> {
     json("./widget-0.1.json"),
     json("./workflow-0.1.json"),
     json("./registry-0.1.json"),
+    json("./uinode-0.1.json"),
   ]);
   for (const schema of schemas) ajv.addSchema(schema);
   return ajv;
 }
 
-Deno.test("JSON Schemas compile and validate bundled manifest, workflow, and registry documents", async () => {
-  const ajv = await validator();
-  const [networkManifest, networkWorkflow, systemManifest, systemWorkflow, sensorsManifest, sensorsWorkflow, registry] = await Promise.all([
-    json("../widgets/network/widget.json"),
-    json("../widgets/network/workflow.json"),
-    json("../widgets/system/widget.json"),
-    json("../widgets/system/workflow.json"),
-    json("../widgets/sensors/widget.json"),
-    json("../widgets/sensors/workflow.json"),
-    json("../registry/index.json"),
-  ]);
-  for (const [id, value] of [
-    ["https://barshelf.jiun.dev/schema/widget-0.1.json", networkManifest],
-    ["https://barshelf.jiun.dev/schema/workflow-0.1.json", networkWorkflow],
-    ["https://barshelf.jiun.dev/schema/widget-0.1.json", systemManifest],
-    ["https://barshelf.jiun.dev/schema/workflow-0.1.json", systemWorkflow],
-    ["https://barshelf.jiun.dev/schema/widget-0.1.json", sensorsManifest],
-    ["https://barshelf.jiun.dev/schema/workflow-0.1.json", sensorsWorkflow],
-    ["https://barshelf.jiun.dev/schema/registry-0.1.json", registry],
-  ] as const) {
-    const validate = ajv.getSchema(id);
-    assert(validate, `missing validator ${id}`);
-    assert(validate(value), `${id}: ${ajv.errorsText(validate.errors)}`);
+async function* fixturePaths(directory: string): AsyncGenerator<string> {
+  for await (const entry of Deno.readDir(new URL(directory, import.meta.url))) {
+    const path = `${directory}${entry.name}`;
+    if (entry.isDirectory) {
+      yield* fixturePaths(`${path}/`);
+    } else if (entry.isFile && (entry.name === "widget.json" || entry.name === "workflow.json")) {
+      yield path;
+    }
   }
+}
+
+Deno.test("JSON Schemas compile and validate all widget and example fixtures and the registry", async () => {
+  const ajv = await validator();
+  const base = "https://barshelf.jiun.dev/schema/";
+  const widget = ajv.getSchema(`${base}widget-0.1.json`);
+  const workflow = ajv.getSchema(`${base}workflow-0.1.json`);
+  const registry = ajv.getSchema(`${base}registry-0.1.json`);
+  assert(widget && workflow && registry, "missing widget, workflow, or registry validator");
+
+  const fixtures: Array<[string, Validate]> = [["../registry/index.json", registry]];
+  for (const directory of ["../widgets/", "../examples/"]) {
+    for await (const path of fixturePaths(directory)) {
+      fixtures.push([path, path.endsWith("/widget.json") ? widget : workflow]);
+    }
+  }
+  const failures: string[] = [];
+  for (const [path, validate] of fixtures) {
+    if (!validate(await json(path))) {
+      failures.push(`${path}: ${ajv.errorsText(validate.errors)}`);
+    }
+  }
+  assert(failures.length === 0, failures.sort().join("\n"));
 });
 
 Deno.test("JSON Schemas reject invalid menu-bar presentation values", async () => {
@@ -82,9 +91,37 @@ Deno.test("JSON Schemas reject invalid menu-bar presentation values", async () =
   };
   assert(!workflow(metricPrecisionOutOfRange), "workflow schema accepted out-of-range metric precision");
 });
+
+Deno.test("JSON Schemas preserve constraints on storage, workflow sources, and list transforms", async () => {
+  const ajv = await validator();
+  const widget = ajv.getSchema("https://barshelf.jiun.dev/schema/widget-0.1.json")!;
+  const workflow = ajv.getSchema("https://barshelf.jiun.dev/schema/workflow-0.1.json")!;
+  const manifest = await json("../widgets/network/widget.json") as Record<string, unknown>;
+  for (const storage of [true, false, { maxBytes: 1024 }]) {
+    assert(
+      widget({ ...manifest, permissions: { storage } }),
+      `storage ${JSON.stringify(storage)}: ${ajv.errorsText(widget.errors)}`,
+    );
+  }
+  for (const storage of ["true", { maxBytes: -1 }]) {
+    assert(
+      !widget({ ...manifest, permissions: { storage } }),
+      `invalid storage permission accepted: ${JSON.stringify(storage)}`,
+    );
+  }
+
+  const flow = { schemaVersion: 1, sources: {}, view: { type: "text", text: "Ready" } };
+  assert(workflow(flow), ajv.errorsText(workflow.errors));
+  assert(!workflow({ ...flow, sources: { run: { use: "exec" } } }), "exec source without options accepted");
+  assert(!workflow({ ...flow, sources: { other: { use: "unknown", with: {} } } }), "unknown source accepted");
+  assert(!workflow({
+    ...flow,
+    transforms: { limited: { use: "limit", from: "sources.items", with: [1] } },
+  }), "list transform with array options accepted");
+});
+
 Deno.test("JSON Schemas accept sparkline, progress segments, quitApp and the processes group", async () => {
   const ajv = await validator();
-  ajv.addSchema(await json("./uinode-0.1.json"));
   const node = ajv.getSchema("https://barshelf.jiun.dev/schema/uinode-0.1.json")!;
   const widget = ajv.getSchema("https://barshelf.jiun.dev/schema/widget-0.1.json")!;
   const workflow = ajv.getSchema("https://barshelf.jiun.dev/schema/workflow-0.1.json")!;
@@ -110,10 +147,16 @@ Deno.test("JSON Schemas accept sparkline, progress segments, quitApp and the pro
   assert(widget(manifest), `quitApps/processes permission: ${ajv.errorsText(widget.errors)}`);
 
   const flow = structuredClone(await json("../widgets/system/workflow.json")) as Record<string, unknown>;
-  flow.sources = { top: { use: "system", with: { metrics: ["processes"], processes: { count: 5 } } } };
-  assert(workflow(flow), `processes source: ${ajv.errorsText(workflow.errors)}`);
-  flow.sources = { top: { use: "system", with: { metrics: ["processes"], processes: { count: 11 } } } };
-  assert(!workflow(flow), "processes count above 10 accepted");
+  const processes: { count: number | string } = { count: 5 };
+  flow.sources = { top: { use: "system", with: { metrics: ["processes"], processes } } };
+  for (const count of [1, 5, 10, "${settings.count}"]) {
+    processes.count = count;
+    assert(workflow(flow), `processes count ${count}: ${ajv.errorsText(workflow.errors)}`);
+  }
+  for (const count of [0, 11, 1.5, "5", "${settings.count} rows"]) {
+    processes.count = count;
+    assert(!workflow(flow), `invalid processes count accepted: ${JSON.stringify(count)}`);
+  }
 });
 import AjvModule from "npm:ajv@8";
 import addFormatsModule from "npm:ajv-formats@2";

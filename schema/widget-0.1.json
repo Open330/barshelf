@@ -487,7 +487,8 @@
       "additionalProperties": true
     },
     "storagePermission": {
-      "type": "object",
+      "description": "Use true to enable storage with defaults, false to decline, or an object to enable storage with options.",
+      "type": ["boolean", "object"],
       "properties": {
         "maxBytes": {
           "type": "integer",
