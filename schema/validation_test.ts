@@ -112,6 +112,20 @@ Deno.test("JSON Schemas preserve constraints on storage, workflow sources, and l
 
   const flow = { schemaVersion: 1, sources: {}, view: { type: "text", text: "Ready" } };
   assert(workflow(flow), ajv.errorsText(workflow.errors));
+
+  assert(workflow({
+    ...flow,
+    sources: {
+      items: { use: "value", with: [1, "two", false] },
+      label: { use: "value", with: "Ready" },
+      empty: { use: "value" },
+      telemetry: { use: "system" },
+    },
+  }), ajv.errorsText(workflow.errors));
+  assert(!workflow({
+    ...flow,
+    sources: { telemetry: { use: "system", with: [] } },
+  }), "system source with array options accepted");
   assert(!workflow({ ...flow, sources: { run: { use: "exec" } } }), "exec source without options accepted");
   assert(!workflow({ ...flow, sources: { other: { use: "unknown", with: {} } } }), "unknown source accepted");
   assert(!workflow({

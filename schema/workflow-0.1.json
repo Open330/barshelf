@@ -76,8 +76,7 @@
           ]
         },
         "with": {
-          "type": "object",
-          "additionalProperties": true
+          "description": "Source options. For a value source, any JSON literal is accepted and omission produces null."
         },
         "optional": {
           "type": "boolean",
@@ -87,10 +86,18 @@
       "allOf": [
         {
           "if": {
-            "properties": { "use": { "const": "vault.items" } }
+            "properties": { "use": { "enum": ["exec", "fs.directory", "fs.json", "http"] } }
+          },
+          "then": {
+            "required": ["with"]
+          }
+        },
+        {
+          "if": {
+            "properties": { "use": { "const": "value" } }
           },
           "else": {
-            "required": ["with"]
+            "properties": { "with": { "type": "object" } }
           }
         },
         {
