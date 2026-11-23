@@ -147,6 +147,10 @@ Deno.test("Workflow list transform options match the runtime", async () => {
     { use: "filter", with: { field: "name", notEquals: null } },
     { use: "limit", with: { count: "${settings.limit}" } },
     { use: "limit", with: "${settings.listOptions}" },
+    {
+      use: "limit",
+      with: { switch: "${settings.mode}", cases: { compact: { count: 2 } }, default: { count: 5 } },
+    },
   ]) {
     assert(accepts(transform), ajv.errorsText(workflow.errors));
   }

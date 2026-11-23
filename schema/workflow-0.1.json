@@ -315,7 +315,7 @@
             "properties": {
               "with": {
                 "anyOf": [
-                  { "$ref": "#/definitions/wholeExpression" },
+                  { "$ref": "#/definitions/computedTransformOptions" },
                   {
                     "type": "object",
                     "required": ["field"],
@@ -338,7 +338,7 @@
             "properties": {
               "with": {
                 "anyOf": [
-                  { "$ref": "#/definitions/wholeExpression" },
+                  { "$ref": "#/definitions/computedTransformOptions" },
                   {
                     "type": "object",
                     "required": ["by"],
@@ -364,7 +364,7 @@
             "properties": {
               "with": {
                 "anyOf": [
-                  { "$ref": "#/definitions/wholeExpression" },
+                  { "$ref": "#/definitions/computedTransformOptions" },
                   {
                     "type": "object",
                     "required": ["count"],
@@ -384,6 +384,18 @@
         }
       ],
       "additionalProperties": true
+    },
+    "computedTransformOptions": {
+      "description": "A whole expression or switch whose selected result supplies the options object.",
+      "anyOf": [
+        { "$ref": "#/definitions/wholeExpression" },
+        {
+          "type": "object",
+          "required": ["switch"],
+          "anyOf": [{ "required": ["cases"] }, { "required": ["default"] }],
+          "properties": { "cases": { "type": "object" } }
+        }
+      ]
     },
     "uiNodeTemplate": {
       "description": "A UINode template. String fields may contain ${...} interpolation. children/items can be arrays or a forEach template object.",
